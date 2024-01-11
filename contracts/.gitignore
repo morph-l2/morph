@@ -1,0 +1,63 @@
+*artifacts
+*.idea
+.resource-metering.csv
+.storage-layout
+.DS_Store
+node_modules
+results
+temp
+.nyc_output
+coverage.json
+*.tsbuildinfo
+**/lcov.info
+.vscode
+contract-artifacts.ts
+yarn-error.log
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+.pnp.*
+deployFile.json
+
+dist
+artifacts
+cache
+cache-hardhat
+
+l2geth/build/bin
+deployments/custom
+coverage*
+@ens*
+@openzeppelin*
+
+# vim
+*.sw*
+
+# jetbrains
+.idea/
+
+.env
+.env*
+!.env.example
+*.log
+
+.devnet
+
+# Ignore local fuzzing results
+**/testdata/fuzz/
+
+coverage.out
+
+__pycache__
+
+# Ignore echidna artifacts
+crytic-export
+
+# compile
+cache
+abi
+data
+typechain-types
+./src/deployFiles/*
+
+scripts/differential-testing/differential-testing

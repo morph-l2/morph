@@ -1,0 +1,11 @@
+FROM rust:1.70 as builder
+
+COPY ./challenge-handler /challenge-handler
+
+WORKDIR /challenge-handler
+RUN	cargo build --release
+
+FROM ubuntu:22.04 as app
+COPY --from=builder /challenge-handler/target/release/challenge-handler /
+
+CMD ["./challenge-handler"]

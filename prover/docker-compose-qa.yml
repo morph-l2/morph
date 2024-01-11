@@ -1,0 +1,61 @@
+version: '3.4'
+
+services:
+  prover:
+    build:
+      dockerfile: ./Dockerfile.prover
+    image: prover:latest
+    restart: unless-stopped
+    ports:
+      - "3030:3030"
+    command: >
+      ./prover_server
+    environment:
+      - PROVER_L1_RPC=${L1_RPC}
+      - PROVER_L2_RPC=${L2_RPC}
+      - PROVER_PARAMS_DIR=${PARAMS}
+      - PROVER_PROOF_DIR=${PROOF}
+      - COINBASE="0xfabb0ac9d68b0b445fb7357272ff202c5651694a"
+      - SCROLL_PROVER_ASSETS_DIR=${CONFIGS}
+      - GENERATE_EVM_VERIFIER=false
+      - CHAIN_ID=${L2_CHAIN_ID}
+    volumes:
+      - ./configs:${CONFIGS}
+      - ./prove_params:${PARAMS}
+      - ./proof:${PROOF}
+
+  challenge-handler:
+    depends_on:
+      prover:
+        condition: service_started
+    build:
+      dockerfile: ./Dockerfile.handler
+    image: challenge-handler:latest
+    restart: unless-stopped
+    # ports:
+    #   - "6071:6060"
+    command: >
+      ./challenge-handler
+    environment:
+      - HANDLER_L1_RPC=${L1_RPC}
+      - HANDLER_L2_RPC=${L2_RPC}
+      - HANDLER_PROVER_RPC=prover:3030
+      - HANDLER_L1_ROLLUP=${L1_ROLLUP}
+      - CHALLENGE_HANDLER_PRIVATE_KEY=${HANDLER_PRIVATE_KEY}
+
+  # Only used in test scene.
+  challenger:
+    depends_on:
+      challenge-handler:
+        condition: service_started
+    build:
+      dockerfile: ./Dockerfile.challenger
+    image: challenger:latest
+    restart: unless-stopped
+    command: >
+      ./auto_challenge
+    environment:
+      - CHALLENGER_INTERVAL=12
+      - CHALLENGER_L1_RPC=${L1_RPC}
+      - CHALLENGER_L1_ROLLUP=${L1_ROLLUP}
+      - CHALLENGER_PRIVATEKEY=${CHALLENGER_PRIVATEKEY}

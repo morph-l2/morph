@@ -1,0 +1,205 @@
+version: '3.4'
+
+volumes:
+  morph_data_0:
+  morph_data_1:
+  morph_data_2:
+  morph_data_3:
+  node_data_0:
+    driver: local
+    driver_opts:
+      type: none
+      device: '${PWD}/../../mytestnet/node0'
+      o: bind
+
+  node_data_1:
+    driver: local
+    driver_opts:
+      type: none
+      device: '${PWD}/../../mytestnet/node1'
+      o: bind
+  node_data_2:
+    driver: local
+    driver_opts:
+      type: none
+      device: '${PWD}/../../mytestnet/node2'
+      o: bind
+  node_data_3:
+    driver: local
+    driver_opts:
+      type: none
+      device: '${PWD}/../../mytestnet/node3'
+      o: bind
+
+services:
+  morph-geth-0:
+    image: morph/l2geth:latest
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "8551:8551"
+      - "30303"
+    volumes:
+      - "morph_data_0:/db"
+      - "${PWD}/../jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../genesis_geth.json:/genesis.json"
+      - "${PWD}/nodekey:/db/geth/nodekey"
+    entrypoint: # always use this nodekey, in order to keep the encoded node ID the same
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  morph-geth-1:
+    depends_on:
+      - morph-geth-0
+    image: morph/l2geth:latest
+    ports:
+      - "8645:8545"
+      - "8646:8546"
+      - "8651:8551"
+      - "30303"
+    volumes:
+      - "morph_data_1:/db"
+      - "${PWD}/../jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../genesis_geth.json:/genesis.json"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - BOOT_NODES=enode://58e698ea2dd8a76e0cb185d13c1faabf223b60c89fef988c8b89496571056d6c2922109537bb291cd87f2ec09a23ac37d59bde2c7a4885d07b7b641cadff2921@morph-geth-0:30303
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  morph-geth-2:
+    depends_on:
+      - morph-geth-0
+    image: morph/l2geth:latest
+    ports:
+      - "8745:8545"
+      - "8746:8546"
+      - "8751:8551"
+      - "30303"
+    volumes:
+      - "morph_data_2:/db"
+      - "${PWD}/../jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../genesis_geth.json:/genesis.json"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - BOOT_NODES=enode://58e698ea2dd8a76e0cb185d13c1faabf223b60c89fef988c8b89496571056d6c2922109537bb291cd87f2ec09a23ac37d59bde2c7a4885d07b7b641cadff2921@morph-geth-0:30303
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  morph-geth-3:
+    depends_on:
+      - morph-geth-0
+    image: morph/l2geth:latest
+    ports:
+      - "8845:8545"
+      - "8846:8546"
+      - "8851:8551"
+      - "30303"
+    volumes:
+      - "morph_data_3:/db"
+      - "${PWD}/../jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../genesis_geth.json:/genesis.json"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - BOOT_NODES=enode://58e698ea2dd8a76e0cb185d13c1faabf223b60c89fef988c8b89496571056d6c2922109537bb291cd87f2ec09a23ac37d59bde2c7a4885d07b7b641cadff2921@morph-geth-0:30303
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  node-0:
+    depends_on:
+      morph-geth-0:
+        condition: service_started
+    image: morph-node:latest
+    ports:
+      - "26656"
+      - "26657"
+      - "26658"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-0:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000001
+    volumes:
+      - "node_data_0:${NODE_DATA_DIR}"
+      - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --dev-sequencer
+      --home $NODE_DATA_DIR
+
+  node-1:
+    depends_on:
+      morph-geth-1:
+        condition: service_started
+    image: morph-node:latest
+    ports:
+      - "26656"
+      - "26657"
+      - "26658"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-1:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-1:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000001
+    volumes:
+      - "node_data_1:${NODE_DATA_DIR}"
+      - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --dev-sequencer
+      --home $NODE_DATA_DIR
+
+  node-2:
+    depends_on:
+      morph-geth-2:
+        condition: service_started
+    image: morph-node:latest
+    ports:
+      - "26656"
+      - "26657"
+      - "26658"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-2:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-2:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000001
+    volumes:
+      - "node_data_2:${NODE_DATA_DIR}"
+      - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --dev-sequencer
+      --home $NODE_DATA_DIR
+
+  node-3:
+    depends_on:
+      morph-geth-3:
+        condition: service_started
+    image: -node:latest
+    ports:
+      - "26656"
+      - "26657"
+      - "26658"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-3:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-3:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000001
+    volumes:
+      - "node_data_3:${NODE_DATA_DIR}"
+      - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --dev-sequencer
+      --home $NODE_DATA_DIR

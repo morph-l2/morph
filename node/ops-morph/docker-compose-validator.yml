@@ -1,0 +1,40 @@
+version: '3.4'
+
+volumes:
+  validator_node_data:
+
+services:
+
+  validator_node:
+    build:
+      context: ..
+      dockerfile: ./ops-morph/Dockerfile
+    image: morph-node:latest
+    ports:
+      - "26660:26660"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://host.docker.internal:7545
+      - MORPH_NODE_L2_ENGINE_RPC=http://host.docker.internal:7551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+      ## todo need to replace it to a public network
+      - MORPH_NODE_L1_ETH_RPC=http://host.docker.internal:9545
+      - MORPH_NODE_VALIDATOR_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      - MORPH_NODE_ROLLUP_ADDRESS=0xb7f8bc63bbcad18155201308c8f3540b07f84f5e
+      - MORPH_NODE_DERIVATION_START_HEIGHT=1
+      - MORPH_NODE_DERIVATION_FETCH_BLOCK_RANGE=5000
+      - MORPH_NODE_L1_CHAIN_ID=900
+      - MORPH_NODE_VALIDATOR=true
+      - MORPH_NODE_MOCK_SEQUENCER=false
+      - MORPH_NODE_L1_CONFIRMATIONS=1
+      - MORPH_NODE_METRICS_SERVER_ENABLE=true
+      - MORPH_NODE_METRICS_PORT=26660
+      - MORPH_NODE_SYNC_START_HEIGHT=1
+    volumes:
+      - "validator_node_data:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --validator
+      --home $NODE_DATA_DIR
