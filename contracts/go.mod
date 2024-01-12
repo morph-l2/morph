@@ -25,4 +25,4 @@ require (
 	golang.org/x/sys v0.15.0 // indirect
 )
 
-replace github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20230703130045-e554e93a101c
+replace github.com/scroll-tech/go-ethereum => ../l2geth
