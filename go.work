@@ -1,0 +1,10 @@
+go 1.20
+
+use (
+	./bindings
+	./contracts
+	./node
+	./tx-submitter
+)
+
+replace github.com/scroll-tech/go-ethereum => ./l2geth

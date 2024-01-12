@@ -3,8 +3,9 @@ package types
 import (
 	"errors"
 	"fmt"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"math/big"
+
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
 )
 
 var Version1StartedNonce = new(big.Int).SetBytes(hexutil.MustDecode("0x1000000000000000000000000000000000000000000000000000000000000"))

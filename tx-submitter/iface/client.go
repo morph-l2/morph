@@ -2,8 +2,9 @@ package iface
 
 import (
 	"context"
-	"github.com/scroll-tech/go-ethereum/eth"
 	"math/big"
+
+	"github.com/scroll-tech/go-ethereum/eth"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"

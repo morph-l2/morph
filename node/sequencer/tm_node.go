@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/morph-l2/node/core"
+	node "github.com/morph-l2/node/core"
 	"github.com/morph-l2/node/flags"
 	nodetypes "github.com/morph-l2/node/types"
 	"github.com/spf13/viper"

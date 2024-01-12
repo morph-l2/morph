@@ -3,9 +3,10 @@ package common
 import (
 	"context"
 	"fmt"
+	"math/big"
+
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"math/big"
 
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/rpc"

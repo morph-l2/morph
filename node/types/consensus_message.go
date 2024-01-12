@@ -2,8 +2,9 @@ package types
 
 import (
 	"bytes"
-	"github.com/scroll-tech/go-ethereum/core/types"
 	"math/big"
+
+	"github.com/scroll-tech/go-ethereum/core/types"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/rlp"

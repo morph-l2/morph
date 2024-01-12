@@ -3,10 +3,11 @@ package sync
 import (
 	"context"
 	"flag"
-	tmlog "github.com/tendermint/tendermint/libs/log"
 	"math/big"
 	"os"
 	"testing"
+
+	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	"github.com/morph-l2/node/db"
 	"github.com/morph-l2/node/types"

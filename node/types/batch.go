@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 
 	"github.com/scroll-tech/go-ethereum/common"

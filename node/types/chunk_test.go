@@ -1,9 +1,10 @@
 package types
 
 import (
-	"github.com/scroll-tech/go-ethereum/core/types"
 	"math/big"
 	"testing"
+
+	"github.com/scroll-tech/go-ethereum/core/types"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/stretchr/testify/require"

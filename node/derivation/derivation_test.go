@@ -3,14 +3,15 @@ package derivation
 import (
 	"context"
 	"crypto/ecdsa"
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/eth"
 	"math/big"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/morph-l2/bindings/bindings"
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
+	"github.com/scroll-tech/go-ethereum/eth"
 
 	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum"

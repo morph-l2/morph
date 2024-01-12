@@ -75,14 +75,13 @@ require (
 require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
-	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/net v0.17.0 // indirect
 )
 
 replace (
 	github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.20.1-beta
-	github.com/btcsuite/btcd/chaincfg/chainhash => github.com/btcsuite/btcutil/chaincfg/chainhash v1.0.3
 	github.com/scroll-tech/go-ethereum => ../l2geth
 	github.com/tendermint/tendermint => ../tendermint
 )
