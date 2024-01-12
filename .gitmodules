@@ -1,6 +1,0 @@
-[submodule "l2geth"]
-	path = l2geth
-	url = git@github.com:morph-l2/go-ethereum.git
-[submodule "tendermint"]
-	path = tendermint
-	url = git@github.com:morph-l2/tendermint.git
