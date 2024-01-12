@@ -1,0 +1,33 @@
+version: "3.4"
+
+services:
+  tx-submitter:
+    image: morph-tx-submitter:latest
+    container_name: 'morph-tx-submitter'
+    build:
+      context: .
+      dockerfile: Dockerfile.submitter
+    restart: unless-stopped
+    command: tx-submitter
+    environment:
+      - TX_SUBMITTER_BUILD_ENV=dev
+      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+      - TX_SUBMITTER_L1_PRIVATE_KEY=${L1_PRIVATE_KEY}
+      - TX_SUBMITTER_L2_ETH_RPC=${L2_ETH_RPC}
+      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+      - TX_SUBMITTER_MAX_TX_SIZE=125952
+      - TX_SUBMITTER_POLL_INTERVAL=3s
+      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+      - TX_SUBMITTER_TX_TIMEOUT=60s
+      - TX_SUBMITTER_ROLLUP_ADDRESS=${ROLLUP_ADDRESS}
+      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+      - TX_SUBMITTER_METRICS_SERVER_ENABLE=${TX_SUBMITTER_METRICS_SERVER_ENABLE:-true}
+      - TX_SUBMITTER_METRICS_HOSTNAME=${TX_SUBMITTER_METRICS_HOSTNAME:-}
+      - TX_SUBMITTER_METRICS_PORT=${TX_SUBMITTER_METRICS_PORT:-6060}
+      - Tx_SUBMITTER_MAX_BLOCK=1000
+      - TX_SUBMITTER_MIN_BLOCK=50
+    ports:
+      - "6060:6060"
+
+
+

@@ -1,0 +1,47 @@
+version: '3.4'
+
+volumes:
+  sequencer_geth_data_prover:
+  sequencer_node_data_prover:
+
+services:
+  sequencer_geth_prover:
+    image: morph/l2geth:latest
+    ports:
+      - "6688:8545"
+    healthcheck:
+      test: curl -f http://localhost:6688
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - "sequencer_geth_data_prover:${GETH_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+      - "${PWD}/genesis_geth.json:${GENESIS_FILE_PATH}"
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  sequencer_node_prover:
+    depends_on:
+      sequencer_geth_prover:
+        condition: service_started
+    image: morph-node:latest
+    ports:
+      - "21666:26656"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://sequencer_geth_prover:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://sequencer_geth_prover:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      ## todo need to replace it to a public network
+      - MORPH_NODE_L1_ETH_RPC=http://sequencer_geth_prover:8545
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000001
+      ## - MORPH_NODE_SYNC_START_HEIGHT=88854536
+    volumes:
+      - "sequencer_node_data_prover:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --dev-sequencer
+      --home $NODE_DATA_DIR

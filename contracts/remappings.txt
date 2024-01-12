@@ -1,0 +1,4 @@
+@rari-capital/solmate/=node_modules/@rari-capital/solmate/
+@cwia/=node_modules/clones-with-immutable-args/src/
+ds-test/=node_modules/ds-test/src/
+forge-std/=node_modules/forge-std/src/
