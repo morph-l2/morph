@@ -83,6 +83,6 @@
   },
   "dependencies": {
     "@morph-l2/core-utils": "0.0.1",
-    "axios": "^1.4.0"
+    "axios": "^1.6.3"
   }
 }
