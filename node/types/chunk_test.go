@@ -12,7 +12,7 @@ import (
 
 func TestChunks_Append(t *testing.T) {
 	chunks := NewChunks()
-	require.True(t, chunks.IsChunksAppendedWithAddedRc(types.RowConsumption{{"a", 1}}))
+	require.True(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
 
 	blockContext := []byte("123")
 	txPayloads := []byte("abc")
@@ -39,6 +39,7 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, 2, chunks.BlockNum())
 	require.EqualValues(t, 1, chunks.ChunkNum())
 
+	// the 2nd chunk
 	blockContext2 := []byte("789")
 	txPayloads2 := []byte("ghi")
 	txHashes2 := []common.Hash{common.BigToHash(big.NewInt(3))}
@@ -56,6 +57,21 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, 3, chunks.BlockNum())
 	require.EqualValues(t, 2, chunks.ChunkNum())
 	require.EqualValues(t, 2+len(blockContext)+len(blockContext1)+len(blockContext2)+len(txPayloads)+len(txPayloads1)+len(txPayloads2), chunks.size)
+
+	for i := 0; i < 98; i++ {
+		chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
+	}
+	// 99 blocks in 2nd chunk
+	require.EqualValues(t, 2, chunks.ChunkNum())
+	require.False(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	// 100 blocks in 2nd chunk
+	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
+	require.EqualValues(t, 2, chunks.ChunkNum())
+
+	require.True(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	// append chunk to 3 chunks totally
+	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
+	require.EqualValues(t, 3, chunks.ChunkNum())
 }
 
 func TestChunk_accumulateRowUsages(t *testing.T) {

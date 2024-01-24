@@ -39,6 +39,7 @@ github.com/kkdai/bstream v0.0.0-20161212061736-f391b8402d23/go.mod h1:J+Gs4SYgM6
 github.com/leanovate/gopter v0.2.9 h1:fQjYxZaynp97ozCzfOyOuAGOU4aU/z37zf/tOujFk7c=
 github.com/mattn/go-runewidth v0.0.15 h1:UNAjwbU9l54TA3KzvqLGxwWjHmMgBUVhBiTjelZgg3U=
 github.com/morph-l2/go-ethereum v1.10.14-0.20240105030148-da6185c8d1cb h1:Lp02ROE0OnDF36GSaA8lN+kzbQGNK+Nj2cGdZworbuc=
+github.com/morph-l2/go-ethereum v1.10.14-0.20240105030148-da6185c8d1cb/go.mod h1:9BGKc4l0m6qXgfXBGzp1aFHPE3dXzm2fi+rDtXpr8HM=
 github.com/olekukonko/tablewriter v0.0.5 h1:P2Ga83D34wi1o9J6Wh1mRuqd4mF/x/lgBS7N7AbDhec=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
