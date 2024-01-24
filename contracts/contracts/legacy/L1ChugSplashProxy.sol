@@ -62,7 +62,10 @@ contract L1ChugSplashProxy {
             // case that the isUpgrading function returned something other than 0 or 1. But we only
             // really care about the case where this value is 0 (= false).
             uint256 ret = abi.decode(returndata, (uint256));
-            require(ret == 0, "L1ChugSplashProxy: system is currently being upgraded");
+            require(
+                ret == 0,
+                "L1ChugSplashProxy: system is currently being upgraded"
+            );
         }
 
         _;
@@ -137,7 +140,11 @@ contract L1ChugSplashProxy {
         // Deploy the code and set the new implementation address.
         address newImplementation;
         assembly {
-            newImplementation := create(0x0, add(deploycode, 0x20), mload(deploycode))
+            newImplementation := create(
+                0x0,
+                add(deploycode, 0x20),
+                mload(deploycode)
+            )
         }
 
         // Check that the code was actually deployed correctly. I'm not sure if you can ever
@@ -159,7 +166,10 @@ contract L1ChugSplashProxy {
      * @param _key   Storage key to modify.
      * @param _value New value for the storage key.
      */
-    function setStorage(bytes32 _key, bytes32 _value) external proxyCallIfNotOwner {
+    function setStorage(
+        bytes32 _key,
+        bytes32 _value
+    ) external proxyCallIfNotOwner {
         assembly {
             sstore(_key, _value)
         }
@@ -190,7 +200,11 @@ contract L1ChugSplashProxy {
      *
      * @return Implementation address.
      */
-    function getImplementation() external proxyCallIfNotOwner returns (address) {
+    function getImplementation()
+        external
+        proxyCallIfNotOwner
+        returns (address)
+    {
         return _getImplementation();
     }
 
@@ -222,14 +236,24 @@ contract L1ChugSplashProxy {
     function _doProxyCall() internal onlyWhenNotPaused {
         address implementation = _getImplementation();
 
-        require(implementation != address(0), "L1ChugSplashProxy: implementation is not set yet");
+        require(
+            implementation != address(0),
+            "L1ChugSplashProxy: implementation is not set yet"
+        );
 
         assembly {
             // Copy calldata into memory at 0x0....calldatasize.
             calldatacopy(0x0, 0x0, calldatasize())
 
             // Perform the delegatecall, make sure to pass all available gas.
-            let success := delegatecall(gas(), implementation, 0x0, calldatasize(), 0x0, 0x0)
+            let success := delegatecall(
+                gas(),
+                implementation,
+                0x0,
+                calldatasize(),
+                0x0,
+                0x0
+            )
 
             // Copy returndata into memory at 0x0....returndatasize. Note that this *will*
             // overwrite the calldata that we just copied into memory but that doesn't really
@@ -279,7 +303,9 @@ contract L1ChugSplashProxy {
      *
      * @return Code hash for the account.
      */
-    function _getAccountCodeHash(address _account) internal view returns (bytes32) {
+    function _getAccountCodeHash(
+        address _account
+    ) internal view returns (bytes32) {
         bytes32 codeHash;
         assembly {
             codeHash := extcodehash(_account)

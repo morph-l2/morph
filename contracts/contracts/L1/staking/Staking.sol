@@ -4,10 +4,9 @@ pragma solidity =0.8.16;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Types} from "../../libraries/Types.sol";
-import {L2Sequencer} from "../../L2/L2Sequencer.sol";
-import {Encoding} from "../../libraries/Encoding.sol";
+import {Types} from "../../libraries/common/Types.sol";
 import {IL1Sequencer} from "./IL1Sequencer.sol";
+import {IL2Sequencer} from "../../L2/staking/IL2Sequencer.sol";
 
 contract Staking is Initializable, OwnableUpgradeable {
     // Staker info
@@ -357,7 +356,7 @@ contract Staking is Initializable, OwnableUpgradeable {
     /**
      * @notice update sequencer set
      */
-    function updateSequencers(uint32 _minGasLimit) internal {
+    function updateSequencers(uint32 _gasLimit) internal {
         delete sequencers;
 
         uint256 sequencersCount = sequencersSize;
@@ -379,7 +378,7 @@ contract Staking is Initializable, OwnableUpgradeable {
 
         // abi encode updateSequencers data
         bytes memory data = abi.encodeWithSelector(
-            L2Sequencer.updateSequencers.selector,
+            IL2Sequencer.updateSequencers.selector,
             // Because this call will be executed on the remote chain, we reverse the order of
             // the remote and local token addresses relative to their order in the
             // updateSequencers function.
@@ -389,7 +388,8 @@ contract Staking is Initializable, OwnableUpgradeable {
         IL1Sequencer(sequencerContract).updateAndSendSequencerSet(
             data,
             sequencers,
-            _minGasLimit
+            _gasLimit,
+            _msgSender()
         );
 
         emit SequencerUpdated(

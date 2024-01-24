@@ -1,27 +1,52 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
-import "./CommonTest.t.sol";
-import "forge-std/console.sol";
-import {Rollup} from "../L1/Rollup.sol";
-import {IRollup} from "../L1/IRollup.sol";
 import {ChunkCodec} from "../libraries/codec/ChunkCodec.sol";
+import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
+import {Rollup} from "../L1/rollup/Rollup.sol";
+import {IRollup} from "../L1/rollup/IRollup.sol";
 
-contract Rollup_Test is Portal_Initializer {
+contract RollupTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
-    bytes32 public l1MessagerIndex = bytes32(uint256(55));
+    bytes32 public l1MessagerIndex = bytes32(uint256(101));
+    bytes32 stateRoot = bytes32(uint256(1));
+
+    IRollup.BatchData public batchData;
+    IRollup.BatchSignature public nilBatchSig;
+
+    event UpdateSequencer(address indexed account, bool status);
+    event CommitBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
+    event RevertBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
+    event UpdateProver(address indexed account, bool status);
+    event UpdateVerifier(
+        address indexed oldVerifier,
+        address indexed newVerifier
+    );
+    event UpdateMaxNumTxInChunk(
+        uint256 oldMaxNumTxInChunk,
+        uint256 newMaxNumTxInChunk
+    );
+
+    function setUp() public virtual override {
+        super.setUp();
+        nilBatchSig = IRollup.BatchSignature({
+            version: 0,
+            signers: new uint256[](0),
+            signature: hex"123456"
+        });
+    }
 
     function test_stake_withdraw() external {
-        assertEq(true, rollup.isSequencer(alice));
-        assertEq(true, rollup.isProver(alice));
-        assertEq(false, rollup.isChallenger(alice));
+        assertTrue(rollup.isSequencer(alice));
+        assertTrue(rollup.isProver(alice));
+        assertFalse(rollup.isChallenger(alice));
 
-        assertEq(false, rollup.isSequencer(bob));
-        assertEq(true, rollup.isProver(bob));
-        assertEq(true, rollup.isChallenger(bob));
+        assertFalse(rollup.isSequencer(bob));
+        assertTrue(rollup.isProver(bob));
+        assertTrue(rollup.isChallenger(bob));
 
-        vm.deal(alice, 5 * MIN_DEPOSIT);
-        vm.startPrank(alice);
+        hevm.deal(alice, 5 * MIN_DEPOSIT);
+        hevm.startPrank(alice);
         rollup.stake{value: MIN_DEPOSIT}();
         assertEq(MIN_DEPOSIT, rollup.deposits(alice));
 
@@ -31,52 +56,57 @@ contract Rollup_Test is Portal_Initializer {
 
     function testAddAndRemoveSequencer(address _sequencer) public {
         // set by non-owner, should revert
-        vm.startPrank(address(1));
-        vm.expectRevert("Ownable: caller is not the owner");
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
         rollup.addSequencer(_sequencer);
-        vm.expectRevert("Ownable: caller is not the owner");
+        hevm.expectRevert("Ownable: caller is not the owner");
         rollup.removeSequencer(_sequencer);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // change to random EOA operator
-        vm.expectEmit(true, false, false, true);
+        hevm.expectEmit(true, false, false, true);
         emit UpdateSequencer(_sequencer, true);
 
-        assertEq(rollup.isSequencer(_sequencer), false);
-        vm.prank(multisig);
+        assertFalse(rollup.isSequencer(_sequencer));
+        hevm.prank(multisig);
         rollup.addSequencer(_sequencer);
-        assertEq(rollup.isSequencer(_sequencer), true);
+        assertTrue(rollup.isSequencer(_sequencer));
 
-        vm.expectEmit(true, false, false, true);
+        hevm.expectEmit(true, false, false, true);
         emit UpdateSequencer(_sequencer, false);
-        vm.prank(multisig);
+        hevm.prank(multisig);
         rollup.removeSequencer(_sequencer);
-        assertEq(rollup.isSequencer(_sequencer), false);
+        assertFalse(rollup.isSequencer(_sequencer));
     }
 
     function test_stake_revertCallerNotSequencer() external {
         // bob submit batch: revert with caller not sequencer
-        assertEq(true, rollup.isSequencer(alice));
-        assertEq(false, rollup.isSequencer(bob));
-        vm.deal(bob, 5 * MIN_DEPOSIT);
-        vm.startPrank(bob);
-        vm.expectRevert("caller not sequencer");
+        assertTrue(rollup.isSequencer(alice));
+        assertFalse(rollup.isSequencer(bob));
+        hevm.deal(bob, 5 * MIN_DEPOSIT);
+        hevm.startPrank(bob);
+        hevm.expectRevert("caller not sequencer");
         rollup.stake{value: MIN_DEPOSIT}();
-        vm.stopPrank();
+        hevm.stopPrank();
     }
 
     function test_comitBatchs() external {
-        vm.prank(multisig);
+        hevm.prank(multisig);
         rollup.addSequencer(address(0));
-        vm.deal(address(0), 5 * MIN_DEPOSIT);
-        vm.prank(address(0));
+        hevm.deal(address(0), 5 * MIN_DEPOSIT);
+        hevm.prank(address(0));
         rollup.stake{value: MIN_DEPOSIT}();
 
         bytes memory batchHeader0 = new bytes(89);
-        bytes32 stateRoot = bytes32(uint256(1));
+
         // import 10 L1 messages
         for (uint256 i = 0; i < 10; i++) {
-            L1Messenger.sendMessage(address(this), new bytes(0), 1000000);
+            l1CrossDomainMessenger.sendMessage(
+                address(this),
+                0,
+                new bytes(0),
+                1000000
+            );
         }
 
         // import genesis batch first
@@ -89,8 +119,8 @@ contract Rollup_Test is Portal_Initializer {
             getTreeRoot()
         );
         // caller not sequencer, revert
-        vm.expectRevert("caller not sequencer");
-        IRollup.BatchData memory batchData = IRollup.BatchData(
+        hevm.expectRevert("caller not sequencer");
+        batchData = IRollup.BatchData(
             0,
             batchHeader0,
             new bytes[](0),
@@ -103,8 +133,8 @@ contract Rollup_Test is Portal_Initializer {
         rollup.commitBatch(batchData, minGasLimit);
 
         // invalid version, revert
-        vm.startPrank(address(0));
-        vm.expectRevert("invalid version");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("invalid version");
         batchData = IRollup.BatchData(
             1,
             batchHeader0,
@@ -116,11 +146,11 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // batch is empty, revert
-        vm.startPrank(address(0));
-        vm.expectRevert("batch is empty");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("batch is empty");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -132,11 +162,11 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // batch header length too small, revert
-        vm.startPrank(address(0));
-        vm.expectRevert("batch header length too small");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("batch header length too small");
         batchData = IRollup.BatchData(
             0,
             new bytes(88),
@@ -148,11 +178,11 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // wrong bitmap length, revert
-        vm.startPrank(address(0));
-        vm.expectRevert("wrong bitmap length");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("wrong bitmap length");
         batchData = IRollup.BatchData(
             0,
             new bytes(90),
@@ -164,14 +194,14 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // incorrect parent batch hash, revert
         assembly {
             mstore(add(batchHeader0, add(0x20, 25)), 2) // change data hash for batch0
         }
-        vm.startPrank(address(0));
-        vm.expectRevert("incorrect parent batch hash");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("incorrect parent batch hash");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -183,7 +213,7 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
         assembly {
             mstore(add(batchHeader0, add(0x20, 25)), 1) // change back
         }
@@ -193,8 +223,8 @@ contract Rollup_Test is Portal_Initializer {
         // no block in chunk, revert
         chunk0 = new bytes(1);
         chunks[0] = chunk0;
-        vm.startPrank(address(0));
-        vm.expectRevert("no block in chunk");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("no block in chunk");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -206,14 +236,14 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // invalid chunk length, revert
         chunk0 = new bytes(1);
         chunk0[0] = bytes1(uint8(1)); // one block in this chunk
         chunks[0] = chunk0;
-        vm.startPrank(address(0));
-        vm.expectRevert("invalid chunk length");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("invalid chunk length");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -225,7 +255,7 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // cannot skip last L1 message, revert
         chunk0 = new bytes(1 + 60);
@@ -235,8 +265,8 @@ contract Rollup_Test is Portal_Initializer {
         chunk0[60] = bytes1(uint8(1)); // numL1Messages = 1
         bitmap[31] = bytes1(uint8(1));
         chunks[0] = chunk0;
-        vm.startPrank(address(0));
-        vm.expectRevert("cannot skip last L1 message");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("cannot skip last L1 message");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -248,7 +278,7 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // num txs less than num L1 msgs, revert
         chunk0 = new bytes(1 + 60);
@@ -258,8 +288,8 @@ contract Rollup_Test is Portal_Initializer {
         chunk0[60] = bytes1(uint8(3)); // numL1Messages = 3
         bitmap[31] = bytes1(uint8(3));
         chunks[0] = chunk0;
-        vm.startPrank(address(0));
-        vm.expectRevert("num txs less than num L1 msgs");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("num txs less than num L1 msgs");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -271,14 +301,14 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // incomplete l2 transaction data, revert
         chunk0 = new bytes(1 + 60 + 1);
         chunk0[0] = bytes1(uint8(1)); // one block in this chunk
         chunks[0] = chunk0;
-        vm.startPrank(address(0));
-        vm.expectRevert("incomplete l2 transaction data");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("incomplete l2 transaction data");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -290,13 +320,13 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // commit batch with one chunk, no tx, correctly
         chunk0 = new bytes(1 + 60);
         chunk0[0] = bytes1(uint8(1)); // one block in this chunk
         chunks[0] = chunk0;
-        vm.startPrank(address(0));
+        hevm.startPrank(address(0));
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -307,13 +337,14 @@ contract Rollup_Test is Portal_Initializer {
             getTreeRoot(),
             nilBatchSig
         );
+        hevm.deal(address(0), 10 ether);
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
         assertGt(uint256(rollup.committedBatches(1)), 0);
 
         // batch is already committed, revert
-        vm.startPrank(address(0));
-        vm.expectRevert("batch already committed");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("batch already committed");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -325,43 +356,47 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
     }
 
     function testFinalizeBatchs() public {
         rollup.finalizeBatchs();
     }
 
+    // 0xa2277fd30bbbe74323309023b56035b376d7768ad237ae4fc46ead7dc9591ae1
+
     function testCommitAndFinalizeWithL1Messages() public {
-        vm.prank(multisig);
+        hevm.prank(multisig);
         rollup.addSequencer(address(0));
-        vm.deal(address(0), 5 * MIN_DEPOSIT);
-        vm.prank(address(0));
+        hevm.deal(address(0), 5 * MIN_DEPOSIT);
+        hevm.prank(address(0));
         rollup.stake{value: MIN_DEPOSIT}();
 
-        // update portal l1Messager to caller
-        vm.store(
-            address(portal),
+        // update l1MessageQueue l1Messager to caller
+        hevm.store(
+            address(l1MessageQueue),
             bytes32(l1MessagerIndex),
             bytes32(abi.encode(caller))
         );
-        vm.deal(caller, 5 * MIN_DEPOSIT);
-        vm.startPrank(caller);
+        hevm.deal(caller, 5 * MIN_DEPOSIT);
+        hevm.startPrank(caller);
 
         bytes memory batchHeader0 = new bytes(89);
-        bytes32 stateRoot = bytes32(uint256(1));
 
         // import 300 L1 messages
         for (uint256 i = 0; i < 300; i++) {
-            portal.depositTransaction(caller, 0, 1000000, false, new bytes(0));
-            vm.roll(block.number + 1);
+            l1MessageQueue.appendCrossDomainMessage(
+                address(caller),
+                1000000,
+                new bytes(0)
+            );
         }
-        vm.stopPrank();
-        
-        vm.store(
-            address(portal),
+        hevm.stopPrank();
+
+        hevm.store(
+            address(l1MessageQueue),
             bytes32(l1MessagerIndex),
-            bytes32(abi.encode(address(L1Messenger)))
+            bytes32(abi.encode(address(l1CrossDomainMessenger)))
         );
 
         // import genesis batch first
@@ -424,15 +459,15 @@ contract Rollup_Test is Portal_Initializer {
         chunks = new bytes[](1);
         chunks[0] = chunk0;
         bitmap = new bytes(32);
-        vm.startPrank(address(0));
-        vm.expectEmit(true, true, false, true);
+        hevm.startPrank(address(0));
+        hevm.expectEmit(true, true, false, true);
         emit CommitBatch(
             1,
             bytes32(
                 0x00847173b29b238cf319cde79512b7c213e5a8b4138daa7051914c4592b6dfc7
             )
         );
-        IRollup.BatchData memory batchData = IRollup.BatchData(
+        batchData = IRollup.BatchData(
             0,
             batchHeader0,
             chunks,
@@ -443,9 +478,9 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        hevm.stopPrank();
 
-        assertEq(rollup.isBatchFinalized(1), false);
+        assertFalse(rollup.isBatchFinalized(1));
         bytes32 batchHash1 = rollup.committedBatches(1);
         assertEq(
             batchHash1,
@@ -455,14 +490,14 @@ contract Rollup_Test is Portal_Initializer {
         );
 
         // finalize batch1
-        vm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS() + 1);
+        hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS() + 1);
         rollup.finalizeBatchs();
-        assertEq(rollup.isBatchFinalized(1), true);
+        assertTrue(rollup.isBatchFinalized(1));
         assertEq(rollup.finalizedStateRoots(1), stateRoot);
         assertEq(rollup.withdrawalRoots(bytes32(uint256(3))), 1);
         assertEq(rollup.lastFinalizedBatchIndex(), 1);
-        assertEq(portal.isMessageSkipped(0), false);
-        assertEq(portal.pendingQueueIndex(), 1);
+        assertFalse(l1MessageQueue.isMessageSkipped(0));
+        assertEq(l1MessageQueue.pendingQueueIndex(), 1);
 
         // commit batch2 with two chunks, correctly
         // 1. chunk0 has one block, 3 tx, no L1 messages
@@ -566,10 +601,10 @@ contract Rollup_Test is Portal_Initializer {
         }
 
         // too many txs in one chunk, revert
-        vm.prank(multisig);
+        hevm.prank(multisig);
         rollup.updateMaxNumTxInChunk(2);
-        vm.startPrank(address(0));
-        vm.expectRevert("too many txs in one chunk");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("too many txs in one chunk");
         batchData = IRollup.BatchData(
             0,
             batchHeader1,
@@ -582,11 +617,11 @@ contract Rollup_Test is Portal_Initializer {
         );
         rollup.commitBatch(batchData, minGasLimit); // first chunk with too many txs
 
-        vm.stopPrank();
-        vm.prank(multisig);
+        hevm.stopPrank();
+        hevm.prank(multisig);
         rollup.updateMaxNumTxInChunk(10);
-        vm.startPrank(address(0));
-        vm.expectRevert("too many txs in one chunk");
+        hevm.startPrank(address(0));
+        hevm.expectRevert("too many txs in one chunk");
         batchData = IRollup.BatchData(
             0,
             batchHeader1,
@@ -598,12 +633,12 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit); // second chunk with too many txs
-        vm.stopPrank();
+        hevm.stopPrank();
 
-        vm.prank(multisig);
+        hevm.prank(multisig);
         rollup.updateMaxNumTxInChunk(186);
-        vm.startPrank(address(0));
-        vm.expectEmit(true, true, false, true);
+        hevm.startPrank(address(0));
+        hevm.expectEmit(true, true, false, true);
         emit CommitBatch(
             2,
             bytes32(
@@ -621,8 +656,8 @@ contract Rollup_Test is Portal_Initializer {
             nilBatchSig
         );
         rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
-        assertEq(rollup.isBatchFinalized(2), false);
+        hevm.stopPrank();
+        assertFalse(rollup.isBatchFinalized(2));
         bytes32 batchHash2 = rollup.committedBatches(2);
         assertEq(
             batchHash2,
@@ -632,57 +667,54 @@ contract Rollup_Test is Portal_Initializer {
         );
 
         // verify committed batch correctly
-        vm.startPrank(address(0));
-        vm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS());
+        hevm.startPrank(address(0));
+        hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS());
         rollup.finalizeBatchs();
-        vm.stopPrank();
+        hevm.stopPrank();
 
-        assertEq(rollup.isBatchFinalized(2), true);
+        assertTrue(rollup.isBatchFinalized(2));
         assertEq(rollup.finalizedStateRoots(2), stateRoot);
         assertEq(rollup.withdrawalRoots(bytes32(uint256(5))), 2);
         assertEq(rollup.lastFinalizedBatchIndex(), 2);
-        assertEq(portal.pendingQueueIndex(), 265);
+        assertEq(l1MessageQueue.pendingQueueIndex(), 265);
         // 1 ~ 4, zero
         for (uint256 i = 1; i < 4; i++) {
-            assertEq(portal.isMessageSkipped(i), false);
+            assertFalse(l1MessageQueue.isMessageSkipped(i));
         }
         // 4 ~ 9, even is nonzero, odd is zero
         for (uint256 i = 4; i < 9; i++) {
             if (i % 2 == 1 || i == 8) {
-                assertEq(portal.isMessageSkipped(i), false);
+                assertFalse(l1MessageQueue.isMessageSkipped(i));
             } else {
-                assertEq(portal.isMessageSkipped(i), true);
+                assertTrue(l1MessageQueue.isMessageSkipped(i));
             }
         }
         // 9 ~ 265, even is nonzero, odd is zero
         for (uint256 i = 9; i < 265; i++) {
             if (i % 2 == 1 || i == 264) {
-                assertEq(portal.isMessageSkipped(i), false);
+                assertFalse(l1MessageQueue.isMessageSkipped(i));
             } else {
-                assertEq(portal.isMessageSkipped(i), true);
+                assertTrue(l1MessageQueue.isMessageSkipped(i));
             }
         }
     }
-}
 
-contract Rollup_Rollup_Test is Portal_Initializer {
-    uint64 public preSubmitNum = 5;
-    uint64 public challengeBatchIndex = 3;
+    function testRevertBatch() public {
+        // caller not owner, revert
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
+        rollup.revertBatch(new bytes(89), 1);
+        hevm.stopPrank();
 
-    function setUp() public virtual override {
-        super.setUp();
-        vm.prank(multisig);
+        hevm.startPrank(multisig);
         rollup.addSequencer(address(0));
-        vm.deal(address(0), 5 * MIN_DEPOSIT);
-        vm.prank(address(0));
-        rollup.stake{value: MIN_DEPOSIT}();
+        hevm.deal(address(0), 10 ether);
+
+        hevm.stopPrank();
+
         bytes memory batchHeader0 = new bytes(89);
-        bytes32 stateRoot = bytes32(uint256(1));
-        // import 10 L1 messages
-        for (uint256 i = 0; i < 10; i++) {
-            L1Messenger.sendMessage(address(this), new bytes(0), 1000000);
-        }
-        // import genesis batch first
+
+        // import genesis batch
         assembly {
             mstore(add(batchHeader0, add(0x20, 25)), 1)
         }
@@ -691,175 +723,302 @@ contract Rollup_Rollup_Test is Portal_Initializer {
             bytes32(uint256(1)),
             getTreeRoot()
         );
+        bytes32 batchHash0 = rollup.committedBatches(0);
 
         bytes[] memory chunks = new bytes[](1);
         bytes memory chunk0;
-        // commit batch with one chunk, no tx, correctly
-        chunk0 = new bytes(1 + 60 + 3 * 5);
-        assembly {
-            mstore(add(chunk0, 0x20), shl(248, 1)) // numBlocks = 1
-            mstore(add(chunk0, add(0x21, 0)), shl(192, 123)) // blockNumber = 123
-            mstore(add(chunk0, add(0x21, 56)), shl(240, 3)) // numTransactions = 3
-            mstore(add(chunk0, add(0x21, 58)), shl(240, 0)) // numL1Messages = 0
-        }
-        for (uint256 i = 0; i < 3; i++) {
-            assembly {
-                mstore(add(chunk0, add(93, mul(i, 5))), shl(224, 1)) // tx = "0x00"
-            }
-        }
+
+        // commit one batch
+        chunk0 = new bytes(1 + 60);
+        chunk0[0] = bytes1(uint8(1)); // one block in this chunk
         chunks[0] = chunk0;
-        vm.startPrank(address(0));
-        IRollup.BatchData memory batchData = IRollup.BatchData(
+        hevm.startPrank(address(0));
+        rollup.stake{value: MIN_DEPOSIT}();
+        batchData = IRollup.BatchData(
             0,
             batchHeader0,
             chunks,
             new bytes(0),
             stateRoot,
             stateRoot,
-            getTreeRoot(),
+            bytes32(uint256(4)),
             nilBatchSig
         );
-        rollup.commitBatch(batchData, minGasLimit);
-        vm.stopPrank();
+        rollup.commitBatch(batchData, minGasLimit); // first chunk with too many txs
+        hevm.stopPrank();
+
+        bytes memory batchHeader1 = new bytes(89);
+        assembly {
+            mstore(add(batchHeader1, 0x20), 0) // version
+            mstore(add(batchHeader1, add(0x20, 1)), shl(192, 1)) // batchIndex
+            mstore(add(batchHeader1, add(0x20, 9)), 0) // l1MessagePopped
+            mstore(add(batchHeader1, add(0x20, 17)), 0) // totalL1MessagePopped
+            mstore(
+                add(batchHeader1, add(0x20, 25)),
+                0x246394445f4fe64ed5598554d55d1682d6fb3fe04bf58eb54ef81d1189fafb51
+            ) // dataHash
+            mstore(add(batchHeader1, add(0x20, 57)), batchHash0) // parentBatchHash
+        }
+
+        // commit another batch
+        hevm.startPrank(address(0));
+        batchData = IRollup.BatchData(
+            0,
+            batchHeader1,
+            chunks,
+            new bytes(0),
+            stateRoot,
+            stateRoot,
+            bytes32(uint256(4)),
+            nilBatchSig
+        );
+        rollup.commitBatch(batchData, minGasLimit); // first chunk with too many txs
+        hevm.stopPrank();
+
+        hevm.startPrank(multisig);
+        // count must be nonzero, revert
+        hevm.expectRevert("count must be nonzero");
+        rollup.revertBatch(batchHeader0, 0);
+
+        // incorrect batch hash, revert
+        hevm.expectRevert("incorrect batch hash");
+        batchHeader1[0] = bytes1(uint8(1)); // change version to 1
+        rollup.revertBatch(batchHeader1, 1);
+        batchHeader1[0] = bytes1(uint8(0)); // change back
+
+        // revert middle batch, revert
+        hevm.expectRevert("reverting must start from the ending");
+        rollup.revertBatch(batchHeader1, 1);
+
+        // can only revert unfinalized batch, revert
+        hevm.expectRevert("can only revert unfinalized batch");
+        rollup.revertBatch(batchHeader0, 3);
+
+        // succeed to revert next two pending batches.
+
+        hevm.expectEmit(true, true, false, true);
+        emit RevertBatch(1, rollup.committedBatches(1));
+        hevm.expectEmit(true, true, false, true);
+        emit RevertBatch(2, rollup.committedBatches(2));
+
         assertGt(uint256(rollup.committedBatches(1)), 0);
-        assertEq(rollup.latestL2BlockNumber(), 123);
+        assertGt(uint256(rollup.committedBatches(2)), 0);
+        rollup.revertBatch(batchHeader1, 2);
+        assertEq(uint256(rollup.committedBatches(1)), 0);
+        assertEq(uint256(rollup.committedBatches(2)), 0);
+        hevm.stopPrank();
     }
 
-    function test_challenge_revert() external {
-        vm.deal(alice, 5 * MIN_DEPOSIT);
-        vm.startPrank(alice);
-        rollup.stake{value: MIN_DEPOSIT}();
-        // rollup.submitBatches(batches);
-        vm.stopPrank();
-        uint64 wrongIndex = 2;
-        uint64 challengeIndex = 1;
-        // bob challenge batch 1 : revert with batch not exist
-        vm.prank(bob);
-        vm.deal(bob, 5 * MIN_DEPOSIT);
-        vm.expectRevert("batch not exist");
-        rollup.challengeState{value: MIN_DEPOSIT}(wrongIndex);
-        // chloe challenge batch 0 : revert with caller not challenger
-        address chloe = address(1024);
-        vm.deal(chloe, 5 * MIN_DEPOSIT);
-        vm.expectRevert("caller not challenger");
-        vm.prank(chloe);
-        rollup.challengeState{value: MIN_DEPOSIT}(wrongIndex);
-        // bob challenge btach 0 twice: revert with already has challenge
-        vm.prank(bob);
-        rollup.challengeState{value: MIN_DEPOSIT}(challengeIndex);
-        vm.expectRevert("already has challenge");
-        // bob challenge state batch 1
-        vm.prank(bob);
-        rollup.challengeState{value: MIN_DEPOSIT}(challengeIndex);
-
-        // prove time out
-        vm.prank(alice);
-        (, , , uint256 startTime_, ) = rollup.challenges(challengeIndex);
-        vm.warp(startTime_ + PROOF_WINDOW + 1);
-        vm.prank(bob);
-        vm.expectEmit(true, true, true, true);
-        emit ChallengeRes(challengeIndex, bob, "timeout");
-        rollup.proveState(challengeIndex, "");
-    }
-
-    function testAddAndRemoveProver() public {
-        address _prover = address(1234567);
+    function testAddAndRemoveProver(address _prover) public {
         // set by non-owner, should revert
-        vm.startPrank(address(1));
-        vm.expectRevert("Ownable: caller is not the owner");
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
         rollup.addProver(_prover);
-        vm.expectRevert("Ownable: caller is not the owner");
+        hevm.expectRevert("Ownable: caller is not the owner");
         rollup.removeProver(_prover);
-        vm.stopPrank();
+        hevm.stopPrank();
+
+        hevm.startPrank(multisig);
+        hevm.expectRevert("not EOA");
+        rollup.addProver(address(this));
+        hevm.assume(_prover.code.length == 0);
 
         // change to random EOA operator
-        vm.expectEmit(true, false, false, true);
+        hevm.expectEmit(true, false, false, true);
         emit UpdateProver(_prover, true);
 
-        assertEq(rollup.isProver(_prover), false);
-        vm.prank(multisig);
+        assertBoolEq(rollup.isProver(_prover), false);
         rollup.addProver(_prover);
-        assertEq(rollup.isProver(_prover), true);
+        assertBoolEq(rollup.isProver(_prover), true);
 
-        vm.expectEmit(true, false, false, true);
+        hevm.expectEmit(true, false, false, true);
         emit UpdateProver(_prover, false);
-        vm.prank(multisig);
         rollup.removeProver(_prover);
-        assertEq(rollup.isProver(_prover), false);
+        assertBoolEq(rollup.isProver(_prover), false);
+        hevm.stopPrank();
     }
 
     function testSetPause() external {
-        vm.startPrank(multisig);
+        hevm.prank(multisig);
+        rollup.transferOwnership(address(this));
         rollup.addSequencer(address(0));
         rollup.addProver(address(0));
-        vm.stopPrank();
 
         // not owner, revert
-        vm.startPrank(address(1));
-        vm.expectRevert("Ownable: caller is not the owner");
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
         rollup.setPause(false);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // pause
-        vm.prank(multisig);
         rollup.setPause(true);
-        assertEq(true, rollup.paused());
+        assertBoolEq(true, rollup.paused());
 
-        vm.startPrank(address(0));
-        vm.expectRevert("Pausable: paused");
-        bytes memory batchHeader0 = new bytes(89);
-        bytes32 stateRoot = bytes32(uint256(1));
-        IRollup.BatchData memory batchData = IRollup.BatchData(
+        hevm.startPrank(address(0));
+        hevm.expectRevert("Pausable: paused");
+        batchData = IRollup.BatchData(
             0,
-            batchHeader0,
+            new bytes(0),
             new bytes[](0),
             new bytes(0),
             stateRoot,
             stateRoot,
-            getTreeRoot(),
+            bytes32(uint256(4)),
             nilBatchSig
         );
-        rollup.commitBatch(batchData, minGasLimit);
-        vm.expectRevert("Pausable: paused");
+        rollup.commitBatch(batchData, minGasLimit); // first chunk with too many txs
+
+        hevm.expectRevert("Pausable: paused");
         rollup.finalizeBatchs();
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // unpause
-        vm.prank(multisig);
         rollup.setPause(false);
-        assertEq(false, rollup.paused());
+        assertBoolEq(false, rollup.paused());
     }
 
     function testUpdateVerifier(address _newVerifier) public {
+        hevm.prank(multisig);
+        rollup.transferOwnership(address(this));
         // set by non-owner, should revert
-        vm.startPrank(address(1));
-        vm.expectRevert("Ownable: caller is not the owner");
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
         rollup.updateVerifier(_newVerifier);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // change to random operator
-        vm.expectEmit(true, true, false, true);
+        hevm.expectEmit(true, true, false, true);
         emit UpdateVerifier(address(verifier), _newVerifier);
 
         assertEq(rollup.verifier(), address(verifier));
-        vm.prank(multisig);
         rollup.updateVerifier(_newVerifier);
         assertEq(rollup.verifier(), _newVerifier);
     }
 
     function testUpdateMaxNumTxInChunk(uint256 _maxNumTxInChunk) public {
+        hevm.prank(multisig);
+        rollup.transferOwnership(address(this));
         // set by non-owner, should revert
-        vm.startPrank(address(1));
-        vm.expectRevert("Ownable: caller is not the owner");
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
         rollup.updateMaxNumTxInChunk(_maxNumTxInChunk);
-        vm.stopPrank();
+        hevm.stopPrank();
 
         // change to random operator
-        vm.expectEmit(false, false, false, true);
-        emit UpdateMaxNumTxInChunk(rollup.maxNumTxInChunk(), _maxNumTxInChunk);
+        hevm.expectEmit(false, false, false, true);
+        emit UpdateMaxNumTxInChunk(10, _maxNumTxInChunk);
 
-        vm.prank(multisig);
+        assertEq(rollup.maxNumTxInChunk(), 10);
         rollup.updateMaxNumTxInChunk(_maxNumTxInChunk);
         assertEq(rollup.maxNumTxInChunk(), _maxNumTxInChunk);
+    }
+
+    function testImportGenesisBlock() public {
+        bytes memory batchHeader;
+
+        // zero state root, revert
+        batchHeader = new bytes(89);
+        hevm.expectRevert("zero state root");
+        rollup.importGenesisBatch(batchHeader, bytes32(0), getTreeRoot());
+
+        // batch header length too small, revert
+        batchHeader = new bytes(88);
+        hevm.expectRevert("batch header length too small");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        // wrong bitmap length, revert
+        batchHeader = new bytes(90);
+        hevm.expectRevert("wrong bitmap length");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        // not all fields are zero, revert
+        batchHeader = new bytes(89);
+        batchHeader[0] = bytes1(uint8(1)); // version not zero
+        hevm.expectRevert("not all fields are zero");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        batchHeader = new bytes(89);
+        batchHeader[1] = bytes1(uint8(1)); // batchIndex not zero
+        hevm.expectRevert("not all fields are zero");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        batchHeader = new bytes(89 + 32);
+        assembly {
+            mstore(add(batchHeader, add(0x20, 9)), shl(192, 1)) // l1MessagePopped not zero
+        }
+        hevm.expectRevert("not all fields are zero");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        batchHeader = new bytes(89);
+        batchHeader[17] = bytes1(uint8(1)); // totalL1MessagePopped not zero
+        hevm.expectRevert("not all fields are zero");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        // zero data hash, revert
+        batchHeader = new bytes(89);
+        hevm.expectRevert("zero data hash");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        // nonzero parent batch hash, revert
+        batchHeader = new bytes(89);
+        batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
+        batchHeader[57] = bytes1(uint8(1)); // parentBatchHash not zero
+        hevm.expectRevert("nonzero parent batch hash");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        // import correctly
+        batchHeader = new bytes(89);
+        batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
+        assertEq(rollup.finalizedStateRoots(0), bytes32(0));
+        assertEq(rollup.withdrawalRoots(0), 0);
+        assertEq(rollup.committedBatches(0), bytes32(0));
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+        assertEq(rollup.finalizedStateRoots(0), bytes32(uint256(1)));
+        assertEq(rollup.withdrawalRoots(0), 0);
+        assertGt(uint256(rollup.committedBatches(0)), 0);
+
+        // Genesis batch imported, revert
+        hevm.expectRevert("genesis batch imported");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
     }
 }

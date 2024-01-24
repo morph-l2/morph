@@ -30,8 +30,6 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(async (_, __, runSuper
   return paths.filter((p: string) => !p.endsWith(".t.sol")).filter((p: string) => !p.includes("test/mocks"));
 });
 
-const DEPLOYER_PK = process.env.DEPLOYER_PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-
 module.exports = {
   defaultNetwork: 'hardhat',
   defender: {
@@ -65,35 +63,33 @@ module.exports = {
       chainId: 900,
       gas: 'auto',
       gasPrice: 'auto',
-      accounts: [DEPLOYER_PK]
+      accounts: ['0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80']
     },
     l2: {
       url: "http://localhost:8545",
       chainId: 53077,
       gas: 'auto',
       gasPrice: 'auto',
-      accounts: [DEPLOYER_PK]
+      accounts: ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"]
     },
     qanetl1: {
       url: "http://l2-qa-morph-l1-geth.bitkeep.tools",
       chainId: 900,
       gas: 'auto',
       gasPrice: 'auto',
-      accounts: [DEPLOYER_PK]
+
     },
     testnetl1: {
       url: "http://10.11.63.110:8545",
       chainId: 900,
       gas: 'auto',
       gasPrice: 'auto',
-      accounts: [DEPLOYER_PK]
     },
     sepolia: {
-      url: "http://10.11.63.110:8545",
+      url: "https://sepolia.infura.io/v3/",
       chainId: 11155111,
       gas: 'auto',
       gasPrice: 'auto',
-      accounts: [DEPLOYER_PK]
     }
   },
   foundry: {
@@ -103,12 +99,6 @@ module.exports = {
     compilers: [
       {
         version: '0.8.16',
-        settings: {
-          optimizer: { enabled: true, runs: 10_000 },
-        },
-      },
-      {
-        version: '0.5.17',
         settings: {
           optimizer: { enabled: true, runs: 10_000 },
         },

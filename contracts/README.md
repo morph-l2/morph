@@ -32,7 +32,7 @@ This package contains the smart contracts that compose the on-chain component.
 
 | Name                                                            | Location | Proxy Type                                 | Description                                                                           |
 | --------------------------------------------------------------- | -------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| [`AddressManager`](./contracts/legacy/AddressManager.sol)       | L1       | -                                          | Legacy upgrade mechanism (unused in Bedrock)                                          |
+| [`AddressManager`](contracts/deployment/AddressManager.solol)       | L1       | -                                          | Legacy upgrade mechanism (unused in Bedrock)                                          |
 | [`DeployerWhitelist`](./contracts/legacy/DeployerWhitelist.sol) | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for managing allowed deployers (unused since EVM Equivalence upgrade) |
 | [`L1BlockNumber`](./contracts/legacy/L1BlockNumber.sol)         | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for accessing latest known L1 block number, replaced by `L1Block`     |
 

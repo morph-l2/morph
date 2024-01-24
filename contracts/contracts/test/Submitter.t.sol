@@ -1,26 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
-import {Staking} from "../L1/staking/Staking.sol";
-import {CrossDomainMessenger} from "../universal/CrossDomainMessenger.sol";
-import {Sequencer} from "../universal/Sequencer.sol";
-import {L2Sequencer} from "../L2/L2Sequencer.sol";
-import {Submitter} from "../L2/Submitter.sol";
-import {Hashing} from "../libraries/Hashing.sol";
-import {Types} from "../libraries/Types.sol";
-import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
-import {Gov} from "../L2/Gov.sol";
-import "forge-std/console.sol";
-import "./CommonTest.t.sol";
+import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
+import {Types} from "../libraries/common/Types.sol";
+import {Submitter} from "../L2/submitter/Submitter.sol";
+import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 
-contract Submitter_Test is Staking_Initializer {
-    function test_ackRollup() external {
+contract SubmitterTest is L2StakingBaseTest {
+    event ACKRollup(
+        uint256 batchIndex,
+        address submitter,
+        uint256 batchStartBlock,
+        uint256 batchEndBlock,
+        uint256 rollupTime
+    );
+
+    event EpochUpdated(uint256 interval, uint256 sequencersLen);
+
+    function testAckRollup() external {
         uint256 batchIndex = 0;
         uint256 batchStartBlock = 0;
         uint256 batchEndBlock = 10;
         uint256 rollupTime = 1700001000;
 
-        bytes memory data = abi.encodeWithSelector(
+        bytes memory _message = abi.encodeWithSelector(
             Submitter.ackRollup.selector,
             batchIndex,
             alice,
@@ -28,12 +31,12 @@ contract Submitter_Test is Staking_Initializer {
             batchEndBlock,
             rollupTime
         );
-        uint256 _nonce = L1Messenger.messageNonce();
+        uint256 _nonce = 0;
         address _sender = AddressAliasHelper.applyL1ToL2Alias(
-            address(L1Messenger)
+            l2CrossDomainMessenger.counterpart()
         );
 
-        vm.expectEmit(true, true, true, true);
+        hevm.expectEmit(true, true, true, true);
         emit ACKRollup(
             batchIndex,
             alice,
@@ -41,32 +44,30 @@ contract Submitter_Test is Staking_Initializer {
             batchEndBlock,
             rollupTime
         );
-
-        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
-            _nonce,
-            address(l1Sequencer),
-            address(l2Submitter),
-            0,
-            defultGasLimit,
-            data
+        bytes32 _xDomainCalldataHash = keccak256(
+            _encodeXDomainCalldata(
+                NON_ZERO_ADDRESS,
+                address(l2Submitter),
+                0,
+                _nonce,
+                _message
+            )
         );
 
-        // TODO: test send message
+        hevm.expectEmit(true, true, true, true);
+        emit RelayedMessage(_xDomainCalldataHash);
 
-        vm.expectEmit(true, true, true, true);
-        emit RelayedMessage(versionedHash);
-
-        vm.prank(_sender);
-        L2Messenger.relayMessage(
-            _nonce,
-            address(l1Sequencer),
+        hevm.prank(_sender);
+        l2CrossDomainMessenger.relayMessage(
+            NON_ZERO_ADDRESS,
             address(l2Submitter),
             0,
-            defultGasLimit,
-            data
+            _nonce,
+            _message
         );
-        assertEq(L2Messenger.failedMessages(versionedHash), false);
-        assertEq(L2Messenger.successfulMessages(versionedHash), true);
+        assertTrue(
+            l2CrossDomainMessenger.isL1MessageExecuted(_xDomainCalldataHash)
+        );
 
         Types.BatchInfo memory batchInfo = l2Submitter.getConfirmedBatch(
             batchIndex
@@ -78,8 +79,8 @@ contract Submitter_Test is Staking_Initializer {
         assertEq(batchInfo.rollupTime, rollupTime);
     }
 
-    function test_updateEpoch() external {
-        vm.expectEmit(true, true, true, true);
+    function testUpdateEpoch() external {
+        hevm.expectEmit(true, true, true, true);
         emit EpochUpdated(l2Gov.rollupEpoch(), SEQUENCER_SIZE);
 
         l2Submitter.updateEpochExternal();
