@@ -180,7 +180,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 	chunksSizeWithCurBlock := e.batchingCache.chunks.Size() + len(e.batchingCache.currentTxsPayload) + len(e.batchingCache.currentBlockContext)
 	chunkNum := e.batchingCache.chunks.ChunkNum()
 	// current block will be filled in a new chunk
-	if e.batchingCache.chunks.IsChunksAppendedWithAddedRc(e.batchingCache.currentRowConsumption) {
+	if e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption) {
 		chunksSizeWithCurBlock += 1
 		chunkNum += 1
 	}
