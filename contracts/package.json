@@ -31,6 +31,7 @@
     "staking:devnetL1": "hardhat staking --network l1 --storagepath devnetL1.json",
     "deploy:sepolia": "hardhat deploy --network sepolia --storagepath sepolia.json",
     "initialize:sepolia": "hardhat initialize --network sepolia --storagepath sepolia.json",
+    "staking:sepolia": "hardhat staking --network sepolia --storagepath sepolia.json",
     "deploy:qanetL1": "hardhat deploy --network qanetl1 --storagepath qanetL1.json",
     "initialize:qanetL1": "hardhat initialize --network qanetl1 --storagepath qanetL1.json",
     "staking:qanetL1": "hardhat staking --network qanetl1 --storagepath qanetL1.json"

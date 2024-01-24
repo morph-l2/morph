@@ -9,8 +9,6 @@ import {SafeCall} from "../../libraries/common/SafeCall.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 /**
- * @custom:proxied
- * @custom:predeploy 0x5300000000000000000000000000000000000001
  * @title L2ToL1MessagePasser
  * @notice The L2ToL1MessagePasser is a dedicated contract where messages that are being sent from
  *         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level

@@ -8,39 +8,27 @@ const config = {
     '0x126e52a0cc0ae18948f567ee9443f4a8f0db67c437706e35baee424eb314a0d0',
   l1ChainID: 900,
   l2ChainID: 53077,
-  l2BlockTime: 2,
+
 
   maxSequencerDrift: 300,
   sequencerWindowSize: 200,
   channelTimeout: 120,
 
   rollupMinDeposit: 1,
-  rollupProofWindow: 100,
+  rollupProofWindow: 86400,
   rollupGenesisBlockNumber: 0,
   rollupProposer: '0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d',
   rollupChallenger: '0x71616250f7CAaa8a5DC295dc5851D6b1E49188a7',
   rollupGenesisStateRoot: '',
   withdrawRoot: '',
   batchHeader: '',
-  finalizationPeriodSeconds: 2,
-
-  govProposalInterval: 1000,
-  govBatchBlockInterval: 20,
-  govBatchMaxBytes: 124928,
-  govBatchTimeout: 600,
-  govBatchMaxChunks: 5,
+  finalizationPeriodSeconds: 600,
 
   l2SequencerAddresses: [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
     "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",
     "0x343C5154FFe47c8a07DF5ea6846404e68E9809A2",
     "0xaaC606d51De6A5aBF0d1B9dbd5ed5Ff2Ac2e521B"
-  ],
-  l2SequencerPks: [
-    "0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32",
-    "0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10",
-    "0x6fd437eef7a83c486bd2e0a802ae071b3912d125ac31ac08f60841fd891559ae",
-    "0x9ae53aecdaebe4dcbfec96f3123a2a8c53f9596bf4b3d5adc9a388ccb361b4c0"
   ],
   l2SequencerTmKeys: [
     "0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb",
@@ -89,6 +77,7 @@ const config = {
   eip1559Elasticity: 2,
 
   l2GenesisRegolithTimeOffset: '0x0',
+  l2BlockTime: 2,
 }
 
 export default config 

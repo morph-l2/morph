@@ -414,7 +414,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // abi encode updateSequencers data
         // bytes memory data = abi.encodeWithSelector(
-        //     ISubmitter.ackRollup.selector,
+        //     Submitter.ackRollup.selector,
         //     _batchIndex,
         //     _msgSender(),
         //     committedBatchStores[_batchIndex - 1].blockNumber + 1,
@@ -623,7 +623,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i++
         ) {
             if (
-                batchInChallenge(i) ||
+                // TODO publicnet needs to recover following batchInChallenge.
+                // batchInChallenge(i) ||
                 batchInsideChallengeWindow(i) ||
                 !batchExist(i)
             ) {
@@ -642,7 +643,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i++
         ) {
             if (
-                batchInChallenge(i) ||
+                // TODO publicnet needs to recover following batchInChallenge.
+                // batchInChallenge(i) ||
                 batchInsideChallengeWindow(i) ||
                 !batchExist(i)
             ) {
@@ -654,7 +656,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
-        require(!batchInChallenge(_batchIndex), "batch in challenge");
+        // TODO publicnet needs to recover following batchInChallenge.
+        // require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(
             !batchInsideChallengeWindow(_batchIndex),
             "batch in challenge window"

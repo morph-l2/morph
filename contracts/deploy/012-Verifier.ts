@@ -22,8 +22,8 @@ export const deployZkEvmVerifierV1 = async (
 
     const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
     const implStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
-
-    const bytecode = hexlify(fs.readFileSync("./contracts/libraries/verifier/plonk-verifier/plonk_verifier_0.5.1.bin"));
+    const network = hre.network.name
+    const bytecode = hexlify(fs.readFileSync(`./contracts/libraries/verifier/plonk-verifier/${network}/plonk_verifier_0.5.1.bin`));
     const tx = await deployer.sendTransaction({ data: bytecode });
     const receipt = await tx.wait();
     console.log("%s=%s ; TX_HASH: %s", "plonk_verifier.bin", receipt.contractAddress.toLocaleLowerCase(), tx.hash);

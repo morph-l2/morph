@@ -1,6 +1,7 @@
 import "@nomiclabs/hardhat-web3";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
+import "dotenv/config";
 
 import { task } from "hardhat/config";
 
@@ -22,7 +23,6 @@ task("deploy")
     .setAction(async (taskArgs, hre) => {
         // Initialization parameters
         const stroagePath = taskArgs.storagepath
-
         const deployer = await hre.ethers.provider.getSigner();
         console.log('################################## console parameters ##################################')
         console.log('deployer :', await deployer.getAddress())
@@ -97,10 +97,13 @@ task("initialize")
 
 task("fund")
     .setAction(async (taskArgs, hre) => {
-        const config = hre.deployConfig
+        console.log('\n---------------------------------- Fund Staking ----------------------------------')
         const signer = await hre.ethers.getSigners()
-        for (let i = 0; i < config.l2SequencerPks.length; i++) {
-            let sequencer = new ethers.Wallet(config.l2SequencerPks[i], hre.ethers.provider)
+        console.log(process.env.l2SequencerPks)
+        let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
+        console.log(l2SequencerPkList)
+        for (let i = 0; i < l2SequencerPkList.length; i++) {
+            let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
             const tx = {
                 to: sequencer.address,
                 value: ethers.utils.parseEther("100")
@@ -123,10 +126,9 @@ task("register")
         // Initialization parameters
         const stroagePath = taskArgs.storagepath
         const config = hre.deployConfig
-        console.log('################################## console parameters ##################################')
-
-        for (let i = 0; i < config.l2SequencerPks.length; i++) {
-            let sequencer = new ethers.Wallet(config.l2SequencerPks[i], hre.ethers.provider)
+        let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
+        for (let i = 0; i < l2SequencerPkList.length; i++) {
+            let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
             console.log(`sequencer-${i}:` + await sequencer.getAddress() + ', Balance: ' + await sequencer.getBalance())
 
             console.log(`\n---------------------------------- register  sequencer-${i} ----------------------------------`)

@@ -5,10 +5,15 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title GasPriceOracle contract
- * @custom:predeploy 0x530000000000000000000000000000000000000f
  * @dev Entrance to the update method for L1 gas prices
  **/
 contract GasPriceOracle is Ownable {
+    /*//////////////////////////////////////////////////////////////
+                               Constants
+    //////////////////////////////////////////////////////////////*/
+    /// @dev The precision used in the scalar.
+    uint256 private constant PRECISION = 1e9;
+
     /*//////////////////////////////////////////////////////////////
                                STORAGE
     //////////////////////////////////////////////////////////////*/
@@ -68,6 +73,29 @@ contract GasPriceOracle is Ownable {
             "not allowed"
         );
         _;
+    }
+
+    function getL1Fee(bytes memory _data) external view returns (uint256) {
+        uint256 _l1GasUsed = getL1GasUsed(_data);
+        uint256 _l1Fee = _l1GasUsed * l1BaseFee;
+        return (_l1Fee * scalar) / PRECISION;
+    }
+
+    /// @dev The `_data` is the RLP-encoded transaction with signature. And we also reserve additional
+    ///      4 bytes in the non-zero bytes to store the number of bytes in the RLP-encoded transaction.
+    function getL1GasUsed(bytes memory _data) public view returns (uint256) {
+        uint256 _total = 0;
+        uint256 _length = _data.length;
+        unchecked {
+            for (uint256 i = 0; i < _length; i++) {
+                if (_data[i] == 0) {
+                    _total += 4;
+                } else {
+                    _total += 16;
+                }
+            }
+            return _total + overhead + (4 * 16);
+        }
     }
 
     /**

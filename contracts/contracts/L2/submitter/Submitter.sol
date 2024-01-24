@@ -235,7 +235,7 @@ contract Submitter is Initializable, Semver, ISubmitter, RollupMessage {
         }
 
         return (
-            sequencers[nextSubmitterIndex],
+            sequencers[_nextSubmitterIndex],
             _nextEpochStart,
             _nextEpochStart + epoch
         );
