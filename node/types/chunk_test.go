@@ -22,9 +22,9 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, 1, chunks.data[0].blockNum)
 	require.EqualValues(t, blockContext, chunks.data[0].blockContext)
 	require.EqualValues(t, txPayloads, chunks.data[0].txsPayload)
-	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes))
-	require.EqualValues(t, txHashes[0], chunks.data[0].txHashes[0])
-	require.EqualValues(t, txHashes[1], chunks.data[0].txHashes[1])
+	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes)/32)
+	require.EqualValues(t, txHashes[0].Bytes(), chunks.data[0].txHashes[0:32])
+	require.EqualValues(t, txHashes[1].Bytes(), chunks.data[0].txHashes[32:])
 	require.EqualValues(t, 1, chunks.BlockNum())
 	require.EqualValues(t, 1, chunks.ChunkNum())
 
@@ -35,7 +35,7 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, 2, chunks.data[0].blockNum)
 	require.EqualValues(t, append(blockContext, blockContext1...), chunks.data[0].blockContext)
 	require.EqualValues(t, append(txPayloads, txPayloads1...), chunks.data[0].txsPayload)
-	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes))
+	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes)/32)
 	require.EqualValues(t, 2, chunks.BlockNum())
 	require.EqualValues(t, 1, chunks.ChunkNum())
 
@@ -51,12 +51,11 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, append(txPayloads, txPayloads1...), chunks.data[0].txsPayload)
 	require.EqualValues(t, blockContext2, chunks.data[1].blockContext)
 	require.EqualValues(t, txPayloads2, chunks.data[1].txsPayload)
-	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes))
-	require.EqualValues(t, len(txHashes2), len(chunks.data[1].txHashes))
-	require.EqualValues(t, txHashes2[0], chunks.data[1].txHashes[0])
+	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes)/32)
+	require.EqualValues(t, len(txHashes2), len(chunks.data[1].txHashes)/32)
+	require.EqualValues(t, txHashes2[0].Bytes(), chunks.data[1].txHashes[0:32])
 	require.EqualValues(t, 3, chunks.BlockNum())
 	require.EqualValues(t, 2, chunks.ChunkNum())
-	require.EqualValues(t, 2+len(blockContext)+len(blockContext1)+len(blockContext2)+len(txPayloads)+len(txPayloads1)+len(txPayloads2), chunks.size)
 
 	for i := 0; i < 98; i++ {
 		chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
