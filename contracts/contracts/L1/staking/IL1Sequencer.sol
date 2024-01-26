@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
-import {Types} from "../../libraries/Types.sol";
 
 interface IL1Sequencer {
     function pause() external;
@@ -35,6 +34,7 @@ interface IL1Sequencer {
     function updateAndSendSequencerSet(
         bytes memory _sequencerBytes,
         bytes[] memory _sequencerBLSKeys,
-        uint32 _minGasLimit
-    ) external;
+        uint32 gasLimit,
+        address _refundAddress
+    ) external payable;
 }

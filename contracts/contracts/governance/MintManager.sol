@@ -63,7 +63,8 @@ contract MintManager is Ownable {
             );
 
             require(
-                _amount <= (governanceToken.totalSupply() * MINT_CAP) / DENOMINATOR,
+                _amount <=
+                    (governanceToken.totalSupply() * MINT_CAP) / DENOMINATOR,
                 "MintManager: mint amount exceeds cap"
             );
         }

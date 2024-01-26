@@ -1,52 +1,52 @@
 const ContractFactoryName = {
-    AddressManager: 'AddressManager',
-    SystemConfig: 'SystemConfig',
-    L1ChugSplashProxy: 'L1ChugSplashProxy',
-    ResolvedDelegateProxy: 'ResolvedDelegateProxy',
+    // system
     DefaultProxy: 'Proxy',
     ProxyAdmin: 'ProxyAdmin',
+    AddressManager: 'AddressManager',
+    // messenger
+    L1CrossDomainMessenger: 'L1CrossDomainMessenger',
+    L1MessageQueue: 'L1MessageQueue',
+    // rollup
+    L2GasPriceOracle: 'L2GasPriceOracle',
     Rollup: 'Rollup',
     ZkEvmVerifierV1: 'ZkEvmVerifierV1',
     MultipleVersionRollupVerifier: 'MultipleVersionRollupVerifier',
-    L1StandardBridge: 'L1StandardBridge',
-    L1CrossDomainMessenger: 'L1CrossDomainMessenger',
-    MorphPortal: 'MorphPortal',
-    MorphMintableERC20Factory: 'MorphMintableERC20Factory',
-    L1ERC721Bridge: 'L1ERC721Bridge',
+    // staking
     Staking: 'Staking',
     L1Sequencer: 'L1Sequencer',
-    SystemDictator: 'SystemDictator',
+    // gateway
 }
 
 const ProxyStorageName = {
-    SystemDictatorProxyStorageName: 'Proxy__SystemDictator',
-    SystemConfigProxyStorageName: 'Proxy__SystemConfig',
-    RollupProxyStorageName: 'Proxy__Rollup',
-    L1StandardBridgeProxyStroageName: 'Proxy__L1StandardBridge',
+    // messenger
     L1CrossDomainMessengerProxyStroageName: 'Proxy__L1CrossDomainMessenger',
-    MorphPortalProxyStroageName: 'Proxy__MorphPortal',
-    MorphMintableERC20FactoryProxyStroageName: 'Proxy__MorphMintableERC20Factory',
-    L1ERC721BridgeProxyStroageName: 'Proxy__L1ERC721Bridge',
-    StakingProxyStroageName: 'Proxy__Staking',
-    L1SequencerProxyStroageName: 'Proxy__L1Sequencer',
+    L1MessageQueueProxyStroageName: 'Proxy__L1MessageQueue',
+    // rollup
+    L2GasPriceOracleProxyStorageName: 'Proxy__L2GasPriceOracle',
+    RollupProxyStorageName: 'Proxy__Rollup',
     MultipleVersionRollupVerifierStorageName: 'Proxy__MultipleVersionRollupVerifier',
+    // staking
+    StakingProxyStroageName: 'Proxy__Staking',
+    L1SequencerProxyStroageName: 'Proxy__L1Sequencer'
+    // gateway
 }
 
 const ImplStorageName = {
-    SystemDictatorStorageName: 'Impl__SystemDictator',
-    SystemConfigStorageName: 'Impl__SystemConfig',
-    RollupStorageName: 'Impl__Rollup',
-    L1StandardBridgeStroageName: 'Impl__L1StandardBridge',
+    // system 
+    ProxyAdmin: 'Impl__ProxyAdmin',
+    AddressManager: 'Impl__AddressManager',
+    // messenger
     L1CrossDomainMessengerStorageName: 'Impl__L1CrossDomainMessenger',
-    MorphPortalStroageName: 'Impl__MorphPortal',
-    MorphMintableERC20FactoryStroageName: 'Impl__MorphMintableERC20Factory',
-    L1ERC721BridgeStroageName: 'Impl__L1ERC721Bridge',
-    StakingStorageName: 'Impl__Staking',
-    L1SequencerStorageName: 'Impl__L1Sequencer',
+    L1MessageQueueStroageName: 'Impl__L1MessageQueue',
+    // rollup
+    L2GasPriceOracleStorageName: 'Impl__L2GasPriceOracle',
+    RollupStorageName: 'Impl__Rollup',
     ZkEvmVerifierV1StorageName: 'Impl__ZkEvmVerifierV1',
     MultipleVersionRollupVerifierStorageName: 'Impl__MultipleVersionRollupVerifier',
-    ProxyAdmin: 'Impl__ProxyAdmin',
-    AddressManager: 'Impl__AddressManager'
+    // staking
+    StakingStorageName: 'Impl__Staking',
+    L1SequencerStorageName: 'Impl__L1Sequencer'
+    // gateway
 }
 
 export {

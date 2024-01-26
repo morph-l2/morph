@@ -15,7 +15,7 @@ describe("ZkEvmVerifierV1", async () => {
   beforeEach(async () => {
     [deployer] = await ethers.getSigners();
 
-    const bytecode = hexlify(fs.readFileSync("./contracts/libraries/verifier/plonk-verifier/plonk_verifier_0.5.1.bin"));
+    const bytecode = hexlify(fs.readFileSync("./contracts/libraries/verifier/plonk-verifier/l1/plonk_verifier_0.5.1.bin"));
     const tx = await deployer.sendTransaction({ data: bytecode });
     const receipt = await tx.wait();
 

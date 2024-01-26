@@ -22,7 +22,7 @@ const config = {
   rollupGenesisStateRoot: '',
   withdrawRoot: '',
   batchHeader: '',
-  finalizationPeriodSeconds: 86400,
+  finalizationPeriodSeconds: 600,
 
   l2SequencerAddresses: [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
@@ -48,7 +48,7 @@ const config = {
   l1BlockTime: 1,
 
   stakingMinDeposit: 1,
-  
+
   /**
    *  Only used for SystemConfig
    *  --------from--------

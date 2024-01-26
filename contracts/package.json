@@ -31,6 +31,7 @@
     "staking:devnetL1": "hardhat staking --network l1 --storagepath devnetL1.json",
     "deploy:sepolia": "hardhat deploy --network sepolia --storagepath sepolia.json",
     "initialize:sepolia": "hardhat initialize --network sepolia --storagepath sepolia.json",
+    "staking:sepolia": "hardhat staking --network sepolia --storagepath sepolia.json",
     "deploy:qanetL1": "hardhat deploy --network qanetl1 --storagepath qanetL1.json",
     "initialize:qanetL1": "hardhat initialize --network qanetl1 --storagepath qanetL1.json",
     "staking:qanetL1": "hardhat staking --network qanetl1 --storagepath qanetL1.json"
@@ -53,11 +54,10 @@
     "@typechain/hardhat": "^6.1.2",
     "@types/chai": "^4.3.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "^12.0.0",
+    "@types/node": "^12.20.55",
     "@typescript-eslint/eslint-plugin": "^5.45.1",
     "@typescript-eslint/parser": "^5.45.1",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-    "clones-with-immutable-args": "https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2",
     "ds-test": "https://github.com/dapphub/ds-test.git#6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
     "forge-std": "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410",
     "bip39": "^3.0.4",
@@ -83,6 +83,6 @@
   },
   "dependencies": {
     "@morph-l2/core-utils": "0.0.1",
-    "axios": "^1.6.3"
+    "axios": "^1.4.0"
   }
 }

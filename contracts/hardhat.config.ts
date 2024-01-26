@@ -107,12 +107,6 @@ module.exports = {
           optimizer: { enabled: true, runs: 10_000 },
         },
       },
-      {
-        version: '0.5.17',
-        settings: {
-          optimizer: { enabled: true, runs: 10_000 },
-        },
-      },
     ],
   },
   // gasReporter: {

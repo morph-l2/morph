@@ -2,6 +2,7 @@ package predeploys
 
 import "github.com/scroll-tech/go-ethereum/common"
 
+// legacy todo : rmove
 const (
 	DevMorphPortal               = "0x6900000000000000000000000000000000000001"
 	DevL1CrossDomainMessenger    = "0x6900000000000000000000000000000000000002"

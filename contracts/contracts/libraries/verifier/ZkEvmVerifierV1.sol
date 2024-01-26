@@ -34,7 +34,10 @@ contract ZkEvmVerifierV1 is IZkEvmVerifier {
      *************************/
 
     /// @inheritdoc IZkEvmVerifier
-    function verify(bytes calldata aggrProof, bytes32 publicInputHash) external view override {
+    function verify(
+        bytes calldata aggrProof,
+        bytes32 publicInputHash
+    ) external view override {
         address _verifier = plonkVerifier;
         bool success;
 
@@ -53,9 +56,20 @@ contract ZkEvmVerifierV1 is IZkEvmVerifier {
                 mstore(add(p, sub(0x560, i)), and(publicInputHash, 0xff))
                 publicInputHash := shr(8, publicInputHash)
             }
-            calldatacopy(add(p, 0x580), add(aggrProof.offset, 0x180), sub(aggrProof.length, 0x180))
+            calldatacopy(
+                add(p, 0x580),
+                add(aggrProof.offset, 0x180),
+                sub(aggrProof.length, 0x180)
+            )
 
-            success := staticcall(gas(), _verifier, p, add(aggrProof.length, 0x400), 0x00, 0x00)
+            success := staticcall(
+                gas(),
+                _verifier,
+                p,
+                add(aggrProof.length, 0x400),
+                0x00,
+                0x00
+            )
         }
 
         if (!success) {
