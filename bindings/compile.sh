@@ -10,7 +10,7 @@ hardhat_compile(){
   yarn hardhat compile
 }
 
-forge_compile (){
+forge_compile(){
 CONTRACTS_PATH="../contracts/"
 cd $CONTRACTS_PATH || exit
 yarn clean
