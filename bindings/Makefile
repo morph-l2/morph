@@ -47,6 +47,9 @@ version:
 compile:
 	./compile.sh
 
+compile-forge:
+	./compile.sh forge
+
 ## L1
 # Staking
 l1-staking-bindings: compile
@@ -146,7 +149,7 @@ morph-standard-erc20-factory-bindings: compile
 morph-wrapped-ether-bindings: compile
 	./gen_bindings.sh contracts/L2/system/WrappedEther.sol:WrappedEther $(pkg)
 
-more:
+more: compile-forge
 	go run ./gen/main.go \
 		-artifacts ../contracts/artifacts \
 		-out ./bindings \
