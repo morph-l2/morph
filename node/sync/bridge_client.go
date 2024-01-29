@@ -17,22 +17,22 @@ import (
 
 type BridgeClient struct {
 	l1Client           *ethclient.Client
-	filter             *bindings.MorphPortalFilterer
+	filter             *bindings.L1MessageQueueFilterer
 	morphPortalAddress common.Address
 	confirmations      rpc.BlockNumber
 	logger             tmlog.Logger
 }
 
-func NewBridgeClient(l1Client *ethclient.Client, morphPortalAddress common.Address, confirmations rpc.BlockNumber, logger tmlog.Logger) (*BridgeClient, error) {
+func NewBridgeClient(l1Client *ethclient.Client, l1MessageQueueAddress common.Address, confirmations rpc.BlockNumber, logger tmlog.Logger) (*BridgeClient, error) {
 	logger = logger.With("module", "bridge")
-	filter, err := bindings.NewMorphPortalFilterer(morphPortalAddress, l1Client)
+	filter, err := bindings.NewL1MessageQueueFilterer(l1MessageQueueAddress, l1Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize NewMorphPortalFilterer, err = %w", err)
 	}
 	return &BridgeClient{
 		l1Client:           l1Client,
 		filter:             filter,
-		morphPortalAddress: morphPortalAddress,
+		morphPortalAddress: l1MessageQueueAddress,
 		confirmations:      confirmations,
 		logger:             logger,
 	}, nil

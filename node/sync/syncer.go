@@ -33,11 +33,11 @@ func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Lo
 		return nil, err
 	}
 
-	if config.DepositContractAddress == nil {
+	if config.L1MessageQueueAddress == nil {
 		return nil, errors.New("deposit contract address cannot be nil")
 	}
 
-	bridgeClient, err := NewBridgeClient(l1Client, *config.DepositContractAddress, config.L1.Confirmations, logger)
+	bridgeClient, err := NewBridgeClient(l1Client, *config.L1MessageQueueAddress, config.L1.Confirmations, logger)
 	if err != nil {
 		return nil, err
 	}

@@ -23,12 +23,12 @@ const (
 )
 
 type Config struct {
-	L1                     *types.L1Config `json:"l1"`
-	DepositContractAddress *common.Address `json:"deposit_contract_address"`
-	StartHeight            uint64          `json:"start_height"`
-	PollInterval           time.Duration   `json:"poll_interval"`
-	LogProgressInterval    time.Duration   `json:"log_progress_interval"`
-	FetchBlockRange        uint64          `json:"fetch_block_range"`
+	L1                    *types.L1Config `json:"l1"`
+	L1MessageQueueAddress *common.Address `json:"l1_message_queue_address"`
+	StartHeight           uint64          `json:"start_height"`
+	PollInterval          time.Duration   `json:"poll_interval"`
+	LogProgressInterval   time.Duration   `json:"log_progress_interval"`
+	FetchBlockRange       uint64          `json:"fetch_block_range"`
 }
 
 func DefaultConfig() *Config {
@@ -50,8 +50,8 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if ctx.GlobalIsSet(flags.SyncDepositContractAddr.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.SyncDepositContractAddr.Name))
-		c.DepositContractAddress = &addr
-		if len(c.DepositContractAddress.Bytes()) == 0 {
+		c.L1MessageQueueAddress = &addr
+		if len(c.L1MessageQueueAddress.Bytes()) == 0 {
 			return errors.New("invalid SyncDepositContractAddr")
 		}
 	}
