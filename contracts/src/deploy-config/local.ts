@@ -1,29 +1,44 @@
 const config = {
-  finalSystemOwner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-  controller: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-  portalGuardian: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-  proxyAdminOwner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  // Global configuration
+  contractAdmin: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  l1FeeVaultRecipient: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
 
-  l1StartingBlockTag:
-    '0x126e52a0cc0ae18948f567ee9443f4a8f0db67c437706e35baee424eb314a0d0',
+  // chainID config
   l1ChainID: 900,
   l2ChainID: 53077,
 
+  // L1MessageQueue config 
+  l1MessageQueueMaxGasLimit: 100000000,
 
-  maxSequencerDrift: 300,
-  sequencerWindowSize: 200,
-  channelTimeout: 120,
+  // gasPriceOracle config
+  gasPriceOracleTxGas: 1,
+  gasPriceOracleTxGasContractCreation: 2,
+  gasPriceOracleZeroGas: 1,
+  gasPriceOracleNonZeroGas: 1,
 
+  // rollup contract config
+  // initialize config
+  rollupMaxNumTxInChunk: 100,
   rollupMinDeposit: 1,
+  finalizationPeriodSeconds: 86400,
   rollupProofWindow: 86400,
-  rollupGenesisBlockNumber: 0,
+  // challenge config
   rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
-  rollupGenesisStateRoot: '0x0000000000000000000000000000000000000000000000000000000000000001',
-  withdrawRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
-  batchHeader: '0x00000000000000000000000000000000000000000000000000557636afdc40f80297e7a8cc9a7310234e8575bf607baa97ee1ea952e4566cf70000000000000000000000000000000000000000000000000000000000000000',
-  finalizationPeriodSeconds: 86400,
+  // genesis config
+  rollupGenesisStateRoot: '0x06374560ac61775a9ee81644c875754fc69029a05a32becf6ebc2c801070db0e',
+  withdrawRoot: '0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757',
+  batchHeader: '0x0000000000000000000000000000000000000000000000000041dc4bd86cda886b76031281f2ca2df1a840c27f46b3d1748619de168757df190000000000000000000000000000000000000000000000000000000000000000',
 
+  // staking config
+  // staking Cross-Chain config
+  stakingCrossChainGaslimit: 10000,
+
+  // staking initialize config
+  stakingSequencerSize: 4,
+  stakingLockNumber: 3,
+  stakingMinDeposit: 1, // limit
+  // register sequencers
   l2SequencerAddresses: [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
     "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",
@@ -42,36 +57,6 @@ const config = {
     "0x0000000000000000000000000000000003fd9468a8ceffc1b696874517777ef8bfdc9a1bade95c480ee2624903e648c1caf01c65de5b4fda8876a3a0e8d9f0890000000000000000000000000000000004c02f3609a0f61d12fe737dcbb047d5253bd3ff905b55c0e0f932b476fd77d172a58b72ef0f506407870988dd6038220000000000000000000000000000000017fa5765899f60f7a58f8ccdaaa295cde55992231710672692ba6a71a4faa9572f728f438ded65576a570d57e19fd304000000000000000000000000000000001226138813bde98af3464ed03649d8c731bc4e5cb3d26b53bf7483f4105d18bbb3f19e23905119e156e7d003d2fd125c",
     "0x00000000000000000000000000000000109bf02a2636c0dc1968b0a50db77251eb090c3e9f51e2a2bc60c4ac72213f41f01f0a34e92c2e0625bd62e28e27edb500000000000000000000000000000000139969bd92522113c0615659874d1fae311ad8152d0584c7b57ffc14927067486dcf86413c5684fccc1163ee2d45c1c1000000000000000000000000000000000f172603f70a0730d100ad6d28bde477195987062e8ade83b82d093935d956ff20ca768c26263577b094f1cb756adc400000000000000000000000000000000010dde3acca00b4ff1b4976500a8f97e92246f43f78cadc95c4993dfc4f4c501c33d42a4bf52587f4931287b59623149c"
   ],
-
-  stakingSequencerSize: 4,
-  stakingLockNumber: 3,
-  l1BlockTime: 1,
-
-  stakingMinDeposit: 1,
-
-  p2pSequencerAddress: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
-  batchInboxAddress: '0xff00000000000000000000000000000000000010',
-  batchSenderAddress: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-
-  baseFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-  l1FeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-  sequencerFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-
-  governanceTokenName: 'Morph',
-  governanceTokenSymbol: 'MORPH',
-  governanceTokenOwner: '0xBcd4042DE499D14e55001CcbB24a551F3b954096',
-
-  l2GenesisBlockGasLimit: '0x1c9c380',
-  l2GenesisBlockCoinbase: '0x4200000000000000000000000000000000000011',
-  l2GenesisBlockBaseFeePerGas: '0x3B9ACA00',
-
-  gasPriceOracleOverhead: 2100,
-  gasPriceOracleScalar: 1000000,
-  eip1559Denominator: 8,
-  eip1559Elasticity: 2,
-
-  l2GenesisRegolithTimeOffset: '0x0',
-  l2BlockTime: 2,
 }
 
 export default config 

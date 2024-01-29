@@ -1,24 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
-import {Staking} from "../L1/staking/Staking.sol";
-import {CrossDomainMessenger} from "../universal/CrossDomainMessenger.sol";
-import {Sequencer} from "../universal/Sequencer.sol";
-import {L2Sequencer} from "../L2/L2Sequencer.sol";
-import {Types} from "../libraries/Types.sol";
-import {Gov} from "../L2/Gov.sol";
-import "forge-std/console.sol";
-import "./CommonTest.t.sol";
+import {Predeploys} from "../libraries/constants/Predeploys.sol";
+import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
+import {Types} from "../libraries/common/Types.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
+import {Gov} from "../L2/staking/Gov.sol";
 
-contract L2Gov_Test is Staking_Initializer {
+contract L2GovTest is L2StakingBaseTest {
     function setUp() public virtual override {
         super.setUp();
 
         // set to L2Sequencer
-        vm.mockCall(
+        hevm.mockCall(
             address(l2Sequencer.messenger()),
             abi.encodeWithSelector(
-                CrossDomainMessenger.xDomainMessageSender.selector
+                ICrossDomainMessenger.xDomainMessageSender.selector
             ),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
@@ -36,7 +33,7 @@ contract L2Gov_Test is Staking_Initializer {
             sequencerInfos[i] = sequencerInfo;
         }
         version++;
-        vm.prank(address(L2Messenger));
+        hevm.prank(address(l2CrossDomainMessenger));
         // updateSequencers
         l2Sequencer.updateSequencers(version, sequencerInfos);
         assertEq(l2Sequencer.currentVersion(), version);
@@ -47,11 +44,11 @@ contract L2Gov_Test is Staking_Initializer {
                 .sequencerInfos(i);
             assertEq(user, sequencerInfos[i].addr);
             assertEq(tmKey, sequencerInfos[i].tmKey);
-            assertEq(blsKey, sequencerInfos[i].blsKey);
+            assertBytesEq(blsKey, sequencerInfos[i].blsKey);
         }
     }
 
-    function test_proposal() external {
+    function testProposal() external {
         Gov.ProposalData memory proposal = Gov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -61,7 +58,7 @@ contract L2Gov_Test is Staking_Initializer {
         );
 
         address user = address(uint160(beginSeq));
-        vm.prank(address(user));
+        hevm.prank(address(user));
         l2Gov.propose(proposal);
         (
             uint256 batchBlockInterval_,
@@ -81,13 +78,13 @@ contract L2Gov_Test is Staking_Initializer {
             uint256 seqsVersion_,
             uint256 votes_
         ) = l2Gov.proposalInfos(version);
-        assertEq(true, active_);
+        assertTrue(active_);
         assertEq(block.timestamp + PROPOSAL_INTERVAL, endTime_);
         assertEq(version, seqsVersion_);
         assertEq(0, votes_);
     }
 
-    function test_vote() external {
+    function testVote() external {
         Gov.ProposalData memory proposal = Gov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -98,30 +95,30 @@ contract L2Gov_Test is Staking_Initializer {
 
         // proposal
         address user = address(uint160(beginSeq));
-        vm.prank(address(user));
+        hevm.prank(address(user));
         l2Gov.propose(proposal);
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             user = address(uint160(beginSeq + i));
-            vm.prank(address(user));
+            hevm.prank(address(user));
             l2Gov.vote(version);
             (, , , uint256 votes_) = l2Gov.proposalInfos(version);
-            assertEq(true, l2Gov.votes(version, i));
+            assertTrue(l2Gov.votes(version, i));
             assertEq(i + 1, votes_);
         }
     }
 }
 
-contract L2Gov_vote_Test is Staking_Initializer {
+contract L2GovVoteTest is L2StakingBaseTest {
     Gov.ProposalData public proposal;
 
     function setUp() public virtual override {
         super.setUp();
 
         // set to L2Sequencer
-        vm.mockCall(
+        hevm.mockCall(
             address(l2Sequencer.messenger()),
             abi.encodeWithSelector(
-                CrossDomainMessenger.xDomainMessageSender.selector
+                ICrossDomainMessenger.xDomainMessageSender.selector
             ),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
@@ -139,7 +136,7 @@ contract L2Gov_vote_Test is Staking_Initializer {
             sequencerInfos[i] = sequencerInfo;
         }
         version++;
-        vm.prank(address(L2Messenger));
+        hevm.prank(address(l2CrossDomainMessenger));
         // updateSequencers
         l2Sequencer.updateSequencers(version, sequencerInfos);
         assertEq(l2Sequencer.currentVersion(), version);
@@ -150,7 +147,7 @@ contract L2Gov_vote_Test is Staking_Initializer {
                 .sequencerInfos(i);
             assertEq(user, sequencerInfos[i].addr);
             assertEq(tmKey, sequencerInfos[i].tmKey);
-            assertEq(blsKey, sequencerInfos[i].blsKey);
+            assertBytesEq(blsKey, sequencerInfos[i].blsKey);
         }
         // proposal version 1
         proposal = Gov.ProposalData(
@@ -161,21 +158,21 @@ contract L2Gov_vote_Test is Staking_Initializer {
             MAX_CHUNKS // maxChunks
         );
         address userBegin = address(uint160(beginSeq));
-        vm.prank(address(userBegin));
+        hevm.prank(address(userBegin));
         l2Gov.propose(proposal);
 
         // proposal version 2
         version++;
-        vm.prank(address(L2Messenger));
+        hevm.prank(address(l2CrossDomainMessenger));
         l2Sequencer.updateSequencers(version, sequencerInfos);
         assertEq(l2Sequencer.currentVersion(), version);
         userBegin = address(uint160(beginSeq));
-        vm.prank(address(userBegin));
+        hevm.prank(address(userBegin));
         l2Gov.propose(proposal);
 
         // proposal version 3
         version++;
-        vm.prank(address(L2Messenger));
+        hevm.prank(address(l2CrossDomainMessenger));
         l2Sequencer.updateSequencers(version, sequencerInfos);
         assertEq(l2Sequencer.currentVersion(), version);
     }
@@ -203,37 +200,37 @@ contract L2Gov_vote_Test is Staking_Initializer {
             uint256 seqsVersion_,
             uint256 votes_
         ) = l2Gov.proposalInfos(checkVersion);
-        assertEq(true, active_);
+        assertTrue(active_);
         assertEq(block.timestamp + PROPOSAL_INTERVAL, endTime_);
         assertEq(checkVersion, seqsVersion_);
         assertEq(0, votes_);
 
         // revert with proposal inactive
-        vm.expectRevert("proposal inactive");
+        hevm.expectRevert("proposal inactive");
         address user = address(uint160(beginSeq));
-        vm.prank(address(user));
+        hevm.prank(address(user));
         l2Gov.vote(version);
 
         // revert with version mismatch
-        vm.expectRevert("version mismatch");
-        vm.prank(address(user));
+        hevm.expectRevert("version mismatch");
+        hevm.prank(address(user));
         l2Gov.vote(secVersion);
 
         // revert with time end
         user = address(uint160(beginSeq));
-        vm.prank(address(user));
+        hevm.prank(address(user));
         l2Gov.propose(proposal);
-        vm.expectRevert("time end");
-        vm.warp(block.timestamp + PROPOSAL_INTERVAL + 100);
-        vm.prank(address(user));
+        hevm.expectRevert("time end");
+        hevm.warp(block.timestamp + PROPOSAL_INTERVAL + 100);
+        hevm.prank(address(user));
         l2Gov.vote(version);
 
         // revert with sequencer already vote for this proposal
-        vm.warp(block.timestamp - PROPOSAL_INTERVAL);
-        vm.prank(address(user));
+        hevm.warp(block.timestamp - PROPOSAL_INTERVAL);
+        hevm.prank(address(user));
         l2Gov.vote(version);
-        vm.expectRevert("sequencer already vote for this proposal");
-        vm.prank(address(user));
+        hevm.expectRevert("sequencer already vote for this proposal");
+        hevm.prank(address(user));
         l2Gov.vote(version);
     }
 }

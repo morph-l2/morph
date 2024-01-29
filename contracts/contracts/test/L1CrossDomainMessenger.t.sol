@@ -1,594 +1,503 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
-/* Testing utilities */
-import { Portal_Initializer, Reverter, ConfigurableCaller } from "./CommonTest.t.sol";
+import {L1MessageQueue} from "../L1/rollup/L1MessageQueue.sol";
+import {IRollup} from "../L1/rollup/IRollup.sol";
+import {Predeploys} from "../libraries/constants/Predeploys.sol";
+import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
-/* Libraries */
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { Hashing } from "../libraries/Hashing.sol";
-import { Encoding } from "../libraries/Encoding.sol";
+contract L1CrossDomainMessengerTest is L1MessageBaseTest {
+    event UpdateMaxReplayTimes(
+        uint256 oldMaxReplayTimes,
+        uint256 newMaxReplayTimes
+    );
 
-/* Target contract dependencies */
-import { MorphPortal } from "../L1/MorphPortal.sol";
+    uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
+    address refundAddress = address(2048);
 
-/* Target contract */
-import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
+    function testProveWithdrawalTransaction_relayMessage() external {
+        // tx msg set
+        address from = address(alice);
+        address to = address(bob);
+        uint256 value = 10;
+        hevm.deal(address(l1CrossDomainMessenger), value);
 
-contract L1CrossDomainMessenger_Test is Portal_Initializer {
-    // Receiver address for testing
-    address recipient = address(0xabbaacdc);
+        uint256 nonce = 0;
+        bytes memory message = "";
+        bytes32 _xDomainCalldataHash = keccak256(
+            _encodeXDomainCalldata(from, to, value, nonce, message)
+        );
+        // get proof from ffi
+        _appendMessageHash(_xDomainCalldataHash);
+        (bytes32 wdHashRes, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
+            .getProveWithdrawalTransactionInputs(_xDomainCalldataHash);
+        assertEq(_xDomainCalldataHash, wdHashRes);
+        assertEq(getTreeRoot(), wdRoot);
 
-    // Storage slot of the l2Sender
-    uint256 constant senderSlotIndex = 54;
+        // prove without rollup
+        hevm.expectRevert("Messenger: do not submit withdrawalRoot");
+        l1CrossDomainMessenger.proveMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            wdProof,
+            wdRoot
+        );
 
-    // the version is encoded in the nonce
-    function test_messageVersion_succeeds() external {
-        (, uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
-        assertEq(version, L1Messenger.MESSAGE_VERSION());
-    }
+        // mock call rollup withdrawal root submitted success
+        uint256 withdrawalBatchIndex = 1;
+        hevm.mockCall(
+            address(l1CrossDomainMessenger.rollup()),
+            abi.encodeWithSelector(IRollup.withdrawalRoots.selector, wdRoot),
+            abi.encode(withdrawalBatchIndex)
+        );
+        l1CrossDomainMessenger.proveMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            wdProof,
+            wdRoot
+        );
 
-    // sendMessage: should be able to send a single message
-    // TODO: this same test needs to be done with the legacy message type
-    // by setting the message version to 0
-    function test_sendMessage_succeeds() external {
-        // deposit transaction on the Morph portal should be called
-        vm.expectCall(
-            address(portal),
+        // prove again
+        hevm.expectRevert("Messenger: withdrawal hash has already been proven");
+        l1CrossDomainMessenger.proveMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            wdProof,
+            wdRoot
+        );
+
+        hevm.expectRevert(
+            "Messenger: proven withdrawal finalization period has not elapsed"
+        );
+        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
+
+        // warp finalization period
+        (, uint256 provenTime, ) = l1CrossDomainMessenger.provenWithdrawals(
+            _xDomainCalldataHash
+        );
+        hevm.warp(provenTime + FINALIZATION_PERIOD_SECONDS + 1);
+
+        hevm.expectRevert("Messenger: batch not verified");
+        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
+
+        // finalize batch
+        hevm.mockCall(
+            address(l1CrossDomainMessenger.rollup()),
             abi.encodeWithSelector(
-                MorphPortal.depositTransaction.selector,
-                Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-                0,
-                L1Messenger.baseGas(hex"ff", 100),
-                false,
-                Encoding.encodeCrossDomainMessage(
-                    L1Messenger.messageNonce(),
-                    alice,
-                    recipient,
-                    0,
-                    100,
-                    hex"ff"
-                )
-            )
+                IRollup.finalizedStateRoots.selector,
+                withdrawalBatchIndex
+            ),
+            abi.encode(bytes32(uint256(1)))
+        );
+        uint256 balanceBefore = address(bob).balance;
+        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
+        assertEq(balanceBefore + value, address(bob).balance);
+    }
+
+    function testReplayMessage(uint256 exceedValue) external {
+        hevm.deal(address(this), 1 ether);
+        // tx msg set
+        exceedValue = bound(exceedValue, 1, address(this).balance / 2);
+        address from = address(this);
+        address to = address(bob);
+        uint256 value = 0;
+        bytes memory message = "";
+        uint256 nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
+            from,
+            to,
+            value,
+            nonce,
+            message
+        );
+        uint256 gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+
+        // updateMaxReplayTimes to 0
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.updateMaxReplayTimes(0);
+
+        // append a message
+        l1CrossDomainMessenger.sendMessage{value: 100}(
+            to,
+            value,
+            message,
+            gas,
+            refundAddress
         );
 
-        // TransactionDeposited event
-        vm.expectEmit(true, true, true, true);
-        emitTransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+        // Provided message has not been enqueued
+        hevm.expectRevert("Provided message has not been enqueued");
+        l1CrossDomainMessenger.replayMessage(
+            address(this),
+            address(0),
+            101,
             0,
-            0,
-            L1Messenger.baseGas(hex"ff", 100),
-            false,
-            Encoding.encodeCrossDomainMessage(
-                L1Messenger.messageNonce(),
-                alice,
-                recipient,
-                0,
+            new bytes(0),
+            defaultGasLimit,
+            refundAddress
+        );
+
+        hevm.prank(multisig);
+        l2GasPriceOracle.setL2BaseFee(1);
+        // Insufficient msg.value
+        hevm.expectRevert("Insufficient msg.value for fee");
+        l1CrossDomainMessenger.replayMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            defaultGasLimit,
+            refundAddress
+        );
+
+        hevm.prank(multisig);
+        uint256 _fee = l2GasPriceOracle.l2BaseFee() * defaultGasLimit;
+
+        // Exceed maximum replay times
+        hevm.expectRevert("Exceed maximum replay times");
+        l1CrossDomainMessenger.replayMessage{value: _fee}(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            defaultGasLimit,
+            refundAddress
+        );
+
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.updateMaxReplayTimes(1);
+
+        // refund exceed fee
+        uint256 balanceBefore = refundAddress.balance;
+        uint256 feeVaultBefore = l1FeeVault.balance;
+        l1CrossDomainMessenger.replayMessage{value: _fee + exceedValue}(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            defaultGasLimit,
+            refundAddress
+        );
+        assertEq(balanceBefore + exceedValue, refundAddress.balance);
+        assertEq(feeVaultBefore + _fee, l1FeeVault.balance);
+
+        // test replay list
+        // 1. send a message with nonce 2
+        // 2. replay 3 times
+        hevm.startPrank(multisig);
+        l2GasPriceOracle.setL2BaseFee(0);
+        l1CrossDomainMessenger.updateMaxReplayTimes(100);
+        hevm.stopPrank();
+        l1CrossDomainMessenger.sendMessage{value: 100}(
+            address(0),
+            100,
+            new bytes(0),
+            defaultGasLimit,
+            refundAddress
+        );
+        bytes32 hash = keccak256(
+            abi.encodeWithSignature(
+                "relayMessage(address,address,uint256,uint256,bytes)",
+                address(this),
+                address(0),
                 100,
-                hex"ff"
+                2,
+                new bytes(0)
             )
         );
-
-        // SentMessage event
-        vm.expectEmit(true, true, true, true);
-        emit SentMessage(recipient, alice, hex"ff", L1Messenger.messageNonce(), 100);
-
-        // SentMessageExtension1 event
-        vm.expectEmit(true, true, true, true);
-        emit SentMessageExtension1(alice, 0);
-
-        vm.prank(alice);
-        L1Messenger.sendMessage(recipient, hex"ff", uint32(100));
+        (uint256 _replayTimes, uint256 _lastIndex) = l1CrossDomainMessenger
+            .replayStates(hash);
+        assertEq(_replayTimes, 0);
+        assertEq(_lastIndex, 0);
+        for (uint256 i = 0; i < 3; i++) {
+            l1CrossDomainMessenger.replayMessage(
+                address(this),
+                address(0),
+                100,
+                2,
+                new bytes(0),
+                defaultGasLimit,
+                refundAddress
+            );
+            (_replayTimes, _lastIndex) = l1CrossDomainMessenger.replayStates(
+                hash
+            );
+            assertEq(_replayTimes, i + 1);
+            assertEq(_lastIndex, i + 3);
+            assertEq(l1CrossDomainMessenger.prevReplayIndex(i + 3), i + 2 + 1);
+            for (uint256 j = 0; j <= i; j++) {
+                assertEq(
+                    l1CrossDomainMessenger.prevReplayIndex(i + 3 - j),
+                    i + 2 - j + 1
+                );
+            }
+        }
     }
 
-    // sendMessage: should be able to send the same message twice
-    function test_sendMessage_twice_succeeds() external {
-        uint256 nonce = L1Messenger.messageNonce();
-        L1Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
-        L1Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
-        // the nonce increments for each message sent
-        assertEq(nonce + 2, L1Messenger.messageNonce());
-    }
-
-    function test_xDomainSender_notSet_reverts() external {
-        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
-        L1Messenger.xDomainMessageSender();
-    }
-
-    function test_relayMessage_v2_reverts() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-
-        // Set the value of portal.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-
-        // Expect a revert.
-        vm.expectRevert(
-            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
+    function testForbidCallMessageQueueFromL2() external {
+        // withdrawal tx
+        address from = address(alice);
+        address to = address(l1MessageQueue);
+        uint256 value = 0;
+        uint256 nonce = 0;
+        bytes memory message = "send message";
+        bytes32 _xDomainCalldataHash = keccak256(
+            _encodeXDomainCalldata(from, to, value, nonce, message)
+        );
+        _appendMessageHash(_xDomainCalldataHash);
+        bytes32[32] memory withdrawalProof;
+        bytes32 withdrawalRoot = getTreeRoot();
+        uint256 withdrawalBatchIndex = 1;
+        // mock call withdrawalRoots
+        hevm.mockCall(
+            address(l1CrossDomainMessenger.rollup()),
+            abi.encodeWithSelector(
+                IRollup.withdrawalRoots.selector,
+                withdrawalRoot
+            ),
+            abi.encode(withdrawalBatchIndex)
         );
 
-        // Try to relay a v2 message.
-        vm.prank(address(portal));
-        L2Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 2 }), // nonce
+        hevm.expectRevert("Messenger: Forbid to call message queue");
+        l1CrossDomainMessenger.proveMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            withdrawalProof,
+            withdrawalRoot
+        );
+    }
+
+    function testForbidCallSelfFromL2() external {
+        // withdrawal tx
+        address from = address(alice);
+        address to = address(l1CrossDomainMessenger);
+        uint256 value = 0;
+        uint256 nonce = 0;
+        bytes memory message = "send message";
+        bytes32 _xDomainCalldataHash = keccak256(
+            _encodeXDomainCalldata(from, to, value, nonce, message)
+        );
+        _appendMessageHash(_xDomainCalldataHash);
+        bytes32[32] memory withdrawalProof;
+        bytes32 withdrawalRoot = getTreeRoot();
+        uint256 withdrawalBatchIndex = 1;
+        // mock call withdrawalRoots
+        hevm.mockCall(
+            address(l1CrossDomainMessenger.rollup()),
+            abi.encodeWithSelector(
+                IRollup.withdrawalRoots.selector,
+                withdrawalRoot
+            ),
+            abi.encode(withdrawalBatchIndex)
+        );
+
+        hevm.expectRevert("Messenger: Forbid to call self");
+        l1CrossDomainMessenger.proveMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            withdrawalProof,
+            withdrawalRoot
+        );
+    }
+
+    function test_sendMessage() external {
+        address sender = address(this);
+        address to = address(bob);
+        bytes memory data = "send message";
+        hevm.deal(sender, 10 ether);
+
+        // send value zero
+        uint256 value = 0;
+        uint256 nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             sender,
-            target,
-            0, // value
-            0,
-            hex"1111"
+            to,
+            value,
+            nonce,
+            data
         );
+        uint256 gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+        hevm.expectEmit(true, true, true, true);
+        emit SentMessage(sender, to, value, nonce, gas, data);
+
+        hevm.expectCall(
+            address(l1MessageQueue),
+            abi.encodeWithSelector(
+                L1MessageQueue.appendCrossDomainMessage.selector,
+                Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                gas,
+                _xDomainCalldata
+            )
+        );
+        l1CrossDomainMessenger.sendMessage(to, value, data, gas);
     }
 
-    // relayMessage: should send a successful call to the target contract
-    function test_relayMessage_succeeds() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+    function test_sendMessage_value() external {
+        address sender = address(this);
+        address to = address(bob);
+        bytes memory data = "send message";
+        hevm.deal(sender, 10 ether);
 
-        vm.expectCall(target, hex"1111");
-
-        // set the value of portal.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.prank(address(portal));
-
-        vm.expectEmit(true, true, true, true);
-
-        bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+        // send value zero
+        uint256 value = 0;
+        uint256 nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             sender,
-            target,
-            0,
-            0,
-            hex"1111"
+            to,
+            value,
+            nonce,
+            data
+        );
+        uint256 gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+        l1CrossDomainMessenger.sendMessage(to, value, data, gas);
+
+        // send value not zero
+        // set base fee to 100
+        hevm.prank(multisig);
+        l2GasPriceOracle.setL2BaseFee(100);
+
+        value = 1 ether;
+        nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        _xDomainCalldata = _encodeXDomainCalldata(
+            sender,
+            to,
+            value,
+            nonce,
+            data
+        );
+        gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+        hevm.expectRevert("Insufficient msg.value");
+        l1CrossDomainMessenger.sendMessage{value: 1 ether}(
+            to,
+            value,
+            data,
+            gas
+        );
+        // give enought value
+        uint256 fee = l1MessageQueue.estimateCrossDomainMessageFee(gas);
+        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(
+            to,
+            value,
+            data,
+            gas
         );
 
-        emit RelayedMessage(hash);
-
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
-            sender,
-            target,
-            0, // value
-            0,
-            hex"1111"
+        // send more value with refund address
+        fee = l1MessageQueue.estimateCrossDomainMessageFee(gas);
+        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee * 2}(
+            to,
+            value,
+            data,
+            gas,
+            refundAddress
         );
-
-        // the message hash is in the successfulMessages mapping
-        assert(L1Messenger.successfulMessages(hash));
-        // it is not in the received messages mapping
-        assertEq(L1Messenger.failedMessages(hash), false);
+        assertEq(address(refundAddress).balance, fee);
     }
 
-    // relayMessage: should revert if attempting to relay a message sent to an L1 system contract
-    function test_relayMessage_toSystemContract_reverts() external {
-        // set the target to be the MorphPortal
-        address target = address(portal);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        bytes memory message = hex"1111";
+    function testUpdateMaxReplayTimes(uint256 _maxReplayTimes) external {
+        // not owner, revert
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
+        l1CrossDomainMessenger.updateMaxReplayTimes(_maxReplayTimes);
+        hevm.stopPrank();
 
-        vm.prank(address(portal));
-        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            0,
-            0,
-            message
-        );
+        hevm.expectEmit(false, false, false, true);
+        emit UpdateMaxReplayTimes(3, _maxReplayTimes);
 
-        vm.store(address(portal), 0, bytes32(abi.encode(sender)));
-        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            0,
-            0,
-            message
-        );
+        assertEq(l1CrossDomainMessenger.maxReplayTimes(), 3);
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.updateMaxReplayTimes(_maxReplayTimes);
+        assertEq(l1CrossDomainMessenger.maxReplayTimes(), _maxReplayTimes);
     }
 
-    // relayMessage: should revert if eth is sent from a contract other than the standard bridge
-    function test_replayMessage_withValue_reverts() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        bytes memory message = hex"1111";
+    function testSetPause() external {
+        // not owner, revert
+        hevm.startPrank(address(1));
+        hevm.expectRevert("Ownable: caller is not the owner");
+        l1CrossDomainMessenger.setPause(false);
+        hevm.stopPrank();
 
-        vm.expectRevert(
-            "CrossDomainMessenger: value must be zero unless message is from a system address"
-        );
-        L1Messenger.relayMessage{ value: 100 }(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
+        // pause
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.setPause(true);
+        assertBoolEq(true, l1CrossDomainMessenger.paused());
+
+        hevm.expectRevert("Pausable: paused");
+        l1CrossDomainMessenger.sendMessage(
+            address(0),
             0,
-            0,
-            message
+            new bytes(0),
+            defaultGasLimit
         );
-    }
+        hevm.expectRevert("Pausable: paused");
+        l1CrossDomainMessenger.sendMessage(
+            address(0),
+            0,
+            new bytes(0),
+            defaultGasLimit,
+            address(0)
+        );
 
-    // relayMessage: the xDomainMessageSender is reset to the original value
-    function test_xDomainMessageSender_reset_succeeds() external {
-        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
-        L1Messenger.xDomainMessageSender();
-
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.prank(address(portal));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+        (, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
+            .getProveWithdrawalTransactionInputs(bytes32(uint256(1)));
+        hevm.expectRevert("Pausable: paused");
+        l1CrossDomainMessenger.proveMessage(
             address(0),
             address(0),
             0,
             0,
-            hex""
+            new bytes(0),
+            wdProof,
+            wdRoot
+        );
+        hevm.expectRevert("Pausable: paused");
+        l1CrossDomainMessenger.relayMessage(
+            address(0),
+            address(0),
+            0,
+            0,
+            new bytes(0)
+        );
+        hevm.expectRevert("Pausable: paused");
+        l1CrossDomainMessenger.replayMessage(
+            address(0),
+            address(0),
+            0,
+            0,
+            new bytes(0),
+            0,
+            address(0)
+        );
+        hevm.expectRevert("Pausable: paused");
+        l1CrossDomainMessenger.dropMessage(
+            address(0),
+            address(0),
+            0,
+            0,
+            new bytes(0)
         );
 
-        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
-        L1Messenger.xDomainMessageSender();
-    }
-
-    // relayMessage: should send a successful call to the target contract after the first message
-    // fails and ETH gets stuck, but the second message succeeds
-    function test_relayMessage_retryAfterFailure_succeeds() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        uint256 value = 100;
-
-        vm.expectCall(target, hex"1111");
-
-        bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.etch(target, address(new Reverter()).code);
-        vm.deal(address(portal), value);
-        vm.prank(address(portal));
-        L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        assertEq(address(L1Messenger).balance, value);
-        assertEq(address(target).balance, 0);
-        assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.failedMessages(hash), true);
-
-        vm.expectEmit(true, true, true, true);
-
-        emit RelayedMessage(hash);
-
-        vm.etch(target, address(0).code);
-        vm.prank(address(sender));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        assertEq(address(L1Messenger).balance, 0);
-        assertEq(address(target).balance, value);
-        assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.failedMessages(hash), true);
-    }
-
-    function test_relayMessage_legacy_succeeds() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-
-        // Compute the message hash.
-        bytes32 hash = Hashing.hashCrossDomainMessageV1(
-            // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
-            sender,
-            target,
-            0,
-            0,
-            hex"1111"
-        );
-
-        // Set the value of portal.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-
-        // Target should be called with expected data.
-        vm.expectCall(target, hex"1111");
-
-        // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
-        emit RelayedMessage(hash);
-
-        // Relay the message.
-        vm.prank(address(portal));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            0, // value
-            0,
-            hex"1111"
-        );
-
-        // Message was successfully relayed.
-        assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.failedMessages(hash), false);
-    }
-
-    function test_relayMessage_legacyOldReplay_reverts() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-
-        // Compute the message hash.
-        bytes32 hash = Hashing.hashCrossDomainMessageV1(
-            // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
-            sender,
-            target,
-            0,
-            0,
-            hex"1111"
-        );
-
-        // Set the value of portal.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-
-        // Mark legacy message as already relayed.
-        uint256 successfulMessagesSlot = 203;
-        bytes32 oldHash = Hashing.hashCrossDomainMessageV0(target, sender, hex"1111", 0);
-        bytes32 slot = keccak256(abi.encode(oldHash, successfulMessagesSlot));
-        vm.store(address(L1Messenger), slot, bytes32(uint256(1)));
-
-        // Expect revert.
-        vm.expectRevert("CrossDomainMessenger: legacy withdrawal already relayed");
-
-        // Relay the message.
-        vm.prank(address(portal));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            0, // value
-            0,
-            hex"1111"
-        );
-
-        // Message was not relayed.
-        assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.failedMessages(hash), false);
-    }
-
-    function test_relayMessage_legacyRetryAfterFailure_succeeds() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        uint256 value = 100;
-
-        // Compute the message hash.
-        bytes32 hash = Hashing.hashCrossDomainMessageV1(
-            // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Set the value of portal.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-
-        // Turn the target into a Reverter.
-        vm.etch(target, address(new Reverter()).code);
-
-        // Target should be called with expected data.
-        vm.expectCall(target, hex"1111");
-
-        // Expect FailedRelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
-        emit FailedRelayedMessage(hash);
-
-        // Relay the message.
-        vm.deal(address(portal), value);
-        vm.prank(address(portal));
-        L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Message failed.
-        assertEq(address(L1Messenger).balance, value);
-        assertEq(address(target).balance, 0);
-        assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.failedMessages(hash), true);
-
-        // Make the target not revert anymore.
-        vm.etch(target, address(0).code);
-
-        // Target should be called with expected data.
-        vm.expectCall(target, hex"1111");
-
-        // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
-        emit RelayedMessage(hash);
-
-        // Retry the message.
-        vm.prank(address(sender));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Message was successfully relayed.
-        assertEq(address(L1Messenger).balance, 0);
-        assertEq(address(target).balance, value);
-        assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.failedMessages(hash), true);
-    }
-
-    function test_relayMessage_legacyRetryAfterSuccess_reverts() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        uint256 value = 100;
-
-        // Compute the message hash.
-        bytes32 hash = Hashing.hashCrossDomainMessageV1(
-            // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Set the value of portal.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-
-        // Target should be called with expected data.
-        vm.expectCall(target, hex"1111");
-
-        // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
-        emit RelayedMessage(hash);
-
-        // Relay the message.
-        vm.deal(address(portal), value);
-        vm.prank(address(portal));
-        L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Message was successfully relayed.
-        assertEq(address(L1Messenger).balance, 0);
-        assertEq(address(target).balance, value);
-        assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.failedMessages(hash), false);
-
-        // Expect a revert.
-        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
-
-        // Retry the message.
-        vm.prank(address(sender));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-    }
-
-    function test_relayMessage_legacyRetryAfterFailureThenSuccess_reverts() external {
-        address target = address(0xabcd);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        uint256 value = 100;
-
-        // Compute the message hash.
-        bytes32 hash = Hashing.hashCrossDomainMessageV1(
-            // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Set the value of portal.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(portal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-
-        // Turn the target into a Reverter.
-        vm.etch(target, address(new Reverter()).code);
-
-        // Target should be called with expected data.
-        vm.expectCall(target, hex"1111");
-
-        // Relay the message.
-        vm.deal(address(portal), value);
-        vm.prank(address(portal));
-        L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Message failed.
-        assertEq(address(L1Messenger).balance, value);
-        assertEq(address(target).balance, 0);
-        assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.failedMessages(hash), true);
-
-        // Make the target not revert anymore.
-        vm.etch(target, address(0).code);
-
-        // Target should be called with expected data.
-        vm.expectCall(target, hex"1111");
-
-        // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
-        emit RelayedMessage(hash);
-
-        // Retry the message
-        vm.prank(address(sender));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
-
-        // Message was successfully relayed.
-        assertEq(address(L1Messenger).balance, 0);
-        assertEq(address(target).balance, value);
-        assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.failedMessages(hash), true);
-
-        // Expect a revert.
-        vm.expectRevert("CrossDomainMessenger: message has already been relayed");
-
-        // Retry the message again.
-        vm.prank(address(sender));
-        L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
-        );
+        // unpause
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.setPause(false);
+        assertBoolEq(false, l1CrossDomainMessenger.paused());
     }
 }

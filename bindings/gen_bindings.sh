@@ -24,6 +24,9 @@ NAME=$1
 # the name of the contract.
 # Fully qualified: path-to-contract-file:contract-name
 TYPE=$(echo "$NAME" | cut -d ':' -f2)
+CATPATH=$(echo "$NAME" | cut -d ':' -f1)
+CATPATH=$(echo "artifacts/$CATPATH/$TYPE.json" )
+
 PACKAGE=$2
 
 # Convert to lower case to respect golang package naming conventions
@@ -37,9 +40,9 @@ TEMP=$(mktemp -d)
 CWD=$(pwd)
 # Build contracts
 cd ${CONTRACTS_PATH}
-forge inspect ${NAME} abi > ${TEMP}/${TYPE}.abi
-forge inspect ${NAME} bytecode > ${TEMP}/${TYPE}.bin
-forge inspect ${NAME} deployedBytecode > ${CWD}/bin/${TYPE_LOWER}_deployed.hex
+cat ${CATPATH} | jq ".abi" > ${TEMP}/${TYPE}.abi
+cat ${CATPATH} | jq ".bytecode" | sed 's/\"//g' > ${TEMP}/${TYPE}.bin
+cat ${CATPATH} | jq ".deployedBytecode" | sed 's/\"//g' > ${CWD}/bin/${TYPE_LOWER}_deployed.hex
 
 # Run ABIGEN
 cd ${CWD}

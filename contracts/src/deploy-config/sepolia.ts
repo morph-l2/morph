@@ -8,24 +8,34 @@ const config = {
   l1ChainID: 11155111,
   l2ChainID: 2710,
   l1BlockTime: 12,
-
+  l2BlockTime: 2,
+  /**
+   * ---from---legacy property
+   */
   maxSequencerDrift: 300,
   sequencerWindowSize: 200,
   channelTimeout: 120,
+  /**
+   * ---to---legacy property
+   */
 
-  rollupMinDeposit: 1,
-  rollupProofWindow: 100,
+  rollupMinDeposit: 0.0001,
+  rollupProofWindow: 86400,
   rollupGenesisBlockNumber: 0,
   rollupProposer: '0x77774B33aFa9Ecef8835D25ff749ff84950e83af',
   rollupChallenger: '0x77776ab9Ed7479Ff446f1E3135145e245f2B71B1',
   rollupGenesisStateRoot: '',
   withdrawRoot: '',
   batchHeader: '',
-  finalizationPeriodSeconds: 86400,
+  finalizationPeriodSeconds: 600,
 
   stakingSequencerSize: 7,
   stakingLockNumber: 3,
-  stakingMinDeposit: 1,
+  stakingMinDeposit: 0.1,
+
+  baseFeeVaultRecipient: '0x77772Fb3715C4B8FC621e23Eda5ABbb34a9D6EAd',
+  l1FeeVaultRecipient: '0x77772Fb3715C4B8FC621e23Eda5ABbb34a9D6EAd',
+  sequencerFeeVaultRecipient: '0x77772Fb3715C4B8FC621e23Eda5ABbb34a9D6EAd',
 
   /**
    *  Only used for SystemConfig
@@ -35,35 +45,38 @@ const config = {
   batchInboxAddress: '0xff00000000000000000000000000000000000010',
   batchSenderAddress: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
 
-  baseFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-  l1FeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-  sequencerFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-  /**
-   * -----------to--------
-   */
-  governanceTokenName: 'Morph',
-  governanceTokenSymbol: 'MORPH',
-  governanceTokenOwner: '0x77778E169A7A162aA0D926B0C1a1C0541Ed9E570',
-
   l2GenesisBlockGasLimit: '0x1c9c380',
   l2GenesisBlockCoinbase: '0x4200000000000000000000000000000000000011',
   l2GenesisBlockBaseFeePerGas: '0x3B9ACA00',
+   /**
+   * -----------to--------
+   */
+
+  /**
+   * ---from---legacy property
+   */
+  governanceTokenName: 'Morph',
+  governanceTokenSymbol: 'MORPH',
+  governanceTokenOwner: '0x7777519b6680965136155F8EdA5D865Fc775528E',
+  l2GenesisRegolithTimeOffset: '0x0',
+  /**
+   * ---to---legacy property
+   */
 
   gasPriceOracleOverhead: 2100,
   gasPriceOracleScalar: 1000000,
+
   eip1559Denominator: 8,
   eip1559Elasticity: 2,
 
-  l2GenesisRegolithTimeOffset: '0x0',
-
   l2SequencerAddresses: [
-    "0x2AB6E169CD6F1A93DF48C448D15921F5F956B96D",
-    "0xF5B36751EC631D6CE39C7988B7264D2A88C2A055",
-    "0xCD0D1A4AA59FB7C3C8CAA48DB510C57E58C3730E",
-    "0x49E592304F8D9B200F3522C64021CFEF2599AF4E",
-    "0xC39818229B6A72D9C85C881C1F47551781A1AF2A",
-    "0x6C1E4B4AF3C68D281705A28A73FA71910816581C",
-    "0x38FF3C403D1ADF51B8007CD4BB8413BF3F0296A9"
+    "0xfd0043f13c5586E6B97e984a3E233CFDB39A5125",
+    "0x58bA3ec73524832a642d34808fe93816437264a9",
+    "0x1e7Aa39A5153813deE8209d365bD4e830A8a8e63",
+    "0x986929D12382876fdeD38eA1ee3847161d7Eb9b7",
+    "0xd774Bce3D786A692A03EF915bD135A814daf2D58",
+    "0xA321f3696dEc1ea4Dbd5BA2b777a8EEC4f09e148",
+    "0x07A2Ba25526a564f972ebEAFECca8fA978aae55F"
   ],
   l2SequencerTmKeys: [
     "0xa599b93e87801f8fb19442df0fb07cd1729f31fd5a6261341ef0b41bc3ad5122",
@@ -83,7 +96,6 @@ const config = {
     "0x0000000000000000000000000000000011d3781ed4b75e002b1248cc88f3c6d14356e026520518ca64845a295c2bf6ef5b5aac7f387338b16d7b35af349e8d2d00000000000000000000000000000000165ded3bb263e31c18ca1571def34fa7d4b27c789c4ef75136b63208e0f90bcc83d0d0deeb5a4684a2fc8a9fb142d0ee0000000000000000000000000000000012a01cead027fb7e22677fa16017054498eedf4f5a1c2b58f8ef48f7ac502ae2018336b326322acf3d952ed71b91025d000000000000000000000000000000000dfd0c585099e1d6b7826f0e6bdcce3220efd5687d585a2889d74548eca4bcd7b6f9166c800ef5e2eea578b6bfb31d57",
     "0x0000000000000000000000000000000019d09b98ebea07d6b17bd98eeeb71f06a8033c197ed79383c32da28969cbae31a3acc2a9f667b2e1f34f1b1a22c7907600000000000000000000000000000000141becd55b186ff31d2ce6844c915bd6d89a4f8efaa4807f627f8ebf13f758ebea1ec1f4f55ddb033f584fbc7c48cde3000000000000000000000000000000000464814e2a7276b674ce82065038df7368782165eafaff6ce3eee87bb32d6cfc2a75106a618a3c602340b4ee51d1cff5000000000000000000000000000000000f1651ce08ae92dcb99eb9486b28ca9bd4965560fb9ef86f987c49e922a2fa0a98e43d10e2eb06862efa0503fbb0d409"
   ],
-  l2BlockTime: 2,
 }
 
 export default config 

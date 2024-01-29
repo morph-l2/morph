@@ -3,14 +3,13 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"github.com/morph-l2/bindings/ast"
+	"github.com/morph-l2/bindings/hardhat"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
-
-	"github.com/morph-l2/bindings/ast"
-	"github.com/morph-l2/bindings/hardhat"
 )
 
 type flags struct {

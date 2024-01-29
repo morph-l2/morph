@@ -8,22 +8,15 @@ import { task } from "hardhat/config";
 import {
     deployProxyAdmin,
     deployLibAddressManager,
+    deployZkEvmVerifierV1,
     deployContractProxys,
     deployContractImpls,
-    SystemDictatorInit,
-    SystemDictatorSteps1,
-    SystemDictatorSteps2,
-
-    deployZkEvmVerifierV1,
-    deployRollup,
-    deploySystemConfig,
-    deployPortalAndMessengerImpl,
-    deployPortalProxyAndMessengerProxy,
-    deployL1StandardBridge,
-    deployL1ERC721Bridge
+    MessengerInit,
+    RollupInit,
+    StakingInit,
 } from '../deploy/index'
 import { ethers } from "ethers";
-import StakingInit from "../deploy/017-Staking";
+import StakingRegister from "../deploy/018-StakingRegister";
 
 task("deploy")
     .addParam('storagepath')
@@ -52,7 +45,7 @@ task("deploy")
         console.log('\n---------------------------------- deploy  Proxys ----------------------------------')
         err = await deployContractProxys(hre, stroagePath, deployer)
         if (err != '') {
-            console.log('Deploy deploy Proxys failed, err: ', err)
+            console.log('Deploy Proxys failed, err: ', err)
             return
         }
 
@@ -82,63 +75,67 @@ task("initialize")
             return
         }
 
-        console.log('\n---------------------------------- SystemDictator init ----------------------------------')
-        err = await SystemDictatorInit(hre, stroagePath, deployer, config)
+        console.log('\n---------------------------------- Messenger init ----------------------------------')
+        err = await MessengerInit(hre, stroagePath, deployer, config)
         if (err != '') {
-            console.log('Deploy SystemDictator init failed, err: ', err)
+            console.log('Messenger init failed, err: ', err)
             return
         }
-        console.log('\n---------------------------------- SystemDictator Steps1 ----------------------------------')
-        err = await SystemDictatorSteps1(hre, stroagePath, deployer, config)
+        console.log('\n---------------------------------- Rollup init ----------------------------------')
+        err = await RollupInit(hre, stroagePath, deployer, config)
         if (err != '') {
-            console.log('Deploy SystemDictator steps1 failed, err: ', err)
+            console.log('Rollup init failed, err: ', err)
             return
         }
-        console.log('\n---------------------------------- SystemDictator Steps2 ----------------------------------')
-        err = await SystemDictatorSteps2(hre, stroagePath, deployer, config)
+        console.log('\n---------------------------------- Staking init ----------------------------------')
+        err = await StakingInit(hre, stroagePath, deployer, config)
         if (err != '') {
-            console.log('Deploy SystemDictator steps2 failed, err: ', err)
+            console.log('Staking init failed, err: ', err)
             return
         }
     });
 
-const sequencerNum = 4
+task("fund")
+    .setAction(async (taskArgs, hre) => {
+        console.log('\n---------------------------------- Fund Staking ----------------------------------')
+        const signer = await hre.ethers.getSigners()
+        console.log(process.env.l2SequencerPks)
+        let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
+        console.log(l2SequencerPkList)
+        for (let i = 0; i < l2SequencerPkList.length; i++) {
+            let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
+            const tx = {
+                to: sequencer.address,
+                value: ethers.utils.parseEther("100")
+            }
+            let balance = (await sequencer.getBalance()).toString()
 
-task("staking")
+            if (balance.length < 20) {
+                let receipt = await signer[0].sendTransaction(tx)
+                await receipt.wait()
+            }
+            balance = (await sequencer.getBalance()).toString()
+            console.log(`${sequencer.address} has balance: ${balance}`)
+        }
+    })
+
+
+task("register")
     .addParam('storagepath')
     .setAction(async (taskArgs, hre) => {
         // Initialization parameters
         const stroagePath = taskArgs.storagepath
         const config = hre.deployConfig
-        console.log('################################## console parameters ##################################')
-        const l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
-        for (let i = 0; i < sequencerNum; i++) {
+        let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
+        for (let i = 0; i < l2SequencerPkList.length; i++) {
             let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
             console.log(`sequencer-${i}:` + await sequencer.getAddress() + ', Balance: ' + await sequencer.getBalance())
 
-            console.log(`\n---------------------------------- staking  sequencer-${i} ----------------------------------`)
-            let err = await StakingInit(hre, stroagePath, sequencer, config.l2SequencerTmKeys[i], config.l2SequencerBlsKeys[i])
+            console.log(`\n---------------------------------- register  sequencer-${i} ----------------------------------`)
+            let err = await StakingRegister(hre, stroagePath, sequencer, config.l2SequencerTmKeys[i], config.l2SequencerBlsKeys[i])
             if (err != '') {
                 console.log(`Deploy Staking Sequencer-${i} failed, err: `, err)
                 return
             }
         }
-    });
-
-task("deployonebyone")
-    .addParam('storagepath')
-    .setAction(async (taskArgs, hre) => {
-        // Initialization parameters
-        const stroagePath = taskArgs.storagepath
-        const config = hre.deployConfig
-
-        const deployer = await hre.ethers.provider.getSigner();
-        console.log('################################## console parameters ##################################')
-        console.log('deployer :', await deployer.getAddress())
-        await deployRollup(hre, stroagePath, deployer, config)
-        await deploySystemConfig(hre, stroagePath, deployer, config)
-        await deployPortalProxyAndMessengerProxy(hre, stroagePath, deployer, config)
-        await deployPortalAndMessengerImpl(hre, stroagePath, deployer, config)
-        await deployL1StandardBridge(hre, stroagePath, deployer, config)
-        await deployL1ERC721Bridge(hre, stroagePath, deployer, config)
     });

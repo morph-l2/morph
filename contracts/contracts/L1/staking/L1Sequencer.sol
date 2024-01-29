@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {Sequencer} from "../../universal/Sequencer.sol";
-import {Semver} from "../../universal/Semver.sol";
-import {Predeploys} from "../../libraries/Predeploys.sol";
-import {L2Sequencer} from "../../L2/L2Sequencer.sol";
-import {Types} from "../../libraries/Types.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Predeploys} from "../../libraries/constants/Predeploys.sol";
+import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
+import {Semver} from "../../libraries/common/Semver.sol";
 import {IL1Sequencer} from "./IL1Sequencer.sol";
 
 contract L1Sequencer is
@@ -56,7 +54,7 @@ contract L1Sequencer is
     constructor(
         address payable _messenger
     )
-        Semver(1, 1, 0)
+        Semver(1, 0, 0)
         Pausable()
         Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER))
     {
@@ -134,14 +132,17 @@ contract L1Sequencer is
     function updateAndSendSequencerSet(
         bytes memory _sequencerBytes,
         bytes[] memory _sequencerBLSKeys,
-        uint32 _minGasLimit
-    ) external override onlyStakingContract {
+        uint32 _gasLimit,
+        address _refundAddress
+    ) external payable override onlyStakingContract {
         updateSequencersVersion(_sequencerBLSKeys);
         require(!paused(), "send message when unpaused");
         MESSENGER.sendMessage(
             address(OTHER_SEQUENCER),
+            0,
             _sequencerBytes,
-            _minGasLimit
+            _gasLimit,
+            _refundAddress
         );
     }
 
