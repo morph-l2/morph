@@ -1,0 +1,241 @@
+version: '3.4'
+
+volumes:
+  sequencer_geth_data:
+  sequencer_node_data:
+  validator_geth_data:
+  validator_node_data:
+  l1_geth_data:
+  postgres_data:
+
+services:
+  l1:
+    build:
+      context: ..
+      dockerfile: ./ops/Dockerfile.l1
+    image: morph-l1:latest
+    ports:
+      - "9545:8545"
+      - "9546:8546"
+      - "7060:6060"
+    volumes:
+      - "l1_geth_data:/db"
+      - "${PWD}/jwt-secret.txt:/config/jwt-secret.txt"
+      - "${PWD}/../L2-genesis/.devnet/genesis-l1.json:/genesis.json"
+
+  sequencer_geth:
+    depends_on:
+      l1:
+        condition: service_started
+    build:
+      context: ..
+      dockerfile: ./ops/Dockerfile.l2-geth
+    image: morph-geth:latest
+    restart: unless-stopped
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "8551:8551"
+      - "6060:6060"
+      - "30303:30303"
+    healthcheck:
+      test: curl -f http://localhost:8545
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - "sequencer_geth_data:${GETH_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:${GENESIS_FILE_PATH}"
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+
+  sequencer_node:
+    depends_on:
+      sequencer_geth:
+        condition: service_started
+    build:
+      context: ..
+      dockerfile: ./ops/Dockerfile.l2-node-1
+    image: morph-node:latest
+    restart: unless-stopped
+    ports:
+      - "26656:26656"
+      - "26660"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://sequencer_geth:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://sequencer_geth:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      ## todo need to replace it to a public network
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      ## - MORPH_NODE_SYNC_START_HEIGHT=88854536
+    volumes:
+      - "sequencer_node_data:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --dev-sequencer
+      --home $NODE_DATA_DIR
+      
+  validator_geth:
+    image: morph-geth:latest
+    ports:
+      - "7545:8545"
+      - "7546:8546"
+      - "7551:8551"
+    healthcheck:
+      test: curl -f http://localhost:8545
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - "validator_geth_data:${GETH_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+
+  validator_node:
+    depends_on:
+      - validator_geth
+    build:
+      context: ..
+      dockerfile: ./ops/Dockerfile.l2-node-1
+    image: morph-node:latest
+    ports:
+      - "26660"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://validator_geth:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://validator_geth:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      ## todo need to replace it to a public network
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_VALIDATOR_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_DERIVATION_START_HEIGHT=1
+      - MORPH_NODE_DERIVATION_FETCH_BLOCK_RANGE=5000
+      - MORPH_NODE_L1_CHAIN_ID=900
+      - MORPH_NODE_VALIDATOR=true
+      - MORPH_NODE_MOCK_SEQUENCER=false
+      - MORPH_NODE_L1_CONFIRMATIONS=1
+      - MORPH_NODE_METRICS_SERVER_ENABLE=true
+      - MORPH_NODE_METRICS_PORT=26660
+      ## - MORPH_NODE_SYNC_START_HEIGHT=88854536
+    volumes:
+      - "validator_node_data:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --validator
+      --home $NODE_DATA_DIR
+
+  tx-submitter:
+    depends_on:
+      sequencer_geth:
+        condition: service_started
+      sequencer_node:
+        condition: service_started
+    build:
+      context: ..
+      dockerfile: ./ops/Dockerfile.submitter
+    image: morph-tx-submitter:latest
+    restart: unless-stopped
+    command: tx-submitter
+    environment:
+      # change the env variables to your own
+      - TX_SUBMITTER_BUILD_ENV=dev
+      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+      - TX_SUBMITTER_L1_PRIVATE_KEY=59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+      - TX_SUBMITTER_L2_ETH_RPC=http://sequencer_geth:8545
+      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+      - TX_SUBMITTER_MAX_TX_SIZE=125952
+      - TX_SUBMITTER_POLL_INTERVAL=3s
+      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+      - TX_SUBMITTER_TX_TIMEOUT=60s
+      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=db_username
+      - POSTGRES_PASSWORD=db_password
+      - POSTGRES_DB=db_name
+      - PGDATA=/data/postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -q -U db_username -d db_name" ]
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/data/postgres
+
+  indexer:
+    build:
+      context: ..
+      dockerfile: ./ops/Dockerfile.indexer
+    image: morph-indexer:latest
+    healthcheck:
+      test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
+    environment:
+      # Note that you must index goerli with INDEXER_BEDROCK=false first, then
+      # reindex with INDEXER_BEDROCK=true or seed the database
+      - INDEXER_BEDROCK=${INDEXER_BEDROCK_GOERLI:-true}
+      - INDEXER_METRICS_SERVER_ENABLE=true
+      - INDEXER_BUILD_ENV=${INDEXER_BUILD_ENV:-development}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-db_username}
+      - DB_PASSWORD=${DB_PASSWORD:-db_password}
+      - DB_NAME=${DB_NAME:-db_name}
+      - DB_HOST=${DB_HOST:-postgres}
+      - INDEXER_CHAIN_ID=${INDEXER_CHAIN_ID:-900}
+      - INDEXER_L1_ETH_RPC=${L1_ETH_RPC}
+      - INDEXER_L2_ETH_RPC=http://sequencer_geth:8545
+      - INDEXER_START_BLOCK_NUMBER=0
+      - INDEXER_REST_HOSTNAME=0.0.0.0
+      - INDEXER_REST_PORT=8080
+      - INDEXER_L1_CONF_DEPTH=1
+      - INDEXER_L2_CONF_DEPTH=1
+      - INDEXER_NETWORK=devnet
+      - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=${MORPH_STANDARD_BRIDGE:-0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0}
+      - INDEXER_BEDROCK_MORPH_PORTAL=${MORPH_PORTAL:-0xdc64a140aa3e981100a9beca4e685f962f0cf6c9}
+      - INDEXER_BEDROCK_ROLLUP=${MORPH_ROLLUP:-0xb7f8bc63bbcad18155201308c8f3540b07f84f5e}
+      - INDEXER_BEDROCK_L1_CROSS_DOMAIN_MESSENGER=${L1_CROSS_DOMAIN_MESSENGER:-0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9}
+      - INDEXER_L1_ADDRESS_MANAGER_ADDRESS=${MORPH_ADDRESS_MANAGER:-0xe7f1725e7734ce288f8367e1bb143e90bb3f0512}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gas-price-oracle:
+    depends_on:
+      sequencer_geth:
+        condition: service_started
+    build:
+      context: ..
+      dockerfile: ./ops/Dockerfile.oracle
+    image: morph-oracle:latest
+    restart: unless-stopped
+    ports:
+      - "6070:6060"
+    command: >
+      ./app
+    environment:
+      - L1_RPC=${L1_ETH_RPC}
+      - L2_RPC=http://sequencer_geth:8545
+      - GAS_THRESHOLD=5
+      - INTERVAL=5000
+      - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
+      - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      - OVERHEAD_THRESHOLD=200
+      - OVERHEAD_INTERVAL=10
+      - TXN_PER_BLOCK=1
+      - TXN_PER_BATCH=50
+      - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}

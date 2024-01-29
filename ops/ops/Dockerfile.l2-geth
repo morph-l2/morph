@@ -1,0 +1,103 @@
+# Build libzkp dependency
+FROM morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as chef
+WORKDIR /app
+
+FROM chef as planner
+COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp/ .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef as zkp-builder
+COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp/rust-toolchain ./
+COPY --from=planner /app/recipe.json recipe.json
+ENV RUST_BACKTRACE=full
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp .
+RUN cargo build --release
+RUN find ./ | grep libzktrie.so | xargs -I{} cp {} /app/target/release/
+
+FROM morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as go-rust-builder
+
+COPY ./go-ethereum /go-ethereum
+COPY --from=zkp-builder /app/target/release/libzkp.so /usr/local/lib/
+COPY --from=zkp-builder /app/target/release/libzktrie.so /usr/local/lib/
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
+RUN cd /go-ethereum && env GO111MODULE=on GOFLAGS=-buildvcs=false go run build/ci.go install -buildtags circuit_capacity_checker ./cmd/geth
+
+# Pull Geth into a second stage deploy alpine container
+FROM ubuntu:20.04 as l2-geth
+
+RUN apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends ca-certificates
+
+COPY --from=go-rust-builder /go-ethereum/build/bin/geth /usr/local/bin/
+COPY --from=zkp-builder /app/target/release/libzkp.so /usr/local/lib/
+COPY --from=zkp-builder /app/target/release/libzktrie.so /usr/local/lib/
+COPY ./ops/entrypoint-l2.sh /entrypoint.sh
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
+
+VOLUME ["/db"]
+
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+
+EXPOSE 8545 8546 8551 30303 30303/udp
+
+
+
+# Build libzkp dependency
+FROM scrolltech/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as chef-x86
+WORKDIR app
+
+FROM chef-x86 as planner-x86
+COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp/ .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef-x86 as zkp-builder-x86
+COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp/rust-toolchain ./
+COPY --from=planner-x86 /app/recipe.json recipe.json
+ENV RUST_BACKTRACE=full
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp .
+RUN cargo build --release
+RUN find ./ | grep libzktrie.so | xargs -I{} cp {} /app/target/release/
+
+# Build Geth in a stock Go builder container
+FROM scrolltech/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as builder-x86
+
+ADD ./go-ethereum /go-ethereum
+COPY --from=zkp-builder-x86 /app/target/release/libzkp.so /usr/local/lib/
+COPY --from=zkp-builder-x86 /app/target/release/libzktrie.so /usr/local/lib/
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
+RUN cd /go-ethereum && env GO111MODULE=on GOFLAGS=-buildvcs=false go run build/ci.go install -buildtags circuit_capacity_checker ./cmd/geth
+
+# Pull Geth into a second stage deploy alpine container
+FROM ubuntu:20.04 as l2-geth-x86
+RUN apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends ca-certificates
+COPY ops/entrypoint-l2.sh /entrypoint.sh
+COPY --from=builder-x86 /go-ethereum/build/bin/geth /usr/local/bin/
+COPY --from=zkp-builder-x86 /app/target/release/libzkp.so /usr/local/lib/
+COPY --from=zkp-builder-x86 /app/target/release/libzktrie.so /usr/local/lib/
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
+
+VOLUME ["/db"]
+
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
+
+EXPOSE 8545 8546 8551 30303 30303/udp
+
+
+# Build Geth in a stock Go builder container
+FROM golang:1.20-alpine as builder
+RUN apk add --no-cache gcc musl-dev linux-headers git make
+COPY ./go-ethereum /go-ethereum
+RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth
+
+# Pull Geth into a second stage deploy alpine container
+FROM alpine:latest as l2-geth-mockccc
+RUN apk add --no-cache ca-certificates bash
+COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
+COPY ops/entrypoint-l2.sh /entrypoint.sh
+VOLUME ["/db"]
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
+EXPOSE 8545 8546 8551 30303 30303/udp

@@ -1,0 +1,74 @@
+import time
+
+DEV_ACCOUNTS = [
+    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+    "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+    "0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec",
+    "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+    "0x2546BcD3c84621e976D8185a91A922aE77ECEc30",
+    "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+    "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
+    "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+    "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+    "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+    "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
+    "0xFABB0ac9d68B0B445fB7357272Ff202C5651694a",
+    "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+    "0xbDA5747bFD65F08deb54cb465eB87D40e51B197E",
+    "0xcd3B766CCDd6AE721141F452C550Ca635964ce71",
+    "0xdD2FD4581271e230360230F9337D5c0430Bf44C0",
+    "0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097",
+    "0xde3829a23df1479438622a08a116e8eb3f620bb5",
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "0x71562b71999873DB5b286dF957af199Ec94617F7",
+    "0xca062B0Fd91172d89BcD4Bb084ac4e21972CC467",
+]
+
+GENESIS_TMPL = {
+    'config': {
+        'chainId': 900,
+        "homesteadBlock": 0,
+        "eip150Block": 0,
+        "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "eip155Block": 0,
+        "eip158Block": 0,
+        "byzantiumBlock": 0,
+        "constantinopleBlock": 0,
+        "petersburgBlock": 0,
+        "istanbulBlock": 0,
+        "muirGlacierBlock": 0,
+        "berlinBlock": 0,
+        "londonBlock": 0,
+        "arrowGlacierBlock": 0,
+        "grayGlacierBlock": 0,
+        'clique': {
+            'period': 1,
+            'epoch': 1000
+        },
+        "scroll": {}
+    },
+    'nonce': '0x0',
+    'timestamp': '{:#x}'.format(int(time.time())),
+    'extraData': '0x0000000000000000000000000000000000000000000000000000000000000000ca062b0fd91172d89bcd4bb084ac4e21972cc4670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    'gasLimit': '0xE4E1C0',
+    'difficulty': '0x1',
+    'mixHash': '0x0000000000000000000000000000000000000000000000000000000000000000',
+    'coinbase': '0x0000000000000000000000000000000000000000',
+    'alloc': {
+        '{:x}'.format(i).ljust(40, '0'): {
+            'balance': '0x1'
+        } for i in range(0, 255)
+    },
+    'number': '0x0',
+    'gasUsed': '0x0',
+    'parentHash': '0x0000000000000000000000000000000000000000000000000000000000000000',
+    'baseFeePergas': '0x3B9ACA00'
+}
+
+GENESIS_TMPL['alloc'].update({
+    d: {
+        'balance': '0x20000000000000000000000000000000000000000000000000000000000000'
+    } for d in DEV_ACCOUNTS
+})
