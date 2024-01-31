@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.16;
+pragma solidity =0.8.23;
 
 /// @title The interface for the ERC721 cross chain gateway on layer 1.
 interface IL1ERC721Gateway {
@@ -68,13 +68,21 @@ interface IL1ERC721Gateway {
     /// @param token The address of the token in L1.
     /// @param recipient The address of receiver in L1.
     /// @param tokenId The id of token refunded.
-    event RefundERC721(address indexed token, address indexed recipient, uint256 tokenId);
+    event RefundERC721(
+        address indexed token,
+        address indexed recipient,
+        uint256 tokenId
+    );
 
     /// @notice Emitted when a batch of ERC721 tokens are refunded.
     /// @param token The address of the token in L1.
     /// @param recipient The address of receiver in L1.
     /// @param tokenIds The list of token ids of the ERC721 NFT refunded.
-    event BatchRefundERC721(address indexed token, address indexed recipient, uint256[] tokenIds);
+    event BatchRefundERC721(
+        address indexed token,
+        address indexed recipient,
+        uint256[] tokenIds
+    );
 
     /*****************************
      * Public Mutating Functions *

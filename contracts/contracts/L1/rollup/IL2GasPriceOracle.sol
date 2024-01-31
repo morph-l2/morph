@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity =0.8.23;
 
 interface IL2GasPriceOracle {
     /// @notice Estimate fee for cross chain message call.

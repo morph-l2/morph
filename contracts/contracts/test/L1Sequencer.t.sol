@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {L1StakingBaseTest} from "./base/L1StakingBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";

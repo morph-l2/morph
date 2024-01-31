@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {MockERC1155} from "@rari-capital/solmate/src/test/utils/mocks/MockERC1155.sol";
 import {ERC1155TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC1155.sol";
@@ -9,7 +9,6 @@ import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {L1ERC1155Gateway} from "../L1/gateways/L1ERC1155Gateway.sol";
 import {IL1ERC1155Gateway} from "../L1/gateways/IL1ERC1155Gateway.sol";
 import {IL2ERC1155Gateway} from "../L2/gateways/IL2ERC1155Gateway.sol";
-
 
 contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
     event FinalizeWithdrawERC1155(

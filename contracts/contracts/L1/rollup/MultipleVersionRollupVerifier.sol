@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -110,11 +110,20 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
     /// @notice Update the address of zkevm verifier.
     /// @param _startBatchIndex The start batch index when the verifier will be used.
     /// @param _verifier The address of new verifier.
-    function updateVerifier(uint64 _startBatchIndex, address _verifier) external onlyOwner {
-        require(_startBatchIndex > IRollup(rollup).lastFinalizedBatchIndex(), "start batch index finalized");
+    function updateVerifier(
+        uint64 _startBatchIndex,
+        address _verifier
+    ) external onlyOwner {
+        require(
+            _startBatchIndex > IRollup(rollup).lastFinalizedBatchIndex(),
+            "start batch index finalized"
+        );
 
         Verifier memory _latestVerifier = latestVerifier;
-        require(_startBatchIndex >= _latestVerifier.startBatchIndex, "start batch index too small");
+        require(
+            _startBatchIndex >= _latestVerifier.startBatchIndex,
+            "start batch index too small"
+        );
         require(_verifier != address(0), "zero verifier address");
 
         if (_latestVerifier.startBatchIndex < _startBatchIndex) {

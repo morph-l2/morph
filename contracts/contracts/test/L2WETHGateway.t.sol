@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";

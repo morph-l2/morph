@@ -102,12 +102,13 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: '0.8.16',
+        version: '0.8.23',
         settings: {
           optimizer: { enabled: true, runs: 10_000 },
         },
       },
     ],
+    // compileUsingRemoteVersion: 'v0.8.23+commit.69122e07',
   },
   // gasReporter: {
   //     enabled: true,

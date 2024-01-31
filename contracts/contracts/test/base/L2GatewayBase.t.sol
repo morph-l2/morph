@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {Proxy} from "../../libraries/proxy/Proxy.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
@@ -206,7 +206,7 @@ contract L2GatewayBaseTest is L2MessageBaseTest {
     }
 
     function _deployERC1155() public {
-       hevm.startPrank(multisig);
+        hevm.startPrank(multisig);
         Proxy l2ERC1155GatewayProxy = new Proxy(multisig);
         L2ERC1155Gateway l2ERC1155GatewayImpl = new L2ERC1155Gateway();
         l2ERC1155GatewayProxy.upgradeToAndCall(

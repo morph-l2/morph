@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {ChunkCodec} from "../libraries/codec/ChunkCodec.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
@@ -562,18 +562,21 @@ contract RollupTest is L1MessageBaseTest {
             ) // bitmap0
             mstore(add(batchHeader2, add(0x20, 121)), 42) // bitmap1
         }
-        chunk0 = new bytes(1 + 60 + 3 * 5);
+        chunk0 = new bytes(1 + 60 + 3 * 32);
         assembly {
             mstore(add(chunk0, 0x20), shl(248, 1)) // numBlocks = 1
             mstore(add(chunk0, add(0x21, 56)), shl(240, 3)) // numTransactions = 3
             mstore(add(chunk0, add(0x21, 58)), shl(240, 0)) // numL1Messages = 0
         }
+
+        bytes32 txHash = keccak256(abi.encodePacked(bytes1(uint8(0)))); // tx = "0x00"
+
         for (uint256 i = 0; i < 3; i++) {
             assembly {
-                mstore(add(chunk0, add(93, mul(i, 5))), shl(224, 1)) // tx = "0x00"
+                mstore(add(chunk0, add(93, mul(i, 32))), txHash) // tx = "0x00"
             }
         }
-        chunk1 = new bytes(1 + 60 * 3 + 51 * 5);
+        chunk1 = new bytes(1 + 60 * 3 + 51 * 32);
         assembly {
             mstore(add(chunk1, 0x20), shl(248, 3)) // numBlocks = 3
             mstore(add(chunk1, add(33, 56)), shl(240, 5)) // block0.numTransactions = 5
@@ -585,7 +588,7 @@ contract RollupTest is L1MessageBaseTest {
         }
         for (uint256 i = 0; i < 51; i++) {
             assembly {
-                mstore(add(chunk1, add(213, mul(i, 5))), shl(224, 1)) // tx = "0x00"
+                mstore(add(chunk1, add(213, mul(i, 32))), txHash) // tx = "0x00"
             }
         }
         chunks = new bytes[](2);
@@ -645,6 +648,8 @@ contract RollupTest is L1MessageBaseTest {
                 0x03a9cdcb9d582251acf60937db006ec99f3505fd4751b7c1f92c9a8ef413e873
             )
         );
+
+        // 0x01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000bc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a
         batchData = IRollup.BatchData(
             0,
             batchHeader1,

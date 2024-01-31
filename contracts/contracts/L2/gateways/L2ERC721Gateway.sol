@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {ERC721HolderUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
 
@@ -17,7 +17,11 @@ import {IMorphERC721} from "../../libraries/token/IMorphERC721.sol";
 /// NFT will be minted and transfer to the recipient.
 ///
 /// This will be changed if we have more specific scenarios.
-contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gateway {
+contract L2ERC721Gateway is
+    ERC721HolderUpgradeable,
+    GatewayBase,
+    IL2ERC721Gateway
+{
     /**********
      * Events *
      **********/
@@ -26,7 +30,11 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
     /// @param l2Token The address of corresponding ERC721 token in layer 2.
     /// @param oldL1Token The address of the old corresponding ERC721 token in layer 1.
     /// @param newL1Token The address of the new corresponding ERC721 token in layer 1.
-    event UpdateTokenMapping(address indexed l2Token, address indexed oldL1Token, address indexed newL1Token);
+    event UpdateTokenMapping(
+        address indexed l2Token,
+        address indexed oldL1Token,
+        address indexed newL1Token
+    );
 
     /*************
      * Variables *
@@ -43,7 +51,10 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
         _disableInitializers();
     }
 
-    function initialize(address _counterpart, address _messenger) external initializer {
+    function initialize(
+        address _counterpart,
+        address _messenger
+    ) external initializer {
         ERC721HolderUpgradeable.__ERC721Holder_init();
 
         GatewayBase._initialize(_counterpart, address(0), _messenger);
@@ -122,7 +133,13 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
             IMorphERC721(_l2Token).mint(_to, _tokenIds[i]);
         }
 
-        emit FinalizeBatchDepositERC721(_l1Token, _l2Token, _from, _to, _tokenIds);
+        emit FinalizeBatchDepositERC721(
+            _l1Token,
+            _l2Token,
+            _from,
+            _to,
+            _tokenIds
+        );
     }
 
     /************************
@@ -132,7 +149,10 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
     /// @notice Update layer 2 to layer 1 token mapping.
     /// @param _l2Token The address of corresponding ERC721 token on layer 2.
     /// @param _l1Token The address of ERC721 token on layer 1.
-    function updateTokenMapping(address _l2Token, address _l1Token) external onlyOwner {
+    function updateTokenMapping(
+        address _l2Token,
+        address _l1Token
+    ) external onlyOwner {
         require(_l1Token != address(0), "token address cannot be 0");
 
         address _oldL1Token = tokenMapping[_l2Token];
@@ -163,7 +183,10 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
 
         // 1. burn token
         // @note in case the token has given too much power to the gateway, we check owner here.
-        require(IMorphERC721(_token).ownerOf(_tokenId) == _sender, "token not owned");
+        require(
+            IMorphERC721(_token).ownerOf(_tokenId) == _sender,
+            "token not owned"
+        );
         IMorphERC721(_token).burn(_tokenId);
 
         // 2. Generate message passed to L1ERC721Gateway.
@@ -173,7 +196,12 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
         );
 
         // 3. Send message to L2CrossDomainMessenger.
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
+            counterpart,
+            0,
+            _message,
+            _gasLimit
+        );
 
         emit WithdrawERC721(_l1Token, _token, _sender, _to, _tokenId);
     }
@@ -199,7 +227,10 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
         // 1. transfer token to this contract
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             // @note in case the token has given too much power to the gateway, we check owner here.
-            require(IMorphERC721(_token).ownerOf(_tokenIds[i]) == _sender, "token not owned");
+            require(
+                IMorphERC721(_token).ownerOf(_tokenIds[i]) == _sender,
+                "token not owned"
+            );
             IMorphERC721(_token).burn(_tokenIds[i]);
         }
 
@@ -210,7 +241,12 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
         );
 
         // 3. Send message to L2CrossDomainMessenger.
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
+            counterpart,
+            0,
+            _message,
+            _gasLimit
+        );
 
         emit BatchWithdrawERC721(_l1Token, _token, _sender, _to, _tokenIds);
     }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
@@ -56,7 +56,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
         // transfer ownership
         hevm.prank(multisig);
         gateway.transferOwnership(address(this));
-        
+
         // Deploy tokens
         l1Token = new MockERC20("Mock L1", "ML1", 18);
         l2Token = new MockERC20("Mock L2", "ML2", 18);

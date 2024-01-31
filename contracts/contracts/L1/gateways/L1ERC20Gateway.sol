@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.16;
+pragma solidity =0.8.23;
 
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import {SafeERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
@@ -15,7 +15,11 @@ import {IL2ERC20Gateway} from "../../L2/gateways/IL2ERC20Gateway.sol";
 /// @title L1ERC20Gateway
 /// @notice The `L1ERC20Gateway` as a base contract for ERC20 gateways in L1.
 /// It has implementation of common used functions for ERC20 gateways.
-abstract contract L1ERC20Gateway is IL1ERC20Gateway, IMessageDropCallback, GatewayBase {
+abstract contract L1ERC20Gateway is
+    IL1ERC20Gateway,
+    IMessageDropCallback,
+    GatewayBase
+{
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     /*************
@@ -68,7 +72,14 @@ abstract contract L1ERC20Gateway is IL1ERC20Gateway, IMessageDropCallback, Gatew
         uint256 _amount,
         bytes calldata _data
     ) external payable virtual override onlyCallByCounterpart nonReentrant {
-        _beforeFinalizeWithdrawERC20(_l1Token, _l2Token, _from, _to, _amount, _data);
+        _beforeFinalizeWithdrawERC20(
+            _l1Token,
+            _l2Token,
+            _from,
+            _to,
+            _amount,
+            _data
+        );
 
         // @note can possible trigger reentrant call to this contract or messenger,
         // but it seems not a big problem.
@@ -76,13 +87,26 @@ abstract contract L1ERC20Gateway is IL1ERC20Gateway, IMessageDropCallback, Gatew
 
         _doCallback(_to, _data);
 
-        emit FinalizeWithdrawERC20(_l1Token, _l2Token, _from, _to, _amount, _data);
+        emit FinalizeWithdrawERC20(
+            _l1Token,
+            _l2Token,
+            _from,
+            _to,
+            _amount,
+            _data
+        );
     }
 
     /// @inheritdoc IMessageDropCallback
-    function onDropMessage(bytes calldata _message) external payable virtual onlyInDropContext nonReentrant {
+    function onDropMessage(
+        bytes calldata _message
+    ) external payable virtual onlyInDropContext nonReentrant {
         // _message should start with 0x8431f5c1  =>  finalizeDepositERC20(address,address,address,address,uint256,bytes)
-        require(bytes4(_message[0:4]) == IL2ERC20Gateway.finalizeDepositERC20.selector, "invalid selector");
+        require(
+            bytes4(_message[0:4]) ==
+                IL2ERC20Gateway.finalizeDepositERC20.selector,
+            "invalid selector"
+        );
 
         // decode (token, receiver, amount)
         (address _token, , address _receiver, , uint256 _amount, ) = abi.decode(
@@ -136,24 +160,27 @@ abstract contract L1ERC20Gateway is IL1ERC20Gateway, IMessageDropCallback, Gatew
         address _token,
         uint256 _amount,
         bytes memory _data
-    )
-        internal
-        returns (
-            address,
-            uint256,
-            bytes memory
-        )
-    {
+    ) internal returns (address, uint256, bytes memory) {
         address _sender = _msgSender();
         address _from = _sender;
         if (router == _sender) {
             // Extract real sender if this call is from L1GatewayRouter.
             (_from, _data) = abi.decode(_data, (address, bytes));
-            _amount = IL1GatewayRouter(_sender).requestERC20(_from, _token, _amount);
+            _amount = IL1GatewayRouter(_sender).requestERC20(
+                _from,
+                _token,
+                _amount
+            );
         } else {
             // common practice to handle fee on transfer token.
-            uint256 _before = IERC20Upgradeable(_token).balanceOf(address(this));
-            IERC20Upgradeable(_token).safeTransferFrom(_from, address(this), _amount);
+            uint256 _before = IERC20Upgradeable(_token).balanceOf(
+                address(this)
+            );
+            IERC20Upgradeable(_token).safeTransferFrom(
+                _from,
+                address(this),
+                _amount
+            );
             uint256 _after = IERC20Upgradeable(_token).balanceOf(address(this));
             // no unchecked here, since some weird token may return arbitrary balance.
             _amount = _after - _before;

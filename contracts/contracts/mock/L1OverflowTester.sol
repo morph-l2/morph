@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {ICrossDomainMessenger} from "./../libraries/ICrossDomainMessenger.sol";
 import {L2OverflowTester} from "./L2OverflowTester.sol";

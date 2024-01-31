@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 /* Testing utilities */
 import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";

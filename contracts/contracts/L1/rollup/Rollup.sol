@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -74,6 +74,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
         uint256 blockNumber;
+        bytes32 blobVersionedhash;
     }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -244,7 +245,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             0,
             0,
             "",
-            0
+            0,
+            ""
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -391,6 +393,16 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             89 + batchData.skippedL1MessageBitmap.length
         );
 
+        // todo
+        // bytes32 _blobVersionedhash = blobhash(0);
+        bytes32 _blobVersionedhash = bytes32(0);
+
+        if (_blobVersionedhash != bytes32(0)) {
+            _batchHash = keccak256(
+                abi.encodePacked(_batchHash, _blobVersionedhash)
+            );
+        }
+
         committedBatchStores[_batchIndex] = BatchStore(
             _batchHash,
             block.timestamp,
@@ -402,7 +414,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
-            latestL2BlockNumber
+            latestL2BlockNumber,
+            _blobVersionedhash
         );
 
         if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
@@ -625,8 +638,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             if (
                 // TODO publicnet needs to recover following batchInChallenge.
                 // batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
+                batchInsideChallengeWindow(i) || !batchExist(i)
             ) {
                 break;
             }
@@ -645,8 +657,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             if (
                 // TODO publicnet needs to recover following batchInChallenge.
                 // batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
+                batchInsideChallengeWindow(i) || !batchExist(i)
             ) {
                 break;
             }

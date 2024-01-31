@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
@@ -60,7 +60,10 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
     /// @notice Initialize the storage of L1GatewayRouter.
     /// @param _ethGateway The address of L1ETHGateway contract.
     /// @param _defaultERC20Gateway The address of default ERC20 Gateway contract.
-    function initialize(address _ethGateway, address _defaultERC20Gateway) external initializer {
+    function initialize(
+        address _ethGateway,
+        address _defaultERC20Gateway
+    ) external initializer {
         OwnableUpgradeable.__Ownable_init();
 
         // it can be zero during initialization
@@ -81,7 +84,9 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
      *************************/
 
     /// @inheritdoc IL1ERC20Gateway
-    function getL2ERC20Address(address _l1Address) external view override returns (address) {
+    function getL2ERC20Address(
+        address _l1Address
+    ) external view override returns (address) {
         address _gateway = getERC20Gateway(_l1Address);
         if (_gateway == address(0)) {
             return address(0);
@@ -127,7 +132,13 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
         uint256 _amount,
         uint256 _gasLimit
     ) external payable override {
-        depositERC20AndCall(_token, _msgSender(), _amount, new bytes(0), _gasLimit);
+        depositERC20AndCall(
+            _token,
+            _msgSender(),
+            _amount,
+            new bytes(0),
+            _gasLimit
+        );
     }
 
     /// @inheritdoc IL1ERC20Gateway
@@ -157,7 +168,13 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
         // encode msg.sender with _data
         bytes memory _routerData = abi.encode(_msgSender(), _data);
 
-        IL1ERC20Gateway(_gateway).depositERC20AndCall{value: msg.value}(_token, _to, _amount, _routerData, _gasLimit);
+        IL1ERC20Gateway(_gateway).depositERC20AndCall{value: msg.value}(
+            _token,
+            _to,
+            _amount,
+            _routerData,
+            _gasLimit
+        );
 
         // leave deposit context
         gatewayInContext = address(0);
@@ -180,7 +197,10 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
      ***********************************************/
 
     /// @inheritdoc IL1ETHGateway
-    function depositETH(uint256 _amount, uint256 _gasLimit) external payable override {
+    function depositETH(
+        uint256 _amount,
+        uint256 _gasLimit
+    ) external payable override {
         depositETHAndCall(_msgSender(), _amount, new bytes(0), _gasLimit);
     }
 
@@ -206,7 +226,12 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
         // encode msg.sender with _data
         bytes memory _routerData = abi.encode(_msgSender(), _data);
 
-        IL1ETHGateway(_gateway).depositETHAndCall{value: msg.value}(_to, _amount, _routerData, _gasLimit);
+        IL1ETHGateway(_gateway).depositETHAndCall{value: msg.value}(
+            _to,
+            _amount,
+            _routerData,
+            _gasLimit
+        );
     }
 
     /// @inheritdoc IL1ETHGateway
@@ -232,15 +257,23 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
     }
 
     /// @inheritdoc IL1GatewayRouter
-    function setDefaultERC20Gateway(address _newDefaultERC20Gateway) external onlyOwner {
+    function setDefaultERC20Gateway(
+        address _newDefaultERC20Gateway
+    ) external onlyOwner {
         address _oldDefaultERC20Gateway = defaultERC20Gateway;
         defaultERC20Gateway = _newDefaultERC20Gateway;
 
-        emit SetDefaultERC20Gateway(_oldDefaultERC20Gateway, _newDefaultERC20Gateway);
+        emit SetDefaultERC20Gateway(
+            _oldDefaultERC20Gateway,
+            _newDefaultERC20Gateway
+        );
     }
 
     /// @inheritdoc IL1GatewayRouter
-    function setERC20Gateway(address[] memory _tokens, address[] memory _gateways) external onlyOwner {
+    function setERC20Gateway(
+        address[] memory _tokens,
+        address[] memory _gateways
+    ) external onlyOwner {
         require(_tokens.length == _gateways.length, "length mismatch");
 
         for (uint256 i = 0; i < _tokens.length; i++) {

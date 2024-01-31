@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2MessageBaseTest} from "./base/L2MessageBase.t.sol";
@@ -7,7 +7,6 @@ import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {Tree} from "../libraries/common/Tree.sol";
 
 contract L2CrossDomainMessengerTest is L2MessageBaseTest {
-
     function testSendMessage() external {
         // message config
         address to = address(bob);

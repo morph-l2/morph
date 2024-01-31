@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.23;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";

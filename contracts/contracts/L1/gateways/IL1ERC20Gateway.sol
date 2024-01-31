@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.16;
+pragma solidity =0.8.23;
 
 interface IL1ERC20Gateway {
     /**********
@@ -43,7 +43,11 @@ interface IL1ERC20Gateway {
     /// @param token The address of the token in L1.
     /// @param recipient The address of receiver in L1.
     /// @param amount The amount of token refunded to receiver.
-    event RefundERC20(address indexed token, address indexed recipient, uint256 amount);
+    event RefundERC20(
+        address indexed token,
+        address indexed recipient,
+        uint256 amount
+    );
 
     /*************************
      * Public View Functions *
@@ -51,7 +55,9 @@ interface IL1ERC20Gateway {
 
     /// @notice Return the corresponding l2 token address given l1 token address.
     /// @param _l1Token The address of l1 token.
-    function getL2ERC20Address(address _l1Token) external view returns (address);
+    function getL2ERC20Address(
+        address _l1Token
+    ) external view returns (address);
 
     /*****************************
      * Public Mutating Functions *

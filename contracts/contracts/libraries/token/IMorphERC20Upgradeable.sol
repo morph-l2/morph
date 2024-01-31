@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.16;
+pragma solidity =0.8.23;
 
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import {IERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/draft-IERC20PermitUpgradeable.sol";
@@ -8,10 +8,7 @@ import {IERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token
 // The recommended ERC20 implementation for bridge token.
 // deployed in L2 when original token is on L1
 // deployed in L1 when original token is on L2
-interface IMorphERC20Upgradeable is
-    IERC20Upgradeable,
-    IERC20PermitUpgradeable
-{
+interface IMorphERC20Upgradeable is IERC20Upgradeable, IERC20PermitUpgradeable {
     /// @notice Return the address of Gateway the token belongs to.
     function gateway() external view returns (address);
 
