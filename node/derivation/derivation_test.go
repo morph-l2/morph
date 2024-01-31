@@ -150,6 +150,6 @@ func TestDecodeBatch(t *testing.T) {
 		PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 		WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 	}
-	_, err = ParseBatch(batch)
+	_, err = ParseBatch(batch, nil)
 	require.NoError(t, err)
 }

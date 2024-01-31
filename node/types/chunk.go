@@ -45,6 +45,10 @@ func (ck *Chunk) append(blockContext, txsPayload []byte, txHashes []common.Hash,
 	}
 }
 
+func (ck *Chunk) AppendTxsPayload(txsPayload []byte) {
+	ck.txsPayload = append(ck.txsPayload, txsPayload...)
+}
+
 func (ck *Chunk) accumulateRowUsages(rc types.RowConsumption) (accRc types.RowConsumption, max uint64) {
 	if len(ck.accumulatedRc) == 0 {
 		return rc, maxRowNumber(rc)
@@ -88,6 +92,14 @@ func maxRowNumber(rc types.RowConsumption) (max uint64) {
 		}
 	}
 	return
+}
+
+func (ck *Chunk) SetTxHashBytes(txHashBytes []byte) {
+	ck.txHashes = txHashBytes
+}
+
+func (ck *Chunk) SetTxsPayload(txsPayload []byte) {
+	ck.txsPayload = txsPayload
 }
 
 func (ck *Chunk) ResetBlockNum(blockNum int) {
