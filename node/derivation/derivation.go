@@ -207,7 +207,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		return
 	}
 	// parse latest batch
-	d.logger.Info(fmt.Sprintf("rollup latest batch index:%v", latestBatchIndex))
+	d.logger.Info(fmt.Sprintf("l1 rollup latest batch index:%v", latestBatchIndex))
 	d.logger.Info("fetched rollup tx", "txNum", len(logs))
 
 	for _, lg := range logs {
@@ -234,7 +234,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			return
 		}
 		// only last block of batch
-		d.logger.Info("batch derivation complete", "currentBatchEndBlock", lastHeader.Number.Uint64())
+		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 		if !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes()) && d.validator != nil && d.validator.ChallengeEnable() {
 			d.logger.Info("root hash is not equal", "originStateRootHash", batchInfo.root, "deriveStateRootHash", lastHeader.Root.Hex())
