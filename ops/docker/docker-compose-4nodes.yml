@@ -20,8 +20,8 @@ services:
   l1:
     container_name: l1-geth
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l1
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l1
     image: morph-l1:latest
     ports:
       - "9545:8545"
@@ -39,8 +39,8 @@ services:
         condition: service_started
     image: morph-geth:latest
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-geth
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-geth
       target: ${BUILD_GETH}
     restart: unless-stopped
     ports:
@@ -140,8 +140,8 @@ services:
         condition: service_started
     image: morph-node-0:latest
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-4
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-node-4
       target: node0
     restart: unless-stopped
     ports:
@@ -173,8 +173,8 @@ services:
         condition: service_started
     image: morph-node-1:latest
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-4
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-node-4
       target: node1
     restart: unless-stopped
     ports:
@@ -206,8 +206,8 @@ services:
         condition: service_started
     image: morph-node-2:latest
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-4
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-node-4
       target: node2
     restart: unless-stopped
     ports:
@@ -240,8 +240,8 @@ services:
         condition: service_started
     image: morph-node-3:latest
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-4
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-node-4
       target: node3
     restart: unless-stopped
     ports:
@@ -272,8 +272,8 @@ services:
         condition: service_started
     image: sentry-geth:latest
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-geth-sentry
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-geth-sentry
     restart: unless-stopped
     ports:
       - "8945:8545"
@@ -297,8 +297,8 @@ services:
         condition: service_started
     image: sentry-node-0:latest
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-4
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-node-4
       target: sentry0
     restart: unless-stopped
     ports:
@@ -352,8 +352,8 @@ services:
       tx-submitter:
         condition: service_started
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-1
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-node-1
     image: morph-node:latest
     ports:
       - "26660"
@@ -389,8 +389,8 @@ services:
       indexer:
         condition: service_started
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.submitter
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.submitter
     image: morph-tx-submitter:latest
     restart: unless-stopped
     command: tx-submitter
@@ -443,8 +443,8 @@ services:
       postgres:
         condition: service_healthy
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.indexer
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.indexer
     image: morph-indexer:latest
     healthcheck:
       test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
@@ -481,8 +481,8 @@ services:
       indexer:
         condition: service_healthy
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.indexer
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.indexer
     image: morph-indexer:latest
     healthcheck:
       test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
@@ -520,8 +520,8 @@ services:
       node-3:
         condition: service_started
     build:
-      context: ..
-      dockerfile: ./ops/Dockerfile.oracle
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.oracle
     image: morph-oracle:latest
     restart: unless-stopped
     ports:

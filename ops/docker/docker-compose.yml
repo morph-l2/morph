@@ -12,7 +12,7 @@ services:
   l1:
     build:
       context: ..
-      dockerfile: ./ops/Dockerfile.l1
+      dockerfile: /Dockerfile.l1
     image: morph-l1:latest
     ports:
       - "9545:8545"
@@ -29,7 +29,7 @@ services:
         condition: service_started
     build:
       context: ..
-      dockerfile: ./ops/Dockerfile.l2-geth
+      dockerfile: /Dockerfile.l2-geth
     image: morph-geth:latest
     restart: unless-stopped
     ports:
@@ -57,7 +57,7 @@ services:
         condition: service_started
     build:
       context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-1
+      dockerfile: /Dockerfile.l2-node-1
     image: morph-node:latest
     restart: unless-stopped
     ports:
@@ -105,7 +105,7 @@ services:
       - validator_geth
     build:
       context: ..
-      dockerfile: ./ops/Dockerfile.l2-node-1
+      dockerfile: /Dockerfile.l2-node-1
     image: morph-node:latest
     ports:
       - "26660"
@@ -143,7 +143,7 @@ services:
         condition: service_started
     build:
       context: ..
-      dockerfile: ./ops/Dockerfile.submitter
+      dockerfile: /Dockerfile.submitter
     image: morph-tx-submitter:latest
     restart: unless-stopped
     command: tx-submitter
@@ -179,7 +179,7 @@ services:
   indexer:
     build:
       context: ..
-      dockerfile: ./ops/Dockerfile.indexer
+      dockerfile: /Dockerfile.indexer
     image: morph-indexer:latest
     healthcheck:
       test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
@@ -220,7 +220,7 @@ services:
         condition: service_started
     build:
       context: ..
-      dockerfile: ./ops/Dockerfile.oracle
+      dockerfile: /Dockerfile.oracle
     image: morph-oracle:latest
     restart: unless-stopped
     ports:
