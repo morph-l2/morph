@@ -1,9 +1,10 @@
 use crate::utils::get_block_traces_by_number;
 use dotenv::dotenv;
+use eth_types::U256;
 use ethers::providers::Provider;
 use prover::aggregator::Prover as BatchProver;
 use prover::config::{LayerId, LAYER4_DEGREE};
-use prover::utils::chunk_trace_to_witness_block;
+use prover::utils::chunk_trace_to_witness_block_with_index;
 use prover::zkevm::Prover as ChunkProver;
 use prover::{BlockTrace, ChunkHash, ChunkProof, CompressionCircuit};
 use serde::{Deserialize, Serialize};
@@ -80,7 +81,17 @@ pub async fn prove_for_queue(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) {
         // Step3. start chunk prove
         let mut chunk_proofs: Vec<(ChunkHash, ChunkProof)> = vec![];
         for (index, chunk_trace) in chunk_traces.iter().enumerate() {
-            let chunk_witness = match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
+            let batch_commit: U256 = U256::from(0);
+            let challenge_point: U256 = U256::from(0);
+            let index: usize = index;
+            let partial_result: U256 = U256::from(0);
+            let chunk_witness = match chunk_trace_to_witness_block_with_index(
+                chunk_trace.to_vec(),
+                batch_commit,
+                challenge_point,
+                index,
+                partial_result,
+            ) {
                 Ok(_witness) => _witness,
                 Err(e) => {
                     log::error!("convert trace to witness error: {:#?}", e);
