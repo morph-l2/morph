@@ -23,6 +23,7 @@ export const deployContractProxyByStorageName = async (
 
     const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
     const proxy = await ProxyFactory.deploy(await deployer.getAddress())
+    await proxy.deployed()
     console.log("%s=%s ; TX_HASH: %s", storageName, proxy.address.toLocaleLowerCase(), proxy.deployTransaction.hash);
     // check params
     await assertContractVariable(
