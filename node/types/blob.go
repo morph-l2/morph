@@ -19,6 +19,7 @@ func BlobFromSealedTxPayload(sealedTxPayload []byte) (b *kzg4844.Blob, err error
 		return nil, fmt.Errorf("data length has to be a multiple of 31")
 	}
 	offset := 0
+	b = new(kzg4844.Blob)
 	// encode (up to) 31 bytes of remaining input data at a time into the subsequent field element
 	for i := 0; i < 4096; i++ {
 		offset += copy(b[i*32+1:i*32+32], sealedTxPayload[offset:])
