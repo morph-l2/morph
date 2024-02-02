@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.23;
+pragma solidity =0.8.24;
 
 interface IGateway {
     /// @notice The address of corresponding L1/L2 Gateway contract.

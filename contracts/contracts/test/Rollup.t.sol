@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.23;
+pragma solidity =0.8.24;
 
 import {ChunkCodec} from "../libraries/codec/ChunkCodec.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";

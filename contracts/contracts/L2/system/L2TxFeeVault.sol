@@ -23,7 +23,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-pragma solidity =0.8.23;
+pragma solidity =0.8.24;
 
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
 import {OwnableBase} from "../../libraries/common/OwnableBase.sol";

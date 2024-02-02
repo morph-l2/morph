@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.23;
+pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -394,8 +394,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // todo
-        // bytes32 _blobVersionedhash = blobhash(0);
-        bytes32 _blobVersionedhash = bytes32(0);
+        bytes32 _blobVersionedhash = blobhash(0);
+        // bytes32 _blobVersionedhash = bytes32(0);
 
         if (_blobVersionedhash != bytes32(0)) {
             _batchHash = keccak256(
