@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/morph-deployer/eth"
+	"github.com/morph-l2/morph-deployer/rollup"
 	"math/big"
 	"os"
 	"time"
@@ -213,33 +215,33 @@ func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
 }
 
 // RollupConfig converts a DeployConfig to a rollup.Config
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64, l2GenesisStateRoot common.Hash, withdrawRoot common.Hash, genesisBatchHeader []byte) (*Config, error) {
-	return nil, nil
-	//return &rollup.Config{
-	//	Genesis: rollup.Genesis{
-	//		L1: eth.BlockID{
-	//			Hash:   l1StartBlock.Hash(),
-	//			Number: l1StartBlock.NumberU64(),
-	//		},
-	//		L2: eth.BlockID{
-	//			Hash:   l2GenesisBlockHash,
-	//			Number: l2GenesisBlockNumber,
-	//		},
-	//		L2Time: l1StartBlock.Time(),
-	//		SystemConfig: eth.SystemConfig{
-	//			BatcherAddr: d.BatchSenderAddress,
-	//			Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-	//			Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
-	//			GasLimit:    uint64(d.L2GenesisBlockGasLimit),
-	//		},
-	//	},
-	//	L1ChainID:          new(big.Int).SetUint64(d.L1ChainID),
-	//	L2ChainID:          new(big.Int).SetUint64(d.L2ChainID),
-	//	BatchInboxAddress:  d.BatchInboxAddress,
-	//	L2GenesisStateRoot: l2GenesisStateRoot,
-	//	WithdrawRoot:       withdrawRoot,
-	//	GenesisBatchHeader: genesisBatchHeader,
-	//}, nil
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64, l2GenesisStateRoot common.Hash, withdrawRoot common.Hash, genesisBatchHeader []byte) (*rollup.Config, error) {
+	//return nil, nil
+	return &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1: eth.BlockID{
+				Hash:   l1StartBlock.Hash(),
+				Number: l1StartBlock.NumberU64(),
+			},
+			L2: eth.BlockID{
+				Hash:   l2GenesisBlockHash,
+				Number: l2GenesisBlockNumber,
+			},
+			L2Time: l1StartBlock.Time(),
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: d.BatchSenderAddress,
+				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
+			},
+		},
+		L1ChainID:          new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:          new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:  d.BatchInboxAddress,
+		L2GenesisStateRoot: l2GenesisStateRoot,
+		WithdrawRoot:       withdrawRoot,
+		GenesisBatchHeader: genesisBatchHeader,
+	}, nil
 }
 
 // NewDeployConfig reads a config file given a path on the filesystem.

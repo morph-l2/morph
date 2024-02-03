@@ -3,6 +3,7 @@ module github.com/morph-l2/morph-deployer
 go 1.19
 
 require (
+	github.com/holiman/uint256 v1.2.2
 	github.com/morph-l2/bindings v0.1.0-beta.0.20240123100412-7081312eb1b6
 	github.com/morph-l2/node v0.0.0-20231206022442-206acb7eeabd
 	github.com/scroll-tech/go-ethereum v1.11.4
@@ -41,7 +42,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
-	github.com/holiman/uint256 v1.2.2 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.14 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
@@ -91,5 +91,5 @@ require (
 replace (
 	github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.20.1-beta
 	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20231221035445-b641d8451ff7
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20231129021153-3d75380ffe43
+	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20240109085452-f7cf181d017a
 )
