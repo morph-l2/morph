@@ -6,5 +6,6 @@ use (
 	./bindings
 	./contracts
 	./node
+	./ops/L2-genesis
 	./tx-submitter
 )
