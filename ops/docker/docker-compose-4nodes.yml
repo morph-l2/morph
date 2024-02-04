@@ -386,7 +386,7 @@ services:
   tx-submitter:
     container_name: tx-submitter
     depends_on:
-      indexer:
+      node-3:
         condition: service_started
     build:
       context: ../..
@@ -419,101 +419,6 @@ services:
       - TX_SUBMITTER_METRICS_HOSTNAME="0.0.0.0"
       - TX_SUBMITTER_METRICS_PORT=6060
 
-  postgres:
-    container_name: postgres
-    image: postgres:latest
-    environment:
-      - POSTGRES_USER=db_username
-      - POSTGRES_PASSWORD=db_password
-      - POSTGRES_DB=db_name
-      - PGDATA=/data/postgres
-      - POSTGRES_HOST_AUTH_METHOD=trust
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -q -U db_username -d db_name" ]
-    ports:
-      - "5434:5432"
-    volumes:
-      - postgres_data:/data/postgres
-
-  indexer:
-    container_name: indexer
-    depends_on:
-      node-3:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.indexer
-    image: morph-indexer:latest
-    healthcheck:
-      test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
-    environment:
-      # Note that you must index goerli with INDEXER_BEDROCK=false first, then
-      # reindex with INDEXER_BEDROCK=true or seed the database
-      - INDEXER_BEDROCK=${INDEXER_BEDROCK_GOERLI:-true}
-      - INDEXER_BUILD_ENV=${INDEXER_BUILD_ENV:-development}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_USER=${DB_USER:-db_username}
-      - DB_PASSWORD=${DB_PASSWORD:-db_password}
-      - DB_NAME=${DB_NAME:-db_name}
-      - DB_HOST=${DB_HOST:-postgres}
-      - INDEXER_CHAIN_ID=${INDEXER_CHAIN_ID:-900}
-      - INDEXER_L1_ETH_RPC=${L1_ETH_RPC}
-      - INDEXER_L2_ETH_RPC=http://morph-geth-0:8545
-      - INDEXER_START_BLOCK_NUMBER=0
-      - INDEXER_REST_HOSTNAME=0.0.0.0
-      - INDEXER_REST_PORT=8080
-      - INDEXER_L1_CONF_DEPTH=1
-      - INDEXER_L2_CONF_DEPTH=1
-      - INDEXER_NETWORK=devnet
-      - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=${MORPH_STANDARD_BRIDGE:-0x6900000000000000000000000000000000000003}
-      - INDEXER_BEDROCK_MORPH_PORTAL=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - INDEXER_BEDROCK_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - INDEXER_L1_ADDRESS_MANAGER_ADDRESS=${MORPH_ADDRESS_MANAGER:-0x6900000000000000000000000000000000000005}
-      - INDEXER_BEDROCK_L1_CROSS_DOMAIN_MESSENGER=${L1_CROSS_DOMAIN_MESSENGER:-0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9}
-    ports:
-      - "8081:8080"
-
-  indexer-read:
-    container_name: indexer_read
-    depends_on:
-      indexer:
-        condition: service_healthy
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.indexer
-    image: morph-indexer:latest
-    healthcheck:
-      test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
-    environment:
-      # Note that you must index goerli with INDEXER_BEDROCK=false first, then
-      # reindex with INDEXER_BEDROCK=true or seed the database
-      - INDEXER_BEDROCK=${INDEXER_BEDROCK_GOERLI:-true}
-      - INDEXER_BUILD_ENV=${INDEXER_BUILD_ENV:-development}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_USER=${DB_USER:-db_username}
-      - DB_PASSWORD=${DB_PASSWORD:-db_password}
-      - DB_NAME=${DB_NAME:-db_name}
-      - DB_HOST=${DB_HOST:-postgres}
-      - INDEXER_CHAIN_ID=${INDEXER_CHAIN_ID:-900}
-      - INDEXER_L1_ETH_RPC=${L1_ETH_RPC}
-      - INDEXER_L2_ETH_RPC=http://morph-geth-0:8545
-      - INDEXER_START_BLOCK_NUMBER=0
-      - INDEXER_REST_HOSTNAME=0.0.0.0
-      - INDEXER_REST_PORT=8080
-      - INDEXER_L1_CONF_DEPTH=1
-      - INDEXER_L2_CONF_DEPTH=1
-      - INDEXER_NETWORK=devnet
-      - INDEXER_DISABLE_INDEXER=true
-      - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=${MORPH_STANDARD_BRIDGE:-0x6900000000000000000000000000000000000003}
-      - INDEXER_BEDROCK_MORPH_PORTAL=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - INDEXER_BEDROCK_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - INDEXER_L1_ADDRESS_MANAGER_ADDRESS=${MORPH_ADDRESS_MANAGER:-0x6900000000000000000000000000000000000005}
-      - INDEXER_BEDROCK_L1_CROSS_DOMAIN_MESSENGER=${L1_CROSS_DOMAIN_MESSENGER:-0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9}
-    ports:
-      - "8080:8080"
-
   gas-price-oracle:
     container_name: gas-price-oracle
     depends_on:
@@ -529,8 +434,8 @@ services:
     command: >
       ./app
     environment:
-      - L1_RPC=${L1_ETH_RPC}
-      - L2_RPC=http://morph-geth-0:8545
+      - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
+      - GAS_ORACLE_L2_RPC=http://morph-geth-0:8545
       - GAS_THRESHOLD=5
       - INTERVAL=5000
       - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
