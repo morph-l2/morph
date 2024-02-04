@@ -11,7 +11,7 @@ FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates bash
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
-COPY ops/entrypoint-l2-sentry.sh /entrypoint.sh
+COPY ops/docker/entrypoint-l2-sentry.sh /entrypoint.sh
 
 VOLUME ["/db"]
 

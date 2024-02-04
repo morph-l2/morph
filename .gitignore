@@ -8,6 +8,7 @@
 .DS_Store
 
 contracts/yarn.lock
+*/build
 
 ops/L2-genesis/.devnet
 ops/L2-genesis/.qanet

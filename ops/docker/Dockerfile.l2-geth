@@ -33,7 +33,7 @@ RUN apt-get -qq update \
 COPY --from=go-rust-builder /go-ethereum/build/bin/geth /usr/local/bin/
 COPY --from=zkp-builder /app/target/release/libzkp.so /usr/local/lib/
 COPY --from=zkp-builder /app/target/release/libzktrie.so /usr/local/lib/
-COPY ./ops/entrypoint-l2.sh /entrypoint.sh
+COPY ./ops/docker/entrypoint-l2.sh /entrypoint.sh
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
 
 VOLUME ["/db"]
@@ -74,7 +74,7 @@ RUN cd /go-ethereum && env GO111MODULE=on GOFLAGS=-buildvcs=false go run build/c
 FROM ubuntu:20.04 as l2-geth-x86
 RUN apt-get -qq update \
     && apt-get -qq install -y --no-install-recommends ca-certificates
-COPY ops/entrypoint-l2.sh /entrypoint.sh
+COPY ops/docker/entrypoint-l2.sh /entrypoint.sh
 COPY --from=builder-x86 /go-ethereum/build/bin/geth /usr/local/bin/
 COPY --from=zkp-builder-x86 /app/target/release/libzkp.so /usr/local/lib/
 COPY --from=zkp-builder-x86 /app/target/release/libzktrie.so /usr/local/lib/
@@ -97,7 +97,7 @@ RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth
 FROM alpine:latest as l2-geth-mockccc
 RUN apk add --no-cache ca-certificates bash
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
-COPY ops/entrypoint-l2.sh /entrypoint.sh
+COPY ops/docker/entrypoint-l2.sh /entrypoint.sh
 VOLUME ["/db"]
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
 EXPOSE 8545 8546 8551 30303 30303/udp

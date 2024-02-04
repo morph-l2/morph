@@ -211,9 +211,9 @@ def devnet_deploy(paths, args):
                 key, value = line.split('=')
                 env_data[key.strip()] = value.strip()
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
-        env_data['MORPH_PORTAL'] = addresses['Proxy__MorphPortal']
+        env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueue']
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
-        env_data['MORPH_STANDARD_BRIDGE'] = addresses['Proxy__L1StandardBridge']
+        # env_data['MORPH_STANDARD_BRIDGE'] = addresses['Proxy__L1StandardBridge']
         env_data['MORPH_ADDRESS_MANAGER'] = addresses['Impl__AddressManager']
         env_data['BUILD_GETH'] = build_geth_target
         env_data['RUST_LOG'] = rust_log_level
@@ -226,9 +226,9 @@ def devnet_deploy(paths, args):
     log.info('Bringing up L2.')
 
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d'], cwd=paths.ops_dir, env={
-        'MORPH_PORTAL': addresses['Proxy__MorphPortal'],
+        'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],
         'MORPH_ROLLUP': addresses['Proxy__Rollup'],
-        'MORPH_STANDARD_BRIDGE': addresses['Proxy__L1StandardBridge'],
+        # 'MORPH_STANDARD_BRIDGE': addresses['Proxy__L1StandardBridge'],
         'MORPH_ADDRESS_MANAGER': addresses['Impl__AddressManager'],
         'PWD': paths.ops_dir,
         'NODE_DATA_DIR': '/data',

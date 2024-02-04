@@ -1,13 +1,14 @@
 # Build Geth in a stock Go builder container
 FROM golang:1.20-alpine as builder
 RUN apk add --no-cache gcc musl-dev linux-headers git make
-COPY ./node /node
-RUN cd /node && echo $(ls -1) && make build
+COPY . /morph
+WORKDIR /morph/node
+RUN make build
 
 
 FROM alpine:latest as initializer
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /node/build/bin/tendermint /usr/local/bin/
+COPY --from=builder /morph/node/build/bin/tendermint /usr/local/bin/
 RUN echo "Initializing tendermint."
 RUN tendermint testnet --v 4 --n 1  --o /data --populate-persistent-peers --hostname node-0 --hostname node-1 --hostname node-2 --hostname node-3 --hostname sentry-node-0
 # populate for sequencer0-3 and sentry0
@@ -33,48 +34,48 @@ sed -i  "s#unconditional_peer_ids = \"\"#$TO_REPLACED_UNCONDITIONAL_PEER_ID#g" /
 
 FROM alpine:latest as node0
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /node/build/bin/morphnode /usr/local/bin/
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node0 /data
-COPY ./ops/node0/bls_key.json /data/config/bls_key.json
-COPY ./ops/node0/priv_validator_key.json /data/config/priv_validator_key.json
-COPY ./ops/node0/node_key.json /data/config/node_key.json
-COPY ./ops/tendermint-devnet-genesis.json /data/config/genesis.json
+COPY ./ops/docker/node0/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node0/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node0/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
 CMD ["morphnode", "--home", "/data"]
 
 FROM alpine:latest as node1
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /node/build/bin/morphnode /usr/local/bin/
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node1 /data
-COPY ./ops/node1/bls_key.json /data/config/bls_key.json
-COPY ./ops/node1/priv_validator_key.json /data/config/priv_validator_key.json
-COPY ./ops/node1/node_key.json /data/config/node_key.json
-COPY ./ops/tendermint-devnet-genesis.json /data/config/genesis.json
+COPY ./ops/docker/node1/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node1/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node1/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
 CMD ["morphnode", "--home", "/data"]
 
 FROM alpine:latest as node2
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /node/build/bin/morphnode /usr/local/bin/
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node2 /data
-COPY ./ops/node2/bls_key.json /data/config/bls_key.json
-COPY ./ops/node2/priv_validator_key.json /data/config/priv_validator_key.json
-COPY ./ops/node2/node_key.json /data/config/node_key.json
-COPY ./ops/tendermint-devnet-genesis.json /data/config/genesis.json
+COPY ./ops/docker/node2/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node2/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node2/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
 CMD ["morphnode", "--home", "/data"]
 
 FROM alpine:latest as node3
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /node/build/bin/morphnode /usr/local/bin/
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node3 /data
-COPY ./ops/node3/bls_key.json /data/config/bls_key.json
-COPY ./ops/node3/priv_validator_key.json /data/config/priv_validator_key.json
-COPY ./ops/node3/node_key.json /data/config/node_key.json
-COPY ./ops/tendermint-devnet-genesis.json /data/config/genesis.json
+COPY ./ops/docker/node3/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node3/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node3/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
 CMD ["morphnode", "--home", "/data"]
 
 FROM alpine:latest as sentry0
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /node/build/bin/morphnode /usr/local/bin/
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node4 /data
-COPY ./ops/node4/node_key.json /data/config/node_key.json
-COPY ./ops/tendermint-devnet-genesis.json /data/config/genesis.json
+COPY ./ops/docker/node4/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
 CMD ["morphnode", "--home", "/data"]
