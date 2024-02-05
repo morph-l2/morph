@@ -80,7 +80,8 @@ def devnet_l1(paths, result=None):
     })
     wait_up(9545)
     wait_for_rpc_server('127.0.0.1:9545')
-
+    log.info('Sleep another 10s...')
+    time.sleep(10)
     res = eth_accounts('127.0.0.1:9545')
     response = json.loads(res)
     account = response['result'][0]
@@ -259,7 +260,6 @@ def wait_for_rpc_server(url):
         except Exception as e:
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
-
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
     env = env if env else {}

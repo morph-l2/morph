@@ -42,6 +42,8 @@ devnet-clean:
 	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/L2-genesis/.devnet
+	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
+	rm -rf ops/docker/execution/geth
 .PHONY: devnet-clean
 
 devnet-l1:

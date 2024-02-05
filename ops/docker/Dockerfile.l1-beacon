@@ -1,2 +1,19 @@
-FROM ethereum/client-go:v1.12.2
+FROM gcr.io/prysmaticlabs/prysm/cmd/prysmctl:latest as create-beacon-chain-genesis
+
+COPY ops/docker/consensus /consensus
+COPY ops/docker/execution /execution
+CMD [\
+ "testnet",\
+ "generate-genesis",\
+ "--fork=deneb",\
+ "--num-validators=64",\
+ "--genesis-time-delay=0",\
+ "--output-ssz=/consensus/genesis.ssz",\
+ "--chain-config-file=/consensus/config.yml",\
+ "--geth-genesis-json-in=/execution/genesis.json",\
+ "--geth-genesis-json-out=/execution/genesis.json"\
+ ]
+
+
+
 
