@@ -17,20 +17,154 @@ volumes:
   validator_node_data:
 
 services:
-  l1:
-    container_name: l1-geth
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l1
-    image: morph-l1:latest
-    ports:
-      - "9545:8545"
-      - "9546:8546"
-      - "7060:6060"
+#  l1:
+#    container_name: l1-geth
+#    build:
+#      context: ../..
+#      dockerfile: ops/docker/Dockerfile.l1
+#    image: morph-l1:latest
+#    ports:
+#      - "9545:8545"
+#      - "9546:8546"
+#      - "7060:6060"
+#    volumes:
+#      - "l1_geth_data:/db"
+#      - "${PWD}/jwt-secret.txt:/config/jwt-secret.txt"
+#      - "${PWD}/../L2-genesis/.devnet/genesis-l1.json:/genesis.json"
+
+  create-beacon-chain-genesis:
+    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl"
+    command:
+      - testnet
+      - generate-genesis
+      - --fork=deneb
+      - --num-validators=64
+      - --genesis-time-delay=0
+      - --output-ssz=/consensus/genesis.ssz
+      - --chain-config-file=/consensus/config.yml
+      - --geth-genesis-json-in=/execution/genesis.json
+      - --geth-genesis-json-out=/execution/genesis.json
     volumes:
-      - "l1_geth_data:/db"
-      - "${PWD}/jwt-secret.txt:/config/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l1.json:/genesis.json"
+      - ./consensus:/consensus
+      - ./execution:/execution
+
+    # Removes the database of the go-ethereum execution client to ensure we start from a clean state.
+    # (geth has a `removedb` option, but it asks for a keyboard confirmation, so we use this instead)
+  geth-remove-db:
+      image: "alpine:3.19.0"
+      command: rm -rf /execution/geth
+      volumes:
+        - ./execution:/execution
+
+    # Sets up the genesis configuration for the go-ethereum client from a JSON file.
+  geth-genesis:
+      image: "ethereum/client-go:latest"
+      command: --datadir=/execution init /execution/genesis.json
+      volumes:
+        - ./execution:/execution
+        - ./execution/genesis.json:/execution/genesis.json
+      depends_on:
+        create-beacon-chain-genesis:
+          condition: service_completed_successfully
+        geth-remove-db:
+          condition: service_completed_successfully
+
+    # Runs a Prysm beacon chain from a specified genesis state created in the previous step
+    # and connects to go-ethereum in the same network as the execution client.
+    # The account used in go-ethereum is set as the suggested fee recipient for transactions
+    # proposed via the validators attached to the beacon node.
+  beacon-chain:
+      image: "gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1"
+      command:
+        - --datadir=/consensus/beacondata
+        # No peers to sync with in this testnet, so setting to 0
+        - --min-sync-peers=0
+        - --genesis-state=/consensus/genesis.ssz
+        - --bootstrap-node=
+        - --interop-eth1data-votes
+        # The chain configuration file used for setting up Prysm
+        - --chain-config-file=/consensus/config.yml
+        # We specify the chain id used by our execution client
+        - --contract-deployment-block=0
+        - --chain-id=${CHAIN_ID:-900}
+        - --rpc-host=0.0.0.0
+        - --grpc-gateway-host=0.0.0.0
+        - --execution-endpoint=http://l1:8551
+        - --accept-terms-of-use
+        - --jwt-secret=/execution/jwtsecret
+        - --suggested-fee-recipient=0x123463a4b065722e99115d6c222f267d9cabb524
+        - --minimum-peers-per-subnet=0
+        - --enable-debug-rpc-endpoints
+        - --force-clear-db
+      depends_on:
+        create-beacon-chain-genesis:
+          condition: service_completed_successfully
+      ports:
+        - 4000:4000
+        - 3500:3500
+        - 8080:8080
+        - 6060:6060
+        - 9090:9090
+      volumes:
+        - ./consensus:/consensus
+        - ./execution:/execution
+        - ./execution/jwtsecret:/execution/jwtsecret
+
+    # Runs the go-ethereum execution client with the specified, unlocked account and necessary
+    # APIs to allow for proof-of-stake consensus via Prysm.
+  l1:
+      image: "ethereum/client-go:latest"
+      command:
+        - --http
+        - --http.api=eth,net,web3
+        - --http.addr=0.0.0.0
+        - --http.corsdomain=*
+        - --ws
+        - --ws.api=web3,debug,eth,txpool,net,engine
+        - --ws.addr=0.0.0.0
+        - --ws.origins=*
+        - --authrpc.vhosts=*
+        - --authrpc.addr=0.0.0.0
+        - --authrpc.jwtsecret=/execution/jwtsecret
+        - --datadir=/execution
+        - --allow-insecure-unlock
+        - --unlock=0x123463a4b065722e99115d6c222f267d9cabb524
+        - --password=/execution/geth_password.txt
+        - --nodiscover
+        - --syncmode=full
+      ports:
+        - 8551:8551
+        - 9545:8545
+        - 9546:8546
+      depends_on:
+        geth-genesis:
+          condition: service_completed_successfully
+        beacon-chain:
+          condition: service_started
+        validator:
+          condition: service_started
+      volumes:
+        - ./execution:/execution
+        - ./execution/jwtsecret:/execution/jwtsecret
+        - ./execution/geth_password.txt:/execution/geth_password.txt
+
+    # We run a validator client with 64, deterministically-generated keys that match
+    # The validator keys present in the beacon chain genesis state generated a few steps above.
+  validator:
+      image: "gcr.io/prysmaticlabs/prysm/validator:v4.1.1"
+      command:
+        - --beacon-rpc-provider=beacon-chain:4000
+        - --datadir=/consensus/validatordata
+        - --accept-terms-of-use
+        - --interop-num-validators=64
+        - --interop-start-index=0
+        - --chain-config-file=/consensus/config.yml
+        - --force-clear-db
+      depends_on:
+        beacon-chain:
+          condition: service_started
+      volumes:
+        - ./consensus:/consensus
 
   morph-geth-0:
     container_name: morph-geth-0
