@@ -1,7 +1,8 @@
 version: '3.4'
 
 volumes:
-  l1_geth_data:
+  l1_execution:
+  l1_consensus:
   postgres_data:
   morph_data_0:
   morph_data_1:
@@ -17,20 +18,139 @@ volumes:
   validator_node_data:
 
 services:
-  l1:
-    container_name: l1-geth
+#  l1:
+#    container_name: l1-geth
+#    build:
+#      context: ../..
+#      dockerfile: ops/docker/Dockerfile.l1
+#    image: morph-l1:latest
+#    ports:
+#      - "9545:8545"
+#      - "9546:8546"
+#      - "7060:6060"
+#    volumes:
+#      - "l1_geth_data:/db"
+#      - "${PWD}/jwt-secret.txt:/config/jwt-secret.txt"
+#      - "${PWD}/../L2-genesis/.devnet/genesis-l1.json:/genesis.json"
+
+  chain-genesis:
+    container_name: l1-chain-genesis
     build:
       context: ../..
-      dockerfile: ops/docker/Dockerfile.l1
-    image: morph-l1:latest
-    ports:
-      - "9545:8545"
-      - "9546:8546"
-      - "7060:6060"
+      dockerfile: ops/docker/Dockerfile.l1-beacon
+      target: create-beacon-chain-genesis
+    image: morph-l1-chain-genesis:latest
     volumes:
-      - "l1_geth_data:/db"
-      - "${PWD}/jwt-secret.txt:/config/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l1.json:/genesis.json"
+      - l1_consensus:/consensus
+      - l1_execution:/execution
+
+    # Sets up the genesis configuration for the go-ethereum client from a JSON file.
+  geth-genesis:
+    container_name: l1-geth-genesis
+    image: ethereum/client-go:latest
+    command: --datadir=/execution init /execution/genesis.json
+    depends_on:
+      chain-genesis:
+        condition: service_completed_successfully
+    volumes:
+      - l1_consensus:/consensus
+      - l1_execution:/execution
+
+    # Runs a Prysm beacon chain from a specified genesis state created in the previous step
+    # and connects to go-ethereum in the same network as the execution client.
+    # The account used in go-ethereum is set as the suggested fee recipient for transactions
+    # proposed via the validators attached to the beacon node.
+  beacon-chain:
+      container_name: l1-beacon-chain
+      image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1
+      command:
+        - --datadir=/consensus/beacondata
+        - --min-sync-peers=0
+        - --genesis-state=/consensus/genesis.ssz
+        - --bootstrap-node=
+        - --interop-eth1data-votes
+        - --chain-config-file=/consensus/config.yml
+        - --contract-deployment-block=0
+        - --chain-id=${CHAIN_ID:-900}
+        - --rpc-host=0.0.0.0
+        - --grpc-gateway-host=0.0.0.0
+        - --execution-endpoint=http://l1:8551
+        - --accept-terms-of-use
+        - --jwt-secret=/execution/jwtsecret
+        - --suggested-fee-recipient=0xca062b0fd91172d89bcd4bb084ac4e21972cc467
+        - --minimum-peers-per-subnet=0
+        - --enable-debug-rpc-endpoints
+        - --force-clear-db
+      depends_on:
+        chain-genesis:
+          condition: service_completed_successfully
+      ports:
+        - 4000:4000
+        - 3500:3500
+        - 8080:8080
+        - 6060:6060
+        - 9090:9090
+      volumes:
+        - l1_consensus:/consensus
+        - l1_execution:/execution
+
+    # We run a validator client with 64, deterministically-generated keys that match
+    # The validator keys present in the beacon chain genesis state generated a few steps above.
+  validator:
+    container_name: l1-validator
+    image: gcr.io/prysmaticlabs/prysm/validator:v4.1.1
+    command:
+      - --beacon-rpc-provider=beacon-chain:4000
+      - --datadir=/consensus/validatordata
+      - --accept-terms-of-use
+      - --interop-num-validators=64
+      - --interop-start-index=0
+      - --chain-config-file=/consensus/config.yml
+      - --force-clear-db
+    depends_on:
+      beacon-chain:
+        condition: service_started
+    volumes:
+      - l1_consensus:/consensus
+      - l1_execution:/execution
+
+    # Runs the go-ethereum execution client with the specified, unlocked account and necessary
+    # APIs to allow for proof-of-stake consensus via Prysm.
+  l1:
+    container_name: l1-geth
+    image: ethereum/client-go:latest
+    command:
+      - --http
+      - --http.api=web3,debug,eth,txpool,net,engine
+      - --http.addr=0.0.0.0
+      - --http.corsdomain=*
+      - --ws
+      - --ws.api=web3,debug,eth,txpool,net,engine
+      - --ws.addr=0.0.0.0
+      - --ws.origins=*
+      - --authrpc.vhosts=*
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.jwtsecret=/execution/jwtsecret
+      - --datadir=/execution
+      - --allow-insecure-unlock
+      - --unlock=0xca062b0fd91172d89bcd4bb084ac4e21972cc467
+      - --password=/execution/password
+      - --nodiscover
+      - --syncmode=full
+    ports:
+      - 8551:8551
+      - 9545:8545
+      - 9546:8546
+    depends_on:
+      geth-genesis:
+        condition: service_completed_successfully
+      beacon-chain:
+        condition: service_started
+      validator:
+        condition: service_started
+    volumes:
+      - l1_execution:/execution
+      - l1_consensus:/consensus
 
   morph-geth-0:
     container_name: morph-geth-0
