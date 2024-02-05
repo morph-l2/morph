@@ -7,7 +7,6 @@ use halo2_proofs::{
 };
 use rand::SeedableRng;
 use rand_xorshift::XorShiftRng;
-use zkevm_prover::utils::{FS_PROVE_PARAMS, FS_PROVE_SEED};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
