@@ -256,3 +256,4 @@ async fn test() {
     let mut params_file = File::create("configs/chunk.protocol").unwrap();
     params_file.write_all(&protocol[..]).unwrap();
 }
+
