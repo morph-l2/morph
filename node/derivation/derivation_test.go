@@ -14,7 +14,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/eth"
 
 	"github.com/morph-l2/node/types"
-	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -83,34 +82,6 @@ func newSimulatedBackend(key *ecdsa.PrivateKey) (*backends.SimulatedBackend, eth
 	db := rawdb.NewMemoryDatabase()
 	sim := backends.NewSimulatedBackendWithDatabase(db, genAlloc, gasLimit)
 	return sim, db
-}
-
-func TestFindBatchIndex(t *testing.T) {
-	d := testNewDerivationClient(t)
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0).SetUint64(1),
-		ToBlock:   big.NewInt(0).SetUint64(2000),
-		Addresses: []common.Address{
-			d.RollupContractAddress,
-		},
-		Topics: [][]common.Hash{
-			{RollupEventTopicHash},
-		},
-	}
-	rollup, err := bindings.NewRollup(d.RollupContractAddress, d.l1Client)
-	require.NoError(t, err)
-	d.rollup = rollup
-	logs, err := d.l1Client.FilterLogs(context.Background(), query)
-	require.NoError(t, err)
-	require.True(t, len(logs) != 0)
-	for _, lg := range logs {
-		batchIndex, err := d.findBatchIndex(lg.TxHash, 20)
-		if err != nil {
-			continue
-		}
-		require.NotZero(t, batchIndex)
-		break
-	}
 }
 
 func TestDecodeBatch(t *testing.T) {

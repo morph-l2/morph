@@ -272,15 +272,6 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	if pending {
 		return nil, errors.New("pending transaction")
 	}
-	txpayload := []byte{}
-	for _, blob := range tx.BlobTxSidecar().Blobs {
-		data, err := types.DecodeRawTxPayload(&blob)
-		if err != nil {
-			return nil, err
-		}
-		txpayload = append(txpayload, data...)
-	}
-	txReader := bytes.NewReader(txpayload)
 	abi, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -316,8 +307,9 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
 		PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 		WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+		Sidecar:                *tx.BlobTxSidecar(),
 	}
-	rollupData, err := d.parseBatch(batch, txReader)
+	rollupData, err := d.parseBatch(batch)
 	if err != nil {
 		d.logger.Error("ParseBatch failed", "txNonce", tx.Nonce(), "txHash", txHash,
 			"l1BlockNumber", blockNumber)
@@ -397,28 +389,39 @@ func parseChunk(chunkBytes []byte) (*types.Chunk, error) {
 	return chunk, nil
 }
 
-func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, txReader *bytes.Reader) (*BatchInfo, error) {
+func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
+	blobHashes := batch.Sidecar.BlobHashes()
 	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
 	if err != nil {
 		return nil, fmt.Errorf("DecodeBatchHeader error:%v", err)
 	}
-	rollupData, err := ParseBatch(batch, txReader)
+	rollupData, err := ParseBatch(batch)
 	if err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
-	if err := d.handleL1Message(rollupData, &parentBatchHeader); err != nil {
+	if err := d.handleL1Message(rollupData, &parentBatchHeader, blobHashes); err != nil {
 		return nil, fmt.Errorf("handleL1Message error:%v", err)
 	}
 	rollupData.batchIndex = parentBatchHeader.BatchIndex + 1
 	return rollupData, nil
 }
 
-func ParseBatch(batch geth.RPCRollupBatch, txReader *bytes.Reader) (*BatchInfo, error) {
+// ParseBatch This method is externally referenced for parsing Batch
+func ParseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 	var rollupData BatchInfo
 	rollupData.root = batch.PostStateRoot
 	rollupData.skippedL1MessageBitmap = new(big.Int).SetBytes(batch.SkippedL1MessageBitmap[:])
 	rollupData.version = uint64(batch.Version)
 	chunks := types.NewChunks()
+	var txPayload []byte
+	for _, blob := range batch.Sidecar.Blobs {
+		data, err := types.DecodeRawTxPayload(&blob)
+		if err != nil {
+			return nil, err
+		}
+		txPayload = append(txPayload, data...)
+	}
+	txReader := bytes.NewReader(txPayload)
 	for cbIndex, chunkByte := range batch.Chunks {
 		chunk, err := parseChunk(chunkByte)
 		if err != nil {
@@ -476,7 +479,7 @@ func ParseBatch(batch geth.RPCRollupBatch, txReader *bytes.Reader) (*BatchInfo, 
 	return &rollupData, nil
 }
 
-func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *types.BatchHeader) error {
+func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *types.BatchHeader, blobHashes []common.Hash) error {
 	batchHeader := types.BatchHeader{
 		Version:                uint8(rollupData.version),
 		BatchIndex:             parentBatchHeader.BatchIndex + 1,
@@ -510,8 +513,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *t
 	}
 	batchHeader.TotalL1MessagePopped = totalL1MessagePopped
 	batchHeader.L1MessagePopped = l1MessagePopped
-	// todo fill with blobHashes
-	rollupData.batchHash = types.NewBatchHeaderWithBlobHashes(batchHeader, nil).BatchHash()
+	rollupData.batchHash = types.NewBatchHeaderWithBlobHashes(batchHeader, blobHashes).BatchHash()
 	return nil
 }
 
@@ -556,18 +558,6 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	return lastHeader, nil
-}
-
-func (d *Derivation) findBatchIndex(txHash common.Hash, blockNumber uint64) (uint64, error) {
-	receipt, err := d.l1Client.TransactionReceipt(context.Background(), txHash)
-	if err != nil {
-		return 0, err
-	}
-	if receipt.Status == eth.ReceiptStatusFailed {
-		return 0, err
-	}
-
-	return 0, fmt.Errorf("event not found")
 }
 
 func encodeTransactions(txs []*eth.Transaction) [][]byte {
