@@ -1,6 +1,6 @@
 build-prover:
 	cargo build --release
-
+	
 build-challenge-handler:
 	cd challenge-handler && cargo build --release
 
@@ -12,6 +12,8 @@ all: build-prover build-challenge-handler
 	cp -f target/release/setup_prover make-bin/
 	cp -f challenge-handler/target/release/challenge-handler make-bin/
 	cp -f challenge-handler/target/release/auto_challenge make-bin/
+
+build: build-prover build-challenge-handler
 
 run:all
 	./start.sh
