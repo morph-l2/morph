@@ -1,4 +1,4 @@
-use std::env::var;
+use std::{env::var, str::FromStr};
 
 pub fn call_prover(param: String, function: &str) -> Option<String> {
     let prover_rpc = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
@@ -30,6 +30,12 @@ pub fn call_prover(param: String, function: &str) -> Option<String> {
     };
 
     Some(rt_text)
+}
+
+pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
+    std::env::var(var_name)
+        .map(|s| s.parse::<T>().unwrap_or_else(|_| default.clone()))
+        .unwrap_or(default)
 }
 
 #[tokio::test]

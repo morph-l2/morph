@@ -28,6 +28,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
+name = "adler32"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
+
+[[package]]
 name = "aes"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -41,7 +47,7 @@ dependencies = [
 [[package]]
 name = "aggregator"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "ark-std 0.3.0",
  "bls12_381",
@@ -603,7 +609,7 @@ checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 [[package]]
 name = "bus-mapping"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -1382,7 +1388,7 @@ dependencies = [
 [[package]]
 name = "eth-types"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "ethers-core",
  "ethers-signers",
@@ -1702,7 +1708,7 @@ dependencies = [
 [[package]]
 name = "external-tracer"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "eth-types",
  "geth-utils",
@@ -1939,7 +1945,7 @@ dependencies = [
 [[package]]
 name = "gadgets"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "digest 0.7.6",
  "eth-types",
@@ -1972,7 +1978,7 @@ dependencies = [
 [[package]]
 name = "geth-utils"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "env_logger 0.9.3",
  "gobuild 0.1.0-alpha.2 (git+https://github.com/scroll-tech/gobuild.git)",
@@ -2668,7 +2674,7 @@ dependencies = [
 [[package]]
 name = "keccak256"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "env_logger 0.9.3",
  "eth-types",
@@ -2722,6 +2728,26 @@ name = "libc"
 version = "0.2.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
+
+[[package]]
+name = "libflate"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ff4ae71b685bbad2f2f391fe74f6b7659a34871c08b210fdc039e43bee07d18"
+dependencies = [
+ "adler32",
+ "crc32fast",
+ "libflate_lz77",
+]
+
+[[package]]
+name = "libflate_lz77"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a52d3a8bfc85f250440e4424db7d857e241a3aebbbe301f3eb606ab15c39acbf"
+dependencies = [
+ "rle-decode-fast",
+]
 
 [[package]]
 name = "libm"
@@ -2937,7 +2963,7 @@ dependencies = [
 [[package]]
 name = "mock"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -2953,7 +2979,7 @@ dependencies = [
 [[package]]
 name = "mpt-zktrie"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "eth-types",
  "halo2-mpt-circuits",
@@ -3518,6 +3544,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "procfs"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c434e93ef69c216e68e4f417c927b4f31502c3560b72cfdb6827e2321c5c6b3e"
+dependencies = [
+ "bitflags 1.3.2",
+ "byteorder",
+ "hex",
+ "lazy_static",
+ "libc",
+ "libflate",
+]
+
+[[package]]
+name = "prometheus"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd0ced56dee39a6e960c15c74dc48849d614586db2eaada6497477af7c7811cd"
+dependencies = [
+ "cfg-if 0.1.10",
+ "fnv",
+ "lazy_static",
+ "libc",
+ "procfs",
+ "protobuf",
+ "spin 0.5.2",
+ "thiserror",
+]
+
+[[package]]
 name = "proptest"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3534,9 +3590,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "protobuf"
+version = "2.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
+
+[[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "aggregator",
  "anyhow",
@@ -3873,6 +3935,12 @@ checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
 ]
+
+[[package]]
+name = "rle-decode-fast"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
 
 [[package]]
 name = "rlp"
@@ -5508,7 +5576,7 @@ dependencies = [
 [[package]]
 name = "zkevm-circuits"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#776099adfd0234c03160ebd64f0882c9d0c2973f"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#247b36fb833e90fc98f5879369d727ff8d80ef8c"
 dependencies = [
  "array-init",
  "bls12_381",
@@ -5563,6 +5631,8 @@ dependencies = [
  "ethers",
  "halo2_proofs",
  "log",
+ "once_cell",
+ "prometheus",
  "prover",
  "rand",
  "rand_xorshift",
