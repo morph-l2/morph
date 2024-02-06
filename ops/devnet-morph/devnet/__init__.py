@@ -13,7 +13,7 @@ import platform
 import shutil
 import http.client
 import devnet.log_setup
-from devnet.genesis import GENESIS_TMPL
+# from devnet.genesis import GENESIS_TMPL
 
 pjoin = os.path.join
 
@@ -72,10 +72,8 @@ def main():
 
 
 def devnet_l1(paths, result=None):
-    log.info('Generating L1 genesis.')
-    write_json(paths.genesis_l1_path, GENESIS_TMPL)
     log.info('Starting L1.')
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], cwd=paths.ops_dir, env={
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], check=False, cwd=paths.ops_dir, env={
         'PWD': paths.ops_dir
     })
     wait_up(9545)
@@ -226,7 +224,7 @@ def devnet_deploy(paths, args):
 
     log.info('Bringing up L2.')
 
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d'], cwd=paths.ops_dir, env={
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d'], check=False, cwd=paths.ops_dir, env={
         'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],
         'MORPH_ROLLUP': addresses['Proxy__Rollup'],
         # 'MORPH_STANDARD_BRIDGE': addresses['Proxy__L1StandardBridge'],
