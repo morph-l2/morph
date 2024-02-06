@@ -1,11 +1,13 @@
 use crate::utils::{
-    get_block_traces_by_number, GENERATE_EVM_VERIFIER, PROVER_L2_RPC, PROVER_PARAMS_DIR, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, SCROLL_PROVER_ASSETS_DIR
+    get_block_traces_by_number, GENERATE_EVM_VERIFIER, PROVER_L2_RPC, PROVER_PARAMS_DIR, PROVER_PROOF_DIR,
+    PROVE_RESULT, PROVE_TIME, SCROLL_PROVER_ASSETS_DIR,
 };
-use eth_types::U256;
+use eth_types::{ToLittleEndian, U256};
 use ethers::providers::Provider;
+use ethers::utils::keccak256;
 use prover::aggregator::Prover as BatchProver;
 use prover::config::{LayerId, LAYER4_DEGREE};
-use prover::utils::chunk_trace_to_witness_block_with_index;
+use prover::utils::{chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index};
 use prover::zkevm::Prover as ChunkProver;
 use prover::{BlockTrace, ChunkHash, ChunkProof, CompressionCircuit};
 use serde::{Deserialize, Serialize};
@@ -15,6 +17,7 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
+use zkevm_circuits::blob_circuit::{block_to_blob, MAX_BLOB_DATA_SIZE};
 
 // proveRequest
 #[derive(Serialize, Deserialize, Debug)]
@@ -83,18 +86,38 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     let proof_path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     fs::create_dir_all(proof_path.clone()).unwrap();
     let mut chunk_proofs: Vec<(ChunkHash, ChunkProof)> = vec![];
+
+    // get batchBlob
+    let batch_blob: [u8; MAX_BLOB_DATA_SIZE];
     for (index, chunk_trace) in chunk_traces.iter().enumerate() {
-        let batch_commit: U256 = U256::from(0);
-            let challenge_point: U256 = U256::from(0);
-            let index: usize = index;
-            let partial_result: U256 = U256::from(0);
-            let chunk_witness = match chunk_trace_to_witness_block_with_index(
-                chunk_trace.to_vec(),
-                batch_commit,
-                challenge_point,
-                index,
-                partial_result,
-            ) {
+        let chunk_witness = match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
+            Ok(witness) => {
+                let partial_result = block_to_blob(&witness);
+                batch_blob.push(partial_result);
+            },
+            Err(e) => {
+                log::error!("convert trace to witness of batch = {:#?} error: {:#?}", batch_index, e);
+                PROVE_RESULT.set(2);
+                return;
+            }
+        };
+    }
+
+    // todo: get batch_commit from eth trace
+    let batch_commit: U256 = U256::from(0);
+    // challenge_point = hash(batch_commit||batchBlob)
+    let challenge_point = U256::from_little_endian(keccak256(&[batch_commit.to_le_bytes().as_ref(), &batch_blob]).as_ref());
+
+    for (index, chunk_trace) in chunk_traces.iter().enumerate() {
+        let index: usize = index;
+        let partial_result: U256 = U256::from(0);
+        let chunk_witness = match chunk_trace_to_witness_block_with_index(
+            chunk_trace.to_vec(),
+            batch_commit,
+            challenge_point,
+            index,
+            partial_result,
+        ) {
             Ok(_witness) => _witness,
             Err(e) => {
                 log::error!("convert trace to witness of batch = {:#?} error: {:#?}", batch_index, e);
@@ -102,6 +125,10 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
                 return;
             }
         };
+
+        let partial_result_bytes = block_to_blob(&chunk_witness).ok();
+        index += partial_result_bytes.len()/31;
+
         let chunk_hash = ChunkHash::from_witness_block(&chunk_witness, false);
 
         log::info!(
@@ -110,18 +137,26 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             index
         );
         // Start chunk prove
-        let chunk_proof: ChunkProof =
-            match chunk_prover.gen_chunk_proof(chunk_trace.to_vec(), None, None, Some(proof_path.as_str())) {
-                Ok(proof) => {
-                    log::info!(">>chunk_{:#?} prove complate, batch index = {:#?}", index, batch_index);
-                    proof
-                }
-                Err(e) => {
-                    log::error!("chunk in batch_{:#?} prove err: {:#?}", batch_index, e);
-                    PROVE_RESULT.set(2);
-                    return;
-                }
-            };
+        let chunk_proof: ChunkProof = match chunk_prover.gen_chunk_proof_with_index(
+            chunk_trace.to_vec(),
+            batch_commit,
+            challenge_point,
+            index,
+            partial_result,
+            None,
+            None,
+            Some(proof_path.as_str()),
+        ) {
+            Ok(proof) => {
+                log::info!(">>chunk_{:#?} prove complate, batch index = {:#?}", index, batch_index);
+                proof
+            }
+            Err(e) => {
+                log::error!("chunk in batch_{:#?} prove err: {:#?}", batch_index, e);
+                PROVE_RESULT.set(2);
+                return;
+            }
+        };
 
         //save chunk.protocol
         let protocol = &chunk_proof.protocol;
@@ -213,4 +248,3 @@ async fn test() {
     let mut params_file = File::create("configs/chunk.protocol").unwrap();
     params_file.write_all(&protocol[..]).unwrap();
 }
-
