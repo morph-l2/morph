@@ -274,9 +274,9 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	}
 	txpayload := []byte{}
 	for _, blob := range tx.BlobTxSidecar().Blobs {
-		data, err := blob.ToData()
+		data, err := types.DecodeRawTxPayload(&blob)
 		if err != nil {
-
+			return nil, err
 		}
 		txpayload = append(txpayload, data...)
 	}
