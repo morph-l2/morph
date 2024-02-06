@@ -110,6 +110,10 @@ github.com/morph-l2/go-ethereum v1.10.14-0.20240129040321-90133e8d25e7 h1:cbTnIZ
 github.com/morph-l2/go-ethereum v1.10.14-0.20240129040321-90133e8d25e7/go.mod h1:fDfh01JA32R/nRScAMgh9xghbFSxTdtrET7ZVRvfoqU=
 github.com/morph-l2/go-ethereum v1.10.14-0.20240206135324-69ab8609abf5 h1:xWiS5LHIcFjgCamJyUyuKBubgwvIXvfrrEcjdba2HoY=
 github.com/morph-l2/go-ethereum v1.10.14-0.20240206135324-69ab8609abf5/go.mod h1:ZKJc4Sfe+Ml143ewuLUrPxLm3E1Ui3CNyKqqXQmJvm8=
+github.com/morph-l2/go-ethereum v1.10.14-0.20240206162309-d21bfcc8debd h1:ePgiFZz3gpYzwpnBA7CsVHboiJURpmjvTQ3jDeyO0r8=
+github.com/morph-l2/go-ethereum v1.10.14-0.20240206162309-d21bfcc8debd/go.mod h1:ZKJc4Sfe+Ml143ewuLUrPxLm3E1Ui3CNyKqqXQmJvm8=
+github.com/morph-l2/go-ethereum v1.10.14-0.20240206173246-45487e1b941a h1:yGB0F5hW0m9DeUFH1NQavkyMaZo69xC4IDhxhk1bpyU=
+github.com/morph-l2/go-ethereum v1.10.14-0.20240206173246-45487e1b941a/go.mod h1:ZKJc4Sfe+Ml143ewuLUrPxLm3E1Ui3CNyKqqXQmJvm8=
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240125053652-c7ba1597b86f/go.mod h1:zJcxhzs3kbX6xs90IBX1vIQy1KmSfm4MgNbv3Lt+Rns=
 github.com/naoina/go-stringutil v0.1.0 h1:rCUeRUHjBjGTSHl0VC00jUPLz8/F9dDzYI70Hzifhks=
 github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416 h1:shk/vn9oCoOTmwcouEdwIeOtOGA/ELRUw/GwvxwfT+0=
