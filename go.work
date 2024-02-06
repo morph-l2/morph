@@ -1,9 +1,10 @@
 go 1.20
 
+replace github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240206055104-957a5e9ef045
+
 use (
 	./bindings
 	./contracts
-	./go-ethereum
 	./node
 	./ops/L2-genesis
 	./tx-submitter
