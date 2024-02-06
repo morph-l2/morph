@@ -19,7 +19,7 @@ use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
 use zkevm_circuits::blob_circuit::block_to_blob;
 
-const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
+const BLOB_DATA_SIZE: usize = 4096 * 32;
 
 // proveRequest
 #[derive(Serialize, Deserialize, Debug)]
@@ -89,13 +89,15 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     fs::create_dir_all(proof_path.clone()).unwrap();
     let mut chunk_proofs: Vec<(ChunkHash, ChunkProof)> = vec![];
 
-    // get batchBlob
-    let mut batch_blob: Vec<u8> = vec![];
+    // get batch_blob from chunks
+    let mut batch_blob = [0u8; BLOB_DATA_SIZE];
+    let mut offset = 0;
     for chunk_trace in chunk_traces.iter() {
         match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
             Ok(witness) => {
-                let partial_result: [u8; MAX_BLOB_DATA_SIZE] = block_to_blob(&witness).unwrap();
-                batch_blob.extend(&partial_result.to_vec());
+                let partial_result = block_to_blob(&witness).unwrap();
+                batch_blob[offset..partial_result.len()].copy_from_slice(&partial_result);
+                offset += partial_result.len();
             }
             Err(e) => {
                 log::error!("convert trace to witness of batch = {:#?} error: {:#?}", batch_index, e);
@@ -107,15 +109,15 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
 
     // todo: get batch_commit from eth trace
     let batch_commit: U256 = U256::from(0);
-    // challenge_point = hash(batch_commit||batchBlob)
 
+    // challenge_point = keccak256(batch_commit||batchBlob)
     let mut pre: Vec<u8> = vec![];
     pre.extend(batch_commit.to_le_bytes().to_vec());
     pre.extend(batch_blob);
     let challenge_point = U256::from_little_endian(keccak256(pre.as_slice()).as_ref());
 
-    for (index, chunk_trace) in chunk_traces.iter().enumerate() {
-        let mut index: usize = index;
+    let mut index = 0;
+    for chunk_trace in chunk_traces.iter(){
         let partial_result: U256 = U256::from(0);
         let chunk_witness = match chunk_trace_to_witness_block_with_index(
             chunk_trace.to_vec(),
@@ -133,7 +135,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         };
 
         let partial_result_bytes = block_to_blob(&chunk_witness).ok();
-        index += partial_result_bytes.unwrap().len() / 31;
+        index += partial_result_bytes.unwrap().len() / 32;
 
         let chunk_hash = ChunkHash::from_witness_block(&chunk_witness, false);
 
