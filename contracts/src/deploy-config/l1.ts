@@ -26,9 +26,9 @@ const config = {
   rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
   // genesis config
-  rollupGenesisStateRoot: '',
-  withdrawRoot: '',
-  batchHeader: '',
+  rollupGenesisStateRoot: '0x0204e3f553adc0c9621fe3d4c4c59f4eef021c177640249bd9cfd56dc83ff1c8',
+  withdrawRoot: '0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757',
+  batchHeader: '0x000000000000000000000000000000000000000000000000004d419001d42490ab0cc4e301a2b2bf5c01cd5e96d14a52fc1cd307b95381d3f80000000000000000000000000000000000000000000000000000000000000000',
 
   // staking config
   // staking initialize config

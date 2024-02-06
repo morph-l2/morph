@@ -1,9 +1,10 @@
 github.com/btcsuite/btcd v0.20.1-beta h1:Ik4hyJqN8Jfyv3S4AGBOmyouMsYE3EdYODkMbQjwPGw=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/iden3/go-iden3-crypto v0.0.15 h1:4MJYlrot1l31Fzlo2sF56u7EVFeHHJkxGXXZCtESgK4=
-github.com/morph-l2/go-ethereum v1.10.14-0.20240105030148-da6185c8d1cb h1:Lp02ROE0OnDF36GSaA8lN+kzbQGNK+Nj2cGdZworbuc=
-github.com/morph-l2/go-ethereum v1.10.14-0.20240105030148-da6185c8d1cb/go.mod h1:9BGKc4l0m6qXgfXBGzp1aFHPE3dXzm2fi+rDtXpr8HM=
+github.com/iden3/go-iden3-crypto v0.0.15/go.mod h1:dLpM4vEPJ3nDHzhWFXDjzkn1qHoBeOT/3UEhXsEsP3E=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
+github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c h1:MnAdt80steCDli4SAD0J0spBGNY+gQvbdptNjWztHcw=
+github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c/go.mod h1:4HrFcoStbViFVy/9l/rvKl1XmizVAaPdgqI8v0U8hOc=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 golang.org/x/crypto v0.17.0 h1:r8bRNjWL3GshPW3gkd+RpvzWrZAwPS49OmTGZ/uhM4k=
 golang.org/x/sys v0.15.0 h1:h48lPFYpsTvQJZF4EKyI4aLHaev3CxivZmv7yZig9pc=

@@ -1,0 +1,11 @@
+FROM rust:1.70 as builder
+
+COPY ./gas-oracle /gas-oracle
+
+WORKDIR /gas-oracle
+RUN cd app && cargo build --release
+
+FROM ubuntu:22.04 as app
+COPY --from=builder /gas-oracle/app/target/release/app /
+
+CMD ["./app"]

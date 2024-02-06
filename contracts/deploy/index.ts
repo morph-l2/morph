@@ -5,8 +5,8 @@ import deployZkEvmVerifierV1 from './012-Verifier'
 import deployContractImpls from './014-DeployImpls'
 import MessengerInit from './015-MessengerInit'
 import RollupInit from './016-RollupInit'
-import StakingInit from './017-StakingInit'
-
+import GatewayInit from './017-GatewayInit'
+import StakingInit from './018-StakingInit'
 
 export {
     deployProxyAdmin,
@@ -16,5 +16,6 @@ export {
     deployContractImpls,
     MessengerInit,
     RollupInit,
+    GatewayInit,
     StakingInit
 }

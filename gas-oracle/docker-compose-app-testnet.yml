@@ -1,0 +1,27 @@
+version: '3.4'
+
+services:
+  gas-price-oracle:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    image: morphism-oracle-app:latest
+    restart: unless-stopped
+    container_name: 'morphism-oracle'
+    command: >
+      ./app
+    ports:
+      - "6060:6060"
+    environment:
+      - GAS_ORACLE_L1_RPC=${L1_RPC}
+      - GAS_ORACLE_L2_RPC=${L2_RPC}
+      - GAS_THRESHOLD=${GAS_THRESHOLD}
+      - INTERVAL=${INTERVAL}
+      - L2_GAS_PRICE_ORACLE=${L2_GAS_PRICE_ORACLE}
+      - L2_GAS_ORACLE_PRIVATE_KEY=${L2_GAS_ORACLE_PRIVATE_KEY}
+      - OVERHEAD_THRESHOLD=${OVERHEAD_THRESHOLD}
+      - OVERHEAD_INTERVAL=${OVERHEAD_INTERVAL}
+      - TXN_PER_BLOCK=${TXN_PER_BLOCK}
+      - TXN_PER_BATCH=${TXN_PER_BATCH}
+      - L1_ROLLUP=${L1_ROLLUP}
+    

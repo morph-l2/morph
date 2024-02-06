@@ -19,10 +19,10 @@ export const deployContractProxyByStorageName = async (
     storageName: string,
 ): Promise<string> => {
     const ProxyFactoryName = ContractFactoryName.DefaultProxy
-    // const ProxyAdminAddress = getContractAddressByName(path, ImplStorageName.ProxyAdmin)
 
     const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
     const proxy = await ProxyFactory.deploy(await deployer.getAddress())
+    await proxy.deployed()
     console.log("%s=%s ; TX_HASH: %s", storageName, proxy.address.toLocaleLowerCase(), proxy.deployTransaction.hash);
     // check params
     await assertContractVariable(
@@ -52,6 +52,12 @@ export const deployContractProxys = async (
     const RollupProxyStroageName = ProxyStorageName.RollupProxyStorageName
     const StakingProxyStroageName = ProxyStorageName.StakingProxyStroageName
     const L1SequencerProxyStroageName = ProxyStorageName.L1SequencerProxyStroageName
+
+    const L1GatewayRouterProxyStroageName = ProxyStorageName.L1GatewayRouterProxyStroageName
+    const L1ETHGatewayProxyStroageName = ProxyStorageName.L1ETHGatewayProxyStroageName
+    const L1StandardERC20GatewayProxyStroageName = ProxyStorageName.L1StandardERC20GatewayProxyStroageName
+    const L1ERC721GatewayProxyStroageName = ProxyStorageName.L1ERC721GatewayProxyStroageName
+    const L1ERC1155GatewayProxyStroageName = ProxyStorageName.L1ERC1155GatewayProxyStroageName
 
     // ************************ messenger contracts deploy ************************
     // L1CrossDomainMessengerProxy deploy 
@@ -92,6 +98,37 @@ export const deployContractProxys = async (
         return err
     }
 
+    // ************************ gateway contracts deploy ************************
+    // L1GatewayRouterProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1GatewayRouterProxyStroageName)
+    if (err != '') {
+        return err
+    }
+
+    // L1ETHGatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1ETHGatewayProxyStroageName)
+    if (err != '') {
+        return err
+    }
+
+    // L1ETHGatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1StandardERC20GatewayProxyStroageName)
+    if (err != '') {
+        return err
+    }
+
+    // L1ERC721GatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1ERC721GatewayProxyStroageName)
+    if (err != '') {
+        return err
+    }
+
+    // L1ERC1155GatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1ERC1155GatewayProxyStroageName)
+    if (err != '') {
+        return err
+    }
+    
     // return nil
     return ''
 }
