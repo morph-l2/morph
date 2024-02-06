@@ -1,6 +1,9 @@
 package types
 
 import (
+	"bytes"
+	"encoding/binary"
+	"github.com/tendermint/tendermint/libs/rand"
 	"math/big"
 	"testing"
 
@@ -12,7 +15,8 @@ import (
 
 func TestChunks_Append(t *testing.T) {
 	chunks := NewChunks()
-	require.True(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	appended, _ := chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	require.True(t, appended)
 
 	blockContext := []byte("123")
 	txPayloads := []byte("abc")
@@ -62,15 +66,119 @@ func TestChunks_Append(t *testing.T) {
 	}
 	// 99 blocks in 2nd chunk
 	require.EqualValues(t, 2, chunks.ChunkNum())
-	require.False(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	appended, _ = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	require.False(t, appended)
 	// 100 blocks in 2nd chunk
 	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
 	require.EqualValues(t, 2, chunks.ChunkNum())
 
-	require.True(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	appended, _ = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	require.True(t, appended)
 	// append chunk to 3 chunks totally
 	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
 	require.EqualValues(t, 3, chunks.ChunkNum())
+}
+
+func TestChunk_Seal(t *testing.T) {
+	chunk := NewChunk(nil, nil, nil, nil)
+	chunk.Seal()
+	require.EqualValues(t, 31, len(chunk.sealedPayload))
+	require.EqualValues(t, make([]byte, 31), chunk.sealedPayload)
+
+	chunk = NewChunk(nil, make([]byte, 0), nil, nil)
+	chunk.Seal()
+	require.EqualValues(t, 31, len(chunk.sealedPayload))
+	require.EqualValues(t, make([]byte, 31), chunk.sealedPayload)
+
+	txPayload := rand.Bytes(10)
+	chunk = NewChunk(nil, txPayload, nil, nil)
+	require.False(t, chunk.Sealed())
+	require.EqualValues(t, 0, len(chunk.sealedPayload))
+	chunk.Seal()
+	require.True(t, chunk.Sealed())
+	require.EqualValues(t, 31, len(chunk.sealedPayload))
+	require.EqualValues(t, 10, binary.LittleEndian.Uint32(chunk.sealedPayload[:4]))
+	require.EqualValues(t, txPayload, chunk.sealedPayload[4:14])
+	require.EqualValues(t, make([]byte, 31-14), chunk.sealedPayload[14:])
+
+	// full one 31bytes
+	txPayload = rand.Bytes(27)
+	chunk = NewChunk(nil, txPayload, nil, nil)
+	require.False(t, chunk.Sealed())
+	chunk.Seal()
+	require.EqualValues(t, 31, len(chunk.sealedPayload))
+	require.EqualValues(t, 27, binary.LittleEndian.Uint32(chunk.sealedPayload[:4]))
+	require.EqualValues(t, txPayload, chunk.sealedPayload[4:])
+
+	// full 2 31bytes
+	txPayload = rand.Bytes(58)
+	chunk = NewChunk(nil, txPayload, nil, nil)
+	require.False(t, chunk.Sealed())
+	chunk.Seal()
+	require.EqualValues(t, 62, len(chunk.sealedPayload))
+	require.EqualValues(t, 58, binary.LittleEndian.Uint32(chunk.sealedPayload[:4]))
+	require.EqualValues(t, txPayload, chunk.sealedPayload[4:])
+
+	// more 2 31bytes
+	txPayload = rand.Bytes(59)
+	chunk = NewChunk(nil, txPayload, nil, nil)
+	require.False(t, chunk.Sealed())
+	chunk.Seal()
+	require.EqualValues(t, 93, len(chunk.sealedPayload))
+	require.EqualValues(t, 59, binary.LittleEndian.Uint32(chunk.sealedPayload[:4]))
+	require.EqualValues(t, txPayload, chunk.sealedPayload[4:63])
+	require.EqualValues(t, make([]byte, 93-63), chunk.sealedPayload[63:])
+}
+
+func TestChunks_SealTxPayloadForBlob(t *testing.T) {
+	chunks := NewChunks()
+	// 1st chunk with nil txPayload, takes up 1 31bytes
+	chunks.Append(nil, nil, nil, types.RowConsumption{{"a", 1_000_000}})
+	require.EqualValues(t, 4, chunks.CurrentPayloadForBlobSize())
+
+	// 2nd chunk with 10bytes txPayload, takes up 1 31bytes
+	txsPayload10 := rand.Bytes(10)
+	chunks.Append(nil, txsPayload10, nil, types.RowConsumption{{"a", 1_000_000}})
+	require.EqualValues(t, 31+4+10, chunks.CurrentPayloadForBlobSize())
+
+	// 3rd chunk with 27bytes txPayload, takes up 1 31bytes
+	txsPayload27 := rand.Bytes(27)
+	chunks.Append(nil, txsPayload27, nil, types.RowConsumption{{"a", 1_000_000}})
+	require.EqualValues(t, 31*2+4+27, chunks.CurrentPayloadForBlobSize())
+
+	// 4th chunk with 58bytes txPayload, takes up 2 31bytes
+	txsPayload58 := rand.Bytes(58)
+	chunks.Append(nil, txsPayload58, nil, types.RowConsumption{{"a", 1_000_000}})
+	require.EqualValues(t, 31*3+4+58, chunks.CurrentPayloadForBlobSize())
+
+	// 5th chunk with 58bytes txPayload, takes up 3 31bytes
+	txsPayload59 := rand.Bytes(59)
+	chunks.Append(nil, txsPayload59, nil, types.RowConsumption{{"a", 1_000_000}})
+	require.EqualValues(t, 31*5+4+59, chunks.CurrentPayloadForBlobSize())
+
+	// chunks totally takes 8 31bytes
+	sealedTxPayload := chunks.SealTxPayloadForBlob()
+	require.EqualValues(t, 8*31, len(sealedTxPayload))
+	len10 := make([]byte, 4)
+	binary.LittleEndian.PutUint32(len10, 10)
+	len27 := make([]byte, 4)
+	binary.LittleEndian.PutUint32(len27, 27)
+	len58 := make([]byte, 4)
+	binary.LittleEndian.PutUint32(len58, 58)
+	len59 := make([]byte, 4)
+	binary.LittleEndian.PutUint32(len59, 59)
+	expectedSealed := bytes.NewBuffer(make([]byte, 31))
+	expectedSealed.Write(len10)
+	expectedSealed.Write(txsPayload10)
+	expectedSealed.Write(make([]byte, 31-14))
+	expectedSealed.Write(len27)
+	expectedSealed.Write(txsPayload27)
+	expectedSealed.Write(len58)
+	expectedSealed.Write(txsPayload58)
+	expectedSealed.Write(len59)
+	expectedSealed.Write(txsPayload59)
+	expectedSealed.Write(make([]byte, 30))
+	require.EqualValues(t, expectedSealed.Bytes(), sealedTxPayload)
 }
 
 func TestChunk_accumulateRowUsages(t *testing.T) {
