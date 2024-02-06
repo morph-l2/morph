@@ -68,22 +68,10 @@ type DeployConfig struct {
 	L1ChainID          uint64                           `json:"l1ChainID"`
 	L2ChainID          uint64                           `json:"l2ChainID"`
 
-	FinalizationPeriodSeconds uint64 `json:"finalizationPeriodSeconds"`
-	//MaxSequencerDrift         uint64         `json:"maxSequencerDrift"`
-	//SequencerWindowSize       uint64         `json:"sequencerWindowSize"`
-	//ChannelTimeout            uint64         `json:"channelTimeout"`
-	//P2PSequencerAddress       common.Address `json:"p2pSequencerAddress"`
-	BatchInboxAddress  common.Address `json:"batchInboxAddress"`
-	BatchSenderAddress common.Address `json:"batchSenderAddress"`
+	FinalizationPeriodSeconds uint64         `json:"finalizationPeriodSeconds"`
+	BatchInboxAddress         common.Address `json:"batchInboxAddress"`
+	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
 
-	//RollupProofWindow uint64         `json:"rollupProofWindow"`
-	//RollupProposer    common.Address `json:"rollupProposer"`
-	//RollupChallenger  common.Address `json:"rollupChallenger"`
-
-	//StakingSequencerSize uint64 `json:"stakingSequencerSize"`
-	//StakingLockNumber    uint64 `json:"stakingLockNumber"`
-
-	// todo clean
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
 	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
@@ -312,18 +300,28 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 
-	storage["Submitter"] = state.StorageValues{
-		"_initialized":   1,
-		"_initializing":  false,
-		"nextEpochStart": uint64(time.Now().Unix()),
+	storage["GasPriceOracle"] = state.StorageValues{
+		"_owner":           config.GasPriceOracleOwner,
+		"overhead":         config.GasPriceOracleOverhead,
+		"scalar":           config.GasPriceOracleScalar,
+		"l1BaseFee":        baseFee,
+		"allowListEnabled": true,
 	}
-
+	storage["L2CrossDomainMessenger"] = state.StorageValues{
+		"_status":              1,
+		"_initialized":         1,
+		"_initializing":        false,
+		"_owner":               config.FinalSystemOwner,
+		"_paused":              false,
+		"xDomainMessageSender": "0x000000000000000000000000000000000000dEaD",
+		"counterpart":          config.L1CrossDomainMessengerProxy,
+		"feeVault":             config.L2BridgeFeeVaultRecipient,
+	}
 	storage["L2Sequencer"] = state.StorageValues{
 		"_initialized":   1,
 		"_initializing":  false,
 		"currentVersion": 0,
 	}
-
 	storage["Gov"] = state.StorageValues{
 		"_initialized":       1,
 		"_initializing":      false,
@@ -334,22 +332,18 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"rollupEpoch":        config.GovRollupEpoch,
 		"maxChunks":          config.GovBatchMaxChunks,
 	}
-	storage["GasPriceOracle"] = state.StorageValues{
-		"_owner":           config.GasPriceOracleOwner,
-		"overhead":         config.GasPriceOracleOverhead,
-		"scalar":           config.GasPriceOracleScalar,
-		"l1BaseFee":        baseFee,
-		"allowListEnabled": true,
+	storage["Submitter"] = state.StorageValues{
+		"_initialized":   1,
+		"_initializing":  false,
+		"nextEpochStart": uint64(time.Now().Unix()),
 	}
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"messageRoot": common.HexToHash("0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757"),
 	}
-	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized":         1,
-		"_initializing":        false,
-		"xDomainMessageSender": "0x000000000000000000000000000000000000dEaD",
-		"counterpart":          config.L1CrossDomainMessengerProxy,
-		"feeVault":             config.L2BridgeFeeVaultRecipient,
+	storage["L2TxFeeVault"] = state.StorageValues{
+		"owner":             config.FinalSystemOwner,
+		"minWithdrawAmount": 0,
+		"recipient":         config.SequencerFeeVaultRecipient,
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,

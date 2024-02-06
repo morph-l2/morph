@@ -80,8 +80,8 @@ def devnet_l1(paths, result=None):
     })
     wait_up(9545)
     wait_for_rpc_server('127.0.0.1:9545')
-    log.info('Sleep another 10s...')
-    time.sleep(10)
+    log.info('Sleep another 20s...')
+    time.sleep(20)
     res = eth_accounts('127.0.0.1:9545')
     response = json.loads(res)
     account = response['result'][0]

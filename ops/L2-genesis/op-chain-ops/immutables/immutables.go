@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	"github.com/morph-l2/bindings/bindings"
+	"github.com/morph-l2/bindings/predeploys"
 	"github.com/morph-l2/morph-deployer/op-chain-ops/deployer"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
@@ -69,15 +70,9 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 		},
 		{
 			Name: "L2CrossDomainMessenger",
-			Args: []interface{}{
-				immutable["L2CrossDomainMessenger"]["otherMessenger"],
-			},
 		},
 		{
 			Name: "L2ToL1MessagePasser",
-			Args: []interface{}{
-				immutable["L2ToL1MessagePasser"]["recAddr"],
-			},
 		},
 		{
 			Name: "L2TxFeeVault",
@@ -101,6 +96,12 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 			Args: []interface{}{
 				immutable["Submitter"]["rollupAddr"],
 			},
+		},
+		{
+			Name: "L2TokenImplementation",
+		},
+		{
+			Name: "L2TokenFactory",
 		},
 	}
 	return BuildL2(deployments, config)
@@ -228,6 +229,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for minWithdrawalAmount")
 		}
 		_, tx, _, err = bindings.DeployL2TxFeeVault(opts, backend, owner, recipient, new(big.Int).SetUint64(minWithdrawalAmount))
+	case "L2TokenImplementation":
+		_, tx, _, err = bindings.DeployMorphStandardERC20(opts, backend)
+	case "L2TokenFactory":
+		_, tx, _, err = bindings.DeployMorphStandardERC20Factory(opts, backend, predeploys.L2TokenImplementationAddr)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
