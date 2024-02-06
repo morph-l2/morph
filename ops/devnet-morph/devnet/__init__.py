@@ -117,7 +117,7 @@ def devnet_deploy(paths, args):
     log.info('Generating network config.')
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
     deploy_config = read_json(devnet_cfg_orig)
-    deploy_config['l1GenesisBlockTimestamp'] = GENESIS_TMPL['timestamp']
+    # deploy_config['l1GenesisBlockTimestamp'] = GENESIS_TMPL['timestamp']
     deploy_config['l1StartingBlockTag'] = 'earliest'
     temp_deploy_config = pjoin(paths.devnet_dir, 'deploy-config.json')
     write_json(temp_deploy_config, deploy_config)
