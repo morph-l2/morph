@@ -4,9 +4,7 @@ go 1.19
 
 require (
 	github.com/holiman/uint256 v1.2.4
-	github.com/morph-l2/bindings v0.1.0-beta.0.20240123100412-7081312eb1b6
-	github.com/morph-l2/node v0.0.0-20231206022442-206acb7eeabd
-	github.com/scroll-tech/go-ethereum v1.11.4
+	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.14
 )
@@ -44,6 +42,28 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/prometheus/tsdb v0.10.0 // indirect
+	github.com/rivo/uniseg v0.4.3 // indirect
+	github.com/rjeczalik/notify v0.9.3 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
+	github.com/rs/cors v1.10.1 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/scroll-tech/zktrie v0.7.1 // indirect
+	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
+	github.com/status-im/keycard-go v0.3.2 // indirect
+	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
+	github.com/tklauser/go-sysconf v0.3.13 // indirect
+	github.com/tklauser/numcpus v0.7.0 // indirect
+	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
+	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	golang.org/x/crypto v0.16.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sync v0.5.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace (
