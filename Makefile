@@ -1,6 +1,10 @@
 .PHONY: update format
 
+init:
+	git submodule update --init
+
 update: ## update the dependencies
+	git submodule update --remote --merge
 	go work sync
 
 format: ## format the code
