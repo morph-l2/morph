@@ -22,4 +22,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Run build
-        run: build-prover
+        run: make build-prover
