@@ -124,6 +124,7 @@ services:
       - --http.api=web3,debug,eth,txpool,net,engine
       - --http.addr=0.0.0.0
       - --http.corsdomain=*
+      - --http.vhosts=*
       - --ws
       - --ws.api=web3,debug,eth,txpool,net,engine
       - --ws.addr=0.0.0.0
