@@ -14,9 +14,10 @@ import {
     MessengerInit,
     RollupInit,
     StakingInit,
+    GatewayInit,
 } from '../deploy/index'
 import { ethers } from "ethers";
-import StakingRegister from "../deploy/018-StakingRegister";
+import StakingRegister from "../deploy/019-StakingRegister";
 
 task("deploy")
     .addParam('storagepath')
@@ -83,6 +84,12 @@ task("initialize")
         }
         console.log('\n---------------------------------- Rollup init ----------------------------------')
         err = await RollupInit(hre, stroagePath, deployer, config)
+        if (err != '') {
+            console.log('Rollup init failed, err: ', err)
+            return
+        }
+        console.log('\n---------------------------------- Gateway init ----------------------------------')
+        err = await GatewayInit(hre, stroagePath, deployer, config)
         if (err != '') {
             console.log('Rollup init failed, err: ', err)
             return

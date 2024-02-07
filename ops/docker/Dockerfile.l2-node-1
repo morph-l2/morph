@@ -1,0 +1,29 @@
+# Build Geth in a stock Go builder container
+FROM golang:1.20-alpine as builder
+RUN apk add --no-cache gcc musl-dev linux-headers git make
+COPY . /morph
+WORKDIR /morph/node
+RUN make build
+
+
+FROM alpine:latest as initializer
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /morph/node/build/bin/tendermint /usr/local/bin/
+RUN echo "Initializing tendermint."
+RUN tendermint init --home /data
+RUN sed -i  's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' /data/config/config.toml
+RUN sed -i  's#batch_max_bytes = "8388608"#batch_max_bytes = "12492"#g' /data/config/config.toml
+RUN sed -i  's#batch_blocks_interval = "10"#batch_blocks_interval = "5"#g' /data/config/config.toml
+RUN sed -i  's#batch_timeout = "60s"#batch_timeout = "6s"#g' /data/config/config.toml
+RUN sed -i  's#prometheus = false#prometheus = true#g' /data/config/config.toml
+RUN sed -i  's#laddr = "tcp://127.0.0.1:26657"#laddr = "tcp://0.0.0.0:26657"#g' /data/config/config.toml
+
+
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+COPY --from=initializer /data /data
+
+CMD ["morphnode","--dev-sequencer","--home", "/data"]
