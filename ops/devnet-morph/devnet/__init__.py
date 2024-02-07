@@ -13,6 +13,7 @@ import platform
 import shutil
 import http.client
 import devnet.log_setup
+
 # from devnet.genesis import GENESIS_TMPL
 
 pjoin = os.path.join
@@ -127,6 +128,9 @@ def devnet_deploy(paths, args):
     log.info(f'Removing contracts deployment file: {paths.deployment_dir}...')
     run_command(['rm', '-f', paths.deployment_dir], env={}, cwd=paths.contracts_dir)
     log.info('Deploying L1 Proxy contracts...')
+    run_command([
+        'yarn', 'build'
+    ], env={}, cwd=paths.contracts_dir)
     run_command([
         'npx', 'hardhat', 'deploy', '--network', 'l1', '--storagepath', paths.deployment_dir
     ], env={}, cwd=paths.contracts_dir)
@@ -269,6 +273,7 @@ def wait_for_rpc_server(url):
         except Exception as e:
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
+
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
     env = env if env else {}
