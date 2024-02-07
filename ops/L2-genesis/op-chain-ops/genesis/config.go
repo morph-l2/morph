@@ -26,16 +26,65 @@ var (
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
 )
 
+type Genesis struct {
+	// The L1 block that the rollup starts *after* (no derived transactions)
+	L1 uint64 `json:"l1"`
+	// The L2 block the rollup starts from (no transactions, pre-configured state)
+	L2 uint64 `json:"l2"`
+	// Timestamp of L2 block
+	L2Time uint64 `json:"l2_time"`
+}
+
+type Config struct {
+	// Genesis anchor point of the rollup
+	Genesis Genesis `json:"genesis"`
+	// Seconds per L2 block
+	BlockTime uint64 `json:"block_time"`
+	// Required to verify L1 signatures
+	L1ChainID *big.Int `json:"l1_chain_id"`
+	// Required to identify the L2 network and create p2p signatures unique for this chain.
+	L2ChainID *big.Int `json:"l2_chain_id"`
+
+	// Note: below addresses are part of the block-derivation process,
+	// and required to be the same network-wide to stay in consensus.
+
+	// L1 address that batches are sent to.
+	BatchInboxAddress common.Address `json:"batch_inbox_address"`
+	// L1 Deposit Contract Address
+	DepositContractAddress common.Address `json:"deposit_contract_address"`
+	// L1 System Config Address
+	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
+
+	L2GenesisStateRoot common.Hash `json:"l2_genesis_state_root"`
+
+	WithdrawRoot common.Hash `json:"withdraw_root"`
+
+	GenesisBatchHeader hexutil.Bytes `json:"genesis_batch_header"`
+}
+
 // DeployConfig represents the deployment configuration for Morph
 type DeployConfig struct {
 	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
 	L1ChainID          uint64                           `json:"l1ChainID"`
 	L2ChainID          uint64                           `json:"l2ChainID"`
 
-	BatchInboxAddress  common.Address `json:"batchInboxAddress"`
-	BatchSenderAddress common.Address `json:"batchSenderAddress"`
+	FinalizationPeriodSeconds uint64         `json:"finalizationPeriodSeconds"`
+	BatchInboxAddress         common.Address `json:"batchInboxAddress"`
+	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
 
-	// L2 genesis config
+	L1BlockTime                 uint64         `json:"l1BlockTime"`
+	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
+	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
+	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress"` // proof of stake genesis if left zeroed.
+	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit"`
+	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty"`
+	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash"`
+	L1GenesisBlockCoinbase      common.Address `json:"l1GenesisBlockCoinbase"`
+	L1GenesisBlockNumber        hexutil.Uint64 `json:"l1GenesisBlockNumber"`
+	L1GenesisBlockGasUsed       hexutil.Uint64 `json:"l1GenesisBlockGasUsed"`
+	L1GenesisBlockParentHash    common.Hash    `json:"l1GenesisBlockParentHash"`
+	L1GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l1GenesisBlockBaseFeePerGas"`
+
 	L2GenesisBlockTimestamp     hexutil.Uint64 `json:"l2GenesisBlockTimestamp"`
 	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce"`
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
@@ -45,53 +94,33 @@ type DeployConfig struct {
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
+
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 
-	MaxTxPerBlock             int `json:"maxTxPerBlock"`
-	MaxTxPayloadBytesPerBlock int `json:"maxTxPayloadBytesPerBlock"`
-
-	// System config
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-	// Owner of the system on L2
+	// Owner of the system on L1
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
-
-	// L1 contract address
 	// L1SequencerProxy proxy address on L1
 	L1SequencerProxy common.Address `json:"l1SequencerProxy"`
 	// L1CrossDomainMessenger proxy address on L1
 	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
 	// Rollup proxy address on L1
 	RollupProxy common.Address `json:"RollupProxy"`
-	// L1GatewayRouter proxy address on L1
-	L1GatewayRouterProxy common.Address `json:"l1GatewayRouterProxy"`
-	// L1StandardERC20Gateway proxy address on L1
-	L1StandardERC20GatewayProxy common.Address `json:"l1StandardERC20GatewayProxy"`
-	// L1ETHGateway proxy address on L1
-	L1ETHGatewayProxy common.Address `json:"l1ETHGatewayProxy"`
-	// L1ERC721Gateway proxy address on L1
-	L1ERC721GatewayProxy common.Address `json:"l1ERC721GatewayProxy"`
-	// L1ERC1155Gateway proxy address on L1
-	L1ERC1155GatewayProxy common.Address `json:"l1ERC1155GatewayProxy"`
-
-	// GasPriceOracle config
 	// The initial value of the gas overhead
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// The initial value of the gas scalar
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// The initial value of the gasOracle owner
 	GasPriceOracleOwner common.Address `json:"gasPriceOracleOwner"`
-
-	// Fee recipient address
 	// L1 recipient of fees accumulated in the L1FeeVault
 	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the SequencerFeeVault
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
-	// L2 recipient of fees accumulated in the Bridge
+
 	L2BridgeFeeVaultRecipient common.Address `json:"l2BridgeFeeVaultRecipient"`
 
-	// Gov configs
 	GovProposalInterval   uint64 `json:"govProposalInterval"`
 	GovBatchBlockInterval uint64 `json:"govBatchBlockInterval"`
 	GovBatchMaxBytes      uint64 `json:"govBatchMaxBytes"`
@@ -99,12 +128,19 @@ type DeployConfig struct {
 	GovBatchTimeout       uint64 `json:"govBatchTimeout"`
 	GovBatchMaxChunks     uint64 `json:"govBatchMaxChunks"`
 
-	// L2Sequencer configs
 	L2SequencerAddresses []common.Address `json:"l2SequencerAddresses"`
 	L2SequencerTmKeys    []common.Hash    `json:"l2SequencerTmKeys"`
 	L2SequencerBlsKeys   []hexutil.Bytes  `json:"l2SequencerBlsKeys"`
 
+	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
+
+	EIP1559Elasticity  uint64 `json:"eip1559Elasticity"`
+	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+
 	FundDevAccounts bool `json:"fundDevAccounts"`
+
+	MaxTxPerBlock             int `json:"maxTxPerBlock"`
+	MaxTxPayloadBytesPerBlock int `json:"maxTxPayloadBytesPerBlock"`
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
@@ -127,9 +163,13 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	}
 
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("Proxy__L1CrossDomainMessenger")
-		if err != nil {
-			return err
+		var l1CrossDomainMessengerProxyDeployment *hardhat.Deployment
+		l1CrossDomainMessengerProxyDeployment, err = hh.GetDeployment("Proxy__L1CrossDomainMessenger")
+		if errors.Is(err, hardhat.ErrCannotFindDeployment) {
+			l1CrossDomainMessengerProxyDeployment, err = hh.GetDeployment("L1CrossDomainMessengerProxy")
+			if err != nil {
+				return err
+			}
 		}
 		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
 	}
@@ -140,46 +180,6 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 			return err
 		}
 		d.RollupProxy = RollupProxyDeployment.Address
-	}
-
-	if d.L1GatewayRouterProxy == (common.Address{}) {
-		deployment, err := hh.GetDeployment("Proxy__L1GatewayRouter")
-		if err != nil {
-			return err
-		}
-		d.L1GatewayRouterProxy = deployment.Address
-	}
-
-	if d.L1StandardERC20GatewayProxy == (common.Address{}) {
-		deployment, err := hh.GetDeployment("Proxy__L1StandardERC20Gateway")
-		if err != nil {
-			return err
-		}
-		d.L1StandardERC20GatewayProxy = deployment.Address
-	}
-
-	if d.L1ETHGatewayProxy == (common.Address{}) {
-		deployment, err := hh.GetDeployment("Proxy__L1ETHGateway")
-		if err != nil {
-			return err
-		}
-		d.L1ETHGatewayProxy = deployment.Address
-	}
-
-	if d.L1ERC721GatewayProxy == (common.Address{}) {
-		deployment, err := hh.GetDeployment("Proxy__L1ERC721Gateway")
-		if err != nil {
-			return err
-		}
-		d.L1ERC721GatewayProxy = deployment.Address
-	}
-
-	if d.L1ERC1155GatewayProxy == (common.Address{}) {
-		deployment, err := hh.GetDeployment("Proxy__L1ERC1155Gateway")
-		if err != nil {
-			return err
-		}
-		d.L1ERC1155GatewayProxy = deployment.Address
 	}
 	return nil
 }
@@ -252,32 +252,32 @@ func NewDeployConfig(path string) (*DeployConfig, error) {
 func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *immutables.Config, error) {
 	immutable := make(immutables.ImmutableConfig)
 
+	if config.L1SequencerProxy == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1SequencerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.RollupProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("RollupProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
-	if config.L1GatewayRouterProxy == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1GatewayRouterProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1StandardERC20GatewayProxy == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1StandardERC20GatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1ETHGatewayProxy == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1ETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1ERC721GatewayProxy == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1ERC721GatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1ERC1155GatewayProxy == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1ERC1155GatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1SequencerProxy == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1SequencerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+
+	immutable["GasPriceOracleOwner"] = immutables.ImmutableValues{
+		"owner": config.GasPriceOracleOwner,
 	}
 	immutable["L2Sequencer"] = immutables.ImmutableValues{
 		"otherSequencer": config.L1SequencerProxy,
+	}
+	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
+		"otherMessenger": config.L1CrossDomainMessengerProxy,
+	}
+	immutable["L2ToL1MessagePasser"] = immutables.ImmutableValues{
+		"recAddr": config.L1CrossDomainMessengerProxy,
+	}
+	immutable["L2TxFeeVault"] = immutables.ImmutableValues{
+		"owner":               config.FinalSystemOwner,
+		"recipient":           config.L1FeeVaultRecipient,
+		"minWithdrawalAmount": uint64(1),
 	}
 	immutable["Submitter"] = immutables.ImmutableValues{
 		"rollupAddr": config.RollupProxy,
@@ -343,63 +343,10 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["L2TxFeeVault"] = state.StorageValues{
 		"owner":             config.FinalSystemOwner,
 		"minWithdrawAmount": 0,
-		"recipient":         config.L1FeeVaultRecipient,
+		"recipient":         config.SequencerFeeVaultRecipient,
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
-	}
-	storage["L2GatewayRouter"] = state.StorageValues{
-		"_initialized":        1,
-		"_initializing":       false,
-		"_owner":              config.ProxyAdminOwner,
-		"ethGateway":          predeploys.L2ETHGatewayAddr,
-		"defaultERC20Gateway": predeploys.L2StandardERC20GatewayAddr,
-	}
-	storage["L2StandardERC20Gateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
-		"tokenFactory":  predeploys.MorphStandardERC20FactoryAddr,
-		"router":        predeploys.L2GatewayRouterAddr,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"counterpart":   config.L1StandardERC20GatewayProxy,
-	}
-	storage["L2ETHGateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
-		"router":        predeploys.L2GatewayRouterAddr,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"counterpart":   config.L1ETHGatewayProxy,
-	}
-	storage["L2ERC721Gateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"counterpart":   config.L1ERC721GatewayProxy,
-		"router":        common.BigToAddress(common.Big0),
-	}
-	storage["L2ERC1155Gateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"counterpart":   config.L1ERC1155GatewayProxy,
-		"router":        common.BigToAddress(common.Big0),
-	}
-	storage["MorphStandardERC20"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"_name":         "Morph Standard ERC20",
-		"_symbol":       "Morph",
-		"decimals_":     18,
-		"gateway":       predeploys.L2StandardERC20GatewayAddr,
-		"counterpart":   common.BigToAddress(common.Big1),
-	}
-	storage["MorphStandardERC20Factory"] = state.StorageValues{
-		"_owner":         predeploys.L2StandardERC20GatewayAddr,
-		"implementation": predeploys.MorphStandardERC20Addr,
 	}
 	return storage, nil
 }

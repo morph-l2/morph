@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/bindings/predeploys"
@@ -29,11 +30,20 @@ type ImmutableConfig map[string]ImmutableValues
 // Check does a sanity check that the specific values that
 // Morph uses are set inside of the ImmutableConfig.
 func (i ImmutableConfig) Check() error {
+	if _, ok := i["GasPriceOracleOwner"]["owner"]; !ok {
+		return errors.New("GasPriceOracleOwner owner not set")
+	}
+	if _, ok := i["L2CrossDomainMessenger"]["otherMessenger"]; !ok {
+		return errors.New("L2CrossDomainMessenger otherMessenger not set")
+	}
+	if _, ok := i["L2ToL1MessagePasser"]["recAddr"]; !ok {
+		return errors.New("L2ToL1MessagePasser otherMessenger not set")
+	}
 	if _, ok := i["L2Sequencer"]["otherSequencer"]; !ok {
 		return errors.New("L2Sequencer otherSequencer not set")
 	}
-	if _, ok := i["Submitter"]["rollupAddr"]; !ok {
-		return errors.New("Submitter rollupAddr not set")
+	if _, ok := i["L2TxFeeVault"]["recipient"]; !ok {
+		return errors.New("L2TxFeeVault recipient not set")
 	}
 	return nil
 }
@@ -54,6 +64,9 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 	deployments := []deployer.Constructor{
 		{
 			Name: "GasPriceOracle",
+			Args: []interface{}{
+				immutable["GasPriceOracleOwner"]["owner"],
+			},
 		},
 		{
 			Name: "L2CrossDomainMessenger",
@@ -63,6 +76,11 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 		},
 		{
 			Name: "L2TxFeeVault",
+			Args: []interface{}{
+				immutable["L2TxFeeVault"]["owner"],
+				immutable["L2TxFeeVault"]["recipient"],
+				immutable["L2TxFeeVault"]["minWithdrawalAmount"],
+			},
 		},
 		{
 			Name: "L2Sequencer",
@@ -80,28 +98,10 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 			},
 		},
 		{
-			Name: "L2GatewayRouter",
+			Name: "L2TokenImplementation",
 		},
 		{
-			Name: "L2ETHGateway",
-		},
-		{
-			Name: "L2StandardERC20Gateway",
-		},
-		{
-			Name: "L2ERC721Gateway",
-		},
-		{
-			Name: "L2ERC1155Gateway",
-		},
-		{
-			Name: "MorphStandardERC20",
-		},
-		{
-			Name: "MorphStandardERC20Factory",
-		},
-		{
-			Name: "ProxyAdmin",
+			Name: "L2TokenFactory",
 		},
 	}
 	return BuildL2(deployments, config)
@@ -191,7 +191,11 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	var err error
 	switch deployment.Name {
 	case "GasPriceOracle":
-		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend, common.BigToAddress(common.Big1))
+		owner, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for Owner")
+		}
+		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend, owner)
 	case "L2CrossDomainMessenger":
 		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend)
 	case "L2Sequencer":
@@ -212,25 +216,26 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "L2TxFeeVault":
-		_, tx, _, err = bindings.DeployL2TxFeeVault(opts, backend, common.BigToAddress(common.Big1), common.BigToAddress(common.Big1), common.Big0)
-	case "MorphStandardERC20":
+		owner, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for owner")
+		}
+		recipient, ok := deployment.Args[1].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for recipient")
+		}
+		minWithdrawalAmount, ok := deployment.Args[2].(uint64)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for minWithdrawalAmount")
+		}
+		_, tx, _, err = bindings.DeployL2TxFeeVault(opts, backend, owner, recipient, new(big.Int).SetUint64(minWithdrawalAmount))
+	case "L2TokenImplementation":
 		_, tx, _, err = bindings.DeployMorphStandardERC20(opts, backend)
-	case "MorphStandardERC20Factory":
-		_, tx, _, err = bindings.DeployMorphStandardERC20Factory(opts, backend, predeploys.MorphStandardERC20Addr)
-	case "L2GatewayRouter":
-		_, tx, _, err = bindings.DeployL2GatewayRouter(opts, backend)
-	case "L2ETHGateway":
-		_, tx, _, err = bindings.DeployL2ETHGateway(opts, backend)
-	case "L2StandardERC20Gateway":
-		_, tx, _, err = bindings.DeployL2StandardERC20Gateway(opts, backend)
-	case "L2ERC721Gateway":
-		_, tx, _, err = bindings.DeployL2ERC721Gateway(opts, backend)
-	case "L2ERC1155Gateway":
-		_, tx, _, err = bindings.DeployL2ERC1155Gateway(opts, backend)
-	case "ProxyAdmin":
-		_, tx, _, err = bindings.DeployProxyAdmin(opts, backend, common.BigToAddress(common.Big1))
+	case "L2TokenFactory":
+		_, tx, _, err = bindings.DeployMorphStandardERC20Factory(opts, backend, predeploys.L2TokenImplementationAddr)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
+
 	return tx, err
 }
