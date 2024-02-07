@@ -48,10 +48,6 @@ func (ck *Chunk) append(blockContext, txsPayload []byte, txHashes []common.Hash,
 	}
 }
 
-func (ck *Chunk) AppendTxsPayload(txsPayload []byte) {
-	ck.txsPayload = append(ck.txsPayload, txsPayload...)
-}
-
 // Seal build the final txs payload that is ready to be put into the eip4844 blob.
 // 1. add first 4bytes in front of the payload to indicates the length of the raw txsPayload
 // 2. append zero bytes in the end of the payload to make the whole payload a multiple of 31
@@ -73,6 +69,10 @@ func (ck *Chunk) Seal() {
 
 func (ck *Chunk) Sealed() bool {
 	return ck.sealed
+}
+
+func (ck *Chunk) AppendTxsPayload(txsPayload []byte) {
+	ck.txsPayload = append(ck.txsPayload, txsPayload...)
 }
 
 func (ck *Chunk) accumulateRowUsages(rc types.RowConsumption) (accRc types.RowConsumption, max uint64) {
@@ -138,6 +138,10 @@ func (ck *Chunk) BlockContext() []byte {
 
 func (ck *Chunk) TxsPayload() []byte {
 	return ck.txsPayload
+}
+
+func (ck *Chunk) TxHashes() []byte {
+	return ck.txHashes
 }
 
 func (ck *Chunk) BlockNum() int {
@@ -208,6 +212,7 @@ func (cks *Chunks) Append(blockContext, txsPayload []byte, txHashes []common.Has
 	lastChunk := cks.data[len(cks.data)-1]
 	accRc, max := lastChunk.accumulateRowUsages(rc)
 	if lastChunk.blockNum+1 > MaxBlocksPerChunk || max > NormalizedRowLimit { // add a new chunk
+		lastChunk.Seal()
 		cks.data = append(cks.data, NewChunk(blockContext, txsPayload, txHashes, rc))
 		cks.size += 1
 		return
