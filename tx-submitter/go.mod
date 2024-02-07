@@ -3,8 +3,9 @@ module github.com/morph-l2/tx-submitter
 go 1.20
 
 require (
+	github.com/morph-l2/bindings v0.0.0-20231219023946-304a868001b0
 	github.com/prometheus/client_golang v1.17.0
-	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
+	github.com/scroll-tech/go-ethereum v1.11.4
 	github.com/stretchr/testify v1.8.4
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
@@ -25,6 +26,7 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/uuid v1.5.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
@@ -59,7 +61,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.13 // indirect
 	github.com/tklauser/numcpus v0.7.0 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
-	golang.org/x/crypto v0.17.0 // indirect
+	golang.org/x/crypto v0.16.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
@@ -73,13 +75,14 @@ require (
 require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
-	github.com/rivo/uniseg v0.4.3 // indirect
-	github.com/rogpeppe/go-internal v1.12.0 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
-	golang.org/x/net v0.18.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
 )
 
 replace (
 	github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.20.1-beta
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20240109085452-f7cf181d017a
+	github.com/btcsuite/btcd/chaincfg/chainhash => github.com/btcsuite/btcutil/chaincfg/chainhash v1.0.3
+	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20231221035445-b641d8451ff7
+	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20231211091525-05582da153a6
 )
