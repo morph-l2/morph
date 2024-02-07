@@ -159,6 +159,7 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 	l1Messages := e.l1MsgReader.ReadL1MessagesInRange(fromIndex, fromIndex+e.maxL1MsgNumPerBlock-1)
 	transactions := make(eth.Transactions, len(l1Messages))
 
+	var collectedL1TxHashes []common.Hash
 	if len(l1Messages) > 0 {
 		queueIndex := fromIndex
 		for i, l1Message := range l1Messages {
@@ -169,6 +170,7 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 				err = types.ErrInvalidL1MessageOrder
 				return
 			}
+			collectedL1TxHashes = append(collectedL1TxHashes, l1Message.L1TxHash)
 			queueIndex++
 		}
 		collectedL1Msgs = true
@@ -196,7 +198,8 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 		RowConsumption:      l2Block.RowUsages,
 		NextL1MessageIndex:  l2Block.NextL1MessageIndex,
 		Hash:                l2Block.Hash,
-		CollectedL1Messages: l1Messages,
+		CollectedL1TxHashes: collectedL1TxHashes,
+		SkippedL1Txs:        l2Block.SkippedTxs,
 	}
 	blockMeta, err = wb.MarshalBinary()
 	txs = l2Block.Transactions
@@ -242,10 +245,11 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 		RowUsages:          wrappedBlock.RowConsumption,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
 		Hash:               wrappedBlock.Hash,
+		SkippedTxs:         wrappedBlock.SkippedL1Txs,
 
 		Transactions: txs,
 	}
-	if err := e.validateL1Messages(l2Block, wrappedBlock.CollectedL1Messages); err != nil {
+	if err = e.validateL1Messages(l2Block, wrappedBlock.CollectedL1TxHashes); err != nil {
 		if err != types.ErrQueryL1Message { // only do not return error if it is not ErrQueryL1Message error
 			err = nil
 		}
@@ -253,7 +257,7 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 	}
 	l2Block.WithdrawTrieRoot = wrappedBlock.WithdrawTrieRoot
 
-	validated, err := e.l2Client.ValidateL2Block(context.Background(), l2Block, L1MessagesToTxs(wrappedBlock.CollectedL1Messages))
+	validated, err := e.l2Client.ValidateL2Block(context.Background(), l2Block)
 	e.logger.Info("CheckBlockData response", "validated", validated, "error", err)
 	return validated, err
 }
@@ -309,6 +313,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		WithdrawTrieRoot:   wrappedBlock.WithdrawTrieRoot,
 		RowUsages:          wrappedBlock.RowConsumption,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
+		SkippedTxs:         wrappedBlock.SkippedL1Txs,
 		Hash:               wrappedBlock.Hash,
 
 		Transactions: txs,
@@ -318,7 +323,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		batchHash = new(common.Hash)
 		copy(batchHash[:], consensusData.BatchHash)
 	}
-	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash, L1MessagesToTxs(wrappedBlock.CollectedL1Messages))
+	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash)
 	if err != nil {
 		e.logger.Error("failed to NewL2Block", "error", err)
 		return nil, nil, err

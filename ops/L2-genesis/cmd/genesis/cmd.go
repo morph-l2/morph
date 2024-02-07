@@ -118,7 +118,7 @@ var Subcommands = cli.Commands{
 				if err := writeGenesisFile(genBatchHeaderFile, genesisBatchHeader); err != nil {
 					return err
 				}
-				genesisBatchHeaderBytes = genesisBatchHeader.Bytes
+				genesisBatchHeaderBytes = genesisBatchHeader.EncodedBytes
 			}
 
 			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlockHash, l2GenesisBlock.Number().Uint64(), l2GenesisBlock.Root(), withdrawRoot, genesisBatchHeaderBytes)

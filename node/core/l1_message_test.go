@@ -13,14 +13,22 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 )
 
+func l1TxHashes(l1Messages []types.L1Message) (l1TxHashes []common.Hash) {
+	for _, l1Message := range l1Messages {
+		l1TxHashes = append(l1TxHashes, l1Message.L1TxHash)
+	}
+	return
+}
+
 func TestValidateL1Messages(t *testing.T) {
 	l1Reader := testL1MsgReader{}
 	l1Messages := make([]types.L1Message, 10)
+	collectedL1TxHashes := make([]common.Hash, 10)
 	l1TxBytes := make([][]byte, 10)
 	for i := 0; i < 10; i++ {
 		to := common.BigToAddress(big.NewInt(1))
 		l1Message := types.L1Message{
-			L1TxHash: common.BigToHash(big.NewInt(1)),
+			L1TxHash: common.BigToHash(big.NewInt(int64(i))),
 			L1MessageTx: eth.L1MessageTx{
 				QueueIndex: uint64(i),
 				Gas:        21000,
@@ -30,6 +38,7 @@ func TestValidateL1Messages(t *testing.T) {
 			},
 		}
 		l1Messages[i] = l1Message
+		collectedL1TxHashes[i] = l1Message.L1TxHash
 		l1Reader.addL1Message(l1Message)
 		txByte, _ := eth.NewTx(&l1Message.L1MessageTx).MarshalBinary()
 		l1TxBytes[i] = txByte
@@ -45,7 +54,7 @@ func TestValidateL1Messages(t *testing.T) {
 			l1MsgReader:    &l1Reader,
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
-		require.NoError(t, executor.validateL1Messages(block, l1Messages))
+		require.NoError(t, executor.validateL1Messages(block, collectedL1TxHashes))
 	})
 
 	t.Run("constraint 1: unknown L1 message", func(t *testing.T) {
@@ -56,7 +65,7 @@ func TestValidateL1Messages(t *testing.T) {
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
 		thisL1Reader.removeL1Message(5)
-		err := executor.validateL1Messages(block, l1Messages)
+		err := executor.validateL1Messages(block, collectedL1TxHashes)
 		require.EqualError(t, err, types.ErrUnknownL1Message.Error())
 
 		thisL1Reader = l1Reader.copy()
@@ -64,7 +73,7 @@ func TestValidateL1Messages(t *testing.T) {
 		l1Message.Gas = 30000
 		thisL1Reader.addL1Message(l1Message)
 		executor.l1MsgReader = thisL1Reader
-		err2 := executor.validateL1Messages(block, l1Messages)
+		err2 := executor.validateL1Messages(block, collectedL1TxHashes)
 		require.EqualError(t, err2, types.ErrUnknownL1Message.Error())
 	})
 
@@ -75,17 +84,20 @@ func TestValidateL1Messages(t *testing.T) {
 			l1MsgReader:    thisL1Reader,
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
-		err := executor.validateL1Messages(block, l1Messages)
-		require.EqualError(t, err, types.ErrInvalidL1MessageOrder.Error())
+		thisCollectedL1TxHashes := make([]common.Hash, len(collectedL1TxHashes))
+		copy(thisCollectedL1TxHashes, collectedL1TxHashes)
+		thisCollectedL1TxHashes[2] = common.BigToHash(big.NewInt(100))
+		err := executor.validateL1Messages(block, thisCollectedL1TxHashes)
+		require.EqualError(t, err, types.ErrIncorrectL1TxHash.Error())
 
-		thisL1Messages := exchangeL1Msg(l1Messages, 2, 5)
+		thisCollectedL1TxHashes = exchangeL1Msg(collectedL1TxHashes, 2, 5)
 		executor = Executor{
 			nextL1MsgIndex: 0,
 			l1MsgReader:    thisL1Reader,
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
-		err = executor.validateL1Messages(block, thisL1Messages)
-		require.EqualError(t, err, types.ErrInvalidL1MessageOrder.Error())
+		err = executor.validateL1Messages(block, thisCollectedL1TxHashes)
+		require.EqualError(t, err, types.ErrIncorrectL1TxHash.Error())
 	})
 
 	t.Run("constraint 3: L1 transactions wrong order", func(t *testing.T) {
@@ -95,24 +107,12 @@ func TestValidateL1Messages(t *testing.T) {
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
 
-		originTxs := block.Transactions[:]
-		l1TxBytes := make([][]byte, 0)
-		l1TxBytes = append(append(l1TxBytes, originTxs[:2]...), originTxs[3:]...)
-
+		l1TxBytesCopy := exchangeL1Txs(block.Transactions, 3, 4)
 		thisBlock := &catalyst.ExecutableL2Data{
 			NextL1MessageIndex: 10,
-			Transactions:       l1TxBytes,
+			Transactions:       l1TxBytesCopy,
 		}
-
-		err := executor.validateL1Messages(thisBlock, l1Messages)
-		require.NoError(t, err) // allow l1 tx being skipped
-
-		l1TxBytes = exchangeL1Txs(block.Transactions, 3, 4)
-		thisBlock = &catalyst.ExecutableL2Data{
-			NextL1MessageIndex: 10,
-			Transactions:       l1TxBytes,
-		}
-		err = executor.validateL1Messages(thisBlock, l1Messages)
+		err := executor.validateL1Messages(thisBlock, collectedL1TxHashes)
 		require.EqualError(t, err, types.ErrInvalidL1MessageOrder.Error())
 	})
 
@@ -132,13 +132,13 @@ func TestValidateL1Messages(t *testing.T) {
 			Sender:     common.BigToAddress(big.NewInt(int64(10))),
 		}
 		addedL1TxBytes, _ := eth.NewTx(&addedL1Tx).MarshalBinary()
-		l1TxBytes := append(block.Transactions, addedL1TxBytes)
+		l1TxBytesCopy := append(block.Transactions, addedL1TxBytes)
 		thisBlock := &catalyst.ExecutableL2Data{
 			NextL1MessageIndex: 11,
-			Transactions:       l1TxBytes,
+			Transactions:       l1TxBytesCopy,
 		}
 
-		err := executor.validateL1Messages(thisBlock, l1Messages)
+		err := executor.validateL1Messages(thisBlock, collectedL1TxHashes)
 		require.EqualError(t, err, types.ErrUnknownL1Message.Error())
 	})
 
@@ -165,30 +165,90 @@ func TestValidateL1Messages(t *testing.T) {
 			Transactions:       txBytes,
 		}
 
-		err := executor.validateL1Messages(thisBlock, l1Messages)
+		err := executor.validateL1Messages(thisBlock, collectedL1TxHashes)
 		require.ErrorIs(t, err, types.ErrInvalidL1MessageOrder)
 	})
 
 	t.Run("constraint 6: testing block.NextL1MessageIndex", func(t *testing.T) {
+		to := common.BigToAddress(big.NewInt(1))
+		skippedL1WithIndex10 := eth.L1MessageTx{
+			QueueIndex: uint64(10),
+			Gas:        21000,
+			To:         &to,
+			Value:      big.NewInt(100),
+			Sender:     common.BigToAddress(big.NewInt(int64(10))),
+		}
+		l1Message10 := types.L1Message{
+			L1TxHash:    common.BigToHash(big.NewInt(int64(10))),
+			L1MessageTx: skippedL1WithIndex10,
+		}
+		thisL1Reader := l1Reader.copy()
+		thisL1Reader.addL1Message(l1Message10)
 		executor := Executor{
 			nextL1MsgIndex: 0,
-			l1MsgReader:    &l1Reader,
+			l1MsgReader:    thisL1Reader,
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
-
 		block := &catalyst.ExecutableL2Data{
 			NextL1MessageIndex: 11,
 			Transactions:       l1TxBytes,
+			SkippedTxs: []*eth.SkippedTransaction{
+				{Tx: *eth.NewTx(&skippedL1WithIndex10)},
+			},
 		}
-		err := executor.validateL1Messages(block, l1Messages)
+		collectedL1TxHashesCopy := append(collectedL1TxHashes, common.BigToHash(big.NewInt(int64(10))))
+		err := executor.validateL1Messages(block, collectedL1TxHashesCopy)
 		require.NoError(t, err)
 
 		block = &catalyst.ExecutableL2Data{
 			NextL1MessageIndex: 9,
 			Transactions:       l1TxBytes,
 		}
-		err = executor.validateL1Messages(block, l1Messages)
+		err = executor.validateL1Messages(block, collectedL1TxHashes)
 		require.ErrorIs(t, err, types.ErrWrongNextL1MessageIndex)
+	})
+
+	t.Run("constraint 7: invalid skipped L1 messages", func(t *testing.T) {
+		executor := Executor{
+			nextL1MsgIndex: 0,
+			l1MsgReader:    &l1Reader,
+			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
+		}
+
+		originTxs := block.Transactions[:]
+		l1TxBytes := make([][]byte, 0)
+		l1TxBytes = append(append(l1TxBytes, originTxs[:2]...), originTxs[3:]...)
+
+		thisBlock := &catalyst.ExecutableL2Data{
+			NextL1MessageIndex: 10,
+			Transactions:       l1TxBytes,
+		}
+
+		err := executor.validateL1Messages(thisBlock, collectedL1TxHashes)
+		require.EqualError(t, err, types.ErrInvalidSkippedL1Message.Error())
+
+		skippedTx := new(eth.Transaction)
+		err = skippedTx.UnmarshalBinary(originTxs[2])
+		require.NoError(t, err)
+		thisBlock = &catalyst.ExecutableL2Data{
+			NextL1MessageIndex: 10,
+			Transactions:       l1TxBytes,
+			SkippedTxs: []*eth.SkippedTransaction{
+				{Tx: *skippedTx},
+			},
+		}
+		err = executor.validateL1Messages(thisBlock, collectedL1TxHashes)
+		require.NoError(t, err)
+
+		thisBlock = &catalyst.ExecutableL2Data{
+			NextL1MessageIndex: 10,
+			Transactions:       l1TxBytes,
+			SkippedTxs: []*eth.SkippedTransaction{
+				{Tx: *skippedTx},
+			},
+		}
+		err = executor.validateL1Messages(thisBlock, collectedL1TxHashes)
+		require.NoError(t, err)
 	})
 }
 
@@ -244,8 +304,8 @@ func (r *testL1MsgReader) LatestSynced() uint64 {
 	return 0
 }
 
-func exchangeL1Msg(origin []types.L1Message, a, b int) []types.L1Message {
-	after := make([]types.L1Message, len(origin))
+func exchangeL1Msg(origin []common.Hash, a, b int) []common.Hash {
+	after := make([]common.Hash, len(origin))
 	for i, msg := range origin {
 		switch i {
 		case a:

@@ -19,7 +19,7 @@ import (
 )
 
 type BatchingCache struct {
-	parentBatchHeader types.BatchHeader
+	parentBatchHeader *types.BatchHeaderWithBlobHashes
 	prevStateRoot     common.Hash
 
 	// accumulated batch data
@@ -30,7 +30,8 @@ type BatchingCache struct {
 	withdrawRoot          common.Hash
 	lastPackedBlockHeight uint64
 	// caches sealedBatchHeader according to the above accumulated batch data
-	sealedBatchHeader *types.BatchHeader
+	sealedBatchHeader *types.BatchHeaderWithBlobHashes
+	sealedSidecar     *eth.BlobTxSidecar
 
 	currentBlockContext               []byte
 	currentTxsPayload                 []byte
@@ -72,31 +73,34 @@ func (bc *BatchingCache) ClearCurrent() {
 	bc.currentTxsHash = nil
 }
 
-// CalculateCapWithProposalBlock calculate the batch size and chunks count with the proposed block.
-// It helps query the blocks from the last batch point, which are used to seal a new batch by SealBatch.
-// It stores the proposed block as the currentBlockContext, which is used by PackCurrentBlock to pack it to batch.
+// CalculateCapWithProposalBlock calculate the transaction payload size and chunks count with the proposed block.
+// It queries the blocks from the last batch point to now, in order to seal a new batch by SealBatch with these blocks.
+// It stores the proposed block as the `currentBlockContext`, which is used by PackCurrentBlock to pack it to batch.
 // It can be called by multiple times during the same height consensus process.
-func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, currentTxs tmtypes.Txs, get l2node.GetFromBatchStartFunc) (int64, int64, error) {
-	e.logger.Info("CalculateBatchSizeWithProposalBlock request", "block size", len(currentBlockBytes), "txs size", len(currentTxs))
+func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, currentTxs tmtypes.Txs, get l2node.GetFromBatchStartFunc) (bool, int64, error) {
+	e.logger.Info("CalculateCapWithProposalBlock request", "block size", len(currentBlockBytes), "txs size", len(currentTxs))
 	if e.batchingCache.IsEmpty() {
 		parentBatchHeaderBytes, blocks, transactions, err := get()
 		if err != nil {
-			return 0, 0, err
+			return false, 0, err
 		}
 
-		var parentBatchHeader types.BatchHeader
+		parentBatchHeader := new(types.BatchHeaderWithBlobHashes)
 		if len(parentBatchHeaderBytes) == 0 {
 			genesisHeader, err := e.l2Client.HeaderByNumber(context.Background(), big.NewInt(0))
 			if err != nil {
-				return 0, 0, err
+				return false, 0, err
 			}
-			parentBatchHeader, err = GenesisBatchHeader(genesisHeader)
+			genesisBatchHeader, err := GenesisBatchHeader(genesisHeader)
 			if err != nil {
-				return 0, 0, err
+				return false, 0, err
+			}
+			parentBatchHeader = &types.BatchHeaderWithBlobHashes{
+				BatchHeader: genesisBatchHeader,
 			}
 		} else {
-			if parentBatchHeader, err = types.DecodeBatchHeader(parentBatchHeaderBytes); err != nil {
-				return 0, 0, err
+			if err = parentBatchHeader.UnmarshalBinary(parentBatchHeaderBytes); err != nil {
+				return false, 0, err
 			}
 		}
 
@@ -111,7 +115,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		for i, blockBz := range blocks {
 			wBlock := new(types.WrappedBlock)
 			if err = wBlock.UnmarshalBinary(blockBz); err != nil {
-				return 0, 0, err
+				return false, 0, err
 			}
 
 			if i == 0 {
@@ -121,7 +125,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			totalL1MessagePoppedBefore := totalL1MessagePopped
 			txsPayload, txHashes, totalL1MessagePopped, skippedBitmap, l2TxNum, err = ParsingTxs(transactions[i], parentBatchHeader.TotalL1MessagePopped, totalL1MessagePoppedBefore, skippedBitmap)
 			if err != nil {
-				return 0, 0, err
+				return false, 0, err
 			}
 			l1TxNum := int(totalL1MessagePopped - totalL1MessagePoppedBefore) // include skipped L1 messages
 			e.logger.Info("fetched block", "block height", wBlock.Number, "involved transaction count", len(transactions[i]), "l2 tx num", l2TxNum, "l1 tx num", l1TxNum)
@@ -134,27 +138,27 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		// make sure passed block is the next block of the last packed block
 		curHeight, err := heightFromBCBytes(currentBlockBytes)
 		if err != nil {
-			return 0, 0, err
+			return false, 0, err
 		}
 		if curHeight != e.batchingCache.lastPackedBlockHeight+1 {
-			return 0, 0, fmt.Errorf("wrong propose height passed. lastPackedBlockHeight: %d, passed height: %d", e.batchingCache.lastPackedBlockHeight, curHeight)
+			return false, 0, fmt.Errorf("wrong propose height passed. lastPackedBlockHeight: %d, passed height: %d", e.batchingCache.lastPackedBlockHeight, curHeight)
 		}
 
 		e.batchingCache.parentBatchHeader = parentBatchHeader
 		e.batchingCache.skippedBitmap = skippedBitmap
 		header, err := e.l2Client.HeaderByNumber(context.Background(), big.NewInt(int64(lastHeightBeforeCurrentBatch)))
 		if err != nil {
-			return 0, 0, err
+			return false, 0, err
 		}
 		e.batchingCache.prevStateRoot = header.Root
 	}
 
 	height, err := heightFromBCBytes(currentBlockBytes)
 	if err != nil {
-		return 0, 0, err
+		return false, 0, err
 	}
 	if height <= e.batchingCache.lastPackedBlockHeight {
-		return 0, 0, fmt.Errorf("wrong propose height passed. lastPackedBlockHeight: %d, passed height: %d", e.batchingCache.lastPackedBlockHeight, height)
+		return false, 0, fmt.Errorf("wrong propose height passed. lastPackedBlockHeight: %d, passed height: %d", e.batchingCache.lastPackedBlockHeight, height)
 	} else if height > e.batchingCache.lastPackedBlockHeight+1 { // skipped some blocks, cache is dirty. need rebuild the cache
 		e.batchingCache = NewBatchingCache() // clean the cache, recall the function
 		e.logger.Info("the proposed block height is discontinuous from the block height in the cache, start to clean the cache and recall the function",
@@ -164,29 +168,27 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 	}
 
 	if err := e.setCurrentBlock(currentBlockBytes, currentTxs); err != nil {
-		return 0, 0, err
+		return false, 0, err
 	}
 
-	/**
-	 * commit batch which includes the fields:
-	 *  version: 1 byte
-	 *  parentBatchHeader
-	 *  chunks
-	 *  skippedL1MessageBitmap
-	 *  prevStateRoot: 32 byte
-	 *  postStateRoot: 32 byte
-	 *  withdrawRoot:  32 byte
-	 */
-	chunksSizeWithCurBlock := e.batchingCache.chunks.Size() + len(e.batchingCache.currentTxsPayload) + len(e.batchingCache.currentBlockContext)
 	chunkNum := e.batchingCache.chunks.ChunkNum()
-	// current block will be filled in a new chunk
-	if e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption) {
-		chunksSizeWithCurBlock += 1
+	var exceeded bool
+	var extraSize int
+	// if current block will be filled in a new chunk
+	chunkAppended, zeroNum := e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption)
+	if chunkAppended {
 		chunkNum += 1
+		// if current block takes up a new chunk,
+		// then both the added zero bytes and the first 4bytes within this chunk are all need to be counted.
+		extraSize += zeroNum + 4
 	}
-	batchSize := 97 + len(e.batchingCache.skippedBitmapAfterCurBlock)*32 + len(e.batchingCache.parentBatchHeader.Encode()) + chunksSizeWithCurBlock
-	e.logger.Info("CalculateBatchSizeWithProposalBlock response", "batchSize", batchSize)
-	return int64(batchSize), int64(chunkNum), nil
+	blobSizeWithCurBlock := e.batchingCache.chunks.CurrentPayloadForBlobSize() +
+		len(e.batchingCache.currentTxsPayload) + extraSize
+	if blobSizeWithCurBlock > types.MaxBlobTxPayloadSize {
+		exceeded = true
+	}
+	e.logger.Info("CalculateCapWithProposalBlock response", "blobSizeWithCurBlock", blobSizeWithCurBlock, "exceeded", exceeded)
+	return exceeded, int64(chunkNum), nil
 }
 
 // SealBatch seals the accumulated blocks into a batch
@@ -210,11 +212,21 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		L1MessagePopped:        e.batchingCache.totalL1MessagePopped - e.batchingCache.parentBatchHeader.TotalL1MessagePopped,
 		TotalL1MessagePopped:   e.batchingCache.totalL1MessagePopped,
 		DataHash:               e.batchingCache.chunks.DataHash(),
-		ParentBatchHash:        e.batchingCache.parentBatchHeader.Hash(),
+		ParentBatchHash:        e.batchingCache.parentBatchHeader.BatchHash(),
 		SkippedL1MessageBitmap: skippedL1MessageBitmapBytes,
 	}
-	e.batchingCache.sealedBatchHeader = &batchHeader
-	batchHash := batchHeader.Hash()
+	txPayload := e.batchingCache.chunks.SealTxPayloadForBlob()
+	sidecar, err := types.MakeBlobTxSidecarWithTxPayload(txPayload)
+	if err != nil {
+		return nil, nil, err
+	}
+	var blobHashes []common.Hash
+	if sidecar != nil && len(sidecar.Blobs) > 0 {
+		blobHashes = sidecar.BlobHashes()
+	}
+	e.batchingCache.sealedBatchHeader = types.NewBatchHeaderWithBlobHashes(batchHeader, blobHashes)
+	e.batchingCache.sealedSidecar = sidecar
+	batchHash := e.batchingCache.sealedBatchHeader.BatchHash()
 	e.logger.Info("Sealed batch header", "batchHash", batchHash.Hex())
 	e.logger.Info(fmt.Sprintf("===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===blockNum: %d \n===ParentBatchHash: %x \n===SkippedL1MessageBitmap: %x \n",
 		batchHeader.BatchIndex,
@@ -228,7 +240,8 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	for i, chunk := range chunksBytes {
 		e.logger.Info(fmt.Sprintf("===chunk%d: %x \n", i, chunk))
 	}
-	return batchHash[:], batchHeader.Encode(), nil
+	e.logger.Info(fmt.Sprintf("===txs: %x \n", txPayload))
+	return batchHash[:], e.batchingCache.sealedBatchHeader.MarshalBinary(), nil
 }
 
 // CommitBatch commit the sealed batch. It does nothing if no batch header is sealed.
@@ -269,21 +282,23 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
 		Version:                0,
 		Index:                  e.batchingCache.parentBatchHeader.BatchIndex + 1,
-		Hash:                   e.batchingCache.sealedBatchHeader.Hash(),
+		Hash:                   e.batchingCache.sealedBatchHeader.BatchHash(),
 		ParentBatchHeader:      e.batchingCache.parentBatchHeader.Encode(),
 		Chunks:                 chunksBytes,
 		SkippedL1MessageBitmap: e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
 		PrevStateRoot:          e.batchingCache.prevStateRoot,
 		PostStateRoot:          e.batchingCache.postStateRoot,
 		WithdrawRoot:           e.batchingCache.withdrawRoot,
+		Sidecar:                e.batchingCache.sealedSidecar,
 	}, batchSigs); err != nil {
 		return err
 	}
 
 	// commit sealed batch header; move current block into the next batch
-	e.batchingCache.parentBatchHeader = *e.batchingCache.sealedBatchHeader
+	e.batchingCache.parentBatchHeader = e.batchingCache.sealedBatchHeader
 	e.batchingCache.prevStateRoot = e.batchingCache.postStateRoot
 	e.batchingCache.sealedBatchHeader = nil
+	e.batchingCache.sealedSidecar = nil
 
 	_, _, totalL1MessagePopped, skippedBitmap, _, err := ParsingTxs(e.batchingCache.currentTxs, e.batchingCache.totalL1MessagePopped, e.batchingCache.totalL1MessagePopped, nil)
 	if err != nil {
@@ -352,6 +367,14 @@ func (e *Executor) PackCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes
 	return nil
 }
 
+func (e *Executor) BatchHash(batchHeaderBytes []byte) ([]byte, error) {
+	batchHeaderWithBlobHashes := new(types.BatchHeaderWithBlobHashes)
+	if err := batchHeaderWithBlobHashes.UnmarshalBinary(batchHeaderBytes); err != nil {
+		return nil, err
+	}
+	return batchHeaderWithBlobHashes.BatchHash().Bytes(), nil
+}
+
 func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.Txs) error {
 	currentTxsPayload, currentTxsHashes, totalL1MessagePopped, skippedBitmap, l2TxNum, err := ParsingTxs(currentTxs, e.batchingCache.parentBatchHeader.TotalL1MessagePopped, e.batchingCache.totalL1MessagePopped, e.batchingCache.skippedBitmap)
 	if err != nil {
@@ -375,14 +398,6 @@ func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.
 	e.batchingCache.currentTxsHash = currentTxs.Hash()
 	e.batchingCache.currentRowConsumption = curBlock.RowConsumption
 	return nil
-}
-
-func (e *Executor) BatchHash(batchHeaderBytes []byte) ([]byte, error) {
-	batchHeader, err := types.DecodeBatchHeader(batchHeaderBytes)
-	if err != nil {
-		return nil, err
-	}
-	return batchHeader.Hash().Bytes(), nil
 }
 
 func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, totalL1MessagePoppedBefore uint64, skippedBitmapBefore []*big.Int) (txsPayload []byte, txHashes []common.Hash, totalL1MessagePopped uint64, skippedBitmap []*big.Int, l2TxNum int, err error) {

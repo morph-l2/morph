@@ -87,8 +87,9 @@ type WrappedBlock struct {
 	NextL1MessageIndex uint64               `json:"nextL1MessageIndex"`
 	Hash               common.Hash          `json:"hash"`
 
-	CollectedL1Messages []L1Message `json:"l1Messages" rlp:"optional"`
-	BaseFee             *big.Int    `json:"baseFeePerGas"  rlp:"optional"`
+	CollectedL1TxHashes []common.Hash               `json:"l1TxHashes" rlp:"optional"`
+	SkippedL1Txs        []*types.SkippedTransaction `json:"skippedL1Txs" rlp:"optional"`
+	BaseFee             *big.Int                    `json:"baseFeePerGas"  rlp:"optional"`
 }
 
 func (wb *WrappedBlock) MarshalBinary() ([]byte, error) {
