@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/morph-l2/bindings v0.0.0-20231219023946-304a868001b0
 	github.com/prometheus/client_golang v1.17.0
-	github.com/scroll-tech/go-ethereum v1.11.4
+	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
 	github.com/stretchr/testify v1.8.4
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
@@ -82,7 +82,7 @@ require (
 
 replace (
 	github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.20.1-beta
-	github.com/btcsuite/btcd/chaincfg/chainhash => github.com/btcsuite/btcutil/chaincfg/chainhash v1.0.3
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20231221035445-b641d8451ff7
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20231211091525-05582da153a6
+	// github.com/btcsuite/btcd/chaincfg/chainhash => github.com/btcsuite/btcutil/chaincfg/chainhash v1.0.3
+	// github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20231221035445-b641d8451ff7
+	// github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20231211091525-05582da153a6
 )
