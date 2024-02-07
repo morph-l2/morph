@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.16;
+pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -44,7 +44,8 @@ abstract contract GatewayBase is
         address _messenger = messenger; // gas saving
         require(_msgSender() == _messenger, "only messenger can call");
         require(
-            counterpart == ICrossDomainMessenger(_messenger).xDomainMessageSender(),
+            counterpart ==
+                ICrossDomainMessenger(_messenger).xDomainMessageSender(),
             "only call by counterpart"
         );
         _;
@@ -55,7 +56,7 @@ abstract contract GatewayBase is
         require(_msgSender() == _messenger, "only messenger can call");
         require(
             Constants.DROP_XDOMAIN_MESSAGE_SENDER ==
-            ICrossDomainMessenger(_messenger).xDomainMessageSender(),
+                ICrossDomainMessenger(_messenger).xDomainMessageSender(),
             "only called in drop context"
         );
         _;

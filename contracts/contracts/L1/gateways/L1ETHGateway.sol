@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {IL2ETHGateway} from "../../L2/gateways/IL2ETHGateway.sol";
 import {IL1CrossDomainMessenger} from "../IL1CrossDomainMessenger.sol";
@@ -43,7 +43,10 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
      *****************************/
 
     /// @inheritdoc IL1ETHGateway
-    function depositETH(uint256 _amount, uint256 _gasLimit) external payable override {
+    function depositETH(
+        uint256 _amount,
+        uint256 _gasLimit
+    ) external payable override {
         _deposit(_msgSender(), _amount, new bytes(0), _gasLimit);
     }
 
@@ -86,12 +89,20 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
     }
 
     /// @inheritdoc IMessageDropCallback
-    function onDropMessage(bytes calldata _message) external payable virtual onlyInDropContext nonReentrant {
+    function onDropMessage(
+        bytes calldata _message
+    ) external payable virtual onlyInDropContext nonReentrant {
         // _message should start with 0x232e8748  =>  finalizeDepositETH(address,address,uint256,bytes)
-        require(bytes4(_message[0:4]) == IL2ETHGateway.finalizeDepositETH.selector, "invalid selector");
+        require(
+            bytes4(_message[0:4]) == IL2ETHGateway.finalizeDepositETH.selector,
+            "invalid selector"
+        );
 
         // decode (receiver, amount)
-        (address _receiver, , uint256 _amount, ) = abi.decode(_message[4:], (address, address, uint256, bytes));
+        (address _receiver, , uint256 _amount, ) = abi.decode(
+            _message[4:],
+            (address, address, uint256, bytes)
+        );
 
         require(_amount == msg.value, "msg.value mismatch");
 
@@ -127,9 +138,18 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
         // @note no rate limit here, since ETH is limited in messenger
 
         // 2. Generate message passed to L1CrossDomainMessenger.
-        bytes memory _message = abi.encodeCall(IL2ETHGateway.finalizeDepositETH, (_from, _to, _amount, _data));
+        bytes memory _message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (_from, _to, _amount, _data)
+        );
 
-        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, _amount, _message, _gasLimit, _from);
+        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
+            counterpart,
+            _amount,
+            _message,
+            _gasLimit,
+            _from
+        );
 
         emit DepositETH(_from, _to, _amount, _data);
     }

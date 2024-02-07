@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
@@ -19,7 +19,10 @@ contract FeeOnTransferToken is MockERC20 {
         feeRate = _feeRate;
     }
 
-    function transfer(address to, uint256 amount) public virtual override returns (bool) {
+    function transfer(
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
         balanceOf[msg.sender] -= amount;
 
         uint256 fee = (amount * feeRate) / 1e9;
@@ -43,7 +46,8 @@ contract FeeOnTransferToken is MockERC20 {
     ) public virtual override returns (bool) {
         uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
 
-        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
+        if (allowed != type(uint256).max)
+            allowance[from][msg.sender] = allowed - amount;
 
         balanceOf[from] -= amount;
 

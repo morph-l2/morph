@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {ClonesUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/ClonesUpgradeable.sol";
 import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
@@ -59,7 +59,10 @@ contract L1StandardERC20Gateway is L1ERC20Gateway {
         require(_router != address(0), "zero router address");
         GatewayBase._initialize(_counterpart, _router, _messenger);
 
-        require(_l2TokenImplementation != address(0), "zero implementation hash");
+        require(
+            _l2TokenImplementation != address(0),
+            "zero implementation hash"
+        );
         require(_l2TokenFactory != address(0), "zero factory address");
 
         l2TokenImplementation = _l2TokenImplementation;
@@ -71,12 +74,21 @@ contract L1StandardERC20Gateway is L1ERC20Gateway {
      *************************/
 
     /// @inheritdoc IL1ERC20Gateway
-    function getL2ERC20Address(address _l1Token) public view override returns (address) {
+    function getL2ERC20Address(
+        address _l1Token
+    ) public view override returns (address) {
         // In StandardERC20Gateway, all corresponding l2 tokens are depoyed by Create2 with salt,
         // we can calculate the l2 address directly.
-        bytes32 _salt = keccak256(abi.encodePacked(counterpart, keccak256(abi.encodePacked(_l1Token))));
+        bytes32 _salt = keccak256(
+            abi.encodePacked(counterpart, keccak256(abi.encodePacked(_l1Token)))
+        );
 
-        return ClonesUpgradeable.predictDeterministicAddress(l2TokenImplementation, _salt, l2TokenFactory);
+        return
+            ClonesUpgradeable.predictDeterministicAddress(
+                l2TokenImplementation,
+                _salt,
+                l2TokenFactory
+            );
     }
 
     /**********************
@@ -141,7 +153,10 @@ contract L1StandardERC20Gateway is L1ERC20Gateway {
             string memory _symbol = IERC20MetadataUpgradeable(_token).symbol();
             string memory _name = IERC20MetadataUpgradeable(_token).name();
             uint8 _decimals = IERC20MetadataUpgradeable(_token).decimals();
-            _l2Data = abi.encode(true, abi.encode(_data, abi.encode(_symbol, _name, _decimals)));
+            _l2Data = abi.encode(
+                true,
+                abi.encode(_data, abi.encode(_symbol, _name, _decimals))
+            );
         } else {
             _l2Data = abi.encode(false, _data);
         }
@@ -151,7 +166,13 @@ contract L1StandardERC20Gateway is L1ERC20Gateway {
         );
 
         // 3. Send message to L1CrossDomainMessenger.
-        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit, _from);
+        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
+            counterpart,
+            0,
+            _message,
+            _gasLimit,
+            _from
+        );
 
         emit DepositERC20(_token, _l2Token, _from, _to, _amount, _data);
     }

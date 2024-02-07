@@ -61,3 +61,6 @@ typechain-types
 ./src/deployFiles/*
 
 scripts/differential-testing/differential-testing
+
+package-lock.json
+yarn.lock
