@@ -164,7 +164,7 @@ export const MessengerInit = async (
             3000,
             1000
         )
-       
+
         // params check
         const contractTmp = new ethers.Contract(
             L2GasPriceOracleProxyAddress,
@@ -172,12 +172,18 @@ export const MessengerInit = async (
             deployer,
         )
         const gwei = BigInt(1e8)
-        await contractTmp.connect(deployer).setL2BaseFee(gwei)
-        await assertContractVariable(
-            contractTmp,
-            'l2BaseFee',
-            gwei
+        await contractTmp.setL2BaseFee(gwei)
+
+        await awaitCondition(
+            async () => {
+                return (
+                    (await contractTmp.callStatic.l2BaseFee()).toString() === gwei.toString()
+                )
+            },
+            3000,
+            1000
         )
+
         // Wait for the transaction to execute properly.
         console.log('L2GasPriceOracleProxy upgrade success')
     }
