@@ -69,40 +69,6 @@ func SetL2Proxies(db vm.StateDB) error {
 	return setProxies(db, predeploys.ProxyAdminAddr, bigL2PredeployNamespace_53, 128)
 }
 
-// SetL1Proxies will set each of the proxies in the state. It requires
-// a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
-// can be set in state and the ProxyAdmin can be set as the admin of the
-// Proxy.
-func SetL1Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
-	return setProxies(db, proxyAdminAddr, bigL1PredeployNamespace, 2048)
-}
-
-// WipePredeployStorage will wipe the storage of all L2 predeploys expect
-// for predeploys that must not have their storage altered.
-func WipePredeployStorage(db vm.StateDB) error {
-	for name, addr := range predeploys.Predeploys {
-		if addr == nil {
-			return fmt.Errorf("nil address in predeploys mapping for %s", name)
-		}
-
-		if FrozenStoragePredeploys[*addr] {
-			log.Trace("skipping wiping of storage", "name", name, "address", *addr)
-			continue
-		}
-
-		log.Info("wiping storage", "name", name, "address", *addr)
-
-		// We need to make sure that we preserve nonces.
-		oldNonce := db.GetNonce(*addr)
-		db.CreateAccount(*addr)
-		if oldNonce > 0 {
-			db.SetNonce(*addr, oldNonce)
-		}
-	}
-
-	return nil
-}
-
 func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
 	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	if err != nil {
