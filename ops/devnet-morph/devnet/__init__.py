@@ -13,6 +13,7 @@ import platform
 import shutil
 import http.client
 import devnet.log_setup
+
 # from devnet.genesis import GENESIS_TMPL
 
 pjoin = os.path.join
@@ -73,9 +74,10 @@ def main():
 
 def devnet_l1(paths, result=None):
     log.info('Starting L1.')
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], check=False, cwd=paths.ops_dir, env={
-        'PWD': paths.ops_dir
-    })
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], check=False,
+                cwd=paths.ops_dir, env={
+            'PWD': paths.ops_dir
+        })
     wait_up(9545)
     wait_for_rpc_server('127.0.0.1:9545')
     log.info('Sleep another 20s...')
@@ -88,7 +90,7 @@ def devnet_l1(paths, result=None):
     deploy_config = read_json(devnet_cfg_orig)
     for sequencer in deploy_config['l2SequencerAddresses']:
         result = run_command_capture_output(
-            ['cast', 'balance', sequencer, '--rpc-url', 'http://127.0.0.1:9545' ])
+            ['cast', 'balance', sequencer, '--rpc-url', 'http://127.0.0.1:9545'])
         log.info(f"Account {sequencer}, Balance: {result.stdout}", )
 
         if int(result.stdout) < 5 * ETH:
@@ -111,13 +113,13 @@ def devnet_build(paths):
 
 # Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths, args):
+    if not test_port(9545):
+        devnet_l1(paths)
     done_file = pjoin(paths.devnet_dir, 'done')
-    devnet_l1(paths)
-
     log.info('Generating network config.')
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
     deploy_config = read_json(devnet_cfg_orig)
-    # deploy_config['l1GenesisBlockTimestamp'] = GENESIS_TMPL['timestamp']
+    deploy_config['l1GenesisBlockTimestamp'] = "0x{:x}".format(int(time.time()))
     deploy_config['l1StartingBlockTag'] = 'earliest'
     temp_deploy_config = pjoin(paths.devnet_dir, 'deploy-config.json')
     write_json(temp_deploy_config, deploy_config)
@@ -224,18 +226,28 @@ def devnet_deploy(paths, args):
 
     log.info('Bringing up L2.')
 
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d'], check=False, cwd=paths.ops_dir, env={
-        'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],
-        'MORPH_ROLLUP': addresses['Proxy__Rollup'],
-        # 'MORPH_STANDARD_BRIDGE': addresses['Proxy__L1StandardBridge'],
-        'MORPH_ADDRESS_MANAGER': addresses['Impl__AddressManager'],
-        'PWD': paths.ops_dir,
-        'NODE_DATA_DIR': '/data',
-        'GETH_DATA_DIR': '/db',
-        'GENESIS_FILE_PATH': '/genesis.json',
-        'L1_ETH_RPC': 'http://l1:8545',
-        'BUILD_GETH': build_geth_target
-    })
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
+                 'node-0',
+                 'node-1',
+                 'node-2',
+                 'node-3',
+                 'sentry-node-0',
+                 'validator_node',
+                 'tx-submitter',
+                 'gas-price-oracle',
+                 '-d'], check=False, cwd=paths.ops_dir,
+                env={
+                    'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],
+                    'MORPH_ROLLUP': addresses['Proxy__Rollup'],
+                    # 'MORPH_STANDARD_BRIDGE': addresses['Proxy__L1StandardBridge'],
+                    'MORPH_ADDRESS_MANAGER': addresses['Impl__AddressManager'],
+                    'PWD': paths.ops_dir,
+                    'NODE_DATA_DIR': '/data',
+                    'GETH_DATA_DIR': '/db',
+                    'GENESIS_FILE_PATH': '/genesis.json',
+                    'L1_ETH_RPC': 'http://l1:8545',
+                    'BUILD_GETH': build_geth_target
+                })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
 
@@ -258,6 +270,7 @@ def wait_for_rpc_server(url):
         except Exception as e:
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
+
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
     env = env if env else {}
@@ -305,6 +318,18 @@ def wait_up(port, retries=10, wait_secs=1):
             time.sleep(wait_secs)
 
     raise Exception(f'Timed out waiting for port {port}.')
+
+
+def test_port(port):
+    log.info(f'Testing 127.0.0.1:{port}')
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect(('127.0.0.1', int(port)))
+        s.shutdown(2)
+        log.info(f'Connected 127.0.0.1:{port}')
+        return True
+    except Exception:
+        return False
 
 
 def write_json(path, data):
