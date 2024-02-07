@@ -10,7 +10,7 @@ import (
 )
 
 type IRollup interface {
-	//LastL2BlockNumber(opts *bind.CallOpts) (uint64, error)
+	LatestL2BlockNumber(opts *bind.CallOpts) (*big.Int, error)
 	//SubmitBatches(opts *bind.TransactOpts, batches []bindings.RollupBatchData) (*types.Transaction, error)
 	//IsStaked(opts *bind.CallOpts, addr common.Address) (bool, error)
 	//Stake(opts *bind.TransactOpts) (*types.Transaction, error)
