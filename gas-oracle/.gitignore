@@ -1,0 +1,10 @@
+artifacts
+cache
+node_modules
+.DS_Store
+.env
+dist
+logs
+target
+.vscode
+*.log

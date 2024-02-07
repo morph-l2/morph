@@ -4,15 +4,15 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/scroll-tech/go-ethereum/eth"
-
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/scroll-tech/go-ethereum/eth"
 )
 
 type Client interface {
 	bind.ContractBackend
+	TransactionByHash(ctx context.Context, hash common.Hash) (tx *types.Transaction, isPending bool, err error)
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)

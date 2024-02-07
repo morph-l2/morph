@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
 	"io"
 	"math/big"
 	"math/bits"
@@ -171,14 +170,21 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 	if err := e.setCurrentBlock(currentBlockBytes, currentTxs); err != nil {
 		return false, 0, err
 	}
+
 	chunkNum := e.batchingCache.chunks.ChunkNum()
-	// current block will be filled in a new chunk
-	if e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption) {
-		chunkNum += 1
-	}
 	var exceeded bool
-	blobSizeWithCurBlock := e.batchingCache.chunks.TxPayloadSize() + len(e.batchingCache.currentTxsPayload)
-	if blobSizeWithCurBlock > kzg4844.MaxBlobDataSize {
+	var extraSize int
+	// if current block will be filled in a new chunk
+	chunkAppended, zeroNum := e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption)
+	if chunkAppended {
+		chunkNum += 1
+		// if current block takes up a new chunk,
+		// then both the added zero bytes and the first 4bytes within this chunk are all need to be counted.
+		extraSize += zeroNum + 4
+	}
+	blobSizeWithCurBlock := e.batchingCache.chunks.CurrentPayloadForBlobSize() +
+		len(e.batchingCache.currentTxsPayload) + extraSize
+	if blobSizeWithCurBlock > types.MaxBlobTxPayloadSize {
 		exceeded = true
 	}
 	e.logger.Info("CalculateCapWithProposalBlock response", "blobSizeWithCurBlock", blobSizeWithCurBlock, "exceeded", exceeded)
@@ -209,8 +215,8 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		ParentBatchHash:        e.batchingCache.parentBatchHeader.BatchHash(),
 		SkippedL1MessageBitmap: skippedL1MessageBitmapBytes,
 	}
-	txPayload := e.batchingCache.chunks.TxPayload()
-	sidecar, err := types.MakeBlobTxSidecar(txPayload)
+	txPayload := e.batchingCache.chunks.SealTxPayloadForBlob()
+	sidecar, err := types.MakeBlobTxSidecarWithTxPayload(txPayload)
 	if err != nil {
 		return nil, nil, err
 	}

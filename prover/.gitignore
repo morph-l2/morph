@@ -18,3 +18,4 @@ prove_params
 .env
 proof
 local_configs
+**/.DS_Store
