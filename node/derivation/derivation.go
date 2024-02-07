@@ -500,8 +500,8 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *t
 	}
 	batchHeader.TotalL1MessagePopped = totalL1MessagePopped
 	batchHeader.L1MessagePopped = l1MessagePopped
-	batchHeader.Encode()
-	rollupData.batchHash = batchHeader.Hash()
+	// todo fill with blobHashes
+	rollupData.batchHash = types.NewBatchHeaderWithBlobHashes(batchHeader, nil).BatchHash()
 	return nil
 }
 

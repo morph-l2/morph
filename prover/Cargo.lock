@@ -47,9 +47,10 @@ dependencies = [
 [[package]]
 name = "aggregator"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "ark-std 0.3.0",
+ "bls12_381 0.7.0 (git+https://github.com/chengwenxi/bls12_381.git?branch=eip4844)",
  "env_logger 0.10.1",
  "eth-types",
  "ethers-core",
@@ -556,6 +557,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
+name = "bls12_381"
+version = "0.7.0"
+source = "git+https://github.com/chengwenxi/bls12_381.git?branch=eip4844#5a21fec34fb2f350a1635538de59ecd91d1c5a70"
+dependencies = [
+ "ff 0.12.1",
+ "group 0.12.1",
+ "pairing",
+ "pasta_curves",
+ "rand_core",
+ "subtle",
+]
+
+[[package]]
+name = "bls12_381"
+version = "0.7.0"
+source = "git+https://github.com/morph-l2/bls12_381.git?branch=eip4844#5a21fec34fb2f350a1635538de59ecd91d1c5a70"
+dependencies = [
+ "ff 0.12.1",
+ "group 0.12.1",
+ "pairing",
+ "pasta_curves",
+ "rand_core",
+ "subtle",
+]
+
+[[package]]
 name = "brotli"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -595,7 +622,7 @@ checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 [[package]]
 name = "bus-mapping"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -1374,7 +1401,7 @@ dependencies = [
 [[package]]
 name = "eth-types"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "ethers-core",
  "ethers-signers",
@@ -1694,7 +1721,7 @@ dependencies = [
 [[package]]
 name = "external-tracer"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "eth-types",
  "geth-utils",
@@ -1931,11 +1958,12 @@ dependencies = [
 [[package]]
 name = "gadgets"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "digest 0.7.6",
  "eth-types",
  "halo2_proofs",
+ "rand",
  "sha3 0.7.3",
  "strum",
 ]
@@ -1963,7 +1991,7 @@ dependencies = [
 [[package]]
 name = "geth-utils"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "env_logger 0.9.3",
  "gobuild 0.1.0-alpha.2 (git+https://github.com/scroll-tech/gobuild.git)",
@@ -2099,13 +2127,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "halo2-base"
+version = "0.2.2"
+source = "git+https://github.com/morph-l2/halo2-lib.git?branch=sync-blob-gadget#a9ff18fb24a45f679e7bcb957d46a541001145e3"
+dependencies = [
+ "ff 0.12.1",
+ "halo2_proofs",
+ "itertools",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "rand_chacha",
+ "rustc-hash",
+]
+
+[[package]]
 name = "halo2-ecc"
 version = "0.2.2"
 source = "git+https://github.com/scroll-tech/halo2-lib?tag=v0.1.5#70588177930400361c731659b15b2ab3f29f7784"
 dependencies = [
  "ff 0.12.1",
  "group 0.12.1",
- "halo2-base",
+ "halo2-base 0.2.2 (git+https://github.com/scroll-tech/halo2-lib?tag=v0.1.5)",
+ "itertools",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "rand",
+ "rand_chacha",
+ "rand_core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "halo2-ecc"
+version = "0.2.2"
+source = "git+https://github.com/morph-l2/halo2-lib.git?branch=sync-blob-gadget#a9ff18fb24a45f679e7bcb957d46a541001145e3"
+dependencies = [
+ "ff 0.12.1",
+ "group 0.12.1",
+ "halo2-base 0.2.2 (git+https://github.com/morph-l2/halo2-lib.git?branch=sync-blob-gadget)",
  "itertools",
  "num-bigint",
  "num-integer",
@@ -2625,7 +2687,7 @@ dependencies = [
 [[package]]
 name = "keccak256"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "env_logger 0.9.3",
  "eth-types",
@@ -2914,7 +2976,7 @@ dependencies = [
 [[package]]
 name = "mock"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -2930,7 +2992,7 @@ dependencies = [
 [[package]]
 name = "mpt-zktrie"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "eth-types",
  "halo2-mpt-circuits",
@@ -3130,6 +3192,15 @@ name = "os_str_bytes"
 version = "6.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
+
+[[package]]
+name = "pairing"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "135590d8bdba2b31346f9cd1fb2a912329f5135e832a4f422942eb6ead8b6b3b"
+dependencies = [
+ "group 0.12.1",
+]
 
 [[package]]
 name = "parity-scale-codec"
@@ -3540,7 +3611,7 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "aggregator",
  "anyhow",
@@ -4429,8 +4500,8 @@ source = "git+https://github.com/scroll-tech/snark-verifier?tag=v0.1.5#bc1d39ae3
 dependencies = [
  "bytes",
  "ethereum-types",
- "halo2-base",
- "halo2-ecc",
+ "halo2-base 0.2.2 (git+https://github.com/scroll-tech/halo2-lib?tag=v0.1.5)",
+ "halo2-ecc 0.2.2 (git+https://github.com/scroll-tech/halo2-lib?tag=v0.1.5)",
  "hex",
  "itertools",
  "lazy_static",
@@ -4454,7 +4525,7 @@ dependencies = [
  "bincode",
  "env_logger 0.10.1",
  "ethereum-types",
- "halo2-base",
+ "halo2-base 0.2.2 (git+https://github.com/scroll-tech/halo2-lib?tag=v0.1.5)",
  "hex",
  "itertools",
  "lazy_static",
@@ -5518,9 +5589,10 @@ dependencies = [
 [[package]]
 name = "zkevm-circuits"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=0.9.8#b071a67e64fc1e489f8f16ab5ee0aa809e95a0c4"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=dev4844#cfcda5b7ed8207904f3db2b310bcefa397508f15"
 dependencies = [
  "array-init",
+ "bls12_381 0.7.0 (git+https://github.com/morph-l2/bls12_381.git?branch=eip4844)",
  "bus-mapping",
  "either",
  "env_logger 0.9.3",
@@ -5528,8 +5600,8 @@ dependencies = [
  "ethers-core",
  "ethers-signers",
  "gadgets",
- "halo2-base",
- "halo2-ecc",
+ "halo2-base 0.2.2 (git+https://github.com/morph-l2/halo2-lib.git?branch=sync-blob-gadget)",
+ "halo2-ecc 0.2.2 (git+https://github.com/morph-l2/halo2-lib.git?branch=sync-blob-gadget)",
  "halo2_proofs",
  "hex",
  "itertools",
@@ -5568,6 +5640,7 @@ dependencies = [
  "clap",
  "dotenv",
  "env_logger 0.9.3",
+ "eth-types",
  "ethers",
  "halo2_proofs",
  "log",
@@ -5582,6 +5655,7 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http 0.4.4",
+ "zkevm-circuits",
 ]
 
 [[package]]

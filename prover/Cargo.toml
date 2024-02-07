@@ -7,8 +7,9 @@ edition = "2021"
 
 [dependencies]
 halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "develop" }
-prover = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "0.9.8", default-features = false, features = ["parallel_syn", "scroll", "shanghai", "strict-ccc"] }
-
+prover = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "dev4844", default-features = false, features = ["parallel_syn", "scroll", "shanghai", "strict-ccc"] }
+zkevm-circuits = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "dev4844", default-features = false, features = ["parallel_syn", "scroll", "shanghai", "strict-ccc"] }
+eth-types = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "dev4844"}
 
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", default-features = false, features = [ "json", "rustls-tls" ] }
