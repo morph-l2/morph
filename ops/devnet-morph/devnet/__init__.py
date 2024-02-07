@@ -128,6 +128,9 @@ def devnet_deploy(paths, args):
     run_command(['rm', '-f', paths.deployment_dir], env={}, cwd=paths.contracts_dir)
     log.info('Deploying L1 Proxy contracts...')
     run_command([
+        'yarn', 'build'
+    ], env={}, cwd=paths.contracts_dir)
+    run_command([
         'npx', 'hardhat', 'deploy', '--network', 'l1', '--storagepath', paths.deployment_dir
     ], env={}, cwd=paths.contracts_dir)
 
