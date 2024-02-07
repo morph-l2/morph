@@ -1,0 +1,81 @@
+# Build Geth in a stock Go builder container
+FROM golang:1.20-alpine as builder
+RUN apk add --no-cache gcc musl-dev linux-headers git make
+COPY . /morph
+WORKDIR /morph/node
+RUN make build
+
+
+FROM alpine:latest as initializer
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /morph/node/build/bin/tendermint /usr/local/bin/
+RUN echo "Initializing tendermint."
+RUN tendermint testnet --v 4 --n 1  --o /data --populate-persistent-peers --hostname node-0 --hostname node-1 --hostname node-2 --hostname node-3 --hostname sentry-node-0
+# populate for sequencer0-3 and sentry0
+RUN sed -i 's#pex = true#pex = false#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml
+RUN sed -i 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN sed -i 's#prometheus = false#prometheus = true#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN sed -i 's#block_sync = false#block_sync = true#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN sed -i 's#laddr = "tcp://127.0.0.1:26657"#laddr = "tcp://0.0.0.0:26657"#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN persistent_peers_string="93e27ea2306e158a8146d5f44caaab97496797d2@node-0:26656,7f78b7d7a7e6bad4faf68d5731d437f4288d96d0@node-1:26656,06c699be2f9aeb9f7ec79f508a95ff80576deb12@node-2:26656,b1a131f40d5d3abefe0dd787513c936ef62ac2d6@node-3:26656,dae813274913aaf39e7cd3226a0aa8bce00644e1@sentry-node-0:26656" && \
+sed -i  "s#persistent_peers = \".*\"#persistent_peers = \"$persistent_peers_string\"#g" /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml && \
+sequencer0=$(echo $persistent_peers_string | cut -d "," -f 1 | cut -d "@" -f 1) && \
+sequencer1=$(echo $persistent_peers_string | cut -d "," -f 2 | cut -d "@" -f 1) && \
+sequencer2=$(echo $persistent_peers_string | cut -d "," -f 3 | cut -d "@" -f 1) && \
+sequencer3=$(echo $persistent_peers_string | cut -d "," -f 4 | cut -d "@" -f 1) && \
+sentry0=$(echo $persistent_peers_string | cut -d "," -f 5 | cut -d "@" -f 1) && \
+private_peer_ids_joined=$(echo $sequencer0,$sequencer1,$sequencer2,$sequencer3,$sentry0) && \
+unconditional_peer_ids_joined=$private_peer_ids_joined && \
+TO_REPLACED_PRIV_PEER_ID="private_peer_ids = \"$private_peer_ids_joined\"" && \
+sed -i  "s#private_peer_ids = \"\"#$TO_REPLACED_PRIV_PEER_ID#g" /data/node4/config/config.toml && \
+TO_REPLACED_UNCONDITIONAL_PEER_ID="unconditional_peer_ids = \"$unconditional_peer_ids_joined\"" && \
+sed -i  "s#unconditional_peer_ids = \"\"#$TO_REPLACED_UNCONDITIONAL_PEER_ID#g" /data/node4/config/config.toml
+
+
+FROM alpine:latest as node0
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+COPY --from=initializer /data/node0 /data
+COPY ./ops/docker/node0/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node0/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node0/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
+CMD ["morphnode", "--home", "/data"]
+
+FROM alpine:latest as node1
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+COPY --from=initializer /data/node1 /data
+COPY ./ops/docker/node1/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node1/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node1/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
+CMD ["morphnode", "--home", "/data"]
+
+FROM alpine:latest as node2
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+COPY --from=initializer /data/node2 /data
+COPY ./ops/docker/node2/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node2/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node2/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
+CMD ["morphnode", "--home", "/data"]
+
+FROM alpine:latest as node3
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+COPY --from=initializer /data/node3 /data
+COPY ./ops/docker/node3/bls_key.json /data/config/bls_key.json
+COPY ./ops/docker/node3/priv_validator_key.json /data/config/priv_validator_key.json
+COPY ./ops/docker/node3/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
+CMD ["morphnode", "--home", "/data"]
+
+FROM alpine:latest as sentry0
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+COPY --from=initializer /data/node4 /data
+COPY ./ops/docker/node4/node_key.json /data/config/node_key.json
+COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
+CMD ["morphnode", "--home", "/data"]
