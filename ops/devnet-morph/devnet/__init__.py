@@ -13,6 +13,7 @@ import platform
 import shutil
 import http.client
 import devnet.log_setup
+
 # from devnet.genesis import GENESIS_TMPL
 
 pjoin = os.path.join
@@ -272,6 +273,7 @@ def wait_for_rpc_server(url):
         except Exception as e:
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
+
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
     env = env if env else {}
