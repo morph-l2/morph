@@ -16,16 +16,27 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		L1ChainID: 900,
 		L2ChainID: 53077,
 
+		BatchInboxAddress:  address1,
+		BatchSenderAddress: address1,
+
 		ProxyAdminOwner:             address1,
 		FinalSystemOwner:            address1,
 		L1SequencerProxy:            address1,
 		L1CrossDomainMessengerProxy: address1,
 		RollupProxy:                 address1,
-		GasPriceOracleOverhead:      1,
-		GasPriceOracleScalar:        1,
-		GasPriceOracleOwner:         address1,
-		L1FeeVaultRecipient:         address1,
-		SequencerFeeVaultRecipient:  address1,
+		L1GatewayRouterProxy:        address1,
+		L1StandardERC20GatewayProxy: address1,
+		L1ETHGatewayProxy:           address1,
+		L1ERC721GatewayProxy:        address1,
+		L1ERC1155GatewayProxy:       address1,
+
+		GasPriceOracleOverhead: 1,
+		GasPriceOracleScalar:   1,
+		GasPriceOracleOwner:    address1,
+
+		L1FeeVaultRecipient:        address1,
+		SequencerFeeVaultRecipient: address1,
+		L2BridgeFeeVaultRecipient:  address1,
 
 		GovProposalInterval:   1000,
 		GovBatchBlockInterval: 20,

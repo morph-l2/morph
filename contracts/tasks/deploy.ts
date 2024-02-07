@@ -136,9 +136,8 @@ task("register")
         let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
         for (let i = 0; i < l2SequencerPkList.length; i++) {
             let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
-            console.log(`sequencer-${i}:` + await sequencer.getAddress() + ', Balance: ' + await sequencer.getBalance())
-
             console.log(`\n---------------------------------- register  sequencer-${i} ----------------------------------`)
+            console.log(`sequencer-${i}:` + await sequencer.getAddress() + ', Balance: ' + await sequencer.getBalance())
             let err = await StakingRegister(hre, stroagePath, sequencer, config.l2SequencerTmKeys[i], config.l2SequencerBlsKeys[i])
             if (err != '') {
                 console.log(`Deploy Staking Sequencer-${i} failed, err: `, err)

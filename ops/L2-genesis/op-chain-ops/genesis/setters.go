@@ -172,10 +172,12 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 	}
 
-	// set slots directly
-	if slots, ok := slotResults[name]; ok {
-		for slotK, slotV := range slots {
-			db.SetState(proxyAddr, slotK, slotV)
+	if name == "L2Sequencer" {
+		// set slots directly
+		if slots, ok := slotResults[name]; ok {
+			for slotK, slotV := range slots {
+				db.SetState(proxyAddr, slotK, slotV)
+			}
 		}
 	}
 

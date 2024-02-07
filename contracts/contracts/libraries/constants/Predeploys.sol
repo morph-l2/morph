@@ -72,6 +72,24 @@ library Predeploys {
     address internal constant PROXY_ADMIN =
         0x530000000000000000000000000000000000001B;
 
+   /**
+     * @notice Address of the L2ERC1155Gateway predeploy.
+     */
+    address internal constant L2_ERC1155_Gateway =
+        0x530000000000000000000000000000000000001c;
+
+   /**
+     * @notice Address of the MorphStandardERC20 predeploy.
+     */
+    address internal constant Morph_Standard_ERC20 =
+        0x530000000000000000000000000000000000001D;
+
+    /**
+     * @notice Address of the MorphStandardERC20Factory predeploy.
+     */
+    address internal constant Morph_Standard_ERC20_Factory =
+        0x530000000000000000000000000000000000001e;
+
     /**
      * @notice Address of the GasPriceOracle predeploy. Includes fee information
      *         and helpers for computing the L1 portion of the transaction fee.
