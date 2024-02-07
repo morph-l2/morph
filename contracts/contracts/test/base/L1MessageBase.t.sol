@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {CommonTest} from "./CommonTest.t.sol";
 import {Proxy} from "../../libraries/proxy/Proxy.sol";

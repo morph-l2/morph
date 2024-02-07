@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {IL1ETHGateway} from "../../L1/gateways/IL1ETHGateway.sol";
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
@@ -39,7 +39,10 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
      *****************************/
 
     /// @inheritdoc IL2ETHGateway
-    function withdrawETH(uint256 _amount, uint256 _gasLimit) external payable override {
+    function withdrawETH(
+        uint256 _amount,
+        uint256 _gasLimit
+    ) external payable override {
         _withdraw(_msgSender(), _amount, new bytes(0), _gasLimit);
     }
 
@@ -100,8 +103,16 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
 
         // @note no rate limit here, since ETH is limited in messenger
 
-        bytes memory _message = abi.encodeCall(IL1ETHGateway.finalizeWithdrawETH, (_from, _to, _amount, _data));
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, _amount, _message, _gasLimit);
+        bytes memory _message = abi.encodeCall(
+            IL1ETHGateway.finalizeWithdrawETH,
+            (_from, _to, _amount, _data)
+        );
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
+            counterpart,
+            _amount,
+            _message,
+            _gasLimit
+        );
 
         emit WithdrawETH(_from, _to, _amount, _data);
     }

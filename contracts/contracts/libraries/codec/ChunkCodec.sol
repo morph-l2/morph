@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.16;
 
 /// @dev Below is the encoding for `Chunk`, total 60*n+1+m bytes.
 /// ```text
-///   * Field           Bytes       Type            Index       Comments
-///   * numBlocks       1           uint8           0           The number of blocks in this chunk
-///   * block[0]        60          BlockContext    1           The first block in this chunk
+///   * Field                Bytes       Type            Index       Comments
+///   * numBlocks            1           uint8           0           The number of blocks in this chunk
+///   * block[0]             60          BlockContext    1           The first block in this chunk
 ///   * ......
-///   * block[i]        60          BlockContext    60*i+1      The (i+1)'th block in this chunk
+///   * block[i]             60          BlockContext    60*i+1      The (i+1)'th block in this chunk
 ///   * ......
-///   * block[n-1]      60          BlockContext    60*n-59     The last block in this chunk
-///   * l2Transactions  dynamic     bytes           60*n+1
+///   * block[n-1]           60          BlockContext    60*n-59     The last block in this chunk
+///   * l2TransactionHashes  dynamic     bytes           60*n+1
 /// ```
 ///
 /// @dev Below is the encoding for `BlockContext`, total 60 bytes.
@@ -142,11 +142,8 @@ library ChunkCodec {
     ) internal pure returns (bytes32, uint256) {
         bytes32 txHash;
         assembly {
-            // first 4 bytes indicate the length
-            let txPayloadLength := shr(224, mload(_l2TxPtr))
-            _l2TxPtr := add(_l2TxPtr, 4)
-            txHash := keccak256(_l2TxPtr, txPayloadLength)
-            _l2TxPtr := add(_l2TxPtr, txPayloadLength)
+            txHash := mload(_l2TxPtr)
+            _l2TxPtr := add(_l2TxPtr, 32)
         }
 
         return (txHash, _l2TxPtr);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {AddressUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 
@@ -56,13 +56,21 @@ contract L2StandardERC20Gateway is L2ERC20Gateway {
      *************************/
 
     /// @inheritdoc IL2ERC20Gateway
-    function getL1ERC20Address(address _l2Token) external view override returns (address) {
+    function getL1ERC20Address(
+        address _l2Token
+    ) external view override returns (address) {
         return tokenMapping[_l2Token];
     }
 
     /// @inheritdoc IL2ERC20Gateway
-    function getL2ERC20Address(address _l1Token) public view override returns (address) {
-        return IMorphStandardERC20Factory(tokenFactory).computeL2TokenAddress(address(this), _l1Token);
+    function getL2ERC20Address(
+        address _l1Token
+    ) public view override returns (address) {
+        return
+            IMorphStandardERC20Factory(tokenFactory).computeL2TokenAddress(
+                address(this),
+                _l1Token
+            );
     }
 
     /*****************************
@@ -83,10 +91,8 @@ contract L2StandardERC20Gateway is L2ERC20Gateway {
 
         {
             // avoid stack too deep
-            address _expectedL2Token = IMorphStandardERC20Factory(tokenFactory).computeL2TokenAddress(
-                address(this),
-                _l1Token
-            );
+            address _expectedL2Token = IMorphStandardERC20Factory(tokenFactory)
+                .computeL2TokenAddress(address(this), _l1Token);
             require(_l2Token == _expectedL2Token, "l2 token mismatch");
         }
 
@@ -99,7 +105,10 @@ contract L2StandardERC20Gateway is L2ERC20Gateway {
         if (_hasMetadata) {
             (_callData, _deployData) = abi.decode(_data, (bytes, bytes));
         } else {
-            require(tokenMapping[_l2Token] == _l1Token, "token mapping mismatch");
+            require(
+                tokenMapping[_l2Token] == _l1Token,
+                "token mapping mismatch"
+            );
             _callData = _data;
         }
 
@@ -114,7 +123,14 @@ contract L2StandardERC20Gateway is L2ERC20Gateway {
 
         _doCallback(_to, _callData);
 
-        emit FinalizeDepositERC20(_l1Token, _l2Token, _from, _to, _amount, _callData);
+        emit FinalizeDepositERC20(
+            _l1Token,
+            _l2Token,
+            _from,
+            _to,
+            _amount,
+            _callData
+        );
     }
 
     /**********************
@@ -150,17 +166,30 @@ contract L2StandardERC20Gateway is L2ERC20Gateway {
         );
 
         // 4. send message to L2MorphMessenger
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
+            counterpart,
+            0,
+            _message,
+            _gasLimit
+        );
 
         emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data);
     }
 
-    function _deployL2Token(bytes memory _deployData, address _l1Token) internal {
-        address _l2Token = IMorphStandardERC20Factory(tokenFactory).deployL2Token(address(this), _l1Token);
-        (string memory _symbol, string memory _name, uint8 _decimals) = abi.decode(
-            _deployData,
-            (string, string, uint8)
+    function _deployL2Token(
+        bytes memory _deployData,
+        address _l1Token
+    ) internal {
+        address _l2Token = IMorphStandardERC20Factory(tokenFactory)
+            .deployL2Token(address(this), _l1Token);
+        (string memory _symbol, string memory _name, uint8 _decimals) = abi
+            .decode(_deployData, (string, string, uint8));
+        MorphStandardERC20(_l2Token).initialize(
+            _name,
+            _symbol,
+            _decimals,
+            address(this),
+            _l1Token
         );
-        MorphStandardERC20(_l2Token).initialize(_name, _symbol, _decimals, address(this), _l1Token);
     }
 }

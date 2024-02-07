@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {AddressManager} from "../deployment/AddressManager.sol";
 

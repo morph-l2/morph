@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 /* Testing utilities */
 import {L2GasPriceOracleTest} from "./base/L2GasPriceOracle.t.sol";

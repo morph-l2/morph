@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import {SafeERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
@@ -61,7 +61,9 @@ contract L2WETHGateway is L2ERC20Gateway {
      *************************/
 
     /// @inheritdoc IL2ERC20Gateway
-    function getL1ERC20Address(address) external view override returns (address) {
+    function getL1ERC20Address(
+        address
+    ) external view override returns (address) {
         return l1WETH;
     }
 
@@ -92,7 +94,14 @@ contract L2WETHGateway is L2ERC20Gateway {
 
         _doCallback(_to, _data);
 
-        emit FinalizeDepositERC20(_l1Token, _l2Token, _from, _to, _amount, _data);
+        emit FinalizeDepositERC20(
+            _l1Token,
+            _l2Token,
+            _from,
+            _to,
+            _amount,
+            _data
+        );
     }
 
     /**********************
@@ -117,7 +126,11 @@ contract L2WETHGateway is L2ERC20Gateway {
         }
 
         // 2. Transfer token into this contract.
-        IERC20Upgradeable(_token).safeTransferFrom(_from, address(this), _amount);
+        IERC20Upgradeable(_token).safeTransferFrom(
+            _from,
+            address(this),
+            _amount
+        );
         IWETH(_token).withdraw(_amount);
 
         // 3. Generate message passed to L2StandardERC20Gateway.
@@ -128,12 +141,9 @@ contract L2WETHGateway is L2ERC20Gateway {
         );
 
         // 4. Send message to L1CrossDomainMessenger.
-        IL2CrossDomainMessenger(messenger).sendMessage{value: _amount + msg.value}(
-            counterpart,
-            _amount,
-            _message,
-            _gasLimit
-        );
+        IL2CrossDomainMessenger(messenger).sendMessage{
+            value: _amount + msg.value
+        }(counterpart, _amount, _message, _gasLimit);
 
         emit WithdrawERC20(_l1WETH, _token, _from, _to, _amount, _data);
     }

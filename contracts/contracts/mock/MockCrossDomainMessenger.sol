@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
@@ -46,7 +46,7 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
         address _refundAddress
     ) external payable {}
 
-    function messageNonce() external pure returns (uint256){
+    function messageNonce() external pure returns (uint256) {
         return 0;
     }
 }

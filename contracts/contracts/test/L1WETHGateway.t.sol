@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";
 
