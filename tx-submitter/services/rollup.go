@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/morph-l2/bindings/bindings"
@@ -79,6 +80,72 @@ func (sr *SR) Start() {
 	t := time.NewTicker(sr.secondInterval)
 	defer t.Stop()
 
+	// metrics
+	metrics_query_tick := time.NewTicker(time.Second * 5)
+	defer metrics_query_tick.Stop()
+	go func() {
+
+		for {
+			select {
+			case <-sr.ctx.Done():
+				return
+			case <-metrics_query_tick.C:
+				// get last finalized
+				lastFinalized, err := sr.Rollup.LastFinalizedBatchIndex(nil)
+				if err != nil {
+					log.Error("get last finalized error", "error", err)
+					continue
+				}
+				// get last committed
+				lastCommited, err := sr.Rollup.LastCommittedBatchIndex(nil)
+				if err != nil {
+					log.Error("get last committed error", "error", err)
+					continue
+				}
+				sr.metrics.SetLastFinalizedBatchIndex(lastFinalized.Uint64())
+				sr.metrics.SetLastCommittedBatchIndex(lastCommited.Uint64())
+				sr.metrics.SetLastFinalizedCommitedBatchIndexDiff(lastCommited.Uint64() - lastFinalized.Uint64())
+
+				// get last rolluped l2 block
+				l2LatestBlockNumberRolluped, err := sr.Rollup.LatestL2BlockNumber(nil)
+				if err != nil {
+					log.Error("get last l2 block number error", "error", err)
+					continue
+				}
+				sr.metrics.SetLastL2BlockNumberRolluped(l2LatestBlockNumberRolluped.Uint64())
+				// get last l2 block
+				// todo: get the largest block number from all l2 clients
+				l2BlockNumber, err := sr.L2Clients[0].BlockNumber(context.Background())
+				if err != nil {
+					log.Error("get l2 block number error", "error", err)
+					continue
+				}
+				sr.metrics.SetL2BlockNumber(l2BlockNumber)
+
+				// diff
+				sr.metrics.SetL2BlockNumberDiff(l2BlockNumber - l2LatestBlockNumberRolluped.Uint64())
+
+				// get balacnce of wallet
+				balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
+				if err != nil {
+					log.Error("get wallet balance error", "error", err)
+					continue
+				}
+				// balance to eth
+				balanceEth := new(big.Rat).SetFrac(balance, big.NewInt(params.Ether))
+
+				// parse float64 from string
+				balanceEthFloat, err := strconv.ParseFloat(balanceEth.FloatString(18), 64)
+				if err != nil {
+					log.Warn("parse balance to float error", "error", err)
+					continue
+				}
+
+				sr.metrics.SetWalletBalance(balanceEthFloat)
+			}
+		}
+	}()
+
 	for {
 		if err := sr.rollup(); err != nil {
 			if utils.IsRpcErr(err) {
@@ -87,15 +154,12 @@ func (sr *SR) Start() {
 			time.Sleep(2 * time.Second)
 			log.Error("rollup failed,wait for the next try", "error", err)
 		}
-		// call finalize
 		if sr.Finalize {
 			if err := sr.finalize(); err != nil {
 				log.Error("finalize failed", "error", err)
 			}
-		} else {
-			log.Info("finalize is disabled")
+			time.Sleep(5 * time.Second)
 		}
-
 	}
 }
 
@@ -170,28 +234,108 @@ func (sr *SR) finalize() error {
 	if err != nil {
 		return fmt.Errorf("sign tx error:%v", err)
 	}
-	if err := sr.L1Client.SendTransaction(context.Background(), newSignedTx); err != nil {
-		if err.Error() != "already known" {
-			return fmt.Errorf("SendTransaction error:%v", err.Error())
+
+	var receipt *types.Receipt
+	err = sr.L1Client.SendTransaction(context.Background(), newSignedTx)
+	if err != nil {
+		log.Info("send tx error", "error", err.Error())
+		switch err.Error() {
+		case
+			core.ErrReplaceUnderpriced.Error(),
+			core.ErrAlreadyKnown.Error():
+
+			receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+			if err != nil {
+				return fmt.Errorf("replace tx error:%v", err)
+			} else {
+				log.Info("replace tx success")
+			}
+		case core.ErrGasLimit.Error():
+			log.Error("tx exceeds block gas limit",
+				"gas", newSignedTx.Gas(),
+				"finalize_cnt", finalizeCnt,
+			)
+			return fmt.Errorf("send tx error:%v", err.Error())
+		case core.ErrNonceTooLow.Error():
+			return fmt.Errorf("send tx error:%v", err.Error())
+		default:
+			return fmt.Errorf("send tx error:%v", err.Error())
+		}
+	} else {
+		log.Info("tx sent",
+			// for business
+			"finalize_cnt", finalizeCnt,
+			// tx
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+		)
+	}
+
+	// wait receipt
+	if receipt == nil {
+		receipt, err = sr.waitReceiptWithTimeout(sr.txTimout, newSignedTx.Hash())
+		if err != nil {
+			log.Error("wait receipt error", "error", err.Error())
+			if err.Error() == "timeout" {
+				receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+				if err != nil {
+					return fmt.Errorf("replace tx error:%v", err)
+				} else {
+					log.Info("replace tx success")
+				}
+			} else {
+				return fmt.Errorf("wait receipt error:%v", err)
+			}
 		}
 	}
-	// wait receipt
-	receipt, err := sr.waitReceiptWithTimeOut(sr.txTimout, newSignedTx.Hash())
-	if err != nil {
-		return fmt.Errorf("wait receipt error:%v", err)
-	}
+
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		log.Error("finalize tx failed", "tx_hash", newSignedTx.Hash().String(), "finalize_cnt", finalizeCnt, "gas_used", receipt.GasUsed)
+		log.Error("finalize tx failed",
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
+			"finalize_cnt", finalizeCnt,
+			// receipt info
+			"gas_used", receipt.GasUsed,
+			"tx_hash", newSignedTx.Hash().String(),
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+		)
 		return fmt.Errorf("tx failed")
 	} else {
+
+		gasFee := newSignedTx.GasPrice().Uint64() * receipt.GasUsed
+		gasFeeEther := new(big.Rat).SetFrac(big.NewInt(int64(gasFee)), big.NewInt(params.Ether))
 		log.Info("finalize tx success",
-			"tx_hash", newSignedTx.Hash().String(),
-			"gas_used", receipt.GasUsed,
-			"gas_price", newSignedTx.GasPrice().String(),
-			"gas_fee", new(big.Int).Mul(newSignedTx.GasPrice(), big.NewInt(int64(receipt.GasUsed))).String(),
-			"last_finalized_before", lastFinalized.Uint64(),
-			"last_commited_before", lastCommited.Uint64(),
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
 			"finalize_cnt", finalizeCnt,
+			// receipt info
+			"gas_used", receipt.GasUsed,
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"gas_fee", gasFeeEther.FloatString(18),
 		)
 	}
 	return nil
@@ -200,9 +344,7 @@ func (sr *SR) finalize() error {
 
 func (sr *SR) rollup() error {
 
-	if sr.PriorityRollup {
-		log.Info("priority rollup is enabled")
-	} else {
+	if !sr.PriorityRollup {
 		// is the turn of the submitter
 		nextSubmitter, _, _, err := sr.L2Submitter.GetNextSubmitter(nil)
 		if err != nil {
@@ -223,14 +365,14 @@ func (sr *SR) rollup() error {
 	}
 	batchIndex, err := sr.Rollup.LastCommittedBatchIndex(nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("get last committed batch index error:%v", err)
 	}
 
 	index := batchIndex.Uint64() + 1
 	log.Info("batch info", "last_commit_batch", batchIndex.Uint64(), "batch_will_get", index)
 	batch, err := GetRollupBatchByIndex(index, sr.L2Clients)
 	if err != nil {
-		return err
+		return fmt.Errorf("get rollup batch by index err:%v", err)
 	}
 
 	// check if the batch is valid
@@ -286,7 +428,7 @@ func (sr *SR) rollup() error {
 		return fmt.Errorf("craft CommitBatch tx failed:%v", err)
 	}
 	if uint64(signedTx.Size()) > txMaxSize {
-		return core.ErrOversizedData
+		return fmt.Errorf("tx size exceeds max size:%d", txMaxSize)
 	}
 
 	newTx, err := UpdateGasLimit(signedTx)
@@ -297,28 +439,112 @@ func (sr *SR) rollup() error {
 	if err != nil {
 		return fmt.Errorf("sign tx error:%v", err)
 	}
-	if err := sr.L1Client.SendTransaction(context.Background(), newSignedTx); err != nil {
-		if err.Error() != "already known" {
-			return fmt.Errorf("SendTransaction error:%v", err.Error())
+
+	tx_send_time := time.Now().Unix()
+	var receipt *types.Receipt
+	err = sr.L1Client.SendTransaction(context.Background(), newSignedTx)
+	if err != nil {
+		log.Info("send tx error", "error", err.Error())
+		switch err.Error() {
+		case
+			core.ErrReplaceUnderpriced.Error(),
+			core.ErrAlreadyKnown.Error():
+
+			receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+			if err != nil {
+				return fmt.Errorf("replace tx error:%v", err)
+			} else {
+				log.Info("replace tx success")
+			}
+		case core.ErrGasLimit.Error():
+			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "chunks_len", len(batch.Chunks))
+			return fmt.Errorf("send tx error:%v", err.Error())
+		case core.ErrNonceTooLow.Error():
+			return fmt.Errorf("send tx error:%v", err.Error())
+		default:
+			return fmt.Errorf("send tx error:%v", err.Error())
 		}
+	} else {
+		log.Info("tx sent",
+			// for business
+			"batch_index", index,
+			"chunks_len", len(batch.Chunks),
+			// tx
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+		)
 	}
 
 	// wait receipt
-	receipt, err := sr.waitReceiptWithTimeOut(sr.txTimout, newSignedTx.Hash())
-	if err != nil {
-		return fmt.Errorf("wait receipt error:%v", err)
+	if receipt == nil {
+		receipt, err = sr.waitReceiptWithTimeout(sr.txTimout, newSignedTx.Hash())
+		if err != nil {
+			log.Error("wait receipt error", "error", err.Error())
+			if err.Error() == "timeout" {
+				receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+				if err != nil {
+					return fmt.Errorf("replace tx error:%v", err)
+				} else {
+					log.Info("replace tx success")
+				}
+			} else {
+				return fmt.Errorf("wait receipt error:%v", err)
+			}
+		}
 	}
+
+	tx_receipt_time := time.Now().Unix()
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		log.Error("rollup tx failed", "tx_hash", newSignedTx.Hash().String(), "batch_index", index, "chunks_size", len(batch.Chunks))
+		log.Error("rollup tx failed",
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
+			"batch_index", index,
+			"chunks_len", len(batch.Chunks),
+			// receipt info
+			"gas_used", receipt.GasUsed,
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"tx_included_time", tx_receipt_time-tx_send_time,
+		)
 		return fmt.Errorf("tx failed")
 	} else {
+
+		gasFee := newSignedTx.GasPrice().Uint64() * receipt.GasUsed
+		gasFeeEther := new(big.Rat).SetFrac(big.NewInt(int64(gasFee)), big.NewInt(params.Ether))
 		log.Info("rollup tx success",
-			"tx_hash", newSignedTx.Hash().String(),
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
 			"batch_index", index,
-			"chunks_size", len(batch.Chunks),
+			"chunks_len", len(batch.Chunks),
+			// receipt info
 			"gas_used", receipt.GasUsed,
+			"tx_hash", newSignedTx.Hash().String(),
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
 			"gas_price", newSignedTx.GasPrice().String(),
-			"gas_fee", new(big.Int).Mul(newSignedTx.GasPrice(), big.NewInt(int64(receipt.GasUsed))).String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"gas_fee", gasFeeEther.FloatString(18),
+			"tx_included_time", tx_receipt_time-tx_send_time,
 		)
 	}
 	return nil
@@ -371,7 +597,7 @@ func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
 	return tip, gasFeeCap, nil
 }
 
-func (sr *SR) waitReceiptWithTimeOut(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
+func (sr *SR) waitReceiptWithTimeout(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
 	ctx, cancel := context.WithTimeout(sr.ctx, time)
 	defer cancel()
 	return sr.waitReceiptWithCtx(ctx, txHash)
@@ -493,7 +719,7 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 
 		newTx = types.NewTx(&types.LegacyTx{
 			Nonce:    tx.Nonce(),
-			GasPrice: tx.GasPrice(),
+			GasPrice: big.NewInt(tx.GasPrice().Int64()),
 			Gas:      newGasLimit,
 			To:       tx.To(),
 			Value:    tx.Value(),
@@ -502,8 +728,8 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 	} else if tx.Type() == types.DynamicFeeTxType {
 		newTx = types.NewTx(&types.DynamicFeeTx{
 			Nonce:     tx.Nonce(),
-			GasTipCap: tx.GasTipCap(),
-			GasFeeCap: tx.GasFeeCap(),
+			GasTipCap: big.NewInt(tx.GasTipCap().Int64()),
+			GasFeeCap: big.NewInt(tx.GasFeeCap().Int64()),
 			Gas:       newGasLimit,
 			To:        tx.To(),
 			Value:     tx.Value(),
@@ -513,4 +739,105 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 		return nil, fmt.Errorf("unknown tx type:%v", tx.Type())
 	}
 	return newTx, nil
+}
+
+func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
+	if tx == nil {
+		return nil, nil, errors.New("nil tx")
+	}
+
+	// for sign
+	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
+	if err != nil {
+		return nil, nil, fmt.Errorf("new keyedTransaction with chain id error:%v", err)
+	}
+
+	// replaced tx info
+	log.Info("replaced tx",
+		"tx_hash", tx.Hash().String(),
+		"gas_fee_cap", tx.GasFeeCap(),
+		"gas_tip", tx.GasTipCap(),
+		"gas", tx.Gas(),
+		"nonce", tx.Nonce(),
+	)
+
+	_tip, _gasFeeCap, err := sr.GetGasTipAndCap()
+	if err != nil {
+		log.Error("get tip and cap", "err", err)
+	}
+	tip := _tip.Int64()
+	gasFeeCap := _gasFeeCap.Int64()
+
+	txTip := tx.GasTipCap().Int64()
+	txGasFeeCap := tx.GasFeeCap().Int64()
+
+	minTip := txTip * 12 / 10
+	minGasFeeCap := txGasFeeCap * 12 / 10
+
+	for {
+		if (tip > minTip) && (gasFeeCap > minGasFeeCap) {
+			break
+		}
+		if tip < minTip {
+			tip *= 2
+		}
+		if gasFeeCap < minGasFeeCap {
+			gasFeeCap *= 2
+		}
+
+	}
+
+	// try 10 times
+	for i := 0; i < 10; i++ {
+
+		newTx := types.NewTx(&types.DynamicFeeTx{
+			To:        tx.To(),
+			Nonce:     tx.Nonce(),
+			GasFeeCap: big.NewInt(gasFeeCap),
+			GasTipCap: big.NewInt(tip),
+			Gas:       tx.Gas(),
+			Value:     tx.Value(),
+			Data:      tx.Data(),
+		})
+		log.Info("new tx info",
+			"gas_tip", fmt.Sprintf("%d", tip), //todo: convert to gwei
+			"gas_fee_cap", fmt.Sprintf("%d", gasFeeCap), //todo: convert to gwei
+		)
+		// sign tx
+		opts.Nonce = big.NewInt(int64(newTx.Nonce()))
+		newTx, err = opts.Signer(opts.From, newTx)
+		if err != nil {
+			return nil, nil, err
+		}
+		// send tx
+		err = sr.L1Client.SendTransaction(context.Background(), newTx)
+		if err != nil { // tx rejected
+			log.Error("send replace tx", "err", err)
+			// if not underprice return
+			if err.Error() != core.ErrReplaceUnderpriced.Error() {
+				return nil, nil, fmt.Errorf("send tx in replace error:%v", err.Error())
+			}
+		} else { // tx into mempool
+			receipt, err := sr.waitReceiptWithTimeout(sr.txTimout, newTx.Hash())
+			if err != nil {
+				log.Error("wait receipt", "err", err)
+				if err.Error() == "timeout" {
+					log.Error("wait receipt timeout",
+						"turns", i,
+						"tip", tip,
+						"gas_fee_cap", gasFeeCap,
+					)
+				} else {
+					return nil, nil, err
+				}
+			} else {
+				return receipt, newTx, nil
+			}
+		}
+		// update tip & cap
+		tip *= 2
+		gasFeeCap *= 2
+
+	}
+	return nil, nil, errors.New("replace tx failed after try 10 times")
 }

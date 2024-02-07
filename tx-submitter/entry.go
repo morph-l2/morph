@@ -106,6 +106,15 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 			}
 		}
 
+		log.Info("starting tx submitter",
+			"l1_rpc", cfg.L1EthRpc,
+			"l2_rpcs", cfg.L2EthRpcs,
+			"rollup_addr", rollupAddr.Hex(),
+			"chainid", chainID.String(),
+			"submitter_addr", submitterAddr.Hex(),
+			"finalize_enable", cfg.Finalize,
+			"priority_rollup_enable", cfg.PriorityRollup,
+		)
 		sr.Start()
 
 		return nil
