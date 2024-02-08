@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {IL2ERC20Gateway, L2ERC20Gateway} from "./L2ERC20Gateway.sol";
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
@@ -22,7 +22,11 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
     /// @param l2Token The address of corresponding ERC20 token in layer 2.
     /// @param oldL1Token The address of the old corresponding ERC20 token in layer 1.
     /// @param newL1Token The address of the new corresponding ERC20 token in layer 1.
-    event UpdateTokenMapping(address indexed l2Token, address indexed oldL1Token, address indexed newL1Token);
+    event UpdateTokenMapping(
+        address indexed l2Token,
+        address indexed oldL1Token,
+        address indexed newL1Token
+    );
 
     /*************
      * Variables *
@@ -54,7 +58,9 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
      *************************/
 
     /// @inheritdoc IL2ERC20Gateway
-    function getL1ERC20Address(address _l2Token) external view override returns (address) {
+    function getL1ERC20Address(
+        address _l2Token
+    ) external view override returns (address) {
         return tokenMapping[_l2Token];
     }
 
@@ -84,7 +90,14 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
 
         _doCallback(_to, _data);
 
-        emit FinalizeDepositERC20(_l1Token, _l2Token, _from, _to, _amount, _data);
+        emit FinalizeDepositERC20(
+            _l1Token,
+            _l2Token,
+            _from,
+            _to,
+            _amount,
+            _data
+        );
     }
 
     /************************
@@ -94,7 +107,10 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
     /// @notice Update layer 2 to layer 1 token mapping.
     /// @param _l2Token The address of corresponding ERC20 token on layer 2.
     /// @param _l1Token The address of ERC20 token on layer 1.
-    function updateTokenMapping(address _l2Token, address _l1Token) external onlyOwner {
+    function updateTokenMapping(
+        address _l2Token,
+        address _l1Token
+    ) external onlyOwner {
         require(_l1Token != address(0), "token address cannot be 0");
 
         address _oldL1Token = tokenMapping[_l2Token];
@@ -136,7 +152,12 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
         );
 
         // 4. send message to L2MorphMessenger
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
+            counterpart,
+            0,
+            _message,
+            _gasLimit
+        );
 
         emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data);
     }

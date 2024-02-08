@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -137,7 +137,7 @@ contract L1Sequencer is
     ) external payable override onlyStakingContract {
         updateSequencersVersion(_sequencerBLSKeys);
         require(!paused(), "send message when unpaused");
-        MESSENGER.sendMessage(
+        MESSENGER.sendMessage{value:msg.value}(
             address(OTHER_SEQUENCER),
             0,
             _sequencerBytes,

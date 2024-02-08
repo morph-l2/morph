@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {IWETH} from "../../interfaces/IWETH.sol";
 import {IL2ERC20Gateway} from "../../L2/gateways/IL2ERC20Gateway.sol";
@@ -121,13 +121,9 @@ contract L1WETHGateway is L1ERC20Gateway {
         );
 
         // 3. Send message to L1CrossDomainMessenger.
-        IL1CrossDomainMessenger(messenger).sendMessage{value: _amount + msg.value}(
-            counterpart,
-            _amount,
-            _message,
-            _gasLimit,
-            _from
-        );
+        IL1CrossDomainMessenger(messenger).sendMessage{
+            value: _amount + msg.value
+        }(counterpart, _amount, _message, _gasLimit, _from);
 
         emit DepositERC20(_token, l2WETH, _from, _to, _amount, _data);
     }

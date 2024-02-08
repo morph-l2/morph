@@ -3,7 +3,7 @@
 import { expect } from "chai";
 import { hexlify } from "ethers/lib/utils";
 import { ethers } from "hardhat";
-import { ZkEvmVerifierV1 } from "../typechain";
+import { ZkEvmVerifierV1, Rollup } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import fs from "fs";
 
@@ -73,5 +73,24 @@ describe("ZkEvmVerifierV1", async () => {
 
     // verify failed
     await expect(zkEvmVerifier.verify(proof, publicInputHash.reverse())).to.reverted;
+  });
+});
+
+describe("Rollup", async () => {
+  let deployer: SignerWithAddress;
+
+  let rollup: Rollup;
+
+  beforeEach(async () => {
+    [deployer] = await ethers.getSigners();
+
+
+    rollup = await ethers.getContractFactory("Rollup", deployer);
+  });
+
+  it("should succeed", async () => {
+    // let tx = await rollup.commitBatch()
+    let res = await rollup.latestL2BlockNumber;
+    console.log("latest l2 block number", res);
   });
 });

@@ -23,7 +23,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
 import {OwnableBase} from "../../libraries/common/OwnableBase.sol";
@@ -49,17 +49,26 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Emits each time the owner updates the address of `messenger`.
     /// @param oldMessenger The address of old messenger.
     /// @param newMessenger The address of new messenger.
-    event UpdateMessenger(address indexed oldMessenger, address indexed newMessenger);
+    event UpdateMessenger(
+        address indexed oldMessenger,
+        address indexed newMessenger
+    );
 
     /// @notice Emits each time the owner updates the address of `recipient`.
     /// @param oldRecipient The address of old recipient.
     /// @param newRecipient The address of new recipient.
-    event UpdateRecipient(address indexed oldRecipient, address indexed newRecipient);
+    event UpdateRecipient(
+        address indexed oldRecipient,
+        address indexed newRecipient
+    );
 
     /// @notice Emits each time the owner updates the value of `minWithdrawAmount`.
     /// @param oldMinWithdrawAmount The value of old `minWithdrawAmount`.
     /// @param newMinWithdrawAmount The value of new `minWithdrawAmount`.
-    event UpdateMinWithdrawAmount(uint256 oldMinWithdrawAmount, uint256 newMinWithdrawAmount);
+    event UpdateMinWithdrawAmount(
+        uint256 oldMinWithdrawAmount,
+        uint256 newMinWithdrawAmount
+    );
 
     /*************
      * Variables *
@@ -111,7 +120,10 @@ contract L2TxFeeVault is OwnableBase {
         );
 
         uint256 _balance = address(this).balance;
-        require(_value <= _balance, "FeeVault: insufficient balance to withdraw");
+        require(
+            _value <= _balance,
+            "FeeVault: insufficient balance to withdraw"
+        );
 
         unchecked {
             totalProcessed += _value;
@@ -158,10 +170,15 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Update the minimum withdraw amount.
     /// @param _newMinWithdrawAmount The minimum withdraw amount to update.
-    function updateMinWithdrawAmount(uint256 _newMinWithdrawAmount) external onlyOwner {
+    function updateMinWithdrawAmount(
+        uint256 _newMinWithdrawAmount
+    ) external onlyOwner {
         uint256 _oldMinWithdrawAmount = minWithdrawAmount;
         minWithdrawAmount = _newMinWithdrawAmount;
 
-        emit UpdateMinWithdrawAmount(_oldMinWithdrawAmount, _newMinWithdrawAmount);
+        emit UpdateMinWithdrawAmount(
+            _oldMinWithdrawAmount,
+            _newMinWithdrawAmount
+        );
     }
 }

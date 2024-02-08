@@ -49,6 +49,7 @@
     "@openzeppelin/contracts": "^v4.9.3",
     "@openzeppelin/contracts-upgradeable": "^v4.9.3",
     "@openzeppelin/hardhat-upgrades": "1.13.0",
+    "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
     "@solidstate/hardhat-bytecode-exporter": "^1.1.1",
     "@typechain/ethers-v5": "^10.1.0",
     "@typechain/hardhat": "^6.1.2",
@@ -57,16 +58,15 @@
     "@types/node": "^12.20.55",
     "@typescript-eslint/eslint-plugin": "^5.45.1",
     "@typescript-eslint/parser": "^5.45.1",
-    "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-    "ds-test": "https://github.com/dapphub/ds-test.git#6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
-    "forge-std": "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410",
     "bip39": "^3.0.4",
     "chai": "^4.3.6",
     "command-exists": "1.2.9",
     "dotenv": "^16.0.1",
+    "ds-test": "https://github.com/dapphub/ds-test.git#6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f",
     "ethereum-waffle": "^3.0.0",
     "ethereumjs-wallet": "^1.0.2",
     "ethers": "^5.7.2",
+    "forge-std": "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410",
     "glob": "^7.1.6",
     "hardhat": "^2.10.2",
     "hardhat-abi-exporter": "^2.10.1",
@@ -83,6 +83,7 @@
   },
   "dependencies": {
     "@morph-l2/core-utils": "0.0.1",
-    "axios": "^1.4.0"
+    "axios": "^1.4.0",
+    "yarn": "^1.22.21"
   }
 }

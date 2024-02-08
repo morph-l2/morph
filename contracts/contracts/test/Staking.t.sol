@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {L1StakingBaseTest} from "./base/L1StakingBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
@@ -45,7 +45,8 @@ contract StakingRegisterTest is L1StakingBaseTest {
         staking.register{value: 2 * MIN_DEPOSIT}(
             sequencerInfo.tmKey,
             sequencerInfo.blsKey,
-            defaultGasLimit
+            defaultGasLimit,
+            0
         );
 
         (
@@ -90,7 +91,8 @@ contract StakingRegisterTest is L1StakingBaseTest {
             staking.register{value: 2 * MIN_DEPOSIT}(
                 sequencerInfo.tmKey,
                 sequencerInfo.blsKey,
-                defaultGasLimit
+                defaultGasLimit,
+                0
             );
             (
                 address addrCheck,
@@ -137,7 +139,8 @@ contract StakingRegisterTest is L1StakingBaseTest {
             staking.register{value: 3 * MIN_DEPOSIT}(
                 sequencerInfo.tmKey,
                 sequencerInfo.blsKey,
-                defaultGasLimit
+                defaultGasLimit,
+                 0
             );
             bytes memory sequencerBytes = staking.sequencers(0);
             assertBytesEq(sequencerBytes, sequencerInfo.blsKey);
@@ -177,7 +180,8 @@ contract StakingStakeAndWithdrawTest is L1StakingBaseTest {
             staking.register{value: 2 * MIN_DEPOSIT}(
                 sequencerInfo.tmKey,
                 sequencerInfo.blsKey,
-                defaultGasLimit
+                defaultGasLimit,
+                 0
             );
             (
                 address addrCheck,
@@ -210,7 +214,7 @@ contract StakingStakeAndWithdrawTest is L1StakingBaseTest {
         (, , blsKeyCheck, balancesPre) = staking.stakings(user);
         hevm.prank(user);
         emit Staked(user, balancesPre + MIN_DEPOSIT);
-        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
+        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
         checkSeuqnsers();
         assertEq(user, staking.stakers(0));
     }
@@ -235,7 +239,7 @@ contract StakingStakeAndWithdrawTest is L1StakingBaseTest {
         hevm.prank(user);
         hevm.expectEmit(true, true, true, true);
         emit Staked(user, balancesPre + MIN_DEPOSIT);
-        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
+        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
         sequencerBls = staking.sequencers(0);
         checkSeuqnsers();
         assertBytesEq(blsKeyCheck, sequencerBls);
@@ -252,7 +256,7 @@ contract StakingStakeAndWithdrawTest is L1StakingBaseTest {
         hevm.prank(user);
         hevm.expectEmit(true, true, true, true);
         emit Staked(user, balancesPre + MIN_DEPOSIT);
-        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
+        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
         sequencerBls = staking.sequencers(1);
         checkSeuqnsers();
         assertBytesEq(blsKeyCheck, sequencerBls);
@@ -267,7 +271,7 @@ contract StakingStakeAndWithdrawTest is L1StakingBaseTest {
         hevm.expectEmit(true, true, true, true);
         emit Withdrawed(user, balancesPre);
         hevm.prank(user);
-        staking.withdrawETH(defaultGasLimit);
+        staking.withdrawETH(defaultGasLimit, 0);
         (, , , uint256 balancesStaking) = staking.stakings(user);
         uint256 stakerNum = staking.stakersNumber();
         (uint256 lockBalances, uint256 lockToNum, bool exit) = staking
@@ -313,7 +317,7 @@ contract StakingStakeAndWithdrawTest is L1StakingBaseTest {
         emit SequencerUpdated(sequencerBLSKeys, version);
         // withdraw
         hevm.prank(user);
-        staking.withdrawETH(defaultGasLimit);
+        staking.withdrawETH(defaultGasLimit, 0);
         // check params
         (, , , uint256 balancesStaking) = staking.stakings(user);
         uint256 stakerNum = staking.stakersNumber();
