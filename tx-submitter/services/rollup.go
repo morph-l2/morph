@@ -432,10 +432,6 @@ func (sr *SR) rollup() error {
 	}
 
 	// versioned hashes
-	versionedHashes := make([]common.Hash, 0)
-	for _, commit := range batch.Sidecar.Commitments {
-		versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
-	}
 
 	tip, gasFeeCap, err := sr.GetGasTipAndCap()
 	if err != nil {
@@ -451,6 +447,10 @@ func (sr *SR) rollup() error {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
 	} else {
+		versionedHashes := make([]common.Hash, 0)
+		for _, commit := range batch.Sidecar.Commitments {
+			versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
+		}
 		tx = types.NewTx(&types.BlobTx{
 			ChainID:    uint256.MustFromBig(sr.chainId),
 			Nonce:      nonce,
@@ -474,9 +474,18 @@ func (sr *SR) rollup() error {
 	if err != nil {
 		return fmt.Errorf("update gaslimit error:%v", err)
 	}
-	newSignedTx, err := types.SignTx(newTx, types.NewLondonSignerWithEIP4844(sr.chainId), sr.privKey)
-	if err != nil {
-		return fmt.Errorf("sign tx error:%v", err)
+
+	var newSignedTx *types.Transaction
+	if tx.Type() == types.BlobTxType {
+		newSignedTx, err = types.SignTx(newTx, types.NewLondonSignerWithEIP4844(sr.chainId), sr.privKey)
+		if err != nil {
+			return fmt.Errorf("sign tx error:%v", err)
+		}
+	} else {
+		newSignedTx, err = opts.Signer(opts.From, newTx)
+		if err != nil {
+			return fmt.Errorf("sign tx error:%v", err)
+		}
 	}
 
 	tx_send_time := time.Now().Unix()
