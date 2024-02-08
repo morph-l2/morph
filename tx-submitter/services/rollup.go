@@ -443,24 +443,32 @@ func (sr *SR) rollup() error {
 
 	}
 
+	var tx *types.Transaction
 	// blob tx
-	tx := types.NewTx(&types.BlobTx{
-		ChainID:    uint256.MustFromBig(sr.chainId),
-		Nonce:      nonce,
-		GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
-		GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
-		Gas:        5000000,
-		To:         sr.rollupAddr,
-		Value:      uint256.NewInt(0),
-		Data:       calldata,
-		BlobFeeCap: uint256.NewInt(10e10),
-		BlobHashes: versionedHashes,
-		Sidecar: &types.BlobTxSidecar{
-			Blobs:       batch.Sidecar.Blobs,
-			Commitments: batch.Sidecar.Commitments,
-			Proofs:      batch.Sidecar.Proofs,
-		},
-	})
+	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, uint32(minGasLimit))
+		if err != nil {
+			return fmt.Errorf("craft commitBatch tx failed:%v", err)
+		}
+	} else {
+		tx = types.NewTx(&types.BlobTx{
+			ChainID:    uint256.MustFromBig(sr.chainId),
+			Nonce:      nonce,
+			GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
+			GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
+			Gas:        5000000,
+			To:         sr.rollupAddr,
+			Value:      uint256.NewInt(0),
+			Data:       calldata,
+			BlobFeeCap: uint256.NewInt(10e10),
+			BlobHashes: versionedHashes,
+			Sidecar: &types.BlobTxSidecar{
+				Blobs:       batch.Sidecar.Blobs,
+				Commitments: batch.Sidecar.Commitments,
+				Proofs:      batch.Sidecar.Proofs,
+			},
+		})
+	}
 
 	newTx, err := UpdateGasLimit(tx)
 	if err != nil {
