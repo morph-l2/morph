@@ -186,12 +186,13 @@ def devnet_deploy(paths, args):
     deploy_config['l2SequencerBlsKeys']
     for i in range(4):
         run_command(['cast', 'send', addresses['Proxy__Staking'],
-                     'register(bytes32,bytes memory,uint32)',
+                     'register(bytes32,bytes memory,uint32,uint256)',
                      deploy_config['l2SequencerTmKeys'][i],
                      deploy_config['l2SequencerBlsKeys'][i],
                      '5000000',
+                     '1000000000000000',
                      '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '2ether',
+                     '--value', '3ether',
                      '--private-key', deploy_config['l2SequencerPks'][i]
                      ])
 

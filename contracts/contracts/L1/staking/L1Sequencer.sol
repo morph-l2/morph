@@ -137,7 +137,7 @@ contract L1Sequencer is
     ) external payable override onlyStakingContract {
         updateSequencersVersion(_sequencerBLSKeys);
         require(!paused(), "send message when unpaused");
-        MESSENGER.sendMessage(
+        MESSENGER.sendMessage{value:msg.value}(
             address(OTHER_SEQUENCER),
             0,
             _sequencerBytes,

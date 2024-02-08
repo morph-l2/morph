@@ -162,12 +162,16 @@ contract Staking is Initializable, OwnableUpgradeable {
     function register(
         bytes32 tmKey,
         bytes memory blsKey,
-        uint32 _minGasLimit
+        uint32 _minGasLimit,
+        uint256 _gasFee
     ) external payable inWhitelist noStaker noExit {
         require(sequencersSize > 0, "sequencersSize must greater than 0");
         require(tmKey != 0, "invalid tendermint pubkey");
         require(blsKey.length == 256, "invalid bls pubkey");
-        require(msg.value > limit, "staking value is not enough");
+        require(msg.value > _gasFee, "no enought gas fee");
+
+        uint256 stakingAmount = msg.value - _gasFee;
+        require(stakingAmount > limit, "staking value is not enough");
 
         // check for duplicates
         for (uint256 index = 0; index < stakers.length; index++) {
@@ -180,16 +184,16 @@ contract Staking is Initializable, OwnableUpgradeable {
                 "blsKey already registered"
             );
         }
-
+        
         stakings[msg.sender] = StakingInfo(
             msg.sender,
             tmKey,
             blsKey,
-            msg.value
+            stakingAmount
         );
         stakers.push(msg.sender);
 
-        emit Registered(msg.sender, tmKey, blsKey, msg.value);
+        emit Registered(msg.sender, tmKey, blsKey, stakingAmount);
 
         // sort sequencers
         uint256 i = stakers.length - 1;
@@ -209,7 +213,7 @@ contract Staking is Initializable, OwnableUpgradeable {
         // stakers size reached sequencersSize first time
         if (!initialized && stakers.length == sequencersSize) {
             initialized = true;
-            updateSequencers(_minGasLimit);
+            updateSequencers(_minGasLimit,_gasFee);
             return;
         }
 
@@ -217,7 +221,7 @@ contract Staking is Initializable, OwnableUpgradeable {
             initialized &&
             (stakers.length <= sequencersSize || i < sequencersSize)
         ) {
-            updateSequencers(_minGasLimit);
+            updateSequencers(_minGasLimit,_gasFee);
         }
     }
 
@@ -225,7 +229,8 @@ contract Staking is Initializable, OwnableUpgradeable {
      * @notice stake ETH
      */
     function stakeETH(
-        uint32 _minGasLimit
+        uint32 _minGasLimit,
+        uint256 _gasFee
     ) external payable inWhitelist onlyStaker {
         require(
             msg.value > 0 && stakings[msg.sender].balance + msg.value > limit,
@@ -254,7 +259,7 @@ contract Staking is Initializable, OwnableUpgradeable {
             indexBeforeSort >= sequencersSize &&
             indexAfterSort < sequencersSize
         ) {
-            updateSequencers(_minGasLimit);
+            updateSequencers(_minGasLimit,_gasFee);
         }
     }
 
@@ -275,7 +280,7 @@ contract Staking is Initializable, OwnableUpgradeable {
     /**
      * @notice withdraw ETH
      */
-    function withdrawETH(uint32 _minGasLimit) external payable noExit {
+    function withdrawETH(uint32 _minGasLimit,uint256 _gasFee) external payable noExit {
         uint256 index = getStakerIndex(msg.sender);
 
         withdrawals[msg.sender] = Withdrawal(
@@ -297,7 +302,7 @@ contract Staking is Initializable, OwnableUpgradeable {
         }
 
         if (index < sequencersSize) {
-            updateSequencers(_minGasLimit);
+            updateSequencers(_minGasLimit,_gasFee);
         }
     }
 
@@ -306,7 +311,8 @@ contract Staking is Initializable, OwnableUpgradeable {
      */
     function updateParams(
         uint256 _sequencersSize,
-        uint32 _minGasLimit
+        uint32 _minGasLimit,
+        uint256 _gasFee
     ) external onlyOwner {
         require(
             _sequencersSize != sequencersSize &&
@@ -317,7 +323,7 @@ contract Staking is Initializable, OwnableUpgradeable {
 
         if (sequencersSize < stakers.length) {
             sequencersSize = _sequencersSize;
-            updateSequencers(_minGasLimit);
+            updateSequencers(_minGasLimit,_gasFee);
             return;
         }
         sequencersSize = _sequencersSize;
@@ -356,7 +362,7 @@ contract Staking is Initializable, OwnableUpgradeable {
     /**
      * @notice update sequencer set
      */
-    function updateSequencers(uint32 _gasLimit) internal {
+    function updateSequencers(uint32 _gasLimit,uint256 _gasFee) internal{
         delete sequencers;
 
         uint256 sequencersCount = sequencersSize;
@@ -385,7 +391,7 @@ contract Staking is Initializable, OwnableUpgradeable {
             IL1Sequencer(sequencerContract).newestVersion() + 1,
             sequencerInfos
         );
-        IL1Sequencer(sequencerContract).updateAndSendSequencerSet(
+        IL1Sequencer(sequencerContract).updateAndSendSequencerSet{value:_gasFee}(
             data,
             sequencers,
             _gasLimit,

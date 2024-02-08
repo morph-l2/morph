@@ -41,12 +41,14 @@ func NewBackend() *backends.SimulatedBackend {
 }
 
 func NewBackendWithGenesisTimestamp(ts uint64) *backends.SimulatedBackend {
+	config := params.AllEthashProtocolChanges
+	config.ShanghaiBlock = big.NewInt(0)
 	return backends.NewSimulatedBackendWithOpts(
 		backends.WithCacheConfig(&core.CacheConfig{
 			Preimages: true,
 		}),
 		backends.WithGenesis(core.Genesis{
-			Config:     params.AllEthashProtocolChanges,
+			Config:     config,
 			Timestamp:  ts,
 			Difficulty: big.NewInt(0),
 			Alloc: core.GenesisAlloc{
