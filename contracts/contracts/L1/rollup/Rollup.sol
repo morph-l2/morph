@@ -581,20 +581,26 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
             // [versioned_hash | x | y | commitment | proof]
             // with x and y being padded 32 byte big endian values
-            bytes memory _input = abi.encode(blobhash(0), _xBytes, _kzgData);
+            // bytes memory _input = abi.encode(blobhash(0), _xBytes, _kzgData);
+            bytes memory _input = abi.encode(
+                committedBatchStores[_batchIndex].blobVersionedhash,
+                _xBytes,
+                _kzgData
+            );
 
             bool ret;
             bytes memory _output;
             assembly {
                 ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
             }
-            require(ret, "prove failed");
+            require(ret, "verify 4844-proof failed");
 
             // verify batch
+            // _newPublicInputHash = H(_publicInputHash, y)
             IRollupVerifier(verifier).verifyAggregateProof(
                 _batchIndex,
                 _aggrProof,
-                _publicInputHash
+                keccak256(abi.encodePacked(_publicInputHash, _kzgData[0:32]))
             );
             _defenderWin(
                 _batchIndex,
