@@ -90,7 +90,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function test_comitBatchs() external {
+    function test_commitBatchs() external {
         hevm.prank(multisig);
         rollup.addSequencer(address(0));
         hevm.deal(address(0), 5 * MIN_DEPOSIT);

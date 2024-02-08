@@ -530,9 +530,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     // proveState proves a batch by submitting a proof.
+    // _kzgData: y(32) | commitment(48) | proof(48)
+    //
     function proveState(
         uint64 _batchIndex,
-        bytes calldata _aggrProof
+        bytes calldata _aggrProof,
+        bytes calldata _kzgData
     ) external {
         // check challenge exists
         require(
@@ -567,6 +570,25 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                     committedBatchStores[_batchIndex].dataHash
                 )
             );
+
+            require(_kzgData.length == 128, "invalid kzg data");
+
+            bytes memory _commitment = _kzgData[32:80];
+            bytes memory _xBytes = abi.encode(
+                keccak256(abi.encodePacked(_commitment, _publicInputHash))
+            );
+            _xBytes[0] = 0x0;
+
+            // versioned_hash | x | y | commitment | proof |
+            // with x and y being padded 32 byte big endian values
+            bytes memory _input = abi.encode(blobhash(0), _xBytes, _kzgData);
+
+            bool ret;
+            bytes memory _output;
+            assembly {
+                ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
+            }
+            require(ret, "prove failed");
 
             // verify batch
             IRollupVerifier(verifier).verifyAggregateProof(
