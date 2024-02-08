@@ -581,7 +581,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
             // [versioned_hash | x | y | commitment | proof]
             // with x and y being padded 32 byte big endian values
-            bytes memory _input = abi.encode(ommittedBatchStores[_batchIndex].blobVersionedhash, _xBytes, _kzgData);
+            bytes memory _input = abi.encode(committedBatchStores[_batchIndex].blobVersionedhash, _xBytes, _kzgData);
 
             bool ret;
             bytes memory _output;
