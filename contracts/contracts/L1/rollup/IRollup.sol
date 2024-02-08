@@ -28,11 +28,6 @@ interface IRollup {
         bytes32 withdrawRoot
     );
 
-    /// @notice Emitted when owner updates the status of sequencer.
-    /// @param account The address of account updated.
-    /// @param status The status of the account updated.
-    event UpdateSequencer(address indexed account, bool status);
-
     /// @notice Emitted when owner updates the status of prover.
     /// @param account The address of account updated.
     /// @param status The status of the account updated.
@@ -117,10 +112,14 @@ interface IRollup {
     /// @notice Commit a batch of transactions on layer 1.
     ///
     /// @param batchData The BatchData struct
-    /// @param minGasLimit The min gas limit.
+    /// @param version The sequencer version
+    /// @param sequencerIndex The sequencers index
+    /// @param signature The BLS signature
     function commitBatch(
         BatchData calldata batchData,
-        uint32 minGasLimit
+        uint256 version,
+        uint256[] memory sequencerIndex,
+        bytes memory signature
     ) external payable;
 
     /// @notice Revert a pending batch.

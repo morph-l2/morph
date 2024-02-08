@@ -79,10 +79,106 @@ contract SubmitterTest is L2StakingBaseTest {
         assertEq(batchInfo.rollupTime, rollupTime);
     }
 
-    function testUpdateEpoch() external {
-        hevm.expectEmit(true, true, true, true);
-        emit EpochUpdated(l2Gov.rollupEpoch(), SEQUENCER_SIZE);
+    function test_getTurn() external {
+        uint256 start;
+        uint256 end;
 
-        l2Submitter.updateEpochExternal();
+        hevm.warp(1841071100);
+        emit log_uint(block.timestamp);
+        (start, end) = l2Submitter.getTurn(
+            address(0x000000000000000000000000000000000000000A)
+        );
+        emit log_address(address(0x000000000000000000000000000000000000000A));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(
+            address(0x000000000000000000000000000000000000000b)
+        );
+        emit log_address(address(0x000000000000000000000000000000000000000b));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(
+            address(0x000000000000000000000000000000000000000C)
+        );
+        emit log_address(address(0x000000000000000000000000000000000000000C));
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841074440);
+        emit log_uint(block.timestamp);
+        (start, end) = l2Submitter.getTurn(
+            address(0x000000000000000000000000000000000000000A)
+        );
+        emit log_address(address(0x000000000000000000000000000000000000000A));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(
+            address(0x000000000000000000000000000000000000000b)
+        );
+        emit log_address(address(0x000000000000000000000000000000000000000b));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(
+            address(0x000000000000000000000000000000000000000C)
+        );
+        emit log_address(address(0x000000000000000000000000000000000000000C));
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+    }
+
+    function test_getNextSubmitter() external {
+        address submitter;
+        uint256 start;
+        uint256 end;
+
+        hevm.warp(1841071100);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841072220);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841073330);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841074440);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841075550);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841076660);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
     }
 }

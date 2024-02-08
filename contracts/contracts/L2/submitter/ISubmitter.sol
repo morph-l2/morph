@@ -46,7 +46,7 @@ interface ISubmitter {
     // ============================================================================
 
     /**
-     * @notice set rollup acknowledge, only call by bridge
+     * @notice set rollup acknowledge
      */
     function ackRollup(
         uint256 batchIndex,
