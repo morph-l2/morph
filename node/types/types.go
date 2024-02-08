@@ -21,3 +21,12 @@ func DecodeNonce(encodedNonce *big.Int) (uint64, error) {
 	}
 	return decoded.Uint64(), nil
 }
+
+func IsAllZero(s []byte) bool {
+	for _, v := range s {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}

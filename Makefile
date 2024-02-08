@@ -19,7 +19,7 @@ build:
 	cd ops/docker && docker compose build
 
 base_image:
-	cd opsdocker && docker build -t morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 . -f go-rust-builder.Dockerfile
+	cd ops/docker && docker build -t morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 . -f go-rust-builder.Dockerfile
 
 ################## devnet 4 nodes ####################
 

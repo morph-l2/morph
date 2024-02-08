@@ -3,9 +3,10 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/tendermint/tendermint/libs/rand"
 	"math/big"
 	"testing"
+
+	"github.com/tendermint/tendermint/libs/rand"
 
 	"github.com/scroll-tech/go-ethereum/core/types"
 

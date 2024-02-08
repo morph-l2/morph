@@ -233,6 +233,9 @@ func (cks *Chunks) SealTxPayloadForBlob() []byte {
 		}
 		bytes = append(bytes, ck.sealedPayload...)
 	}
+	if IsAllZero(bytes) {
+		bytes = nil
+	}
 	return bytes
 }
 
