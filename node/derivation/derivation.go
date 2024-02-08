@@ -382,7 +382,7 @@ func parseChunk(chunkBytes []byte) (*types.Chunk, error) {
 	if err := binary.Read(reader, binary.BigEndian, &txsPayload); err != nil {
 		return nil, err
 	}
-	chunk := types.NewChunk(blockCtx, txsPayload, nil, nil)
+	chunk := types.NewChunk(blockCtx, txsPayload, nil, nil, nil)
 	chunk.ResetBlockNum(int(blockNum))
 	return chunk, nil
 }
@@ -415,7 +415,7 @@ func ParseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 			return nil, fmt.Errorf("parse chunk error:%v", err)
 		}
 		rollupData.blockNum += uint64(chunk.BlockNum())
-		chunks.Append(chunk.BlockContext(), chunk.TxsPayload(), nil, nil)
+		chunks.Append(chunk.BlockContext(), chunk.TxsPayload(), nil, nil, nil)
 		ck := Chunk{}
 		var txsNum uint64
 		var l1MsgNum uint64
