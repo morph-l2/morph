@@ -18,51 +18,18 @@ volumes:
   validator_node_data:
 
 services:
-#  l1:
-#    container_name: l1-geth
-#    build:
-#      context: ../..
-#      dockerfile: ops/docker/Dockerfile.l1
-#    image: morph-l1:latest
-#    ports:
-#      - "9545:8545"
-#      - "9546:8546"
-#      - "7060:6060"
-#    volumes:
-#      - "l1_geth_data:/db"
-#      - "${PWD}/jwt-secret.txt:/config/jwt-secret.txt"
-#      - "${PWD}/../L2-genesis/.devnet/genesis-l1.json:/genesis.json"
-
-  chain-genesis:
-    container_name: l1-chain-genesis
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l1-beacon
-      target: create-beacon-chain-genesis
-    image: morph-l1-chain-genesis:latest
-    volumes:
-      - l1_consensus:/consensus
-      - l1_execution:/execution
-
-    # Sets up the genesis configuration for the go-ethereum client from a JSON file.
-  geth-genesis:
-    container_name: l1-geth-genesis
-    image: ethereum/client-go:latest
-    command: --datadir=/execution init /execution/genesis.json
-    depends_on:
-      chain-genesis:
-        condition: service_completed_successfully
-    volumes:
-      - l1_consensus:/consensus
-      - l1_execution:/execution
-
     # Runs a Prysm beacon chain from a specified genesis state created in the previous step
     # and connects to go-ethereum in the same network as the execution client.
     # The account used in go-ethereum is set as the suggested fee recipient for transactions
     # proposed via the validators attached to the beacon node.
   beacon-chain:
       container_name: l1-beacon-chain
-      image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1
+#      image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1
+      image: morph-beacon-chain
+      build:
+        context: ../..
+        dockerfile: ops/docker/Dockerfile.l1-beacon
+        target: beacon-chain
       command:
         - --datadir=/consensus/beacondata
         - --min-sync-peers=0
@@ -81,9 +48,9 @@ services:
         - --minimum-peers-per-subnet=0
         - --enable-debug-rpc-endpoints
         - --force-clear-db
-      depends_on:
-        chain-genesis:
-          condition: service_completed_successfully
+#      depends_on:
+#        chain-genesis:
+#          condition: service_completed_successfully
       ports:
         - 4000:4000
         - 3500:3500
@@ -143,8 +110,8 @@ services:
       - 9545:8545
       - 9546:8546
     depends_on:
-      geth-genesis:
-        condition: service_completed_successfully
+#      geth-genesis:
+#        condition: service_completed_successfully
       beacon-chain:
         condition: service_started
       validator:
