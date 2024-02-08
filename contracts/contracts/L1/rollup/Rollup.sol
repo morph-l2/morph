@@ -596,11 +596,13 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             require(ret, "verify 4844-proof failed");
 
             // verify batch
-            // _newPublicInputHash = H(_publicInputHash, y)
+            // _newPublicInputHash = H(_publicInputHash | x | y)
             IRollupVerifier(verifier).verifyAggregateProof(
                 _batchIndex,
                 _aggrProof,
-                keccak256(abi.encodePacked(_publicInputHash, _kzgData[0:32]))
+                keccak256(
+                    abi.encodePacked(_publicInputHash, _xBytes, _kzgData[0:32])
+                )
             );
             _defenderWin(
                 _batchIndex,
