@@ -530,8 +530,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     // proveState proves a batch by submitting a proof.
-    // _kzgData: y(32) | commitment(48) | proof(48)
-    //
+    // _kzgData: [y(32) | commitment(48) | proof(48)]
     function proveState(
         uint64 _batchIndex,
         bytes calldata _aggrProof,
@@ -577,9 +576,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             bytes memory _xBytes = abi.encode(
                 keccak256(abi.encodePacked(_commitment, _publicInputHash))
             );
+            // make sure x < BLS_MODULUS
             _xBytes[0] = 0x0;
 
-            // versioned_hash | x | y | commitment | proof |
+            // [versioned_hash | x | y | commitment | proof]
             // with x and y being padded 32 byte big endian values
             bytes memory _input = abi.encode(blobhash(0), _xBytes, _kzgData);
 
