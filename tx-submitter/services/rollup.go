@@ -447,13 +447,13 @@ func (sr *SR) rollup() error {
 	tx := types.NewTx(&types.BlobTx{
 		ChainID:    uint256.MustFromBig(sr.chainId),
 		Nonce:      nonce,
-		GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64() * 100)),
-		GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64() * 100)),
+		GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
+		GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
 		Gas:        5000000,
 		To:         sr.rollupAddr,
 		Value:      uint256.NewInt(0),
 		Data:       calldata,
-		BlobFeeCap: uint256.NewInt(100e10),
+		BlobFeeCap: uint256.NewInt(10e10),
 		BlobHashes: versionedHashes,
 		Sidecar: &types.BlobTxSidecar{
 			Blobs:       batch.Sidecar.Blobs,
