@@ -241,26 +241,21 @@ func (sr *SR) finalize() error {
 	err = sr.L1Client.SendTransaction(context.Background(), newSignedTx)
 	if err != nil {
 		log.Info("send tx error", "error", err.Error())
-		switch err.Error() {
-		case
-			core.ErrReplaceUnderpriced.Error(),
-			core.ErrAlreadyKnown.Error():
-
+		// ErrReplaceUnderpriced,ErrAlreadyKnown
+		if utils.ErrStringMatch(err, core.ErrReplaceUnderpriced) ||
+			utils.ErrStringMatch(err, core.ErrAlreadyKnown) {
 			receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
 			if err != nil {
 				return fmt.Errorf("replace tx error:%v", err)
 			} else {
 				log.Info("replace tx success")
 			}
-		case core.ErrGasLimit.Error():
-			log.Error("tx exceeds block gas limit",
-				"gas", newSignedTx.Gas(),
-				"finalize_cnt", finalizeCnt,
-			)
+		} else if utils.ErrStringMatch(err, core.ErrGasLimit) { // ErrGasLimit
+			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "finalize_cnt", finalizeCnt)
 			return fmt.Errorf("send tx error:%v", err.Error())
-		case core.ErrNonceTooLow.Error():
+		} else if utils.ErrStringMatch(err, core.ErrNonceTooLow) { //ErrNonceTooLow
 			return fmt.Errorf("send tx error:%v", err.Error())
-		default:
+		} else {
 			return fmt.Errorf("send tx error:%v", err.Error())
 		}
 	} else {
@@ -284,7 +279,7 @@ func (sr *SR) finalize() error {
 		receipt, err = sr.waitReceiptWithTimeout(sr.txTimout, newSignedTx.Hash())
 		if err != nil {
 			log.Error("wait receipt error", "error", err.Error())
-			if err.Error() == "timeout" {
+			if utils.ErrStringMatch(err, errors.New("timeout")) {
 				receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
 				if err != nil {
 					return fmt.Errorf("replace tx error:%v", err)
@@ -418,7 +413,7 @@ func (sr *SR) rollup() error {
 		Signature:              *signature,
 	}
 
-	calldata, err := sr.abi.Pack("commitBatch", rollupBatch, minGasLimit)
+	calldata, err := sr.abi.Pack("commitBatch", rollupBatch, uint32(minGasLimit))
 	if err != nil {
 		return fmt.Errorf("pack calldata error:%v", err)
 	}
@@ -435,10 +430,6 @@ func (sr *SR) rollup() error {
 	if err != nil {
 		return fmt.Errorf("dial ethclient error:%v", err)
 	}
-	tip, err := sr.L1Client.SuggestGasTipCap(context.Background())
-	if err != nil {
-		return fmt.Errorf("get gas tip cap error:%v", err)
-	}
 
 	// versioned hashes
 	versionedHashes := make([]common.Hash, 0)
@@ -454,16 +445,15 @@ func (sr *SR) rollup() error {
 
 	// blob tx
 	tx := types.NewTx(&types.BlobTx{
-		ChainID: uint256.MustFromBig(sr.chainId),
-		Nonce:   uint64(0),
-		// GasTipCap:  uint256.MustFromBig(big.NewInt(2000000008)),
-		GasTipCap:  uint256.MustFromBig(tip),
-		GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+		ChainID:    uint256.MustFromBig(sr.chainId),
+		Nonce:      nonce,
+		GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64() * 100)),
+		GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64() * 100)),
 		Gas:        5000000,
 		To:         sr.rollupAddr,
 		Value:      uint256.NewInt(0),
 		Data:       calldata,
-		BlobFeeCap: uint256.NewInt(0),
+		BlobFeeCap: uint256.NewInt(100e10),
 		BlobHashes: versionedHashes,
 		Sidecar: &types.BlobTxSidecar{
 			Blobs:       batch.Sidecar.Blobs,
@@ -472,14 +462,13 @@ func (sr *SR) rollup() error {
 		},
 	})
 
-	signedTx, err := types.SignTx(tx, types.NewLondonSignerWithEIP4844(sr.chainId), sr.privKey)
+	newTx, err := UpdateGasLimit(tx)
+	if err != nil {
+		return fmt.Errorf("update gaslimit error:%v", err)
+	}
+	newSignedTx, err := types.SignTx(newTx, types.NewLondonSignerWithEIP4844(sr.chainId), sr.privKey)
 	if err != nil {
 		return fmt.Errorf("sign tx error:%v", err)
-	}
-
-	newSignedTx, err := UpdateGasLimit(signedTx)
-	if err != nil {
-		return fmt.Errorf("estimate gas error:%v", err)
 	}
 
 	tx_send_time := time.Now().Unix()
@@ -487,25 +476,44 @@ func (sr *SR) rollup() error {
 	err = sr.L1Client.SendTransaction(context.Background(), newSignedTx)
 	if err != nil {
 		log.Info("send tx error", "error", err.Error())
-		switch err.Error() {
-		case
-			core.ErrReplaceUnderpriced.Error(),
-			core.ErrAlreadyKnown.Error():
 
+		// ErrReplaceUnderpriced,ErrAlreadyKnown
+		if utils.ErrStringMatch(err, core.ErrReplaceUnderpriced) ||
+			utils.ErrStringMatch(err, core.ErrAlreadyKnown) {
 			receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
 			if err != nil {
 				return fmt.Errorf("replace tx error:%v", err)
 			} else {
 				log.Info("replace tx success")
 			}
-		case core.ErrGasLimit.Error():
+		} else if utils.ErrStringMatch(err, core.ErrGasLimit) { // ErrGasLimit
 			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "chunks_len", len(batch.Chunks))
 			return fmt.Errorf("send tx error:%v", err.Error())
-		case core.ErrNonceTooLow.Error():
+		} else if utils.ErrStringMatch(err, core.ErrNonceTooLow) { //ErrNonceTooLow
 			return fmt.Errorf("send tx error:%v", err.Error())
-		default:
+		} else {
 			return fmt.Errorf("send tx error:%v", err.Error())
 		}
+
+		// switch err.Error() {
+		// case
+		// 	core.ErrReplaceUnderpriced.Error(),
+		// 	core.ErrAlreadyKnown.Error():
+
+		// 	receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+		// 	if err != nil {
+		// 		return fmt.Errorf("replace tx error:%v", err)
+		// 	} else {
+		// 		log.Info("replace tx success")
+		// 	}
+		// case core.ErrGasLimit.Error():
+		// 	log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "chunks_len", len(batch.Chunks))
+		// 	return fmt.Errorf("send tx error:%v", err.Error())
+		// case core.ErrNonceTooLow.Error():
+		// 	return fmt.Errorf("send tx error:%v", err.Error())
+		// default:
+		// 	return fmt.Errorf("send tx error:%v", err.Error())
+		// }
 	} else {
 		log.Info("tx sent",
 			// for business
@@ -520,6 +528,8 @@ func (sr *SR) rollup() error {
 			"gas_price", newSignedTx.GasPrice().String(),
 			"tip", newSignedTx.GasTipCap().String(),
 			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"blob_fee_cap", newSignedTx.BlobGasFeeCap(),
+			"blob_gas", newSignedTx.BlobGas(),
 		)
 	}
 
@@ -528,7 +538,8 @@ func (sr *SR) rollup() error {
 		receipt, err = sr.waitReceiptWithTimeout(sr.txTimout, newSignedTx.Hash())
 		if err != nil {
 			log.Error("wait receipt error", "error", err.Error())
-			if err.Error() == "timeout" {
+
+			if utils.ErrStringMatch(err, errors.New("timeout")) {
 				receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
 				if err != nil {
 					return fmt.Errorf("replace tx error:%v", err)
@@ -797,6 +808,21 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 			Value:     tx.Value(),
 			Data:      tx.Data(),
 		})
+	} else if tx.Type() == types.BlobTxType {
+		newTx = types.NewTx(&types.BlobTx{
+			ChainID:    uint256.MustFromBig(tx.ChainId()),
+			Nonce:      tx.Nonce(),
+			GasTipCap:  uint256.MustFromBig(big.NewInt(tx.GasTipCap().Int64())),
+			GasFeeCap:  uint256.MustFromBig(big.NewInt(tx.GasFeeCap().Int64())),
+			Gas:        newGasLimit,
+			To:         *tx.To(),
+			Value:      uint256.MustFromBig(tx.Value()),
+			Data:       tx.Data(),
+			BlobFeeCap: uint256.MustFromBig(tx.BlobGasFeeCap()),
+			BlobHashes: tx.BlobHashes(),
+			Sidecar:    tx.BlobTxSidecar(),
+		})
+
 	} else {
 		return nil, fmt.Errorf("unknown tx type:%v", tx.Type())
 	}
@@ -876,7 +902,8 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 		if err != nil { // tx rejected
 			log.Error("send replace tx", "err", err)
 			// if not underprice return
-			if err.Error() != core.ErrReplaceUnderpriced.Error() {
+
+			if !utils.ErrStringMatch(err, core.ErrReplaceUnderpriced) {
 				return nil, nil, fmt.Errorf("send tx in replace error:%v", err.Error())
 			}
 		} else { // tx into mempool
