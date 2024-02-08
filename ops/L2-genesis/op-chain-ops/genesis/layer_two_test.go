@@ -16,8 +16,6 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		L1ChainID: 900,
 		L2ChainID: 53077,
 
-		FinalizationPeriodSeconds: 1,
-
 		ProxyAdminOwner:             address1,
 		FinalSystemOwner:            address1,
 		L1SequencerProxy:            address1,

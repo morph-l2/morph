@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {L1MessageQueue} from "../L1/rollup/L1MessageQueue.sol";
 import {IRollup} from "../L1/rollup/IRollup.sol";

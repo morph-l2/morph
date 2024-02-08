@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {MockERC721} from "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
 import {ERC721TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC721.sol";

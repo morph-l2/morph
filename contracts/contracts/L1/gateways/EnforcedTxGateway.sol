@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ECDSAUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
@@ -12,7 +12,12 @@ import {IL1MessageQueue} from "../rollup/IL1MessageQueue.sol";
 
 // solhint-disable reason-string
 
-contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, EIP712Upgradeable {
+contract EnforcedTxGateway is
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    EIP712Upgradeable
+{
     /**********
      * Events *
      **********/
@@ -55,7 +60,10 @@ contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, Pa
         _disableInitializers();
     }
 
-    function initialize(address _queue, address _feeVault) external initializer {
+    function initialize(
+        address _queue,
+        address _feeVault
+    ) external initializer {
         OwnableUpgradeable.__Ownable_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
         PausableUpgradeable.__Pausable_init();
@@ -92,9 +100,19 @@ contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, Pa
         bytes calldata _data
     ) external payable whenNotPaused {
         // solhint-disable-next-line avoid-tx-origin
-        require(msg.sender == tx.origin, "Only EOA senders are allowed to send enforced transaction");
+        require(
+            msg.sender == tx.origin,
+            "Only EOA senders are allowed to send enforced transaction"
+        );
 
-        _sendTransaction(msg.sender, _target, _value, _gasLimit, _data, msg.sender);
+        _sendTransaction(
+            msg.sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data,
+            msg.sender
+        );
     }
 
     /// @notice Add an enforced transaction to L2.
@@ -122,7 +140,16 @@ contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, Pa
 
         uint256 _nonce = nonces[_sender];
         bytes32 _structHash = keccak256(
-            abi.encode(_ENFORCED_TX_TYPEHASH, _sender, _target, _value, _gasLimit, keccak256(_data), _nonce, _deadline)
+            abi.encode(
+                _ENFORCED_TX_TYPEHASH,
+                _sender,
+                _target,
+                _value,
+                _gasLimit,
+                keccak256(_data),
+                _nonce,
+                _deadline
+            )
         );
         unchecked {
             nonces[_sender] = _nonce + 1;
@@ -134,7 +161,14 @@ contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, Pa
         // no need to check `_signer != address(0)`, since it is checked in `recover`.
         require(_signer == _sender, "Incorrect signature");
 
-        _sendTransaction(_sender, _target, _value, _gasLimit, _data, _refundAddress);
+        _sendTransaction(
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data,
+            _refundAddress
+        );
     }
 
     /************************
@@ -182,7 +216,8 @@ contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, Pa
         address _messageQueue = messageQueue;
 
         // charge fee
-        uint256 _fee = IL1MessageQueue(_messageQueue).estimateCrossDomainMessageFee(_gasLimit);
+        uint256 _fee = IL1MessageQueue(_messageQueue)
+            .estimateCrossDomainMessageFee(_gasLimit);
         require(msg.value >= _fee, "Insufficient value for fee");
         if (_fee > 0) {
             (bool _success, ) = feeVault.call{value: _fee}("");
@@ -190,7 +225,13 @@ contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, Pa
         }
 
         // append transaction
-        IL1MessageQueue(_messageQueue).appendEnforcedTransaction(_sender, _target, _value, _gasLimit, _data);
+        IL1MessageQueue(_messageQueue).appendEnforcedTransaction(
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
 
         // refund fee to `_refundAddress`
         unchecked {
