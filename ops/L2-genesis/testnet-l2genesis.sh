@@ -11,8 +11,8 @@ fi
 
 if [[ -z "$L1_RPC" ]]; then
   # the environment variable is missing, set a default value
-  echo "L1_RPC is missing, using default value: http://10.11.63.110:8545"
-  L1_RPC="http://10.11.63.110:8545"
+  echo "L1_RPC is missing, using default value: http://sepolia-testnet"
+  L1_RPC="http://sepolia-testnet:8545"
 fi
 
 cat "deploy-config/testnet-deploy-config.json" > $TESTNET/testnet-deploy-config.json
