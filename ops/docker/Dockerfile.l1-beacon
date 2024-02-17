@@ -1,6 +1,6 @@
 FROM --platform=linux/amd64 ubuntu:20.04 as chain-genesis
 RUN apt-get update && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime && apt-get install build-essential curl wget git make pkg-config -y
-RUN curl -o prysmctl -fLO https://github.com/prysmaticlabs/prysm/releases/download/v4.2.2-rc.0/prysmctl-v4.2.2-rc.0-linux-amd64
+RUN curl -o prysmctl -fLO https://github.com/prysmaticlabs/prysm/releases/download/v4.2.1/prysmctl-v4.2.1-linux-amd64
 RUN chmod +x prysmctl
 COPY ops/docker/consensus /consensus
 COPY ops/docker/execution /execution
@@ -11,7 +11,7 @@ COPY --from=chain-genesis /execution /execution
 RUN geth --datadir=/execution init /execution/genesis.json
 
 
-FROM gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1 as beacon-chain
+FROM gcr.io/prysmaticlabs/prysm/beacon-chain:v4.2.1 as beacon-chain
 COPY --from=chain-genesis /consensus /consensus
 COPY --from=geth-genesis /execution /execution
 
