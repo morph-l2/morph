@@ -357,7 +357,7 @@ func (e *Executor) PackCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes
 	if e.batchingCache.chunks == nil {
 		e.batchingCache.chunks = types.NewChunks()
 	}
-	e.batchingCache.chunks.Append(e.batchingCache.currentBlockContext, e.batchingCache.currentTxsPayload, e.batchingCache.currentL2TxsHashes, e.batchingCache.currentTxsHashes, e.batchingCache.currentRowConsumption)
+	e.batchingCache.chunks.Append(e.batchingCache.currentBlockContext, e.batchingCache.currentTxsPayload, e.batchingCache.currentTxsHashes, e.batchingCache.currentL2TxsHashes, e.batchingCache.currentRowConsumption)
 	e.batchingCache.skippedBitmap = e.batchingCache.skippedBitmapAfterCurBlock
 	e.batchingCache.totalL1MessagePopped = e.batchingCache.totalL1MessagePoppedAfterCurBlock
 	e.batchingCache.withdrawRoot = e.batchingCache.currentWithdrawRoot
