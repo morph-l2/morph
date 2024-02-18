@@ -24,7 +24,7 @@ services:
     # proposed via the validators attached to the beacon node.
   beacon-chain:
       container_name: l1-beacon-chain
-#      image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1
+#      image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.2.1
       image: morph-beacon-chain
       build:
         context: ../..
@@ -65,7 +65,7 @@ services:
     # The validator keys present in the beacon chain genesis state generated a few steps above.
   validator:
     container_name: l1-validator
-    image: gcr.io/prysmaticlabs/prysm/validator:v4.1.1
+    image: gcr.io/prysmaticlabs/prysm/validator:v4.2.1
     command:
       - --beacon-rpc-provider=beacon-chain:4000
       - --datadir=/consensus/validatordata
