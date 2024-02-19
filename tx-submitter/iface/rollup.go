@@ -35,6 +35,7 @@ type IRollup interface {
 		TotalL1MessagePopped   *big.Int
 		SkippedL1MessageBitmap []byte
 		BlockNumber            *big.Int
+		BlobVersionedhash      [32]byte
 	}, error)
 }
 
