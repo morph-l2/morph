@@ -106,7 +106,6 @@ func (sr *SR) Start() {
 				}
 				sr.metrics.SetLastFinalizedBatchIndex(lastFinalized.Uint64())
 				sr.metrics.SetLastCommittedBatchIndex(lastCommited.Uint64())
-				sr.metrics.SetLastFinalizedCommitedBatchIndexDiff(lastCommited.Uint64() - lastFinalized.Uint64())
 
 				// get last rolluped l2 block
 				l2LatestBlockNumberRolluped, err := sr.Rollup.LatestL2BlockNumber(nil)
@@ -123,9 +122,6 @@ func (sr *SR) Start() {
 					continue
 				}
 				sr.metrics.SetL2BlockNumber(l2BlockNumber)
-
-				// diff
-				sr.metrics.SetL2BlockNumberDiff(l2BlockNumber - l2LatestBlockNumberRolluped.Uint64())
 
 				// get balacnce of wallet
 				balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
@@ -158,6 +154,9 @@ func (sr *SR) Start() {
 		}
 		if sr.Finalize {
 			if err := sr.finalize(); err != nil {
+				if utils.IsRpcErr(err) {
+					sr.metrics.IncRpcErrors()
+				}
 				log.Error("finalize failed", "error", err)
 			}
 			time.Sleep(5 * time.Second)
