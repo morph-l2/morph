@@ -2,18 +2,13 @@
 pragma solidity =0.8.24;
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {Constants} from "../libraries/constants/Constants.sol";
 import {CrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {ICrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {L2ToL1MessagePasser} from "./system/L2ToL1MessagePasser.sol";
 import {IL2CrossDomainMessenger} from "./IL2CrossDomainMessenger.sol";
 
-import {Semver} from "../libraries/common/Semver.sol";
-
 /**
- * @custom:proxied
- * @custom:predeploy 0x4200000000000000000000000000000000000007
  * @title L2CrossDomainMessenger
  * @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
  *         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
@@ -21,9 +16,15 @@ import {Semver} from "../libraries/common/Semver.sol";
  */
 contract L2CrossDomainMessenger is
     CrossDomainMessenger,
-    IL2CrossDomainMessenger,
-    Semver
+    IL2CrossDomainMessenger
 {
+    /*************
+     * Constants *
+     *************/
+
+    /// @notice The address of L2ToL1MessagePasser.
+    address public immutable messagePasser;
+
     /*************
      * Variables *
      *************/
@@ -41,13 +42,17 @@ contract L2CrossDomainMessenger is
      * Constructor *
      ***************/
 
-    constructor() Semver(1, 0, 0) {
+    constructor(
+        address _counterpart,
+        address _messagePasser
+    ) CrossDomainMessenger(_counterpart) {
+        if (_messagePasser == address(0)) revert ErrZeroAddress();
         _disableInitializers();
+        messagePasser = _messagePasser;
     }
 
-    function initialize(address _counterpart) external initializer {
-        if (_counterpart == address(0)) revert ErrZeroAddress();
-        __Messenger_init(_counterpart, address(0));
+    function initialize() external initializer {
+        __Messenger_init(address(0));
     }
 
     /*****************************
@@ -107,9 +112,7 @@ contract L2CrossDomainMessenger is
         override(ICrossDomainMessenger, CrossDomainMessenger)
         returns (uint256)
     {
-        return
-            L2ToL1MessagePasser(Predeploys.L2_TO_L1_MESSAGE_PASSER)
-                .leafNodesCount();
+        return L2ToL1MessagePasser(messagePasser).leafNodesCount();
     }
 
     /**********************
@@ -129,7 +132,6 @@ contract L2CrossDomainMessenger is
     ) internal nonReentrant {
         require(msg.value == _value, "msg.value mismatch");
 
-        address messagePasser = Predeploys.L2_TO_L1_MESSAGE_PASSER;
         uint256 _nonce = L2ToL1MessagePasser(messagePasser).leafNodesCount();
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(_msgSender(), _to, _value, _nonce, _message)
@@ -168,10 +170,7 @@ contract L2CrossDomainMessenger is
         bytes32 _xDomainCalldataHash
     ) internal {
         // @note check more `_to` address to avoid attack in the future when we add more gateways.
-        require(
-            _to != Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            "Forbid to call l2 to l1 message passer"
-        );
+        require(_to != messagePasser, "Forbid to call l2 to l1 message passer");
         _validateTargetAddress(_to);
 
         // @note This usually will never happen, just in case.
