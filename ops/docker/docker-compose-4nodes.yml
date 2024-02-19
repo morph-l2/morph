@@ -437,6 +437,8 @@ services:
   validator_node:
     container_name: validator_node
     depends_on:
+      validator_geth:
+        condition: service_started
       tx-submitter:
         condition: service_started
     build:
