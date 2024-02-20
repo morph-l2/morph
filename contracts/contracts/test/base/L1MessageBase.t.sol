@@ -6,6 +6,7 @@ import {Proxy} from "../../libraries/proxy/Proxy.sol";
 import {L2GasPriceOracle} from "../../L1/rollup/L2GasPriceOracle.sol";
 import {L1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
 import {L1MessageQueue} from "../../L1/rollup/L1MessageQueue.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {Rollup} from "../../L1/rollup/Rollup.sol";
 import {IRollup} from "../../L1/rollup/IRollup.sol";
 import {MockZkEvmVerifier} from "../../mock/MockZkEvmVerifier.sol";
@@ -43,9 +44,10 @@ contract L1MessageBaseTest is CommonTest {
     L1MessageQueue l1MessageQueue;
     L1MessageQueue l1MessageQueueImpl;
     uint256 l1MessageQueue_maxGasLimit = 100000000;
-    bytes32 l1MessageQueue_messenger = bytes32(uint256(101));
-    bytes32 l1MessageQueue_rollup = bytes32(uint256(102));
     uint32 defaultGasLimit = 1000000;
+
+    // L1MessageQueueWithGasPriceOracle config
+    L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracle;
 
     // L1CrossDomainMessenger config
     event SentMessage(
@@ -71,6 +73,7 @@ contract L1MessageBaseTest is CommonTest {
         Proxy rollupProxy = new Proxy(multisig);
         Proxy l1MessageQueueProxy = new Proxy(multisig);
         Proxy l1CrossDomainMessengerProxy = new Proxy(multisig);
+        Proxy l1MessageQueueWithGasPriceOracleProxy = new Proxy(multisig);
 
         // deploy mock verifier
         verifier = new MockZkEvmVerifier();
@@ -78,9 +81,18 @@ contract L1MessageBaseTest is CommonTest {
         l2GasPriceOracleImpl = new L2GasPriceOracle();
         rollupImpl = new Rollup(
             layer2ChainId,
-            payable(address(l1MessageQueueProxy))
+            payable(address(l1CrossDomainMessengerProxy))
         );
-        l1MessageQueueImpl = new L1MessageQueue();
+        l1MessageQueueImpl = new L1MessageQueue(
+            payable(address(l1CrossDomainMessengerProxy)),
+            address(rollupProxy),
+            address(alice)
+        );
+        L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
+                payable(address(l1CrossDomainMessengerProxy)),
+                address(rollupProxy),
+                address(alice)
+            );
         l1CrossDomainMessengerImpl = new L1CrossDomainMessenger();
         // upgrade and initialize
         l2GasPriceOraclePorxy.upgradeToAndCall(
@@ -97,7 +109,7 @@ contract L1MessageBaseTest is CommonTest {
             address(rollupImpl),
             abi.encodeWithSelector(
                 Rollup.initialize.selector,
-                address(l1MessageQueueProxy), // _messageQueue
+                address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
                 address(verifier), // _verifier
                 maxNumTxInChunk, // _maxNumTxInChunk
                 MIN_DEPOSIT, // _minDeposit
@@ -109,9 +121,14 @@ contract L1MessageBaseTest is CommonTest {
             address(l1MessageQueueImpl),
             abi.encodeWithSelector(
                 L1MessageQueue.initialize.selector,
-                address(l1CrossDomainMessengerProxy), // _messenger
-                address(rollupProxy), // _rollup
-                address(NON_ZERO_ADDRESS), // _enforcedTxGateway
+                address(l2GasPriceOraclePorxy), // _gasOracle
+                l1MessageQueue_maxGasLimit // gasLimit
+            )
+        );
+        l1MessageQueueWithGasPriceOracleProxy.upgradeToAndCall(
+            address(l1MessageQueueWithGasPriceOracleImpl),
+            abi.encodeWithSelector(
+                L1MessageQueue.initialize.selector,
                 address(l2GasPriceOraclePorxy), // _gasOracle
                 l1MessageQueue_maxGasLimit // gasLimit
             )
@@ -122,7 +139,7 @@ contract L1MessageBaseTest is CommonTest {
                 L1CrossDomainMessenger.initialize.selector,
                 l1FeeVault, // feeVault
                 address(rollupProxy), // rollup
-                address(l1MessageQueueProxy) // messageQueue
+                address(l1MessageQueueWithGasPriceOracleProxy) // messageQueue
             )
         );
 
@@ -132,6 +149,13 @@ contract L1MessageBaseTest is CommonTest {
         );
         l1MessageQueue = L1MessageQueue(address(l1MessageQueueProxy));
         l2GasPriceOracle = L2GasPriceOracle(address(l2GasPriceOraclePorxy));
+        l1MessageQueueWithGasPriceOracle = L1MessageQueueWithGasPriceOracle(
+            address(l1MessageQueueWithGasPriceOracleProxy)
+        );
+        assertEq(
+            address(l1CrossDomainMessenger),
+            l1MessageQueueWithGasPriceOracle.messenger()
+        );
         assertEq(address(l1CrossDomainMessenger), l1MessageQueue.messenger());
 
         rollup.addSequencer(alice);

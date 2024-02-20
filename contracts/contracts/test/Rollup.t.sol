@@ -5,10 +5,11 @@ import {ChunkCodec} from "../libraries/codec/ChunkCodec.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {Rollup} from "../L1/rollup/Rollup.sol";
 import {IRollup} from "../L1/rollup/IRollup.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {Proxy} from "../libraries/proxy/Proxy.sol";
 
 contract RollupTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
-    bytes32 public l1MessagerIndex = bytes32(uint256(101));
     bytes32 stateRoot = bytes32(uint256(1));
 
     IRollup.BatchData public batchData;
@@ -363,8 +364,6 @@ contract RollupTest is L1MessageBaseTest {
         rollup.finalizeBatchs();
     }
 
-    // 0xa2277fd30bbbe74323309023b56035b376d7768ad237ae4fc46ead7dc9591ae1
-
     function testCommitAndFinalizeWithL1Messages() public {
         hevm.prank(multisig);
         rollup.addSequencer(address(0));
@@ -372,12 +371,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.prank(address(0));
         rollup.stake{value: MIN_DEPOSIT}();
 
-        // update l1MessageQueue l1Messager to caller
-        hevm.store(
-            address(l1MessageQueue),
-            bytes32(l1MessagerIndex),
-            bytes32(abi.encode(caller))
-        );
+        upgradeStorage(address(caller), address(rollup), address(alice));
         hevm.deal(caller, 5 * MIN_DEPOSIT);
         hevm.startPrank(caller);
 
@@ -385,7 +379,7 @@ contract RollupTest is L1MessageBaseTest {
 
         // import 300 L1 messages
         for (uint256 i = 0; i < 300; i++) {
-            l1MessageQueue.appendCrossDomainMessage(
+            l1MessageQueueWithGasPriceOracle.appendCrossDomainMessage(
                 address(caller),
                 1000000,
                 new bytes(0)
@@ -393,10 +387,10 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.stopPrank();
 
-        hevm.store(
-            address(l1MessageQueue),
-            bytes32(l1MessagerIndex),
-            bytes32(abi.encode(address(l1CrossDomainMessenger)))
+        upgradeStorage(
+            address(l1CrossDomainMessenger),
+            address(rollup),
+            address(alice)
         );
 
         // import genesis batch first
@@ -496,8 +490,8 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.finalizedStateRoots(1), stateRoot);
         assertEq(rollup.withdrawalRoots(bytes32(uint256(3))), 1);
         assertEq(rollup.lastFinalizedBatchIndex(), 1);
-        assertFalse(l1MessageQueue.isMessageSkipped(0));
-        assertEq(l1MessageQueue.pendingQueueIndex(), 1);
+        assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(0));
+        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
 
         // commit batch2 with two chunks, correctly
         // 1. chunk0 has one block, 3 tx, no L1 messages
@@ -681,25 +675,25 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.finalizedStateRoots(2), stateRoot);
         assertEq(rollup.withdrawalRoots(bytes32(uint256(5))), 2);
         assertEq(rollup.lastFinalizedBatchIndex(), 2);
-        assertEq(l1MessageQueue.pendingQueueIndex(), 265);
+        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 265);
         // 1 ~ 4, zero
         for (uint256 i = 1; i < 4; i++) {
-            assertFalse(l1MessageQueue.isMessageSkipped(i));
+            assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
         }
         // 4 ~ 9, even is nonzero, odd is zero
         for (uint256 i = 4; i < 9; i++) {
             if (i % 2 == 1 || i == 8) {
-                assertFalse(l1MessageQueue.isMessageSkipped(i));
+                assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
             } else {
-                assertTrue(l1MessageQueue.isMessageSkipped(i));
+                assertTrue(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
             }
         }
         // 9 ~ 265, even is nonzero, odd is zero
         for (uint256 i = 9; i < 265; i++) {
             if (i % 2 == 1 || i == 264) {
-                assertFalse(l1MessageQueue.isMessageSkipped(i));
+                assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
             } else {
-                assertTrue(l1MessageQueue.isMessageSkipped(i));
+                assertTrue(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
             }
         }
     }
@@ -1024,6 +1018,39 @@ contract RollupTest is L1MessageBaseTest {
             batchHeader,
             bytes32(uint256(1)),
             getTreeRoot()
+        );
+    }
+
+    function upgradeStorage(
+        address _messenger,
+        address _rollup,
+        address _enforcedTxGateway
+    ) public {
+        Proxy l1MessageQueueWithGasPriceOracleProxy = Proxy(
+            payable(address(l1MessageQueueWithGasPriceOracle))
+        );
+        L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
+                payable(_messenger), // _messenger
+                address(_rollup), // _rollup
+                address(_enforcedTxGateway) // _enforcedTxGateway
+            );
+        assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.messenger());
+        assertEq(_rollup, l1MessageQueueWithGasPriceOracleImpl.rollup());
+        assertEq(
+            _enforcedTxGateway,
+            l1MessageQueueWithGasPriceOracleImpl.enforcedTxGateway()
+        );
+
+        hevm.prank(multisig);
+        l1MessageQueueWithGasPriceOracleProxy.upgradeTo(
+            address(l1MessageQueueWithGasPriceOracleImpl)
+        );
+
+        assertEq(_messenger, l1MessageQueueWithGasPriceOracle.messenger());
+        assertEq(_rollup, l1MessageQueueWithGasPriceOracle.rollup());
+        assertEq(
+            _enforcedTxGateway,
+            l1MessageQueueWithGasPriceOracle.enforcedTxGateway()
         );
     }
 }
