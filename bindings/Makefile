@@ -15,6 +15,7 @@ bindings: l1-staking-bindings \
 	l1-weth-gateway-bindings \
 	l1-message-queue-bindings \
     l1-gas-price-oracle-bindings \
+	l1-message-queue-with-gas-price-oracle-bindings \
     morph-rollup-bindings \
     multiple-version-rollup-verifier-bindings \
 	address-manager-bindings \
@@ -82,6 +83,8 @@ l1-message-queue-bindings: compile
 	./gen_bindings.sh contracts/L1/rollup/L1MessageQueue.sol:L1MessageQueue $(pkg)
 l1-gas-price-oracle-bindings: compile
 	./gen_bindings.sh contracts/L1/rollup/L2GasPriceOracle.sol:L2GasPriceOracle $(pkg)
+l1-message-queue-with-gas-price-oracle-bindings: compile
+	./gen_bindings.sh contracts/L1/rollup/L1MessageQueueWithGasPriceOracle.sol:L1MessageQueueWithGasPriceOracle $(pkg)
 morph-rollup-bindings: compile
 	./gen_bindings.sh contracts/L1/rollup/Rollup.sol:Rollup $(pkg)
 multiple-version-rollup-verifier-bindings: compile
@@ -153,7 +156,7 @@ more: compile-forge
 	go run ./gen/main.go \
 		-artifacts ../contracts/artifacts \
 		-out ./bindings \
-		-contracts Staking,L1Sequencer,L2Sequencer,Gov,Submitter,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,L1MessageQueue,L2GasPriceOracle,Rollup,MultipleVersionRollupVerifier,AddressManager,L2CrossDomainMessenger,Submitter,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Gov,L2Sequencer,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,Proxy,ProxyAdmin,GovernanceToken,MintManager,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther \
+		-contracts L1MessageQueueWithGasPriceOracle,Staking,L1Sequencer,L2Sequencer,Gov,Submitter,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,L1MessageQueue,L2GasPriceOracle,Rollup,MultipleVersionRollupVerifier,AddressManager,L2CrossDomainMessenger,Submitter,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Gov,L2Sequencer,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,Proxy,ProxyAdmin,GovernanceToken,MintManager,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther \
 		-package bindings
 
 mkdir:
