@@ -379,13 +379,6 @@ func (sr *SR) rollup() error {
 		return nil
 	}
 
-	// log batch
-	// batchJson, err := json.Marshal(batch)
-	// if err != nil {
-	// 	return err
-	// }
-	// log.Info("batch info", "batch_index", index, "batch_json", string(batchJson))
-
 	if len(batch.Signatures) == 0 {
 		log.Info("length of batch signature is empty, wait for the next turn")
 		time.Sleep(time.Second * 3)
@@ -396,7 +389,6 @@ func (sr *SR) rollup() error {
 	// var blobChunk []byte
 	for _, chunk := range batch.Chunks {
 		chunks = append(chunks, chunk)
-		// blobChunk = append(blobChunk, chunk...)
 	}
 	signature, err := sr.aggregateSignatures(batch.Signatures)
 	if err != nil {
@@ -413,12 +405,6 @@ func (sr *SR) rollup() error {
 		Signature:              *signature,
 	}
 
-	calldata, err := sr.abi.Pack("commitBatch", rollupBatch, uint32(minGasLimit))
-	if err != nil {
-		return fmt.Errorf("pack calldata error:%v", err)
-	}
-	// var signedTx *types.Transaction
-
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
 	if err != nil {
 		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
@@ -431,14 +417,6 @@ func (sr *SR) rollup() error {
 		return fmt.Errorf("dial ethclient error:%v", err)
 	}
 
-	// versioned hashes
-
-	tip, gasFeeCap, err := sr.GetGasTipAndCap()
-	if err != nil {
-		return fmt.Errorf("get gas tip and cap error:%v", err)
-
-	}
-
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
@@ -447,6 +425,30 @@ func (sr *SR) rollup() error {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
 	} else {
+		sr.GetGasTipAndCap()
+
+		// tip and cap
+		tip, gasFeeCap, err := sr.GetGasTipAndCap()
+		if err != nil {
+			return fmt.Errorf("get gas tip and cap error:%v", err)
+		}
+		// calldata encode
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, uint32(minGasLimit))
+		if err != nil {
+			return fmt.Errorf("pack calldata error:%v", err)
+		}
+		// estimate gas
+		gas, err := sr.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
+			From:      opts.From,
+			To:        &sr.rollupAddr,
+			GasFeeCap: gasFeeCap,
+			GasTipCap: tip,
+			Data:      calldata,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to estimate gas: %w", err)
+		}
+
 		versionedHashes := make([]common.Hash, 0)
 		for _, commit := range batch.Sidecar.Commitments {
 			versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
@@ -456,7 +458,7 @@ func (sr *SR) rollup() error {
 			Nonce:      nonce,
 			GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
 			GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
-			Gas:        5000000,
+			Gas:        gas,
 			To:         sr.rollupAddr,
 			Value:      uint256.NewInt(0),
 			Data:       calldata,
@@ -470,6 +472,7 @@ func (sr *SR) rollup() error {
 		})
 	}
 
+	// add a buffer to the gas limit
 	newTx, err := UpdateGasLimit(tx)
 	if err != nil {
 		return fmt.Errorf("update gaslimit error:%v", err)
@@ -511,26 +514,6 @@ func (sr *SR) rollup() error {
 		} else {
 			return fmt.Errorf("send tx error:%v", err.Error())
 		}
-
-		// switch err.Error() {
-		// case
-		// 	core.ErrReplaceUnderpriced.Error(),
-		// 	core.ErrAlreadyKnown.Error():
-
-		// 	receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
-		// 	if err != nil {
-		// 		return fmt.Errorf("replace tx error:%v", err)
-		// 	} else {
-		// 		log.Info("replace tx success")
-		// 	}
-		// case core.ErrGasLimit.Error():
-		// 	log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "chunks_len", len(batch.Chunks))
-		// 	return fmt.Errorf("send tx error:%v", err.Error())
-		// case core.ErrNonceTooLow.Error():
-		// 	return fmt.Errorf("send tx error:%v", err.Error())
-		// default:
-		// 	return fmt.Errorf("send tx error:%v", err.Error())
-		// }
 	} else {
 		log.Info("tx sent",
 			// for business
@@ -664,6 +647,13 @@ func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
 	} else {
 		gasFeeCap = new(big.Int).Set(tip)
 	}
+
+	// todo: rt blob fee cap after CalcBlobFee ready
+	// calc blob fee cap
+	// var blobFee *big.Int
+	// if head.ExcessBlobGas != nil {
+	// 	blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+	// }
 	return tip, gasFeeCap, nil
 }
 
