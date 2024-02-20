@@ -415,7 +415,7 @@ services:
     container_name: validator_geth
     image: sentry-geth:latest
     depends_on:
-      tx-submitter:
+      tx-submitter-0:
         condition: service_started
     ports:
       - "7545:8545"
@@ -437,8 +437,8 @@ services:
   validator_node:
     container_name: validator_node
     depends_on:
-      tx-submitter:
-        condition: service_started
+      validator_geth:
+          condition: service_started
     build:
       context: ../..
       dockerfile: ops/docker/Dockerfile.l2-node-1
@@ -471,10 +471,10 @@ services:
       --validator
       --home $NODE_DATA_DIR
 
-  tx-submitter:
-    container_name: tx-submitter
+  tx-submitter-0:
+    container_name:   tx-submitter-0
     depends_on:
-      node-3:
+      node-0:
         condition: service_started
     build:
       context: ../..
@@ -511,7 +511,7 @@ services:
   tx-submitter-1:
     container_name: tx-submitter-1
     depends_on:
-      node-3:
+      node-1:
         condition: service_started
     build:
       context: ../..
@@ -549,7 +549,7 @@ services:
   tx-submitter-2:
     container_name: tx-submitter-2
     depends_on:
-      node-3:
+      node-2:
         condition: service_started
     build:
       context: ../..
