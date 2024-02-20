@@ -59,7 +59,6 @@ pub async fn update(
 
     // Step3. Update contract.
     update_base_fee(l1_base_fee, base_fee_on_l2, gas_threshold, &l2_oracle).await;
-    update_scalar(l1_gas_price, l1_base_fee, scalar, gas_threshold, l2_oracle).await;
 
     // Step4. Record wallet balance.
     let balance = match l2_provider.get_balance(l2_wallet, None).await {
@@ -98,40 +97,6 @@ async fn update_base_fee(
                 log::info!("tx of set_l1_base_fee has been sent: {:#?}", info.tx_hash());
             }
             Err(e) => log::error!("set_l1_base_fee error: {:#?}", e),
-        }
-    }
-}
-
-async fn update_scalar(
-    l1_gas_price: U256,
-    l1_base_fee: U256,
-    current_scalar: U256,
-    gas_threshold: u128,
-    l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
-) {
-    let scalar_ratio_from_l1 = l1_gas_price.as_u128() as f64 / l1_base_fee.as_u128() as f64;
-    let scalar_ratio_from_l2 = current_scalar.as_u128() as f64 / DEFAULT_SCALAR;
-    let scalar_diff = (scalar_ratio_from_l1 - scalar_ratio_from_l2).abs() * 100.0;
-
-    log::debug!(
-        "scalar_ratio_from_l1 is: {:#?}, scalar_ratio_from_l2 is: {:#?}, scalar_diff is: {:#?}%",
-        scalar_ratio_from_l1,
-        scalar_ratio_from_l2,
-        scalar_diff
-    );
-    if scalar_diff > gas_threshold as f64 {
-        // Set scalar for l2.
-        let scalar_expect = (DEFAULT_SCALAR * scalar_ratio_from_l1).ceil() as u128;
-        std::thread::sleep(Duration::from_millis(4000));
-        let tx = l2_oracle.set_scalar(U256::from(scalar_expect)).legacy();
-        let rt = tx.send().await;
-        match rt {
-            Ok(info) => {
-                log::info!("tx of set_scalar has been sent: {:#?}", info.tx_hash());
-                #[rustfmt::skip]
-                ORACLE_SERVICE_METRICS.scalar_ratio.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
-            }
-            Err(e) => log::error!("set scalar error: {:#?}", e),
         }
     }
 }
