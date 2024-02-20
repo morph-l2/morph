@@ -2,6 +2,11 @@
 pragma solidity =0.8.24;
 
 interface IRollup {
+    /***********
+     * Errors *
+     ***********/
+    error ErrZeroAddress();
+    
     /**********
      * Events *
      **********/
@@ -42,14 +47,6 @@ interface IRollup {
     /// @param account The address of account updated.
     /// @param status The status of the account updated.
     event UpdateChallenger(address indexed account, bool status);
-
-    /// @notice Emitted when the address of rollup verifier is updated.
-    /// @param oldVerifier The address of old rollup verifier.
-    /// @param newVerifier The address of new rollup verifier.
-    event UpdateVerifier(
-        address indexed oldVerifier,
-        address indexed newVerifier
-    );
 
     /// @notice Emitted when the value of `maxNumTxInChunk` is updated.
     /// @param oldMaxNumTxInChunk The old value of `maxNumTxInChunk`.

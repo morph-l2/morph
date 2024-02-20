@@ -5,7 +5,7 @@ pragma solidity =0.8.24;
 import {Rollup} from "../L1/rollup/Rollup.sol";
 
 contract MockRollup is Rollup {
-    constructor() Rollup(0, payable(address(0))) {}
+    constructor() Rollup(0, payable(address(0)), address(0), address(0)) {}
 
     function setLastFinalizedBatchIndex(
         uint256 _lastFinalizedBatchIndex

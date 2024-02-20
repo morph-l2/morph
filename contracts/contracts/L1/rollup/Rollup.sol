@@ -32,18 +32,18 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      */
     address public immutable MESSENGER;
 
+    /// @notice The address of L1MessageQueue.
+    address public immutable messageQueue;
+
+    /// @notice The address of RollupVerifier.
+    address public immutable verifier;
+
     /*************
      * Variables *
      *************/
 
     /// @notice The maximum number of transactions allowed in each chunk.
     uint256 public maxNumTxInChunk;
-
-    /// @notice The address of L1MessageQueue.
-    address public messageQueue;
-
-    /// @notice The address of RollupVerifier.
-    address public verifier;
 
     /// @notice Whether an account is a sequencer.
     mapping(address => bool) public isSequencer;
@@ -144,14 +144,26 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Constructor *
      ***************/
 
-    constructor(uint64 _chainId, address payable _messenger) {
+    constructor(
+        uint64 _chainId,
+        address payable _messenger,
+        address _messageQueue,
+        address _verifier
+    ) {
+        if (
+            _messenger == address(0) ||
+            _messageQueue == address(0) ||
+            _verifier == address(0)
+        ) {
+            revert ErrZeroAddress();
+        }
         layer2ChainId = _chainId;
         MESSENGER = _messenger;
+        messageQueue = _messageQueue;
+        verifier = _verifier;
     }
 
     function initialize(
-        address _messageQueue,
-        address _verifier,
         uint256 _maxNumTxInChunk,
         uint256 _minDeposit,
         uint256 _finalizationPeriodSeconds,
@@ -159,15 +171,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     ) public initializer {
         OwnableUpgradeable.__Ownable_init();
 
-        messageQueue = _messageQueue;
-        verifier = _verifier;
         maxNumTxInChunk = _maxNumTxInChunk;
 
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
         MIN_DEPOSIT = _minDeposit;
 
-        emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
     }
 
@@ -257,7 +266,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     function commitBatch(
         BatchData calldata batchData,
-        uint32 minGasLimit
+        uint32 
     ) external payable override OnlySequencer whenNotPaused {
         require(
             deposits[_msgSender()] >= MIN_DEPOSIT,
@@ -300,9 +309,15 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
 
         // re-compute batchhash using _blobVersionedhash
-        if (_batchIndex > 0 && committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)) {
+        if (
+            _batchIndex > 0 &&
+            committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)
+        ) {
             _parentBatchHash = keccak256(
-                abi.encodePacked(_parentBatchHash, committedBatchStores[_batchIndex].blobVersionedhash)
+                abi.encodePacked(
+                    _parentBatchHash,
+                    committedBatchStores[_batchIndex].blobVersionedhash
+                )
             );
         }
 
@@ -839,15 +854,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         isChallenger[_account] = false;
 
         emit UpdateChallenger(_account, false);
-    }
-
-    /// @notice Update the address verifier contract.
-    /// @param _newVerifier The address of new verifier contract.
-    function updateVerifier(address _newVerifier) external onlyOwner {
-        address _oldVerifier = verifier;
-        verifier = _newVerifier;
-
-        emit UpdateVerifier(_oldVerifier, _newVerifier);
     }
 
     /// @notice Update the value of `maxNumTxInChunk`.
