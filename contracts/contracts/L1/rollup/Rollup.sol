@@ -12,6 +12,8 @@ import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {ISubmitter} from "../../L2/submitter/ISubmitter.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
+import {IL1Sequencer} from "../staking/IL1Sequencer.sol";
+import {IStaking} from "../staking/IStaking.sol";
 
 // solhint-disable no-inline-assembly
 // solhint-disable reason-string
@@ -31,6 +33,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      */
     address public immutable MESSENGER;
 
+    // l1 sequencer contract
+    address public l1SequencerContract;
+
+    // l1 staking contract
+    address public l1StakingContract;
+
     /*************
      * Variables *
      *************/
@@ -43,9 +51,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @notice The address of RollupVerifier.
     address public verifier;
-
-    /// @notice Whether an account is a sequencer.
-    mapping(address => bool) public isSequencer;
 
     /// @notice Whether an account is a prover.
     mapping(address => bool) public isProver;
@@ -68,12 +73,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
         bytes32 dataHash;
-        address sequencer;
+        uint256[] sequencerIndex;
         uint256 l1MessagePopped;
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
         uint256 blockNumber;
-        bytes32 blobVersionedhash;
     }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -97,14 +101,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     uint256 public PROOF_WINDOW;
 
     /**
-     * @notice The minimum value of staking.
-     */
-    uint256 public MIN_DEPOSIT;
-
-    /**
      * @notice User pledge record.
      */
-    mapping(address => uint256) public deposits;
+    mapping(address => uint256) public challengerDeposits;
 
     /**
      * @notice Store Challenge Information.(batchIndex => BatchChallenge)
@@ -125,7 +124,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     modifier OnlySequencer() {
         // @note In the decentralized mode, it should be only called by a list of validator.
-        require(isSequencer[_msgSender()], "caller not sequencer");
+        require(
+            IL1Sequencer(l1SequencerContract).isSequencer(_msgSender()),
+            "caller not sequencer"
+        );
         _;
     }
 
@@ -149,10 +151,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     function initialize(
+        address _l1SequencerContract,
+        address _l1StakingContract,
         address _messageQueue,
         address _verifier,
         uint256 _maxNumTxInChunk,
-        uint256 _minDeposit,
         uint256 _finalizationPeriodSeconds,
         uint256 _proofWindow
     ) public initializer {
@@ -162,13 +165,23 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         __Pausable_init();
         __Ownable_init();
 
+        require(
+            _l1SequencerContract != address(0),
+            "invalid l1 sequencer contract"
+        );
+        require(
+            _l1StakingContract != address(0),
+            "invalid l1 staking contract"
+        );
+        l1SequencerContract = _l1SequencerContract;
+        l1StakingContract = _l1StakingContract;
+
         messageQueue = _messageQueue;
         verifier = _verifier;
         maxNumTxInChunk = _maxNumTxInChunk;
 
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
-        MIN_DEPOSIT = _minDeposit;
 
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
@@ -195,15 +208,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /*****************************
      * Public Mutating Functions *
      *****************************/
-
-    /// @notice Sequencer stake
-    function stake() external payable OnlySequencer {
-        require(
-            deposits[_msgSender()] + msg.value >= MIN_DEPOSIT,
-            "do not have enough deposit"
-        );
-        deposits[_msgSender()] += msg.value;
-    }
 
     /// @notice Import layer 2 genesis block
     function importGenesisBatch(
@@ -244,12 +248,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _postStateRoot,
             _withdrawalRoot,
             _dataHash,
-            _msgSender(),
+            new uint256[](0),
             0,
             0,
             "",
-            0,
-            ""
+            0
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -260,12 +263,20 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     function commitBatch(
         BatchData calldata batchData,
-        uint32 minGasLimit
+        uint256 version,
+        uint256[] memory sequencerIndex,
+        bytes memory signature
     ) external payable override OnlySequencer whenNotPaused {
+        // verify bls signature
         require(
-            deposits[_msgSender()] >= MIN_DEPOSIT,
-            "insufficient staking amount"
+            IL1Sequencer(l1SequencerContract).verifySignature(
+                version,
+                sequencerIndex,
+                signature
+            ),
+            "the signature verification failed"
         );
+
         require(batchData.version == 0, "invalid version");
 
         // check whether the batch is empty
@@ -427,12 +438,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.postStateRoot,
             batchData.withdrawalRoot,
             _dataHash,
-            _msgSender(),
+            sequencerIndex,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
-            latestL2BlockNumber,
-            _blobVersionedhash
+            latestL2BlockNumber
         );
 
         if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
@@ -441,23 +451,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         lastCommittedBatchIndex = _batchIndex;
         emit CommitBatch(_batchIndex, _batchHash);
-
-        // abi encode updateSequencers data
-        // bytes memory data = abi.encodeWithSelector(
-        //     Submitter.ackRollup.selector,
-        //     _batchIndex,
-        //     _msgSender(),
-        //     committedBatchStores[_batchIndex - 1].blockNumber + 1,
-        //     latestL2BlockNumber,
-        //     block.timestamp
-        // );
-        // MESSENGER.sendMessage{value: msg.value}(
-        //     address(Predeploys.L2_SUBMITTER),
-        //     0,
-        //     data,
-        //     minGasLimit,
-        //     msg.sender
-        // );
     }
 
     /// @inheritdoc IRollup
@@ -534,8 +527,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // check challenge amount
-        require(msg.value >= MIN_DEPOSIT);
-        deposits[_msgSender()] += msg.value;
+        require(msg.value >= IStaking(l1StakingContract).limit());
+        challengerDeposits[_msgSender()] += msg.value;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
@@ -549,7 +542,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     // proveState proves a batch by submitting a proof.
     function proveState(
         uint64 _batchIndex,
-        bytes calldata _aggrProof
+        bytes calldata _aggrProof,
+        uint32 _minGasLimit,
+        uint256 _gasFee
     ) external {
         // check challenge exists
         require(
@@ -566,8 +561,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         if (!insideChallengeWindow) {
             _challengerWin(
                 _batchIndex,
-                committedBatchStores[_batchIndex].sequencer,
-                "timeout"
+                committedBatchStores[_batchIndex].sequencerIndex,
+                "timeout",
+                _minGasLimit,
+                _gasFee
             );
             // todo pause PORTAL contracts
             // PORTAL.pause();
@@ -591,51 +588,40 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _aggrProof,
                 _publicInputHash
             );
-            _defenderWin(
-                _batchIndex,
-                committedBatchStores[_batchIndex].sequencer,
-                "prove success"
-            );
+            _defenderWin(_batchIndex, _msgSender(), "prove success");
         }
         challenges[_batchIndex].finished = true;
     }
 
     function _defenderWin(
         uint64 batchIndex,
-        address sequencer,
+        address prover,
         string memory _type
     ) internal {
         address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        deposits[challengerAddr] -= challengeDeposit;
-        deposits[sequencer] += challengeDeposit;
-        emit ChallengeRes(batchIndex, sequencer, _type);
+        challengerDeposits[challengerAddr] -= challengeDeposit;
+        _transfer(prover, challengeDeposit);
+        emit ChallengeRes(batchIndex, prover, _type);
     }
 
     function _challengerWin(
         uint64 batchIndex,
-        address sequencer,
-        string memory _type
+        uint256[] memory sequencerIndex,
+        string memory _type,
+        uint32 _minGasLimit,
+        uint256 _gasFee
     ) internal {
-        address challengerAddr = challenges[batchIndex].challenger;
-        deposits[sequencer] -= MIN_DEPOSIT;
-
+        address challenger = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        deposits[challengerAddr] -= challengeDeposit;
-        uint256 refundAmt = challengeDeposit + MIN_DEPOSIT;
-        _transfer(challengerAddr, refundAmt);
-        emit ChallengeRes(batchIndex, challengerAddr, _type);
-    }
-
-    function withdraw(uint256 amount) public OnlySequencer {
-        address sequencer = _msgSender();
-
-        uint256 value = deposits[sequencer];
-        require(amount > 0, "withdraw amount should be positive");
-        require(amount + MIN_DEPOSIT > value, "insufficient funds");
-
-        deposits[sequencer] -= amount;
-        _transfer(sequencer, amount);
+        _transfer(challenger, challengeDeposit);
+        IL1Sequencer(l1StakingContract).slash(
+            sequencerIndex,
+            challenger,
+            _minGasLimit,
+            _gasFee
+        );
+        emit ChallengeRes(batchIndex, challenger, _type);
     }
 
     function _transfer(address _to, uint256 _amount) internal {
@@ -774,14 +760,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Restricted Functions *
      ************************/
 
-    /// @notice Update MIN_DEPOSIT.
-    /// @param _newDepositAmount New min deposit amount.
-    function updateMinDepositAmount(
-        uint256 _newDepositAmount
-    ) external onlyOwner {
-        MIN_DEPOSIT = _newDepositAmount;
-    }
-
     /// @notice Update PROOF_WINDOW.
     /// @param _newWindow New proof window.
     function updateProofWindow(uint256 _newWindow) external onlyOwner {
@@ -794,25 +772,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 _newPeriod
     ) external onlyOwner {
         FINALIZATION_PERIOD_SECONDS = _newPeriod;
-    }
-
-    /// @notice Add an account to the sequencer list.
-    /// @param _account The address of account to add.
-    function addSequencer(address _account) external onlyOwner {
-        isSequencer[_account] = true;
-
-        emit UpdateSequencer(_account, true);
-    }
-
-    /// @notice Remove an account from the sequencer list.
-    /// @param _account The address of account to remove.
-    function removeSequencer(address _account) external onlyOwner {
-        isSequencer[_account] = false;
-        deposits[_account] = 0;
-
-        _transfer(_account, deposits[_account]);
-
-        emit UpdateSequencer(_account, false);
     }
 
     /// @notice Add an account to the prover list.
