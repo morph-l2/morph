@@ -2,12 +2,12 @@
 pragma solidity =0.8.24;
 
 /* Testing utilities */
-import {L2GasPriceOracleTest} from "./base/L2GasPriceOracle.t.sol";
+import  "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
+import {L2GasPriceOracleTest} from "./base/L2GasPriceOracle.t.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {L1MessageQueue} from "../L1/rollup/L1MessageQueue.sol";
-import {Proxy} from "../libraries/proxy/Proxy.sol";
 
 contract L1MessageQueueTest is L1MessageBaseTest {
     function setUp() public virtual override {
@@ -88,7 +88,9 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         address _rollup,
         address _enforcedTxGateway
     ) public {
-        Proxy l1MessageQueueProxy = Proxy(payable(address(l1MessageQueue)));
+        TransparentUpgradeableProxy l1MessageQueueProxy = TransparentUpgradeableProxy(
+                payable(address(l1MessageQueue))
+            );
         L1MessageQueue l1MessageQueueImpl = new L1MessageQueue(
             payable(_messenger), // _messenger
             address(_rollup), // _rollup
@@ -99,7 +101,10 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         assertEq(_enforcedTxGateway, l1MessageQueueImpl.enforcedTxGateway());
 
         hevm.prank(multisig);
-        l1MessageQueueProxy.upgradeTo(address(l1MessageQueueImpl));
+        proxyAdmin.upgrade(
+            ITransparentUpgradeableProxy(address(l1MessageQueueProxy)),
+            address(l1MessageQueueImpl)
+        );
 
         assertEq(_messenger, l1MessageQueue.messenger());
         assertEq(_rollup, l1MessageQueue.rollup());

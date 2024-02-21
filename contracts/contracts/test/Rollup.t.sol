@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
 import {ChunkCodec} from "../libraries/codec/ChunkCodec.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {Rollup} from "../L1/rollup/Rollup.sol";
 import {IRollup} from "../L1/rollup/IRollup.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
-import {Proxy} from "../libraries/proxy/Proxy.sol";
 
 contract RollupTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
@@ -683,17 +684,25 @@ contract RollupTest is L1MessageBaseTest {
         // 4 ~ 9, even is nonzero, odd is zero
         for (uint256 i = 4; i < 9; i++) {
             if (i % 2 == 1 || i == 8) {
-                assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
+                assertFalse(
+                    l1MessageQueueWithGasPriceOracle.isMessageSkipped(i)
+                );
             } else {
-                assertTrue(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
+                assertTrue(
+                    l1MessageQueueWithGasPriceOracle.isMessageSkipped(i)
+                );
             }
         }
         // 9 ~ 265, even is nonzero, odd is zero
         for (uint256 i = 9; i < 265; i++) {
             if (i % 2 == 1 || i == 264) {
-                assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
+                assertFalse(
+                    l1MessageQueueWithGasPriceOracle.isMessageSkipped(i)
+                );
             } else {
-                assertTrue(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
+                assertTrue(
+                    l1MessageQueueWithGasPriceOracle.isMessageSkipped(i)
+                );
             }
         }
     }
@@ -1026,9 +1035,9 @@ contract RollupTest is L1MessageBaseTest {
         address _rollup,
         address _enforcedTxGateway
     ) public {
-        Proxy l1MessageQueueWithGasPriceOracleProxy = Proxy(
-            payable(address(l1MessageQueueWithGasPriceOracle))
-        );
+        TransparentUpgradeableProxy l1MessageQueueWithGasPriceOracleProxy = TransparentUpgradeableProxy(
+                payable(address(l1MessageQueueWithGasPriceOracle))
+            );
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
                 payable(_messenger), // _messenger
                 address(_rollup), // _rollup
@@ -1042,10 +1051,12 @@ contract RollupTest is L1MessageBaseTest {
         );
 
         hevm.prank(multisig);
-        l1MessageQueueWithGasPriceOracleProxy.upgradeTo(
+        proxyAdmin.upgrade(
+            ITransparentUpgradeableProxy(
+                address(l1MessageQueueWithGasPriceOracleProxy)
+            ),
             address(l1MessageQueueWithGasPriceOracleImpl)
         );
-
         assertEq(_messenger, l1MessageQueueWithGasPriceOracle.messenger());
         assertEq(_rollup, l1MessageQueueWithGasPriceOracle.rollup());
         assertEq(

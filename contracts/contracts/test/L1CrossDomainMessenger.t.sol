@@ -164,7 +164,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         hevm.prank(multisig);
-        uint256 _fee = l1MessageQueueWithGasPriceOracle.l2BaseFee() * defaultGasLimit;
+        uint256 _fee = l1MessageQueueWithGasPriceOracle.l2BaseFee() *
+            defaultGasLimit;
 
         // Exceed maximum replay times
         hevm.expectRevert("Exceed maximum replay times");
