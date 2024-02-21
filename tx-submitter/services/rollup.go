@@ -347,7 +347,6 @@ func (sr *SR) rollup() error {
 		if err != nil {
 			return fmt.Errorf("get next submitter error:%v", err)
 		}
-		log.Info("current rolluped submitter", "submitter", nextSubmitter.Hex())
 
 		if nextSubmitter.Hex() == sr.walletAddr() {
 			log.Info("submitter is me, start to submit")
