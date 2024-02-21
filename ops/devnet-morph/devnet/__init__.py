@@ -231,14 +231,6 @@ def devnet_deploy(paths, args):
     log.info('Bringing up L2.')
 
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
-                 'node-0',
-                 'node-1',
-                 'node-2',
-                 'node-3',
-                 'sentry-node-0',
-                 'validator_node',
-                 'tx-submitter',
-                 'gas-price-oracle',
                  '-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],
