@@ -166,7 +166,6 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
         sequencersSize = _sequencersSize;
         limit = _limit;
         lock = _lock;
-        __Ownable_init();
         _transferOwnership(_admin);
     }
 

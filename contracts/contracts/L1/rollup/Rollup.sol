@@ -9,7 +9,6 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {BatchHeaderV0Codec} from "../../libraries/codec/BatchHeaderV0Codec.sol";
 import {ChunkCodec} from "../../libraries/codec/ChunkCodec.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
-import {SafeCall} from "../../libraries/common/SafeCall.sol";
 import {ISubmitter} from "../../L2/submitter/ISubmitter.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -160,7 +159,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 _finalizationPeriodSeconds,
         uint256 _proofWindow
     ) public initializer {
-        OwnableUpgradeable.__Ownable_init();
+        if (_messageQueue == address(0) || _verifier == address(0)) {
+            revert ErrZeroAddress();
+        }
+        __Pausable_init();
+        __Ownable_init();
 
         require(
             _l1SequencerContract != address(0),
@@ -309,6 +312,20 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
+
+        // re-compute batchhash using _blobVersionedhash
+        if (
+            _batchIndex > 0 &&
+            committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)
+        ) {
+            _parentBatchHash = keccak256(
+                abi.encodePacked(
+                    _parentBatchHash,
+                    committedBatchStores[_batchIndex].blobVersionedhash
+                )
+            );
+        }
+
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderV0Codec
             .totalL1MessagePopped(batchPtr);
 
@@ -609,7 +626,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
-            bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
+            (bool success, ) = _to.call{value: _amount}(hex"");
             require(success, "Rollup: ETH transfer failed");
         }
     }

@@ -23,7 +23,7 @@ export const RollupInit = async (
     // Load the contracts we need to interact with.
     const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
     const ZkEvmVerifierV1Address = getContractAddressByName(path, ImplStorageName.ZkEvmVerifierV1StorageName)
-    const L1MessageQueueProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStroageName)
+    const L1MessageQueueProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueProxyStroageName)
 
     // Rollup config
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)

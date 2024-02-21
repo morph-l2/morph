@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Proxy} from "../../libraries/proxy/Proxy.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 import {L2ERC721Gateway} from "../../L2/gateways/L2ERC721Gateway.sol";
 import {L2ETHGateway} from "../../L2/gateways/L2ETHGateway.sol";
@@ -67,29 +68,57 @@ contract L2GatewayBaseTest is L2MessageBaseTest {
         // deploy proxys
         hevm.etch(
             Predeploys.L2_Gateway_Router,
-            address(new Proxy(multisig)).code
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(multisig),
+                    new bytes(0)
+                )
+            ).code
         );
-        hevm.etch(Predeploys.L2_ETH_Gateway, address(new Proxy(multisig)).code);
+        hevm.etch(
+            Predeploys.L2_ETH_Gateway,
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(multisig),
+                    new bytes(0)
+                )
+            ).code
+        );
         hevm.etch(
             Predeploys.L2_Standard_ERC20_Gateway,
-            address(new Proxy(multisig)).code
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(multisig),
+                    new bytes(0)
+                )
+            ).code
         );
         hevm.etch(
             Predeploys.L2_ERC721_Gateway,
-            address(new Proxy(multisig)).code
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(multisig),
+                    new bytes(0)
+                )
+            ).code
         );
 
-        Proxy l2GatewayRouterProxy = Proxy(
-            payable(Predeploys.L2_Gateway_Router)
-        );
-
-        Proxy l2ETHGatewayProxy = Proxy(payable(Predeploys.L2_ETH_Gateway));
-        Proxy l2StandardERC20GatewayProxy = Proxy(
-            payable(Predeploys.L2_Standard_ERC20_Gateway)
-        );
-        Proxy l2ERC721GatewayProxy = Proxy(
-            payable(Predeploys.L2_ERC721_Gateway)
-        );
+        TransparentUpgradeableProxy l2GatewayRouterProxy = TransparentUpgradeableProxy(
+                payable(Predeploys.L2_Gateway_Router)
+            );
+        TransparentUpgradeableProxy l2ETHGatewayProxy = TransparentUpgradeableProxy(
+                payable(Predeploys.L2_ETH_Gateway)
+            );
+        TransparentUpgradeableProxy l2StandardERC20GatewayProxy = TransparentUpgradeableProxy(
+                payable(Predeploys.L2_Standard_ERC20_Gateway)
+            );
+        TransparentUpgradeableProxy l2ERC721GatewayProxy = TransparentUpgradeableProxy(
+                payable(Predeploys.L2_ERC721_Gateway)
+            );
         hevm.store(
             address(l2GatewayRouterProxy),
             bytes32(PROXY_OWNER_KEY),
@@ -122,15 +151,16 @@ contract L2GatewayBaseTest is L2MessageBaseTest {
         factory = new MorphStandardERC20Factory(address(template));
 
         // upgrade and initialize
-        l2GatewayRouterProxy.upgradeToAndCall(
-            address(l2GatewayRouterImpl),
-            abi.encodeWithSelector(
-                L2GatewayRouter.initialize.selector,
-                address(l2ETHGatewayProxy), // eth gateway
-                address(l2StandardERC20GatewayProxy) // erc20 gateway
-            )
-        );
-        l2ETHGatewayProxy.upgradeToAndCall(
+        ITransparentUpgradeableProxy(address(l2GatewayRouterProxy))
+            .upgradeToAndCall(
+                address(l2GatewayRouterImpl),
+                abi.encodeWithSelector(
+                    L2GatewayRouter.initialize.selector,
+                    address(l2ETHGatewayProxy), // eth gateway
+                    address(l2StandardERC20GatewayProxy) // erc20 gateway
+                )
+            );
+        ITransparentUpgradeableProxy(address(l2ETHGatewayProxy)).upgradeToAndCall(
             address(l2ETHGatewayImpl),
             abi.encodeWithSelector(
                 L2ETHGateway.initialize.selector,
@@ -139,24 +169,28 @@ contract L2GatewayBaseTest is L2MessageBaseTest {
                 address(l2CrossDomainMessenger) // _messenger
             )
         );
-        l2StandardERC20GatewayProxy.upgradeToAndCall(
-            address(l2StandardERC20GatewayImpl),
-            abi.encodeWithSelector(
-                L2StandardERC20Gateway.initialize.selector,
-                address(NON_ZERO_ADDRESS), // _counterpart
-                address(l2GatewayRouterProxy), // _router
-                address(l2CrossDomainMessenger), // _messenger
-                address(factory) // _tokenFactory
-            )
-        );
-        l2ERC721GatewayProxy.upgradeToAndCall(
-            address(l2ERC721GatewayImpl),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.initialize.selector,
-                address(NON_ZERO_ADDRESS), // _counterpart
-                address(l2CrossDomainMessenger) // _messenger
-            )
-        );
+
+        ITransparentUpgradeableProxy(address(l2StandardERC20GatewayProxy))
+            .upgradeToAndCall(
+                address(l2StandardERC20GatewayImpl),
+                abi.encodeWithSelector(
+                    L2StandardERC20Gateway.initialize.selector,
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2GatewayRouterProxy), // _router
+                    address(l2CrossDomainMessenger), // _messenger
+                    address(factory) // _tokenFactory
+                )
+            );
+
+        ITransparentUpgradeableProxy(address(l2ERC721GatewayProxy))
+            .upgradeToAndCall(
+                address(l2ERC721GatewayImpl),
+                abi.encodeWithSelector(
+                    L2ERC721Gateway.initialize.selector,
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            );
 
         l2GatewayRouter = L2GatewayRouter(
             payable(address(l2GatewayRouterProxy))
@@ -167,78 +201,113 @@ contract L2GatewayBaseTest is L2MessageBaseTest {
         );
         l2ERC721Gateway = L2ERC721Gateway(address(l2ERC721GatewayProxy));
 
+        _changeAdmin(address(l2GatewayRouter));
+        _changeAdmin(address(l2ETHGateway));
+        _changeAdmin(address(l2StandardERC20Gateway));
+        _changeAdmin(address(l2ERC721Gateway));
         hevm.stopPrank();
     }
 
     function _deployCustomERC20() public {
         hevm.startPrank(multisig);
-        Proxy l2CustomERC20GatewayProxy = new Proxy(multisig);
+        TransparentUpgradeableProxy l2CustomERC20GatewayProxy = new TransparentUpgradeableProxy(
+                address(emptyContract),
+                address(multisig),
+                new bytes(0)
+            );
         L2CustomERC20Gateway l2CustomERC20GatewayImpl = new L2CustomERC20Gateway();
-        l2CustomERC20GatewayProxy.upgradeToAndCall(
-            address(l2CustomERC20GatewayImpl),
-            abi.encodeWithSelector(
-                L2CustomERC20Gateway.initialize.selector,
-                address(NON_ZERO_ADDRESS), // _counterpart
-                address(l2GatewayRouter), // _router
-                address(l2CrossDomainMessenger) // _messenger
-            )
-        );
+        ITransparentUpgradeableProxy(address(l2CustomERC20GatewayProxy))
+            .upgradeToAndCall(
+                address(l2CustomERC20GatewayImpl),
+                abi.encodeWithSelector(
+                    L2CustomERC20Gateway.initialize.selector,
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2GatewayRouter), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            );
+
         l2CustomERC20Gateway = L2CustomERC20Gateway(
             address(l2CustomERC20GatewayProxy)
         );
+        _changeAdmin(address(l2CustomERC20Gateway));
         hevm.stopPrank();
     }
 
     function _deployERC721() public {
         hevm.startPrank(multisig);
-        Proxy l2ERC721GatewayProxy = new Proxy(multisig);
+        TransparentUpgradeableProxy l2ERC721GatewayProxy = new TransparentUpgradeableProxy(
+                address(emptyContract),
+                address(multisig),
+                new bytes(0)
+            );
         L2ERC721Gateway l2ERC721GatewayImpl = new L2ERC721Gateway();
-        l2ERC721GatewayProxy.upgradeToAndCall(
-            address(l2ERC721GatewayImpl),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.initialize.selector,
-                address(NON_ZERO_ADDRESS), // _counterpart
-                address(l2CrossDomainMessenger) // _messenger
-            )
-        );
+        ITransparentUpgradeableProxy(address(l2ERC721GatewayProxy))
+            .upgradeToAndCall(
+                address(l2ERC721GatewayImpl),
+                abi.encodeWithSelector(
+                    L2ERC721Gateway.initialize.selector,
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            );
+
         l2ERC721Gateway = L2ERC721Gateway(address(l2ERC721GatewayProxy));
+        _changeAdmin(address(l2ERC721Gateway));
+
         hevm.stopPrank();
     }
 
     function _deployERC1155() public {
         hevm.startPrank(multisig);
-        Proxy l2ERC1155GatewayProxy = new Proxy(multisig);
+        TransparentUpgradeableProxy l2ERC1155GatewayProxy = new TransparentUpgradeableProxy(
+                address(emptyContract),
+                address(multisig),
+                new bytes(0)
+            );
         L2ERC1155Gateway l2ERC1155GatewayImpl = new L2ERC1155Gateway();
-        l2ERC1155GatewayProxy.upgradeToAndCall(
-            address(l2ERC1155GatewayImpl),
-            abi.encodeWithSelector(
-                L2ERC1155Gateway.initialize.selector,
-                address(NON_ZERO_ADDRESS), // _counterpart
-                address(l2CrossDomainMessenger) // _messenger
-            )
-        );
+        ITransparentUpgradeableProxy(address(l2ERC1155GatewayProxy))
+            .upgradeToAndCall(
+                address(l2ERC1155GatewayImpl),
+                abi.encodeWithSelector(
+                    L2ERC1155Gateway.initialize.selector,
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            );
+
         l2ERC1155Gateway = L2ERC1155Gateway(address(l2ERC1155GatewayProxy));
+        _changeAdmin(address(l2ERC1155Gateway));
+
         hevm.stopPrank();
     }
 
     function _deployWETH(address l1WETH, address l2WETH) public {
         hevm.startPrank(multisig);
-        Proxy l2WETHGatewayProxy = new Proxy(multisig);
+        TransparentUpgradeableProxy l2WETHGatewayProxy = new TransparentUpgradeableProxy(
+                address(emptyContract),
+                address(multisig),
+                new bytes(0)
+            );
         L1WETHGateway l1WETHGatewayImpl = new L1WETHGateway(l1WETH, l2WETH);
         L2WETHGateway l2WETHGatewayImpl = new L2WETHGateway(
             address(l2WETH),
             address(l1WETH)
         );
-        l2WETHGatewayProxy.upgradeToAndCall(
-            address(l2WETHGatewayImpl),
-            abi.encodeWithSelector(
-                L2WETHGateway.initialize.selector,
-                address(l1WETHGatewayImpl), // _counterpart
-                address(l2GatewayRouter), // _router
-                address(l2CrossDomainMessenger) // _messenger
-            )
-        );
+        ITransparentUpgradeableProxy(address(l2WETHGatewayProxy))
+            .upgradeToAndCall(
+                address(l2WETHGatewayImpl),
+                abi.encodeWithSelector(
+                    L2WETHGateway.initialize.selector,
+                    address(l1WETHGatewayImpl), // _counterpart
+                    address(l2GatewayRouter), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            );
+
         l2WETHGateway = L2WETHGateway(payable(address(l2WETHGatewayProxy)));
+        _changeAdmin(address(l2WETHGateway));
+
         hevm.stopPrank();
     }
 }

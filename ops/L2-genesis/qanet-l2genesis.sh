@@ -11,8 +11,8 @@ fi
 
 if [[ -z "$L1_RPC" ]]; then
   # the environment variable is missing, set a default value
-  echo "L1_RPC is missing, using default value: http://l2-qa-morph-l1-geth.bitkeep.tools"
-  L1_RPC="http://l2-qa-morph-l1-geth.bitkeep.tools"
+  echo "L1_RPC is missing, using default value: http://qanet-l1"
+  L1_RPC="http://qanet-l1"
 fi
 
 cat "deploy-config/qanet-deploy-config.json" > $QANET/qanet-deploy-config.json

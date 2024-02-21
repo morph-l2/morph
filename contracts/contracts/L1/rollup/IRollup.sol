@@ -2,6 +2,12 @@
 pragma solidity =0.8.24;
 
 interface IRollup {
+    /***********
+     * Errors *
+     ***********/
+
+    error ErrZeroAddress();
+
     /**********
      * Events *
      **********/

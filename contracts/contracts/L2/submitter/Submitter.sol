@@ -9,6 +9,7 @@ import {IL2Sequencer} from "../staking/IL2Sequencer.sol";
 import {IGov} from "../staking/IGov.sol";
 import {ISubmitter} from "./ISubmitter.sol";
 
+
 contract Submitter is ISubmitter, OwnableUpgradeable {
     struct SequencerHistory {
         address[] sequencerAddresses;
