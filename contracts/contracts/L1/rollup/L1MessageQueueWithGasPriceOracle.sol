@@ -2,10 +2,8 @@
 
 pragma solidity =0.8.24;
 
-import {IWhitelist} from "../../libraries/common/IWhitelist.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IL1MessageQueueWithGasPriceOracle} from "./IL1MessageQueueWithGasPriceOracle.sol";
-import {IL2GasPriceOracle} from "./IL2GasPriceOracle.sol";
 
 import {L1MessageQueue} from "./L1MessageQueue.sol";
 

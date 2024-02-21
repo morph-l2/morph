@@ -5,13 +5,12 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {Semver} from "../../libraries/common/Semver.sol";
 import {RollupMessage} from "../../libraries/submitter/RollupMessage.sol";
 import {IL2Sequencer} from "../staking/IL2Sequencer.sol";
 import {IGov} from "../staking/IGov.sol";
 import {ISubmitter} from "./ISubmitter.sol";
 
-contract Submitter is Initializable, Semver, ISubmitter, RollupMessage {
+contract Submitter is Initializable, ISubmitter, RollupMessage {
     // l2SequencerContract address
     address public immutable L2_SEQUENCER_CONTRACT;
     // GovContract address
@@ -55,7 +54,6 @@ contract Submitter is Initializable, Semver, ISubmitter, RollupMessage {
     constructor(
         address payable _rollup
     )
-        Semver(1, 0, 0)
         RollupMessage(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _rollup)
     {
         L2_SEQUENCER_CONTRACT = Predeploys.L2_SEQUENCER;

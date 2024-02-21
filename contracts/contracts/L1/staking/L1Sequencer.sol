@@ -5,14 +5,12 @@ import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
-import {Semver} from "../../libraries/common/Semver.sol";
 import {IL1Sequencer} from "./IL1Sequencer.sol";
 
 contract L1Sequencer is
     Initializable,
     IL1Sequencer,
     Sequencer,
-    Semver,
     Pausable
 {
     // staking contract
@@ -54,7 +52,6 @@ contract L1Sequencer is
     constructor(
         address payable _messenger
     )
-        Semver(1, 0, 0)
         Pausable()
         Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER))
     {

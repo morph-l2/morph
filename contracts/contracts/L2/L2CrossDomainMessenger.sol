@@ -9,11 +9,7 @@ import {ICrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {L2ToL1MessagePasser} from "./system/L2ToL1MessagePasser.sol";
 import {IL2CrossDomainMessenger} from "./IL2CrossDomainMessenger.sol";
 
-import {Semver} from "../libraries/common/Semver.sol";
-
 /**
- * @custom:proxied
- * @custom:predeploy 0x4200000000000000000000000000000000000007
  * @title L2CrossDomainMessenger
  * @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
  *         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
@@ -21,8 +17,7 @@ import {Semver} from "../libraries/common/Semver.sol";
  */
 contract L2CrossDomainMessenger is
     CrossDomainMessenger,
-    IL2CrossDomainMessenger,
-    Semver
+    IL2CrossDomainMessenger
 {
     /*************
      * Variables *
@@ -41,7 +36,7 @@ contract L2CrossDomainMessenger is
      * Constructor *
      ***************/
 
-    constructor() Semver(1, 0, 0) {
+    constructor() {
         _disableInitializers();
     }
 
