@@ -191,9 +191,9 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType, l1_provider: &Pro
 
         log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
         let aggr_proof = Bytes::from(prove_result.proof_data);
-        let _kzgData = Bytes::from(commitment);
+        let kzg_data = Bytes::from(commitment);
 
-        let mut call = l1_rollup.prove_state(batch_index, aggr_proof);
+        let mut call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data);
         if util::read_env_var("SHADOW", false) {
             let shadow_rollup = Address::from_str(util::read_env_var("SHADOW", "0x1".to_string()).as_str()).unwrap();
             call.tx.set_to(shadow_rollup);
@@ -320,6 +320,9 @@ async fn query_kzg_commitment(batch_index: u64) -> Option<Vec<u8>> {
         log::error!("rollup batch has empty kzg commitments, batch index = {:#?}", batch_index);
         return None;
     }
+
+    // ComputeProof computes the KZG proof at the given point for the polynomial
+
 
     let commitment_bytes: Vec<u8> = match hex::decode(commitments.first().unwrap().as_str().unwrap_or("0xf")) {
         Ok(cb) => cb,

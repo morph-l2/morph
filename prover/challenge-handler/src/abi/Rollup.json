@@ -975,6 +975,11 @@
         "internalType": "bytes",
         "name": "_aggrProof",
         "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_kzgData",
+        "type": "bytes"
       }
     ],
     "name": "proveState",
