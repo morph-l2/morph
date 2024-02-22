@@ -110,8 +110,13 @@ export const RollupInit = async (
         )
         console.log('importGenesisBatch(%s, %s, %s)', batchHeader, genesisStateRoot, withdrawRoot)
         await Rollup.connect(deployer).importGenesisBatch(batchHeader, genesisStateRoot, withdrawRoot)
-        console.log('addSequencer(%s)', submitter)
-        await Rollup.connect(deployer).addSequencer(submitter)
+        // register 4 sequenser
+        const l2SequencerAddresses: string[] = configTmp.l2SequencerAddresses
+        for (let i = 0; i < l2SequencerAddresses.length; i++) {
+            console.log('addSequencer(%s)', l2SequencerAddresses[i])
+            await Rollup.connect(deployer).addSequencer(l2SequencerAddresses[i])
+        }
+        
         console.log('addProver(%s)', submitter)
         await Rollup.connect(deployer).addProver(submitter)
         console.log('addChallenger(%s)', challenger)
