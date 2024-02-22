@@ -270,190 +270,165 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         bytes memory signature
     ) external payable override OnlySequencer whenNotPaused {
         // verify bls signature
-        require(
-            IL1Sequencer(l1SequencerContract).verifySignature(
-                version,
-                sequencerIndex,
-                signature
-            ),
-            "the signature verification failed"
-        );
-
-        require(batchData.version == 0, "invalid version");
-
-        // check whether the batch is empty
-        uint256 _chunksLength = batchData.chunks.length;
-        require(_chunksLength > 0, "batch is empty");
-
-        require(
-            batchData.prevStateRoot != bytes32(0),
-            "previous state root is zero"
-        );
-        require(
-            batchData.postStateRoot != bytes32(0),
-            "new state root is zero"
-        );
-
-        // The overall memory layout in this function is organized as follows
-        // +---------------------+-------------------+------------------+
-        // | parent batch header | chunk data hashes | new batch header |
-        // +---------------------+-------------------+------------------+
-        // ^                     ^                   ^
-        // batchPtr              dataPtr             newBatchPtr (re-use var batchPtr)
-        //
-        // 1. We copy the parent batch header from calldata to memory starting at batchPtr
-        // 2. We store `_chunksLength` number of Keccak hashes starting at `dataPtr`. Each Keccak
-        //    hash corresponds to the data hash of a chunk. So we reserve the memory region from
-        //    `dataPtr` to `dataPtr + _chunkLength * 32` for the chunk data hashes.
-        // 3. The memory starting at `newBatchPtr` is used to store the new batch header and compute
-        //    the batch hash.
-
-        // the variable `batchPtr` will be reused later for the current batch
-        (uint256 batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(
-            batchData.parentBatchHeader
-        );
-
-        uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
-
-        // re-compute batchhash using _blobVersionedhash
-        if (
-            _batchIndex > 0 &&
-            committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)
-        ) {
-            _parentBatchHash = keccak256(
-                abi.encodePacked(
-                    _parentBatchHash,
-                    committedBatchStores[_batchIndex].blobVersionedhash
-                )
-            );
-        }
-
-        uint256 _totalL1MessagesPoppedOverall = BatchHeaderV0Codec
-            .totalL1MessagePopped(batchPtr);
-
-        require(
-            committedBatchStores[_batchIndex].batchHash == _parentBatchHash,
-            "incorrect parent batch hash"
-        );
-
-        require(
-            committedBatchStores[_batchIndex + 1].batchHash == bytes32(0),
-            "batch already committed"
-        );
-
-        require(
-            _batchIndex == lastCommittedBatchIndex,
-            "incorrect batch index"
-        );
-
-        require(
-            committedBatchStores[_batchIndex].postStateRoot ==
-                batchData.prevStateRoot,
-            "incorrect previous state root"
-        );
-
-        // load `dataPtr` and reserve the memory region for chunk data hashes
-        uint256 dataPtr;
-        assembly {
-            dataPtr := mload(0x40)
-            mstore(0x40, add(dataPtr, mul(_chunksLength, 32)))
-        }
-
-        // compute the data hash for each chunk
-        uint256 _totalL1MessagesPoppedInBatch;
-        for (uint256 i = 0; i < _chunksLength; i++) {
-            uint256 _totalNumL1MessagesInChunk = _commitChunk(
-                dataPtr,
-                batchData.chunks[i],
-                _totalL1MessagesPoppedInBatch,
-                _totalL1MessagesPoppedOverall,
-                batchData.skippedL1MessageBitmap
-            );
-
-            if (i == _chunksLength - 1) {
-                setLatestL2BlockNumber(batchData.chunks[i]);
-            }
-            unchecked {
-                _totalL1MessagesPoppedInBatch += _totalNumL1MessagesInChunk;
-                _totalL1MessagesPoppedOverall += _totalNumL1MessagesInChunk;
-                dataPtr += 32;
-            }
-        }
-
-        // check the length of bitmap
-        unchecked {
-            require(
-                ((_totalL1MessagesPoppedInBatch + 255) / 256) * 32 ==
-                    batchData.skippedL1MessageBitmap.length,
-                "wrong bitmap length"
-            );
-        }
-
-        // compute the data hash for current batch
-        bytes32 _dataHash;
-        assembly {
-            let dataLen := mul(_chunksLength, 0x20)
-            _dataHash := keccak256(sub(dataPtr, dataLen), dataLen)
-
-            batchPtr := mload(0x40) // reset batchPtr
-            _batchIndex := add(_batchIndex, 1) // increase batch index
-        }
-
-        // store entries, the order matters
-        BatchHeaderV0Codec.storeVersion(batchPtr, batchData.version);
-        BatchHeaderV0Codec.storeBatchIndex(batchPtr, _batchIndex);
-        BatchHeaderV0Codec.storeL1MessagePopped(
-            batchPtr,
-            _totalL1MessagesPoppedInBatch
-        );
-        BatchHeaderV0Codec.storeTotalL1MessagePopped(
-            batchPtr,
-            _totalL1MessagesPoppedOverall
-        );
-        BatchHeaderV0Codec.storeDataHash(batchPtr, _dataHash);
-        BatchHeaderV0Codec.storeParentBatchHash(batchPtr, _parentBatchHash);
-        BatchHeaderV0Codec.storeSkippedBitmap(
-            batchPtr,
-            batchData.skippedL1MessageBitmap
-        );
-
-        // compute batch hash
-        bytes32 _batchHash = BatchHeaderV0Codec.computeBatchHash(
-            batchPtr,
-            89 + batchData.skippedL1MessageBitmap.length
-        );
-
-        // todo
-        bytes32 _blobVersionedhash = blobhash(0);
-        // bytes32 _blobVersionedhash = bytes32(0);
-
-        if (_blobVersionedhash != bytes32(0)) {
-            _batchHash = keccak256(
-                abi.encodePacked(_batchHash, _blobVersionedhash)
-            );
-        }
-
-        committedBatchStores[_batchIndex] = BatchStore(
-            _batchHash,
-            block.timestamp,
-            batchData.prevStateRoot,
-            batchData.postStateRoot,
-            batchData.withdrawalRoot,
-            _dataHash,
-            sequencerIndex,
-            _totalL1MessagesPoppedInBatch,
-            _totalL1MessagesPoppedOverall,
-            batchData.skippedL1MessageBitmap,
-            latestL2BlockNumber,
-            _blobVersionedhash
-        );
-
-        if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
-            withdrawalRoots[batchData.withdrawalRoot] = _batchIndex;
-        }
-
-        lastCommittedBatchIndex = _batchIndex;
-        emit CommitBatch(_batchIndex, _batchHash);
+        // require(
+        //     IL1Sequencer(l1SequencerContract).verifySignature(
+        //         version,
+        //         sequencerIndex,
+        //         signature
+        //     ),
+        //     "the signature verification failed"
+        // );
+        // require(batchData.version == 0, "invalid version");
+        // // check whether the batch is empty
+        // uint256 _chunksLength = batchData.chunks.length;
+        // require(_chunksLength > 0, "batch is empty");
+        // require(
+        //     batchData.prevStateRoot != bytes32(0),
+        //     "previous state root is zero"
+        // );
+        // require(
+        //     batchData.postStateRoot != bytes32(0),
+        //     "new state root is zero"
+        // );
+        // // The overall memory layout in this function is organized as follows
+        // // +---------------------+-------------------+------------------+
+        // // | parent batch header | chunk data hashes | new batch header |
+        // // +---------------------+-------------------+------------------+
+        // // ^                     ^                   ^
+        // // batchPtr              dataPtr             newBatchPtr (re-use var batchPtr)
+        // //
+        // // 1. We copy the parent batch header from calldata to memory starting at batchPtr
+        // // 2. We store `_chunksLength` number of Keccak hashes starting at `dataPtr`. Each Keccak
+        // //    hash corresponds to the data hash of a chunk. So we reserve the memory region from
+        // //    `dataPtr` to `dataPtr + _chunkLength * 32` for the chunk data hashes.
+        // // 3. The memory starting at `newBatchPtr` is used to store the new batch header and compute
+        // //    the batch hash.
+        // // the variable `batchPtr` will be reused later for the current batch
+        // (uint256 batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(
+        //     batchData.parentBatchHeader
+        // );
+        // uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
+        // // re-compute batchhash using _blobVersionedhash
+        // if (
+        //     _batchIndex > 0 &&
+        //     committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)
+        // ) {
+        //     _parentBatchHash = keccak256(
+        //         abi.encodePacked(
+        //             _parentBatchHash,
+        //             committedBatchStores[_batchIndex].blobVersionedhash
+        //         )
+        //     );
+        // }
+        // uint256 _totalL1MessagesPoppedOverall = BatchHeaderV0Codec
+        //     .totalL1MessagePopped(batchPtr);
+        // require(
+        //     committedBatchStores[_batchIndex].batchHash == _parentBatchHash,
+        //     "incorrect parent batch hash"
+        // );
+        // require(
+        //     committedBatchStores[_batchIndex + 1].batchHash == bytes32(0),
+        //     "batch already committed"
+        // );
+        // require(
+        //     _batchIndex == lastCommittedBatchIndex,
+        //     "incorrect batch index"
+        // );
+        // require(
+        //     committedBatchStores[_batchIndex].postStateRoot ==
+        //         batchData.prevStateRoot,
+        //     "incorrect previous state root"
+        // );
+        // // load `dataPtr` and reserve the memory region for chunk data hashes
+        // uint256 dataPtr;
+        // assembly {
+        //     dataPtr := mload(0x40)
+        //     mstore(0x40, add(dataPtr, mul(_chunksLength, 32)))
+        // }
+        // // compute the data hash for each chunk
+        // uint256 _totalL1MessagesPoppedInBatch;
+        // for (uint256 i = 0; i < _chunksLength; i++) {
+        //     uint256 _totalNumL1MessagesInChunk = _commitChunk(
+        //         dataPtr,
+        //         batchData.chunks[i],
+        //         _totalL1MessagesPoppedInBatch,
+        //         _totalL1MessagesPoppedOverall,
+        //         batchData.skippedL1MessageBitmap
+        //     );
+        //     if (i == _chunksLength - 1) {
+        //         setLatestL2BlockNumber(batchData.chunks[i]);
+        //     }
+        //     unchecked {
+        //         _totalL1MessagesPoppedInBatch += _totalNumL1MessagesInChunk;
+        //         _totalL1MessagesPoppedOverall += _totalNumL1MessagesInChunk;
+        //         dataPtr += 32;
+        //     }
+        // }
+        // // check the length of bitmap
+        // unchecked {
+        //     require(
+        //         ((_totalL1MessagesPoppedInBatch + 255) / 256) * 32 ==
+        //             batchData.skippedL1MessageBitmap.length,
+        //         "wrong bitmap length"
+        //     );
+        // }
+        // // compute the data hash for current batch
+        // bytes32 _dataHash;
+        // assembly {
+        //     let dataLen := mul(_chunksLength, 0x20)
+        //     _dataHash := keccak256(sub(dataPtr, dataLen), dataLen)
+        //     batchPtr := mload(0x40) // reset batchPtr
+        //     _batchIndex := add(_batchIndex, 1) // increase batch index
+        // }
+        // // store entries, the order matters
+        // BatchHeaderV0Codec.storeVersion(batchPtr, batchData.version);
+        // BatchHeaderV0Codec.storeBatchIndex(batchPtr, _batchIndex);
+        // BatchHeaderV0Codec.storeL1MessagePopped(
+        //     batchPtr,
+        //     _totalL1MessagesPoppedInBatch
+        // );
+        // BatchHeaderV0Codec.storeTotalL1MessagePopped(
+        //     batchPtr,
+        //     _totalL1MessagesPoppedOverall
+        // );
+        // BatchHeaderV0Codec.storeDataHash(batchPtr, _dataHash);
+        // BatchHeaderV0Codec.storeParentBatchHash(batchPtr, _parentBatchHash);
+        // BatchHeaderV0Codec.storeSkippedBitmap(
+        //     batchPtr,
+        //     batchData.skippedL1MessageBitmap
+        // );
+        // // compute batch hash
+        // bytes32 _batchHash = BatchHeaderV0Codec.computeBatchHash(
+        //     batchPtr,
+        //     89 + batchData.skippedL1MessageBitmap.length
+        // );
+        // // todo
+        // bytes32 _blobVersionedhash = blobhash(0);
+        // // bytes32 _blobVersionedhash = bytes32(0);
+        // if (_blobVersionedhash != bytes32(0)) {
+        //     _batchHash = keccak256(
+        //         abi.encodePacked(_batchHash, _blobVersionedhash)
+        //     );
+        // }
+        // committedBatchStores[_batchIndex] = BatchStore(
+        //     _batchHash,
+        //     block.timestamp,
+        //     batchData.prevStateRoot,
+        //     batchData.postStateRoot,
+        //     batchData.withdrawalRoot,
+        //     _dataHash,
+        //     sequencerIndex,
+        //     _totalL1MessagesPoppedInBatch,
+        //     _totalL1MessagesPoppedOverall,
+        //     batchData.skippedL1MessageBitmap,
+        //     latestL2BlockNumber,
+        //     _blobVersionedhash
+        // );
+        // if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
+        //     withdrawalRoots[batchData.withdrawalRoot] = _batchIndex;
+        // }
+        // lastCommittedBatchIndex = _batchIndex;
+        // emit CommitBatch(_batchIndex, _batchHash);
     }
 
     /// @inheritdoc IRollup

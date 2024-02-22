@@ -13,20 +13,19 @@ import {
 } from "./types"
 
 
-export const deployLibAddressManager = async (
+export const deployEmptyContract = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
 ): Promise<string> => {
-    const AddressManagerContractFactoryName = ContractFactoryName.AddressManager
-    const ImplStroageName = ImplStorageName.AddressManager
+    const EmptyContractFactoryName = ContractFactoryName.EmptyContract
+    const ImplStroageName = ImplStorageName.EmptyContract
 
-    const Factory = await hre.ethers.getContractFactory(AddressManagerContractFactoryName)
+    const Factory = await hre.ethers.getContractFactory(EmptyContractFactoryName)
     const contract = await Factory.deploy()
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", ImplStroageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     // check params
-    await assertContractVariable(contract, 'owner', await deployer.getAddress())
     const blockNumber =  await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     let err = await storge(path, ImplStroageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
@@ -36,4 +35,4 @@ export const deployLibAddressManager = async (
     return ''
 }
 
-export default deployLibAddressManager
+export default deployEmptyContract

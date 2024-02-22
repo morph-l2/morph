@@ -25,57 +25,43 @@ export const MessengerInit = async (
     const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
-    // L1MessageQueue config
-    const L1MessageQueueProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueProxyStroageName)
-    const L1MessageQueueImplAddress = getContractAddressByName(path, ImplStorageName.L1MessageQueueStroageName)
-    const L1MessageQueueFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1MessageQueue)
+    // L1MessageQueueWithGasPriceOracle config
+    const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStroageName)
+    const L1MessageQueueWithGasPriceOracleImplAddress = getContractAddressByName(path, ImplStorageName.L1MessageQueueWithGasPriceOracle)
+    const L1MessageQueueWithGasPriceOracleFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1MessageQueueWithGasPriceOracle)
 
     // L1CrossDomainMessenge config
     const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStroageName)
     const L1CrossDomainMessengerImplAddress = getContractAddressByName(path, ImplStorageName.L1CrossDomainMessengerStorageName)
     const L1CrossDomainMessengerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1CrossDomainMessenger)
 
-    // L2GasPriceOracle config
-    const L2GasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L2GasPriceOracleProxyStorageName)
-    const L2GasPriceOracleImplAddress = getContractAddressByName(path, ImplStorageName.L2GasPriceOracleStorageName)
-    const L2GasPriceOracleFactory = await hre.ethers.getContractFactory(ContractFactoryName.L2GasPriceOracle)
-
-    const L1CrossDomainMessengerProxy = new ethers.Contract(
-        L1CrossDomainMessengerProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
-
+    const IL1CrossDomainMessengerProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1CrossDomainMessengerProxyAddress, deployer)
     // upgrade and initialize L1CrossDomainMessengerProxy
     if (
-        (await L1CrossDomainMessengerProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== L1CrossDomainMessengerImplAddress.toLocaleLowerCase()
-    ) {
+        ((await IL1CrossDomainMessengerProxy.implementation()).toLocaleLowerCase() !== L1CrossDomainMessengerImplAddress.toLocaleLowerCase()
+        )) {
         console.log('Upgrading the L1CrossDomainMessenger proxy...')
         const l1FeeVaultRecipient: string = configTmp.l1FeeVaultRecipient
 
         if (!ethers.utils.isAddress(l1FeeVaultRecipient)
             || !ethers.utils.isAddress(RollupProxyAddress)
-            || !ethers.utils.isAddress(L1MessageQueueProxyAddress)
+            || !ethers.utils.isAddress(L1MessageQueueWithGasPriceOracleProxyAddress)
         ) {
             console.error('upgrade l1CrossDomainMessenger failed !!! please check your params')
             return ''
         }
         // Upgrade and initialize the proxy.
-        await L1CrossDomainMessengerProxy.connect(deployer).upgradeToAndCall(
+        await IL1CrossDomainMessengerProxy.upgradeToAndCall(
             L1CrossDomainMessengerImplAddress,
             L1CrossDomainMessengerFactory.interface.encodeFunctionData('initialize', [
-                l1FeeVaultRecipient, RollupProxyAddress, L1MessageQueueProxyAddress
+                l1FeeVaultRecipient, RollupProxyAddress, L1MessageQueueWithGasPriceOracleProxyAddress
             ])
         )
 
         await awaitCondition(
             async () => {
                 return (
-                    (await L1CrossDomainMessengerProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === L1CrossDomainMessengerImplAddress.toLocaleLowerCase()
+                    (await IL1CrossDomainMessengerProxy.implementation()).toLocaleLowerCase() === L1CrossDomainMessengerImplAddress.toLocaleLowerCase()
                 )
             },
             3000,
@@ -95,7 +81,7 @@ export const MessengerInit = async (
         await assertContractVariable(
             contractTmp,
             'messageQueue',
-            L1MessageQueueProxyAddress
+            L1MessageQueueWithGasPriceOracleProxyAddress
         )
         await assertContractVariable(
             contractTmp,
@@ -121,99 +107,22 @@ export const MessengerInit = async (
         console.log('L1CrossDomainMessengerProxy upgrade success')
     }
 
-    const L2GasPriceOracleProxy = new ethers.Contract(
-        L2GasPriceOracleProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
-    if (
-        (await L2GasPriceOracleProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== L2GasPriceOracleImplAddress.toLocaleLowerCase()
-    ) {
-        const txGas: number = configTmp.gasPriceOracleTxGas
-        const txGasContractCreation: number = configTmp.gasPriceOracleTxGasContractCreation
-        const zeroGas: number = configTmp.gasPriceOracleZeroGas
-        const nonZeroGas: number = configTmp.gasPriceOracleNonZeroGas
-        console.log('Upgrading the L2GasPriceOracle proxy...')
-        if (txGas == 0
-            || txGasContractCreation == 0
-            || zeroGas == 0
-            || nonZeroGas == 0
-            || txGasContractCreation <= txGas) {
-            console.error('upgrade L2GasPriceOracle failed !!! please check your params')
-            return ''
-        }
-
-        // Upgrade and initialize the proxy.
-        await L2GasPriceOracleProxy.connect(deployer).upgradeToAndCall(
-            L2GasPriceOracleImplAddress,
-            L2GasPriceOracleFactory.interface.encodeFunctionData('initialize', [
-                txGas, txGasContractCreation, zeroGas, nonZeroGas
-            ])
-        )
-
-        await awaitCondition(
-            async () => {
-                return (
-                    (await L2GasPriceOracleProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === L2GasPriceOracleImplAddress.toLocaleLowerCase()
-                )
-            },
-            3000,
-            1000
-        )
-
-        // params check
-        const contractTmp = new ethers.Contract(
-            L2GasPriceOracleProxyAddress,
-            L2GasPriceOracleFactory.interface,
-            deployer,
-        )
-        const gwei = BigInt(1e8)
-        await contractTmp.setL2BaseFee(gwei)
-
-        await awaitCondition(
-            async () => {
-                return (
-                    (await contractTmp.callStatic.l2BaseFee()).toString() === gwei.toString()
-                )
-            },
-            3000,
-            1000
-        )
-
-        // Wait for the transaction to execute properly.
-        console.log('L2GasPriceOracleProxy upgrade success')
-    }
-
-    const L1MessageQueueProxy = new ethers.Contract(
-        L1MessageQueueProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
+    const IL1MessageQueueWithGasPriceOracleProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1MessageQueueWithGasPriceOracleProxyAddress, deployer)
 
     if (
-        (await L1MessageQueueProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== L1MessageQueueImplAddress.toLocaleLowerCase()
+        (await IL1MessageQueueWithGasPriceOracleProxy.implementation()).toLocaleLowerCase() !== L1MessageQueueWithGasPriceOracleImplAddress.toLocaleLowerCase()
     ) {
         const maxGasLimit: number = configTmp.l1MessageQueueMaxGasLimit
 
-        console.log('Upgrading the L1MessageQueue proxy...')
+        console.log('Upgrading the L1MessageQueueWithGasPriceOracle proxy...')
         if (maxGasLimit == 0) {
-            console.error('upgrade L1MessageQueue failed !!! please check your params')
+            console.error('upgrade L1MessageQueueWithGasPriceOracle failed !!! please check your params')
             return ''
         }
         // Upgrade and initialize the proxy.
-        await L1MessageQueueProxy.connect(deployer).upgradeToAndCall(
-            L1MessageQueueImplAddress,
-            L1MessageQueueFactory.interface.encodeFunctionData('initialize', [
-                L1CrossDomainMessengerProxyAddress,
-                RollupProxyAddress,
-                hre.ethers.constants.AddressZero,
-                L2GasPriceOracleProxyAddress,
+        await IL1MessageQueueWithGasPriceOracleProxy.upgradeToAndCall(
+            L1MessageQueueWithGasPriceOracleImplAddress,
+            L1MessageQueueWithGasPriceOracleFactory.interface.encodeFunctionData('initialize', [
                 maxGasLimit
             ])
         )
@@ -221,9 +130,7 @@ export const MessengerInit = async (
         await awaitCondition(
             async () => {
                 return (
-                    (await L1MessageQueueProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === L1MessageQueueImplAddress.toLocaleLowerCase()
+                    (await IL1MessageQueueWithGasPriceOracleProxy.implementation()).toLocaleLowerCase() === L1MessageQueueWithGasPriceOracleImplAddress.toLocaleLowerCase()
                 )
             },
             3000,

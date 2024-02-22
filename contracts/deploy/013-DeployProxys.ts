@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storge, getContractAddressByName } from "../src/deploy-utils";
+import { assertContractVariable, storge, getContractAddressByName, assertContractVariableWithSigner } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
@@ -18,15 +18,20 @@ export const deployContractProxyByStorageName = async (
     deployer: any,
     storageName: string,
 ): Promise<string> => {
+    const emptyContractImplAddr = getContractAddressByName(path, ImplStorageName.EmptyContract)
     const ProxyFactoryName = ContractFactoryName.DefaultProxy
 
     const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
-    const proxy = await ProxyFactory.deploy(await deployer.getAddress())
+    // TransparentUpgradeableProxy deploy with empthContract as impl, deployer as admin
+    const proxy = await ProxyFactory.deploy(emptyContractImplAddr, await deployer.getAddress(), "0x")
     await proxy.deployed()
     console.log("%s=%s ; TX_HASH: %s", storageName, proxy.address.toLocaleLowerCase(), proxy.deployTransaction.hash);
     // check params
-    await assertContractVariable(
-        proxy,
+    const IProxyContract = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, proxy.address)
+
+    console.log(await IProxyContract.admin())
+    await assertContractVariableWithSigner(
+        IProxyContract,
         'admin',
         await deployer.getAddress()
     )
@@ -46,8 +51,7 @@ export const deployContractProxys = async (
     deployer: any,
 ): Promise<string> => {
     const L1CrossDomainMessengerStroageName = ProxyStorageName.L1CrossDomainMessengerProxyStroageName
-    const L1MessageQueueProxyStroageName = ProxyStorageName.L1MessageQueueProxyStroageName
-    const L2GasPriceOracleProxyStorageName = ProxyStorageName.L2GasPriceOracleProxyStorageName
+    const L1MessageQueueWithGasPriceOracleProxyStroageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStroageName
 
     const RollupProxyStroageName = ProxyStorageName.RollupProxyStorageName
     const StakingProxyStroageName = ProxyStorageName.StakingProxyStroageName
@@ -58,6 +62,7 @@ export const deployContractProxys = async (
     const L1StandardERC20GatewayProxyStroageName = ProxyStorageName.L1StandardERC20GatewayProxyStroageName
     const L1ERC721GatewayProxyStroageName = ProxyStorageName.L1ERC721GatewayProxyStroageName
     const L1ERC1155GatewayProxyStroageName = ProxyStorageName.L1ERC1155GatewayProxyStroageName
+    const EnforcedTxGatewayProxyStroageName = ProxyStorageName.EnforcedTxGatewayProxyStroageName
 
     // ************************ messenger contracts deploy ************************
     // L1CrossDomainMessengerProxy deploy 
@@ -66,32 +71,26 @@ export const deployContractProxys = async (
         return err
     }
 
-    // L1MessageQueueProxy deploy
-    err = await deployContractProxyByStorageName(hre, path, deployer, L1MessageQueueProxyStroageName)
+    // L1MessageQueueWithGasPriceOracleProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1MessageQueueWithGasPriceOracleProxyStroageName)
     if (err != '') {
         return err
     }
 
     // ************************ staking contracts deploy ************************
-    // StakingProxy ddeploy
+    // StakingProxy deploy
     err = await deployContractProxyByStorageName(hre, path, deployer, StakingProxyStroageName)
     if (err != '') {
         return err
     }
 
-    // L1SequencerProxy ddeploy
+    // L1SequencerProxy deploy
     err = await deployContractProxyByStorageName(hre, path, deployer, L1SequencerProxyStroageName)
     if (err != '') {
         return err
     }
 
     // ************************ rollup contracts deploy ************************
-    // L2GasPriceOracle deploy
-    err = await deployContractProxyByStorageName(hre, path, deployer, L2GasPriceOracleProxyStorageName)
-    if (err != '') {
-        return err
-    }
-
     // RollupProxy deploy
     err = await deployContractProxyByStorageName(hre, path, deployer, RollupProxyStroageName)
     if (err != '') {
@@ -128,7 +127,12 @@ export const deployContractProxys = async (
     if (err != '') {
         return err
     }
-    
+
+    // EnforcedTxGatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, EnforcedTxGatewayProxyStroageName)
+    if (err != '') {
+        return err
+    }
     // return nil
     return ''
 }

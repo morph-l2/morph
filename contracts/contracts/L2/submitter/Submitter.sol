@@ -9,7 +9,6 @@ import {IL2Sequencer} from "../staking/IL2Sequencer.sol";
 import {IGov} from "../staking/IGov.sol";
 import {ISubmitter} from "./ISubmitter.sol";
 
-
 contract Submitter is ISubmitter, OwnableUpgradeable {
     struct SequencerHistory {
         address[] sequencerAddresses;
@@ -61,6 +60,10 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     constructor() {
         L2_SEQUENCER_CONTRACT = Predeploys.L2_SEQUENCER;
         L2_GOV_CONTRACT = Predeploys.L2_GOV;
+    }
+
+    function initialize() public initializer {
+        __Ownable_init();
     }
 
     /**
