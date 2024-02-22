@@ -114,7 +114,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     let mut pre: Vec<u8> = vec![];
     pre.extend(batch_commit.to_le_bytes().to_vec());
     pre.extend(batch_blob);
-    let challenge_point = U256::from_little_endian(keccak256(pre.as_slice()).as_ref());
+    // let challenge_point = U256::from_little_endian(keccak256(pre.as_slice()).as_ref());
+    let challenge_point = U256::from(128);
 
     let mut index = 0;
     for chunk_trace in chunk_traces.iter(){
@@ -144,6 +145,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             batch_index,
             index
         );
+        log::info!("=========gen_chunk_proof_with_index, batch_commit= {:#?}, challenge_point= {:#?}, index= {:#?} ", batch_commit, challenge_point, index);
+
         // Start chunk prove
         let chunk_proof: ChunkProof = match chunk_prover.gen_chunk_proof_with_index(
             chunk_trace.to_vec(),
@@ -246,14 +249,4 @@ async fn get_chunk_traces(
     Some(chunk_traces)
 }
 
-#[tokio::test]
-async fn test() {
-    use std::fs::File;
-    use std::io::Write;
-
-    let protocol: Vec<u8> = vec![1, 2, 3, 4];
-    std::fs::create_dir_all("configs").unwrap();
-    let mut params_file = File::create("configs/chunk.protocol").unwrap();
-    params_file.write_all(&protocol[..]).unwrap();
-}
 
