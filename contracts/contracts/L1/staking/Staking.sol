@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Types} from "../../libraries/common/Types.sol";
-import {SafeCall} from "../../libraries/common/SafeCall.sol";
 import {IL1Sequencer} from "./IL1Sequencer.sol";
 import {IStaking} from "./IStaking.sol";
 import {IL2Sequencer} from "../../L2/staking/IL2Sequencer.sol";
@@ -363,7 +362,7 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
 
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
-            bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
+            (bool success, ) = _to.call{value: _amount}(hex"");
             require(success, "Rollup: ETH transfer failed");
         }
     }
