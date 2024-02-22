@@ -6,7 +6,7 @@ import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
 import { assertContractVariable, getContractAddressByName, awaitCondition } from "../src/deploy-utils";
-import { BigNumber, ethers } from 'ethers'
+import { ethers } from 'ethers'
 
 import {
     ImplStorageName,

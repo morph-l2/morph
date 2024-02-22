@@ -8,9 +8,7 @@ const ContractFactoryName = {
     // messenger
     L1CrossDomainMessenger: 'L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'L1MessageQueueWithGasPriceOracle',
-    // L1MessageQueue: 'L1MessageQueue',
     // rollup
-    // L2GasPriceOracle: 'L2GasPriceOracle',
     Rollup: 'Rollup',
     ZkEvmVerifierV1: 'ZkEvmVerifierV1',
     MultipleVersionRollupVerifier: 'MultipleVersionRollupVerifier',
@@ -29,10 +27,8 @@ const ContractFactoryName = {
 const ProxyStorageName = {
     // messenger
     L1CrossDomainMessengerProxyStroageName: 'Proxy__L1CrossDomainMessenger',
-    // L1MessageQueueProxyStroageName: 'Proxy__L1MessageQueue',
     L1MessageQueueWithGasPriceOracleProxyStroageName: 'Proxy__L1MessageQueueWithGasPriceOracle',
     // rollup
-    // L2GasPriceOracleProxyStorageName: 'Proxy__L2GasPriceOracle',
     RollupProxyStorageName: 'Proxy__Rollup',
     // staking
     StakingProxyStroageName: 'Proxy__Staking',
@@ -54,9 +50,7 @@ const ImplStorageName = {
     // messenger
     L1CrossDomainMessengerStorageName: 'Impl__L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'Impl__L1MessageQueueWithGasPriceOracle',
-    // L1MessageQueueStroageName: 'Impl__L1MessageQueue',
     // rollup
-    // L2GasPriceOracleStorageName: 'Impl__L2GasPriceOracle',
     RollupStorageName: 'Impl__Rollup',
     ZkEvmVerifierV1StorageName: 'Impl__ZkEvmVerifierV1',
     MultipleVersionRollupVerifierStorageName: 'Impl__MultipleVersionRollupVerifier',

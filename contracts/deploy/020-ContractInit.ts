@@ -5,12 +5,10 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, getContractAddressByName, assertContractVariableWithSigner, awaitCondition, storge } from "../src/deploy-utils";
+import { getContractAddressByName, awaitCondition } from "../src/deploy-utils";
 import { ethers } from 'ethers'
-import { predeploys } from '../src/constants'
 
 import {
-    ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
 } from "./types"

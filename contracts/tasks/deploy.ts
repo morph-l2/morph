@@ -114,6 +114,7 @@ task("initialize")
             console.log('ContractInit failed, err: ', err)
             return
         }
+        // todo transfer contract owner 
     });
 
 task("fund")

@@ -8,7 +8,6 @@ import {
 import { getContractAddressByName, awaitCondition } from "../src/deploy-utils";
 import { ethers } from 'ethers'
 import {
-    ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
 } from "./types"

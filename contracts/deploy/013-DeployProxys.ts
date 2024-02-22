@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storge, getContractAddressByName, assertContractVariableWithSigner } from "../src/deploy-utils";
+import { storge, getContractAddressByName, assertContractVariableWithSigner } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
