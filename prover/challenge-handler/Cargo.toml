@@ -18,3 +18,4 @@ prometheus = { version = "0.9", features = ["process"] }
 lazy_static = "1.4"
 axum = "0.4.3"
 tower-http = { version = "0.4", features = ["full"] }
+hex = "0.4"

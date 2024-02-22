@@ -427,6 +427,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "ethers",
+ "hex",
  "lazy_static",
  "log",
  "prometheus",

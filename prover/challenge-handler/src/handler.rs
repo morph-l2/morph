@@ -7,6 +7,7 @@ use ethers::types::Address;
 use ethers::types::Bytes;
 use ethers::{abi::AbiDecode, prelude::*};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::env::var;
 use std::error::Error;
 use std::ops::Mul;
@@ -176,15 +177,29 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType, l1_provider: &Pro
             None => continue,
         };
 
+        l1_rollup.address();
+
         if prove_result.proof_data.is_empty() {
             log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
             continue;
         }
 
+        let commitment: Vec<u8> = match query_kzg_commitment(batch_index).await {
+            Some(kc) => kc,
+            None => continue,
+        };
+
         log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
         let aggr_proof = Bytes::from(prove_result.proof_data);
-        let tx = l1_rollup.prove_state(batch_index, aggr_proof);
-        let rt = tx.send().await;
+        let _kzgData = Bytes::from(commitment);
+
+        let mut call = l1_rollup.prove_state(batch_index, aggr_proof);
+        if util::read_env_var("SHADOW", false) {
+            let shadow_rollup = Address::from_str(util::read_env_var("SHADOW", "0x1".to_string()).as_str()).unwrap();
+            call.tx.set_to(shadow_rollup);
+        }
+
+        let rt = call.send().await;
         let pending_tx = match rt {
             Ok(pending_tx) => {
                 log::info!("tx of prove_state has been sent: {:#?}", pending_tx.tx_hash());
@@ -270,6 +285,52 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
     return Some(prove_result);
 }
 
+/**
+ * Query the kzg commitment of batch.
+ */
+async fn query_kzg_commitment(batch_index: u64) -> Option<Vec<u8>> {
+    // Make a call to the sequencer.
+    let rt = tokio::task::spawn_blocking(move || util::call_sequencer(batch_index.to_string(), "/morph_getRollupBatchByIndex"))
+        .await
+        .unwrap();
+    let rt_text = match rt {
+        Some(info) => info,
+        None => {
+            log::error!("query kzg commitment failed");
+            return None;
+        }
+    };
+
+    let rollup_batch = match serde_json::from_str::<Value>(&rt_text) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            log::error!("deserialize rollup_batch failed, batch index = {:#?}", batch_index);
+            return None;
+        }
+    };
+
+    let commitments = match rollup_batch["sidecar"]["commitments"].as_array() {
+        Some(c) => c,
+        None => {
+            log::error!("deserialize rollup_batch_commitments failed, batch index = {:#?}", batch_index);
+            return None;
+        }
+    };
+    if commitments.is_empty() {
+        log::error!("rollup batch has empty kzg commitments, batch index = {:#?}", batch_index);
+        return None;
+    }
+
+    let commitment_bytes: Vec<u8> = match hex::decode(commitments.first().unwrap().as_str().unwrap_or("0xf")) {
+        Ok(cb) => cb,
+        Err(_) => {
+            log::error!("deserialize commitment failed, batch index = {:#?}", batch_index);
+            return None;
+        }
+    };
+    return Some(commitment_bytes);
+}
+
 async fn query_challenged_batch(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<TxHash> {
     let start = if latest > U64::from(7200 * 3) {
         // Depends on challenge period
@@ -284,6 +345,7 @@ async fn query_challenged_batch(latest: U64, l1_rollup: &RollupType, batch_index
         .from_block(start)
         .topic1(U256::from(batch_index))
         .address(l1_rollup.address());
+
     let logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
         Ok(logs) => logs,
         Err(e) => {
@@ -330,7 +392,12 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
     } else {
         U64::from(1)
     };
-    let filter = l1_rollup.challenge_state_filter().filter.from_block(start).address(l1_rollup.address());
+    let mut filter = l1_rollup.challenge_state_filter().filter.from_block(start).address(l1_rollup.address());
+    let shadow = util::read_env_var("SHADOW", false);
+    if shadow {
+        let shadow_rollup = Address::from_str(util::read_env_var("SHADOW", "0x1".to_string()).as_str()).unwrap();
+        filter = filter.address(shadow_rollup);
+    }
     let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
         Ok(logs) => logs,
         Err(e) => {
@@ -457,4 +524,3 @@ async fn test_decode_chunks() {
     assert!(rt.len() == 11);
     assert!(rt.get(3).unwrap().len() == 2);
 }
-
