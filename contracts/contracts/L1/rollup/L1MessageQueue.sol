@@ -125,6 +125,7 @@ contract L1MessageQueue is OwnableUpgradeable, IL1MessageQueue {
     function getCrossDomainMessage(
         uint256 _queueIndex
     ) external view returns (bytes32) {
+        require(_queueIndex < messageQueue.length, "message index out of range");
         return messageQueue[_queueIndex];
     }
 
