@@ -2,11 +2,9 @@
 pragma solidity =0.8.24;
 
 import {IMessageDropCallback} from "../libraries/callbacks/IMessageDropCallback.sol";
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {Constants} from "../libraries/constants/Constants.sol";
 import {CrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {Semver} from "../libraries/common/Semver.sol";
 import {IL1MessageQueue} from "./rollup/IL1MessageQueue.sol";
 import {IRollup} from "./rollup/IRollup.sol";
 import {Verify} from "../libraries/common/Tree.sol";
@@ -20,11 +18,20 @@ import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
  *         interface instead of interacting with lower-level contracts directly.
  */
 contract L1CrossDomainMessenger is
-    Semver,
     IL1CrossDomainMessenger,
     CrossDomainMessenger,
     Verify
 {
+    /*************
+     * Constants *
+     *************/
+
+    /// @notice The address of Rollup contract.
+    address public immutable rollup;
+
+    /// @notice The address of L1MessageQueue contract.
+    address public immutable messageQueue;
+
     /***********
      * Structs *
      ***********/
@@ -52,6 +59,9 @@ contract L1CrossDomainMessenger is
      * Variables *
      *************/
 
+    /// @notice The maximum number of times each L1 message can be replayed.
+    uint256 public maxReplayTimes;
+
     /**
      * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
      */
@@ -67,15 +77,6 @@ contract L1CrossDomainMessenger is
 
     /// @notice Mapping from L1 message hash to drop status.
     mapping(bytes32 => bool) public isL1MessageDropped;
-
-    /// @notice The address of Rollup contract.
-    address public rollup;
-
-    /// @notice The address of L1MessageQueue contract.
-    address public messageQueue;
-
-    /// @notice The maximum number of times each L1 message can be replayed.
-    uint256 public maxReplayTimes;
 
     /// @notice Mapping from L1 message hash to replay state.
     mapping(bytes32 => ReplayState) public replayStates;
@@ -97,30 +98,25 @@ contract L1CrossDomainMessenger is
      * Constructor *
      ***************/
 
-    constructor() Semver(1, 0, 0) {
+    constructor(
+        address _counterpart,
+        address _rollup,
+        address _messageQueue
+    ) CrossDomainMessenger(_counterpart) {
+        if (_rollup == address(0) || _messageQueue == address(0)) {
+            revert ErrZeroAddress();
+        }
+
         _disableInitializers();
+
+        rollup = _rollup;
+        messageQueue = _messageQueue;
     }
 
     /// @notice Initialize the storage of L1CrossDomainMessenger.
     /// @param _feeVault The address of fee vault, which will be used to collect relayer fee.
-    /// @param _rollup The address of rollup contract.
-    /// @param _messageQueue The address of L1MessageQueue contract.
-    function initialize(
-        address _feeVault,
-        address _rollup,
-        address _messageQueue
-    ) public initializer {
-        if (_rollup == address(0) || _messageQueue == address(0)) {
-            revert ErrZeroAddress();
-        }
-        CrossDomainMessenger.__Messenger_init(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            _feeVault
-        );
-
-        rollup = _rollup;
-        messageQueue = _messageQueue;
-        counterpart = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+    function initialize(address _feeVault) public initializer {
+        CrossDomainMessenger.__Messenger_init(_feeVault);
 
         maxReplayTimes = 3;
         emit UpdateMaxReplayTimes(0, 3);
@@ -186,9 +182,8 @@ contract L1CrossDomainMessenger is
             provenWithdrawal.timestamp == 0,
             "Messenger: withdrawal hash has already been proven"
         );
-        address _rollup = rollup;
         // withdrawalRoot for withdraw proof verify
-        uint256 withdrawalBatchIndex = IRollup(_rollup).withdrawalRoots(
+        uint256 withdrawalBatchIndex = IRollup(rollup).withdrawalRoots(
             _withdrawalRoot
         );
         require(
@@ -260,9 +255,8 @@ contract L1CrossDomainMessenger is
         );
 
         {
-            address _rollup = rollup;
             // withdrawalRoot for withdraw proof verify
-            uint256 withdrawalBatchIndex = IRollup(_rollup).withdrawalRoots(
+            uint256 withdrawalBatchIndex = IRollup(rollup).withdrawalRoots(
                 provenWithdrawal.withdrawalRoot
             );
             require(
@@ -270,7 +264,7 @@ contract L1CrossDomainMessenger is
                 "Messenger: do not submit withdrawalRoot"
             );
 
-            bytes32 finStateRoots = IRollup(_rollup).finalizedStateRoots(
+            bytes32 finStateRoots = IRollup(rollup).finalizedStateRoots(
                 withdrawalBatchIndex
             );
             require(
@@ -307,8 +301,6 @@ contract L1CrossDomainMessenger is
         // is encoded in the `_message`. We will check the `xDomainCalldata` on layer 2 to avoid duplicated execution.
         // So, only one message will succeed on layer 2. If one of the message is executed successfully, the other one
         // will revert with "Message was already successfully executed".
-        address _messageQueue = messageQueue;
-        address _counterpart = counterpart;
         bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             _from,
             _to,
@@ -329,7 +321,7 @@ contract L1CrossDomainMessenger is
         );
 
         // compute and deduct the messaging fee to fee vault.
-        uint256 _fee = IL1MessageQueue(_messageQueue)
+        uint256 _fee = IL1MessageQueue(messageQueue)
             .estimateCrossDomainMessageFee(_newGasLimit);
 
         // charge relayer fee
@@ -340,10 +332,10 @@ contract L1CrossDomainMessenger is
         }
 
         // enqueue the new transaction
-        uint256 _nextQueueIndex = IL1MessageQueue(_messageQueue)
+        uint256 _nextQueueIndex = IL1MessageQueue(messageQueue)
             .nextCrossDomainMessageIndex();
-        IL1MessageQueue(_messageQueue).appendCrossDomainMessage(
-            _counterpart,
+        IL1MessageQueue(messageQueue).appendCrossDomainMessage(
+            counterpart,
             _newGasLimit,
             _xDomainCalldata
         );
@@ -473,11 +465,8 @@ contract L1CrossDomainMessenger is
         uint256 _gasLimit,
         address _refundAddress
     ) internal nonReentrant {
-        address _messageQueue = messageQueue; // gas saving
-        address _counterpart = counterpart; // gas saving
-
         // compute the actual cross domain message calldata.
-        uint256 _messageNonce = IL1MessageQueue(_messageQueue)
+        uint256 _messageNonce = IL1MessageQueue(messageQueue)
             .nextCrossDomainMessageIndex();
         bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             _msgSender(),
@@ -488,7 +477,7 @@ contract L1CrossDomainMessenger is
         );
 
         // compute and deduct the messaging fee to fee vault.
-        uint256 _fee = IL1MessageQueue(_messageQueue)
+        uint256 _fee = IL1MessageQueue(messageQueue)
             .estimateCrossDomainMessageFee(_gasLimit);
         require(msg.value >= _fee + _value, "Insufficient msg.value");
         if (_fee > 0) {
@@ -497,8 +486,8 @@ contract L1CrossDomainMessenger is
         }
 
         // append message to L1MessageQueue
-        IL1MessageQueue(_messageQueue).appendCrossDomainMessage(
-            _counterpart,
+        IL1MessageQueue(messageQueue).appendCrossDomainMessage(
+            counterpart,
             _gasLimit,
             _xDomainCalldata
         );

@@ -76,10 +76,15 @@ abstract contract CrossDomainMessenger is
      * Constructor *
      ***************/
 
-    function __Messenger_init(
-        address _counterpart,
-        address _feeVault
-    ) internal onlyInitializing {
+    constructor(address _counterpart) {
+        if (_counterpart == address(0)) {
+            revert ErrZeroAddress();
+        }
+
+        counterpart = _counterpart;
+    }
+
+    function __Messenger_init(address _feeVault) internal onlyInitializing {
         OwnableUpgradeable.__Ownable_init();
         PausableUpgradeable.__Pausable_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
@@ -87,14 +92,13 @@ abstract contract CrossDomainMessenger is
         // initialize to a nonzero value
         xDomainMessageSender = Constants.DEFAULT_XDOMAIN_MESSAGE_SENDER;
 
-        counterpart = _counterpart;
         if (_feeVault != address(0)) {
             feeVault = _feeVault;
         }
     }
 
     // make sure only owner can send ether to messenger to avoid possible user fund loss.
-    receive() external payable {}
+    receive() external payable onlyOwner {}
 
     /************************
      * Restricted Functions *
