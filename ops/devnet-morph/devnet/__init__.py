@@ -186,12 +186,13 @@ def devnet_deploy(paths, args):
     deploy_config['l2SequencerBlsKeys']
     for i in range(4):
         run_command(['cast', 'send', addresses['Proxy__Staking'],
-                     'register(bytes32,bytes memory,uint32)',
+                     'register(bytes32,bytes memory,uint32,uint256)',
                      deploy_config['l2SequencerTmKeys'][i],
                      deploy_config['l2SequencerBlsKeys'][i],
                      '5000000',
+                     '1000000000000000',
                      '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '2ether',
+                     '--value', '3ether',
                      '--private-key', deploy_config['l2SequencerPks'][i]
                      ])
 
@@ -230,14 +231,6 @@ def devnet_deploy(paths, args):
     log.info('Bringing up L2.')
 
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
-                 'node-0',
-                 'node-1',
-                 'node-2',
-                 'node-3',
-                 'sentry-node-0',
-                 'validator_node',
-                 'tx-submitter',
-                 'gas-price-oracle',
                  '-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],

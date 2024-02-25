@@ -298,6 +298,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
+
+        // re-compute batchhash using _blobVersionedhash
+        if (_batchIndex > 0 && committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)) {
+            _parentBatchHash = keccak256(
+                abi.encodePacked(_parentBatchHash, committedBatchStores[_batchIndex].blobVersionedhash)
+            );
+        }
+
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderV0Codec
             .totalL1MessagePopped(batchPtr);
 

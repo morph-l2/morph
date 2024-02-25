@@ -33,9 +33,10 @@ export const StakingRegister = async (
         signer,
     )
 
-    const response = await StakingProxyWithSigner.register(tmKey, blsKey, 5000000, {
+    // just for devnet register value may set parmas to config
+    const response = await StakingProxyWithSigner.register(tmKey, blsKey, 5000000, eth, {
         gasLimit: 10000000,
-        value: two * eth
+        value: two * two * eth
     })
     console.log(`Transaction hash (on L1): ${response.hash}`)
     const receipt = await response.wait()
