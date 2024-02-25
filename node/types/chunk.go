@@ -151,10 +151,6 @@ func (ck *Chunk) TxsPayload() []byte {
 	return ck.txsPayload
 }
 
-func (ck *Chunk) TxHashes() []byte {
-	return ck.txHashes
-}
-
 func (ck *Chunk) BlockNum() int {
 	return ck.blockNum
 }

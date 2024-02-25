@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -38,12 +37,7 @@ func NewBasicHTTPClient(endpoint string, log tmlog.Logger) *BasicHTTPClient {
 }
 
 func (cl *BasicHTTPClient) Get(ctx context.Context, p string, headers http.Header) (*http.Response, error) {
-	u, err := url.JoinPath(cl.endpoint, p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to join path", err)
-	}
-	//u := cl.endpoint + p
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cl.endpoint+p, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to construct request", err)
 	}
