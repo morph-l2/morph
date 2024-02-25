@@ -66,6 +66,12 @@ var (
 		EnvVar: prefixEnvVar("L1_ETH_RPC"),
 	}
 
+	L1BeaconAddr = cli.StringFlag{
+		Name:   "l1.beaconrpc",
+		Usage:  "Address of L1 Beacon JSON-RPC endpoint to use (eth namespace required)",
+		EnvVar: prefixEnvVar("L1_ETH_BEACON_RPC"),
+	}
+
 	L1ChainID = cli.Uint64Flag{
 		Name:   "l1.chain-id",
 		Usage:  "L1 Chain ID",
@@ -276,6 +282,7 @@ var Flags = []cli.Flag{
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
+	L1BeaconAddr,
 
 	// logger
 	LogLevel,

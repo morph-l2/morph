@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/morph-l2/node/types"
@@ -122,6 +123,9 @@ func (s *Syncer) fetchL1Messages() {
 		s.logger.Error("failed to get latest confirmed block number", "err", err)
 		return
 	}
+	// TODO delete
+	fmt.Println("latestConfirmed:==========", latestConfirmed)
+	fmt.Println("s.latestSynced:==========", s.latestSynced)
 
 	// ticker for logging progress
 	t := time.NewTicker(s.logProgressInterval)

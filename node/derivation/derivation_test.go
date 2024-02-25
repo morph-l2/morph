@@ -8,17 +8,17 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/morph-l2/bindings/bindings"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/eth"
-
 	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core"
 	"github.com/scroll-tech/go-ethereum/core/rawdb"
+	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
 	"github.com/scroll-tech/go-ethereum/ethdb"
@@ -121,6 +121,32 @@ func TestDecodeBatch(t *testing.T) {
 		PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 		WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 	}
-	_, err = ParseBatch(batch, nil)
+	_, err = ParseBatch(batch)
 	require.NoError(t, err)
+}
+
+func DialEthClientWithTimeout(ctx context.Context, url string) (*ethclient.Client, *rpc.Client, error) {
+	ctxt, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	c, err := rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ethclient.NewClient(c), c, nil
+}
+
+func TestCompareBlockHash(t *testing.T) {
+	sClient, err := ethclient.Dial("http://localhost:8545")
+	require.NoError(t, err)
+	dClient, err := ethclient.Dial("http://localhost:7545")
+	require.NoError(t, err)
+	latest, err := dClient.BlockNumber(context.Background())
+	for i := 0; i <= int(latest); i++ {
+		sBlock, err := sClient.BlockByNumber(context.Background(), big.NewInt(int64(i)))
+		require.NoError(t, err)
+		dBlock, err := dClient.BlockByNumber(context.Background(), big.NewInt(int64(i)))
+		require.NoError(t, err)
+		require.Equal(t, sBlock.Hash(), dBlock.Hash())
+	}
 }

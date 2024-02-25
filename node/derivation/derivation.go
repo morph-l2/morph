@@ -80,6 +80,7 @@ type Derivation struct {
 	logger                tmlog.Logger
 	rollup                *bindings.Rollup
 	metrics               *Metrics
+	l1BeaconClient        *L1BeaconClient
 
 	latestDerivation uint64
 	db               Database
@@ -125,6 +126,8 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		}()
 		logger.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 	}
+	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
+	l1BeaconClient := NewL1BeaconClient(baseHttp)
 	return &Derivation{
 		ctx:                   ctx,
 		db:                    db,
@@ -142,6 +145,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
 		metrics:               metrics,
+		l1BeaconClient:        l1BeaconClient,
 	}, nil
 }
 
@@ -295,6 +299,26 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 			Signature []uint8    "json:\"signature\""
 		} "json:\"signature\""
 	})
+
+	block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
+	if err != nil {
+		return nil, err
+	}
+	indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), *tx)
+	header, err := d.l1Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockNumber)))
+	if err != nil {
+		return nil, err
+	}
+	var bts eth.BlobTxSidecar
+	if len(indexedBlobHashes) != 0 {
+		bts, err = d.l1BeaconClient.GetBlobSidecar(context.Background(), L1BlockRef{
+			Time: header.Time,
+		}, indexedBlobHashes)
+		if err != nil {
+			return nil, fmt.Errorf("getBlockSidecar error:%v", err)
+		}
+	}
+
 	var chunks []hexutil.Bytes
 	for _, chunk := range rollupBatchData.Chunks {
 		chunks = append(chunks, chunk)
@@ -307,8 +331,9 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
 		PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 		WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
-		Sidecar:                *tx.BlobTxSidecar(),
+		Sidecar:                bts,
 	}
+
 	rollupData, err := d.parseBatch(batch)
 	if err != nil {
 		d.logger.Error("ParseBatch failed", "txNonce", tx.Nonce(), "txHash", txHash,
