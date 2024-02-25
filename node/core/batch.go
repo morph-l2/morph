@@ -464,32 +464,27 @@ func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, to
 	return
 }
 
-func DecodeTxsPayload(reader *bytes.Reader, txNum int) ([]*eth.Transaction, []byte, error) {
+func DecodeTxsPayload(reader *bytes.Reader, txNum int) ([]*eth.Transaction, error) {
 	var txs []*eth.Transaction
-	var txsByte []byte
 	for i := 0; i < txNum; i++ {
 		var txLen uint32
 		if err := binary.Read(reader, binary.BigEndian, &txLen); err != nil {
 			if err == io.EOF {
 				break
 			}
-			return nil, nil, err
+			return nil, err
 		}
 		txBz := make([]byte, txLen)
 		if err := binary.Read(reader, binary.BigEndian, &txBz); err != nil {
-			return nil, nil, fmt.Errorf("redad txBz error:%v", err)
+			return nil, fmt.Errorf("redad txBz error:%v", err)
 		}
-		var txLenByte [4]byte
-		binary.BigEndian.PutUint32(txLenByte[:], txLen)
-		txsByte = append(txsByte, txLenByte[:]...)
-		txsByte = append(txsByte, txBz...)
 		var tx eth.Transaction
 		if err := tx.UnmarshalBinary(txBz); err != nil {
-			return nil, nil, fmt.Errorf("transaction is not valid: %v", err)
+			return nil, fmt.Errorf("transaction is not valid: %v", err)
 		}
 		txs = append(txs, &tx)
 	}
-	return txs, txsByte, nil
+	return txs, nil
 }
 
 func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {

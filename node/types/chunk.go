@@ -135,20 +135,12 @@ func (ck *Chunk) SetTxHashBytes(txHashBytes []byte) {
 	ck.txHashes = txHashBytes
 }
 
-func (ck *Chunk) SetTxsPayload(txsPayload []byte) {
-	ck.txsPayload = txsPayload
-}
-
 func (ck *Chunk) ResetBlockNum(blockNum int) {
 	ck.blockNum = blockNum
 }
 
 func (ck *Chunk) BlockContext() []byte {
 	return ck.blockContext
-}
-
-func (ck *Chunk) TxsPayload() []byte {
-	return ck.txsPayload
 }
 
 func (ck *Chunk) BlockNum() int {

@@ -411,6 +411,7 @@ func parseChunk(chunkBytes []byte) (*types.Chunk, error) {
 	if err := binary.Read(reader, binary.BigEndian, &l2TxHashes); err != nil {
 		return nil, err
 	}
+	// To compute the chunk.Hash, txHashes are indispensable and will be filled by function SetTxHashBytes later
 	chunk := types.NewChunk(blockCtx, nil, nil, nil, nil)
 	chunk.ResetBlockNum(int(blockNum))
 	return chunk, nil
@@ -481,12 +482,10 @@ func ParseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 				return nil, fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
 			}
 
-			txs, txsByte, err := node.DecodeTxsPayload(txReader, int(block.txsNum)-int(block.l1MsgNum))
+			txs, err := node.DecodeTxsPayload(txReader, int(block.txsNum)-int(block.l1MsgNum))
 			if err != nil {
 				return nil, fmt.Errorf("DecodeTxsPayload error:%v", err)
 			}
-			// TODO only l2 tx
-			chunk.AppendTxsPayload(txsByte)
 			txsNum += uint64(block.txsNum)
 			l1MsgNum += uint64(block.l1MsgNum)
 			// l1 transactions will be inserted later in front of L2 transactions
@@ -502,10 +501,6 @@ func ParseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 		rollupData.chunks = append(rollupData.chunks, &ck)
 	}
 	return &rollupData, nil
-}
-
-func DataHash() {
-
 }
 
 func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *types.BatchHeader, blobHashes []common.Hash) error {

@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
-	github.com/ethereum/go-ethereum v1.10.26
 	github.com/go-kit/kit v0.12.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
