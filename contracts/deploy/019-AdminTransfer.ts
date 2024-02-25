@@ -37,15 +37,16 @@ export const adminTransferByProxyStorageName = async (
 
         }
     }
-    console.log("change admin")
-    await IProxyContract.changeAdmin(ProxyAdminImplAddr)
+    console.log(`change ${storageName} admin transfer from ${deployerAddr} to ProxyAdmin ${ProxyAdminImplAddr} `)
+    const res =  await IProxyContract.changeAdmin(ProxyAdminImplAddr)
+    await res.wait()
     await assertContractVariable(
         IProxyContract,
         'admin',
         ProxyAdminImplAddr,
         ProxyAdminImplAddr // caller
     )
-    console.log(`${storageName} admin transfer from ${deployerAddr} to ProxyAdmin ${ProxyAdminImplAddr} `)
+    console.log(`admin transfer successful `)
     return ''
 }
 export const AdminTransfer = async (

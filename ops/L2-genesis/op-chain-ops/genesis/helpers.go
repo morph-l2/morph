@@ -74,7 +74,7 @@ func AddressToCodeNamespace(addr common.Address) (common.Address, error) {
 	if !IsL1DevPredeploy(addr) && !IsL2DevPredeploy(addr) {
 		return common.Address{}, fmt.Errorf("cannot handle non predeploy: %s", addr)
 	}
-	bigAddress := new(big.Int).SetBytes(addr[18:])
+	bigAddress := new(big.Int).SetBytes(addr[16:])
 	num := new(big.Int).Or(bigCodeNameSpace, bigAddress)
 	return common.BigToAddress(num), nil
 }

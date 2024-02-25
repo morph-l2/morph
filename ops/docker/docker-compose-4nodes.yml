@@ -56,7 +56,6 @@ services:
         - 3500:3500
         - 8080:8080
         - 6060:6060
-        - 9090:9090
       volumes:
         - l1_consensus:/consensus
         - l1_execution:/execution

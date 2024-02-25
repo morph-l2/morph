@@ -70,7 +70,7 @@ func SetL2Proxies(db vm.StateDB) error {
 }
 
 func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
-	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
+	depBytecode, err := bindings.GetDeployedBytecode("TransparentUpgradeableProxy")
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,6 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 	for i := uint64(0); i <= count; i++ {
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
-
 		if UntouchablePredeploys[addr] {
 			log.Info("Skipping setting proxy", "address", addr)
 			continue
