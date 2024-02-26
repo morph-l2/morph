@@ -100,7 +100,6 @@ contract L1MessageQueue is OwnableUpgradeable, IL1MessageQueue {
         uint256 _maxGasLimit
     ) external initializer {
         OwnableUpgradeable.__Ownable_init();
-
         gasOracle = _gasOracle;
         maxGasLimit = _maxGasLimit;
     }

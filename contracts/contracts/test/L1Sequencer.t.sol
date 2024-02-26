@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {L1StakingBaseTest} from "./base/L1StakingBase.t.sol";
+import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {IL2Sequencer} from "../L2/staking/IL2Sequencer.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
-contract L1SequencerTest is L1StakingBaseTest {
+contract L1SequencerTest is L1MessageBaseTest {
     string sendMessage4 = "sendMessage(address,uint256,bytes,uint256,address)";
     address refundAddress = address(2048);
 
@@ -20,6 +20,7 @@ contract L1SequencerTest is L1StakingBaseTest {
             Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
                 user
             );
+            sequencerAddrs.push(sequencerInfo.addr);
             sequencerBLSKeys.push(sequencerInfo.blsKey);
             sequencerInfos[i] = sequencerInfo;
         }
@@ -43,16 +44,18 @@ contract L1SequencerTest is L1StakingBaseTest {
                 IL2Sequencer.updateSequencers.selector,
                 sequencerInfos
             ),
+            sequencerAddrs,
             sequencerBLSKeys,
             defaultGasLimit,
             refundAddress
         );
         version++;
-        checkSequencerBLSKeys(version);
+        checkSequencers(version);
     }
 
-    function checkSequencerBLSKeys(uint256 version) internal {
-        for (uint256 i = 0; i < sequencerBLSKeys.length; i++) {
+    function checkSequencers(uint256 version) internal {
+        for (uint256 i = 0; i < sequencerAddrs.length; i++) {
+            assertEq(sequencerAddrs[i], l1Sequencer.sequencerAddrs(version, i));
             assertBytesEq(
                 sequencerBLSKeys[i],
                 l1Sequencer.sequencerBLSKeys(version, i)
@@ -77,6 +80,7 @@ contract L1SequencerVerifyTest is L1SequencerTest {
                 address user = address(uint160(beginSeq + i));
                 Types.SequencerInfo memory sequencerInfo = ffi
                     .generateStakingInfo(user);
+                sequencerAddrs.push(sequencerInfo.addr);
                 sequencerBLSKeys.push(sequencerInfo.blsKey);
                 sequencerInfos[j] = sequencerInfo;
                 sequencersInfosStorage[version][j] = sequencerInfo;
@@ -91,12 +95,26 @@ contract L1SequencerVerifyTest is L1SequencerTest {
             hevm.prank(address(staking));
             l1Sequencer.updateAndSendSequencerSet(
                 data,
+                sequencerAddrs,
                 sequencerBLSKeys,
                 defaultGasLimit,
                 refundAddress
             );
-            checkSequencerBLSKeys(version);
+            checkSequencers(version);
+            delete sequencerAddrs;
             delete sequencerBLSKeys;
+        }
+    }
+
+    function testGetSequencerAddrs() external {
+        uint256 newnestVersion = l1Sequencer.newestVersion();
+        for (uint256 i = 1; i <= newnestVersion; i++) {
+            for (uint256 j = 0; j < SEQUENCER_SIZE; j++) {
+                assertEq(
+                    l1Sequencer.getSequencerAddrs(i)[j],
+                    sequencersInfosStorage[i][j].addr
+                );
+            }
         }
     }
 
@@ -105,37 +123,22 @@ contract L1SequencerVerifyTest is L1SequencerTest {
         for (uint256 i = 1; i <= newnestVersion; i++) {
             for (uint256 j = 0; j < SEQUENCER_SIZE; j++) {
                 assertBytesEq(
-                    l1Sequencer.getSequencerBLSKeys(i, j),
+                    l1Sequencer.getSequencerBLSKeys(i)[j],
                     sequencersInfosStorage[i][j].blsKey
                 );
             }
         }
     }
 
-    function testVerifySignatureOneByOne() external {
-        uint256[] memory indexs = new uint256[](0);
-        bytes memory signature = bytes("");
-        hevm.startPrank(address(rollup));
-        for (uint256 version = 1; version <= SEQUENCER_SIZE; version++) {
-            l1Sequencer.verifySignature(version, indexs, signature);
-            assertBytesEq(
-                l1Sequencer.getSequencerBLSKeys(version, 0),
-                bytes("")
-            );
-        }
-        hevm.stopPrank();
-    }
-
     function testVerifySignatureNewnest() external {
         uint256[] memory indexs = new uint256[](0);
         bytes memory signature = bytes("");
         hevm.startPrank(address(rollup));
+        uint256 currentVersion = l1Sequencer.currentVersion();
         uint256 newnestVersion = l1Sequencer.newestVersion();
-        l1Sequencer.verifySignature(newnestVersion, indexs, signature);
-        for (uint256 i = 1; i <= newnestVersion; i++) {
-            assertBytesEq(
-                l1Sequencer.getSequencerBLSKeys(version, 0),
-                bytes("")
+        for (uint256 i = currentVersion; i <= newnestVersion; i++) {
+            assertTrue(
+                l1Sequencer.verifySignature(newnestVersion, indexs, signature)
             );
         }
         hevm.stopPrank();

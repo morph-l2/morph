@@ -53,12 +53,10 @@ interface IL1Sequencer {
     /**
      * @notice sequencer addresses
      * @param version version
-     * @param index index
      */
-    function sequencerAddrs(
-        uint256 version,
-        uint256 index
-    ) external view returns (address);
+    function getSequencerAddrs(
+        uint256 version
+    ) external view returns (address[] memory);
 
     /**
      * @notice whether is current sequencer
@@ -69,12 +67,10 @@ interface IL1Sequencer {
     /**
      * @notice sequencer BLS keys
      * @param version version
-     * @param index index
      */
-    function sequencerBLSKeys(
-        uint256 version,
-        uint256 index
-    ) external view returns (bytes memory);
+    function getSequencerBLSKeys(
+        uint256 version
+    ) external view returns (bytes[] memory);
 
     /**
      * @notice sequencers num

@@ -160,15 +160,16 @@ contract L2GatewayBaseTest is L2MessageBaseTest {
                     address(l2StandardERC20GatewayProxy) // erc20 gateway
                 )
             );
-        ITransparentUpgradeableProxy(address(l2ETHGatewayProxy)).upgradeToAndCall(
-            address(l2ETHGatewayImpl),
-            abi.encodeWithSelector(
-                L2ETHGateway.initialize.selector,
-                address(NON_ZERO_ADDRESS), // _counterpart
-                address(l2GatewayRouterProxy), // _router
-                address(l2CrossDomainMessenger) // _messenger
-            )
-        );
+        ITransparentUpgradeableProxy(address(l2ETHGatewayProxy))
+            .upgradeToAndCall(
+                address(l2ETHGatewayImpl),
+                abi.encodeWithSelector(
+                    L2ETHGateway.initialize.selector,
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2GatewayRouterProxy), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            );
 
         ITransparentUpgradeableProxy(address(l2StandardERC20GatewayProxy))
             .upgradeToAndCall(

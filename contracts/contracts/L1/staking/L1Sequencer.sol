@@ -8,12 +8,7 @@ import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
 import {IStaking} from "../staking/IStaking.sol";
 import {IL1Sequencer} from "./IL1Sequencer.sol";
 
-contract L1Sequencer is
-    Initializable,
-    IL1Sequencer,
-    Sequencer,
-    Pausable
-{
+contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     // staking contract
     address public stakingContract;
     // rollup Contract
@@ -24,9 +19,9 @@ contract L1Sequencer is
     // newest sequencers version
     uint256 public override newestVersion = 0;
     // map(version => sequencerAddress)
-    mapping(uint256 => address[]) public override sequencerAddrs;
+    mapping(uint256 => address[]) public sequencerAddrs;
     // map(version => sequencerBLSkeys)
-    mapping(uint256 => bytes[]) public override sequencerBLSKeys;
+    mapping(uint256 => bytes[]) public sequencerBLSKeys;
 
     /**
      * @notice sequencer version confirmed
@@ -54,10 +49,7 @@ contract L1Sequencer is
      */
     constructor(
         address payable _messenger
-    )
-        Pausable()
-        Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER))
-    {
+    ) Pausable() Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER)) {
         _pause();
     }
 
@@ -144,7 +136,7 @@ contract L1Sequencer is
             version >= currentVersion && version <= newestVersion,
             "invalid version"
         );
-        for (uint256 i = 1; i <= version; i++) {
+        for (uint256 i = 1; i < version; i++) {
             delete sequencerAddrs[i];
             delete sequencerBLSKeys[i];
         }
@@ -178,11 +170,31 @@ contract L1Sequencer is
      * @param addr address
      */
     function isSequencer(address addr) external view returns (bool) {
-        for (uint256 i = 1; i < sequencerAddrs[currentVersion].length; i++) {
+        for (uint256 i = 0; i < sequencerAddrs[currentVersion].length; i++) {
             if (sequencerAddrs[currentVersion][i] == addr) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * @notice sequencer addresses
+     * @param version version
+     */
+    function getSequencerAddrs(
+        uint256 version
+    ) external view returns (address[] memory) {
+        return sequencerAddrs[version];
+    }
+
+    /**
+     * @notice sequencer BLS keys
+     * @param version version
+     */
+    function getSequencerBLSKeys(
+        uint256 version
+    ) external view returns (bytes[] memory) {
+        return sequencerBLSKeys[version];
     }
 }

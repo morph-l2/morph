@@ -2,7 +2,7 @@
 pragma solidity =0.8.24;
 
 /* Testing utilities */
-import  "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L2GasPriceOracleTest} from "./base/L2GasPriceOracle.t.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";

@@ -70,7 +70,9 @@ contract CommonTest is DSTestPlus, MockTree {
     }
 
     function _changeAdmin(address proxy) internal {
-        ITransparentUpgradeableProxy(address(proxy)).changeAdmin(address(proxyAdmin));
+        ITransparentUpgradeableProxy(address(proxy)).changeAdmin(
+            address(proxyAdmin)
+        );
     }
 }
 

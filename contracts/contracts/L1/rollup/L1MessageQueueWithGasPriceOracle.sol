@@ -99,7 +99,6 @@ contract L1MessageQueueWithGasPriceOracle is
 
     function initialize(uint256 _maxGasLimit) external initializer {
         OwnableUpgradeable.__Ownable_init();
-
         maxGasLimit = _maxGasLimit;
     }
 

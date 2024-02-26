@@ -2,6 +2,7 @@
 pragma solidity =0.8.24;
 
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {L2Sequencer} from "../../L2/staking/L2Sequencer.sol";
@@ -94,7 +95,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             payable(NON_ZERO_ADDRESS)
         );
         Gov govImpl = new Gov();
-        Submitter submitterImpl = new Submitter(payable(NON_ZERO_ADDRESS));
+        Submitter submitterImpl = new Submitter();
 
         // upgrade proxy
         Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](

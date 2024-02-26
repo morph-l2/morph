@@ -50,11 +50,6 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     );
 
     /**
-     * @notice epoch updated
-     */
-    event EpochUpdated(uint256 interval, uint256 sequencersLen);
-
-    /**
      * @notice constructor
      */
     constructor() {
