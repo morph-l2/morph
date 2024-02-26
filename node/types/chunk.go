@@ -82,10 +82,6 @@ func (ck *Chunk) Sealed() bool {
 	return ck.sealed
 }
 
-func (ck *Chunk) AppendTxsPayload(txsPayload []byte) {
-	ck.txsPayload = append(ck.txsPayload, txsPayload...)
-}
-
 func (ck *Chunk) accumulateRowUsages(rc types.RowConsumption) (accRc types.RowConsumption, max uint64) {
 	if len(ck.accumulatedRc) == 0 {
 		return rc, maxRowNumber(rc)

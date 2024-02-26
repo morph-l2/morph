@@ -348,8 +348,6 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 
 type Chunk struct {
 	blockContextes []*BlockContext
-	txsPayload     [][]*eth.Transaction
-	txHashes       [][]common.Hash
 	blockNum       int
 	Raw            *types.Chunk
 }
