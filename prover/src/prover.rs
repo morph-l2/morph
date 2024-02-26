@@ -4,7 +4,6 @@ use crate::utils::{
 };
 use eth_types::{ToLittleEndian, U256};
 use ethers::providers::Provider;
-use ethers::utils::keccak256;
 use prover::aggregator::Prover as BatchProver;
 use prover::config::{LayerId, LAYER4_DEGREE};
 use prover::utils::{chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index};
@@ -18,6 +17,8 @@ use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
 use zkevm_circuits::blob_circuit::block_to_blob;
+use zkevm_circuits::blob_circuit::util::{poly_eval_partial, FP_S};
+use bls12_381::Scalar as Fp;
 
 const BLOB_DATA_SIZE: usize = 4096 * 32;
 
@@ -119,8 +120,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
 
     let mut index = 0;
     for chunk_trace in chunk_traces.iter(){
-        let partial_result: U256 = U256::from(0);
-        let chunk_witness = match chunk_trace_to_witness_block_with_index(
+        let mut partial_result: U256 = U256::from(0);
+        let mut chunk_witness = match chunk_trace_to_witness_block_with_index(
             chunk_trace.to_vec(),
             batch_commit,
             challenge_point,
@@ -137,6 +138,23 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
 
         let partial_result_bytes = block_to_blob(&chunk_witness).ok();
         index += partial_result_bytes.unwrap().len() / 32;
+
+        // compute partial_result from witness block;
+        let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
+        match block_to_blob(&chunk_witness) {
+            Ok(blob) => {
+                let mut result: Vec<Fp> = Vec::new();
+                for chunk in blob.chunks(32) {
+                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
+                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
+                }
+                partial_result = U256::from(poly_eval_partial(result, Fp::from_bytes(&chunk_witness.challenge_point.to_le_bytes()).unwrap(), omega, index).to_bytes());
+                chunk_witness.partial_result = partial_result;
+            }
+            Err(e) => {
+                log::error!("chunk-hash: block_to_blob failed: {}", e);
+            }
+        }
 
         let chunk_hash = ChunkHash::from_witness_block(&chunk_witness, false);
 
