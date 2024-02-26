@@ -19,6 +19,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/consensus/misc/eip4844"
 	"github.com/scroll-tech/go-ethereum/core"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
@@ -430,7 +431,7 @@ func (sr *SR) rollup() error {
 		sr.GetGasTipAndCap()
 
 		// tip and cap
-		tip, gasFeeCap, err := sr.GetGasTipAndCap()
+		tip, gasFeeCap, blobFee, err := sr.GetGasTipAndCap()
 		if err != nil {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
@@ -464,7 +465,7 @@ func (sr *SR) rollup() error {
 			To:         sr.rollupAddr,
 			Value:      uint256.NewInt(0),
 			Data:       calldata,
-			BlobFeeCap: uint256.NewInt(10e10),
+			BlobFeeCap: uint256.MustFromBig(blobFee),
 			BlobHashes: versionedHashes,
 			Sidecar: &types.BlobTxSidecar{
 				Blobs:       batch.Sidecar.Blobs,
@@ -631,14 +632,14 @@ func (sr *SR) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindi
 	return &rollupBatchSignature, nil
 }
 
-func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
+func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	tip, err := sr.L1Client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	head, err := sr.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	var gasFeeCap *big.Int
 	if head.BaseFee != nil {
@@ -650,13 +651,13 @@ func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
 		gasFeeCap = new(big.Int).Set(tip)
 	}
 
-	// todo: rt blob fee cap after CalcBlobFee ready
 	// calc blob fee cap
-	// var blobFee *big.Int
-	// if head.ExcessBlobGas != nil {
-	// 	blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
-	// }
-	return tip, gasFeeCap, nil
+	var blobFee *big.Int
+	if head.ExcessBlobGas != nil {
+		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+		blobFee = blobFee.Mul(blobFee, big.NewInt(2))
+	}
+	return tip, gasFeeCap, blobFee, nil
 }
 
 func (sr *SR) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
@@ -858,7 +859,7 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 		"nonce", tx.Nonce(),
 	)
 
-	_tip, _gasFeeCap, err := sr.GetGasTipAndCap()
+	_tip, _gasFeeCap, _, err := sr.GetGasTipAndCap()
 	if err != nil {
 		log.Error("get tip and cap", "err", err)
 	}
