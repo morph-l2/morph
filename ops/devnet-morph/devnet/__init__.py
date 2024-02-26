@@ -242,6 +242,7 @@ def devnet_deploy(paths, args):
                     'GETH_DATA_DIR': '/db',
                     'GENESIS_FILE_PATH': '/genesis.json',
                     'L1_ETH_RPC': 'http://l1:8545',
+                    'L1_BEACON_CHAIN_RPC': 'http://beacon-chain:3500',
                     'BUILD_GETH': build_geth_target
                 })
     wait_up(8545)

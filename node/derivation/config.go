@@ -31,6 +31,7 @@ const (
 type Config struct {
 	L1                    *types.L1Config `json:"l1"`
 	L2                    *types.L2Config `json:"l2"`
+	BeaconRpc             string          `json:"beacon_rpc"`
 	RollupContractAddress common.Address  `json:"rollup_contract_address"`
 	StartHeight           uint64          `json:"start_height"`
 	PollInterval          time.Duration   `json:"poll_interval"`
@@ -64,6 +65,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if len(c.RollupContractAddress.Bytes()) == 0 {
 			return errors.New("invalid DerivationDepositContractAddr")
 		}
+	}
+	c.BeaconRpc = ctx.GlobalString(flags.L1BeaconAddr.Name)
+	if c.BeaconRpc == "" {
+		return errors.New("invalid L1BeaconAddr")
 	}
 
 	if ctx.GlobalIsSet(flags.DerivationStartHeight.Name) {

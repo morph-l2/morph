@@ -10,5 +10,6 @@ use (
 	./contracts
 	./node
 	./ops/L2-genesis
+	./ops/tools
 	./tx-submitter
 )

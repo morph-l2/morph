@@ -127,16 +127,16 @@ func maxRowNumber(rc types.RowConsumption) (max uint64) {
 	return
 }
 
+func (ck *Chunk) SetTxHashBytes(txHashBytes []byte) {
+	ck.txHashes = txHashBytes
+}
+
 func (ck *Chunk) ResetBlockNum(blockNum int) {
 	ck.blockNum = blockNum
 }
 
 func (ck *Chunk) BlockContext() []byte {
 	return ck.blockContext
-}
-
-func (ck *Chunk) TxsPayload() []byte {
-	return ck.txsPayload
 }
 
 func (ck *Chunk) BlockNum() int {
