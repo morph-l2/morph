@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -153,13 +152,22 @@ func (cl *L1BeaconClient) GetBlobSidecar(ctx context.Context, ref L1BlockRef, ha
 	return sidecarFromSidecars(blobSidecars, hashes)
 }
 
+func indexFunc(s []*BlobSidecar, f func(blobSidecars *BlobSidecar) bool) int {
+	for i := range s {
+		if f(s[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
 func sidecarFromSidecars(blobSidecars []*BlobSidecar, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
 	var blobTxSidecar types.BlobTxSidecar
 	for i, ih := range hashes {
 		// The beacon node api makes no guarantees on order of the returned blob sidecars, so
 		// search for the sidecar that matches the current indexed hash to ensure blobs are
 		// returned in the same order.
-		scIndex := slices.IndexFunc(
+		scIndex := indexFunc(
 			blobSidecars,
 			func(sc *BlobSidecar) bool { return uint64(sc.Index) == ih.Index })
 		if scIndex == -1 {
