@@ -14,23 +14,23 @@ task("check-l2")
         keys.forEach((key) => {
             ContractAddresss.push(predeploys[key])
         });
-        const ProxyFactoryName = 'Proxy'
-        const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
+        const ProxyFactoryName = 'ITransparentUpgradeableProxy'
         for (let i = 0; i < ContractAddresss.length; i++) {
-            const proxy = ProxyFactory.attach(ContractAddresss[i])
+            const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
             const temp = new ethers.Contract(
                 proxy.address,
                 proxy.interface,
                 proxy.provider
             )
             const actual = await temp.callStatic['implementation']({
-                from: ethers.constants.AddressZero,
+                from: predeploys.ProxyAdmin,
             })
             console.log(`implementation is: ${actual}`)
             const adminAddr = await temp.callStatic['admin']({
-                from: ethers.constants.AddressZero,
+                from: predeploys.ProxyAdmin,
             })
-            console.log(`implementation is equal ProxyAdmin: ${adminAddr == predeploys.ProxyAdmin}`)
+
+            console.log(`implementation is equal ProxyAdmin: ${adminAddr.toLowerCase() == predeploys.ProxyAdmin.toLowerCase()}`)
         }
     });
 
@@ -65,8 +65,6 @@ task("check-l2-status")
 
         const submitterFactory = await hre.ethers.getContractFactory('Submitter')
         const submitterContract = submitterFactory.attach(predeploys.L2Submitter)
-        const nextEpochStart = await submitterContract.nextEpochStart()
-        console.log(`Submitter params check \n nextEpochStart ${nextEpochStart}`)
 
         const ethgwFactory = await hre.ethers.getContractFactory('L2ETHGateway')
         const ethgwContract = ethgwFactory.attach(predeploys.L2ETHGateway)
@@ -130,7 +128,7 @@ task("check-l2-status")
         const ms20fContract = ms20fFactory.attach(predeploys.MorphStandardERC20Factory)
         owner = await ms20fContract.owner()
         const implementation = await ms20fContract.implementation()
-        console.log(`MorphStandardERC20 params check \n owner ${owner == predeploys.L2StandardERC20Gateway} \n implementation ${implementation == predeploys.MorphStandardERC20}`)
+        console.log(`MorphStandardERC20 params check \n owner ${owner == predeploys.L2StandardERC20Gateway} \n implementation ${implementation.toLowerCase() == predeploys.MorphStandardERC20.toLowerCase()}`)
 
         const gpoFactory = await hre.ethers.getContractFactory('GasPriceOracle')
         const gpoContract = gpoFactory.attach(predeploys.GasPriceOracle)
