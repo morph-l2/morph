@@ -24,9 +24,9 @@ export const deployContractImpls = async (
     const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
     const StakingFactoryName = ContractFactoryName.Staking
     const L1SequencerFactoryName = ContractFactoryName.L1Sequencer
-    const L1MessageQueueFactoryName = ContractFactoryName.L1MessageQueue
+    const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
     const RollupFactoryName = ContractFactoryName.Rollup
-    const L2GasPriceOracleFactoryName = ContractFactoryName.L2GasPriceOracle
+
     const L1GatewayRouterFactoryName = ContractFactoryName.L1GatewayRouter
     const L1ETHGatewayFactoryName = ContractFactoryName.L1ETHGateway
     const L1StandardERC20GatewayFactoryName = ContractFactoryName.L1StandardERC20Gateway
@@ -37,9 +37,8 @@ export const deployContractImpls = async (
     const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
     const StakingImplStorageName = ImplStorageName.StakingStorageName
     const L1SequencerImplStorageName = ImplStorageName.L1SequencerStorageName
-    const L1MessageQueueImplStroageName = ImplStorageName.L1MessageQueueStroageName
+    const L1MessageQueueWithGasPriceOracleImplStroageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
     const RollupImplStorageName = ImplStorageName.RollupStorageName
-    const L2GasPriceOracleImplStorageName = ImplStorageName.L2GasPriceOracleStorageName
     const L1GatewayRouterImplStorageName = ImplStorageName.L1GatewayRouterStorageName
     const L1ETHGatewayImplStorageName = ImplStorageName.L1ETHGatewayStorageName
     const L1StandardERC20GatewayImplStorageName = ImplStorageName.L1StandardERC20GatewayStorageName
@@ -48,6 +47,8 @@ export const deployContractImpls = async (
 
     // proxy contract address
     const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStroageName)
+    const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
+    const EnforcedTxGatewayAddress = getContractAddressByName(path, ProxyStorageName.EnforcedTxGatewayProxyStroageName)
 
     // ************************ messenger contracts deploy ************************
     // L1CrossDomainMessenger deploy
@@ -61,30 +62,19 @@ export const deployContractImpls = async (
     if (err != '') {
         return err
     }
-    // L1MessageQueue deploy
-    Factory = await hre.ethers.getContractFactory(L1MessageQueueFactoryName)
-    contract = await Factory.deploy()
+    // L1MessageQueueWithGasPriceOracle deploy
+    Factory = await hre.ethers.getContractFactory(L1MessageQueueWithGasPriceOracleFactoryName)
+    contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress, RollupProxyAddress, EnforcedTxGatewayAddress)
     await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1MessageQueueImplStroageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    console.log("%s=%s ; TX_HASH: %s", L1MessageQueueWithGasPriceOracleImplStroageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1MessageQueueImplStroageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storge(path, L1MessageQueueWithGasPriceOracleImplStroageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
 
     // ************************ rollup contracts deploy ************************
-    // L2GasPriceOracle deploy
-    Factory = await hre.ethers.getContractFactory(L2GasPriceOracleFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L2GasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L2GasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
-    }
     // Rollup deploy
     const l2ChainID: string = config.l2ChainID
     Factory = await hre.ethers.getContractFactory(RollupFactoryName)

@@ -4,6 +4,13 @@ pragma solidity ^0.8.16;
 
 interface IL1MessageQueue {
     /**********
+     * Errors *
+     **********/
+
+    /// @dev Thrown when the given address is `address(0)`.
+    error ErrZeroAddress();
+
+    /**********
      * Events *
      **********/
 
@@ -36,6 +43,27 @@ interface IL1MessageQueue {
     /// @notice Emitted when a message is dropped from L1.
     /// @param index The index of message dropped.
     event DropTransaction(uint256 index);
+
+    /// @notice Emitted when owner updates gas oracle contract.
+    /// @param _oldGasOracle The address of old gas oracle contract.
+    /// @param _newGasOracle The address of new gas oracle contract.
+    event UpdateGasOracle(
+        address indexed _oldGasOracle,
+        address indexed _newGasOracle
+    );
+
+    /// @notice Emitted when owner updates EnforcedTxGateway contract.
+    /// @param _oldGateway The address of old EnforcedTxGateway contract.
+    /// @param _newGateway The address of new EnforcedTxGateway contract.
+    event UpdateEnforcedTxGateway(
+        address indexed _oldGateway,
+        address indexed _newGateway
+    );
+
+    /// @notice Emitted when owner updates max gas limit.
+    /// @param _oldMaxGasLimit The old max gas limit.
+    /// @param _newMaxGasLimit The new max gas limit.
+    event UpdateMaxGasLimit(uint256 _oldMaxGasLimit, uint256 _newMaxGasLimit);
 
     /*************************
      * Public View Functions *

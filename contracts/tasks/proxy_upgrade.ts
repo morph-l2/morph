@@ -29,7 +29,7 @@ task("upgradeProxyWithPorxyAdmin")
     .addParam("proxyaddr")
     .addParam("newimpladdr")
     .setAction(async (taskArgs, hre) => {
-        const ProxyAdminFactory = await hre.ethers.getContractFactory('ProxyAdmin')
+        const ProxyAdminFactory = await hre.ethers.getContractAt('TransparentUpgradeableProxy', taskArgs.proxyadminaddr)
         const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadminaddr)
 
         const ProxyFactory = await hre.ethers.getContractFactory('Proxy')

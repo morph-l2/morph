@@ -22,7 +22,6 @@ func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block, cu
 	db := state.NewMemoryStateDB(genspec)
 
 	if config.FundDevAccounts {
-		FundDevAccounts(db)
 		SetPrecompileBalances(db)
 	}
 

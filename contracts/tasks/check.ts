@@ -14,23 +14,26 @@ task("check-l2")
         keys.forEach((key) => {
             ContractAddresss.push(predeploys[key])
         });
-        const ProxyFactoryName = 'Proxy'
-        const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
+        const ProxyFactoryName = 'ITransparentUpgradeableProxy'
         for (let i = 0; i < ContractAddresss.length; i++) {
-            const proxy = ProxyFactory.attach(ContractAddresss[i])
+            if (ContractAddresss[i] === predeploys.MorphStandardERC20){
+                continue
+            }
+            const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
             const temp = new ethers.Contract(
                 proxy.address,
                 proxy.interface,
                 proxy.provider
             )
             const actual = await temp.callStatic['implementation']({
-                from: ethers.constants.AddressZero,
+                from: predeploys.ProxyAdmin,
             })
             console.log(`implementation is: ${actual}`)
             const adminAddr = await temp.callStatic['admin']({
-                from: ethers.constants.AddressZero,
+                from: predeploys.ProxyAdmin,
             })
-            console.log(`implementation is equal ProxyAdmin: ${adminAddr == predeploys.ProxyAdmin}`)
+
+            console.log(`implementation is equal ProxyAdmin: ${adminAddr.toLowerCase() == predeploys.ProxyAdmin.toLowerCase()}`)
         }
     });
 
@@ -65,8 +68,6 @@ task("check-l2-status")
 
         const submitterFactory = await hre.ethers.getContractFactory('Submitter')
         const submitterContract = submitterFactory.attach(predeploys.L2Submitter)
-        const nextEpochStart = await submitterContract.nextEpochStart()
-        console.log(`Submitter params check \n nextEpochStart ${nextEpochStart}`)
 
         const ethgwFactory = await hre.ethers.getContractFactory('L2ETHGateway')
         const ethgwContract = ethgwFactory.attach(predeploys.L2ETHGateway)
@@ -130,7 +131,7 @@ task("check-l2-status")
         const ms20fContract = ms20fFactory.attach(predeploys.MorphStandardERC20Factory)
         owner = await ms20fContract.owner()
         const implementation = await ms20fContract.implementation()
-        console.log(`MorphStandardERC20 params check \n owner ${owner == predeploys.L2StandardERC20Gateway} \n implementation ${implementation == predeploys.MorphStandardERC20}`)
+        console.log(`MorphStandardERC20 params check \n owner ${owner == predeploys.L2StandardERC20Gateway} \n implementation ${implementation.toLowerCase() == predeploys.MorphStandardERC20.toLowerCase()}`)
 
         const gpoFactory = await hre.ethers.getContractFactory('GasPriceOracle')
         const gpoContract = gpoFactory.attach(predeploys.GasPriceOracle)
@@ -145,7 +146,7 @@ task("check-l2-status")
 task("deposit-l1-eth")
     .setAction(async (taskArgs, hre) => {
         const routerFactory = await hre.ethers.getContractFactory('L1GatewayRouter')
-        const router = routerFactory.attach('0x2279b7a0a67db372996a5fab50d91eaa73d2ebe6')
+        const router = routerFactory.attach('0xa513e6e4b8f2a923d98304ec87f64353c4d5c853')
         const res = await router["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 10000000, { value: hre.ethers.utils.parseEther('1.1') })
         const receipt = await res.wait()
         console.log(`Deposit\n from ${receipt.from}\n blockNum ${receipt.blockNumber}\n tx ${receipt.transactionHash}\n status ${receipt.status == 1}`)
@@ -154,7 +155,7 @@ task("deposit-l1-eth")
 task("deposit-l1-gateway-eth")
     .setAction(async (taskArgs, hre) => {
         const Factory = await hre.ethers.getContractFactory('L1ETHGateway')
-        const contract = Factory.attach("0x8a791620dd6260079bf849dc5567adc3f2fdc318")
+        const contract = Factory.attach("0x2279b7a0a67db372996a5fab50d91eaa73d2ebe6")
         const res = await contract["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 100000, { value: hre.ethers.utils.parseEther('1.1') })
         const recipet = await res.wait()
         console.log(`Deposit status ${recipet.status == 1}`)

@@ -159,8 +159,8 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         // skip message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueue.popCrossDomainMessage(0, 1, 0x1);
-        assertEq(l1MessageQueue.pendingQueueIndex(), 1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 
         // drop message 0
@@ -208,8 +208,8 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         // skip message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueue.popCrossDomainMessage(0, 1, 0x1);
-        assertEq(l1MessageQueue.pendingQueueIndex(), 1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 
         // drop message 0
@@ -632,7 +632,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
         uint256 feeToPay = feePerGas * gasLimit;
 
         bytes memory message = abi.encodeWithSelector(
@@ -750,7 +750,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
         uint256 feeToPay = feePerGas * gasLimit;
 
         bytes memory message = abi.encodeWithSelector(
@@ -869,7 +869,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
         uint256 feeToPay = feePerGas * gasLimit;
 
         uint256[] memory _tokenIds = new uint256[](tokenCount);
@@ -1016,7 +1016,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
         uint256 feeToPay = feePerGas * gasLimit;
 
         uint256[] memory _tokenIds = new uint256[](tokenCount);

@@ -13,6 +13,7 @@ coverage.json
 .vscode
 contract-artifacts.ts
 yarn-error.log
+!yarn.lock
 .yarn/*
 !.yarn/releases
 !.yarn/plugins
@@ -63,4 +64,3 @@ typechain-types
 scripts/differential-testing/differential-testing
 
 package-lock.json
-yarn.lock

@@ -50,6 +50,14 @@ devnet-clean:
 	rm -rf ops/docker/execution/geth
 .PHONY: devnet-clean
 
+devnet-clean-build:
+	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
+	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
+	rm -rf ops/L2-genesis/.devnet
+	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
+	rm -rf ops/docker/execution/geth
+.PHONY: devnet-clean-build
+
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
 

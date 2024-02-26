@@ -21,7 +21,7 @@ export const deployProxyAdmin = async (
     const ImplStroageName = ImplStorageName.ProxyAdmin
 
     const Factory = await hre.ethers.getContractFactory(ProxyAdminContractFactoryName)
-    const contract = await Factory.deploy(await deployer.getAddress())
+    const contract = await Factory.deploy()
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", ImplStroageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     // check params then storge

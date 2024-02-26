@@ -4,17 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/morph-l2/morph-deployer/eth"
-	"github.com/morph-l2/morph-deployer/rollup"
-	"math/big"
-	"os"
-	"time"
-
 	"github.com/morph-l2/bindings/hardhat"
 	"github.com/morph-l2/bindings/predeploys"
+	"github.com/morph-l2/morph-deployer/eth"
 	"github.com/morph-l2/morph-deployer/op-chain-ops/immutables"
 	"github.com/morph-l2/morph-deployer/op-chain-ops/state"
+	"github.com/morph-l2/morph-deployer/rollup"
 	"github.com/scroll-tech/go-ethereum/common"
+	"math/big"
+	"os"
 
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -272,9 +270,6 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	immutable["L2Sequencer"] = immutables.ImmutableValues{
 		"otherSequencer": config.L1SequencerProxy,
 	}
-	immutable["Submitter"] = immutables.ImmutableValues{
-		"rollupAddr": config.RollupProxy,
-	}
 
 	blsKeys := make([][]byte, len(config.L2SequencerBlsKeys))
 	for i, v := range config.L2SequencerBlsKeys {
@@ -373,9 +368,8 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"maxChunks":          config.GovBatchMaxChunks,
 	}
 	storage["Submitter"] = state.StorageValues{
-		"_initialized":   1,
-		"_initializing":  false,
-		"nextEpochStart": uint64(time.Now().Unix()),
+		"_initialized":  1,
+		"_initializing": false,
 	}
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"messageRoot": common.HexToHash("0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757"),
