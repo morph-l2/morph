@@ -25,7 +25,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     // GovContract address
     address public immutable L2_GOV_CONTRACT;
 
-    // uint256 bathc index;
+    // uint256 next batch index;
     uint256 public override nextBatchIndex;
     // next batch start block
     uint256 public override nextBatchStartBlock;
