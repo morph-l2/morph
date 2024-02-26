@@ -69,6 +69,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     struct BatchStore {
         bytes32 batchHash;
         uint256 originTimestamp;
+        uint256 finalizeTimestamp;
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
@@ -110,6 +111,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * @notice Store Challenge Information.(batchIndex => BatchChallenge)
      */
     mapping(uint256 => BatchChallenge) public challenges;
+
+    /**
+     * @notice whether in challenge
+     */
+    bool public inChallenge;
 
     struct BatchChallenge {
         uint64 batchIndex;
@@ -245,6 +251,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         committedBatchStores[0] = BatchStore(
             _batchHash,
             block.timestamp,
+            block.timestamp + FINALIZATION_PERIOD_SECONDS,
             bytes32(0),
             _postStateRoot,
             _withdrawalRoot,
@@ -423,6 +430,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         committedBatchStores[_batchIndex] = BatchStore(
             _batchHash,
             block.timestamp,
+            block.timestamp + FINALIZATION_PERIOD_SECONDS,
             batchData.prevStateRoot,
             batchData.postStateRoot,
             batchData.withdrawalRoot,
@@ -488,29 +496,25 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     // challengeState challenges a batch by submitting a deposit.
     function challengeState(uint64 batchIndex) external payable onlyChallenger {
+        require(!inChallenge, "already in challenge");
         require(
             lastFinalizedBatchIndex < batchIndex,
             "batch already finalized"
         );
-
         require(
             committedBatchStores[batchIndex].batchHash != 0,
             "batch not exist"
         );
-
         require(
             challenges[batchIndex].challenger == address(0),
-            "already has challenge"
+            "already challenged"
         );
 
         // check challenge window
         // todo get finalization period from output oracle
-        bool insideChallengeWindow = committedBatchStores[batchIndex]
-            .originTimestamp +
-            FINALIZATION_PERIOD_SECONDS >
-            block.timestamp;
         require(
-            insideChallengeWindow,
+            committedBatchStores[batchIndex].finalizeTimestamp >
+                block.timestamp,
             "cannot challenge batch outside the challenge window"
         );
 
@@ -525,6 +529,16 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             false
         );
         emit ChallengeState(batchIndex, _msgSender(), msg.value);
+
+        for (
+            uint256 i = lastFinalizedBatchIndex + 1;
+            i <= lastCommittedBatchIndex;
+            i++
+        ) {
+            if (i != batchIndex) {
+                committedBatchStores[i].finalizeTimestamp += PROOF_WINDOW;
+            }
+        }
     }
 
     // proveState proves a batch by submitting a proof.
@@ -543,10 +557,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             !challenges[_batchIndex].finished,
             "challenge already finished"
         );
-        bool insideChallengeWindow = challenges[_batchIndex].startTime +
-            PROOF_WINDOW >
-            block.timestamp;
-        if (!insideChallengeWindow) {
+        if (
+            !(challenges[_batchIndex].startTime + PROOF_WINDOW >
+                block.timestamp)
+        ) {
             _challengerWin(
                 _batchIndex,
                 committedBatchStores[_batchIndex].sequencerIndex,
@@ -554,8 +568,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _minGasLimit,
                 _gasFee
             );
-            // todo pause PORTAL contracts
-            // PORTAL.pause();
         } else {
             // check proof
             require(_aggrProof.length > 0, "invalid proof");
@@ -579,6 +591,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _defenderWin(_batchIndex, _msgSender(), "prove success");
         }
         challenges[_batchIndex].finished = true;
+        inChallenge = false;
     }
 
     function _defenderWin(
@@ -734,9 +747,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 }
             }
         }
-        
-        delete committedBatchStores[_batchIndex-1];
-        delete challenges[_batchIndex-1];
+
+        delete committedBatchStores[_batchIndex - 1];
+        delete challenges[_batchIndex - 1];
 
         emit FinalizeBatch(
             _batchIndex,
@@ -1057,8 +1070,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 batchIndex
     ) public view returns (bool) {
         return
-            committedBatchStores[batchIndex].originTimestamp +
-                FINALIZATION_PERIOD_SECONDS >
+            committedBatchStores[batchIndex].finalizeTimestamp >
             block.timestamp;
     }
 }
