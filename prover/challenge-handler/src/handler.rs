@@ -28,6 +28,7 @@ pub struct ProveResult {
     pub error_code: String,
     pub proof_data: Vec<u8>,
     pub pi_data: Vec<u8>,
+    pub blob_kzg: Vec<u8>,
 }
 
 mod task_status {
@@ -184,14 +185,14 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType, l1_provider: &Pro
             continue;
         }
 
-        let commitment: Vec<u8> = match query_kzg_commitment(batch_index).await {
-            Some(kc) => kc,
-            None => continue,
-        };
+        // let commitment: Vec<u8> = match query_kzg_commitment(batch_index).await {
+        //     Some(kc) => kc,
+        //     None => continue,
+        // };
 
         log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
         let aggr_proof = Bytes::from(prove_result.proof_data);
-        let kzg_data = Bytes::from(commitment);
+        let kzg_data = Bytes::from(prove_result.blob_kzg);
 
         let mut call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data);
         if util::read_env_var("SHADOW", false) {

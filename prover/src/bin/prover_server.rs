@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
-use zkevm_prover::utils::{PROVER_PROOF_DIR, PROVE_TIME};
 use zkevm_prover::utils::{read_env_var, PROVE_RESULT, REGISTRY};
+use zkevm_prover::utils::{PROVER_PROOF_DIR, PROVE_TIME};
 
 use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
@@ -25,6 +25,7 @@ pub struct ProveResult {
     pub error_code: String,
     pub proof_data: Vec<u8>,
     pub pi_data: Vec<u8>,
+    pub blob_kzg: Vec<u8>,
 }
 
 mod task_status {
@@ -44,10 +45,6 @@ async fn main() {
     // Step1. prepare environment
     dotenv().ok();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    log::info!(
-        "SCROLL_PROVER_ASSETS_DIR env: {:#?}",
-        zkevm_prover::utils::SCROLL_PROVER_ASSETS_DIR.as_str()
-    );
 
     // Step2. start prover management
     let queue: Arc<Mutex<Vec<ProveRequest>>> = Arc::new(Mutex::new(Vec::new()));
@@ -196,6 +193,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
         error_code: String::new(),
         proof_data: Vec::new(),
         pi_data: Vec::new(),
+        blob_kzg: Vec::new(),
     };
     log::info!("query proof of batch_index: {:#?}", batch_index);
 
@@ -224,9 +222,8 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 result.error_msg = String::from("No proof_batch_agg file");
                 return result;
             }
-            // let mut proof_data = String::new();
+            // Proof
             let mut proof_data = Vec::new();
-
             match fs::File::open(proof_path) {
                 Ok(mut file) => {
                     file.read_to_end(&mut proof_data).unwrap();
@@ -238,9 +235,9 @@ async fn query_proof(batch_index: String) -> ProveResult {
             }
             result.proof_data = proof_data;
 
+            // Public input
             let pi_path = path.join("pi_batch_agg.data");
             let mut pi_data = Vec::new();
-
             match fs::File::open(pi_path) {
                 Ok(mut file) => {
                     file.read_to_end(&mut pi_data).unwrap();
@@ -251,6 +248,20 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 }
             }
             result.pi_data = pi_data;
+
+            // Eip4844 kzg data
+            let blob_kzg_path = path.join("blob_kzg.data");
+            let mut blob_kzg = Vec::new();
+            match fs::File::open(blob_kzg_path) {
+                Ok(mut file) => {
+                    file.read_to_end(&mut blob_kzg).unwrap();
+                }
+                Err(e) => {
+                    log::error!("Failed to load blob_kzg: {:#?}", e);
+                    result.error_msg = String::from("Failed to load blob_kzg");
+                }
+            }
+            result.blob_kzg = blob_kzg;
             break;
         }
     }
@@ -271,4 +282,3 @@ async fn query_status(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>
         _ => String::from("1"),
     }
 }
-
