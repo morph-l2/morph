@@ -301,7 +301,6 @@ func (sr *SR) finalize() error {
 			"finalize_cnt", finalizeCnt,
 			// receipt info
 			"gas_used", receipt.GasUsed,
-			"tx_hash", newSignedTx.Hash().String(),
 			// tx info
 			"tx_hash", newSignedTx.Hash().String(),
 			"type", newSignedTx.Type(),
@@ -655,7 +654,6 @@ func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
-		blobFee = blobFee.Mul(blobFee, big.NewInt(2))
 	}
 	return tip, gasFeeCap, blobFee, nil
 }
@@ -850,56 +848,78 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 		return nil, nil, fmt.Errorf("new keyedTransaction with chain id error:%v", err)
 	}
 
-	// replaced tx info
-	log.Info("replaced tx",
-		"tx_hash", tx.Hash().String(),
-		"gas_fee_cap", tx.GasFeeCap(),
-		"gas_tip", tx.GasTipCap(),
-		"gas", tx.Gas(),
-		"nonce", tx.Nonce(),
-	)
-
-	_tip, _gasFeeCap, _, err := sr.GetGasTipAndCap()
-	if err != nil {
-		log.Error("get tip and cap", "err", err)
-	}
-	tip := _tip.Int64()
-	gasFeeCap := _gasFeeCap.Int64()
-
-	txTip := tx.GasTipCap().Int64()
-	txGasFeeCap := tx.GasFeeCap().Int64()
-
-	minTip := txTip * 12 / 10
-	minGasFeeCap := txGasFeeCap * 12 / 10
-
-	for {
-		if (tip > minTip) && (gasFeeCap > minGasFeeCap) {
-			break
-		}
-		if tip < minTip {
-			tip *= 2
-		}
-		if gasFeeCap < minGasFeeCap {
-			gasFeeCap *= 2
-		}
-
-	}
-
 	// try 10 times
 	for i := 0; i < 10; i++ {
 
-		newTx := types.NewTx(&types.DynamicFeeTx{
-			To:        tx.To(),
-			Nonce:     tx.Nonce(),
-			GasFeeCap: big.NewInt(gasFeeCap),
-			GasTipCap: big.NewInt(tip),
-			Gas:       tx.Gas(),
-			Value:     tx.Value(),
-			Data:      tx.Data(),
-		})
+		// replaced tx info
+		log.Info("replaced tx",
+			"tx_hash", tx.Hash().String(),
+			"gas_fee_cap", tx.GasFeeCap().String(),
+			"gas_tip", tx.GasTipCap().String(),
+			"blob_fee_cap", tx.BlobGasFeeCap().String(),
+			"gas", tx.Gas(),
+			"nonce", tx.Nonce(),
+		)
+
+		tip, gasFeeCap, blobFeeCap, err := sr.GetGasTipAndCap()
+		if err != nil {
+			log.Error("get tip and cap", "err", err)
+		}
+
+		// bump tip & feeCap
+		bumpedFeeCap := calcThresholdValue(tx.GasFeeCap(), tx.Type() == types.BlobTxType)
+		bumpedTip := calcThresholdValue(tx.GasTipCap(), tx.Type() == types.BlobTxType)
+
+		// if bumpedTip > tip
+		if bumpedTip.Cmp(tip) > 0 {
+			tip = bumpedTip
+			gasFeeCap = bumpedFeeCap
+		}
+		if tx.Type() == types.BlobTxType {
+			bumpedBlobFeeCap := calcBlobFeeCap(tx.BlobGasFeeCap())
+			if bumpedBlobFeeCap.Cmp(blobFeeCap) > 0 {
+				blobFeeCap = bumpedBlobFeeCap
+			}
+		}
+
+		var newTx *types.Transaction
+		switch tx.Type() {
+		case types.DynamicFeeTxType:
+			newTx = types.NewTx(&types.DynamicFeeTx{
+				To:        tx.To(),
+				Nonce:     tx.Nonce(),
+				GasFeeCap: gasFeeCap,
+				GasTipCap: tip,
+				Gas:       tx.Gas(),
+				Value:     tx.Value(),
+				Data:      tx.Data(),
+			})
+		case types.BlobTxType:
+
+			newTx = types.NewTx(&types.BlobTx{
+				ChainID:    uint256.MustFromBig(tx.ChainId()),
+				Nonce:      tx.Nonce(),
+				GasTipCap:  uint256.MustFromBig(tip),
+				GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+				Gas:        tx.Gas(),
+				To:         *tx.To(),
+				Value:      uint256.MustFromBig(tx.Value()),
+				Data:       tx.Data(),
+				BlobFeeCap: uint256.MustFromBig(blobFeeCap),
+				BlobHashes: tx.BlobHashes(),
+				Sidecar:    tx.BlobTxSidecar(),
+			})
+
+		default:
+			return nil, nil, fmt.Errorf("replace unknown tx type:%v", tx.Type())
+
+		}
+
 		log.Info("new tx info",
-			"gas_tip", fmt.Sprintf("%d", tip), //todo: convert to gwei
-			"gas_fee_cap", fmt.Sprintf("%d", gasFeeCap), //todo: convert to gwei
+			"tx_type", newTx.Type(),
+			"gas_tip", tip.String(), //todo: convert to gwei
+			"gas_fee_cap", gasFeeCap.String(), //todo: convert to gwei
+			"blob_fee_cap", blobFeeCap.String(), //todo: convert to gwei
 		)
 		// sign tx
 		opts.Nonce = big.NewInt(int64(newTx.Nonce()))
@@ -919,7 +939,7 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 		} else { // tx into mempool
 			receipt, err := sr.waitReceiptWithTimeout(sr.txTimout, newTx.Hash())
 			if err != nil {
-				log.Error("wait receipt", "err", err)
+				log.Error("wait replaced tx receipt", "err", err)
 				if err.Error() == "timeout" {
 					log.Error("wait receipt timeout",
 						"turns", i,
@@ -933,9 +953,9 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 				return receipt, newTx, nil
 			}
 		}
-		// update tip & cap
-		tip *= 2
-		gasFeeCap *= 2
+
+		// update tx in next turn
+		tx = newTx
 
 	}
 	return nil, nil, errors.New("replace tx failed after try 10 times")
