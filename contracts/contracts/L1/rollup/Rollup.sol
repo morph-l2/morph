@@ -644,8 +644,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i++
         ) {
             if (
-                // TODO publicnet needs to recover following batchInChallenge.
-                // batchInChallenge(i) ||
+                batchInChallenge(i) ||
                 batchInsideChallengeWindow(i) || !batchExist(i)
             ) {
                 break;
@@ -663,8 +662,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i++
         ) {
             if (
-                // TODO publicnet needs to recover following batchInChallenge.
-                // batchInChallenge(i) ||
+                batchInChallenge(i) ||
                 batchInsideChallengeWindow(i) || !batchExist(i)
             ) {
                 break;
@@ -675,8 +673,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
-        // TODO publicnet needs to recover following batchInChallenge.
-        // require(!batchInChallenge(_batchIndex), "batch in challenge");
+        require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(
             !batchInsideChallengeWindow(_batchIndex),
             "batch in challenge window"
