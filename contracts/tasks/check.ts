@@ -16,6 +16,9 @@ task("check-l2")
         });
         const ProxyFactoryName = 'ITransparentUpgradeableProxy'
         for (let i = 0; i < ContractAddresss.length; i++) {
+            if (ContractAddresss[i] === predeploys.MorphStandardERC20){
+                continue
+            }
             const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
             const temp = new ethers.Contract(
                 proxy.address,
