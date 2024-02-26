@@ -734,6 +734,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 }
             }
         }
+        
+        delete committedBatchStores[_batchIndex-1];
+        delete challenges[_batchIndex-1];
 
         emit FinalizeBatch(
             _batchIndex,
