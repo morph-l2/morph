@@ -542,36 +542,43 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     // proveState proves a batch by submitting a proof.
+    // _kzgData: [y(32) | commitment(48) | proof(48)]
     function proveState(
         uint64 _batchIndex,
         bytes calldata _aggrProof,
+        bytes calldata _kzgData,
         uint32 _minGasLimit,
         uint256 _gasFee
     ) external {
-        // check challenge exists
+        // Ensure challenge exists and is not finished
         require(
             challenges[_batchIndex].challenger != address(0),
-            "challenge not exist"
+            "Challenge does not exist"
         );
         require(
             !challenges[_batchIndex].finished,
-            "challenge already finished"
+            "Challenge already finished"
         );
+
+        // Check for timeout
         if (
-            !(challenges[_batchIndex].startTime + PROOF_WINDOW >
-                block.timestamp)
+            challenges[_batchIndex].startTime + PROOF_WINDOW <= block.timestamp
         ) {
             _challengerWin(
                 _batchIndex,
                 committedBatchStores[_batchIndex].sequencerIndex,
-                "timeout",
+                "Timeout",
                 _minGasLimit,
                 _gasFee
             );
         } else {
-            // check proof
-            require(_aggrProof.length > 0, "invalid proof");
-            // compute public input hash
+            // Check validity of proof
+            require(_aggrProof.length > 0, "Invalid proof");
+
+            // Check validity of KZG data
+            require(_kzgData.length == 128, "Invalid KZG data");
+
+            // Compute public input hash
             bytes32 _publicInputHash = keccak256(
                 abi.encodePacked(
                     layer2ChainId,
@@ -582,14 +589,45 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 )
             );
 
-            // verify batch
+            // Extract commitment
+            bytes memory _commitment = _kzgData[32:80];
+
+            // Compute xBytes
+            bytes memory _xBytes = abi.encode(
+                keccak256(abi.encodePacked(_commitment, _publicInputHash))
+            );
+            // make sure x < BLS_MODULUS
+            _xBytes[0] = 0x0;
+
+            // Create input for verification
+            bytes memory _input = abi.encode(
+                committedBatchStores[_batchIndex].blobVersionedhash,
+                _xBytes,
+                _kzgData
+            );
+
+            bool ret;
+            bytes memory _output;
+            assembly {
+                ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
+            }
+            require(ret, "verify 4844-proof failed");
+
+            // Verify batch
+            bytes32 _newPublicInputHash = keccak256(
+                abi.encodePacked(_publicInputHash, _xBytes, _kzgData[0:32])
+            );
             IRollupVerifier(verifier).verifyAggregateProof(
                 _batchIndex,
                 _aggrProof,
-                _publicInputHash
+                _newPublicInputHash
             );
-            _defenderWin(_batchIndex, _msgSender(), "prove success");
+
+            // Record defender win
+            _defenderWin(_batchIndex, _msgSender(), "Proof success");
         }
+
+        // Mark challenge as finished
         challenges[_batchIndex].finished = true;
         inChallenge = false;
     }
