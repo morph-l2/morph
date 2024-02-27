@@ -23,6 +23,7 @@ type IRollup interface {
 	CommittedBatchStores(opts *bind.CallOpts, arg0 *big.Int) (struct {
 		BatchHash              [32]byte
 		OriginTimestamp        *big.Int
+		FinalizeTimestamp      *big.Int
 		PrevStateRoot          [32]byte
 		PostStateRoot          [32]byte
 		WithdrawalRoot         [32]byte
