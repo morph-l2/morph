@@ -29,6 +29,15 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     event SequencerConfirmed(address[] sequencers, uint256 version);
 
     /**
+     * @notice sequencer updated
+     */
+    event SequencerUpdated(
+        address[] sequencersAddr,
+        bytes[] sequencersBLS,
+        uint256 version
+    );
+
+    /**
      * @notice only staking contract
      */
     modifier onlyStakingContract() {
@@ -84,10 +93,6 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
         address[] memory _sequencerAddrs,
         bytes[] memory _sequencerBLSKeys
     ) internal {
-        if (newestVersion == 0) {
-            _unpause();
-        }
-        require(!paused(), "send message when unpaused");
         newestVersion++;
         sequencerAddrs[newestVersion] = _sequencerAddrs;
         sequencerBLSKeys[newestVersion] = _sequencerBLSKeys;
@@ -134,9 +139,9 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     function confirmVersion(uint256 version) internal {
         require(
             version >= currentVersion && version <= newestVersion,
-            "invalid version"
+            "invalid sequencer version"
         );
-        for (uint256 i = 1; i < version; i++) {
+        for (uint256 i = currentVersion; i < version; i++) {
             delete sequencerAddrs[i];
             delete sequencerBLSKeys[i];
         }
@@ -150,8 +155,22 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
         uint32 _gasLimit,
         address _refundAddress
     ) external payable override onlyStakingContract {
-        updateSequencersVersion(_sequencerAddrs, _sequencerBLSKeys);
+        if (newestVersion == 0 && sequencerAddrs[0].length == 0) {
+            // init sequencers
+            sequencerAddrs[0] = _sequencerAddrs;
+            sequencerBLSKeys[0] = _sequencerBLSKeys;
+            _unpause();
+            return;
+        }
         require(!paused(), "send message when unpaused");
+        updateSequencersVersion(_sequencerAddrs, _sequencerBLSKeys);
+
+        emit SequencerUpdated(
+            _sequencerAddrs,
+            _sequencerBLSKeys,
+            newestVersion
+        );
+
         MESSENGER.sendMessage{value: msg.value}(
             address(OTHER_SEQUENCER),
             0,
