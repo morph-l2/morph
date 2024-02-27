@@ -32,9 +32,6 @@ func (i ImmutableConfig) Check() error {
 	if _, ok := i["L2Sequencer"]["otherSequencer"]; !ok {
 		return errors.New("L2Sequencer otherSequencer not set")
 	}
-	if _, ok := i["Submitter"]["rollupAddr"]; !ok {
-		return errors.New("Submitter rollupAddr not set")
-	}
 	return nil
 }
 
@@ -75,9 +72,6 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 		},
 		{
 			Name: "Submitter",
-			Args: []interface{}{
-				immutable["Submitter"]["rollupAddr"],
-			},
 		},
 		{
 			Name: "L2GatewayRouter",
@@ -203,11 +197,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "Gov":
 		_, tx, _, err = bindings.DeployGov(opts, backend)
 	case "Submitter":
-		rollupAddr, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for rollup address")
-		}
-		_, tx, _, err = bindings.DeploySubmitter(opts, backend, rollupAddr)
+		_, tx, _, err = bindings.DeploySubmitter(opts, backend)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
@@ -228,7 +218,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "L2ERC1155Gateway":
 		_, tx, _, err = bindings.DeployL2ERC1155Gateway(opts, backend)
 	case "ProxyAdmin":
-		_, tx, _, err = bindings.DeployProxyAdmin(opts, backend, common.BigToAddress(common.Big1))
+		_, tx, _, err = bindings.DeployProxyAdmin(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

@@ -7,9 +7,8 @@ import {ISubmitter} from "../submitter/ISubmitter.sol";
 import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {Semver} from "../../libraries/common/Semver.sol";
 
-contract L2Sequencer is Initializable, Semver, IL2Sequencer, Sequencer {
+contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
     // submitter contract address
     address public immutable L2_SUBMITTER_CONTRACT;
 
@@ -31,14 +30,12 @@ contract L2Sequencer is Initializable, Semver, IL2Sequencer, Sequencer {
     event SequencerUpdated(address[] sequencers, uint256 version);
 
     /**
-     * @custom:semver 1.0.0
      *
      * @param _otherSequencer Address of the sequencer on the other network.
      */
     constructor(
         address payable _otherSequencer
     )
-        Semver(1, 0, 0)
         Sequencer(
             payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
             _otherSequencer

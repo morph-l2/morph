@@ -19,7 +19,7 @@ build:
 	cd ops/docker && docker compose build
 
 base_image:
-	cd opsdocker && docker build -t morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 . -f go-rust-builder.Dockerfile
+	cd ops/docker && docker build -t morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 . -f go-rust-builder.Dockerfile
 
 ################## devnet 4 nodes ####################
 
@@ -49,6 +49,14 @@ devnet-clean:
 	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
 	rm -rf ops/docker/execution/geth
 .PHONY: devnet-clean
+
+devnet-clean-build:
+	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
+	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
+	rm -rf ops/L2-genesis/.devnet
+	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
+	rm -rf ops/docker/execution/geth
+.PHONY: devnet-clean-build
 
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1

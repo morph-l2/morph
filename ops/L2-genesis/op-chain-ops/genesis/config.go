@@ -4,17 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/morph-l2/morph-deployer/eth"
-	"github.com/morph-l2/morph-deployer/rollup"
-	"math/big"
-	"os"
-	"time"
-
 	"github.com/morph-l2/bindings/hardhat"
 	"github.com/morph-l2/bindings/predeploys"
+	"github.com/morph-l2/morph-deployer/eth"
 	"github.com/morph-l2/morph-deployer/op-chain-ops/immutables"
 	"github.com/morph-l2/morph-deployer/op-chain-ops/state"
+	"github.com/morph-l2/morph-deployer/rollup"
 	"github.com/scroll-tech/go-ethereum/common"
+	"math/big"
+	"os"
 
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -46,7 +44,7 @@ type DeployConfig struct {
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
-	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
+	//L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 
 	MaxTxPerBlock             int `json:"maxTxPerBlock"`
 	MaxTxPayloadBytesPerBlock int `json:"maxTxPayloadBytesPerBlock"`
@@ -184,23 +182,16 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	return nil
 }
 
-// InitDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
-func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
-	d.L1SequencerProxy = predeploys.DevL1SequencerAddr
-	d.L1CrossDomainMessengerProxy = predeploys.DevL1CrossDomainMessengerAddr
-	return nil
-}
-
-func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
-	if d.L2GenesisRegolithTimeOffset == nil {
-		return nil
-	}
-	v := uint64(0)
-	if offset := *d.L2GenesisRegolithTimeOffset; offset > 0 {
-		v = genesisTime + uint64(offset)
-	}
-	return &v
-}
+//func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
+//	if d.L2GenesisRegolithTimeOffset == nil {
+//		return nil
+//	}
+//	v := uint64(0)
+//	if offset := *d.L2GenesisRegolithTimeOffset; offset > 0 {
+//		v = genesisTime + uint64(offset)
+//	}
+//	return &v
+//}
 
 // RollupConfig converts a DeployConfig to a rollup.Config
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64, l2GenesisStateRoot common.Hash, withdrawRoot common.Hash, genesisBatchHeader []byte) (*rollup.Config, error) {
@@ -279,9 +270,6 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	immutable["L2Sequencer"] = immutables.ImmutableValues{
 		"otherSequencer": config.L1SequencerProxy,
 	}
-	immutable["Submitter"] = immutables.ImmutableValues{
-		"rollupAddr": config.RollupProxy,
-	}
 
 	blsKeys := make([][]byte, len(config.L2SequencerBlsKeys))
 	for i, v := range config.L2SequencerBlsKeys {
@@ -295,11 +283,58 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	return immutable, imConfig, nil
 }
 
+func (d *DeployConfig) Check() error {
+	if d.FinalSystemOwner == (common.Address{}) {
+		return fmt.Errorf("FinalSystemOwner cannot be address(0): %w", ErrInvalidDeployConfig)
+	}
+	if d.ProxyAdminOwner == (common.Address{}) {
+		return fmt.Errorf("ProxyAdminOwner cannot be address(0): %w", ErrInvalidDeployConfig)
+	}
+	if d.L1FeeVaultRecipient == (common.Address{}) {
+		return fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
+	}
+
+	if d.L2BridgeFeeVaultRecipient == (common.Address{}) {
+		return fmt.Errorf("L2BridgeFeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
+	}
+	if d.GovProposalInterval <= 0 {
+		return fmt.Errorf("GovProposalInterval must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.GovBatchBlockInterval <= 0 {
+		return fmt.Errorf("GovBatchBlockInterval must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.GovBatchMaxBytes <= 0 {
+		return fmt.Errorf("GovBatchMaxBytes must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.GovBatchTimeout <= 0 {
+		return fmt.Errorf("GovBatchTimeout must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.GovRollupEpoch <= 0 {
+		return fmt.Errorf("GovRollupEpoch must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.GovBatchMaxChunks <= 0 {
+		return fmt.Errorf("GovBatchMaxChunks must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.GasPriceOracleOwner == (common.Address{}) {
+		return fmt.Errorf("GasPriceOracleOwner cannot be address(0): %w", ErrInvalidDeployConfig)
+	}
+	if d.GasPriceOracleOverhead <= 0 {
+		return fmt.Errorf("GasPriceOracleOverhead must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.GasPriceOracleScalar <= 0 {
+		return fmt.Errorf("GasPriceOracleScalar must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	return nil
+}
+
 // NewL2StorageConfig will create a StorageConfig given an instance of a
 // Hardhat and a DeployConfig.
 func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
-
+	err := config.Check()
+	if err != nil {
+		return nil, err
+	}
 	storage["GasPriceOracle"] = state.StorageValues{
 		"_owner":           config.GasPriceOracleOwner,
 		"overhead":         config.GasPriceOracleOverhead,
@@ -333,9 +368,8 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"maxChunks":          config.GovBatchMaxChunks,
 	}
 	storage["Submitter"] = state.StorageValues{
-		"_initialized":   1,
-		"_initializing":  false,
-		"nextEpochStart": uint64(time.Now().Unix()),
+		"_initialized":  1,
+		"_initializing": false,
 	}
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"messageRoot": common.HexToHash("0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757"),
@@ -356,34 +390,34 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"defaultERC20Gateway": predeploys.L2StandardERC20GatewayAddr,
 	}
 	storage["L2StandardERC20Gateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
 		"tokenFactory":  predeploys.MorphStandardERC20FactoryAddr,
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1StandardERC20GatewayProxy,
 	}
 	storage["L2ETHGateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1ETHGatewayProxy,
 	}
 	storage["L2ERC721Gateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1ERC721GatewayProxy,
 		"router":        common.BigToAddress(common.Big0),
 	}
 	storage["L2ERC1155Gateway"] = state.StorageValues{
-		"_status":       1,     // ReentrancyGuard
-		"_initialized":  1,     // Ownable
-		"_initializing": false, // Ownable
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1ERC1155GatewayProxy,
 		"router":        common.BigToAddress(common.Big0),

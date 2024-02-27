@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Types} from "../../libraries/common/Types.sol";
-import {Semver} from "../../libraries/common/Semver.sol";
 import {Tree} from "../../libraries/common/Tree.sol";
 import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
-import {SafeCall} from "../../libraries/common/SafeCall.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 /**
@@ -14,7 +11,7 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
  *         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level
  *         of the L2 output to reduce the cost of proving the existence of sent messages.
  */
-contract L2ToL1MessagePasser is Semver, Tree {
+contract L2ToL1MessagePasser is Tree {
     /**********
      * Events *
      **********/
@@ -35,10 +32,8 @@ contract L2ToL1MessagePasser is Semver, Tree {
     /***************
      * Constructor *
      ***************/
-    /**
-     * @custom:semver 1.0.0
-     */
-    constructor() Semver(1, 0, 0) {
+
+    constructor() {
         messageRoot = getTreeRoot();
     }
 

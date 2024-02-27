@@ -18,28 +18,19 @@ export const RollupInit = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
-    configTmp: any
+    config: any
 ): Promise<string> => {
     // Load the contracts we need to interact with.
-    const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
     const ZkEvmVerifierV1Address = getContractAddressByName(path, ImplStorageName.ZkEvmVerifierV1StorageName)
-    const L1MessageQueueProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStroageName)
+    const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStroageName)
+    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStroageName)
+    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStroageName)
 
     // Rollup config
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
     const RollupImplAddress = getContractAddressByName(path, ImplStorageName.RollupStorageName)
     const RollupFactory = await hre.ethers.getContractFactory(ContractFactoryName.Rollup)
 
-    const RollupProxy = new ethers.Contract(
-        RollupProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
-    const Rollup = new ethers.Contract(
-        RollupProxyAddress,
-        RollupFactory.interface,
-        deployer.provider,
-    )
     // deploy and initialize MultipleVersionRollupVerifier
     const MultipleVersionRollupVerifierFactoryName = ContractFactoryName.MultipleVersionRollupVerifier
     const MultipleVersionRollupVerifierImplStorageName = ImplStorageName.MultipleVersionRollupVerifierStorageName
@@ -56,66 +47,48 @@ export const RollupInit = async (
         return err
     }
 
+    const IRollupProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, RollupProxyAddress, deployer)
     // upgrade and initialize RollupProxy
     if (
-        (await RollupProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== RollupImplAddress.toLocaleLowerCase()
+        (await IRollupProxy.implementation()).toLocaleLowerCase() !== RollupImplAddress.toLocaleLowerCase()
     ) {
         console.log('Upgrading the Rollup proxy...')
-        const finalizationPeriodSeconds: number = configTmp.finalizationPeriodSeconds
-        const minDeposit: number = configTmp.rollupMinDeposit
-        const proofWindow: number = configTmp.rollupProofWindow
-        const maxNumTxInChunk: number = configTmp.rollupMaxNumTxInChunk
+        const finalizationPeriodSeconds: number = config.finalizationPeriodSeconds
+        const proofWindow: number = config.rollupProofWindow
+        const maxNumTxInChunk: number = config.rollupMaxNumTxInChunk
 
-        // submitter and challenger
-        const submitter: string = configTmp.rollupProposer
-        const challenger: string = configTmp.rollupChallenger
-
-        // import genesis batch 
-        const genesisStateRoot: string = configTmp.rollupGenesisStateRoot
-        const withdrawRoot: string = configTmp.withdrawRoot
-        const batchHeader: string = configTmp.batchHeader
-
-        if (!ethers.utils.isAddress(submitter)
-            || !ethers.utils.isAddress(challenger)
-            || !ethers.utils.isAddress(L1MessageQueueProxyAddress)
+        if (!ethers.utils.isAddress(L1MessageQueueWithGasPriceOracleProxyAddress)
             || !ethers.utils.isAddress(MultipleVersionRollupVerifierContract.address)
+            || !ethers.utils.isAddress(L1SequencerProxyAddress)
+            || !ethers.utils.isAddress(StakingProxyAddress)
+
         ) {
             console.error('please check your address')
             return ''
         }
         // Upgrade and initialize the proxy.
-        await RollupProxy.connect(deployer).upgradeToAndCall(
+        await IRollupProxy.upgradeToAndCall(
             RollupImplAddress,
             RollupFactory.interface.encodeFunctionData('initialize', [
-                L1MessageQueueProxyAddress,
+                L1SequencerProxyAddress,
+                StakingProxyAddress,
+                L1MessageQueueWithGasPriceOracleProxyAddress,
                 MultipleVersionRollupVerifierContract.address,
                 maxNumTxInChunk,
-                ethers.utils.parseEther(minDeposit.toString()),
                 finalizationPeriodSeconds,
                 proofWindow
             ])
         )
+
         await awaitCondition(
             async () => {
                 return (
-                    (await RollupProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === RollupImplAddress.toLocaleLowerCase()
+                    (await IRollupProxy.implementation()).toLocaleLowerCase() === RollupImplAddress.toLocaleLowerCase()
                 )
             },
             3000,
             1000
         )
-        console.log('importGenesisBatch(%s, %s, %s)', batchHeader, genesisStateRoot, withdrawRoot)
-        await Rollup.connect(deployer).importGenesisBatch(batchHeader, genesisStateRoot, withdrawRoot)
-        console.log('addSequencer(%s)', submitter)
-        await Rollup.connect(deployer).addSequencer(submitter)
-        console.log('addProver(%s)', submitter)
-        await Rollup.connect(deployer).addProver(submitter)
-        console.log('addChallenger(%s)', challenger)
-        await Rollup.connect(deployer).addChallenger(challenger)
 
         // params check
         const contractTmp = new ethers.Contract(
@@ -126,7 +99,7 @@ export const RollupInit = async (
         await assertContractVariable(
             contractTmp,
             'messageQueue',
-            L1MessageQueueProxyAddress
+            L1MessageQueueWithGasPriceOracleProxyAddress
         )
         await assertContractVariable(
             contractTmp,
@@ -147,11 +120,6 @@ export const RollupInit = async (
             contractTmp,
             'PROOF_WINDOW',
             proofWindow,
-        )
-        await assertContractVariable(
-            contractTmp,
-            'MIN_DEPOSIT',
-            ethers.utils.parseEther(minDeposit.toString()),
         )
         await assertContractVariable(
             contractTmp,

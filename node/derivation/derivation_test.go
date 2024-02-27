@@ -8,18 +8,17 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/morph-l2/bindings/bindings"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/eth"
-
 	"github.com/morph-l2/node/types"
-	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core"
 	"github.com/scroll-tech/go-ethereum/core/rawdb"
+	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
 	"github.com/scroll-tech/go-ethereum/ethdb"
@@ -85,34 +84,6 @@ func newSimulatedBackend(key *ecdsa.PrivateKey) (*backends.SimulatedBackend, eth
 	return sim, db
 }
 
-func TestFindBatchIndex(t *testing.T) {
-	d := testNewDerivationClient(t)
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0).SetUint64(1),
-		ToBlock:   big.NewInt(0).SetUint64(2000),
-		Addresses: []common.Address{
-			d.RollupContractAddress,
-		},
-		Topics: [][]common.Hash{
-			{RollupEventTopicHash},
-		},
-	}
-	rollup, err := bindings.NewRollup(d.RollupContractAddress, d.l1Client)
-	require.NoError(t, err)
-	d.rollup = rollup
-	logs, err := d.l1Client.FilterLogs(context.Background(), query)
-	require.NoError(t, err)
-	require.True(t, len(logs) != 0)
-	for _, lg := range logs {
-		batchIndex, err := d.findBatchIndex(lg.TxHash, 20)
-		if err != nil {
-			continue
-		}
-		require.NotZero(t, batchIndex)
-		break
-	}
-}
-
 func TestDecodeBatch(t *testing.T) {
 	abi, err := bindings.RollupMetaData.GetAbi()
 	require.NoError(t, err)
@@ -152,4 +123,30 @@ func TestDecodeBatch(t *testing.T) {
 	}
 	_, err = ParseBatch(batch)
 	require.NoError(t, err)
+}
+
+func DialEthClientWithTimeout(ctx context.Context, url string) (*ethclient.Client, *rpc.Client, error) {
+	ctxt, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	c, err := rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ethclient.NewClient(c), c, nil
+}
+
+func TestCompareBlockHash(t *testing.T) {
+	sClient, err := ethclient.Dial("http://localhost:8545")
+	require.NoError(t, err)
+	dClient, err := ethclient.Dial("http://localhost:7545")
+	require.NoError(t, err)
+	latest, err := dClient.BlockNumber(context.Background())
+	for i := 0; i <= int(latest); i++ {
+		sBlock, err := sClient.BlockByNumber(context.Background(), big.NewInt(int64(i)))
+		require.NoError(t, err)
+		dBlock, err := dClient.BlockByNumber(context.Background(), big.NewInt(int64(i)))
+		require.NoError(t, err)
+		require.Equal(t, sBlock.Hash(), dBlock.Hash())
+	}
 }

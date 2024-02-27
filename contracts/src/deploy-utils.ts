@@ -15,7 +15,8 @@ const fs = require("fs")
 export const assertContractVariable = async (
     contract: ethers.Contract,
     variable: string,
-    expected: any
+    expected: any,
+    caller?: string
 ) => {
     // Need to make a copy that doesn't have a signer or we get the error that contracts with
     // signers cannot override the from address.
@@ -24,10 +25,42 @@ export const assertContractVariable = async (
         contract.interface,
         contract.provider
     )
-
+    if (caller === null || !ethers.utils.isAddress(caller)) {
+        caller = ethers.constants.AddressZero
+    }
     const actual = await temp.callStatic[variable]({
-        from: ethers.constants.AddressZero,
+        from: caller,
     })
+
+    if (ethers.utils.isAddress(expected)) {
+        assert(
+            actual.toLowerCase() === expected.toLowerCase(),
+            `[FATAL] ${variable} is ${actual} but should be ${expected}`
+        )
+        return
+    }
+
+    assert(
+        actual === expected || (actual.eq && actual.eq(expected)),
+        `[FATAL] ${variable} is ${actual} but should be ${expected}`
+    )
+}
+
+
+export const assertContractVariableWithSigner = async (
+    contract: ethers.Contract,
+    variable: string,
+    expected: any,
+) => {
+    // Need to make a copy that doesn't have a signer or we get the error that contracts with
+    // signers cannot override the from address.
+    const temp = new ethers.Contract(
+        contract.address,
+        contract.interface,
+        contract.signer,
+    )
+
+    const actual = await temp.callStatic[variable]()
 
     if (ethers.utils.isAddress(expected)) {
         assert(

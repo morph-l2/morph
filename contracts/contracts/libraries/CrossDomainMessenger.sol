@@ -17,7 +17,6 @@ import {ICrossDomainMessenger} from "./ICrossDomainMessenger.sol";
  *         chain it's deployed on. Currently only designed for message passing between two paired
  *         chains and does not support one-to-many interactions.
  *
- *         Any changes to this contract MUST result in a semver bump for contracts that inherit it.
  */
 abstract contract CrossDomainMessenger is
     OwnableUpgradeable,

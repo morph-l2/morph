@@ -458,18 +458,3 @@ async fn test_decode_chunks() {
     assert!(rt.get(3).unwrap().len() == 2);
 }
 
-#[tokio::test]
-async fn test_commit_batch_filter() {
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from("https://eth-mainnet.g.alchemy.com/v2/oGHoxvEj_29sdJlOjKMPMHvmqS8gYmLX").unwrap();
-    let l1_rollup: Rollup<Provider<Http>> = Rollup::new(
-        Address::from_str("0xa13BAF47339d63B743e7Da8741db5456DAc1E556").unwrap(),
-        Arc::new(l1_provider.clone()),
-    );
-
-    let latest = l1_provider.get_block_number().await.unwrap();
-    let filter = l1_rollup.commit_batch_filter().filter.from_block(18548027).topic1(U256::from(20856));
-    let logs: Vec<Log> = l1_provider.get_logs(&filter).await.unwrap();
-
-    println!("{:?}", logs.len());
-    println!("{:?}", logs.first().unwrap().topics[0]);
-}

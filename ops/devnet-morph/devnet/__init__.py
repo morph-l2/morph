@@ -186,12 +186,13 @@ def devnet_deploy(paths, args):
     deploy_config['l2SequencerBlsKeys']
     for i in range(4):
         run_command(['cast', 'send', addresses['Proxy__Staking'],
-                     'register(bytes32,bytes memory,uint32)',
+                     'register(bytes32,bytes memory,uint32,uint256)',
                      deploy_config['l2SequencerTmKeys'][i],
                      deploy_config['l2SequencerBlsKeys'][i],
                      '5000000',
+                     '1000000000000000',
                      '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '2ether',
+                     '--value', '3ether',
                      '--private-key', deploy_config['l2SequencerPks'][i]
                      ])
 
@@ -215,10 +216,8 @@ def devnet_deploy(paths, args):
                 key, value = line.split('=')
                 env_data[key.strip()] = value.strip()
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
-        env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueue']
+        env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueueWithGasPriceOracle']
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
-        # env_data['MORPH_STANDARD_BRIDGE'] = addresses['Proxy__L1StandardBridge']
-        env_data['MORPH_ADDRESS_MANAGER'] = addresses['Impl__AddressManager']
         env_data['BUILD_GETH'] = build_geth_target
         env_data['RUST_LOG'] = rust_log_level
         envfile.seek(0)
@@ -230,25 +229,16 @@ def devnet_deploy(paths, args):
     log.info('Bringing up L2.')
 
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
-                 'node-0',
-                 'node-1',
-                 'node-2',
-                 'node-3',
-                 'sentry-node-0',
-                 'validator_node',
-                 'tx-submitter',
-                 'gas-price-oracle',
                  '-d'], check=False, cwd=paths.ops_dir,
                 env={
-                    'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],
+                    'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
-                    # 'MORPH_STANDARD_BRIDGE': addresses['Proxy__L1StandardBridge'],
-                    'MORPH_ADDRESS_MANAGER': addresses['Impl__AddressManager'],
                     'PWD': paths.ops_dir,
                     'NODE_DATA_DIR': '/data',
                     'GETH_DATA_DIR': '/db',
                     'GENESIS_FILE_PATH': '/genesis.json',
                     'L1_ETH_RPC': 'http://l1:8545',
+                    'L1_BEACON_CHAIN_RPC': 'http://beacon-chain:3500',
                     'BUILD_GETH': build_geth_target
                 })
     wait_up(8545)

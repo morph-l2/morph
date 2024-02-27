@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
+import {L2SequencerTest} from "./L2Sequencer.t.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {Submitter} from "../L2/submitter/Submitter.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
-contract SubmitterTest is L2StakingBaseTest {
+contract SubmitterTest is L2SequencerTest {
     event ACKRollup(
         uint256 batchIndex,
         address submitter,
@@ -15,7 +16,35 @@ contract SubmitterTest is L2StakingBaseTest {
         uint256 rollupTime
     );
 
-    event EpochUpdated(uint256 interval, uint256 sequencersLen);
+    function setUp() public virtual override {
+        super.setUp();
+
+        hevm.mockCall(
+            address(l2Sequencer.messenger()),
+            abi.encodeWithSelector(
+                ICrossDomainMessenger.xDomainMessageSender.selector
+            ),
+            abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
+        );
+
+        Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](
+            SEQUENCER_SIZE
+        );
+
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
+                user
+            );
+            sequencerBLSKeys.push(sequencerInfo.blsKey);
+            sequencerInfos[i] = sequencerInfo;
+        }
+        version++;
+        hevm.prank(address(l2CrossDomainMessenger));
+        // updateSequencers
+        l2Sequencer.updateSequencers(version, sequencerInfos);
+        assertEq(l2Sequencer.currentVersion(), version);
+    }
 
     function testAckRollup() external {
         uint256 batchIndex = 0;
@@ -23,19 +52,7 @@ contract SubmitterTest is L2StakingBaseTest {
         uint256 batchEndBlock = 10;
         uint256 rollupTime = 1700001000;
 
-        bytes memory _message = abi.encodeWithSelector(
-            Submitter.ackRollup.selector,
-            batchIndex,
-            alice,
-            batchStartBlock,
-            batchEndBlock,
-            rollupTime
-        );
-        uint256 _nonce = 0;
-        address _sender = AddressAliasHelper.applyL1ToL2Alias(
-            l2CrossDomainMessenger.counterpart()
-        );
-
+        hevm.prank(multisig);
         hevm.expectEmit(true, true, true, true);
         emit ACKRollup(
             batchIndex,
@@ -44,29 +61,13 @@ contract SubmitterTest is L2StakingBaseTest {
             batchEndBlock,
             rollupTime
         );
-        bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(
-                NON_ZERO_ADDRESS,
-                address(l2Submitter),
-                0,
-                _nonce,
-                _message
-            )
-        );
 
-        hevm.expectEmit(true, true, true, true);
-        emit RelayedMessage(_xDomainCalldataHash);
-
-        hevm.prank(_sender);
-        l2CrossDomainMessenger.relayMessage(
-            NON_ZERO_ADDRESS,
-            address(l2Submitter),
-            0,
-            _nonce,
-            _message
-        );
-        assertTrue(
-            l2CrossDomainMessenger.isL1MessageExecuted(_xDomainCalldataHash)
+        l2Submitter.ackRollup(
+            batchIndex,
+            alice,
+            batchStartBlock,
+            batchEndBlock,
+            rollupTime
         );
 
         Types.BatchInfo memory batchInfo = l2Submitter.getConfirmedBatch(
@@ -77,12 +78,97 @@ contract SubmitterTest is L2StakingBaseTest {
         assertEq(batchInfo.startBlock, batchStartBlock);
         assertEq(batchInfo.endBlock, batchEndBlock);
         assertEq(batchInfo.rollupTime, rollupTime);
+        hevm.stopPrank();
     }
 
-    function testUpdateEpoch() external {
-        hevm.expectEmit(true, true, true, true);
-        emit EpochUpdated(l2Gov.rollupEpoch(), SEQUENCER_SIZE);
+    function test_getTurn() external {
+        uint256 start;
+        uint256 end;
 
-        l2Submitter.updateEpochExternal();
+        hevm.warp(1841071100);
+        emit log_uint(block.timestamp);
+        (start, end) = l2Submitter.getTurn(address(uint160(beginSeq + 0)));
+        emit log_address(address(uint160(beginSeq + 0)));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(address(uint160(beginSeq + 1)));
+        emit log_address(address(uint160(beginSeq + 1)));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(address(uint160(beginSeq + 2)));
+        emit log_address(address(uint160(beginSeq + 2)));
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841074440);
+        emit log_uint(block.timestamp);
+        (start, end) = l2Submitter.getTurn(address(uint160(beginSeq + 0)));
+        emit log_address(address(uint160(beginSeq + 0)));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(address(uint160(beginSeq + 1)));
+        emit log_address(address(uint160(beginSeq + 1)));
+        emit log_uint(start);
+        emit log_uint(end);
+        (start, end) = l2Submitter.getTurn(address(uint160(beginSeq + 2)));
+        emit log_address(address(uint160(beginSeq + 2)));
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+    }
+
+    function test_getNextSubmitter() external {
+        address submitter;
+        uint256 start;
+        uint256 end;
+
+        hevm.warp(1841071100);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841072220);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841073330);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841074440);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841075550);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
+
+        hevm.warp(1841076660);
+        emit log_uint(block.timestamp);
+        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        emit log_address(submitter);
+        emit log_uint(start);
+        emit log_uint(end);
+        emit log("");
     }
 }

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {CommonTest} from "./CommonTest.t.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {Proxy} from "../../libraries/proxy/Proxy.sol";
+import {CommonTest} from "./CommonTest.t.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {L2CrossDomainMessenger} from "../../L2/L2CrossDomainMessenger.sol";
 import {L2ToL1MessagePasser} from "../../L2/system/L2ToL1MessagePasser.sol";
 import {GasPriceOracle} from "../../L2/system/GasPriceOracle.sol";
+import {EmptyContract} from "../../misc/EmptyContract.sol";
 
 contract L2MessageBaseTest is CommonTest {
     // L2ToL1MessagePasser config
@@ -42,22 +43,34 @@ contract L2MessageBaseTest is CommonTest {
         // Set the proxy at the correct address
         hevm.etch(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            address(new Proxy(multisig)).code
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(multisig),
+                    new bytes(0)
+                )
+            ).code
         );
         hevm.etch(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            address(new Proxy(multisig)).code
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(multisig),
+                    new bytes(0)
+                )
+            ).code
         );
         hevm.etch(
             Predeploys.GAS_PRICE_ORACLE,
             address(new GasPriceOracle(multisig)).code
         );
-        Proxy l2ToL1MessagePasserProxy = Proxy(
-            payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
-        );
-        Proxy l2CrossDomainMessengerProxy = Proxy(
-            payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-        );
+        TransparentUpgradeableProxy l2ToL1MessagePasserProxy = TransparentUpgradeableProxy(
+                payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
+            );
+        TransparentUpgradeableProxy l2CrossDomainMessengerProxy = TransparentUpgradeableProxy(
+                payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+            );
         gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
 
         hevm.store(
@@ -79,23 +92,26 @@ contract L2MessageBaseTest is CommonTest {
         hevm.startPrank(multisig);
 
         l2ToL1MessagePasserImpl = new L2ToL1MessagePasser();
-        l2ToL1MessagePasserProxy.upgradeTo(address(l2ToL1MessagePasserImpl));
+        ITransparentUpgradeableProxy(address(l2ToL1MessagePasserProxy))
+            .upgradeTo(address(l2ToL1MessagePasserImpl));
         l2ToL1MessagePasser = L2ToL1MessagePasser(
             address(l2ToL1MessagePasserProxy)
         );
 
         l2CrossDomainMessengerImpl = new L2CrossDomainMessenger();
-        l2CrossDomainMessengerProxy.upgradeToAndCall(
-            address(l2CrossDomainMessengerImpl),
-            abi.encodeWithSelector(
-                L2CrossDomainMessenger.initialize.selector,
-                NON_ZERO_ADDRESS
-            )
-        );
+        ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxy))
+            .upgradeToAndCall(
+                address(l2CrossDomainMessengerImpl),
+                abi.encodeWithSelector(
+                    L2CrossDomainMessenger.initialize.selector,
+                    NON_ZERO_ADDRESS
+                )
+            );
         l2CrossDomainMessenger = L2CrossDomainMessenger(
             payable(address(l2CrossDomainMessengerProxy))
         );
-
+        _changeAdmin(address(l2ToL1MessagePasser));
+        _changeAdmin(address(l2CrossDomainMessenger));
         hevm.stopPrank();
     }
 

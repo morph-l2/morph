@@ -272,13 +272,3 @@ async fn query_status(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>
     }
 }
 
-#[tokio::test]
-async fn test_gen_request() {
-    let request: ProveRequest = ProveRequest {
-        batch_index: 4,
-        chunks: vec![vec![1], vec![2, 3]],
-        rpc: String::from("127.0.0.1:8569"),
-    };
-    let info = serde_json::to_string(&request);
-    println!("{:?}", info.unwrap());
-}

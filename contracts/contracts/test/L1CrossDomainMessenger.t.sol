@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {L1MessageQueue} from "../L1/rollup/L1MessageQueue.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {IRollup} from "../L1/rollup/IRollup.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
@@ -111,7 +111,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         address to = address(bob);
         uint256 value = 0;
         bytes memory message = "";
-        uint256 nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        uint256 nonce = l1MessageQueueWithGasPriceOracle
+            .nextCrossDomainMessageIndex();
         bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             from,
             to,
@@ -119,7 +120,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             nonce,
             message
         );
-        uint256 gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+        uint256 gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(
+            _xDomainCalldata
+        );
 
         // updateMaxReplayTimes to 0
         hevm.prank(multisig);
@@ -147,7 +150,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(1);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(1);
         // Insufficient msg.value
         hevm.expectRevert("Insufficient msg.value for fee");
         l1CrossDomainMessenger.replayMessage(
@@ -161,7 +164,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         hevm.prank(multisig);
-        uint256 _fee = l2GasPriceOracle.l2BaseFee() * defaultGasLimit;
+        uint256 _fee = l1MessageQueueWithGasPriceOracle.l2BaseFee() *
+            defaultGasLimit;
 
         // Exceed maximum replay times
         hevm.expectRevert("Exceed maximum replay times");
@@ -197,7 +201,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         // 1. send a message with nonce 2
         // 2. replay 3 times
         hevm.startPrank(multisig);
-        l2GasPriceOracle.setL2BaseFee(0);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(0);
         l1CrossDomainMessenger.updateMaxReplayTimes(100);
         hevm.stopPrank();
         l1CrossDomainMessenger.sendMessage{value: 100}(
@@ -249,7 +253,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
     function testForbidCallMessageQueueFromL2() external {
         // withdrawal tx
         address from = address(alice);
-        address to = address(l1MessageQueue);
+        address to = address(l1MessageQueueWithGasPriceOracle);
         uint256 value = 0;
         uint256 nonce = 0;
         bytes memory message = "send message";
@@ -326,7 +330,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
 
         // send value zero
         uint256 value = 0;
-        uint256 nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        uint256 nonce = l1MessageQueueWithGasPriceOracle
+            .nextCrossDomainMessageIndex();
         bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             sender,
             to,
@@ -334,14 +339,18 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             nonce,
             data
         );
-        uint256 gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+        uint256 gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(
+            _xDomainCalldata
+        );
         hevm.expectEmit(true, true, true, true);
         emit SentMessage(sender, to, value, nonce, gas, data);
 
         hevm.expectCall(
-            address(l1MessageQueue),
+            address(l1MessageQueueWithGasPriceOracle),
             abi.encodeWithSelector(
-                L1MessageQueue.appendCrossDomainMessage.selector,
+                l1MessageQueueWithGasPriceOracle
+                    .appendCrossDomainMessage
+                    .selector,
                 Predeploys.L2_CROSS_DOMAIN_MESSENGER,
                 gas,
                 _xDomainCalldata
@@ -358,7 +367,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
 
         // send value zero
         uint256 value = 0;
-        uint256 nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        uint256 nonce = l1MessageQueueWithGasPriceOracle
+            .nextCrossDomainMessageIndex();
         bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             sender,
             to,
@@ -366,16 +376,18 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             nonce,
             data
         );
-        uint256 gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+        uint256 gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(
+            _xDomainCalldata
+        );
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
 
         // send value not zero
         // set base fee to 100
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(100);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(100);
 
         value = 1 ether;
-        nonce = l1MessageQueue.nextCrossDomainMessageIndex();
+        nonce = l1MessageQueueWithGasPriceOracle.nextCrossDomainMessageIndex();
         _xDomainCalldata = _encodeXDomainCalldata(
             sender,
             to,
@@ -383,7 +395,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             nonce,
             data
         );
-        gas = l1MessageQueue.calculateIntrinsicGasFee(_xDomainCalldata);
+        gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(
+            _xDomainCalldata
+        );
         hevm.expectRevert("Insufficient msg.value");
         l1CrossDomainMessenger.sendMessage{value: 1 ether}(
             to,
@@ -392,7 +406,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             gas
         );
         // give enought value
-        uint256 fee = l1MessageQueue.estimateCrossDomainMessageFee(gas);
+        uint256 fee = l1MessageQueueWithGasPriceOracle
+            .estimateCrossDomainMessageFee(gas);
         l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(
             to,
             value,
@@ -401,7 +416,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         // send more value with refund address
-        fee = l1MessageQueue.estimateCrossDomainMessageFee(gas);
+        fee = l1MessageQueueWithGasPriceOracle.estimateCrossDomainMessageFee(
+            gas
+        );
         l1CrossDomainMessenger.sendMessage{value: 1 ether + fee * 2}(
             to,
             value,

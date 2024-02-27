@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, getContractAddressByName, awaitCondition, storge } from "../src/deploy-utils";
+import { assertContractVariable, getContractAddressByName, awaitCondition } from "../src/deploy-utils";
 import { ethers } from 'ethers'
 
 import {
@@ -34,15 +34,9 @@ export const StakingInit = async (
     const StakingImplAddress = getContractAddressByName(path, ImplStorageName.StakingStorageName)
     const StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.Staking)
 
-    const L1SequencerProxy = new ethers.Contract(
-        L1SequencerProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
+    const IL1SequencerProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1SequencerProxyAddress, deployer)
     if (
-        (await L1SequencerProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== L1SequencerImplAddress.toLocaleLowerCase()
+        (await IL1SequencerProxy.implementation()).toLocaleLowerCase() !== L1SequencerImplAddress.toLocaleLowerCase()
     ) {
         console.log('Upgrading the L1Sequencer proxy...')
         if (!ethers.utils.isAddress(RollupProxyAddress)
@@ -52,7 +46,7 @@ export const StakingInit = async (
             return ''
         }
         // Upgrade and initialize the proxy.
-        await L1SequencerProxy.connect(deployer).upgradeToAndCall(
+        await IL1SequencerProxy.upgradeToAndCall(
             L1SequencerImplAddress,
             L1SequencerFactory.interface.encodeFunctionData('initialize', [
                 StakingProxyAddress,
@@ -62,9 +56,7 @@ export const StakingInit = async (
         await awaitCondition(
             async () => {
                 return (
-                    (await L1SequencerProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === L1SequencerImplAddress.toLocaleLowerCase()
+                    (await IL1SequencerProxy.implementation()).toLocaleLowerCase() === L1SequencerImplAddress.toLocaleLowerCase()
                 )
             },
             3000,
@@ -88,16 +80,9 @@ export const StakingInit = async (
         console.log('L1SequencerProxy upgrade success')
     }
 
-
-    const StakingProxy = new ethers.Contract(
-        StakingProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
+    const IStakingProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, StakingProxyAddress, deployer)
     if (
-        (await StakingProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== StakingImplAddress.toLocaleLowerCase()
+        (await IStakingProxy.implementation()).toLocaleLowerCase() !== StakingImplAddress.toLocaleLowerCase()
     ) {
         console.log('Upgrading the Staking proxy...')
         const admin: string = configTmp.contractAdmin
@@ -116,7 +101,7 @@ export const StakingInit = async (
         }
 
         // Upgrade and initialize the proxy.
-        await StakingProxy.connect(deployer).upgradeToAndCall(
+        await IStakingProxy.upgradeToAndCall(
             StakingImplAddress,
             StakingFactory.interface.encodeFunctionData('initialize', [
                 admin,
@@ -129,38 +114,19 @@ export const StakingInit = async (
         await awaitCondition(
             async () => {
                 return (
-                    (await StakingProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === StakingImplAddress.toLocaleLowerCase()
+                    (await IStakingProxy.implementation()).toLocaleLowerCase() === StakingImplAddress.toLocaleLowerCase()
                 )
             },
             3000,
             1000
         )
 
-        const whiteListAdd = configTmp.l2SequencerAddresses
-
         const contractTmp = new ethers.Contract(
             StakingProxyAddress,
             StakingFactory.interface,
             deployer,
         )
-        // set sequencer to white list
-        await contractTmp.updateWhitelist(whiteListAdd, [])
-        for (let i = 0; i < configTmp.l2SequencerAddresses.length; i++) {
-            // Wait for the transaction to execute properly.
-            await awaitCondition(
-                async () => {
-                    return (
-                        await contractTmp.whitelist(configTmp.l2SequencerAddresses[i]) === true
-                    )
-                },
-                3000,
-                1000
-            )
-            console.log(`address ${configTmp.l2SequencerAddresses[i]} is in white list`)
-        }
-
+ 
         await assertContractVariable(
             contractTmp,
             'sequencerContract',
