@@ -444,7 +444,7 @@ func (sr *SR) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, uint32(minGasLimit))
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, batch.Version, batch.SequencerIndex, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
