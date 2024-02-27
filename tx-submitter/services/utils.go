@@ -12,6 +12,18 @@ import (
 	"github.com/scroll-tech/go-ethereum/params"
 )
 
+const (
+	// Geth requires a minimum fee bump of 10% for regular tx resubmission, 100% for blob txs
+	priceBump     int64 = 10
+	blobPriceBump int64 = 100
+)
+
+// new = old * (100 + priceBump) / 100
+var priceBumpPercent = big.NewInt(100 + priceBump)
+var blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
+var oneHundred = big.NewInt(100)
+var two = big.NewInt(2)
+
 func encodeBlobs(data []byte) []kzg4844.Blob {
 	blobs := []kzg4844.Blob{{}}
 	blobIndex := 0
@@ -104,4 +116,21 @@ func DecodeUint256String(hexOrDecimal string) (*uint256.Int, error) {
 		return nil, fmt.Errorf("value is too big")
 	}
 	return val256, nil
+}
+
+// calcThresholdValue returns x * priceBumpPercent / 100
+func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
+	var percent *big.Int
+	if isBlobTx {
+		percent = blobPriceBumpPercent
+	} else {
+		percent = priceBumpPercent
+	}
+	threshold := new(big.Int).Mul(percent, x)
+	threshold = threshold.Div(threshold, oneHundred)
+	return threshold
+}
+
+func calcBlobFeeCap(blobFee *big.Int) *big.Int {
+	return new(big.Int).Mul(blobFee, two)
 }

@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/prometheus/client_golang v1.17.0
-	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
+	github.com/scroll-tech/go-ethereum v1.10.14-0.20240222134301-4585f3a6bb0c
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.14
 )
