@@ -19,6 +19,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/consensus/misc/eip4844"
 	"github.com/scroll-tech/go-ethereum/core"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
@@ -315,7 +316,6 @@ func (sr *SR) finalize() error {
 			"finalize_cnt", finalizeCnt,
 			// receipt info
 			"gas_used", receipt.GasUsed,
-			"tx_hash", newSignedTx.Hash().String(),
 			// tx info
 			"tx_hash", newSignedTx.Hash().String(),
 			"type", newSignedTx.Type(),
@@ -396,13 +396,6 @@ func (sr *SR) rollup() error {
 		return nil
 	}
 
-	// log batch
-	// batchJson, err := json.Marshal(batch)
-	// if err != nil {
-	// 	return err
-	// }
-	// log.Info("batch info", "batch_index", index, "batch_json", string(batchJson))
-
 	if len(batch.Signatures) == 0 {
 		log.Info("length of batch signature is empty, wait for the next turn")
 		time.Sleep(time.Second * 3)
@@ -413,7 +406,6 @@ func (sr *SR) rollup() error {
 	// var blobChunk []byte
 	for _, chunk := range batch.Chunks {
 		chunks = append(chunks, chunk)
-		// blobChunk = append(blobChunk, chunk...)
 	}
 	signature, err := sr.aggregateSignatures(batch.Signatures)
 	if err != nil {
@@ -442,14 +434,6 @@ func (sr *SR) rollup() error {
 		return fmt.Errorf("dial ethclient error:%v", err)
 	}
 
-	// versioned hashes
-
-	tip, gasFeeCap, err := sr.GetGasTipAndCap()
-	if err != nil {
-		return fmt.Errorf("get gas tip and cap error:%v", err)
-
-	}
-
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
@@ -458,10 +442,30 @@ func (sr *SR) rollup() error {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
 	} else {
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
+		sr.GetGasTipAndCap()
+
+		// tip and cap
+		tip, gasFeeCap, blobFee, err := sr.GetGasTipAndCap()
+		if err != nil {
+			return fmt.Errorf("get gas tip and cap error:%v", err)
+		}
+		// calldata encode
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, uint32(minGasLimit))
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
+		// estimate gas
+		gas, err := sr.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
+			From:      opts.From,
+			To:        &sr.rollupAddr,
+			GasFeeCap: gasFeeCap,
+			GasTipCap: tip,
+			Data:      calldata,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to estimate gas: %w", err)
+		}
+
 		versionedHashes := make([]common.Hash, 0)
 		for _, commit := range batch.Sidecar.Commitments {
 			versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
@@ -471,11 +475,11 @@ func (sr *SR) rollup() error {
 			Nonce:      nonce,
 			GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
 			GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
-			Gas:        5000000,
+			Gas:        gas,
 			To:         sr.rollupAddr,
 			Value:      uint256.NewInt(0),
 			Data:       calldata,
-			BlobFeeCap: uint256.NewInt(10e10),
+			BlobFeeCap: uint256.MustFromBig(blobFee),
 			BlobHashes: versionedHashes,
 			Sidecar: &types.BlobTxSidecar{
 				Blobs:       batch.Sidecar.Blobs,
@@ -485,6 +489,7 @@ func (sr *SR) rollup() error {
 		})
 	}
 
+	// add a buffer to the gas limit
 	newTx, err := UpdateGasLimit(tx)
 	if err != nil {
 		return fmt.Errorf("update gaslimit error:%v", err)
@@ -526,26 +531,6 @@ func (sr *SR) rollup() error {
 		} else {
 			return fmt.Errorf("send tx error:%v", err.Error())
 		}
-
-		// switch err.Error() {
-		// case
-		// 	core.ErrReplaceUnderpriced.Error(),
-		// 	core.ErrAlreadyKnown.Error():
-
-		// 	receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
-		// 	if err != nil {
-		// 		return fmt.Errorf("replace tx error:%v", err)
-		// 	} else {
-		// 		log.Info("replace tx success")
-		// 	}
-		// case core.ErrGasLimit.Error():
-		// 	log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "chunks_len", len(batch.Chunks))
-		// 	return fmt.Errorf("send tx error:%v", err.Error())
-		// case core.ErrNonceTooLow.Error():
-		// 	return fmt.Errorf("send tx error:%v", err.Error())
-		// default:
-		// 	return fmt.Errorf("send tx error:%v", err.Error())
-		// }
 	} else {
 		log.Info("tx sent",
 			// for business
@@ -661,14 +646,14 @@ func (sr *SR) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindi
 	return &rollupBatchSignature, nil
 }
 
-func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
+func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	tip, err := sr.L1Client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	head, err := sr.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	var gasFeeCap *big.Int
 	if head.BaseFee != nil {
@@ -679,7 +664,13 @@ func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
 	} else {
 		gasFeeCap = new(big.Int).Set(tip)
 	}
-	return tip, gasFeeCap, nil
+
+	// calc blob fee cap
+	var blobFee *big.Int
+	if head.ExcessBlobGas != nil {
+		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+	}
+	return tip, gasFeeCap, blobFee, nil
 }
 
 func (sr *SR) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
@@ -833,56 +824,78 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 		return nil, nil, fmt.Errorf("new keyedTransaction with chain id error:%v", err)
 	}
 
-	// replaced tx info
-	log.Info("replaced tx",
-		"tx_hash", tx.Hash().String(),
-		"gas_fee_cap", tx.GasFeeCap(),
-		"gas_tip", tx.GasTipCap(),
-		"gas", tx.Gas(),
-		"nonce", tx.Nonce(),
-	)
-
-	_tip, _gasFeeCap, err := sr.GetGasTipAndCap()
-	if err != nil {
-		log.Error("get tip and cap", "err", err)
-	}
-	tip := _tip.Int64()
-	gasFeeCap := _gasFeeCap.Int64()
-
-	txTip := tx.GasTipCap().Int64()
-	txGasFeeCap := tx.GasFeeCap().Int64()
-
-	minTip := txTip * 12 / 10
-	minGasFeeCap := txGasFeeCap * 12 / 10
-
-	for {
-		if (tip > minTip) && (gasFeeCap > minGasFeeCap) {
-			break
-		}
-		if tip < minTip {
-			tip *= 2
-		}
-		if gasFeeCap < minGasFeeCap {
-			gasFeeCap *= 2
-		}
-
-	}
-
 	// try 10 times
 	for i := 0; i < 10; i++ {
 
-		newTx := types.NewTx(&types.DynamicFeeTx{
-			To:        tx.To(),
-			Nonce:     tx.Nonce(),
-			GasFeeCap: big.NewInt(gasFeeCap),
-			GasTipCap: big.NewInt(tip),
-			Gas:       tx.Gas(),
-			Value:     tx.Value(),
-			Data:      tx.Data(),
-		})
+		// replaced tx info
+		log.Info("replaced tx",
+			"tx_hash", tx.Hash().String(),
+			"gas_fee_cap", tx.GasFeeCap().String(),
+			"gas_tip", tx.GasTipCap().String(),
+			"blob_fee_cap", tx.BlobGasFeeCap().String(),
+			"gas", tx.Gas(),
+			"nonce", tx.Nonce(),
+		)
+
+		tip, gasFeeCap, blobFeeCap, err := sr.GetGasTipAndCap()
+		if err != nil {
+			log.Error("get tip and cap", "err", err)
+		}
+
+		// bump tip & feeCap
+		bumpedFeeCap := calcThresholdValue(tx.GasFeeCap(), tx.Type() == types.BlobTxType)
+		bumpedTip := calcThresholdValue(tx.GasTipCap(), tx.Type() == types.BlobTxType)
+
+		// if bumpedTip > tip
+		if bumpedTip.Cmp(tip) > 0 {
+			tip = bumpedTip
+			gasFeeCap = bumpedFeeCap
+		}
+		if tx.Type() == types.BlobTxType {
+			bumpedBlobFeeCap := calcBlobFeeCap(tx.BlobGasFeeCap())
+			if bumpedBlobFeeCap.Cmp(blobFeeCap) > 0 {
+				blobFeeCap = bumpedBlobFeeCap
+			}
+		}
+
+		var newTx *types.Transaction
+		switch tx.Type() {
+		case types.DynamicFeeTxType:
+			newTx = types.NewTx(&types.DynamicFeeTx{
+				To:        tx.To(),
+				Nonce:     tx.Nonce(),
+				GasFeeCap: gasFeeCap,
+				GasTipCap: tip,
+				Gas:       tx.Gas(),
+				Value:     tx.Value(),
+				Data:      tx.Data(),
+			})
+		case types.BlobTxType:
+
+			newTx = types.NewTx(&types.BlobTx{
+				ChainID:    uint256.MustFromBig(tx.ChainId()),
+				Nonce:      tx.Nonce(),
+				GasTipCap:  uint256.MustFromBig(tip),
+				GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+				Gas:        tx.Gas(),
+				To:         *tx.To(),
+				Value:      uint256.MustFromBig(tx.Value()),
+				Data:       tx.Data(),
+				BlobFeeCap: uint256.MustFromBig(blobFeeCap),
+				BlobHashes: tx.BlobHashes(),
+				Sidecar:    tx.BlobTxSidecar(),
+			})
+
+		default:
+			return nil, nil, fmt.Errorf("replace unknown tx type:%v", tx.Type())
+
+		}
+
 		log.Info("new tx info",
-			"gas_tip", fmt.Sprintf("%d", tip), //todo: convert to gwei
-			"gas_fee_cap", fmt.Sprintf("%d", gasFeeCap), //todo: convert to gwei
+			"tx_type", newTx.Type(),
+			"gas_tip", tip.String(), //todo: convert to gwei
+			"gas_fee_cap", gasFeeCap.String(), //todo: convert to gwei
+			"blob_fee_cap", blobFeeCap.String(), //todo: convert to gwei
 		)
 		// sign tx
 		opts.Nonce = big.NewInt(int64(newTx.Nonce()))
@@ -902,7 +915,7 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 		} else { // tx into mempool
 			receipt, err := sr.waitReceiptWithTimeout(sr.txTimout, newTx.Hash())
 			if err != nil {
-				log.Error("wait receipt", "err", err)
+				log.Error("wait replaced tx receipt", "err", err)
 				if err.Error() == "timeout" {
 					log.Error("wait receipt timeout",
 						"turns", i,
@@ -916,9 +929,9 @@ func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transacti
 				return receipt, newTx, nil
 			}
 		}
-		// update tip & cap
-		tip *= 2
-		gasFeeCap *= 2
+
+		// update tx in next turn
+		tx = newTx
 
 	}
 	return nil, nil, errors.New("replace tx failed after try 10 times")
