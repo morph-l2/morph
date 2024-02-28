@@ -199,7 +199,7 @@ task("deposit-erc20-token")
         console.log(`approve ${rec.status == 1}: router ${router.address} has allowance ${allowance}`)
 
         // first deposit require gasLimit > 410000
-        res = await router["depositERC20(address,uint256,uint256)"](l1token.address, allowance, 500000, { value: hre.ethers.utils.parseEther('1') })
+        res = await router["depositERC20(address,uint256,uint256)"](l1token.address, allowance, 420000, { value: hre.ethers.utils.parseEther('1') })
         rec = await res.wait()
         console.log(`Deposit\n from ${rec.from}\n blockNum ${rec.blockNumber}\n tx ${rec.transactionHash}\n status ${rec.status == 1}`)
     });
