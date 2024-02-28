@@ -16,7 +16,7 @@ task("check-l2")
         });
         const ProxyFactoryName = 'ITransparentUpgradeableProxy'
         for (let i = 0; i < ContractAddresss.length; i++) {
-            if (ContractAddresss[i] === predeploys.MorphStandardERC20){
+            if (ContractAddresss[i] === predeploys.MorphStandardERC20) {
                 continue
             }
             const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
@@ -159,6 +159,15 @@ task("deposit-l1-gateway-eth")
         const res = await contract["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 100000, { value: hre.ethers.utils.parseEther('1.1') })
         const recipet = await res.wait()
         console.log(`Deposit status ${recipet.status == 1}`)
+    });
+
+task("deploy-l1-token")
+    .setAction(async (taskArgs, hre) => {
+        console.log("Deploy L1 ERC20 tokken")
+        const Factory = await hre.ethers.getContractFactory('node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20')
+        const token = await Factory.deploy("L1 Token", "l1token")
+        const rec = await token.deployed()
+        console.log(`Token deployed at L1 ${token.address}, deploy txHash: ${rec.txHash}`)
     });
 
 task("getBalances")

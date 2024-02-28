@@ -9,7 +9,7 @@ import {IL1Sequencer} from "./IL1Sequencer.sol";
 import {IStaking} from "./IStaking.sol";
 import {IL2Sequencer} from "../../L2/staking/IL2Sequencer.sol";
 
-contract Staking is IStaking, Initializable, OwnableUpgradeable {
+contract Staking is IStaking, OwnableUpgradeable {
     // Staker info
     struct StakingInfo {
         address addr;

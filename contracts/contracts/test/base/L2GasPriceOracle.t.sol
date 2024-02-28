@@ -4,50 +4,50 @@ pragma solidity =0.8.24;
 /* Testing utilities */
 import {CommonTest} from "./CommonTest.t.sol";
 import {L1MessageBaseTest} from "./L1MessageBase.t.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 
 contract L2GasPriceOracleTest is L1MessageBaseTest {
-    function testCalculateIntrinsicGasFee() external {
-        hevm.startPrank(multisig);
-        uint256 intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(
-            hex"00"
-        );
-        assertEq(intrinsicGasFee, 2);
-        uint64 _zeroGas = 5;
-        uint64 _nonZeroGas = 10;
-        l2GasPriceOracle.setIntrinsicParams(
-            20000,
-            50000,
-            _zeroGas,
-            _nonZeroGas
-        );
+    /// @notice The intrinsic gas for transaction.
+    uint256 INTRINSIC_GAS_TX = 21000;
+    /// @notice The appropriate intrinsic gas for each byte.
+    uint256 APPROPRIATE_INTRINSIC_GAS_PER_BYTE = 16;
 
-        intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(
-            hex"001122"
-        );
-        // 20000 + 1 zero bytes * 5 + 2 nonzero byte * 10 = 20025
-        assertEq(intrinsicGasFee, 20025);
+    L1MessageQueueWithGasPriceOracle l2GasPriceOracle;
 
-        _zeroGas = 50;
-        _nonZeroGas = 100;
-        l2GasPriceOracle.setIntrinsicParams(
-            10000,
-            20000,
-            _zeroGas,
-            _nonZeroGas
-        );
-
-        intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(
-            hex"0011220033"
-        );
-        // 10000 + 3 nonzero byte * 100 + 2 zero bytes * 50 = 10000 + 300 + 100 = 10400
-        assertEq(intrinsicGasFee, 10400);
-        hevm.stopPrank();
+    function setUp() public virtual override {
+        super.setUp();
+        l2GasPriceOracle = l1MessageQueueWithGasPriceOracle;
     }
 
-    function testSetIntrinsicParamsAccess() external {
-        hevm.startPrank(address(4));
-        hevm.expectRevert("Ownable: caller is not the owner");
-        l2GasPriceOracle.setIntrinsicParams(1, 0, 0, 1);
+    function testCalculateIntrinsicGasFee() external {
+        hevm.startPrank(multisig);
+        bytes memory _calldata = hex"00";
+        uint256 intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(
+            _calldata
+        );
+        assertEq(
+            intrinsicGasFee,
+            INTRINSIC_GAS_TX +
+                _calldata.length *
+                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
+        );
+        _calldata = hex"001122";
+        intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(_calldata);
+        assertEq(
+            intrinsicGasFee,
+            INTRINSIC_GAS_TX +
+                _calldata.length *
+                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
+        );
+
+        _calldata = hex"0011220033";
+        intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(_calldata);
+        assertEq(
+            intrinsicGasFee,
+            INTRINSIC_GAS_TX +
+                _calldata.length *
+                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
+        );
         hevm.stopPrank();
     }
 }
