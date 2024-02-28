@@ -22,7 +22,7 @@ var (
 	L2CrossDomainMessengerABI, _ = bindings.L2CrossDomainMessengerMetaData.GetAbi()
 )
 
-func L1MessageTxFromEvent(event *bindings.L1MessageQueueQueueTransaction) eth.L1MessageTx {
+func L1MessageTxFromEvent(event *bindings.L1MessageQueueWithGasPriceOracleQueueTransaction) eth.L1MessageTx {
 	return eth.L1MessageTx{
 		QueueIndex: event.QueueIndex,
 		Gas:        event.GasLimit.Uint64(),
