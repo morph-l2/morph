@@ -36,12 +36,12 @@ interface ISubmitter {
     ) external view returns (uint256 startTime, uint256 endTime);
 
     /**
-     * @notice get next submitter
+     * @notice get current submitter
      */
-    function getNextSubmitter()
+    function getCurrentSubmitter()
         external
         view
-        returns (address nextSubmitter, uint256 startTime, uint256 endTime);
+        returns (address currentSubmitter, uint256 startTime, uint256 endTime);
 
     // ============================================================================
 

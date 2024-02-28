@@ -118,14 +118,14 @@ contract SubmitterTest is L2SequencerTest {
         emit log("");
     }
 
-    function test_getNextSubmitter() external {
+    function test_getCurrentSubmitter() external {
         address submitter;
         uint256 start;
         uint256 end;
 
         hevm.warp(1841071100);
         emit log_uint(block.timestamp);
-        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        (submitter, start, end) = l2Submitter.getCurrentSubmitter();
         emit log_address(submitter);
         emit log_uint(start);
         emit log_uint(end);
@@ -133,7 +133,7 @@ contract SubmitterTest is L2SequencerTest {
 
         hevm.warp(1841072220);
         emit log_uint(block.timestamp);
-        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        (submitter, start, end) = l2Submitter.getCurrentSubmitter();
         emit log_address(submitter);
         emit log_uint(start);
         emit log_uint(end);
@@ -141,7 +141,7 @@ contract SubmitterTest is L2SequencerTest {
 
         hevm.warp(1841073330);
         emit log_uint(block.timestamp);
-        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        (submitter, start, end) = l2Submitter.getCurrentSubmitter();
         emit log_address(submitter);
         emit log_uint(start);
         emit log_uint(end);
@@ -149,7 +149,7 @@ contract SubmitterTest is L2SequencerTest {
 
         hevm.warp(1841074440);
         emit log_uint(block.timestamp);
-        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        (submitter, start, end) = l2Submitter.getCurrentSubmitter();
         emit log_address(submitter);
         emit log_uint(start);
         emit log_uint(end);
@@ -157,7 +157,7 @@ contract SubmitterTest is L2SequencerTest {
 
         hevm.warp(1841075550);
         emit log_uint(block.timestamp);
-        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        (submitter, start, end) = l2Submitter.getCurrentSubmitter();
         emit log_address(submitter);
         emit log_uint(start);
         emit log_uint(end);
@@ -165,7 +165,7 @@ contract SubmitterTest is L2SequencerTest {
 
         hevm.warp(1841076660);
         emit log_uint(block.timestamp);
-        (submitter, start, end) = l2Submitter.getNextSubmitter();
+        (submitter, start, end) = l2Submitter.getCurrentSubmitter();
         emit log_address(submitter);
         emit log_uint(start);
         emit log_uint(end);

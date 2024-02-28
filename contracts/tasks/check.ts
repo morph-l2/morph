@@ -200,7 +200,7 @@ task("rollupEpoch")
         console.log(`rollupEpoch : ${res}`)
     });
 
-task("getNextSubmitter")
+task("getCurrentSubmitter")
     .setAction(async (taskArgs, hre) => {
         const factory = await hre.ethers.getContractFactory('Submitter')
         const contract = factory.attach('0x5300000000000000000000000000000000000005')
@@ -223,6 +223,6 @@ task("getNextSubmitter")
         const block = await hre.ethers.provider.getBlock('latest')
         console.log(block.timestamp)
 
-        const res = await contract.getNextSubmitter()
+        const res = await contract.getCurrentSubmitter()
         console.log(`res : ${res}`)
     });
