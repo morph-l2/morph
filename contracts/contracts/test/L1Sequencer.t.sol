@@ -24,6 +24,22 @@ contract L1SequencerTest is L1MessageBaseTest {
             sequencerBLSKeys.push(sequencerInfo.blsKey);
             sequencerInfos[i] = sequencerInfo;
         }
+
+        // test sequencer set initialized
+        hevm.prank(address(staking));
+        l1Sequencer.updateAndSendSequencerSet(
+            abi.encodeWithSelector(
+                IL2Sequencer.updateSequencers.selector,
+                sequencerInfos
+            ),
+            sequencerAddrs,
+            sequencerBLSKeys,
+            defaultGasLimit,
+            refundAddress
+        );
+        checkSequencers(version);
+
+        // test sequencer set updated
         hevm.expectCall(
             address(l1CrossDomainMessenger),
             abi.encodeWithSelector(
@@ -75,7 +91,6 @@ contract L1SequencerVerifyTest is L1SequencerTest {
                 memory sequencerInfos = new Types.SequencerInfo[](
                     SEQUENCER_SIZE
                 );
-            version++;
             for (uint256 j = 0; j < SEQUENCER_SIZE; j++) {
                 address user = address(uint160(beginSeq + i));
                 Types.SequencerInfo memory sequencerInfo = ffi
@@ -103,6 +118,7 @@ contract L1SequencerVerifyTest is L1SequencerTest {
             checkSequencers(version);
             delete sequencerAddrs;
             delete sequencerBLSKeys;
+            version++;
         }
     }
 
