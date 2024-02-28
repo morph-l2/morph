@@ -146,6 +146,12 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_SUBMITTER_ADDRESS"),
 	}
+	L2SequencerAddressFlag = cli.StringFlag{
+		Name:     "l2-sequencer",
+		Usage:    "Address of the sequencer contract",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_SEQUENCER_ADDRESS"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -159,10 +165,11 @@ var requiredFlags = []cli.Flag{
 	TxTimeoutFlag,
 	BatchBuildTimeoutFlag,
 	MaxTxSizeFlag,
-	SubmitterAddressFlag,
 	FinalizeFlag,
 	MaxFinalizeNumFlag,
 	PriorityRollupFlag,
+	SubmitterAddressFlag,
+	L2SequencerAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{

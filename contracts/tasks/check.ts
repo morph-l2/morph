@@ -198,8 +198,8 @@ task("deposit-erc20-token")
         const allowance = await l1token.allowance(signers[0].address, router.address)
         console.log(`approve ${rec.status == 1}: router ${router.address} has allowance ${allowance}`)
 
-        // deposit 
-        res = await router["depositERC20(address,uint256,uint256)"](l1token.address, allowance, 100000, { value: hre.ethers.utils.parseEther('1') })
+        // first deposit require gasLimit > 410000
+        res = await router["depositERC20(address,uint256,uint256)"](l1token.address, allowance, 500000, { value: hre.ethers.utils.parseEther('1') })
         rec = await res.wait()
         console.log(`Deposit\n from ${rec.from}\n blockNum ${rec.blockNumber}\n tx ${rec.transactionHash}\n status ${rec.status == 1}`)
     });
@@ -211,7 +211,7 @@ task("erc20Balances")
         const tokenFactory = await hre.ethers.getContractFactory('MockERC20')
         const token = tokenFactory.attach(taskArgs.token)
         const balance = await token.balanceOf(taskArgs.address)
-        console.log(`${taskArgs.address} has ${balance}}`)
+        console.log(`${taskArgs.address} has ${balance}`)
     });
 
 task("getBalances")

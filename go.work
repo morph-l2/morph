@@ -1,7 +1,7 @@
 go 1.20
 
 replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240222134301-4585f3a6bb0c
+	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240228105443-a0886bfbbfab
 	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.1.0-beta.0.20240125053652-c7ba1597b86f
 )
 

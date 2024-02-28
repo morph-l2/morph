@@ -175,7 +175,10 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 		}
 		collectedL1Msgs = true
 	}
-
+	for _, tx := range transactions {
+		l1MsgTx := tx.AsL1MessageTx()
+		e.logger.Info("[debug]queueIndex in transactions: ", "queueIndex", l1MsgTx.QueueIndex, "gas", l1MsgTx.Gas, "hash", tx.Hash().String())
+	}
 	l2Block, err := e.l2Client.AssembleL2Block(context.Background(), big.NewInt(height), transactions)
 	if err != nil {
 		e.logger.Error("failed to assemble block", "height", height, "error", err)
