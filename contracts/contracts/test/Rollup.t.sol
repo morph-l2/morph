@@ -441,14 +441,7 @@ contract RollupTest is L1MessageBaseTest {
             defaultGasLimit,
             address(2048)
         );
-        sequencerVersion++;
 
-        hevm.startPrank(address(rollup));
-        l1Sequencer.verifySignature(
-            sequencerVersion,
-            new uint256[](0),
-            bytes("")
-        );
         hevm.stopPrank();
         assertEq(l1Sequencer.currentVersion(), sequencerVersion);
         assertEq(

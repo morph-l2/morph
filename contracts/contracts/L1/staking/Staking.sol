@@ -82,15 +82,6 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
     event Claimed(address addr, uint256 balance);
 
     /**
-     * @notice sequencer updated
-     */
-    event SequencerUpdated(
-        address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
-    );
-
-    /**
      * @notice only sequencer contract
      */
     modifier onlySequencerContract() {
@@ -457,12 +448,6 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
         IL1Sequencer(sequencerContract).updateAndSendSequencerSet{
             value: _gasFee
         }(data, sequencersAddr, sequencersBLS, _gasLimit, _msgSender());
-
-        emit SequencerUpdated(
-            sequencersAddr,
-            sequencersBLS,
-            IL1Sequencer(sequencerContract).newestVersion()
-        );
     }
 
     function stakersNumber() public view returns (uint256) {

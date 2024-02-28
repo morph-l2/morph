@@ -105,7 +105,6 @@ contract StakingRegisterTest is L1MessageBaseTest {
             assertBytesEq(blsKeyCheck, sequencerInfo.blsKey);
             assertEq(balanceCheck, 2 * MIN_DEPOSIT);
         }
-        version++;
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address sequencerAddr = staking.sequencersAddr(i);
             bytes memory sequencerBLS = staking.sequencersBLS(i);
