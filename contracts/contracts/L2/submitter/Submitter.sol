@@ -56,9 +56,12 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         L2_GOV_CONTRACT = Predeploys.L2_GOV;
     }
 
-    function initialize(address[] memory sequencers) public initializer {
+    function initialize(
+        address[] memory sequencers,
+        uint256 timestamp
+    ) public initializer {
         __Ownable_init();
-        sequencerHistory.push(SequencerHistory(sequencers, block.timestamp));
+        sequencerHistory.push(SequencerHistory(sequencers, timestamp));
     }
 
     /**

@@ -135,7 +135,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 address(submitterImpl),
                 abi.encodeWithSelector(
                     Submitter.initialize.selector,
-                    sequencerAddrs
+                    sequencerAddrs,
+                    block.timestamp
                 )
             );
 
