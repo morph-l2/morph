@@ -1,4 +1,4 @@
-package tx_summitter
+package utils
 
 import (
 	"time"
@@ -48,6 +48,7 @@ type Config struct {
 	MaxFinalizeNum uint64
 	// L2 contract
 	SubmitterAddress string
+	SequencerAddress string
 
 	// metrics
 	MetricsServerEnable bool
@@ -76,6 +77,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MaxFinalizeNum: ctx.GlobalUint64(flags.MaxFinalizeNumFlag.Name),
 		// L2 contract
 		SubmitterAddress: ctx.GlobalString(flags.SubmitterAddressFlag.Name),
+		SequencerAddress: ctx.GlobalString(flags.L2SequencerAddressFlag.Name),
 		// metrics
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
