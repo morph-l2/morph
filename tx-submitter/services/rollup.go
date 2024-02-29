@@ -442,15 +442,13 @@ func (sr *SR) rollup() error {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
 	} else {
-		sr.GetGasTipAndCap()
-
 		// tip and cap
 		tip, gasFeeCap, blobFee, err := sr.GetGasTipAndCap()
 		if err != nil {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, uint32(minGasLimit))
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
