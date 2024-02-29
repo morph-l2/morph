@@ -14,6 +14,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     uint256 public beginSeq = 10;
     uint256 public version = 0;
     bytes[] public sequencerBLSKeys;
+    address[] public sequencerAddrs;
 
     // L2Sequencer config
     L2Sequencer public l2Sequencer;
@@ -107,6 +108,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 user
             );
             sequencerInfos[i] = sequencerInfo;
+            sequencerAddrs.push(sequencerInfo.addr);
         }
         ITransparentUpgradeableProxy(address(l2SequencerProxy))
             .upgradeToAndCall(
@@ -133,7 +135,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 address(submitterImpl),
                 abi.encodeWithSelector(
                     Submitter.initialize.selector,
-                    NEXT_EPOCH_START
+                    sequencerAddrs,
+                    block.timestamp
                 )
             );
 
