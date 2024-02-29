@@ -152,6 +152,15 @@ task("deposit-l1-eth")
         console.log(`Deposit\n from ${receipt.from}\n blockNum ${receipt.blockNumber}\n tx ${receipt.transactionHash}\n status ${receipt.status == 1}`)
     });
 
+task("withdraw-l2-eth")
+    .setAction(async (taskArgs, hre) => {
+        const routerFactory = await hre.ethers.getContractFactory('L2GatewayRouter')
+        const router = routerFactory.attach(predeploys.L2GatewayRouter)
+        const res = await router["withdrawETH(uint256,uint256)"](1000, 10000000, { value: hre.ethers.utils.parseEther('1.1') })
+        const receipt = await res.wait()
+        console.log(`Deposit\n from ${receipt.from}\n blockNum ${receipt.blockNumber}\n tx ${receipt.transactionHash}\n status ${receipt.status == 1}`)
+    });
+
 task("deposit-l1-gateway-eth")
     .setAction(async (taskArgs, hre) => {
         const Factory = await hre.ethers.getContractFactory('L1ETHGateway')
