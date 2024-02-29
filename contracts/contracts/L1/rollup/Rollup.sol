@@ -1000,10 +1000,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 j < _numTransactionsInBlock;
                 j++
             ) {
-                bytes32 txHash;
-                (txHash, l2TxPtr) = ChunkCodec.loadL2TxHash(l2TxPtr);
                 assembly {
-                    mstore(dataPtr, txHash)
+                    mstore(dataPtr, mload(l2TxPtr))
+                    l2TxPtr := add(l2TxPtr, 0x20)
                     dataPtr := add(dataPtr, 0x20)
                 }
             }
