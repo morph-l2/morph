@@ -442,8 +442,6 @@ func (sr *SR) rollup() error {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
 	} else {
-		sr.GetGasTipAndCap()
-
 		// tip and cap
 		tip, gasFeeCap, blobFee, err := sr.GetGasTipAndCap()
 		if err != nil {
