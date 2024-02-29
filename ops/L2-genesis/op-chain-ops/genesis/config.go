@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+	"os"
+
 	"github.com/morph-l2/bindings/hardhat"
 	"github.com/morph-l2/bindings/predeploys"
 	"github.com/morph-l2/morph-deployer/eth"
@@ -11,8 +14,6 @@ import (
 	"github.com/morph-l2/morph-deployer/op-chain-ops/state"
 	"github.com/morph-l2/morph-deployer/rollup"
 	"github.com/scroll-tech/go-ethereum/common"
-	"math/big"
-	"os"
 
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -275,10 +276,12 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	for i, v := range config.L2SequencerBlsKeys {
 		blsKeys[i] = v
 	}
+
 	imConfig := &immutables.Config{
-		L2SequencerAddresses: config.L2SequencerAddresses,
-		L2SequencerTmKeys:    config.L2SequencerTmKeys,
-		L2SequencerBlsKeys:   blsKeys,
+		L2SequencerAddresses:    config.L2SequencerAddresses,
+		L2SequencerTmKeys:       config.L2SequencerTmKeys,
+		L2SequencerBlsKeys:      blsKeys,
+		L2GenesisBlockTimestamp: config.L2GenesisBlockTimestamp,
 	}
 	return immutable, imConfig, nil
 }

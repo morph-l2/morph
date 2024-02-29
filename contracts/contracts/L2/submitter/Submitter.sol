@@ -31,7 +31,6 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     uint256 public override nextBatchStartBlock;
     // bathcIndex => batchInfo
     mapping(uint256 => Types.BatchInfo) public confirmedBatchs;
-
     // epoch info
     mapping(uint256 => Types.EpochInfo) public epochs;
 
@@ -57,8 +56,12 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         L2_GOV_CONTRACT = Predeploys.L2_GOV;
     }
 
-    function initialize() public initializer {
+    function initialize(
+        address[] memory sequencers,
+        uint256 timestamp
+    ) public initializer {
         __Ownable_init();
+        sequencerHistory.push(SequencerHistory(sequencers, timestamp));
     }
 
     /**
@@ -150,22 +153,21 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         }
         require(exist, "invalid submitter");
 
-        uint256 nextEpochStart = start + submitterIndex * epoch;
-
+        uint256 epochStart = start + submitterIndex * epoch;
         uint256 turnPeriod = epoch * sequencersLen;
 
-        if (block.timestamp > nextEpochStart) {
-            uint256 turns = (block.timestamp - nextEpochStart) / turnPeriod + 1;
-            nextEpochStart += turns * turnPeriod;
+        if (block.timestamp > epochStart) {
+            uint256 turns = (block.timestamp - epochStart) / turnPeriod + 1;
+            epochStart += turns * turnPeriod;
         }
 
-        return (nextEpochStart, nextEpochStart + epoch);
+        return (epochStart, epochStart + epoch);
     }
 
     /**
-     * @notice get next submitter
+     * @notice get current submitter
      */
-    function getNextSubmitter()
+    function getCurrentSubmitter()
         external
         view
         returns (address, uint256, uint256)
@@ -187,15 +189,15 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         uint256 sequencersLen = sequencers.length;
 
         uint256 turns = (block.timestamp - start) / epoch;
-        uint256 nextSubmitterIndex = turns % sequencersLen;
+        uint256 currentSubmitterIndex = turns % sequencersLen;
 
-        uint256 nextEpochStart = block.timestamp -
+        uint256 currentEpochStart = block.timestamp -
             ((block.timestamp - start) % epoch);
 
         return (
-            sequencers[nextSubmitterIndex],
-            nextEpochStart,
-            nextEpochStart + epoch
+            sequencers[currentSubmitterIndex],
+            currentEpochStart,
+            currentEpochStart + epoch
         );
     }
 
