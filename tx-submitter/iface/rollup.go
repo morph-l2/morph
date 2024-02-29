@@ -38,7 +38,7 @@ type IRollup interface {
 
 // ISubmitter is the interface for the submitter on L2
 type ISubmitter interface {
-	GetNextSubmitter(opts *bind.CallOpts) (common.Address, *big.Int, *big.Int, error)
+	GetCurrentSubmitter(opts *bind.CallOpts) (common.Address, *big.Int, *big.Int, error)
 }
 
 // L2Sequencer is the interface for the sequencer on L2

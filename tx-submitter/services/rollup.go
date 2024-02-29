@@ -358,7 +358,7 @@ func (sr *SR) rollup() error {
 
 	if !sr.PriorityRollup {
 		// is the turn of the submitter
-		nextSubmitter, _, _, err := sr.L2Submitter.GetNextSubmitter(nil)
+		nextSubmitter, _, _, err := sr.L2Submitter.GetCurrentSubmitter(nil)
 		if err != nil {
 			return fmt.Errorf("get next submitter error:%v", err)
 		}
