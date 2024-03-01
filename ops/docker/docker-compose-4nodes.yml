@@ -410,7 +410,7 @@ services:
       --home $NODE_DATA_DIR    
     
 
-   validator_geth:
+  validator_geth:
      container_name: validator_geth
      image: sentry-geth:latest
      depends_on:
@@ -433,7 +433,7 @@ services:
        - "/bin/bash"
        - "/entrypoint.sh"
 
-   validator_node:
+  validator_node:
      container_name: validator_node
      depends_on:
        validator_geth:
