@@ -468,6 +468,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // check batch hash
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(memPtr);
+        _batchHash = keccak256(
+            abi.encodePacked(_batchHash, committedBatchStores[_batchIndex].blobVersionedhash)
+        );
         require(
             committedBatchStores[_batchIndex].batchHash == _batchHash,
             "incorrect batch hash"

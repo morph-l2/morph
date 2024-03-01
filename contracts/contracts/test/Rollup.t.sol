@@ -125,7 +125,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         emit CommitBatch(
             1,
             bytes32(
-                0x00847173b29b238cf319cde79512b7c213e5a8b4138daa7051914c4592b6dfc7
+                0x0f2a60c19758f156fb52debf7bb081634abfeabf24a58f9a23e58852a516929b
             )
         );
         batchData = IRollup.BatchData(
@@ -151,7 +151,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(
             batchHash1,
             bytes32(
-                0x00847173b29b238cf319cde79512b7c213e5a8b4138daa7051914c4592b6dfc7
+                0x0f2a60c19758f156fb52debf7bb081634abfeabf24a58f9a23e58852a516929b
             )
         );
 
@@ -336,7 +336,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         emit CommitBatch(
             2,
             bytes32(
-                0x03a9cdcb9d582251acf60937db006ec99f3505fd4751b7c1f92c9a8ef413e873
+                0x6bd9cf33a2a55f63cda08269d47b5257ccc7f3454b30664149c3e230f5f19c23
             )
         );
 
@@ -363,7 +363,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(
             batchHash2,
             bytes32(
-                0x03a9cdcb9d582251acf60937db006ec99f3505fd4751b7c1f92c9a8ef413e873
+                0x6bd9cf33a2a55f63cda08269d47b5257ccc7f3454b30664149c3e230f5f19c23
             )
         );
 
