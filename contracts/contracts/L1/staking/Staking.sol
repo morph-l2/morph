@@ -141,6 +141,7 @@ contract Staking is IStaking, OwnableUpgradeable {
      * @param _sequencerContract sequencer contract address
      * @param _sequencersSize size of sequencer set
      * @param _limit smallest staking value
+     * @param _lock withdraw lock time
      */
     function initialize(
         address _admin,
@@ -265,6 +266,20 @@ contract Staking is IStaking, OwnableUpgradeable {
             indexAfterSort < sequencersSize
         ) {
             updateSequencers(_minGasLimit, _gasFee);
+        }
+    }
+
+    /**
+     * @notice update params
+     * @param _limit smallest staking value
+     * @param _lock withdraw lock time
+     */
+    function updateParams(uint256 _limit, uint256 _lock) external onlyOwner {
+        if (_limit > 0) {
+            limit = _limit;
+        }
+        if (_lock > 0) {
+            lock = _lock;
         }
     }
 
