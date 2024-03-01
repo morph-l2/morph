@@ -28,13 +28,13 @@
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
     "deploy:devnetL1": "rm -f devnetL1.json && hardhat deploy --network l1 --storagepath devnetL1.json",
     "initialize:devnetL1": "hardhat initialize --network l1 --storagepath devnetL1.json",
-    "staking:devnetL1": "hardhat staking --network l1 --storagepath devnetL1.json",
+    "register:devnetL1": "hardhat register --network l1 --storagepath devnetL1.json",
     "deploy:sepolia": "hardhat deploy --network sepolia --storagepath sepolia.json",
     "initialize:sepolia": "hardhat initialize --network sepolia --storagepath sepolia.json",
-    "staking:sepolia": "hardhat staking --network sepolia --storagepath sepolia.json",
+    "register:sepolia": "hardhat register --network sepolia --storagepath sepolia.json",
     "deploy:qanetL1": "hardhat deploy --network qanetl1 --storagepath qanetL1.json",
     "initialize:qanetL1": "hardhat initialize --network qanetl1 --storagepath qanetL1.json",
-    "staking:qanetL1": "hardhat staking --network qanetl1 --storagepath qanetL1.json"
+    "register:qanetL1": "hardhat register --network qanetl1 --storagepath qanetL1.json"
   },
   "devDependencies": {
     "@defi-wonderland/smock": "^2.0.2",
