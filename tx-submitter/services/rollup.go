@@ -38,43 +38,62 @@ const (
 )
 
 type SR struct {
-	L1Client       iface.Client
-	L2Clients      []iface.L2Client
-	Rollup         iface.IRollup
-	L2Submitter    iface.ISubmitter
-	rollupAddr     common.Address
+	ctx     context.Context
+	metrics *metrics.Metrics
+
+	L1Client    iface.Client
+	L2Clients   []iface.L2Client
+	Rollup      iface.IRollup
+	L2Submitter iface.ISubmitter
+	L2Sequencer iface.L2Sequencer
+
+	chainId    *big.Int
+	privKey    *ecdsa.PrivateKey
+	rollupAddr common.Address
+	abi        *abi.ABI
+
 	secondInterval time.Duration
-	ctx            context.Context
-	chainId        *big.Int
-	privKey        *ecdsa.PrivateKey
-	metrics        *metrics.Metrics
-	abi            *abi.ABI
-	batchPool      map[uint64]bindings.IRollupBatchData
 	txTimout       time.Duration
 	Finalize       bool
 	MaxFinalizeNum uint64
 	PriorityRollup bool
 }
 
-func NewSR(ctx context.Context, l1 iface.Client, l2 []iface.L2Client, rollup iface.IRollup, interval time.Duration, chainId *big.Int, priKey *ecdsa.PrivateKey, rollupAddr common.Address, metrics *metrics.Metrics, abi *abi.ABI, txTimeout time.Duration, maxBlock, minBlock uint64, l2Submitter iface.ISubmitter, finalize bool, maxFinalizeNum uint64, priorityRollup bool) *SR {
+func NewSR(
+	ctx context.Context,
+	metrics *metrics.Metrics,
+	l1 iface.Client,
+	l2 []iface.L2Client,
+	rollup iface.IRollup,
+	l2Submitter iface.ISubmitter,
+	l2Sequencer iface.L2Sequencer,
+	chainId *big.Int,
+	priKey *ecdsa.PrivateKey,
+	rollupAddr common.Address,
+	abi *abi.ABI,
+	cfg utils.Config,
+) *SR {
 
 	return &SR{
-		ctx:            ctx,
-		L1Client:       l1,
-		L2Clients:      l2,
-		Rollup:         rollup,
-		secondInterval: interval,
-		privKey:        priKey,
-		chainId:        chainId,
-		rollupAddr:     rollupAddr,
-		metrics:        metrics,
-		abi:            abi,
-		batchPool:      make(map[uint64]bindings.IRollupBatchData),
-		txTimout:       txTimeout,
-		L2Submitter:    l2Submitter,
-		Finalize:       finalize,
-		MaxFinalizeNum: maxFinalizeNum,
-		PriorityRollup: priorityRollup,
+		ctx:     ctx,
+		metrics: metrics,
+
+		L1Client:    l1,
+		L2Clients:   l2,
+		Rollup:      rollup,
+		L2Submitter: l2Submitter,
+		L2Sequencer: l2Sequencer,
+
+		privKey:    priKey,
+		chainId:    chainId,
+		rollupAddr: rollupAddr,
+		abi:        abi,
+
+		secondInterval: cfg.PollInterval,
+		txTimout:       cfg.TxTimeout,
+		Finalize:       cfg.Finalize,
+		MaxFinalizeNum: cfg.MaxFinalizeNum,
+		PriorityRollup: cfg.PriorityRollup,
 	}
 }
 
@@ -107,7 +126,6 @@ func (sr *SR) Start() {
 				}
 				sr.metrics.SetLastFinalizedBatchIndex(lastFinalized.Uint64())
 				sr.metrics.SetLastCommittedBatchIndex(lastCommited.Uint64())
-				sr.metrics.SetLastFinalizedCommitedBatchIndexDiff(lastCommited.Uint64() - lastFinalized.Uint64())
 
 				// get last rolluped l2 block
 				l2LatestBlockNumberRolluped, err := sr.Rollup.LatestL2BlockNumber(nil)
@@ -124,9 +142,6 @@ func (sr *SR) Start() {
 					continue
 				}
 				sr.metrics.SetL2BlockNumber(l2BlockNumber)
-
-				// diff
-				sr.metrics.SetL2BlockNumberDiff(l2BlockNumber - l2LatestBlockNumberRolluped.Uint64())
 
 				// get balacnce of wallet
 				balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
@@ -343,7 +358,7 @@ func (sr *SR) rollup() error {
 
 	if !sr.PriorityRollup {
 		// is the turn of the submitter
-		nextSubmitter, _, _, err := sr.L2Submitter.GetNextSubmitter(nil)
+		nextSubmitter, _, _, err := sr.L2Submitter.GetCurrentSubmitter(nil)
 		if err != nil {
 			return fmt.Errorf("get next submitter error:%v", err)
 		}
@@ -422,20 +437,18 @@ func (sr *SR) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, uint32(minGasLimit))
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
 	} else {
-		sr.GetGasTipAndCap()
-
 		// tip and cap
 		tip, gasFeeCap, blobFee, err := sr.GetGasTipAndCap()
 		if err != nil {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, uint32(minGasLimit))
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
@@ -712,60 +725,21 @@ func (sr *SR) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*type
 
 // Init is run before the submitter to check whether the submitter can be started
 func (sr *SR) Init() error {
-	// check whether the submitter is staked
-	isSequencer, err := sr.Rollup.IsSequencer(
+	isSequencer, _, err := sr.L2Sequencer.InSequencersSet(
 		&bind.CallOpts{
 			Pending: false,
-			Context: context.Background(),
-		},
-		crypto.PubkeyToAddress(sr.privKey.PublicKey),
+			Context: context.Background()},
+		false,
+		common.HexToAddress(sr.walletAddr()),
 	)
-
 	if err != nil {
 		return err
 	}
+
 	if !isSequencer {
 		return fmt.Errorf("this account is not sequencer")
 	}
-	minDeposit, err := sr.Rollup.MINDEPOSIT(nil)
-	if err != nil {
-		return fmt.Errorf("query min deposit error:%v", err)
-	}
 
-	depositAmt, err := sr.Rollup.Deposits(nil, crypto.PubkeyToAddress(sr.privKey.PublicKey))
-	if err != nil {
-		return err
-	}
-	if depositAmt.Cmp(minDeposit) < 0 {
-		// make sure the wallet balance is enough
-		balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
-		if err != nil {
-			return err
-		}
-		log.Info("wallet info", "balance", new(big.Int).Div(balance, big.NewInt(params.Ether)).String())
-		value := big.NewInt(0).Sub(minDeposit, depositAmt)
-		if balance.Cmp(big.NewInt(0).Sub(minDeposit, depositAmt)) < 1 {
-			return errors.New("balance not enough for staking")
-		}
-		// try to stake
-		log.Info("submitter is not staked, try to stake")
-		opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
-		if err != nil {
-			return err
-		}
-
-		opts.Value = value // 1 ether
-		tx, err := sr.Rollup.Stake(opts)
-		if err != nil {
-			return err
-		}
-
-		receipt, err := bind.WaitMined(context.Background(), sr.L1Client, tx)
-		if err != nil {
-			return err
-		}
-		log.Info("stake success", "tx_hash", receipt.TxHash.String())
-	}
 	return nil
 }
 

@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"math/big"
 	"os"
+	"strconv"
 
 	"github.com/iden3/go-iden3-crypto/keccak256"
 
@@ -86,6 +88,30 @@ func main() {
 			WithdrawalRoot  common.Hash
 		}{
 			WithdrawalHash:  wdHash,
+			WithdrawalProof: wdProof,
+			WithdrawalRoot:  wdRoot,
+		}
+		packed, err := proveWithdrawalInputsArgs.Pack(&Proof)
+		checkErr(err, "Error encoding output")
+		// Print the output
+		fmt.Print(hexutil.Encode(packed[:]))
+	case "getProveWithdrawalCheckProof":
+		// Parse input arguments
+		index, _ := strconv.ParseUint(args[1], 10, 64)
+		smt := libraries.NewSMT(32)
+		for i := 0; i < 1025; i++ {
+			smt.Add(common.BigToHash(new(big.Int).SetInt64(int64(i))))
+		}
+		wdProof := smt.GetProofTreeByIndex(index)
+		wdRoot := smt.GetRoot()
+		leafHash := smt.Get(uint64(index))
+		// Pack the proof
+		Proof := struct {
+			WithdrawalHash  common.Hash
+			WithdrawalProof []common.Hash
+			WithdrawalRoot  common.Hash
+		}{
+			WithdrawalHash:  leafHash,
 			WithdrawalProof: wdProof,
 			WithdrawalRoot:  wdRoot,
 		}

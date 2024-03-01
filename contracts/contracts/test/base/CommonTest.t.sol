@@ -105,6 +105,24 @@ contract FFIInterface is Test {
         return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
     }
 
+    function getProveWithdrawalCheckProof(
+        uint64 index
+    ) external returns (bytes32, bytes32[32] memory, bytes32) {
+        string[] memory cmds = new string[](3);
+        cmds[0] = "scripts/differential-testing/differential-testing";
+        cmds[1] = "getProveWithdrawalCheckProof";
+        cmds[2] = vm.toString(index);
+
+        bytes memory result = vm.ffi(cmds);
+        (
+            bytes32 withdrawalHashRes,
+            bytes32[32] memory withdrawalProof,
+            bytes32 withdrawalRoot
+        ) = abi.decode(result, (bytes32, bytes32[32], bytes32));
+
+        return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
+    }
+
     function generateStakingInfo(
         address _staker
     ) external returns (Types.SequencerInfo memory) {

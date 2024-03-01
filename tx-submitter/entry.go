@@ -23,7 +23,7 @@ import (
 // e.g. GitVersion, to be captured and used once the function is executed.
 func Main(gitCommit string) func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		cfg, err := NewConfig(cliCtx)
+		cfg, err := utils.NewConfig(cliCtx)
 		if err != nil {
 			return err
 		}
@@ -75,21 +75,44 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		rollup, err := bindings.NewRollup(*rollupAddr, l1Client)
+		l1Rollup, err := bindings.NewRollup(*rollupAddr, l1Client)
 		if err != nil {
 			return err
 		}
 		m := metrics.NewMetrics()
 		abi, _ := bindings.RollupMetaData.GetAbi()
 
-		//
-		submitterAddr := common.HexToAddress(cfg.SubmitterAddress)
-		l2Submitter, err := bindings.NewSubmitter(submitterAddr, l2Clients[0])
+		// l2 submitter
+		l2Submitter, err := bindings.NewSubmitter(
+			common.HexToAddress(cfg.SubmitterAddress),
+			l2Clients[0],
+		)
+		if err != nil {
+			return err
+		}
+		// l2 sequencer
+		l2Sequencer, err := bindings.NewL2Sequencer(
+			common.HexToAddress(cfg.SequencerAddress),
+			l2Clients[0],
+		)
 		if err != nil {
 			return err
 		}
 
-		sr := services.NewSR(ctx, l1Client, l2Clients, rollup, cfg.PollInterval, chainID, privKey, *rollupAddr, m, abi, cfg.TxTimeout, cfg.MaxBlock, cfg.MinBlock, l2Submitter, cfg.Finalize, cfg.MaxFinalizeNum, cfg.PriorityRollup)
+		sr := services.NewSR(
+			ctx,
+			m,
+			l1Client,
+			l2Clients,
+			l1Rollup,
+			l2Submitter,
+			l2Sequencer,
+			chainID,
+			privKey,
+			*rollupAddr,
+			abi,
+			cfg,
+		)
 		if err := sr.Init(); err != nil {
 			return err
 		}
@@ -111,7 +134,8 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 			"l2_rpcs", cfg.L2EthRpcs,
 			"rollup_addr", rollupAddr.Hex(),
 			"chainid", chainID.String(),
-			"submitter_addr", submitterAddr.Hex(),
+			"submitter_addr", cfg.SubmitterAddress,
+			"sequencer_addr", cfg.SequencerAddress,
 			"finalize_enable", cfg.Finalize,
 			"priority_rollup_enable", cfg.PriorityRollup,
 		)

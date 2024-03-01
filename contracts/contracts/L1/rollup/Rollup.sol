@@ -520,7 +520,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // check challenge window
-        // todo get finalization period from output oracle
+        // TODO get finalization period from output oracle
         require(
             committedBatchStores[batchIndex].finalizeTimestamp >
                 block.timestamp,
@@ -528,7 +528,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // check challenge amount
-        require(msg.value >= IStaking(l1StakingContract).limit());
+        require(
+            msg.value >= IStaking(l1StakingContract).limit(),
+            "insufficient value"
+        );
         challengerDeposits[_msgSender()] += msg.value;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,

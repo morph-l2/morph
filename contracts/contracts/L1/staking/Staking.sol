@@ -9,7 +9,7 @@ import {IL1Sequencer} from "./IL1Sequencer.sol";
 import {IStaking} from "./IStaking.sol";
 import {IL2Sequencer} from "../../L2/staking/IL2Sequencer.sol";
 
-contract Staking is IStaking, Initializable, OwnableUpgradeable {
+contract Staking is IStaking, OwnableUpgradeable {
     // Staker info
     struct StakingInfo {
         address addr;
@@ -82,15 +82,6 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
     event Claimed(address addr, uint256 balance);
 
     /**
-     * @notice sequencer updated
-     */
-    event SequencerUpdated(
-        address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
-    );
-
-    /**
      * @notice only sequencer contract
      */
     modifier onlySequencerContract() {
@@ -150,6 +141,7 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
      * @param _sequencerContract sequencer contract address
      * @param _sequencersSize size of sequencer set
      * @param _limit smallest staking value
+     * @param _lock withdraw lock time
      */
     function initialize(
         address _admin,
@@ -274,6 +266,20 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
             indexAfterSort < sequencersSize
         ) {
             updateSequencers(_minGasLimit, _gasFee);
+        }
+    }
+
+    /**
+     * @notice update params
+     * @param _limit smallest staking value
+     * @param _lock withdraw lock time
+     */
+    function updateParams(uint256 _limit, uint256 _lock) external onlyOwner {
+        if (_limit > 0) {
+            limit = _limit;
+        }
+        if (_lock > 0) {
+            lock = _lock;
         }
     }
 
@@ -457,12 +463,6 @@ contract Staking is IStaking, Initializable, OwnableUpgradeable {
         IL1Sequencer(sequencerContract).updateAndSendSequencerSet{
             value: _gasFee
         }(data, sequencersAddr, sequencersBLS, _gasLimit, _msgSender());
-
-        emit SequencerUpdated(
-            sequencersAddr,
-            sequencersBLS,
-            IL1Sequencer(sequencerContract).newestVersion()
-        );
     }
 
     function stakersNumber() public view returns (uint256) {

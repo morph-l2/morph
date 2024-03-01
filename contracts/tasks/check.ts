@@ -16,7 +16,7 @@ task("check-l2")
         });
         const ProxyFactoryName = 'ITransparentUpgradeableProxy'
         for (let i = 0; i < ContractAddresss.length; i++) {
-            if (ContractAddresss[i] === predeploys.MorphStandardERC20){
+            if (ContractAddresss[i] === predeploys.MorphStandardERC20) {
                 continue
             }
             const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
@@ -131,7 +131,7 @@ task("check-l2-status")
         const ms20fContract = ms20fFactory.attach(predeploys.MorphStandardERC20Factory)
         owner = await ms20fContract.owner()
         const implementation = await ms20fContract.implementation()
-        console.log(`MorphStandardERC20 params check \n owner ${owner == predeploys.L2StandardERC20Gateway} \n implementation ${implementation.toLowerCase() == predeploys.MorphStandardERC20.toLowerCase()}`)
+        console.log(`MorphStandardERC20Factory params check \n owner ${owner == predeploys.L2StandardERC20Gateway} \n implementation ${implementation.toLowerCase() == predeploys.MorphStandardERC20.toLowerCase()}`)
 
         const gpoFactory = await hre.ethers.getContractFactory('GasPriceOracle')
         const gpoContract = gpoFactory.attach(predeploys.GasPriceOracle)
@@ -147,7 +147,16 @@ task("deposit-l1-eth")
     .setAction(async (taskArgs, hre) => {
         const routerFactory = await hre.ethers.getContractFactory('L1GatewayRouter')
         const router = routerFactory.attach('0xa513e6e4b8f2a923d98304ec87f64353c4d5c853')
-        const res = await router["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 10000000, { value: hre.ethers.utils.parseEther('1.1') })
+        const res = await router["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 110000, { value: hre.ethers.utils.parseEther('1.1') })
+        const receipt = await res.wait()
+        console.log(`Deposit\n from ${receipt.from}\n blockNum ${receipt.blockNumber}\n tx ${receipt.transactionHash}\n status ${receipt.status == 1}`)
+    });
+
+task("withdraw-l2-eth")
+    .setAction(async (taskArgs, hre) => {
+        const routerFactory = await hre.ethers.getContractFactory('L2GatewayRouter')
+        const router = routerFactory.attach(predeploys.L2GatewayRouter)
+        const res = await router["withdrawETH(uint256,uint256)"](1000, 110000, { value: 1000 })
         const receipt = await res.wait()
         console.log(`Deposit\n from ${receipt.from}\n blockNum ${receipt.blockNumber}\n tx ${receipt.transactionHash}\n status ${receipt.status == 1}`)
     });
@@ -156,9 +165,62 @@ task("deposit-l1-gateway-eth")
     .setAction(async (taskArgs, hre) => {
         const Factory = await hre.ethers.getContractFactory('L1ETHGateway')
         const contract = Factory.attach("0x2279b7a0a67db372996a5fab50d91eaa73d2ebe6")
-        const res = await contract["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 100000, { value: hre.ethers.utils.parseEther('1.1') })
+        const res = await contract["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 110000, { value: hre.ethers.utils.parseEther('1.1') })
         const recipet = await res.wait()
         console.log(`Deposit status ${recipet.status == 1}`)
+    });
+
+task("deploy-l1-token")
+    .setAction(async (taskArgs, hre) => {
+        console.log("Deploy L1 ERC20 tokken")
+        const Factory = await hre.ethers.getContractFactory('MockERC20')
+        const token = await Factory.deploy("L1 Token", "l1token", 18)
+        const rec = await token.deployed()
+        console.log(`Token deployed at L1 ${token.address}, deploy txHash: ${rec.deployTransaction.hash}`)
+    });
+
+task("deposit-erc20-token")
+    .addParam('l1token')
+    .addParam('balance')
+    .setAction(async (taskArgs, hre) => {
+        const signers = await hre.ethers.getSigners()
+        console.log(`signer ${signers[0].address}`)
+        const l1RouterAddr = '0xa513e6e4b8f2a923d98304ec87f64353c4d5c853'
+
+        const routerFactory = await hre.ethers.getContractFactory('L1GatewayRouter')
+        const router = routerFactory.attach(l1RouterAddr)
+        const tokenFactory = await hre.ethers.getContractFactory('MockERC20')
+        const l1token = tokenFactory.attach(taskArgs.l1token)
+
+        // mint and approve
+        const l2TokenAddr = await router.getL2ERC20Address(l1token.address)
+        console.log(`tokenPair : l1Token ${l1token.address}, l2Token ${l2TokenAddr}`)
+
+        let res = await l1token.mint(signers[0].address, taskArgs.balance)
+        let rec = await res.wait()
+        const balance = await l1token.balanceOf(signers[0].address)
+        console.log(`mint ${rec.status == 1}: signer ${signers[0].address} has balance ${balance}`)
+
+        // approve
+        res = await l1token.approve(router.address, taskArgs.balance)
+        rec = await res.wait()
+        const allowance = await l1token.allowance(signers[0].address, router.address)
+        console.log(`approve ${rec.status == 1}: router ${router.address} has allowance ${allowance}`)
+
+        // first deposit require gasLimit > 410000
+        res = await router["depositERC20(address,uint256,uint256)"](l1token.address, allowance, 420000, { value: hre.ethers.utils.parseEther('1') })
+        rec = await res.wait()
+        console.log(`Deposit\n from ${rec.from}\n blockNum ${rec.blockNumber}\n tx ${rec.transactionHash}\n status ${rec.status == 1}`)
+    });
+
+task("erc20Balances")
+    .addParam('token')
+    .addParam('address')
+    .setAction(async (taskArgs, hre) => {
+        const tokenFactory = await hre.ethers.getContractFactory('MockERC20')
+        const token = tokenFactory.attach(taskArgs.token)
+        const balance = await token.balanceOf(taskArgs.address)
+        console.log(`${taskArgs.address} has ${balance}`)
     });
 
 task("getBalances")
@@ -200,7 +262,7 @@ task("rollupEpoch")
         console.log(`rollupEpoch : ${res}`)
     });
 
-task("getNextSubmitter")
+task("getCurrentSubmitter")
     .setAction(async (taskArgs, hre) => {
         const factory = await hre.ethers.getContractFactory('Submitter')
         const contract = factory.attach('0x5300000000000000000000000000000000000005')
@@ -223,6 +285,32 @@ task("getNextSubmitter")
         const block = await hre.ethers.provider.getBlock('latest')
         console.log(block.timestamp)
 
-        const res = await contract.getNextSubmitter()
+        const res = await contract.getCurrentSubmitter()
         console.log(`res : ${res}`)
+    });
+
+
+task("l2factory-deploy")
+    .setAction(async (taskArgs, hre) => {
+        const factoryF = await hre.ethers.getContractFactory('MorphStandardERC20Factory')
+        const fc = await factoryF.deploy(predeploys.MorphStandardERC20)
+        await fc.deployed()
+        console.log(`MorphStandardERC20Factory deployed at ${fc.address}`)
+    });
+
+task("l2token-deploy-check")
+    .addParam("factory")
+    .addParam("l1token")
+    .setAction(async (taskArgs, hre) => {
+        const factoryF = await hre.ethers.getContractFactory('MorphStandardERC20Factory')
+        const fc = factoryF.attach(taskArgs.factory)
+        let l2Addr = await fc.computeL2TokenAddress(predeploys.L2StandardERC20Gateway, taskArgs.l1token)
+        let code = await hre.ethers.provider.getCode(l2Addr)
+        console.log(`L2TokenAddress : ${l2Addr}, code ${code}`)
+
+        let res = await fc.deployL2Token(predeploys.L2StandardERC20Gateway, taskArgs.l1token)
+        let rec = await res.wait()
+        console.log(`rec : ${rec.status == 1}`)
+        let codeAfter = await hre.ethers.provider.getCode(l2Addr)
+        console.log(`L2TokenAddress : ${l2Addr}, code ${codeAfter}`)
     });
