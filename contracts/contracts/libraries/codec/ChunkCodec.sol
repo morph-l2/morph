@@ -132,20 +132,4 @@ library ChunkCodec {
             _blockNumber := shr(192, mload(blockPtr))
         }
     }
-
-    /// @notice Compute and load the transaction hash.
-    /// @param _l2TxPtr The start memory offset of the transaction in memory.
-    /// @return bytes32 The transaction hash of the transaction.
-    /// @return uint256 The start memory offset of the next transaction in memory.
-    function loadL2TxHash(
-        uint256 _l2TxPtr
-    ) internal pure returns (bytes32, uint256) {
-        bytes32 txHash;
-        assembly {
-            txHash := mload(_l2TxPtr)
-            _l2TxPtr := add(_l2TxPtr, 32)
-        }
-
-        return (txHash, _l2TxPtr);
-    }
 }
