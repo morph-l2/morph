@@ -26,10 +26,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      *************/
 
     /// @notice The zero versioned hash.
-    bytes32 public ZEROVERSIONEDHASH =
-        bytes32(
-            hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
-        );
+    bytes32 public ZEROVERSIONEDHASH;
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
@@ -196,6 +193,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
 
+        ZEROVERSIONEDHASH = bytes32(
+            hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
+        );
+
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
     }
@@ -254,9 +255,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "nonzero parent batch hash"
         );
 
-        _batchHash = keccak256(
-            abi.encodePacked(_batchHash, ZEROVERSIONEDHASH)
-        );
+        _batchHash = keccak256(abi.encodePacked(_batchHash, ZEROVERSIONEDHASH));
 
         committedBatchStores[0] = BatchStore(
             _batchHash,
@@ -469,7 +468,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         // check batch hash
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(memPtr);
         _batchHash = keccak256(
-            abi.encodePacked(_batchHash, committedBatchStores[_batchIndex].blobVersionedhash)
+            abi.encodePacked(
+                _batchHash,
+                committedBatchStores[_batchIndex].blobVersionedhash
+            )
         );
         require(
             committedBatchStores[_batchIndex].batchHash == _batchHash,
