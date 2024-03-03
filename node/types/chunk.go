@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -127,6 +128,8 @@ func maxRowNumber(rc types.RowConsumption) (max uint64) {
 	return
 }
 
+// SetTxHashBytes To compute the chunk.Hash, txHashes are indispensable and will
+// be filled later
 func (ck *Chunk) SetTxHashBytes(txHashBytes []byte) {
 	ck.txHashes = txHashBytes
 }
@@ -165,6 +168,31 @@ func (ck *Chunk) Encode() ([]byte, error) {
 	chunkBytes = append(chunkBytes, ck.blockContext...)
 	chunkBytes = append(chunkBytes, ck.l2TxHashes...)
 	return chunkBytes, nil
+}
+
+func (ck *Chunk) Decode(chunkBytes []byte) error {
+	reader := bytes.NewReader(chunkBytes)
+	var blockNum uint8
+	if err := binary.Read(reader, binary.BigEndian, &blockNum); err != nil {
+		return err
+	}
+
+	bcs := make([]byte, 0)
+	for i := 0; i < int(blockNum); i++ {
+		bc := make([]byte, 60)
+		if err := binary.Read(reader, binary.BigEndian, &bc); err != nil {
+			return err
+		}
+		bcs = append(bcs, bc...)
+	}
+	l2TxHashes := make([]byte, len(chunkBytes)-int(blockNum)*60-1)
+	if err := binary.Read(reader, binary.BigEndian, &l2TxHashes); err != nil {
+		return err
+	}
+	ck.blockContext = bcs
+	ck.l2TxHashes = l2TxHashes
+	ck.blockNum = int(blockNum)
+	return nil
 }
 
 func (ck *Chunk) Hash() common.Hash {
