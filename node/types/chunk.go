@@ -189,7 +189,6 @@ func (ck *Chunk) Decode(chunkBytes []byte) error {
 	if err := binary.Read(reader, binary.BigEndian, &l2TxHashes); err != nil {
 		return err
 	}
-	// To compute the chunk.Hash, txHashes are indispensable and will be filled by function SetTxHashBytes later
 	ck.blockContext = bcs
 	ck.l2TxHashes = l2TxHashes
 	ck.blockNum = int(blockNum)
