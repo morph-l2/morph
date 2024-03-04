@@ -98,9 +98,6 @@ func NewSR(
 }
 
 func (sr *SR) Start() {
-	// block node startup during initial sync and print some helpful logs
-	t := time.NewTicker(sr.secondInterval)
-	defer t.Stop()
 
 	// metrics
 	metrics_query_tick := time.NewTicker(time.Second * 5)
