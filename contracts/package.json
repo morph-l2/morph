@@ -1,6 +1,6 @@
 {
   "name": "@morph-l2/contracts",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "dist/index",
   "types": "dist/index",
   "license": "MIT",
@@ -82,7 +82,6 @@
     "typescript": "^4.9.3"
   },
   "dependencies": {
-    "@morph-l2/core-utils": "0.0.1",
     "axios": "^1.4.0",
     "yarn": "^1.22.21"
   }
