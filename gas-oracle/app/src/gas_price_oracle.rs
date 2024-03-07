@@ -1,5 +1,6 @@
 use crate::abi::gas_price_oracle_abi::GasPriceOracle;
-use crate::l1_base_fee;
+use crate::abi::rollup_abi::Rollup;
+use crate::{l1_base_fee, overhead};
 use dotenv::dotenv;
 use ethers::prelude::*;
 use ethers::providers::{Http, Provider};
@@ -67,19 +68,20 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     // Prepare contract.
     let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
         GasPriceOracle::new(Address::from_str(l2_oracle_address.as_str())?, l2_signer);
-    // let l1_rollup: Rollup<Provider<Http>> = Rollup::new(
-    //     Address::from_str(l1_rollup_address.as_str())?,
-    //     Arc::new(l1_provider.clone()),
-    // );
+    let l1_rollup: Rollup<Provider<Http>> = Rollup::new(
+        Address::from_str(l1_rollup_address.as_str())?,
+        Arc::new(l1_provider.clone()),
+    );
 
     // Register metrics.
     register_metrics();
 
     // Update data of gasPriceOrale contract.
     tokio::spawn(async move {
+        let mut update_times = 0;
         loop {
             std::thread::sleep(Duration::from_millis(interval));
-
+            update_times += 1;
             l1_base_fee::update(
                 l1_provider.clone(),
                 l2_provider.clone(),
@@ -88,6 +90,21 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
                 gas_threshold,
             )
             .await;
+
+            if update_times < overhead_interval {
+                // Waiting for the latest batch to be submitted.
+                continue;
+            }
+            // Waiting for confirmation of the previous transaction.
+            std::thread::sleep(Duration::from_millis(interval));
+            overhead::update(
+                l1_provider.clone(),
+                l2_oracle.clone(),
+                l1_rollup.clone(),
+                overhead_threshold,
+            )
+            .await;
+            update_times = 0
         }
     });
 
