@@ -12,11 +12,13 @@ interface IL2ETHGateway {
     /// @param to The address of recipient in L1.
     /// @param amount The amount of ETH will be deposited from L2 to L1.
     /// @param data The optional calldata passed to recipient in L1.
+    /// @param nonce The nonce of cross-chain messages sent at L2.
     event WithdrawETH(
         address indexed from,
         address indexed to,
         uint256 amount,
-        bytes data
+        bytes data,
+        uint256 nonce
     );
 
     /// @notice Emitted when ETH is deposited from L1 to L2 and transfer to recipient.

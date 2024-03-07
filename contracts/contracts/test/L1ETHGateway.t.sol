@@ -12,7 +12,8 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         address indexed from,
         address indexed to,
         uint256 amount,
-        bytes data
+        bytes data,
+        uint256 nonce
     );
     event RefundETH(address indexed recipient, uint256 amount);
     event FinalizeWithdrawETH(
@@ -336,7 +337,13 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), address(this), amount, new bytes(0));
+            emit DepositETH(
+                address(this),
+                address(this),
+                amount,
+                new bytes(0),
+                1
+            );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
@@ -447,7 +454,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), recipient, amount, new bytes(0));
+            emit DepositETH(address(this), recipient, amount, new bytes(0), 1);
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
@@ -562,7 +569,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), recipient, amount, dataToCall);
+            emit DepositETH(address(this), recipient, amount, dataToCall, 1);
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;

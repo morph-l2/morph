@@ -159,6 +159,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
             _gasLimit
         );
 
-        emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data);
+        uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
+        emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data, nonce);
     }
 }

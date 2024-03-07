@@ -21,7 +21,8 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _data,
+        uint256 nonce
     );
     event FinalizeDepositERC20(
         address indexed _l1Token,
@@ -466,7 +467,8 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
                 address(this),
                 address(this),
                 amount,
-                new bytes(0)
+                new bytes(0),
+                1
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;
@@ -578,7 +580,8 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                new bytes(0)
+                new bytes(0),
+                1
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;
@@ -701,7 +704,8 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                dataToCall
+                dataToCall,
+                1
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;

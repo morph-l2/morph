@@ -25,7 +25,8 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _data,
+        uint256 nonce
     );
     event RefundERC20(
         address indexed token,
@@ -451,7 +452,8 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 address(this),
                 address(this),
                 amount,
-                new bytes(0)
+                new bytes(0),
+                1
             );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
@@ -581,7 +583,8 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                new bytes(0)
+                new bytes(0),
+                1
             );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
@@ -722,7 +725,8 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                dataToCall
+                dataToCall,
+                1
             );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;

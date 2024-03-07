@@ -174,6 +174,7 @@ contract L1StandardERC20Gateway is L1ERC20Gateway {
             _from
         );
 
-        emit DepositERC20(_token, _l2Token, _from, _to, _amount, _data);
+        uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
+        emit DepositERC20(_token, _l2Token, _from, _to, _amount, _data, nonce);
     }
 }

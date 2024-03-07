@@ -151,6 +151,7 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
             _from
         );
 
-        emit DepositETH(_from, _to, _amount, _data);
+        uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
+        emit DepositETH(_from, _to, _amount, _data, nonce);
     }
 }

@@ -125,6 +125,7 @@ contract L1WETHGateway is L1ERC20Gateway {
             value: _amount + msg.value
         }(counterpart, _amount, _message, _gasLimit, _from);
 
-        emit DepositERC20(_token, l2WETH, _from, _to, _amount, _data);
+        uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
+        emit DepositERC20(_token, l2WETH, _from, _to, _amount, _data, nonce);
     }
 }

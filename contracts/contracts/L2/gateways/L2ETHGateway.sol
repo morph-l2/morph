@@ -114,6 +114,7 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
             _gasLimit
         );
 
-        emit WithdrawETH(_from, _to, _amount, _data);
+        uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
+        emit WithdrawETH(_from, _to, _amount, _data, nonce);
     }
 }
