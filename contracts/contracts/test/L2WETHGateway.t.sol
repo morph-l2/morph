@@ -470,7 +470,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
                 address(this),
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;
@@ -585,7 +585,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
                 recipient,
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;
@@ -711,7 +711,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
                 recipient,
                 amount,
                 dataToCall,
-                1
+                0
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;

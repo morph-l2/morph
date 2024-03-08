@@ -453,7 +453,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 address(this),
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
@@ -584,7 +584,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 recipient,
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
@@ -726,7 +726,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 recipient,
                 amount,
                 dataToCall,
-                1
+                0
             );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;

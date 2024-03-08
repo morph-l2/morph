@@ -140,12 +140,12 @@ contract L2WETHGateway is L2ERC20Gateway {
             (_l1WETH, _token, _from, _to, _amount, _data)
         );
 
+        uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
         // 4. Send message to L1CrossDomainMessenger.
         IL2CrossDomainMessenger(messenger).sendMessage{
             value: _amount + msg.value
         }(counterpart, _amount, _message, _gasLimit);
 
-        uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
         emit WithdrawERC20(_l1WETH, _token, _from, _to, _amount, _data, nonce);
     }
 }

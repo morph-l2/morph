@@ -360,7 +360,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 address(this),
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;
@@ -444,7 +444,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawETH from L2ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit WithdrawETH(address(this), recipient, amount, new bytes(0), 1);
+            emit WithdrawETH(address(this), recipient, amount, new bytes(0), 0);
 
             uint256 messengerBalance = address(l2Messenger).balance;
             uint256 feeVaultBalance = address(feeVault).balance;
@@ -546,7 +546,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawETH from L2ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit WithdrawETH(address(this), recipient, amount, dataToCall, 1);
+            emit WithdrawETH(address(this), recipient, amount, dataToCall, 0);
 
             uint256 messengerBalance = address(l2Messenger).balance;
             uint256 feeVaultBalance = address(feeVault).balance;

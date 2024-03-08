@@ -559,7 +559,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 address(this),
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 l1StandardERC20GatewayBalance = l1Token.balanceOf(
@@ -693,7 +693,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 recipient,
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 gatewayBalance = l1Token.balanceOf(
@@ -826,7 +826,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 recipient,
                 amount,
                 dataToCall,
-                1
+                0
             );
 
             uint256 gatewayBalance = l1Token.balanceOf(

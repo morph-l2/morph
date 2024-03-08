@@ -436,7 +436,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 address(this),
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));
@@ -563,7 +563,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 recipient,
                 amount,
                 new bytes(0),
-                1
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));
@@ -695,7 +695,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 recipient,
                 amount,
                 dataToCall,
-                1
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));

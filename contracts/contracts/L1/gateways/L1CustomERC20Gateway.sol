@@ -141,6 +141,7 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
             (_token, _l2Token, _from, _to, _amount, _data)
         );
 
+        uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
         // 3. Send message to L1CrossDomainMessenger.
         IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
             counterpart,
@@ -150,8 +151,6 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
             _from
         );
 
-        uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
-        
         emit DepositERC20(_token, _l2Token, _from, _to, _amount, _data, nonce);
     }
 }
