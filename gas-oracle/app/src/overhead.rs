@@ -13,6 +13,8 @@ use std::io::{Cursor, Read};
 use std::ops::Mul;
 use std::str::FromStr;
 
+const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
+
 /// Update overhead
 /// Calculate the average cost of the latest roll up and set it to the GasPriceOrale contract on the L2 network.
 pub async fn update(
@@ -166,7 +168,8 @@ async fn overhead_inspect(
         match calculate_l2_data_gas_from_blob(tx_hash, tx.block_hash.unwrap(), block_num, l2_txn)
             .await
         {
-            Ok(value) => value,
+            Ok(Some(value)) => value,
+            Ok(None) => return None, // Waiting for the next L1 block.
             Err(e) => {
                 log::error!("calculate_l2_data_gas_from_blob error: {:?}", e);
                 return None;
@@ -203,18 +206,24 @@ async fn overhead_inspect(
             .unwrap_or("0x0"),
     )
     .unwrap_or(U256::from(0));
+
     let effective_gas_price = U256::from_str(
         &blob_tx_receipt["result"]["blobGasUsed"]
             .as_str()
             .unwrap_or("0x0"),
     )
     .unwrap_or(U256::from(0));
+
     log::info!("blob_gas_price: {:?}", blob_gas_price);
     log::info!("effective_gas_price: {:?}", effective_gas_price);
 
     //Step4. Calculate overhead
     let x = blob_gas_price.as_u128() as f64 / effective_gas_price.as_u128() as f64;
-    let blob_gas_used = if l2_txn > 0 { 131072.0 } else { 0.0 };
+    let blob_gas_used = if l2_txn > 0 {
+        MAX_BLOB_TX_PAYLOAD_SIZE as f64
+    } else {
+        0.0
+    };
     let sys_gas: u128 =
         rollup_gas_used.as_u128() + (blob_gas_used * x).ceil() as u128 - l2_data_gas as u128;
     let overhead = if l2_txn as u128 > txn_per_batch_expect {
@@ -236,9 +245,9 @@ async fn calculate_l2_data_gas_from_blob(
     block_hash: TxHash,
     block_num: U64,
     l2_txn: u64,
-) -> Result<u64, String> {
+) -> Result<Option<u64>, String> {
     if l2_txn == 0 {
-        return Ok(0);
+        return Ok(Some(0));
     }
     let blob_tx = blob_client::query_blob_tx(hex::encode_prefixed(tx_hash).as_str())
         .await
@@ -247,11 +256,6 @@ async fn calculate_l2_data_gas_from_blob(
     let blob_block = blob_client::query_block(hex::encode_prefixed(block_hash).as_str())
         .await
         .ok_or_else(|| "Failed to query blob block".to_string())?;
-
-    let next_block_num = block_num + 1;
-    let next_block = blob_client::query_block_by_num(next_block_num.as_u64())
-        .await
-        .ok_or_else(|| format!("Failed to query block {}", next_block_num))?;
 
     let indexed_hashes = data_and_hashes_from_txs(
         &blob_block["result"]["transactions"]
@@ -262,36 +266,62 @@ async fn calculate_l2_data_gas_from_blob(
 
     if indexed_hashes.is_empty() {
         log::info!("No blob in this batch, batchTxHash ={:#?}", tx_hash);
-        return Ok(0);
+        return Ok(Some(0));
     }
 
+    let next_block_num = block_num + 1;
+    let next_block = blob_client::query_block_by_num(next_block_num.as_u64())
+        .await
+        .ok_or_else(|| format!("Failed to query block {}", next_block_num))?;
+
+    let prev_beacon_root = match next_block["result"]["parentBeaconBlockRoot"].as_str() {
+        Some(r) => r,
+        None => return Ok(None), // Waiting for the next L1 block.
+    };
+
     let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
-
-    let parent_beacon_block_root = next_block["result"]["parentBeaconBlockRoot"]
-        .as_str()
-        .ok_or_else(|| format!("Missing parentBeaconBlockRoot in block {}", next_block_num))?
-        .to_string();
-
-    let blob_side_car = blob_client::query_side_car(parent_beacon_block_root, indexes)
+    let sidecars_rt = blob_client::query_sidecars(prev_beacon_root.to_string(), indexes)
         .await
         .ok_or_else(|| "Failed to query side car".to_string())?;
 
-    let blob_value = blob_side_car["data"][0]["blob"]
-        .as_str()
-        .ok_or_else(|| format!("Missing blob value in tx_hash: {:?}", tx_hash))?;
+    let sidecars: &Vec<Value> = sidecars_rt["data"]
+        .as_array()
+        .ok_or_else(|| "query blob_sidecars empty".to_string())?;
 
-    let blob_bytes = hex::decode(blob_value)
-        .map_err(|e| format!("Failed to decode blob, tx_hash: {:?}, err: {}", tx_hash, e))?;
+    let mut tx_payload = Vec::<u8>::new();
+    for i_h in indexed_hashes {
+        if let Some(sidecar) = sidecars
+            .iter()
+            .find(|sidecar| sidecar["index"] == i_h.index)
+        {
+            let versioned_hash = i_h.hash;
+            //TODO KZGToVersionedHash
 
-    if blob_bytes.len() != 131072 {
-        return Err("Invalid length for Blob".to_string());
+            let blob_value = sidecar["blob"]
+                .as_str()
+                .ok_or_else(|| format!("Missing blob value in tx_hash: {:?}", tx_hash))?;
+
+            let blob_bytes = hex::decode(blob_value).map_err(|e| {
+                format!("Failed to decode blob, tx_hash: {:?}, err: {}", tx_hash, e)
+            })?;
+
+            if blob_bytes.len() != MAX_BLOB_TX_PAYLOAD_SIZE {
+                return Err("Invalid length for Blob".to_string());
+            }
+
+            let array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = blob_bytes.try_into().unwrap();
+            let blob = Blob(array);
+            let mut data = blob
+                .decode_raw_tx_payload()
+                .map_err(|e| format!("Failed to decode raw tx payload: {}", e))?;
+            tx_payload.append(&mut data);
+        } else {
+            return Err(format!(
+                "no blob in response matches desired index: {}",
+                i_h.index
+            ));
+        }
     }
-
-    let array: [u8; 131072] = blob_bytes.try_into().unwrap();
-    let blob = Blob(array);
-    let tx_payload = blob
-        .decode_raw_tx_payload()
-        .map_err(|e| format!("Failed to decode raw tx payload: {}", e))?;
 
     let blob_data_gas = data_gas_cost(&tx_payload);
     log::info!("tx_payload_in_blob gas: {}", blob_data_gas);
@@ -309,7 +339,7 @@ async fn calculate_l2_data_gas_from_blob(
     if let Some(tx) = txs.last() {
         log_chain_id(tx);
     }
-    Ok(l2_data_gas)
+    Ok(Some(l2_data_gas))
 }
 
 fn log_chain_id(tx: &TypedTransaction) {
@@ -548,3 +578,4 @@ async fn test_overhead_inspect() {
         }
     };
 }
+

@@ -121,7 +121,7 @@ pub async fn query_block_by_num(num: u64) -> Option<Value> {
     }
 }
 
-pub async fn query_side_car(slot: String, indexes: Vec<u64>) -> Option<Value> {
+pub async fn query_sidecars(slot: String, indexes: Vec<u64>) -> Option<Value> {
     let rt = tokio::task::spawn_blocking(move || query_beacon_node(slot.as_str(), indexes)).await;
 
     match rt {
@@ -129,13 +129,13 @@ pub async fn query_side_car(slot: String, indexes: Vec<u64>) -> Option<Value> {
             match serde_json::from_str::<Value>(&info) {
                 Ok(parsed) => return Some(parsed),
                 Err(_) => {
-                    log::error!("deserialize blobSideCar from beacon failed",);
+                    log::error!("deserialize blobSidecars from beacon failed",);
                     return None;
                 }
             };
         }
         _ => {
-            log::error!("query blobSideCar from beacon node failed");
+            log::error!("query blobSidecars from beacon node failed");
             return None;
         }
     }
@@ -305,7 +305,7 @@ async fn test_query_beacon_node() {
 
     match rt {
         Some(info) => {
-            log::info!("query result: {:#?}", info);
+            // log::info!("query result: {:#?}", info);
             let transaction = match serde_json::from_str::<Value>(&info) {
                 Ok(parsed) => parsed,
                 Err(_) => {
