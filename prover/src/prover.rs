@@ -6,6 +6,7 @@ use bls12_381::Scalar as Fp;
 use c_kzg::{Blob, KzgCommitment, KzgProof};
 use eth_types::{ToLittleEndian, U256};
 use ethers::providers::Provider;
+use ethers::utils::keccak256;
 use prover::aggregator::Prover as BatchProver;
 use prover::config::{LayerId, LAYER4_DEGREE};
 use prover::utils::{chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index};
@@ -94,12 +95,16 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     // get batch_blob from chunks
     let mut batch_blob = [0u8; BLOB_DATA_SIZE];
     let mut offset = 0;
+    let mut data_hash_preimage = Vec::<u8>::new();
     for chunk_trace in chunk_traces.iter() {
         match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
             Ok(witness) => {
                 let partial_result = block_to_blob(&witness).unwrap();
                 batch_blob[offset..partial_result.len()].copy_from_slice(&partial_result);
                 offset += partial_result.len();
+
+                let chunk_hash = ChunkHash::from_witness_block(&witness, false);
+                data_hash_preimage.extend_from_slice(chunk_hash.data_hash.as_bytes())
             }
             Err(e) => {
                 log::error!("convert trace to witness of batch = {:#?} error: {:#?}", batch_index, e);
@@ -108,16 +113,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             }
         };
     }
-
-    // todo: get batch_commit from eth trace
-    let batch_commit: U256 = U256::from(0);
-
-    // challenge_point = keccak256(batch_commit||batchBlob)
-    let mut pre: Vec<u8> = vec![];
-    pre.extend(batch_commit.to_le_bytes().to_vec());
-    pre.extend(batch_blob);
-    // let challenge_point = U256::from_little_endian(keccak256(pre.as_slice()).as_ref());
-    let challenge_point = U256::from(128);
+    let batch_data_hash = keccak256(data_hash_preimage);
 
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
     let commitment = match KzgCommitment::blob_to_kzg_commitment(&Blob::from_bytes(&batch_blob).unwrap(), &kzg_settings)
@@ -129,6 +125,12 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             return;
         }
     };
+
+    let mut pre: Vec<u8> = vec![];
+    pre.extend(commitment.to_bytes().to_vec());
+    pre.extend(batch_data_hash);
+    let challenge_point = U256::from_little_endian(keccak256(pre.as_slice()).as_ref());
+    // let challenge_point = U256::from(128);
 
     let (proof, y) = match KzgProof::compute_kzg_proof(
         &Blob::from_bytes(&batch_blob).unwrap(),
@@ -153,6 +155,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     let mut params_file = File::create(SCROLL_PROVER_ASSETS_DIR.to_string() + "/blob_kzg.data").unwrap();
     params_file.write_all(&blob_kzg[..]).unwrap();
 
+    // todo: get batch_commit from eth trace
+    let batch_commit: U256 = U256::from(0);
     let mut index = 0;
     for chunk_trace in chunk_traces.iter() {
         let mut partial_result: U256 = U256::from(0);
@@ -172,7 +176,6 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         };
 
         let partial_result_bytes = block_to_blob(&chunk_witness).ok();
-        index += partial_result_bytes.unwrap().len() / 32;
 
         // compute partial_result from witness block;
         let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
@@ -241,6 +244,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         params_file.write_all(&protocol[..]).unwrap();
 
         chunk_proofs.push((chunk_hash, chunk_proof));
+        index += partial_result_bytes.unwrap().len() / 32;
     }
     if chunk_proofs.len() != chunk_traces.len() {
         log::error!("chunk proofs len err, batchIndex = {:#?} ", batch_index);
