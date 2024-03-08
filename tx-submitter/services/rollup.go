@@ -174,6 +174,9 @@ func (sr *SR) Start() {
 		}
 		if sr.Finalize {
 			if err := sr.finalize(); err != nil {
+				if utils.IsRpcErr(err) {
+					sr.metrics.IncRpcErrors()
+				}
 				log.Error("finalize failed", "error", err)
 			}
 			time.Sleep(5 * time.Second)
