@@ -332,10 +332,12 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 gateway.withdrawETH{value: amount}(amount, gasLimit);
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -419,10 +421,12 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 gateway.withdrawETH{value: amount}(recipient, amount, gasLimit);
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -519,10 +523,12 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 );
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger

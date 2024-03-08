@@ -13,7 +13,7 @@ contract L2ToL1MessagePasserTest is L2MessageBaseTest {
 
             hevm.prank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
             hevm.expectEmit(true, true, true, true);
-            emit AppendMessage(i, leafHash);
+            emit AppendMessage(i, leafHash, getTreeRoot());
 
             l2ToL1MessagePasser.appendMessage(leafHash);
 

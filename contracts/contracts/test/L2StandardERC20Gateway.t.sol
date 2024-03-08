@@ -446,10 +446,12 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
 
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -572,10 +574,12 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
 
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -705,10 +709,12 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
 
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
