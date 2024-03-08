@@ -522,7 +522,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // check challenge window
-        // TODO get finalization period from output oracle
         require(
             committedBatchStores[batchIndex].finalizeTimestamp >
                 block.timestamp,
@@ -608,7 +607,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
             // Compute xBytes
             bytes memory _xBytes = abi.encode(
-                keccak256(abi.encodePacked(_commitment, _publicInputHash))
+                keccak256(abi.encodePacked(_commitment, committedBatchStores[_batchIndex].dataHash))
             );
             // make sure x < BLS_MODULUS
             _xBytes[0] = 0x0;
