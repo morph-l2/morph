@@ -25,12 +25,12 @@ export const StakingInit = async (
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
     // Sequencer config
-    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStroageName)
+    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
     const L1SequencerImplAddress = getContractAddressByName(path, ImplStorageName.L1SequencerStorageName)
     const L1SequencerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Sequencer)
 
     // Staking config
-    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStroageName)
+    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
     const StakingImplAddress = getContractAddressByName(path, ImplStorageName.StakingStorageName)
     const StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.Staking)
 

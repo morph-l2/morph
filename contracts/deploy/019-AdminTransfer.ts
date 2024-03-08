@@ -55,90 +55,96 @@ export const AdminTransfer = async (
     deployer: any,
     configTmp: any
 ): Promise<string> => {
-    const L1CrossDomainMessengerStroageName = ProxyStorageName.L1CrossDomainMessengerProxyStroageName
-    const L1MessageQueueWithGasPriceOracleProxyStroageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStroageName
+    const L1CrossDomainMessengerStorageName = ProxyStorageName.L1CrossDomainMessengerProxyStorageName
+    const L1MessageQueueWithGasPriceOracleProxyStorageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
 
-    const RollupProxyStroageName = ProxyStorageName.RollupProxyStorageName
-    const StakingProxyStroageName = ProxyStorageName.StakingProxyStroageName
-    const L1SequencerProxyStroageName = ProxyStorageName.L1SequencerProxyStroageName
+    const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
+    const StakingProxyStorageName = ProxyStorageName.StakingProxyStorageName
+    const L1SequencerProxyStorageName = ProxyStorageName.L1SequencerProxyStorageName
 
-    const L1GatewayRouterProxyStroageName = ProxyStorageName.L1GatewayRouterProxyStroageName
-    const L1ETHGatewayProxyStroageName = ProxyStorageName.L1ETHGatewayProxyStroageName
-    const L1StandardERC20GatewayProxyStroageName = ProxyStorageName.L1StandardERC20GatewayProxyStroageName
-    const L1ERC721GatewayProxyStroageName = ProxyStorageName.L1ERC721GatewayProxyStroageName
-    const L1ERC1155GatewayProxyStroageName = ProxyStorageName.L1ERC1155GatewayProxyStroageName
-    // const EnforcedTxGatewayProxyStroageName = ProxyStorageName.EnforcedTxGatewayProxyStroageName
-    
+    const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
+    const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
+    const L1StandardERC20GatewayProxyStorageName = ProxyStorageName.L1StandardERC20GatewayProxyStorageName
+    const L1ERC721GatewayProxyStorageName = ProxyStorageName.L1ERC721GatewayProxyStorageName
+    const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
+    // const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
+    const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
+
     // ************************ messenger contracts admin change ************************
     // L1CrossDomainMessengerProxy admin change 
-    let err = await adminTransferByProxyStorageName(hre, path, deployer, L1CrossDomainMessengerStroageName)
+    let err = await adminTransferByProxyStorageName(hre, path, deployer, L1CrossDomainMessengerStorageName)
     if (err != '') {
         return err
     }
 
     // L1MessageQueueWithGasPriceOracleProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1MessageQueueWithGasPriceOracleProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1MessageQueueWithGasPriceOracleProxyStorageName)
     if (err != '') {
         return err
     }
 
     // ************************ staking contracts admin change ************************
     // StakingProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, StakingProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, StakingProxyStorageName)
     if (err != '') {
         return err
     }
 
     // L1SequencerProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1SequencerProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1SequencerProxyStorageName)
     if (err != '') {
         return err
     }
 
     // ************************ rollup contracts admin change ************************
     // RollupProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, RollupProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, RollupProxyStorageName)
     if (err != '') {
         return err
     }
 
     // ************************ gateway contracts admin change ************************
     // L1GatewayRouterProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1GatewayRouterProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1GatewayRouterProxyStorageName)
     if (err != '') {
         return err
     }
 
     // L1ETHGatewayProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1ETHGatewayProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1ETHGatewayProxyStorageName)
     if (err != '') {
         return err
     }
 
     // L1ETHGatewayProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1StandardERC20GatewayProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1StandardERC20GatewayProxyStorageName)
     if (err != '') {
         return err
     }
 
     // L1ERC721GatewayProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1ERC721GatewayProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
     if (err != '') {
         return err
     }
 
     // L1ERC1155GatewayProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1ERC1155GatewayProxyStroageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1ERC1155GatewayProxyStorageName)
     if (err != '') {
         return err
     }
 
     // EnforcedTxGatewayProxy admin change
-    // err = await adminTransferByProxyStorageName(hre, path, deployer, EnforcedTxGatewayProxyStroageName)
+    // err = await adminTransferByProxyStorageName(hre, path, deployer, EnforcedTxGatewayProxyStorageName)
     // if (err != '') {
     //     return err
     // }
-    // return nil
+
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1WETHGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+    
     return ''
 }
 

@@ -34,7 +34,8 @@ bindings: l1-staking-bindings \
 	proxy-admin-bindings \
 	morph-standard-erc20-bindings \
 	morph-standard-erc20-factory-bindings \
-	morph-wrapped-ether-bindings
+	morph-wrapped-ether-bindings \
+	erc20-bindings
 
 version:
 	forge --version
@@ -133,7 +134,7 @@ morph-standard-erc20-factory-bindings: compile
 morph-wrapped-ether-bindings: compile
 	./gen_bindings.sh contracts/L2/system/WrappedEther.sol:WrappedEther $(pkg)
 erc20-bindings: compile
-	./gen_bindings.sh node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20 $(pkg)
+	./gen_bindings.sh node_modules/@rari-capital/solmate/src/tokens/ERC20.sol:ERC20 $(pkg)
 
 more: compile-forge
 	go run ./gen/main.go \

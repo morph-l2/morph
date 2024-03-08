@@ -42,22 +42,17 @@ devnet-down:
 	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
 .PHONY: devnet-down
 
-devnet-clean: devnet-down
-	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
-	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
-	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
-	rm -rf ops/L2-genesis/.devnet
-	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
-	rm -rf ops/docker/execution/geth
-.PHONY: devnet-clean
-
-devnet-clean-build:
-	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
+devnet-clean-build: devnet-down
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/L2-genesis/.devnet
 	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
 	rm -rf ops/docker/execution/geth
 .PHONY: devnet-clean-build
+
+devnet-clean: devnet-clean-build
+	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
+	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
+.PHONY: devnet-clean
 
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
