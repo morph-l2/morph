@@ -111,6 +111,8 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     ) external onlyRollupContract whenNotPaused returns (bool) {
         confirmVersion(version);
         // TODO: verify BLS signature
+        indexs = indexs;
+        signature = signature;
         return true;
     }
 
