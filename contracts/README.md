@@ -6,35 +6,25 @@ This package contains the smart contracts that compose the on-chain component.
 
 ### Contracts deployed to L1
 
-| Name                                                                                     | Proxy Type                                                              | Description                                                                                         |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [`L1CrossDomainMessenger`](../../specs/messengers.md)                                    | [`ResolvedDelegateProxy`](./contracts/legacy/ResolvedDelegateProxy.sol) | High-level interface for sending messages to and receiving messages from M                   |
-| [`L1StandardBridge`](../../specs/bridges.md)                                             | [`L1ChugSplashProxy`](./contracts/legacy/L1ChugSplashProxy.sol)         | Standardized system for transfering ERC20 tokens to/from Mo r p h                                   |
-| [`Rollup`](../../specs/proposals.md#rollup.sol)             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Stores commitments to the state of Morph which can be used by contracts on L1 to access L2 state |
-| [`MorphPortal`](../../specs/deposits.md#deposit-contract)                             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Low-level message passing interface                                                                 |
-| [`MorphMintableERC20Factory`](../../specs/predeploys.md#morphmintableerc20factory) | [`Proxy`](./contracts/universal/Proxy.sol)                              | Deploys standard `MorphMintableERC20` tokens that are compatible with either `StandardBridge`    |
-| [`ProxyAdmin`](../../specs/TODO)                                                         | -                                                                       | Contract that can upgrade L1 contracts                                                              |
+| Name                                                   | Proxy Type                                        | Description                                                                                      |
+| ------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`L1CrossDomainMessenger`](../../specs/TODO)           | [`TransparentUpgradeableProxy`](../../specs/TODO) | High-level interface for sending messages to and receiving messages from M                       |
+| [`L1GatewayRouter`](../../specs/TODO)                  | [`TransparentUpgradeableProxy`](../../specs/TODO) | Standardized system for transfering ERC20 tokens to/from Mo r p h                                |
+| [`Rollup`](../../specs/TODO)                           | [`TransparentUpgradeableProxy`](../../specs/TODO)                       | Stores commitments to the state of Morph which can be used by contracts on L1 to access L2 state |
+| [`L1MessageQueueWithGasPriceOracle`](../../specs/TODO) | [`TransparentUpgradeableProxy`](../../specs/TODO) | Low-level message passing interface                                                              |
+| [`ProxyAdmin`](../../specs/TODO)                       | -                                                 | Contract that can upgrade L1 contracts                                                           |
 
 ### Contracts deployed to L2
 
-| Name                                                                                     | Proxy Type                                 | Description                                                                                      |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [`GasPriceOracle`](../../specs/predeploys.md#ovm_gaspriceoracle)                         | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L2 gas price configuration values                                                         |
-| [`L1Block`](../../specs/predeploys.md#l1block)                                           | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L1 block context information (e.g., latest known L1 block hash)                           |
-| [`L2CrossDomainMessenger`](../../specs/predeploys.md#l2crossdomainmessenger)             | [`Proxy`](./contracts/universal/Proxy.sol) | High-level interface for sending messages to and receiving messages from L1                      |
-| [`L2StandardBridge`](../../specs/predeploys.md#l2standardbridge)                         | [`Proxy`](./contracts/universal/Proxy.sol) | Standardized system for transferring ERC20 tokens to/from L1                                     |
-| [`L2ToL1MessagePasser`](../../specs/predeploys.md#ovm_l2tol1messagepasser)               | [`Proxy`](./contracts/universal/Proxy.sol) | Low-level message passing interface                                                              |
-| [`SequencerFeeVault`](../../specs/predeploys.md#sequencerfeevault)                       | [`Proxy`](./contracts/universal/Proxy.sol) | Vault for L2 transaction fees                                                                    |
-| [`MorphMintableERC20Factory`](../../specs/predeploys.md#morphmintableerc20factory) | [`Proxy`](./contracts/universal/Proxy.sol) | Deploys standard `MorphMintableERC20` tokens that are compatible with either `StandardBridge` |
-| [`L2ProxyAdmin`](../../specs/TODO)                                                       | -                                          | Contract that can upgrade L2 contracts when sent a transaction from L1                           |
-
-### Legacy and deprecated contracts
-
-| Name                                                            | Location | Proxy Type                                 | Description                                                                           |
-| --------------------------------------------------------------- | -------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| [`AddressManager`](contracts/deployment/AddressManager.solol)       | L1       | -                                          | Legacy upgrade mechanism (unused in Bedrock)                                          |
-| [`DeployerWhitelist`](./contracts/legacy/DeployerWhitelist.sol) | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for managing allowed deployers (unused since EVM Equivalence upgrade) |
-| [`L1BlockNumber`](./contracts/legacy/L1BlockNumber.sol)         | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for accessing latest known L1 block number, replaced by `L1Block`     |
+| Name                                                                               | Proxy Type                  | Description                                                                                   |
+| ---------------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
+| [`GasPriceOracle`](../../specs/TODO)                   | [`TransparentUpgradeableProxy`](../../specs/TODO) | Stores L2 gas price configuration values                                                      |
+| [`L2CrossDomainMessenger`](../../specs/TODO)       | [`TransparentUpgradeableProxy`](../../specs/TODO) | High-level interface for sending messages to and receiving messages from L1                   |
+| [`L2GatewayRouter`](../../specs/TODO)                   | [`TransparentUpgradeableProxy`](../../specs/TODO) | Standardized system for transferring ERC20 tokens to/from L1                                  |
+| [`L2ToL1MessagePasser`](../../specs/TODO)         | [`TransparentUpgradeableProxy`](../../specs/TODO) | Low-level message passing interface                                                           |
+| [`MorphStandardERC20`](../../specs/TODO) | [`TransparentUpgradeableProxy`](../../specs/TODO) | Deploys standard `MorphMintableERC20` tokens that are compatible with either `L2GatewayRouter` |
+| [`MorphStandardERC20Factory`](../../specs/TODO) | [`TransparentUpgradeableProxy`](../../specs/TODO) | Deploys standard `MorphMintableERC20` tokens that are compatible with either `L2GatewayRouter` |
+| [`L2ProxyAdmin`](../../specs/TODO)                                                 | -                           | Contract that can upgrade L2 contracts when sent a transaction from L1                        |
 
 ## Installation
 
@@ -168,7 +158,7 @@ Spacers MUST be `private`.
 
 All contracts should be assumed to live behind proxies (except in certain special circumstances).
 This means that new contracts MUST be built under the assumption of upgradeability.
-We use a minimal [`Proxy`](./contracts/universal/Proxy.sol) contract designed to be owned by a corresponding [`ProxyAdmin`](./contracts/universal/ProxyAdmin.sol) which follow the interfaces of OpenZeppelin's `Proxy` and `ProxyAdmin` contracts, respectively.
+We use [`TransparentUpgradeableProxy`](../../specs/TODO) contract designed to be owned by a corresponding [`ProxyAdmin`](./contracts/universal/ProxyAdmin.sol) which follow the interfaces of OpenZeppelin's `TransparentUpgradeableProxy` and `ProxyAdmin` contracts, respectively.
 
 Unless explicitly discussed otherwise, you MUST include the following basic upgradeability pattern for each new implementation contract:
 
@@ -176,22 +166,6 @@ Unless explicitly discussed otherwise, you MUST include the following basic upgr
 2. Include a `uint8 public constant VERSION = X` at the TOP of your contract.
 3. Include a function `initialize` with the modifier `reinitializer(VERSION)`.
 4. In the `constructor`, set any `immutable` variables and call the `initialize` function for setting mutables.
-
-### Versioning
-
-All (non-library and non-abstract) contracts MUST extend the `Semver` base contract which exposes a `version()` function that returns a semver-compliant version string.
-During the Bedrock development process the `Semver` value for all contracts SHOULD return `0.0.1` (this is not particularly important, but it's an easy standard to follow).
-When the initial Bedrock upgrade is released, the `Semver` value MUST be updated to `1.0.0`.
-
-After the initial Bedrock upgrade, contracts MUST use the following versioning scheme:
-
-- `patch` releases are to be used only for changes that do NOT modify contract bytecode (such as updating comments).
-- `minor` releases are to be used for changes that modify bytecode OR changes that expand the contract ABI provided that these changes do NOT break the existing interface.
-- `major` releases are to be used for changes that break the existing contract interface OR changes that modify the security model of a contract.
-
-#### Exceptions
-
-We have made an exception to the `Semver` rule for the `WETH` contract to avoid making changes to a well-known, simple, and recognizable contract.
 
 ### Dependencies
 
