@@ -102,11 +102,12 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
         }
 
         // @note no rate limit here, since ETH is limited in messenger
-
         bytes memory _message = abi.encodeCall(
             IL1ETHGateway.finalizeWithdrawETH,
             (_from, _to, _amount, _data)
         );
+
+        uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
         IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
             counterpart,
             _amount,
@@ -114,6 +115,6 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
             _gasLimit
         );
 
-        emit WithdrawETH(_from, _to, _amount, _data);
+        emit WithdrawETH(_from, _to, _amount, _data, nonce);
     }
 }

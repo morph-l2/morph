@@ -11,6 +11,7 @@ import { ethers } from 'ethers'
 import {
     ProxyStorageName,
     ContractFactoryName,
+    ImplStorageName,
 } from "./types"
 
 export const ContractInit = async (
@@ -46,7 +47,7 @@ export const ContractInit = async (
     }
     // ------------------ staking init -----------------
     {
-        const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStroageName)
+        const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
         const Staking = await hre.ethers.getContractAt(ContractFactoryName.Staking, StakingProxyAddress, deployer)
         const whiteListAdd = config.l2SequencerAddresses
         // set sequencer to white list
@@ -65,7 +66,30 @@ export const ContractInit = async (
             console.log(`address ${config.l2SequencerAddresses[i]} is in white list`)
         }
     }
-    // return nil
+
+    // ------------------ router init -----------------
+    {
+        const L1WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
+        const L1WETHGatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.L1WETHGatewayProxyStorageName)
+        const L1GatewayRouterProxyAddress = getContractAddressByName(path, ProxyStorageName.L1GatewayRouterProxyStorageName)
+        const l1GatewayRouter = await hre.ethers.getContractAt(ContractFactoryName.L1GatewayRouter, L1GatewayRouterProxyAddress, deployer)
+
+        // set weth gateway
+        const tokens = [L1WETHAddress]
+        const gateways = [L1WETHGatewayProxyAddress]
+        await l1GatewayRouter.setERC20Gateway(tokens, gateways)
+        await awaitCondition(
+            async () => {
+                return (
+                    (await l1GatewayRouter.getERC20Gateway(L1WETHAddress)).toLocaleLowerCase() === L1WETHGatewayProxyAddress.toLocaleLowerCase()
+                )
+            },
+            3000,
+            1000
+        )
+        console.log(`router set l1WETHGateway success`)
+
+    }
     return ''
 }
 

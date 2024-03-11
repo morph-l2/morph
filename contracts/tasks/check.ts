@@ -16,7 +16,10 @@ task("check-l2")
         });
         const ProxyFactoryName = 'ITransparentUpgradeableProxy'
         for (let i = 0; i < ContractAddresss.length; i++) {
-            if (ContractAddresss[i] === predeploys.MorphStandardERC20) {
+            if (
+                ContractAddresss[i].toLocaleLowerCase() === predeploys.MorphStandardERC20.toLocaleLowerCase()
+                || ContractAddresss[i].toLocaleLowerCase() === predeploys.L2WETH.toLocaleLowerCase()
+            ) {
                 continue
             }
             const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
@@ -75,6 +78,13 @@ task("check-l2-status")
         let messenger = await ethgwContract.messenger()
         let counterpart = await ethgwContract.counterpart()
         console.log(`L2ETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
+
+        const wethgwFactory = await hre.ethers.getContractFactory('L2WETHGateway')
+        const wethgwContract = wethgwFactory.attach(predeploys.L2WETHGateway)
+        router = await wethgwContract.router()
+        messenger = await wethgwContract.messenger()
+        counterpart = await wethgwContract.counterpart()
+        console.log(`L2WETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const cdmFactory = await hre.ethers.getContractFactory('L2CrossDomainMessenger')
         const cdmContract = cdmFactory.attach(predeploys.L2CrossDomainMessenger)

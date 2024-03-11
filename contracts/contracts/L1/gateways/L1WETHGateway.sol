@@ -120,11 +120,12 @@ contract L1WETHGateway is L1ERC20Gateway {
             (_token, l2WETH, _from, _to, _amount, _data)
         );
 
+        uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
         // 3. Send message to L1CrossDomainMessenger.
         IL1CrossDomainMessenger(messenger).sendMessage{
             value: _amount + msg.value
         }(counterpart, _amount, _message, _gasLimit, _from);
 
-        emit DepositERC20(_token, l2WETH, _from, _to, _amount, _data);
+        emit DepositERC20(_token, l2WETH, _from, _to, _amount, _data, nonce);
     }
 }

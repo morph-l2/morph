@@ -16,7 +16,7 @@ contract L2MessageBaseTest is CommonTest {
     L2ToL1MessagePasser l2ToL1MessagePasserImpl;
 
     bytes32 l2ToL1MessagePasser_leafNodesCount = bytes32(uint256(32));
-    event AppendMessage(uint256 index, bytes32 messageHash);
+    event AppendMessage(uint256 index, bytes32 messageHash, bytes32 rootHash);
     event SentMessage(
         address indexed sender,
         address indexed target,

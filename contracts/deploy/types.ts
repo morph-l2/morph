@@ -5,6 +5,8 @@ const ContractFactoryName = {
     ProxyAdmin: 'ProxyAdmin',
     // empty contract
     EmptyContract: 'EmptyContract',
+    // tokens
+    WETH:'WrappedEther',
     // messenger
     L1CrossDomainMessenger: 'L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'L1MessageQueueWithGasPriceOracle',
@@ -18,6 +20,7 @@ const ContractFactoryName = {
     // gateway
     L1GatewayRouter: 'L1GatewayRouter',
     L1StandardERC20Gateway: 'L1StandardERC20Gateway',
+    L1WETHGateway: 'L1WETHGateway',
     L1ETHGateway: 'L1ETHGateway',
     L1ERC721Gateway: 'L1ERC721Gateway',
     L1ERC1155Gateway: 'L1ERC1155Gateway',
@@ -26,20 +29,21 @@ const ContractFactoryName = {
 
 const ProxyStorageName = {
     // messenger
-    L1CrossDomainMessengerProxyStroageName: 'Proxy__L1CrossDomainMessenger',
-    L1MessageQueueWithGasPriceOracleProxyStroageName: 'Proxy__L1MessageQueueWithGasPriceOracle',
+    L1CrossDomainMessengerProxyStorageName: 'Proxy__L1CrossDomainMessenger',
+    L1MessageQueueWithGasPriceOracleProxyStorageName: 'Proxy__L1MessageQueueWithGasPriceOracle',
     // rollup
     RollupProxyStorageName: 'Proxy__Rollup',
     // staking
-    StakingProxyStroageName: 'Proxy__Staking',
-    L1SequencerProxyStroageName: 'Proxy__L1Sequencer',
+    StakingProxyStorageName: 'Proxy__Staking',
+    L1SequencerProxyStorageName: 'Proxy__L1Sequencer',
     // gateway
-    L1GatewayRouterProxyStroageName: 'Proxy__L1GatewayRouter',
-    L1StandardERC20GatewayProxyStroageName: 'Proxy__L1StandardERC20Gateway',
-    L1ETHGatewayProxyStroageName: 'Proxy__L1ETHGateway',
-    L1ERC721GatewayProxyStroageName: 'Proxy__L1ERC721Gateway',
-    L1ERC1155GatewayProxyStroageName: 'Proxy__L1ERC1155Gateway',
-    EnforcedTxGatewayProxyStroageName: "Proxy__EnforcedTxGateway"
+    L1GatewayRouterProxyStorageName: 'Proxy__L1GatewayRouter',
+    L1StandardERC20GatewayProxyStorageName: 'Proxy__L1StandardERC20Gateway',
+    L1ETHGatewayProxyStorageName: 'Proxy__L1ETHGateway',
+    L1WETHGatewayProxyStorageName: 'Proxy__L1WETHGateway',
+    L1ERC721GatewayProxyStorageName: 'Proxy__L1ERC721Gateway',
+    L1ERC1155GatewayProxyStorageName: 'Proxy__L1ERC1155Gateway',
+    EnforcedTxGatewayProxyStorageName: "Proxy__EnforcedTxGateway"
 }
 
 const ImplStorageName = {
@@ -47,6 +51,8 @@ const ImplStorageName = {
     ProxyAdmin: 'Impl__ProxyAdmin',
     // empty contract
     EmptyContract: 'Impl__EmptyContract',
+    // tokens
+    WETH:'Impl__WETH',
     // messenger
     L1CrossDomainMessengerStorageName: 'Impl__L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'Impl__L1MessageQueueWithGasPriceOracle',
@@ -61,9 +67,10 @@ const ImplStorageName = {
     L1GatewayRouterStorageName: 'Impl__L1GatewayRouter',
     L1StandardERC20GatewayStorageName: 'Impl__L1StandardERC20Gateway',
     L1ETHGatewayStorageName: 'Impl__L1ETHGateway',
+    L1WETHGatewayStorageName: 'Impl__L1WETHGateway',
     L1ERC721GatewayStorageName: 'Impl__L1ERC721Gateway',
     L1ERC1155GatewayStorageName: 'Impl__L1ERC1155Gateway',
-    EnforcedTxGatewayStroageName: "Impl__EnforcedTxGateway"
+    EnforcedTxGatewayStorageName: "Impl__EnforcedTxGateway"
 }
 
 export {
