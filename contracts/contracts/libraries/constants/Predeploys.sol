@@ -7,93 +7,116 @@ pragma solidity =0.8.24;
  */
 library Predeploys {
     /**
-     * @notice Address of the L2ToL1MessagePasser predeploy.
+     * @notice Address of the L2_TO_L1_MESSAGE_PASSER predeploy.
      */
     address internal constant L2_TO_L1_MESSAGE_PASSER =
         0x5300000000000000000000000000000000000001;
 
     /**
-     * @notice Address of the L2GatewayRouter predeploy.
+     * @notice Address of the L2_GATEWAY_ROUTER predeploy.
      */
-    address internal constant L2_Gateway_Router =
+    address internal constant L2_GATEWAY_ROUTER =
         0x5300000000000000000000000000000000000002;
 
     /**
-     * @notice Address of the L2Sequencer predeploy.
+     * @notice Address of the SEQUENCER predeploy.
      */
-    address internal constant L2_SEQUENCER =
+    address internal constant SEQUENCER =
         0x5300000000000000000000000000000000000003;
 
     /**
      * @notice Address of the Gov predeploy.
      */
-    address internal constant L2_GOV =
-        0x5300000000000000000000000000000000000004;
+    address internal constant GOV = 0x5300000000000000000000000000000000000004;
 
     /**
-     * @notice Address of the L2SUBMITTER predeploy.
+     * @notice Address of the SUBMITTER predeploy.
      */
-    address internal constant L2_SUBMITTER =
+    address internal constant SUBMITTER =
         0x5300000000000000000000000000000000000005;
 
     /**
-     * @notice Address of the L2ETHGateWay predeploy.
+     * @notice Address of the L2_ETH_GATEWAY predeploy.
      */
-    address internal constant L2_ETH_Gateway =
+    address internal constant L2_ETH_GATEWAY =
         0x5300000000000000000000000000000000000006;
 
     /**
-     * @notice Address of the L2CrossDomainMessenger predeploy.
+     * @notice Address of the L2_CROSS_DOMAIN_MESSENGER predeploy.
      */
     address internal constant L2_CROSS_DOMAIN_MESSENGER =
         0x5300000000000000000000000000000000000007;
 
     /**
-     * @notice Address of the L2StandardETHGateWay predeploy.
+     * @notice Address of the L2_STANDARD_ERC20_GATEWAY predeploy.
      */
-    address internal constant L2_Standard_ERC20_Gateway =
+    address internal constant L2_STANDARD_ERC20_GATEWAY =
         0x5300000000000000000000000000000000000008;
 
     /**
-     * @notice Address of the L2ERC721Bridge predeploy.
+     * @notice Address of the L2_ERC721_GATEWAY predeploy.
      */
-    address internal constant L2_ERC721_Gateway =
+    address internal constant L2_ERC721_GATEWAY =
         0x5300000000000000000000000000000000000009;
 
     /**
-     * @notice Address of the L2ERC721Bridge predeploy.
+     * @notice Address of the L2_TX_FEE_VAULT predeploy.
      */
-    address internal constant L2TxFeeVault =
+    address internal constant L2_TX_FEE_VAULT =
         0x530000000000000000000000000000000000001a;
 
     /**
-     * @notice Address of the ProxyAdmin predeploy.
+     * @notice Address of the PROXY_ADMIN predeploy.
      */
     address internal constant PROXY_ADMIN =
         0x530000000000000000000000000000000000001B;
 
-   /**
-     * @notice Address of the L2ERC1155Gateway predeploy.
+    /**
+     * @notice Address of the L2_ERC1155_GATEWAY predeploy.
      */
-    address internal constant L2_ERC1155_Gateway =
+    address internal constant L2_ERC1155_GATEWAY =
         0x530000000000000000000000000000000000001c;
 
-   /**
-     * @notice Address of the MorphStandardERC20 predeploy.
+    /**
+     * @notice Address of the MORPH_STANDARD_ERC20 predeploy.
      */
-    address internal constant Morph_Standard_ERC20 =
+    address internal constant MORPH_STANDARD_ERC20 =
         0x530000000000000000000000000000000000001D;
 
     /**
-     * @notice Address of the MorphStandardERC20Factory predeploy.
+     * @notice Address of the MORPH_STANDARD_ERC20_FACTORY predeploy.
      */
-    address internal constant Morph_Standard_ERC20_Factory =
+    address internal constant MORPH_STANDARD_ERC20_FACTORY =
         0x530000000000000000000000000000000000001e;
 
     /**
-     * @notice Address of the GasPriceOracle predeploy. Includes fee information
+     * @notice Address of the GAS_PRICE_ORACLE predeploy. Includes fee information
      *         and helpers for computing the L1 portion of the transaction fee.
      */
     address internal constant GAS_PRICE_ORACLE =
         0x530000000000000000000000000000000000000f;
+
+    /**
+     * @notice Address of the MORPH_TOKEN predeploy.
+     */
+    address internal constant MORPH_TOKEN =
+        0x5300000000000000000000000000000000000010;
+
+    /**
+     * @notice Address of the RECORD predeploy.
+     */
+    address internal constant RECORD =
+        0x5300000000000000000000000000000000000011;
+
+    /**
+     * @notice Address of the DISTRIBUTE predeploy.
+     */
+    address internal constant DISTRIBUTE =
+        0x5300000000000000000000000000000000000012;
+
+    /**
+     * @notice Address of the L2_STAKING predeploy.
+     */
+    address internal constant L2_STAKING =
+        0x5300000000000000000000000000000000000013;
 }

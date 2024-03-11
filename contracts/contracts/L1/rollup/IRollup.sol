@@ -117,14 +117,14 @@ interface IRollup {
 
     /// @notice Commit a batch of transactions on layer 1.
     ///
-    /// @param batchData The BatchData struct
-    /// @param version The sequencer version
-    /// @param sequencerIndex The sequencers index
-    /// @param signature The BLS signature
+    /// @param batchData        The BatchData struct
+    /// @param signedSequencers The signed sequencers
+    /// @param sequencerSet     The sequencer set
+    /// @param signature        The BLS signature
     function commitBatch(
         BatchData calldata batchData,
-        uint256 version,
-        uint256[] memory sequencerIndex,
+        address[] memory signedSequencers,
+        address[] memory sequencerSet,
         bytes memory signature
     ) external payable;
 

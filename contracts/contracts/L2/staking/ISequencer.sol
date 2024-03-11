@@ -3,10 +3,10 @@ pragma solidity =0.8.24;
 
 import "../../libraries/common/Types.sol";
 
-interface IL2Sequencer {
+interface ISequencer {
     function updateSequencers(
         uint256 version,
-        Types.SequencerInfo[] memory _sequencers
+        Types.StakerInfo[] memory _sequencers
     ) external;
 
     /**
@@ -53,7 +53,7 @@ interface IL2Sequencer {
      */
     function getSequencerInfos(
         bool previous
-    ) external view returns (Types.SequencerInfo[] memory);
+    ) external view returns (Types.StakerInfo[] memory);
 
     /**
      * @notice get address is in sequencers set

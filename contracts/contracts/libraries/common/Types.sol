@@ -7,13 +7,13 @@ pragma solidity =0.8.24;
  */
 library Types {
     /**
-     * @notice Struct representing a sequencer information.
+     * @notice Struct representing a staker information.
      *
      * @custom:field addr   Address of the sequencer.
      * @custom:field tmKey  Tendermint key(ED25519) of the seuqencer.
      * @custom:field blsKey BLS key of the seuqencer.
      */
-    struct SequencerInfo {
+    struct StakerInfo {
         address addr;
         bytes32 tmKey;
         bytes blsKey;

@@ -9,11 +9,9 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {BatchHeaderV0Codec} from "../../libraries/codec/BatchHeaderV0Codec.sol";
 import {ChunkCodec} from "../../libraries/codec/ChunkCodec.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
-import {ISubmitter} from "../../L2/submitter/ISubmitter.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
-import {IL1Sequencer} from "../staking/IL1Sequencer.sol";
-import {IStaking} from "../staking/IStaking.sol";
+import {IL1Staking} from "../staking/IL1Staking.sol";
 
 // solhint-disable no-inline-assembly
 // solhint-disable reason-string
@@ -26,7 +24,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      *************/
 
     /// @notice The zero versioned hash.
-    bytes32 public ZEROVERSIONEDHASH;
+    bytes32 public ZERO_VERSIONED_HASH;
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
@@ -35,9 +33,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * @notice Messenger contract on this domain.
      */
     address public immutable MESSENGER;
-
-    // l1 sequencer contract
-    address public l1SequencerContract;
 
     // l1 staking contract
     address public l1StakingContract;
@@ -77,7 +72,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
         bytes32 dataHash;
-        uint256[] sequencerIndex;
+        address[] sequencers;
         uint256 l1MessagePopped;
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
@@ -132,10 +127,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Function Modifiers *
      **********************/
 
-    modifier OnlySequencer() {
+    modifier OnlyStaker() {
         // @note In the decentralized mode, it should be only called by a list of validator.
         require(
-            IL1Sequencer(l1SequencerContract).isSequencer(_msgSender()),
+            IL1Staking(l1StakingContract).isStaker(_msgSender()),
             "caller not sequencer"
         );
         _;
@@ -161,7 +156,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     function initialize(
-        address _l1SequencerContract,
         address _l1StakingContract,
         address _messageQueue,
         address _verifier,
@@ -176,14 +170,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         __Ownable_init();
 
         require(
-            _l1SequencerContract != address(0),
-            "invalid l1 sequencer contract"
-        );
-        require(
             _l1StakingContract != address(0),
             "invalid l1 staking contract"
         );
-        l1SequencerContract = _l1SequencerContract;
         l1StakingContract = _l1StakingContract;
 
         messageQueue = _messageQueue;
@@ -193,7 +182,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
 
-        ZEROVERSIONEDHASH = bytes32(
+        ZERO_VERSIONED_HASH = bytes32(
             hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
         );
 
@@ -255,7 +244,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "nonzero parent batch hash"
         );
 
-        _batchHash = keccak256(abi.encodePacked(_batchHash, ZEROVERSIONEDHASH));
+        _batchHash = keccak256(
+            abi.encodePacked(_batchHash, ZERO_VERSIONED_HASH)
+        );
 
         committedBatchStores[0] = BatchStore(
             _batchHash,
@@ -265,12 +256,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _postStateRoot,
             _withdrawalRoot,
             _dataHash,
-            new uint256[](0),
+            new address[](0),
             0,
             0,
             "",
             0,
-            ZEROVERSIONEDHASH
+            ZERO_VERSIONED_HASH
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -281,15 +272,15 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     function commitBatch(
         BatchData calldata batchData,
-        uint256 version,
-        uint256[] memory sequencerIndex,
+        address[] memory signedSequencers,
+        address[] memory sequencerSet,
         bytes memory signature
-    ) external payable override OnlySequencer whenNotPaused {
+    ) external payable override OnlyStaker whenNotPaused {
         // verify bls signature
         require(
-            IL1Sequencer(l1SequencerContract).verifySignature(
-                version,
-                sequencerIndex,
+            IL1Staking(l1StakingContract).verifySignature(
+                signedSequencers,
+                sequencerSet,
                 signature
             ),
             "the signature verification failed"
@@ -307,13 +298,13 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "new state root is zero"
         );
 
-        _commitBatch(batchData, _chunksLength, sequencerIndex);
+        _commitBatch(batchData, _chunksLength, signedSequencers);
     }
 
     function _commitBatch(
         BatchData calldata batchData,
         uint256 _chunksLength,
-        uint256[] memory sequencerIndex
+        address[] memory signedSequencers
     ) internal {
         // The overall memory layout in this function is organized as follows
         // +---------------------+-------------------+------------------+
@@ -426,7 +417,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         bytes32 _blobVersionedhash = blobhash(0);
         if (_blobVersionedhash == bytes32(0)) {
-            _blobVersionedhash = ZEROVERSIONEDHASH;
+            _blobVersionedhash = ZERO_VERSIONED_HASH;
         }
         _batchHash = keccak256(
             abi.encodePacked(_batchHash, _blobVersionedhash)
@@ -440,7 +431,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.postStateRoot,
             batchData.withdrawalRoot,
             _dataHash,
-            sequencerIndex,
+            signedSequencers,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
@@ -531,7 +522,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // check challenge amount
         require(
-            msg.value >= IStaking(l1StakingContract).limit(),
+            msg.value >= IL1Staking(l1StakingContract).STAKING_VALUE(),
             "insufficient value"
         );
         challengerDeposits[_msgSender()] += msg.value;
@@ -560,9 +551,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function proveState(
         uint64 _batchIndex,
         bytes calldata _aggrProof,
-        bytes calldata _kzgData,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        bytes calldata _kzgData
     ) external {
         // Ensure challenge exists and is not finished
         require(
@@ -580,10 +569,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         ) {
             _challengerWin(
                 _batchIndex,
-                committedBatchStores[_batchIndex].sequencerIndex,
-                "Timeout",
-                _minGasLimit,
-                _gasFee
+                committedBatchStores[_batchIndex].sequencers,
+                "Timeout"
             );
         } else {
             // Check validity of proof
@@ -660,20 +647,13 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     function _challengerWin(
         uint64 batchIndex,
-        uint256[] memory sequencerIndex,
-        string memory _type,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        address[] memory sequencers,
+        string memory _type
     ) internal {
         address challenger = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         _transfer(challenger, challengeDeposit);
-        IL1Sequencer(l1StakingContract).slash(
-            sequencerIndex,
-            challenger,
-            _minGasLimit,
-            _gasFee
-        );
+        IL1Staking(l1StakingContract).slash(sequencers, challenger);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
 
