@@ -237,9 +237,9 @@ func (sr *SR) finalize() error {
 		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
 	}
 	opts.NoSend = true
-	tx, err := sr.Rollup.FinalizeBatchsByNum(opts, big.NewInt(int64(finalizeCnt)))
+	tx, err := sr.Rollup.FinalizeBatchesByNum(opts, big.NewInt(int64(finalizeCnt)))
 	if err != nil {
-		return fmt.Errorf("craft FinalizeBatchsByNum tx failed:%v", err)
+		return fmt.Errorf("craft FinalizeBatchesByNum tx failed:%v", err)
 	}
 	if uint64(tx.Size()) > txMaxSize {
 		return core.ErrOversizedData

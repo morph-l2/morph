@@ -18,7 +18,7 @@ type IRollup interface {
 	// MINDEPOSIT(opts *bind.CallOpts) (*big.Int, error)
 	// Deposits(opts *bind.CallOpts, arg0 common.Address) (*big.Int, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
-	FinalizeBatchsByNum(opts *bind.TransactOpts, num *big.Int) (*types.Transaction, error)
+	FinalizeBatchesByNum(opts *bind.TransactOpts, num *big.Int) (*types.Transaction, error)
 	FINALIZATIONPERIODSECONDS(opts *bind.CallOpts) (*big.Int, error)
 	CommittedBatchStores(opts *bind.CallOpts, arg0 *big.Int) (struct {
 		BatchHash              [32]byte
@@ -32,7 +32,7 @@ type IRollup interface {
 		TotalL1MessagePopped   *big.Int
 		SkippedL1MessageBitmap []byte
 		BlockNumber            *big.Int
-		BlobVersionedhash      [32]byte
+		BlobVersionedHash      [32]byte
 	}, error)
 }
 
