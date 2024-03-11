@@ -1,6 +1,6 @@
 use crate::abi::gas_price_oracle_abi::GasPriceOracle;
 use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
-use crate::blob::Blob;
+use crate::blob::{kzg_to_versioned_hash, Blob, PREV_ROLLUP_L1_BLOCK};
 use crate::blob_client;
 use crate::metrics::ORACLE_SERVICE_METRICS;
 use crate::typed_tx::TypedTransaction;
@@ -67,6 +67,17 @@ pub async fn update(
             return;
         }
     };
+
+    let current_rollup_l1_block = log.block_number.unwrap_or(U64::from(0)).as_u64();
+    if current_rollup_l1_block <= *PREV_ROLLUP_L1_BLOCK.lock().await {
+        log::info!(
+            "No new batch has been committed, latest blocknum ={:#?}",
+            latest
+        );
+        return;
+    } else {
+        *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
+    }
 
     let overhead =
         match overhead_inspect(&l1_provider, log.transaction_hash.unwrap(), U64::from(100)).await {
@@ -238,8 +249,6 @@ async fn overhead_inspect(
     Some(overhead as usize)
 }
 
-use std::convert::TryInto;
-
 async fn calculate_l2_data_gas_from_blob(
     tx_hash: TxHash,
     block_hash: TxHash,
@@ -294,8 +303,20 @@ async fn calculate_l2_data_gas_from_blob(
             .iter()
             .find(|sidecar| sidecar["index"] == i_h.index)
         {
-            let versioned_hash = i_h.hash;
-            //TODO KZGToVersionedHash
+            let commitment = sidecar["kzg_commitment"]
+                .as_str()
+                .ok_or_else(|| "Failed to fetch kzg commitment from blob".to_string())?;
+            let commitment_data: Vec<u8> = hex::decode(commitment).map_err(|e| e.to_string())?;
+            let versioned_hash_actual = kzg_to_versioned_hash(&commitment_data);
+            if i_h.hash != versioned_hash_actual {
+                log::error!(
+                    "expected hash {:?} for blob at index {:?} but got {:?}",
+                    i_h.hash,
+                    i_h.index,
+                    versioned_hash_actual
+                );
+                return Ok(None);
+            }
 
             let blob_value = sidecar["blob"]
                 .as_str()
@@ -578,4 +599,3 @@ async fn test_overhead_inspect() {
         }
     };
 }
-

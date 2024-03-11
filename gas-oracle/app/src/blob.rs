@@ -1,4 +1,15 @@
+use lazy_static::lazy_static;
 use std::fmt;
+use tokio::sync::Mutex;
+
+use ethers::{
+    core::k256::sha2::{Digest, Sha256},
+    types::H256,
+};
+
+lazy_static! {
+    pub static ref PREV_ROLLUP_L1_BLOCK: Mutex<u64> = Mutex::new(0);
+}
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
 
@@ -15,7 +26,7 @@ impl Blob {
                     field_element: i,
                 });
             }
-            
+
             data[i * 31..i * 31 + 31].copy_from_slice(&self.0[i * 32 + 1..i * 32 + 32]);
         }
 
@@ -86,6 +97,13 @@ impl fmt::Display for BlobError {
 }
 
 impl std::error::Error for BlobError {}
+
+pub fn kzg_to_versioned_hash(commitment: &[u8]) -> H256 {
+    let mut hasher = Sha256::new();
+    hasher.update(commitment);
+    let hash = hasher.finalize();
+    H256::from_slice(&hash)
+}
 
 #[test]
 fn test_decode_raw_tx_payload_success() {
