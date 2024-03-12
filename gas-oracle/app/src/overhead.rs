@@ -77,7 +77,7 @@ pub async fn update(
         return;
     }
 
-    let overhead = match overhead_inspect(
+    let last_overhead = match overhead_inspect(
         &l1_provider,
         log.transaction_hash.unwrap(),
         log.block_number.unwrap(),
@@ -102,12 +102,15 @@ pub async fn update(
             return;
         }
     };
-    log::info!("current overhead is: {:#?}", current_overhead.as_u128());
+    log::info!(
+        "current overhead on l2 is: {:#?}",
+        current_overhead.as_u128()
+    );
     ORACLE_SERVICE_METRICS
         .overhead
         .set(i64::try_from(current_overhead).unwrap_or(-1));
 
-    let abs_diff = U256::from(overhead).abs_diff(current_overhead);
+    let abs_diff = U256::from(last_overhead).abs_diff(current_overhead);
     if abs_diff < U256::from(overhead_threshold) {
         log::info!(
             "overhead change value below threshold, change value = : {:#?}",
@@ -117,7 +120,7 @@ pub async fn update(
     }
 
     // Step3. update overhead
-    let tx = l2_oracle.set_overhead(U256::from(overhead)).legacy();
+    let tx = l2_oracle.set_overhead(U256::from(last_overhead)).legacy();
     let rt = tx.send().await;
     match rt {
         Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
@@ -150,8 +153,7 @@ async fn overhead_inspect(
         }
     };
 
-    log::info!("rollup tx hash: {:#?}", tx_hash);
-    log::info!("rollup blocknum = {:#?}", block_num);
+    log::info!("rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
 
     //Step2. Parse transaction data
     let data = tx.input;
@@ -176,6 +178,7 @@ async fn overhead_inspect(
     let chunks: Vec<Bytes> = param.batch_data.chunks;
     let l2_txn = extract_txn_num(chunks).unwrap_or(0);
 
+    //Step3. Calculate l2 data gas
     let l2_data_gas =
         match calculate_l2_data_gas_from_blob(tx_hash, tx.block_hash.unwrap(), block_num, l2_txn)
             .await
@@ -183,7 +186,7 @@ async fn overhead_inspect(
             Ok(Some(value)) => value,
             Ok(None) => return None, // Waiting for the next L1 block.
             Err(e) => {
-                log::error!("calculate_l2_data_gas_from_blob error: {:?}", e);
+                log::error!("calculate_l2_data_gas_from_blob error: {:#?}", e);
                 return None;
             }
         };
@@ -192,7 +195,7 @@ async fn overhead_inspect(
         match blob_client::query_blob_tx_receipt(hex::encode_prefixed(tx_hash).as_str()).await {
             Some(r) => r,
             None => {
-                log::error!("l1_provider.get_transaction_receipt err");
+                log::error!("query_blob_tx_receipt err");
                 return None;
             }
         };
@@ -203,7 +206,7 @@ async fn overhead_inspect(
             .unwrap_or("0x0"),
     )
     .unwrap_or(U256::from(0));
-    log::info!("rollup_gas_used: {:?}", rollup_gas_used);
+    log::info!("rollup_calldata_gas_used: {:?}", rollup_gas_used);
 
     if rollup_gas_used.is_zero() {
         log::error!(
@@ -226,8 +229,11 @@ async fn overhead_inspect(
     )
     .unwrap_or(U256::from(0));
 
-    log::info!("blob_gas_price: {:?}", blob_gas_price);
-    log::info!("effective_gas_price: {:?}", effective_gas_price);
+    log::info!(
+        "blob_gas_price: {:?}, calldata_gas_price: {:?}",
+        blob_gas_price,
+        effective_gas_price
+    );
 
     //Step4. Calculate overhead
     let x = blob_gas_price.as_u128() as f64 / effective_gas_price.as_u128() as f64;
@@ -243,7 +249,15 @@ async fn overhead_inspect(
     } else {
         sys_gas / txn_per_batch_expect
     };
-    log::info!("overhead: {:?}", overhead);
+
+    let blob_fee_ratio =
+        (blob_gas_used * x).ceil() / ((rollup_gas_used * effective_gas_price).as_usize() as f64);
+
+    log::info!(
+        "overhead: {:?},  blob gasFee ratio: {:?}",
+        overhead,
+        format!("{:.2}", blob_fee_ratio)
+    );
 
     // Set metric
     ORACLE_SERVICE_METRICS.txn_per_batch.set(l2_txn as f64);
@@ -335,44 +349,43 @@ fn extract_tx_payload(
                 .unwrap_or(1000)
                 == i_h.index
         }) {
-            let commitment = sidecar["kzg_commitment"]
+            let kzg_commitment = sidecar["kzg_commitment"]
                 .as_str()
                 .ok_or_else(|| "Failed to fetch kzg commitment from blob".to_string())?;
-            
-            let commitment_data: Vec<u8> = hex::decode(commitment).map_err(|e| e.to_string())?;
-            let versioned_hash_actual = kzg_to_versioned_hash(&commitment_data);
+            let decoded_commitment: Vec<u8> =
+                hex::decode(kzg_commitment).map_err(|e| e.to_string())?;
+            let actual_versioned_hash = kzg_to_versioned_hash(&decoded_commitment);
 
-            if i_h.hash != versioned_hash_actual {
+            if i_h.hash != actual_versioned_hash {
                 log::error!(
                     "expected hash {:?} for blob at index {:?} but got {:?}",
                     i_h.hash,
                     i_h.index,
-                    versioned_hash_actual
+                    actual_versioned_hash
                 );
                 return Err("Invalid versionedHash for Blob".to_string());
             }
 
-            let blob_value = sidecar["blob"]
+            let encoded_blob = sidecar["blob"]
                 .as_str()
                 .ok_or_else(|| format!("Missing blob value in blob_hash: {:?}", i_h.hash))?;
-
-            let blob_bytes = hex::decode(blob_value).map_err(|e| {
+            let decoded_blob = hex::decode(encoded_blob).map_err(|e| {
                 format!(
                     "Failed to decode blob, blob_hash: {:?}, err: {}",
                     i_h.hash, e
                 )
             })?;
 
-            if blob_bytes.len() != MAX_BLOB_TX_PAYLOAD_SIZE {
+            if decoded_blob.len() != MAX_BLOB_TX_PAYLOAD_SIZE {
                 return Err("Invalid length for Blob".to_string());
             }
 
-            let array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = blob_bytes.try_into().unwrap();
-            let blob = Blob(array);
-            let mut data = blob
+            let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
+            let blob_struct = Blob(blob_array);
+            let mut decoded_payload = blob_struct
                 .decode_raw_tx_payload()
                 .map_err(|e| format!("Failed to decode blob tx payload: {}", e))?;
-            tx_payload.append(&mut data);
+            tx_payload.append(&mut decoded_payload);
         } else {
             return Err(format!(
                 "no blob in response matches desired index: {}",
@@ -425,8 +438,11 @@ fn extract_txn_num(chunks: Vec<Bytes>) -> Option<u64> {
             chunk_bn.push(block_num.as_u64());
         }
     }
-    log::info!("total_txn_in_batch: {:#?}", txn_in_batch);
-    log::info!("l1_txn_in_batch: {:#?}", l1_txn_in_batch);
+    log::debug!(
+        "total_txn_in_batch: {:#?}, l1_txn_in_batch: {:#?}",
+        txn_in_batch,
+        l1_txn_in_batch
+    );
     if txn_in_batch < l1_txn_in_batch {
         log::error!("total_txn_in_batch < l1_txn_in_batch");
         return None;
