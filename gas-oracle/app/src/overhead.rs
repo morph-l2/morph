@@ -320,6 +320,10 @@ async fn calculate_l2_data_gas_from_blob(
                 .ok_or_else(|| "Failed to fetch kzg commitment from blob".to_string())?;
             let commitment_data: Vec<u8> = hex::decode(commitment).map_err(|e| e.to_string())?;
             let versioned_hash_actual = kzg_to_versioned_hash(&commitment_data);
+
+            log::info!("versioned_hash_actual ={:#?}", versioned_hash_actual);
+            log::info!("versioned_hash_expected ={:#?}", i_h.hash);
+
             if i_h.hash != versioned_hash_actual {
                 log::error!(
                     "expected hash {:?} for blob at index {:?} but got {:?}",

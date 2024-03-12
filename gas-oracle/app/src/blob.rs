@@ -101,7 +101,8 @@ impl std::error::Error for BlobError {}
 pub fn kzg_to_versioned_hash(commitment: &[u8]) -> H256 {
     let mut hasher = Sha256::new();
     hasher.update(commitment);
-    let hash = hasher.finalize();
+    let mut hash = hasher.finalize();
+    hash[0] = 0x01;
     H256::from_slice(&hash)
 }
 
