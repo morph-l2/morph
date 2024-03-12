@@ -222,22 +222,26 @@ var (
 	}
 
 	LogFilename = cli.StringFlag{
-		Name:  "log.filename",
-		Usage: "The target file for writing logs, backup log files will be retained in the same directory.",
+		Name:   "log.filename",
+		Usage:  "The target file for writing logs, backup log files will be retained in the same directory.",
+		EnvVar: prefixEnvVar("LOG_FILENAME"),
 	}
 	LogFileMaxSize = cli.IntFlag{
-		Name:  "log.maxsize",
-		Usage: "The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes. It is used only when log.filename is provided.",
-		Value: 100,
+		Name:   "log.maxsize",
+		Usage:  "The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes. It is used only when log.filename is provided.",
+		Value:  100,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_SIZE"),
 	}
-	LogMaxAge = cli.IntFlag{
-		Name:  "log.maxage",
-		Usage: "The maximum number of days to retain old log files based on the timestamp encoded in their filename. It defaults to 30 days. It is used only when log.filename is provided.",
-		Value: 30,
+	LogFileMaxAge = cli.IntFlag{
+		Name:   "log.maxage",
+		Usage:  "The maximum number of days to retain old log files based on the timestamp encoded in their filename. It defaults to 30 days. It is used only when log.filename is provided.",
+		Value:  30,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_AGE"),
 	}
 	LogCompress = cli.BoolFlag{
-		Name:  "log.compress",
-		Usage: "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
+		Name:   "log.compress",
+		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
+		EnvVar: prefixEnvVar("LOG_COMPRESS"),
 	}
 
 	// metrics
@@ -308,7 +312,7 @@ var Flags = []cli.Flag{
 	LogFormat,
 	LogFilename,
 	LogFileMaxSize,
-	LogMaxAge,
+	LogFileMaxAge,
 	LogCompress,
 
 	// metrics

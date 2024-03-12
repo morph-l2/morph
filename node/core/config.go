@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	tmconfig "github.com/tendermint/tendermint/config"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/urfave/cli"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type Config struct {
@@ -54,7 +54,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if maxSize < 1 {
 			return fmt.Errorf("wrong log.maxsize set: %d", maxSize)
 		}
-		maxAge := ctx.GlobalInt(flags.LogMaxAge.Name)
+		maxAge := ctx.GlobalInt(flags.LogFileMaxAge.Name)
 		if maxAge < 1 {
 			return fmt.Errorf("wrong log.maxage set: %d", maxAge)
 		}
