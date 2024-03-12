@@ -115,11 +115,12 @@ pub async fn update(
 
     // Step3. update overhead
     let tx = l2_oracle.set_overhead(U256::from(overhead)).legacy();
-    let rt = tx.send().await;
-    match rt {
-        Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
-        Err(e) => log::error!("update overhead error: {:#?}", e),
-    }
+    log::info!("set_overhead can been sent");
+    // let rt = tx.send().await;
+    // match rt {
+    //     Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
+    //     Err(e) => log::error!("update overhead error: {:#?}", e),
+    // }
 }
 
 async fn overhead_inspect(
@@ -300,29 +301,18 @@ async fn calculate_l2_data_gas_from_blob(
     let mut tx_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
-            log::info!(
-                "sidecar_index {:?}",
-                sidecar["index"]
-                    .as_str()
-                    .unwrap_or("1000")
-                    .parse::<u64>()
-                    .unwrap_or(1000)
-            );
-            return sidecar["index"]
+            sidecar["index"]
                 .as_str()
                 .unwrap_or("1000")
                 .parse::<u64>()
                 .unwrap_or(1000)
-                == i_h.index;
+                == i_h.index
         }) {
             let commitment = sidecar["kzg_commitment"]
                 .as_str()
                 .ok_or_else(|| "Failed to fetch kzg commitment from blob".to_string())?;
             let commitment_data: Vec<u8> = hex::decode(commitment).map_err(|e| e.to_string())?;
             let versioned_hash_actual = kzg_to_versioned_hash(&commitment_data);
-
-            log::info!("versioned_hash_actual ={:#?}", versioned_hash_actual);
-            log::info!("versioned_hash_expected ={:#?}", i_h.hash);
 
             if i_h.hash != versioned_hash_actual {
                 log::error!(
@@ -331,7 +321,7 @@ async fn calculate_l2_data_gas_from_blob(
                     i_h.index,
                     versioned_hash_actual
                 );
-                return Ok(None);
+                return Err("Invalid versionedHash for Blob".to_string());
             }
 
             let blob_value = sidecar["blob"]

@@ -92,13 +92,15 @@ async fn update_base_fee(
     if l1_base_fee > U256::from(0) && actual_change > expected_change {
         // Set l1_base_fee for l2.
         let tx = l2_oracle.set_l1_base_fee(l1_base_fee).legacy();
-        let rt = tx.send().await;
-        match rt {
-            Ok(info) => {
-                log::info!("tx of set_l1_base_fee has been sent: {:#?}", info.tx_hash());
-            }
-            Err(e) => log::error!("set_l1_base_fee error: {:#?}", e),
-        }
+        log::info!("set_l1_base_fee can been sent");
+
+        // let rt = tx.send().await;
+        // match rt {
+        //     Ok(info) => {
+        //         log::info!("tx of set_l1_base_fee has been sent: {:#?}", info.tx_hash());
+        //     }
+        //     Err(e) => log::error!("set_l1_base_fee error: {:#?}", e),
+        // }
     }
 }
 
@@ -124,15 +126,17 @@ async fn update_scalar(
         let scalar_expect = (DEFAULT_SCALAR * scalar_ratio_from_l1).ceil() as u128;
         std::thread::sleep(Duration::from_millis(4000));
         let tx = l2_oracle.set_scalar(U256::from(scalar_expect)).legacy();
-        let rt = tx.send().await;
-        match rt {
-            Ok(info) => {
-                log::info!("tx of set_scalar has been sent: {:#?}", info.tx_hash());
-                #[rustfmt::skip]
-                ORACLE_SERVICE_METRICS.scalar_ratio.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
-            }
-            Err(e) => log::error!("set scalar error: {:#?}", e),
-        }
+        log::info!("set_scalar can been sent");
+
+        // let rt = tx.send().await;
+        // match rt {
+        //     Ok(info) => {
+        //         log::info!("tx of set_scalar has been sent: {:#?}", info.tx_hash());
+        //         #[rustfmt::skip]
+        //         ORACLE_SERVICE_METRICS.scalar_ratio.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
+        //     }
+        //     Err(e) => log::error!("set scalar error: {:#?}", e),
+        // }
     }
 }
 
