@@ -118,12 +118,11 @@ pub async fn update(
 
     // Step3. update overhead
     let tx = l2_oracle.set_overhead(U256::from(overhead)).legacy();
-    log::info!("set_overhead can been sent");
-    // let rt = tx.send().await;
-    // match rt {
-    //     Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
-    //     Err(e) => log::error!("update overhead error: {:#?}", e),
-    // }
+    let rt = tx.send().await;
+    match rt {
+        Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
+        Err(e) => log::error!("update overhead error: {:#?}", e),
+    }
     *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
 }
 
@@ -175,9 +174,6 @@ async fn overhead_inspect(
         }
     };
     let chunks: Vec<Bytes> = param.batch_data.chunks;
-    if chunks.is_empty() {
-        return None;
-    }
     let l2_txn = extract_txn_num(chunks).unwrap_or(0);
 
     let l2_data_gas =
@@ -290,7 +286,10 @@ async fn calculate_l2_data_gas_from_blob(
 
     let prev_beacon_root = match next_block["result"]["parentBeaconBlockRoot"].as_str() {
         Some(r) => r,
-        None => return Ok(None), // Waiting for the next L1 block.
+        None => {
+            log::error!("Next block not produce");
+            return Ok(None);
+        } // Waiting for the next L1 block.
     };
 
     let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
@@ -302,6 +301,30 @@ async fn calculate_l2_data_gas_from_blob(
         .as_array()
         .ok_or_else(|| "query blob_sidecars empty".to_string())?;
 
+    let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
+
+    let blob_data_gas = data_gas_cost(&tx_payload);
+    log::info!("tx_payload_in_blob gas: {}", blob_data_gas);
+
+    let (txs, position) = decode_transactions_from_blob(&tx_payload, l2_txn);
+
+    let l2_data_gas = data_gas_cost(&tx_payload[0..position as usize]);
+    log::info!(
+        "decode transactions from blob, l2_data_gas: {:#?} , txs.len(): {:#?}",
+        l2_data_gas,
+        txs.len()
+    );
+
+    if let Some(tx) = txs.last() {
+        log_chain_id(tx);
+    }
+    Ok(Some(l2_data_gas))
+}
+
+fn extract_tx_payload(
+    indexed_hashes: Vec<IndexedBlobHash>,
+    sidecars: &Vec<Value>,
+) -> Result<Vec<u8>, String> {
     let mut tx_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
@@ -315,6 +338,7 @@ async fn calculate_l2_data_gas_from_blob(
             let commitment = sidecar["kzg_commitment"]
                 .as_str()
                 .ok_or_else(|| "Failed to fetch kzg commitment from blob".to_string())?;
+            
             let commitment_data: Vec<u8> = hex::decode(commitment).map_err(|e| e.to_string())?;
             let versioned_hash_actual = kzg_to_versioned_hash(&commitment_data);
 
@@ -330,10 +354,13 @@ async fn calculate_l2_data_gas_from_blob(
 
             let blob_value = sidecar["blob"]
                 .as_str()
-                .ok_or_else(|| format!("Missing blob value in tx_hash: {:?}", tx_hash))?;
+                .ok_or_else(|| format!("Missing blob value in blob_hash: {:?}", i_h.hash))?;
 
             let blob_bytes = hex::decode(blob_value).map_err(|e| {
-                format!("Failed to decode blob, tx_hash: {:?}, err: {}", tx_hash, e)
+                format!(
+                    "Failed to decode blob, blob_hash: {:?}, err: {}",
+                    i_h.hash, e
+                )
             })?;
 
             if blob_bytes.len() != MAX_BLOB_TX_PAYLOAD_SIZE {
@@ -344,7 +371,7 @@ async fn calculate_l2_data_gas_from_blob(
             let blob = Blob(array);
             let mut data = blob
                 .decode_raw_tx_payload()
-                .map_err(|e| format!("Failed to decode raw tx payload: {}", e))?;
+                .map_err(|e| format!("Failed to decode blob tx payload: {}", e))?;
             tx_payload.append(&mut data);
         } else {
             return Err(format!(
@@ -353,24 +380,7 @@ async fn calculate_l2_data_gas_from_blob(
             ));
         }
     }
-
-    let blob_data_gas = data_gas_cost(&tx_payload);
-    log::info!("tx_payload_in_blob gas: {}", blob_data_gas);
-
-    let (txs, position) = decode_transactions_from_blob(&tx_payload, l2_txn);
-
-    let l2_data_gas = data_gas_cost(&tx_payload[0..position as usize]);
-    log::info!(
-        "decode transactions from blob, position: {:#?}, l2_data_gas: {:#?} , txs.len(): {:#?}",
-        position,
-        l2_data_gas,
-        txs.len()
-    );
-
-    if let Some(tx) = txs.last() {
-        log_chain_id(tx);
-    }
-    Ok(Some(l2_data_gas))
+    Ok(tx_payload)
 }
 
 fn log_chain_id(tx: &TypedTransaction) {
