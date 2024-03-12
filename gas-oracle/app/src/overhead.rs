@@ -300,8 +300,20 @@ async fn calculate_l2_data_gas_from_blob(
     let mut tx_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
-            log::info!("sidecar_index {:?}", sidecar["index"].as_u64().unwrap());
-            return sidecar["index"].as_u64().unwrap_or(1000) == i_h.index;
+            log::info!(
+                "sidecar_index {:?}",
+                sidecar["index"]
+                    .as_str()
+                    .unwrap_or("1000")
+                    .parse::<u64>()
+                    .unwrap_or(1000)
+            );
+            return sidecar["index"]
+                .as_str()
+                .unwrap_or("1000")
+                .parse::<u64>()
+                .unwrap_or(1000)
+                == i_h.index;
         }) {
             let commitment = sidecar["kzg_commitment"]
                 .as_str()
