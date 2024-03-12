@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
 	"strings"
@@ -41,9 +42,34 @@ func DefaultConfig() *Config {
 
 func (c *Config) SetCliContext(ctx *cli.Context) error {
 	// logger setting
-	logger := tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))
+	output := io.Writer(os.Stderr)
+	if ctx.GlobalIsSet(flags.LogFilename.Name) {
+		logFilename := ctx.GlobalString(flags.LogFilename.Name)
+		f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+		if err != nil {
+			return fmt.Errorf("wrong log.filename set: %d", err)
+		}
+		f.Close()
+		maxSize := ctx.GlobalInt(flags.LogFileMaxSize.Name)
+		if maxSize < 1 {
+			return fmt.Errorf("wrong log.maxsize set: %d", maxSize)
+		}
+		maxAge := ctx.GlobalInt(flags.LogMaxAge.Name)
+		if maxAge < 1 {
+			return fmt.Errorf("wrong log.maxage set: %d", maxAge)
+		}
+		logFile := &lumberjack.Logger{
+			Filename: logFilename,
+			MaxSize:  maxSize, // megabytes
+			MaxAge:   maxAge,  // days
+			Compress: ctx.GlobalBool(flags.LogCompress.Name),
+		}
+		output = io.MultiWriter(output, logFile)
+	}
+
+	logger := tmlog.NewTMLogger(tmlog.NewSyncWriter(output))
 	if format := ctx.GlobalString(flags.LogFormat.Name); len(format) > 0 && format == tmconfig.LogFormatJSON {
-		logger = tmlog.NewTMJSONLogger(tmlog.NewSyncWriter(os.Stdout))
+		logger = tmlog.NewTMJSONLogger(tmlog.NewSyncWriter(output))
 	}
 
 	logLevel := "info"
