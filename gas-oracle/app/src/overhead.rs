@@ -77,17 +77,22 @@ pub async fn update(
         return;
     }
 
-    let overhead =
-        match overhead_inspect(&l1_provider, log.transaction_hash.unwrap(), U64::from(100)).await {
-            Some(overhead) => overhead,
-            None => {
-                log::info!(
-                    "overhead is none, skip update, tx_hash ={:#?}",
-                    log.transaction_hash.unwrap()
-                );
-                return;
-            }
-        };
+    let overhead = match overhead_inspect(
+        &l1_provider,
+        log.transaction_hash.unwrap(),
+        log.block_number.unwrap(),
+    )
+    .await
+    {
+        Some(overhead) => overhead,
+        None => {
+            log::info!(
+                "overhead is none, skip update, tx_hash ={:#?}",
+                log.transaction_hash.unwrap()
+            );
+            return;
+        }
+    };
 
     // Step2. fetch current overhead on l2.
     let current_overhead = match l2_oracle.overhead().await {
@@ -120,7 +125,6 @@ pub async fn update(
     //     Err(e) => log::error!("update overhead error: {:#?}", e),
     // }
     *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
-
 }
 
 async fn overhead_inspect(
