@@ -75,8 +75,6 @@ pub async fn update(
             latest
         );
         return;
-    } else {
-        *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
     }
 
     let overhead =
@@ -121,6 +119,8 @@ pub async fn update(
     //     Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
     //     Err(e) => log::error!("update overhead error: {:#?}", e),
     // }
+    *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
+
 }
 
 async fn overhead_inspect(
