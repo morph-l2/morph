@@ -37,7 +37,7 @@ const (
 	minGasLimit    = 1000
 )
 
-type SR struct {
+type Rollup struct {
 	ctx     context.Context
 	metrics *metrics.Metrics
 
@@ -59,7 +59,7 @@ type SR struct {
 	PriorityRollup bool
 }
 
-func NewSR(
+func NewRollup(
 	ctx context.Context,
 	metrics *metrics.Metrics,
 	l1 iface.Client,
@@ -72,9 +72,9 @@ func NewSR(
 	rollupAddr common.Address,
 	abi *abi.ABI,
 	cfg utils.Config,
-) *SR {
+) *Rollup {
 
-	return &SR{
+	return &Rollup{
 		ctx:     ctx,
 		metrics: metrics,
 
@@ -97,10 +97,7 @@ func NewSR(
 	}
 }
 
-func (sr *SR) Start() {
-	// block node startup during initial sync and print some helpful logs
-	t := time.NewTicker(sr.secondInterval)
-	defer t.Stop()
+func (sr *Rollup) Start() {
 
 	// metrics
 	metrics_query_tick := time.NewTicker(time.Second * 5)
@@ -181,7 +178,7 @@ func (sr *SR) Start() {
 	}
 }
 
-func (sr *SR) finalize() error {
+func (sr *Rollup) finalize() error {
 	log.Info("check finalize")
 	// get last finalized
 	lastFinalized, err := sr.Rollup.LastFinalizedBatchIndex(nil)
@@ -354,7 +351,7 @@ func (sr *SR) finalize() error {
 
 }
 
-func (sr *SR) rollup() error {
+func (sr *Rollup) rollup() error {
 
 	if !sr.PriorityRollup {
 		// is the turn of the submitter
@@ -618,7 +615,7 @@ func (sr *SR) rollup() error {
 	return nil
 }
 
-func (sr *SR) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindings.IRollupBatchSignature, error) {
+func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindings.IRollupBatchSignature, error) {
 	if len(blsSignatures) == 0 {
 		return nil, fmt.Errorf("invalid batch signature")
 	}
@@ -644,7 +641,7 @@ func (sr *SR) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindi
 	return &rollupBatchSignature, nil
 }
 
-func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
+func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	tip, err := sr.L1Client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		return nil, nil, nil, err
@@ -671,7 +668,7 @@ func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	return tip, gasFeeCap, blobFee, nil
 }
 
-func (sr *SR) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
+func (sr *Rollup) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
 	t := time.NewTicker(time.Second)
 	receipt := new(types.Receipt)
 	var err error
@@ -691,13 +688,13 @@ func (sr *SR) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
 	return receipt, nil
 }
 
-func (sr *SR) waitReceiptWithTimeout(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
+func (sr *Rollup) waitReceiptWithTimeout(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
 	ctx, cancel := context.WithTimeout(sr.ctx, time)
 	defer cancel()
 	return sr.waitReceiptWithCtx(ctx, txHash)
 }
 
-func (sr *SR) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	t := time.NewTicker(time.Second)
 	receipt := new(types.Receipt)
 	var err error
@@ -724,7 +721,7 @@ func (sr *SR) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*type
 }
 
 // Init is run before the submitter to check whether the submitter can be started
-func (sr *SR) Init() error {
+func (sr *Rollup) Init() error {
 	isSequencer, _, err := sr.L2Sequencer.InSequencersSet(
 		&bind.CallOpts{
 			Pending: false,
@@ -743,7 +740,7 @@ func (sr *SR) Init() error {
 	return nil
 }
 
-func (sr *SR) walletAddr() string {
+func (sr *Rollup) walletAddr() string {
 	return crypto.PubkeyToAddress(sr.privKey.PublicKey).Hex()
 }
 
@@ -811,7 +808,7 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 	return newTx, nil
 }
 
-func (sr *SR) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
+func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
 	if tx == nil {
 		return nil, nil, errors.New("nil tx")
 	}

@@ -59,4 +59,23 @@ devnet-l1:
 
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
-	.PHONY: devnet-logs
+.PHONY: devnet-logs
+
+submodules:
+	git submodule update --init --recursive
+.PHONY: submodules
+
+# tx-submitter
+SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)
+rebuild-all-tx-submitter:
+	@for submitter in $(SUBMITTERS); do \
+		docker compose -f ./ops/docker/docker-compose-4nodes.yml up -d --build $$submitter --no-deps; \
+	done
+stop-all-tx-submitter:
+	@for submitter in $(SUBMITTERS); do \
+		docker compose -f ./ops/docker-compose-4nodes.yml stop $$submitter; \
+	done
+start-all-tx-submitter:
+	@for submitter in $(SUBMITTERS); do \
+		docker compose -f ./ops/docker-compose-4nodes.yml start $$submitter; \
+	done
