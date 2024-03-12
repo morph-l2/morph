@@ -82,7 +82,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
         uint256 blockNumber;
-        bytes32 blobVersionedhash;
+        bytes32 blobVersionedHash;
     }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -101,7 +101,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     uint256 public FINALIZATION_PERIOD_SECONDS;
 
     /**
-     * @notice The time when zkproof was generated and executed.
+     * @notice The time when zkProof was generated and executed.
      */
     uint256 public PROOF_WINDOW;
 
@@ -333,11 +333,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.parentBatchHeader
         );
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
-        // re-compute batchhash using _blobVersionedhash
+        // re-compute batchHash using _blobVersionedHash
         _parentBatchHash = keccak256(
             abi.encodePacked(
                 _parentBatchHash,
-                committedBatchStores[_batchIndex].blobVersionedhash
+                committedBatchStores[_batchIndex].blobVersionedHash
             )
         );
 
@@ -424,12 +424,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             89 + batchData.skippedL1MessageBitmap.length
         );
 
-        bytes32 _blobVersionedhash = blobhash(0);
-        if (_blobVersionedhash == bytes32(0)) {
-            _blobVersionedhash = ZEROVERSIONEDHASH;
+        bytes32 _blobVersionedHash = blobhash(0);
+        if (_blobVersionedHash == bytes32(0)) {
+            _blobVersionedHash = ZEROVERSIONEDHASH;
         }
         _batchHash = keccak256(
-            abi.encodePacked(_batchHash, _blobVersionedhash)
+            abi.encodePacked(_batchHash, _blobVersionedHash)
         );
 
         committedBatchStores[_batchIndex] = BatchStore(
@@ -445,7 +445,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
             latestL2BlockNumber,
-            _blobVersionedhash
+            _blobVersionedHash
         );
         if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
             withdrawalRoots[batchData.withdrawalRoot] = _batchIndex;
@@ -470,7 +470,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         _batchHash = keccak256(
             abi.encodePacked(
                 _batchHash,
-                committedBatchStores[_batchIndex].blobVersionedhash
+                committedBatchStores[_batchIndex].blobVersionedHash
             )
         );
         require(
@@ -486,7 +486,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         // check finalization
         require(
             _batchIndex > lastFinalizedBatchIndex,
-            "can only revert unfinalized batch"
+            "can only revert unFinalized batch"
         );
 
         while (_count > 0) {
@@ -522,7 +522,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // check challenge window
-        // TODO get finalization period from output oracle
         require(
             committedBatchStores[batchIndex].finalizeTimestamp >
                 block.timestamp,
@@ -608,14 +607,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
             // Compute xBytes
             bytes memory _xBytes = abi.encode(
-                keccak256(abi.encodePacked(_commitment, _publicInputHash))
+                keccak256(abi.encodePacked(_commitment, committedBatchStores[_batchIndex].dataHash))
             );
             // make sure x < BLS_MODULUS
             _xBytes[0] = 0x0;
 
             // Create input for verification
             bytes memory _input = abi.encode(
-                committedBatchStores[_batchIndex].blobVersionedhash,
+                committedBatchStores[_batchIndex].blobVersionedHash,
                 _xBytes,
                 _kzgData
             );
@@ -684,7 +683,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function finalizeBatchs() public whenNotPaused {
+    function finalizeBatches() public whenNotPaused {
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
             uint256 i = lastFinalizedBatchIndexCache + 1;
@@ -702,7 +701,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function finalizeBatchsByNum(uint256 num) public whenNotPaused {
+    function finalizeBatchesByNum(uint256 num) public whenNotPaused {
         require(num > 1, "finalize batch must bigger than 1");
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
@@ -822,7 +821,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     /// @notice Update FINALIZATION_PERIOD_SECONDS.
-    /// @param _newPeriod New finalize period sencdonds.
+    /// @param _newPeriod New finalize period seconds.
     function updateFinalizePeriodSeconds(
         uint256 _newPeriod
     ) external onlyOwner {

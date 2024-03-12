@@ -97,6 +97,15 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 			Name: "MorphStandardERC20Factory",
 		},
 		{
+			Name: "L2WETHGateway",
+			Args: []interface{}{
+				immutable["L2WETHGateway"]["l1WETH"],
+			},
+		},
+		{
+			Name: "L2WETH",
+		},
+		{
 			Name: "ProxyAdmin",
 		},
 	}
@@ -243,6 +252,14 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2ERC721Gateway(opts, backend)
 	case "L2ERC1155Gateway":
 		_, tx, _, err = bindings.DeployL2ERC1155Gateway(opts, backend)
+	case "L2WETHGateway":
+		l1weth, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l1weth")
+		}
+		_, tx, _, err = bindings.DeployL2WETHGateway(opts, backend, predeploys.L2WETHAddr, l1weth)
+	case "L2WETH":
+		_, tx, _, err = bindings.DeployWrappedEther(opts, backend)
 	case "ProxyAdmin":
 		_, tx, _, err = bindings.DeployProxyAdmin(opts, backend)
 	default:

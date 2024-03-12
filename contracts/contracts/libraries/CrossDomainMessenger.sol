@@ -93,7 +93,7 @@ abstract contract CrossDomainMessenger is
     }
 
     // make sure only owner can send ether to messenger to avoid possible user fund loss.
-    receive() external payable {}
+    receive() external payable onlyOwner {}
 
     /************************
      * Restricted Functions *

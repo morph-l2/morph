@@ -52,10 +52,10 @@ services:
 #        chain-genesis:
 #          condition: service_completed_successfully
       ports:
-        - 4000:4000
-        - 3500:3500
-        - 8080:8080
-        - 6060:6060
+        - 4000
+        - 3500
+        - 8080
+        - 6060
       volumes:
         - l1_consensus:/consensus
         - l1_execution:/execution
@@ -105,7 +105,7 @@ services:
       - --nodiscover
       - --syncmode=full
     ports:
-      - 8551:8551
+      - 8551
       - 9545:8545
       - 9546:8546
     depends_on:

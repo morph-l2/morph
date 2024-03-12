@@ -26,12 +26,12 @@ export const MessengerInit = async (
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
     // L1MessageQueueWithGasPriceOracle config
-    const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStroageName)
+    const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName)
     const L1MessageQueueWithGasPriceOracleImplAddress = getContractAddressByName(path, ImplStorageName.L1MessageQueueWithGasPriceOracle)
     const L1MessageQueueWithGasPriceOracleFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1MessageQueueWithGasPriceOracle)
 
     // L1CrossDomainMessenge config
-    const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStroageName)
+    const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
     const L1CrossDomainMessengerImplAddress = getContractAddressByName(path, ImplStorageName.L1CrossDomainMessengerStorageName)
     const L1CrossDomainMessengerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1CrossDomainMessenger)
 

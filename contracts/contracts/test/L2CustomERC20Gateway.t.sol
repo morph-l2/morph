@@ -21,7 +21,8 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _data,
+        uint256 nonce
     );
     event FinalizeDepositERC20(
         address indexed _l1Token,
@@ -406,9 +407,11 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
             }
         } else {
             // emit AppendMessage from L2MessageQueue
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -432,7 +435,8 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 address(this),
                 address(this),
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));
@@ -529,10 +533,12 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -556,7 +562,8 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));
@@ -658,10 +665,12 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -685,7 +694,8 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                dataToCall
+                dataToCall,
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));

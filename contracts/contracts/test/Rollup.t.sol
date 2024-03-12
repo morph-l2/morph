@@ -157,7 +157,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
 
         // finalize batch1
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS() + 1);
-        rollup.finalizeBatchs();
+        rollup.finalizeBatches();
         assertTrue(rollup.isBatchFinalized(1));
         assertEq(rollup.finalizedStateRoots(1), stateRoot);
         assertEq(rollup.withdrawalRoots(bytes32(uint256(3))), 1);
@@ -370,7 +370,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         // verify committed batch correctly
         hevm.startPrank(address(0));
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS());
-        rollup.finalizeBatchs();
+        rollup.finalizeBatches();
         hevm.stopPrank();
 
         assertTrue(rollup.isBatchFinalized(2));
@@ -780,8 +780,8 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testFinalizeBatchs() public {
-        rollup.finalizeBatchs();
+    function testFinalizeBatches() public {
+        rollup.finalizeBatches();
     }
 
     function testRevertBatch() public {
@@ -879,8 +879,8 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("reverting must start from the ending");
         rollup.revertBatch(batchHeader1, 1);
 
-        // can only revert unfinalized batch, revert
-        hevm.expectRevert("can only revert unfinalized batch");
+        // can only revert unFinalized batch, revert
+        hevm.expectRevert("can only revert unFinalized batch");
         rollup.revertBatch(batchHeader0, 3);
 
         // succeed to revert next two pending batches.
@@ -963,7 +963,7 @@ contract RollupTest is L1MessageBaseTest {
         ); // first chunk with too many txs
 
         hevm.expectRevert("Pausable: paused");
-        rollup.finalizeBatchs();
+        rollup.finalizeBatches();
         hevm.stopPrank();
 
         // unpause

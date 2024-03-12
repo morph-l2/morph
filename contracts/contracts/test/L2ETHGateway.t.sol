@@ -16,7 +16,8 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         address indexed from,
         address indexed to,
         uint256 amount,
-        bytes data
+        bytes data,
+        uint256 nonce
     );
     event FinalizeDepositETH(
         address indexed from,
@@ -331,10 +332,12 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 gateway.withdrawETH{value: amount}(amount, gasLimit);
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -356,7 +359,8 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 address(this),
                 address(this),
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 messengerBalance = address(l2Messenger).balance;
@@ -417,10 +421,12 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 gateway.withdrawETH{value: amount}(recipient, amount, gasLimit);
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -438,7 +444,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawETH from L2ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit WithdrawETH(address(this), recipient, amount, new bytes(0));
+            emit WithdrawETH(address(this), recipient, amount, new bytes(0), 0);
 
             uint256 messengerBalance = address(l2Messenger).balance;
             uint256 feeVaultBalance = address(feeVault).balance;
@@ -517,10 +523,12 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
                 );
             }
         } else {
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -538,7 +546,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawETH from L2ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit WithdrawETH(address(this), recipient, amount, dataToCall);
+            emit WithdrawETH(address(this), recipient, amount, dataToCall, 0);
 
             uint256 messengerBalance = address(l2Messenger).balance;
             uint256 feeVaultBalance = address(feeVault).balance;
