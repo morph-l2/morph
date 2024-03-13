@@ -111,6 +111,7 @@ pub async fn update(
         .set(i64::try_from(current_overhead).unwrap_or(-1));
 
     let abs_diff = U256::from(last_overhead).abs_diff(current_overhead);
+    log::info!("set_overhead can been sent");
     if abs_diff < U256::from(overhead_threshold) {
         log::info!(
             "overhead change value below threshold, change value = : {:#?}",
@@ -121,11 +122,11 @@ pub async fn update(
 
     // Step3. update overhead
     let tx = l2_oracle.set_overhead(U256::from(last_overhead)).legacy();
-    let rt = tx.send().await;
-    match rt {
-        Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
-        Err(e) => log::error!("update overhead error: {:#?}", e),
-    }
+    // let rt = tx.send().await;
+    // match rt {
+    //     Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
+    //     Err(e) => log::error!("update overhead error: {:#?}", e),
+    // }
     *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
 }
 
