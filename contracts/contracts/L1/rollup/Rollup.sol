@@ -573,6 +573,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "Challenge already finished"
         );
 
+        // Mark challenge as finished
+        challenges[_batchIndex].finished = true;
+        inChallenge = false;
+
         // Check for timeout
         if (
             challenges[_batchIndex].startTime + PROOF_WINDOW <= block.timestamp
@@ -639,10 +643,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             // Record defender win
             _defenderWin(_batchIndex, _msgSender(), "Proof success");
         }
-
-        // Mark challenge as finished
-        challenges[_batchIndex].finished = true;
-        inChallenge = false;
     }
 
     function _defenderWin(
