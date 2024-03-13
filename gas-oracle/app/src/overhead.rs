@@ -122,11 +122,11 @@ pub async fn update(
 
     // Step3. update overhead
     let tx = l2_oracle.set_overhead(U256::from(last_overhead)).legacy();
-    // let rt = tx.send().await;
-    // match rt {
-    //     Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
-    //     Err(e) => log::error!("update overhead error: {:#?}", e),
-    // }
+    let rt = tx.send().await;
+    match rt {
+        Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
+        Err(e) => log::error!("update overhead error: {:#?}", e),
+    }
     *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
 }
 
@@ -339,9 +339,6 @@ async fn calculate_l2_data_gas_from_blob(
         txs.len()
     );
 
-    if let Some(tx) = txs.last() {
-        log_chain_id(tx);
-    }
     Ok(Some(l2_data_gas))
 }
 
@@ -406,22 +403,6 @@ fn extract_tx_payload(
     Ok(tx_payload)
 }
 
-fn log_chain_id(tx: &TypedTransaction) {
-    match tx {
-        TypedTransaction::Legacy(tx_req) => {
-            log::info!("Legacy.chain_id: {}", tx_req.chain_id.unwrap());
-        }
-        TypedTransaction::Eip2930(tx_req) => {
-            log::info!("Eip2930.chain_id: {}", tx_req.tx.chain_id.unwrap());
-        }
-        TypedTransaction::Eip1559(tx_req) => {
-            log::info!("Eip1559.chain_id: {}", tx_req.chain_id.unwrap());
-        }
-        TypedTransaction::L1MessageTx(tx_req) => {
-            log::info!("L1MessageTx.chain_id: {}", tx_req.chain_id.unwrap());
-        }
-    }
-}
 
 fn extract_txn_num(chunks: Vec<Bytes>) -> Option<u64> {
     if chunks.is_empty() {
