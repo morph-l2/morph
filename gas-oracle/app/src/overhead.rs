@@ -201,6 +201,7 @@ async fn overhead_inspect(
             }
         };
 
+    // rollup_gas_used
     let rollup_gas_used = U256::from_str(
         &blob_tx_receipt["result"]["gasUsed"]
             .as_str()
@@ -208,14 +209,15 @@ async fn overhead_inspect(
     )
     .unwrap_or(U256::from(0));
     log::info!("rollup_calldata_gas_used: {:?}", rollup_gas_used);
-
     if rollup_gas_used.is_zero() {
         log::error!(
-            "l1_provider.get_transaction_receipt gas_used is None or 0, tx_hash = {:#?}",
+            "blob tx calldata gas_used is None or 0, tx_hash = {:#?}",
             tx_hash
         );
         return None;
     }
+
+    // blob_gas_price
     let blob_gas_price = U256::from_str(
         &blob_tx_receipt["result"]["blobGasPrice"]
             .as_str()
@@ -223,18 +225,25 @@ async fn overhead_inspect(
     )
     .unwrap_or(U256::from(0));
 
+    // effective_gas_price
     let effective_gas_price = U256::from_str(
-        &blob_tx_receipt["result"]["blobGasUsed"]
+        &blob_tx_receipt["result"]["effectiveGasPrice"]
             .as_str()
             .unwrap_or("0x0"),
     )
     .unwrap_or(U256::from(0));
-
     log::info!(
         "blob_gas_price: {:?}, calldata_gas_price: {:?}",
         blob_gas_price,
         effective_gas_price
     );
+    if effective_gas_price.is_zero() {
+        log::error!(
+            "blob tx calldata effective_gas_price is None or 0, tx_hash = {:#?}",
+            tx_hash
+        );
+        return None;
+    }
 
     //Step4. Calculate overhead
     let x = blob_gas_price.as_u128() as f64 / effective_gas_price.as_u128() as f64;
