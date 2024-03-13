@@ -87,7 +87,7 @@ pub async fn update(
         Some(overhead) => overhead,
         None => {
             log::info!(
-                "overhead is none, skip update, tx_hash ={:#?}",
+                "last_overhead is none, skip update, tx_hash ={:#?}",
                 log.transaction_hash.unwrap()
             );
             return;
@@ -246,27 +246,33 @@ async fn overhead_inspect(
     }
 
     //Step4. Calculate overhead
-    let x = blob_gas_price.as_u128() as f64 / effective_gas_price.as_u128() as f64;
+    let x: f64 = blob_gas_price.as_u128() as f64 / effective_gas_price.as_u128() as f64;
     let blob_gas_used = if l2_txn > 0 {
         MAX_BLOB_TX_PAYLOAD_SIZE as f64
     } else {
         0.0
     };
-    let sys_gas: u128 =
-        rollup_gas_used.as_u128() + (blob_gas_used * x).ceil() as u128 - l2_data_gas as u128;
+    
+    let mut sys_gas: u128 = rollup_gas_used.as_u128() + 156400 + (blob_gas_used * x).ceil() as u128;
+    sys_gas = if sys_gas < l2_data_gas as u128 {
+        log::error!("sys_gas < l2_data_gas, tx_hash = {:#?}", tx_hash);
+        return None;
+    } else {
+        sys_gas - l2_data_gas as u128
+    };
     let overhead = if l2_txn as u128 > txn_per_batch_expect {
         sys_gas / l2_txn as u128
     } else {
         sys_gas / txn_per_batch_expect
     };
 
-    let blob_fee_ratio =
-        (blob_gas_used * x).ceil() / ((rollup_gas_used * effective_gas_price).as_usize() as f64);
+    let blob_fee_ratio = (blob_gas_used * blob_gas_price.as_u128() as f64).ceil()
+        / ((rollup_gas_used * effective_gas_price).as_usize() as f64);
 
     log::info!(
-        "overhead: {:?},  blob gasFee ratio: {:?}",
+        "last_overhead: {:?},  blob gasFee ratio: {:?}",
         overhead,
-        format!("{:.2}", blob_fee_ratio)
+        format!("{:.4}", blob_fee_ratio)
     );
 
     // Set metric
@@ -402,7 +408,6 @@ fn extract_tx_payload(
     }
     Ok(tx_payload)
 }
-
 
 fn extract_txn_num(chunks: Vec<Bytes>) -> Option<u64> {
     if chunks.is_empty() {
