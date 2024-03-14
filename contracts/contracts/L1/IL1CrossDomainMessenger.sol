@@ -41,7 +41,7 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
     /// @param _withdrawalProof Merkle tree proof of the message.
     /// @param _withdrawalRoot Merkle tree root of the proof.
     function proveAndRelayMessage(
-         address _from,
+        address _from,
         address _to,
         uint256 _value,
         uint256 _nonce,
