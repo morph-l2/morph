@@ -884,7 +884,6 @@ contract RollupTest is L1MessageBaseTest {
         rollup.revertBatch(batchHeader0, 3);
 
         // succeed to revert next two pending batches.
-
         hevm.expectEmit(true, true, false, true);
         emit RevertBatch(1, rollup.committedBatches(1));
         hevm.expectEmit(true, true, false, true);
@@ -892,9 +891,11 @@ contract RollupTest is L1MessageBaseTest {
 
         assertGt(uint256(rollup.committedBatches(1)), 0);
         assertGt(uint256(rollup.committedBatches(2)), 0);
+        assertEq(uint256(rollup.lastCommittedBatchIndex()), 2);
         rollup.revertBatch(batchHeader1, 2);
         assertEq(uint256(rollup.committedBatches(1)), 0);
         assertEq(uint256(rollup.committedBatches(2)), 0);
+        assertEq(uint256(rollup.lastCommittedBatchIndex()), 0);
         hevm.stopPrank();
     }
 

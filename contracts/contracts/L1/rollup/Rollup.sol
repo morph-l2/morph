@@ -489,6 +489,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "can only revert unFinalized batch"
         );
 
+        lastCommittedBatchIndex = _batchIndex - 1;
         while (_count > 0) {
             committedBatchStores[_batchIndex].batchHash = bytes32(0);
 
@@ -502,7 +503,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _batchHash = committedBatchStores[_batchIndex].batchHash;
             if (_batchHash == bytes32(0)) break;
         }
-        lastCommittedBatchIndex = _batchIndex;
     }
 
     // challengeState challenges a batch by submitting a deposit.
@@ -611,7 +611,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
             // Compute xBytes
             bytes memory _xBytes = abi.encode(
-                keccak256(abi.encodePacked(_commitment, committedBatchStores[_batchIndex].dataHash))
+                keccak256(
+                    abi.encodePacked(
+                        _commitment,
+                        committedBatchStores[_batchIndex].dataHash
+                    )
+                )
             );
             // make sure x < BLS_MODULUS
             _xBytes[0] = 0x0;
