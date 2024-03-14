@@ -552,6 +552,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 committedBatchStores[i].finalizeTimestamp += PROOF_WINDOW;
             }
         }
+
+        inChallenge = true;
     }
 
     // proveState proves a batch by submitting a proof.
