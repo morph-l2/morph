@@ -91,9 +91,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     mapping(uint256 => bytes32) public override finalizedStateRoots;
 
     /**
-     * @notice Store the withdrawalRoot of each batch.
+     * @notice Store the withdrawalRoot.
      */
-    mapping(bytes32 => uint256) public withdrawalRoots;
+    mapping(bytes32 => bool) public withdrawalRoots;
 
     /**
      * @notice Batch challenge time.
@@ -447,9 +447,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             latestL2BlockNumber,
             _blobVersionedHash
         );
-        if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
-            withdrawalRoots[batchData.withdrawalRoot] = _batchIndex;
-        }
         lastCommittedBatchIndex = _batchIndex;
         emit CommitBatch(_batchIndex, _batchHash);
     }
@@ -611,7 +608,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
             // Compute xBytes
             bytes memory _xBytes = abi.encode(
-                keccak256(abi.encodePacked(_commitment, committedBatchStores[_batchIndex].dataHash))
+                keccak256(
+                    abi.encodePacked(
+                        _commitment,
+                        committedBatchStores[_batchIndex].dataHash
+                    )
+                )
             );
             // make sure x < BLS_MODULUS
             _xBytes[0] = 0x0;
@@ -749,7 +751,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             );
             lastFinalizedBatchIndex = _batchIndex;
         }
-
+        withdrawalRoots[
+            committedBatchStores[_batchIndex].withdrawalRoot
+        ] = true;
         // record state root and withdrawal root
         finalizedStateRoots[_batchIndex] = committedBatchStores[_batchIndex]
             .postStateRoot;

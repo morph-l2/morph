@@ -234,52 +234,29 @@ contract L1MessageBaseTest is CommonTest {
         hevm.stopPrank();
     }
 
-    function messageProve(
+    function messageProveAndRelayPrepare(
         address from,
         address to,
         uint256 value,
         uint256 nonce,
         bytes memory message
-    ) public {
+    ) public returns (bytes32[32] memory wdProof, bytes32 wdRoot) {
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(from, to, value, nonce, message)
         );
 
         // prove message
-        (, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
-            .getProveWithdrawalTransactionInputs(_xDomainCalldataHash);
+        (, wdProof, wdRoot) = ffi.getProveWithdrawalTransactionInputs(
+            _xDomainCalldataHash
+        );
 
-        uint256 withdrawalBatchIndex = 1;
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
             abi.encodeWithSelector(IRollup.withdrawalRoots.selector, wdRoot),
-            abi.encode(withdrawalBatchIndex)
-        );
-        l1CrossDomainMessenger.proveMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
+            abi.encode(true)
         );
 
-        // warp finalization period
-        (, uint256 provenTime, ) = l1CrossDomainMessenger.provenWithdrawals(
-            _xDomainCalldataHash
-        );
-        hevm.warp(provenTime + FINALIZATION_PERIOD_SECONDS + 1);
-
-        // finalize batch
-        hevm.mockCall(
-            address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.finalizedStateRoots.selector,
-                withdrawalBatchIndex
-            ),
-            abi.encode(bytes32(uint256(1)))
-        );
+        return (wdProof, wdRoot);
     }
 
     function upgradeStorage(

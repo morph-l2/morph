@@ -32,7 +32,7 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
      * Public Mutating Functions *
      *****************************/
 
-    /// @notice Prove a L2 => L1 message with message proof.
+    /// @notice Prove a L2 => L1 message with message proof and relay a L2 => L1 message.
     /// @param _from The address of the sender of the message.
     /// @param _to The address of the recipient of the message.
     /// @param _value The msg.value passed to the message call.
@@ -40,28 +40,14 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
     /// @param _message The content of the message.
     /// @param _withdrawalProof Merkle tree proof of the message.
     /// @param _withdrawalRoot Merkle tree root of the proof.
-    function proveMessage(
-        address _from,
+    function proveAndRelayMessage(
+         address _from,
         address _to,
         uint256 _value,
         uint256 _nonce,
         bytes memory _message,
         bytes32[32] calldata _withdrawalProof,
         bytes32 _withdrawalRoot
-    ) external;
-
-    /// @notice Relay a L2 => L1 message.
-    /// @param _from The address of the sender of the message.
-    /// @param _to The address of the recipient of the message.
-    /// @param _value The msg.value passed to the message call.
-    /// @param _nonce The nonce of the message to avoid replay attack.
-    /// @param _message The content of the message.
-    function relayMessage(
-        address _from,
-        address _to,
-        uint256 _value,
-        uint256 _nonce,
-        bytes memory _message
     ) external;
 
     /// @notice Replay an existing message.

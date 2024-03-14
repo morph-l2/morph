@@ -235,15 +235,16 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
             0,
             message
         );
-
-        messageProve(
-            address(uint160(address(counterpartGateway)) + 1),
-            address(gateway),
-            amount,
-            0,
-            message
-        );
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(uint160(address(counterpartGateway)) + 1),
+                address(gateway),
+                amount,
+                0,
+                message
+            );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
@@ -257,12 +258,15 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             amount,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         assertEq(messengerBalance, address(l1CrossDomainMessenger).balance);
         assertEq(recipientBalance, l1weth.balanceOf(recipient));
@@ -304,15 +308,16 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
             0,
             message
         );
-
-        messageProve(
-            address(counterpartGateway),
-            address(gateway),
-            amount,
-            0,
-            message
-        );
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(counterpartGateway),
+                address(gateway),
+                amount,
+                0,
+                message
+            );
         // emit FinalizeWithdrawERC20 from L1WETHGateway
         {
             hevm.expectEmit(true, true, true, true);
@@ -340,12 +345,15 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(counterpartGateway),
             address(gateway),
             amount,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         assertEq(
             messengerBalance - amount,
