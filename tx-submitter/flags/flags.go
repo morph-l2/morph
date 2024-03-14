@@ -48,9 +48,10 @@ var (
 	}
 
 	PrivateKeyFlag = cli.StringFlag{
-		Name:   "private-key",
-		Usage:  "The private key to use for sending to the rollup contract",
-		EnvVar: prefixEnvVar("L1_PRIVATE_KEY"),
+		Name:     "private-key",
+		Usage:    "The private key to use for sending to the rollup contract",
+		EnvVar:   prefixEnvVar("L1_PRIVATE_KEY"),
+		Required: true,
 	}
 
 	TxTimeoutFlag = cli.DurationFlag{
@@ -121,6 +122,15 @@ var (
 		Usage:  "Port at which the metrics server is running",
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	// tx fee limit
+	TxFeeLimitFlag = cli.Uint64Flag{
+		Name:     "tx-fee-limit",
+		Usage:    "The maximum fee for a transaction",
+		Value:    5e17, //0.5eth
+		EnvVar:   prefixEnvVar("TX_FEE_LIMIT"),
+		Required: true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -136,6 +146,7 @@ var requiredFlags = []cli.Flag{
 	SubmitterAddressFlag,
 	L2SequencerAddressFlag,
 	PrivateKeyFlag,
+	TxFeeLimitFlag,
 }
 
 var optionalFlags = []cli.Flag{
