@@ -41,11 +41,6 @@ func NewMetrics() *Metrics {
 			Help:      "Last committed batch index",
 			Namespace: metricsNamespace,
 		}),
-		LastFinalizedCommitedBatchIndexDiff: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "submitter_last_finalized_committed_batch_index_diff",
-			Help:      "Last finalized committed batch index diff",
-			Namespace: metricsNamespace,
-		}),
 		L2BlockNumber: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "submitter_l2_block_number",
 			Help:      "L2 block number",
@@ -55,11 +50,6 @@ func NewMetrics() *Metrics {
 
 			Name:      "submitter_l2_block_number_rolluped",
 			Help:      "L2 block number rolluped",
-			Namespace: metricsNamespace,
-		}),
-		LastRollupedBlocknumberDiff: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "submitter_last_rolluped_blocknumber_diff",
-			Help:      "Last rolluped blocknumber diff",
 			Namespace: metricsNamespace,
 		}),
 		WalletBalance: promauto.NewGauge(prometheus.GaugeOpts{
@@ -91,20 +81,12 @@ func (m *Metrics) SetLastCommittedBatchIndex(lastCommitted uint64) {
 	m.LastCommittedBatchIndex.Set(float64(lastCommitted))
 }
 
-func (m *Metrics) SetLastFinalizedCommitedBatchIndexDiff(diff uint64) {
-	m.LastFinalizedCommitedBatchIndexDiff.Set(float64(diff))
-}
-
 func (m *Metrics) SetL2BlockNumber(l2BlockNumber uint64) {
 	m.L2BlockNumber.Set(float64(l2BlockNumber))
 }
 
 func (m *Metrics) SetLastL2BlockNumberRolluped(l2BlockNumberRolluped uint64) {
 	m.L2BlockNumberRolluped.Set(float64(l2BlockNumberRolluped))
-}
-
-func (m *Metrics) SetL2BlockNumberDiff(diff uint64) {
-	m.LastRollupedBlocknumberDiff.Set(float64(diff))
 }
 
 func (m *Metrics) SetWalletBalance(balance float64) {

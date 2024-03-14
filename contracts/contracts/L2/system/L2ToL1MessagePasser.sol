@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Types} from "../../libraries/common/Types.sol";
-import {Semver} from "../../libraries/common/Semver.sol";
 import {Tree} from "../../libraries/common/Tree.sol";
 import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
-import {SafeCall} from "../../libraries/common/SafeCall.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 /**
@@ -14,7 +11,7 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
  *         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level
  *         of the L2 output to reduce the cost of proving the existence of sent messages.
  */
-contract L2ToL1MessagePasser is Semver, Tree {
+contract L2ToL1MessagePasser is Tree {
     /**********
      * Events *
      **********/
@@ -22,7 +19,8 @@ contract L2ToL1MessagePasser is Semver, Tree {
     /// @notice Emitted when a new message is added to the merkle tree.
     /// @param index The index of the corresponding message.
     /// @param messageHash The hash of the corresponding message.
-    event AppendMessage(uint256 index, bytes32 messageHash);
+    /// @param rootHash The hash of the tree root after append the message.
+    event AppendMessage(uint256 index, bytes32 messageHash, bytes32 rootHash);
 
     /*************
      * Variables *
@@ -35,10 +33,8 @@ contract L2ToL1MessagePasser is Semver, Tree {
     /***************
      * Constructor *
      ***************/
-    /**
-     * @custom:semver 1.0.0
-     */
-    constructor() Semver(1, 0, 0) {
+
+    constructor() {
         messageRoot = getTreeRoot();
     }
 
@@ -52,12 +48,11 @@ contract L2ToL1MessagePasser is Semver, Tree {
             msg.sender == Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             "only messenger"
         );
-        // We can use the event to compute the merkle tree locally.
-        emit AppendMessage(leafNodesCount, _messageHash);
 
         _appendMessageHash(_messageHash);
         messageRoot = getTreeRoot();
-
+        // We can use the event to compute the merkle tree locally.
+        emit AppendMessage(leafNodesCount - 1, _messageHash, messageRoot);
         return messageRoot;
     }
 }

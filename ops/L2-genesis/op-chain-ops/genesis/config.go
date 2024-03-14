@@ -4,16 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/morph-l2/morph-deployer/eth"
-	"github.com/morph-l2/morph-deployer/rollup"
 	"math/big"
 	"os"
-	"time"
 
 	"github.com/morph-l2/bindings/hardhat"
 	"github.com/morph-l2/bindings/predeploys"
+	"github.com/morph-l2/morph-deployer/eth"
 	"github.com/morph-l2/morph-deployer/op-chain-ops/immutables"
 	"github.com/morph-l2/morph-deployer/op-chain-ops/state"
+	"github.com/morph-l2/morph-deployer/rollup"
 	"github.com/scroll-tech/go-ethereum/common"
 
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
@@ -74,6 +73,10 @@ type DeployConfig struct {
 	L1ERC721GatewayProxy common.Address `json:"l1ERC721GatewayProxy"`
 	// L1ERC1155Gateway proxy address on L1
 	L1ERC1155GatewayProxy common.Address `json:"l1ERC1155GatewayProxy"`
+	// L1WETHGatewayProxy proxy address on L1
+	L1WETHGatewayProxy common.Address `json:"l1WETHGatewayProxy"`
+	// L1WETH address on L1
+	L1WETH common.Address `json:"l1WETH"`
 
 	// GasPriceOracle config
 	// The initial value of the gas overhead
@@ -181,6 +184,22 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		}
 		d.L1ERC1155GatewayProxy = deployment.Address
 	}
+
+	if d.L1WETHGatewayProxy == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Proxy__L1WETHGateway")
+		if err != nil {
+			return err
+		}
+		d.L1WETHGatewayProxy = deployment.Address
+	}
+
+	if d.L1WETH == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Impl__WETH")
+		if err != nil {
+			return err
+		}
+		d.L1WETH = deployment.Address
+	}
 	return nil
 }
 
@@ -269,21 +288,30 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	if config.L1SequencerProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1SequencerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.L1WETHGatewayProxy == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1WETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1WETH == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1WETH cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+
 	immutable["L2Sequencer"] = immutables.ImmutableValues{
 		"otherSequencer": config.L1SequencerProxy,
 	}
-	immutable["Submitter"] = immutables.ImmutableValues{
-		"rollupAddr": config.RollupProxy,
+	immutable["L2WETHGateway"] = immutables.ImmutableValues{
+		"l1WETH": config.L1WETH,
 	}
 
 	blsKeys := make([][]byte, len(config.L2SequencerBlsKeys))
 	for i, v := range config.L2SequencerBlsKeys {
 		blsKeys[i] = v
 	}
+
 	imConfig := &immutables.Config{
-		L2SequencerAddresses: config.L2SequencerAddresses,
-		L2SequencerTmKeys:    config.L2SequencerTmKeys,
-		L2SequencerBlsKeys:   blsKeys,
+		L2SequencerAddresses:    config.L2SequencerAddresses,
+		L2SequencerTmKeys:       config.L2SequencerTmKeys,
+		L2SequencerBlsKeys:      blsKeys,
+		L2GenesisBlockTimestamp: config.L2GenesisBlockTimestamp,
 	}
 	return immutable, imConfig, nil
 }
@@ -373,9 +401,8 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"maxChunks":          config.GovBatchMaxChunks,
 	}
 	storage["Submitter"] = state.StorageValues{
-		"_initialized":   1,
-		"_initializing":  false,
-		"nextEpochStart": uint64(time.Now().Unix()),
+		"_initialized":  1,
+		"_initializing": false,
 	}
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"messageRoot": common.HexToHash("0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757"),
@@ -440,6 +467,11 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["MorphStandardERC20Factory"] = state.StorageValues{
 		"_owner":         predeploys.L2StandardERC20GatewayAddr,
 		"implementation": predeploys.MorphStandardERC20Addr,
+	}
+	storage["L2WETHGateway"] = state.StorageValues{
+		"counterpart": config.L1WETHGatewayProxy,
+		"router":      predeploys.L2GatewayRouterAddr,
+		"messenger":   predeploys.L2CrossDomainMessengerAddr,
 	}
 	return storage, nil
 }

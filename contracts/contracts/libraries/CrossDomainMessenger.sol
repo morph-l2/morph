@@ -17,7 +17,6 @@ import {ICrossDomainMessenger} from "./ICrossDomainMessenger.sol";
  *         chain it's deployed on. Currently only designed for message passing between two paired
  *         chains and does not support one-to-many interactions.
  *
- *         Any changes to this contract MUST result in a semver bump for contracts that inherit it.
  */
 abstract contract CrossDomainMessenger is
     OwnableUpgradeable,
@@ -94,7 +93,7 @@ abstract contract CrossDomainMessenger is
     }
 
     // make sure only owner can send ether to messenger to avoid possible user fund loss.
-    receive() external payable {}
+    receive() external payable onlyOwner {}
 
     /************************
      * Restricted Functions *

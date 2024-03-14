@@ -12,7 +12,8 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         address indexed from,
         address indexed to,
         uint256 amount,
-        bytes data
+        bytes data,
+        uint256 nonce
     );
     event RefundETH(address indexed recipient, uint256 amount);
     event FinalizeWithdrawETH(
@@ -119,8 +120,8 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
         // skip message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueue.popCrossDomainMessage(0, 1, 0x1);
-        assertEq(l1MessageQueue.pendingQueueIndex(), 1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 
         // ETH transfer failed, revert
@@ -278,7 +279,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
         bytes memory message = abi.encodeWithSelector(
@@ -336,7 +337,13 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), address(this), amount, new bytes(0));
+            emit DepositETH(
+                address(this),
+                address(this),
+                amount,
+                new bytes(0),
+                0
+            );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
@@ -382,7 +389,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
         bytes memory message = abi.encodeWithSelector(
@@ -447,7 +454,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), recipient, amount, new bytes(0));
+            emit DepositETH(address(this), recipient, amount, new bytes(0), 0);
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
@@ -495,7 +502,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
         bytes memory message = abi.encodeWithSelector(
@@ -562,7 +569,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), recipient, amount, dataToCall);
+            emit DepositETH(address(this), recipient, amount, dataToCall, 0);
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;

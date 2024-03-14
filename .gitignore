@@ -15,3 +15,5 @@ ops/L2-genesis/.qanet
 ops/L2-genesis/.testnet
 ops/L2-genesis/.morphtestnet
 ops/devnet-morph/devnet/__pycache__
+contracts/qanetL1.json
+.env

@@ -2,14 +2,20 @@
 pragma solidity =0.8.24;
 
 /* Testing utilities */
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 import {Test} from "forge-std/Test.sol";
-
 import {MockTree} from "../../mock/MockTree.sol";
 import {Types} from "../../libraries/common/Types.sol";
+import {EmptyContract} from "../../misc/EmptyContract.sol";
 
 contract CommonTest is DSTestPlus, MockTree {
     address immutable NON_ZERO_ADDRESS = address(1);
+
+    ProxyAdmin proxyAdmin;
+    EmptyContract emptyContract;
 
     address alice = address(128);
     address bob = address(256);
@@ -19,6 +25,9 @@ contract CommonTest is DSTestPlus, MockTree {
 
     bytes32 PROXY_OWNER_KEY =
         0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 PROXY_IMPLEMENTATION_KEY =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+
     uint256 public FINALIZATION_PERIOD_SECONDS = 2;
 
     function setUp() public virtual {
@@ -35,6 +44,11 @@ contract CommonTest is DSTestPlus, MockTree {
         hevm.fee(1000000000);
 
         ffi = new FFIInterface();
+        hevm.startPrank(multisig);
+        emptyContract = new EmptyContract();
+        proxyAdmin = new ProxyAdmin();
+        assertEq(multisig, proxyAdmin.owner());
+        hevm.stopPrank();
     }
 
     function _encodeXDomainCalldata(
@@ -53,6 +67,12 @@ contract CommonTest is DSTestPlus, MockTree {
                 _messageNonce,
                 _message
             );
+    }
+
+    function _changeAdmin(address proxy) internal {
+        ITransparentUpgradeableProxy(address(proxy)).changeAdmin(
+            address(proxyAdmin)
+        );
     }
 }
 
@@ -74,6 +94,24 @@ contract FFIInterface is Test {
         cmds[0] = "scripts/differential-testing/differential-testing";
         cmds[1] = "getProveWithdrawalTransactionInputs";
         cmds[2] = vm.toString(withdrawalHash);
+
+        bytes memory result = vm.ffi(cmds);
+        (
+            bytes32 withdrawalHashRes,
+            bytes32[32] memory withdrawalProof,
+            bytes32 withdrawalRoot
+        ) = abi.decode(result, (bytes32, bytes32[32], bytes32));
+
+        return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
+    }
+
+    function getProveWithdrawalCheckProof(
+        uint64 index
+    ) external returns (bytes32, bytes32[32] memory, bytes32) {
+        string[] memory cmds = new string[](3);
+        cmds[0] = "scripts/differential-testing/differential-testing";
+        cmds[1] = "getProveWithdrawalCheckProof";
+        cmds[2] = vm.toString(index);
 
         bytes memory result = vm.ffi(cmds);
         (

@@ -1,7 +1,9 @@
 #!/bin/sh
+set -eu
 
+source ../../contracts/.env
 QANET=".qanet"
-CONTRACT_CONFIG="../contracts/src/deploy-config/qanetl1.ts"
+CONTRACT_CONFIG="../../contracts/src/deploy-config/qanetl1.ts"
 echo "Regenerating genesis files"
 # Check if the folder exists
 if [ ! -d "$QANET" ]; then
@@ -9,22 +11,22 @@ if [ ! -d "$QANET" ]; then
   mkdir "$QANET"
 fi
 
-if [[ -z "$L1_RPC" ]]; then
+if [[ -z "$QA_RPC_URL" ]]; then
   # the environment variable is missing, set a default value
-  echo "L1_RPC is missing, using default value: http://qanet-l1"
-  L1_RPC="http://qanet-l1"
+  echo "QA_RPC_URL is missing, using default value: http://qanet-l1"
+  QA_RPC_URL="http://qanet-l1"
 fi
-
+echo "QA_RPC_URL is $QA_RPC_URL"
 cat "deploy-config/qanet-deploy-config.json" > $QANET/qanet-deploy-config.json
 (
 go run cmd/main.go genesis l2 \
---l1-rpc $L1_RPC \
+--l1-rpc $QA_RPC_URL \
 --deploy-config $QANET/qanet-deploy-config.json \
---deployment-dir "$PWD/../contracts/qanetL1.json" \
+--deployment-dir "$PWD/../../contracts/qanetL1.json" \
 --outfile.l2 $QANET/genesis-l2.json \
 --outfile.rollup $QANET/rollup.json \
 --outfile.genbatchheader $QANET/genesis-batch-header.json
-touch "$DEVNET/done"
+touch "$QANET/done"
 )
 l2_genesis_state_root=$(cat $QANET/rollup.json | jq -r .l2_genesis_state_root)
 withdraw_root=$(cat $QANET/rollup.json | jq -r .withdraw_root)

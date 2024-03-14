@@ -28,7 +28,7 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.13 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
-	github.com/holiman/uint256 v1.2.4 // indirect
+	github.com/holiman/uint256 v1.2.4
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.15 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect

@@ -2,6 +2,7 @@ package validator
 
 import (
 	"crypto/ecdsa"
+	"github.com/scroll-tech/go-ethereum/common"
 	"math/big"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestValidator_ChallengeState(t *testing.T) {
 	sim, _ := newSimulatedBackend(key)
 	opts, err := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
 	require.NoError(t, err)
-	addr, _, rollup, err := bindings.DeployRollup(opts, sim, 1337)
+	addr, _, rollup, err := bindings.DeployRollup(opts, sim, 1337, common.Address{})
 	require.NoError(t, err)
 	sim.Commit()
 	v := Validator{

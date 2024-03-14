@@ -9,10 +9,11 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {BatchHeaderV0Codec} from "../../libraries/codec/BatchHeaderV0Codec.sol";
 import {ChunkCodec} from "../../libraries/codec/ChunkCodec.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
-import {SafeCall} from "../../libraries/common/SafeCall.sol";
 import {ISubmitter} from "../../L2/submitter/ISubmitter.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
+import {IL1Sequencer} from "../staking/IL1Sequencer.sol";
+import {IStaking} from "../staking/IStaking.sol";
 
 // solhint-disable no-inline-assembly
 // solhint-disable reason-string
@@ -24,6 +25,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Constants *
      *************/
 
+    /// @notice The zero versioned hash.
+    bytes32 public ZEROVERSIONEDHASH;
+
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
 
@@ -31,6 +35,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * @notice Messenger contract on this domain.
      */
     address public immutable MESSENGER;
+
+    // l1 sequencer contract
+    address public l1SequencerContract;
+
+    // l1 staking contract
+    address public l1StakingContract;
 
     /*************
      * Variables *
@@ -44,9 +54,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @notice The address of RollupVerifier.
     address public verifier;
-
-    /// @notice Whether an account is a sequencer.
-    mapping(address => bool) public isSequencer;
 
     /// @notice Whether an account is a prover.
     mapping(address => bool) public isProver;
@@ -65,16 +72,17 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     struct BatchStore {
         bytes32 batchHash;
         uint256 originTimestamp;
+        uint256 finalizeTimestamp;
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
         bytes32 dataHash;
-        address sequencer;
+        uint256[] sequencerIndex;
         uint256 l1MessagePopped;
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
         uint256 blockNumber;
-        bytes32 blobVersionedhash;
+        bytes32 blobVersionedHash;
     }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -93,24 +101,24 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     uint256 public FINALIZATION_PERIOD_SECONDS;
 
     /**
-     * @notice The time when zkproof was generated and executed.
+     * @notice The time when zkProof was generated and executed.
      */
     uint256 public PROOF_WINDOW;
 
     /**
-     * @notice The minimum value of staking.
-     */
-    uint256 public MIN_DEPOSIT;
-
-    /**
      * @notice User pledge record.
      */
-    mapping(address => uint256) public deposits;
+    mapping(address => uint256) public challengerDeposits;
 
     /**
      * @notice Store Challenge Information.(batchIndex => BatchChallenge)
      */
     mapping(uint256 => BatchChallenge) public challenges;
+
+    /**
+     * @notice whether in challenge
+     */
+    bool public inChallenge;
 
     struct BatchChallenge {
         uint64 batchIndex;
@@ -126,7 +134,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     modifier OnlySequencer() {
         // @note In the decentralized mode, it should be only called by a list of validator.
-        require(isSequencer[_msgSender()], "caller not sequencer");
+        require(
+            IL1Sequencer(l1SequencerContract).isSequencer(_msgSender()),
+            "caller not sequencer"
+        );
         _;
     }
 
@@ -150,14 +161,30 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     function initialize(
+        address _l1SequencerContract,
+        address _l1StakingContract,
         address _messageQueue,
         address _verifier,
         uint256 _maxNumTxInChunk,
-        uint256 _minDeposit,
         uint256 _finalizationPeriodSeconds,
         uint256 _proofWindow
     ) public initializer {
-        OwnableUpgradeable.__Ownable_init();
+        if (_messageQueue == address(0) || _verifier == address(0)) {
+            revert ErrZeroAddress();
+        }
+        __Pausable_init();
+        __Ownable_init();
+
+        require(
+            _l1SequencerContract != address(0),
+            "invalid l1 sequencer contract"
+        );
+        require(
+            _l1StakingContract != address(0),
+            "invalid l1 staking contract"
+        );
+        l1SequencerContract = _l1SequencerContract;
+        l1StakingContract = _l1StakingContract;
 
         messageQueue = _messageQueue;
         verifier = _verifier;
@@ -165,7 +192,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
-        MIN_DEPOSIT = _minDeposit;
+
+        ZEROVERSIONEDHASH = bytes32(
+            hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
+        );
 
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
@@ -192,15 +222,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /*****************************
      * Public Mutating Functions *
      *****************************/
-
-    /// @notice Sequencer stake
-    function stake() external payable OnlySequencer {
-        require(
-            deposits[_msgSender()] + msg.value >= MIN_DEPOSIT,
-            "do not have enough deposit"
-        );
-        deposits[_msgSender()] += msg.value;
-    }
 
     /// @notice Import layer 2 genesis block
     function importGenesisBatch(
@@ -234,19 +255,22 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "nonzero parent batch hash"
         );
 
+        _batchHash = keccak256(abi.encodePacked(_batchHash, ZEROVERSIONEDHASH));
+
         committedBatchStores[0] = BatchStore(
             _batchHash,
             block.timestamp,
+            block.timestamp + FINALIZATION_PERIOD_SECONDS,
             bytes32(0),
             _postStateRoot,
             _withdrawalRoot,
             _dataHash,
-            _msgSender(),
+            new uint256[](0),
             0,
             0,
             "",
             0,
-            ""
+            ZEROVERSIONEDHASH
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -257,18 +281,23 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     function commitBatch(
         BatchData calldata batchData,
-        uint32 minGasLimit
+        uint256 version,
+        uint256[] memory sequencerIndex,
+        bytes memory signature
     ) external payable override OnlySequencer whenNotPaused {
+        // verify bls signature
         require(
-            deposits[_msgSender()] >= MIN_DEPOSIT,
-            "insufficient staking amount"
+            IL1Sequencer(l1SequencerContract).verifySignature(
+                version,
+                sequencerIndex,
+                signature
+            ),
+            "the signature verification failed"
         );
         require(batchData.version == 0, "invalid version");
-
         // check whether the batch is empty
         uint256 _chunksLength = batchData.chunks.length;
         require(_chunksLength > 0, "batch is empty");
-
         require(
             batchData.prevStateRoot != bytes32(0),
             "previous state root is zero"
@@ -278,6 +307,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "new state root is zero"
         );
 
+        _commitBatch(batchData, _chunksLength, sequencerIndex);
+    }
+
+    function _commitBatch(
+        BatchData calldata batchData,
+        uint256 _chunksLength,
+        uint256[] memory sequencerIndex
+    ) internal {
         // The overall memory layout in this function is organized as follows
         // +---------------------+-------------------+------------------+
         // | parent batch header | chunk data hashes | new batch header |
@@ -291,52 +328,44 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         //    `dataPtr` to `dataPtr + _chunkLength * 32` for the chunk data hashes.
         // 3. The memory starting at `newBatchPtr` is used to store the new batch header and compute
         //    the batch hash.
-
         // the variable `batchPtr` will be reused later for the current batch
         (uint256 batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(
             batchData.parentBatchHeader
         );
-
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
-
-        // re-compute batchhash using _blobVersionedhash
-        if (_batchIndex > 0 && committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)) {
-            _parentBatchHash = keccak256(
-                abi.encodePacked(_parentBatchHash, committedBatchStores[_batchIndex].blobVersionedhash)
-            );
-        }
+        // re-compute batchHash using _blobVersionedHash
+        _parentBatchHash = keccak256(
+            abi.encodePacked(
+                _parentBatchHash,
+                committedBatchStores[_batchIndex].blobVersionedHash
+            )
+        );
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderV0Codec
             .totalL1MessagePopped(batchPtr);
-
         require(
             committedBatchStores[_batchIndex].batchHash == _parentBatchHash,
             "incorrect parent batch hash"
         );
-
         require(
             committedBatchStores[_batchIndex + 1].batchHash == bytes32(0),
             "batch already committed"
         );
-
         require(
             _batchIndex == lastCommittedBatchIndex,
             "incorrect batch index"
         );
-
         require(
             committedBatchStores[_batchIndex].postStateRoot ==
                 batchData.prevStateRoot,
             "incorrect previous state root"
         );
-
         // load `dataPtr` and reserve the memory region for chunk data hashes
         uint256 dataPtr;
         assembly {
             dataPtr := mload(0x40)
             mstore(0x40, add(dataPtr, mul(_chunksLength, 32)))
         }
-
         // compute the data hash for each chunk
         uint256 _totalL1MessagesPoppedInBatch;
         for (uint256 i = 0; i < _chunksLength; i++) {
@@ -347,7 +376,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _totalL1MessagesPoppedOverall,
                 batchData.skippedL1MessageBitmap
             );
-
             if (i == _chunksLength - 1) {
                 setLatestL2BlockNumber(batchData.chunks[i]);
             }
@@ -357,7 +385,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 dataPtr += 32;
             }
         }
-
         // check the length of bitmap
         unchecked {
             require(
@@ -366,17 +393,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 "wrong bitmap length"
             );
         }
-
         // compute the data hash for current batch
         bytes32 _dataHash;
         assembly {
             let dataLen := mul(_chunksLength, 0x20)
             _dataHash := keccak256(sub(dataPtr, dataLen), dataLen)
-
             batchPtr := mload(0x40) // reset batchPtr
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
-
         // store entries, the order matters
         BatchHeaderV0Codec.storeVersion(batchPtr, batchData.version);
         BatchHeaderV0Codec.storeBatchIndex(batchPtr, _batchIndex);
@@ -394,61 +418,40 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchPtr,
             batchData.skippedL1MessageBitmap
         );
-
         // compute batch hash
         bytes32 _batchHash = BatchHeaderV0Codec.computeBatchHash(
             batchPtr,
             89 + batchData.skippedL1MessageBitmap.length
         );
 
-        // todo
-        bytes32 _blobVersionedhash = blobhash(0);
-        // bytes32 _blobVersionedhash = bytes32(0);
-
-        if (_blobVersionedhash != bytes32(0)) {
-            _batchHash = keccak256(
-                abi.encodePacked(_batchHash, _blobVersionedhash)
-            );
+        bytes32 _blobVersionedHash = blobhash(0);
+        if (_blobVersionedHash == bytes32(0)) {
+            _blobVersionedHash = ZEROVERSIONEDHASH;
         }
+        _batchHash = keccak256(
+            abi.encodePacked(_batchHash, _blobVersionedHash)
+        );
 
         committedBatchStores[_batchIndex] = BatchStore(
             _batchHash,
             block.timestamp,
+            block.timestamp + FINALIZATION_PERIOD_SECONDS,
             batchData.prevStateRoot,
             batchData.postStateRoot,
             batchData.withdrawalRoot,
             _dataHash,
-            _msgSender(),
+            sequencerIndex,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
             latestL2BlockNumber,
-            _blobVersionedhash
+            _blobVersionedHash
         );
-
         if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
             withdrawalRoots[batchData.withdrawalRoot] = _batchIndex;
         }
-
         lastCommittedBatchIndex = _batchIndex;
         emit CommitBatch(_batchIndex, _batchHash);
-
-        // abi encode updateSequencers data
-        // bytes memory data = abi.encodeWithSelector(
-        //     Submitter.ackRollup.selector,
-        //     _batchIndex,
-        //     _msgSender(),
-        //     committedBatchStores[_batchIndex - 1].blockNumber + 1,
-        //     latestL2BlockNumber,
-        //     block.timestamp
-        // );
-        // MESSENGER.sendMessage{value: msg.value}(
-        //     address(Predeploys.L2_SUBMITTER),
-        //     0,
-        //     data,
-        //     minGasLimit,
-        //     msg.sender
-        // );
     }
 
     /// @inheritdoc IRollup
@@ -464,6 +467,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // check batch hash
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(memPtr);
+        _batchHash = keccak256(
+            abi.encodePacked(
+                _batchHash,
+                committedBatchStores[_batchIndex].blobVersionedHash
+            )
+        );
         require(
             committedBatchStores[_batchIndex].batchHash == _batchHash,
             "incorrect batch hash"
@@ -477,7 +486,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         // check finalization
         require(
             _batchIndex > lastFinalizedBatchIndex,
-            "can only revert unfinalized batch"
+            "can only revert unFinalized batch"
         );
 
         while (_count > 0) {
@@ -498,35 +507,33 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     // challengeState challenges a batch by submitting a deposit.
     function challengeState(uint64 batchIndex) external payable onlyChallenger {
+        require(!inChallenge, "already in challenge");
         require(
             lastFinalizedBatchIndex < batchIndex,
             "batch already finalized"
         );
-
         require(
             committedBatchStores[batchIndex].batchHash != 0,
             "batch not exist"
         );
-
         require(
             challenges[batchIndex].challenger == address(0),
-            "already has challenge"
+            "already challenged"
         );
 
         // check challenge window
-        // todo get finalization period from output oracle
-        bool insideChallengeWindow = committedBatchStores[batchIndex]
-            .originTimestamp +
-            FINALIZATION_PERIOD_SECONDS >
-            block.timestamp;
         require(
-            insideChallengeWindow,
+            committedBatchStores[batchIndex].finalizeTimestamp >
+                block.timestamp,
             "cannot challenge batch outside the challenge window"
         );
 
         // check challenge amount
-        require(msg.value >= MIN_DEPOSIT);
-        deposits[_msgSender()] += msg.value;
+        require(
+            msg.value >= IStaking(l1StakingContract).limit(),
+            "insufficient value"
+        );
+        challengerDeposits[_msgSender()] += msg.value;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
@@ -535,37 +542,56 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             false
         );
         emit ChallengeState(batchIndex, _msgSender(), msg.value);
+
+        for (
+            uint256 i = lastFinalizedBatchIndex + 1;
+            i <= lastCommittedBatchIndex;
+            i++
+        ) {
+            if (i != batchIndex) {
+                committedBatchStores[i].finalizeTimestamp += PROOF_WINDOW;
+            }
+        }
     }
 
     // proveState proves a batch by submitting a proof.
+    // _kzgData: [y(32) | commitment(48) | proof(48)]
     function proveState(
         uint64 _batchIndex,
-        bytes calldata _aggrProof
+        bytes calldata _aggrProof,
+        bytes calldata _kzgData,
+        uint32 _minGasLimit,
+        uint256 _gasFee
     ) external {
-        // check challenge exists
+        // Ensure challenge exists and is not finished
         require(
             challenges[_batchIndex].challenger != address(0),
-            "challenge not exist"
+            "Challenge does not exist"
         );
         require(
             !challenges[_batchIndex].finished,
-            "challenge already finished"
+            "Challenge already finished"
         );
-        bool insideChallengeWindow = challenges[_batchIndex].startTime +
-            PROOF_WINDOW >
-            block.timestamp;
-        if (!insideChallengeWindow) {
+
+        // Check for timeout
+        if (
+            challenges[_batchIndex].startTime + PROOF_WINDOW <= block.timestamp
+        ) {
             _challengerWin(
                 _batchIndex,
-                committedBatchStores[_batchIndex].sequencer,
-                "timeout"
+                committedBatchStores[_batchIndex].sequencerIndex,
+                "Timeout",
+                _minGasLimit,
+                _gasFee
             );
-            // todo pause PORTAL contracts
-            // PORTAL.pause();
         } else {
-            // check proof
-            require(_aggrProof.length > 0, "invalid proof");
-            // compute public input hash
+            // Check validity of proof
+            require(_aggrProof.length > 0, "Invalid proof");
+
+            // Check validity of KZG data
+            require(_kzgData.length == 128, "Invalid KZG data");
+
+            // Compute public input hash
             bytes32 _publicInputHash = keccak256(
                 abi.encodePacked(
                     layer2ChainId,
@@ -576,67 +602,88 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 )
             );
 
-            // verify batch
+            // Extract commitment
+            bytes memory _commitment = _kzgData[32:80];
+
+            // Compute xBytes
+            bytes memory _xBytes = abi.encode(
+                keccak256(abi.encodePacked(_commitment, committedBatchStores[_batchIndex].dataHash))
+            );
+            // make sure x < BLS_MODULUS
+            _xBytes[0] = 0x0;
+
+            // Create input for verification
+            bytes memory _input = abi.encode(
+                committedBatchStores[_batchIndex].blobVersionedHash,
+                _xBytes,
+                _kzgData
+            );
+
+            bool ret;
+            bytes memory _output;
+            assembly {
+                ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
+            }
+            require(ret, "verify 4844-proof failed");
+
+            // Verify batch
+            bytes32 _newPublicInputHash = keccak256(
+                abi.encodePacked(_publicInputHash, _xBytes, _kzgData[0:32])
+            );
             IRollupVerifier(verifier).verifyAggregateProof(
                 _batchIndex,
                 _aggrProof,
-                _publicInputHash
+                _newPublicInputHash
             );
-            _defenderWin(
-                _batchIndex,
-                committedBatchStores[_batchIndex].sequencer,
-                "prove success"
-            );
+
+            // Record defender win
+            _defenderWin(_batchIndex, _msgSender(), "Proof success");
         }
+
+        // Mark challenge as finished
         challenges[_batchIndex].finished = true;
+        inChallenge = false;
     }
 
     function _defenderWin(
         uint64 batchIndex,
-        address sequencer,
+        address prover,
         string memory _type
     ) internal {
         address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        deposits[challengerAddr] -= challengeDeposit;
-        deposits[sequencer] += challengeDeposit;
-        emit ChallengeRes(batchIndex, sequencer, _type);
+        challengerDeposits[challengerAddr] -= challengeDeposit;
+        _transfer(prover, challengeDeposit);
+        emit ChallengeRes(batchIndex, prover, _type);
     }
 
     function _challengerWin(
         uint64 batchIndex,
-        address sequencer,
-        string memory _type
+        uint256[] memory sequencerIndex,
+        string memory _type,
+        uint32 _minGasLimit,
+        uint256 _gasFee
     ) internal {
-        address challengerAddr = challenges[batchIndex].challenger;
-        deposits[sequencer] -= MIN_DEPOSIT;
-
+        address challenger = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        deposits[challengerAddr] -= challengeDeposit;
-        uint256 refundAmt = challengeDeposit + MIN_DEPOSIT;
-        _transfer(challengerAddr, refundAmt);
-        emit ChallengeRes(batchIndex, challengerAddr, _type);
-    }
-
-    function withdraw(uint256 amount) public OnlySequencer {
-        address sequencer = _msgSender();
-
-        uint256 value = deposits[sequencer];
-        require(amount > 0, "withdraw amount should be positive");
-        require(amount + MIN_DEPOSIT > value, "insufficient funds");
-
-        deposits[sequencer] -= amount;
-        _transfer(sequencer, amount);
+        _transfer(challenger, challengeDeposit);
+        IL1Sequencer(l1StakingContract).slash(
+            sequencerIndex,
+            challenger,
+            _minGasLimit,
+            _gasFee
+        );
+        emit ChallengeRes(batchIndex, challenger, _type);
     }
 
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
-            bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
+            (bool success, ) = _to.call{value: _amount}(hex"");
             require(success, "Rollup: ETH transfer failed");
         }
     }
 
-    function finalizeBatchs() public whenNotPaused {
+    function finalizeBatches() public whenNotPaused {
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
             uint256 i = lastFinalizedBatchIndexCache + 1;
@@ -644,9 +691,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i++
         ) {
             if (
-                // TODO publicnet needs to recover following batchInChallenge.
-                // batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) || !batchExist(i)
+                batchInChallenge(i) ||
+                batchInsideChallengeWindow(i) ||
+                !batchExist(i)
             ) {
                 break;
             }
@@ -654,7 +701,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function finalizeBatchsByNum(uint256 num) public whenNotPaused {
+    function finalizeBatchesByNum(uint256 num) public whenNotPaused {
         require(num > 1, "finalize batch must bigger than 1");
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
@@ -663,9 +710,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i++
         ) {
             if (
-                // TODO publicnet needs to recover following batchInChallenge.
-                // batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) || !batchExist(i)
+                batchInChallenge(i) ||
+                batchInsideChallengeWindow(i) ||
+                !batchExist(i)
             ) {
                 break;
             }
@@ -675,8 +722,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
-        // TODO publicnet needs to recover following batchInChallenge.
-        // require(!batchInChallenge(_batchIndex), "batch in challenge");
+        require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(
             !batchInsideChallengeWindow(_batchIndex),
             "batch in challenge window"
@@ -753,6 +799,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             }
         }
 
+        delete committedBatchStores[_batchIndex - 1];
+        delete challenges[_batchIndex - 1];
+
         emit FinalizeBatch(
             _batchIndex,
             committedBatchStores[_batchIndex].batchHash,
@@ -765,14 +814,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Restricted Functions *
      ************************/
 
-    /// @notice Update MIN_DEPOSIT.
-    /// @param _newDepositAmount New min deposit amount.
-    function updateMinDepositAmount(
-        uint256 _newDepositAmount
-    ) external onlyOwner {
-        MIN_DEPOSIT = _newDepositAmount;
-    }
-
     /// @notice Update PROOF_WINDOW.
     /// @param _newWindow New proof window.
     function updateProofWindow(uint256 _newWindow) external onlyOwner {
@@ -780,30 +821,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     /// @notice Update FINALIZATION_PERIOD_SECONDS.
-    /// @param _newPeriod New finalize period sencdonds.
+    /// @param _newPeriod New finalize period seconds.
     function updateFinalizePeriodSeconds(
         uint256 _newPeriod
     ) external onlyOwner {
         FINALIZATION_PERIOD_SECONDS = _newPeriod;
-    }
-
-    /// @notice Add an account to the sequencer list.
-    /// @param _account The address of account to add.
-    function addSequencer(address _account) external onlyOwner {
-        isSequencer[_account] = true;
-
-        emit UpdateSequencer(_account, true);
-    }
-
-    /// @notice Remove an account from the sequencer list.
-    /// @param _account The address of account to remove.
-    function removeSequencer(address _account) external onlyOwner {
-        isSequencer[_account] = false;
-        deposits[_account] = 0;
-
-        _transfer(_account, deposits[_account]);
-
-        emit UpdateSequencer(_account, false);
     }
 
     /// @notice Add an account to the prover list.
@@ -991,10 +1013,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 j < _numTransactionsInBlock;
                 j++
             ) {
-                bytes32 txHash;
-                (txHash, l2TxPtr) = ChunkCodec.loadL2TxHash(l2TxPtr);
                 assembly {
-                    mstore(dataPtr, txHash)
+                    mstore(dataPtr, mload(l2TxPtr))
+                    l2TxPtr := add(l2TxPtr, 0x20)
                     dataPtr := add(dataPtr, 0x20)
                 }
             }
@@ -1099,8 +1120,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 batchIndex
     ) public view returns (bool) {
         return
-            committedBatchStores[batchIndex].originTimestamp +
-                FINALIZATION_PERIOD_SECONDS >
+            committedBatchStores[batchIndex].finalizeTimestamp >
             block.timestamp;
     }
 }

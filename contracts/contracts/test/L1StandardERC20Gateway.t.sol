@@ -27,7 +27,8 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _data,
+        uint256 nonce
     );
     event RefundERC20(
         address indexed token,
@@ -283,8 +284,8 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
 
         // skip message 0 and 1
         hevm.startPrank(address(rollup));
-        l1MessageQueue.popCrossDomainMessage(0, 2, 0x3);
-        assertEq(l1MessageQueue.pendingQueueIndex(), 2);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 2, 0x3);
+        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 2);
         hevm.stopPrank();
 
         // drop message 1
@@ -475,7 +476,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
         bytes memory message = abi.encodeWithSelector(
@@ -557,7 +558,8 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 address(this),
                 address(this),
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 l1StandardERC20GatewayBalance = l1Token.balanceOf(
@@ -607,7 +609,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
         bytes memory message = abi.encodeWithSelector(
@@ -690,7 +692,8 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 gatewayBalance = l1Token.balanceOf(
@@ -742,7 +745,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         feePerGas = bound(feePerGas, 0, 1000);
 
         hevm.prank(multisig);
-        l2GasPriceOracle.setL2BaseFee(feePerGas);
+        l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
         bytes memory message = abi.encodeWithSelector(
@@ -822,7 +825,8 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                dataToCall
+                dataToCall,
+                0
             );
 
             uint256 gatewayBalance = l1Token.balanceOf(

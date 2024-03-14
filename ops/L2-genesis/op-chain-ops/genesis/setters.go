@@ -21,35 +21,8 @@ var (
 	// UntouchablePredeploys are addresses in the predeploy namespace
 	// that should not be touched by the migration process.
 	UntouchablePredeploys = map[common.Address]bool{
-		//predeploys.GovernanceTokenAddr: true,
-		//predeploys.WETH9Addr:           true,
-	}
-
-	// UntouchableCodeHashes represent the bytecode hashes of contracts
-	// that should not be touched by the migration process.
-	UntouchableCodeHashes = map[common.Address]ChainHashMap{
-		//predeploys.GovernanceTokenAddr: {
-		//	1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
-		//	5: common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
-		//},
-		//predeploys.WETH9Addr: {
-		//	1: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
-		//	5: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
-		//},
-	}
-
-	// FrozenStoragePredeploys represents the set of predeploys that
-	// will not have their storage wiped during the migration process.
-	// It is very explicitly set in its own mapping to ensure that
-	// changes elsewhere in the codebase do no alter the predeploys
-	// that do not have their storage wiped. It is safe for all other
-	// predeploys to have their storage wiped.
-	FrozenStoragePredeploys = map[common.Address]bool{
-		//predeploys.GovernanceTokenAddr:     true,
-		//predeploys.WETH9Addr:               true,
-		//predeploys.LegacyMessagePasserAddr: true,
-		//predeploys.LegacyERC20ETHAddr:      true,
-		//predeploys.DeployerWhitelistAddr:   true,
+		predeploys.MorphStandardERC20Addr: true,
+		predeploys.L2WETHAddr:             true,
 	}
 )
 
@@ -70,7 +43,7 @@ func SetL2Proxies(db vm.StateDB) error {
 }
 
 func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
-	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
+	depBytecode, err := bindings.GetDeployedBytecode("TransparentUpgradeableProxy")
 	if err != nil {
 		return err
 	}
@@ -78,7 +51,6 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 	for i := uint64(0); i <= count; i++ {
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
-
 		if UntouchablePredeploys[addr] {
 			log.Info("Skipping setting proxy", "address", addr)
 			continue
@@ -107,28 +79,55 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 
 	for name, address := range predeploys.Predeploys {
 		if UntouchablePredeploys[*address] {
-			continue
+			err = SetTouchable(db, name, *address, storage, deployResults, slotResults)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = SetUntouchable(db, name, *address, storage, deployResults, slotResults)
+			if err != nil {
+				return err
+			}
 		}
+	}
+	return nil
+}
 
-		codeAddr, err := AddressToCodeNamespace(*address)
-		if err != nil {
-			return fmt.Errorf("error converting to code namespace: %w", err)
-		}
+func SetUntouchable(db vm.StateDB, name string, address common.Address, storage state.StorageConfig, deployResults immutables.DeploymentResults, slotResults immutables.SlotResults) error {
+	codeAddr, err := AddressToCodeNamespace(address)
+	if err != nil {
+		return fmt.Errorf("error converting to code namespace: %w", err)
+	}
 
-		if !db.Exist(codeAddr) {
-			db.CreateAccount(codeAddr)
-		}
+	if !db.Exist(codeAddr) {
+		db.CreateAccount(codeAddr)
+	}
 
-		db.SetState(*address, ImplementationSlot, codeAddr.Hash())
+	db.SetState(address, ImplementationSlot, codeAddr.Hash())
 
-		if err := setupPredeploy(db, deployResults, slotResults, storage, name, *address, codeAddr); err != nil {
-			return err
-		}
+	if err := setupPredeploy(db, deployResults, slotResults, storage, name, address, codeAddr); err != nil {
+		return err
+	}
 
-		code := db.GetCode(codeAddr)
-		if len(code) == 0 {
-			return fmt.Errorf("code not set for %s", name)
-		}
+	code := db.GetCode(codeAddr)
+	if len(code) == 0 {
+		return fmt.Errorf("code not set for %s", name)
+	}
+	return nil
+}
+
+func SetTouchable(db vm.StateDB, name string, address common.Address, storage state.StorageConfig, deployResults immutables.DeploymentResults, slotResults immutables.SlotResults) error {
+	codeAddr := address
+	if !db.Exist(codeAddr) {
+		db.CreateAccount(codeAddr)
+	}
+	db.SetState(address, ImplementationSlot, codeAddr.Hash())
+	if err := setupPredeploy(db, deployResults, slotResults, storage, name, address, codeAddr); err != nil {
+		return err
+	}
+	code := db.GetCode(codeAddr)
+	if len(code) == 0 {
+		return fmt.Errorf("Untouchable predeploys code not set for %s", name)
 	}
 	return nil
 }
@@ -172,7 +171,7 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 	}
 
-	if name == "L2Sequencer" {
+	if name == "L2Sequencer" || name == "Submitter" {
 		// set slots directly
 		if slots, ok := slotResults[name]; ok {
 			for slotK, slotV := range slots {

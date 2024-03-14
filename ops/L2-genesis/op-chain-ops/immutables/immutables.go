@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"time"
 
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/bindings/predeploys"
@@ -31,9 +33,6 @@ type ImmutableConfig map[string]ImmutableValues
 func (i ImmutableConfig) Check() error {
 	if _, ok := i["L2Sequencer"]["otherSequencer"]; !ok {
 		return errors.New("L2Sequencer otherSequencer not set")
-	}
-	if _, ok := i["Submitter"]["rollupAddr"]; !ok {
-		return errors.New("Submitter rollupAddr not set")
 	}
 	return nil
 }
@@ -75,9 +74,6 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 		},
 		{
 			Name: "Submitter",
-			Args: []interface{}{
-				immutable["Submitter"]["rollupAddr"],
-			},
 		},
 		{
 			Name: "L2GatewayRouter",
@@ -99,6 +95,15 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 		},
 		{
 			Name: "MorphStandardERC20Factory",
+		},
+		{
+			Name: "L2WETHGateway",
+			Args: []interface{}{
+				immutable["L2WETHGateway"]["l1WETH"],
+			},
+		},
+		{
+			Name: "L2WETH",
 		},
 		{
 			Name: "ProxyAdmin",
@@ -147,6 +152,30 @@ func BuildL2(constructors []deployer.Constructor, config *Config) (DeploymentRes
 				return nil, nil, err
 			}
 			lastTx, err = l2Sequencer.Initialize(opts, infos)
+			if err != nil {
+				return nil, nil, err
+			}
+		case "Submitter":
+			if config == nil || len(config.L2SequencerAddresses) == 0 {
+				continue
+			}
+			if len(config.L2SequencerAddresses) != len(config.L2SequencerTmKeys) ||
+				len(config.L2SequencerAddresses) != len(config.L2SequencerBlsKeys) {
+				return nil, nil, fmt.Errorf("wrong L2Sequencer infos config: inconsistent number")
+			}
+			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
+			if err != nil {
+				return nil, nil, err
+			}
+			submitter, err := bindings.NewSubmitter(dep.Address, backend)
+			if err != nil {
+				return nil, nil, err
+			}
+			timestamp := config.L2GenesisBlockTimestamp
+			if timestamp == 0 {
+				timestamp = hexutil.Uint64(time.Now().Unix())
+			}
+			lastTx, err = submitter.Initialize(opts, config.L2SequencerAddresses, big.NewInt(int64(timestamp)))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -203,11 +232,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "Gov":
 		_, tx, _, err = bindings.DeployGov(opts, backend)
 	case "Submitter":
-		rollupAddr, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for rollup address")
-		}
-		_, tx, _, err = bindings.DeploySubmitter(opts, backend, rollupAddr)
+		_, tx, _, err = bindings.DeploySubmitter(opts, backend)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
@@ -227,8 +252,16 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2ERC721Gateway(opts, backend)
 	case "L2ERC1155Gateway":
 		_, tx, _, err = bindings.DeployL2ERC1155Gateway(opts, backend)
+	case "L2WETHGateway":
+		l1weth, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l1weth")
+		}
+		_, tx, _, err = bindings.DeployL2WETHGateway(opts, backend, predeploys.L2WETHAddr, l1weth)
+	case "L2WETH":
+		_, tx, _, err = bindings.DeployWrappedEther(opts, backend)
 	case "ProxyAdmin":
-		_, tx, _, err = bindings.DeployProxyAdmin(opts, backend, common.BigToAddress(common.Big1))
+		_, tx, _, err = bindings.DeployProxyAdmin(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
