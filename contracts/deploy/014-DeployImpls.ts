@@ -32,23 +32,25 @@ export const deployContractImpls = async (
     const L1StandardERC20GatewayFactoryName = ContractFactoryName.L1StandardERC20Gateway
     const L1ERC721GatewayFactoryName = ContractFactoryName.L1ERC721Gateway
     const L1ERC1155GatewayFactoryName = ContractFactoryName.L1ERC1155Gateway
+    const L1WETHGatewayFactoryName = ContractFactoryName.L1WETHGateway
 
     // implement storage name
     const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
     const StakingImplStorageName = ImplStorageName.StakingStorageName
     const L1SequencerImplStorageName = ImplStorageName.L1SequencerStorageName
-    const L1MessageQueueWithGasPriceOracleImplStroageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
+    const L1MessageQueueWithGasPriceOracleImplStorageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
     const RollupImplStorageName = ImplStorageName.RollupStorageName
     const L1GatewayRouterImplStorageName = ImplStorageName.L1GatewayRouterStorageName
     const L1ETHGatewayImplStorageName = ImplStorageName.L1ETHGatewayStorageName
     const L1StandardERC20GatewayImplStorageName = ImplStorageName.L1StandardERC20GatewayStorageName
+    const L1WETHGatewayImplStorageName = ImplStorageName.L1WETHGatewayStorageName
     const L1ERC721GatewayImplStorageName = ImplStorageName.L1ERC721GatewayStorageName
     const L1ERC1155GatewayImplStorageName = ImplStorageName.L1ERC1155GatewayStorageName
 
     // proxy contract address
-    const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStroageName)
+    const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
-    const EnforcedTxGatewayAddress = getContractAddressByName(path, ProxyStorageName.EnforcedTxGatewayProxyStroageName)
+    const EnforcedTxGatewayAddress = getContractAddressByName(path, ProxyStorageName.EnforcedTxGatewayProxyStorageName)
 
     // ************************ messenger contracts deploy ************************
     // L1CrossDomainMessenger deploy
@@ -66,10 +68,10 @@ export const deployContractImpls = async (
     Factory = await hre.ethers.getContractFactory(L1MessageQueueWithGasPriceOracleFactoryName)
     contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress, RollupProxyAddress, EnforcedTxGatewayAddress)
     await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1MessageQueueWithGasPriceOracleImplStroageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    console.log("%s=%s ; TX_HASH: %s", L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1MessageQueueWithGasPriceOracleImplStroageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storge(path, L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -152,6 +154,19 @@ export const deployContractImpls = async (
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storge(path, L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
+    // L1WETHGateway deploy
+    const WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
+    Factory = await hre.ethers.getContractFactory(L1WETHGatewayFactoryName)
+    contract = await Factory.deploy(WETHAddress, predeploys.L2WETH)
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storge(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

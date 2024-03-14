@@ -25,6 +25,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Constants *
      *************/
 
+    /// @notice The zero versioned hash.
+    bytes32 public ZEROVERSIONEDHASH;
+
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
 
@@ -79,7 +82,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
         uint256 blockNumber;
-        bytes32 blobVersionedhash;
+        bytes32 blobVersionedHash;
     }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -98,7 +101,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     uint256 public FINALIZATION_PERIOD_SECONDS;
 
     /**
-     * @notice The time when zkproof was generated and executed.
+     * @notice The time when zkProof was generated and executed.
      */
     uint256 public PROOF_WINDOW;
 
@@ -190,6 +193,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
 
+        ZEROVERSIONEDHASH = bytes32(
+            hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
+        );
+
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
     }
@@ -248,6 +255,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "nonzero parent batch hash"
         );
 
+        _batchHash = keccak256(abi.encodePacked(_batchHash, ZEROVERSIONEDHASH));
+
         committedBatchStores[0] = BatchStore(
             _batchHash,
             block.timestamp,
@@ -261,7 +270,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             0,
             "",
             0,
-            ""
+            ZEROVERSIONEDHASH
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -324,18 +333,13 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.parentBatchHeader
         );
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
-        // re-compute batchhash using _blobVersionedhash
-        if (
-            _batchIndex > 0 &&
-            committedBatchStores[_batchIndex].blobVersionedhash != bytes32(0)
-        ) {
-            _parentBatchHash = keccak256(
-                abi.encodePacked(
-                    _parentBatchHash,
-                    committedBatchStores[_batchIndex].blobVersionedhash
-                )
-            );
-        }
+        // re-compute batchHash using _blobVersionedHash
+        _parentBatchHash = keccak256(
+            abi.encodePacked(
+                _parentBatchHash,
+                committedBatchStores[_batchIndex].blobVersionedHash
+            )
+        );
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderV0Codec
             .totalL1MessagePopped(batchPtr);
@@ -419,14 +423,15 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchPtr,
             89 + batchData.skippedL1MessageBitmap.length
         );
-        // todo
-        bytes32 _blobVersionedhash = blobhash(0);
-        // bytes32 _blobVersionedhash = bytes32(0);
-        if (_blobVersionedhash != bytes32(0)) {
-            _batchHash = keccak256(
-                abi.encodePacked(_batchHash, _blobVersionedhash)
-            );
+
+        bytes32 _blobVersionedHash = blobhash(0);
+        if (_blobVersionedHash == bytes32(0)) {
+            _blobVersionedHash = ZEROVERSIONEDHASH;
         }
+        _batchHash = keccak256(
+            abi.encodePacked(_batchHash, _blobVersionedHash)
+        );
+
         committedBatchStores[_batchIndex] = BatchStore(
             _batchHash,
             block.timestamp,
@@ -440,7 +445,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
             latestL2BlockNumber,
-            _blobVersionedhash
+            _blobVersionedHash
         );
         if (withdrawalRoots[batchData.withdrawalRoot] == 0) {
             withdrawalRoots[batchData.withdrawalRoot] = _batchIndex;
@@ -462,6 +467,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // check batch hash
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(memPtr);
+        _batchHash = keccak256(
+            abi.encodePacked(
+                _batchHash,
+                committedBatchStores[_batchIndex].blobVersionedHash
+            )
+        );
         require(
             committedBatchStores[_batchIndex].batchHash == _batchHash,
             "incorrect batch hash"
@@ -475,7 +486,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         // check finalization
         require(
             _batchIndex > lastFinalizedBatchIndex,
-            "can only revert unfinalized batch"
+            "can only revert unFinalized batch"
         );
 
         while (_count > 0) {
@@ -511,7 +522,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // check challenge window
-        // todo get finalization period from output oracle
         require(
             committedBatchStores[batchIndex].finalizeTimestamp >
                 block.timestamp,
@@ -519,7 +529,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
 
         // check challenge amount
-        require(msg.value >= IStaking(l1StakingContract).limit());
+        require(
+            msg.value >= IStaking(l1StakingContract).limit(),
+            "insufficient value"
+        );
         challengerDeposits[_msgSender()] += msg.value;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
@@ -594,14 +607,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
             // Compute xBytes
             bytes memory _xBytes = abi.encode(
-                keccak256(abi.encodePacked(_commitment, _publicInputHash))
+                keccak256(abi.encodePacked(_commitment, committedBatchStores[_batchIndex].dataHash))
             );
             // make sure x < BLS_MODULUS
             _xBytes[0] = 0x0;
 
             // Create input for verification
             bytes memory _input = abi.encode(
-                committedBatchStores[_batchIndex].blobVersionedhash,
+                committedBatchStores[_batchIndex].blobVersionedHash,
                 _xBytes,
                 _kzgData
             );
@@ -670,7 +683,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function finalizeBatchs() public whenNotPaused {
+    function finalizeBatches() public whenNotPaused {
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
             uint256 i = lastFinalizedBatchIndexCache + 1;
@@ -688,7 +701,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function finalizeBatchsByNum(uint256 num) public whenNotPaused {
+    function finalizeBatchesByNum(uint256 num) public whenNotPaused {
         require(num > 1, "finalize batch must bigger than 1");
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
@@ -808,7 +821,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     /// @notice Update FINALIZATION_PERIOD_SECONDS.
-    /// @param _newPeriod New finalize period sencdonds.
+    /// @param _newPeriod New finalize period seconds.
     function updateFinalizePeriodSeconds(
         uint256 _newPeriod
     ) external onlyOwner {
@@ -1000,10 +1013,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 j < _numTransactionsInBlock;
                 j++
             ) {
-                bytes32 txHash;
-                (txHash, l2TxPtr) = ChunkCodec.loadL2TxHash(l2TxPtr);
                 assembly {
-                    mstore(dataPtr, txHash)
+                    mstore(dataPtr, mload(l2TxPtr))
+                    l2TxPtr := add(l2TxPtr, 0x20)
                     dataPtr := add(dataPtr, 0x20)
                 }
             }

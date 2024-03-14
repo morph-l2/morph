@@ -10,6 +10,8 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 )
 
+var EmptyVersionedHash = common.HexToHash("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
+
 type BatchHeaderWithBlobHashes struct {
 	BatchHeader
 	blobHashes []common.Hash
@@ -54,13 +56,14 @@ func (b *BatchHeaderWithBlobHashes) UnmarshalBinary(input []byte) (err error) {
 }
 
 func (b *BatchHeaderWithBlobHashes) BatchHash() common.Hash {
-	if len(b.blobHashes) == 0 {
-		return b.BatchHeader.Hash()
-	}
-	bytes := b.BatchHeader.Hash().Bytes()
+	var blobHashBytes []byte
 	for _, bh := range b.blobHashes {
-		bytes = append(bytes, bh.Bytes()...)
+		blobHashBytes = append(blobHashBytes, bh.Bytes()...)
 	}
+	if len(blobHashBytes) == 0 {
+		blobHashBytes = EmptyVersionedHash[:]
+	}
+	bytes := append(b.BatchHeader.Hash().Bytes(), blobHashBytes...)
 	return crypto.Keccak256Hash(bytes)
 }
 

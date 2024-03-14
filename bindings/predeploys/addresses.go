@@ -12,12 +12,14 @@ const (
 	L2CrossDomainMessenger    = "0x5300000000000000000000000000000000000007"
 	L2StandardERC20Gateway    = "0x5300000000000000000000000000000000000008"
 	L2ERC721Gateway           = "0x5300000000000000000000000000000000000009"
-	L2TxFeeVault              = "0x530000000000000000000000000000000000001A"
-	ProxyAdmin                = "0x530000000000000000000000000000000000001B"
-	L2ERC1155Gateway          = "0x530000000000000000000000000000000000001C"
-	MorphStandardERC20        = "0x530000000000000000000000000000000000001D"
-	MorphStandardERC20Factory = "0x530000000000000000000000000000000000001E"
+	L2TxFeeVault              = "0x530000000000000000000000000000000000000A"
+	ProxyAdmin                = "0x530000000000000000000000000000000000000B"
+	L2ERC1155Gateway          = "0x530000000000000000000000000000000000000C"
+	MorphStandardERC20        = "0x530000000000000000000000000000000000000D"
+	MorphStandardERC20Factory = "0x530000000000000000000000000000000000000E"
 	GasPriceOracle            = "0x530000000000000000000000000000000000000F"
+	L2WETHGateway             = "0x5300000000000000000000000000000000000010"
+	L2WETH                    = "0x5300000000000000000000000000000000000011"
 )
 
 var (
@@ -36,6 +38,8 @@ var (
 	L2ERC1155GatewayAddr          = common.HexToAddress(L2ERC1155Gateway)
 	MorphStandardERC20Addr        = common.HexToAddress(MorphStandardERC20)
 	MorphStandardERC20FactoryAddr = common.HexToAddress(MorphStandardERC20Factory)
+	L2WETHGatewayAddr             = common.HexToAddress(L2WETHGateway)
+	L2WETHAddr                    = common.HexToAddress(L2WETH)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -56,4 +60,6 @@ func init() {
 	Predeploys["MorphStandardERC20"] = &MorphStandardERC20Addr
 	Predeploys["MorphStandardERC20Factory"] = &MorphStandardERC20FactoryAddr
 	Predeploys["L2TxFeeVault"] = &L2TxFeeVaultAddr
+	Predeploys["L2WETHGateway"] = &L2WETHGatewayAddr
+	Predeploys["L2WETH"] = &L2WETHAddr
 }

@@ -125,7 +125,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         emit CommitBatch(
             1,
             bytes32(
-                0x00847173b29b238cf319cde79512b7c213e5a8b4138daa7051914c4592b6dfc7
+                0xb6f66703f9b6370dd2869955332d8333348d5d4754cd51ebd618727a047257a4
             )
         );
         batchData = IRollup.BatchData(
@@ -151,13 +151,13 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(
             batchHash1,
             bytes32(
-                0x00847173b29b238cf319cde79512b7c213e5a8b4138daa7051914c4592b6dfc7
+                0xb6f66703f9b6370dd2869955332d8333348d5d4754cd51ebd618727a047257a4
             )
         );
 
         // finalize batch1
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS() + 1);
-        rollup.finalizeBatchs();
+        rollup.finalizeBatches();
         assertTrue(rollup.isBatchFinalized(1));
         assertEq(rollup.finalizedStateRoots(1), stateRoot);
         assertEq(rollup.withdrawalRoots(bytes32(uint256(3))), 1);
@@ -336,7 +336,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         emit CommitBatch(
             2,
             bytes32(
-                0x03a9cdcb9d582251acf60937db006ec99f3505fd4751b7c1f92c9a8ef413e873
+                0xcfbb018dbe120e5c2195c3b22e2a224a9510349dfda20361cb13c1115c4d6214
             )
         );
 
@@ -363,14 +363,14 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(
             batchHash2,
             bytes32(
-                0x03a9cdcb9d582251acf60937db006ec99f3505fd4751b7c1f92c9a8ef413e873
+                0xcfbb018dbe120e5c2195c3b22e2a224a9510349dfda20361cb13c1115c4d6214
             )
         );
 
         // verify committed batch correctly
         hevm.startPrank(address(0));
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS());
-        rollup.finalizeBatchs();
+        rollup.finalizeBatches();
         hevm.stopPrank();
 
         assertTrue(rollup.isBatchFinalized(2));
@@ -780,8 +780,8 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testFinalizeBatchs() public {
-        rollup.finalizeBatchs();
+    function testFinalizeBatches() public {
+        rollup.finalizeBatches();
     }
 
     function testRevertBatch() public {
@@ -879,8 +879,8 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("reverting must start from the ending");
         rollup.revertBatch(batchHeader1, 1);
 
-        // can only revert unfinalized batch, revert
-        hevm.expectRevert("can only revert unfinalized batch");
+        // can only revert unFinalized batch, revert
+        hevm.expectRevert("can only revert unFinalized batch");
         rollup.revertBatch(batchHeader0, 3);
 
         // succeed to revert next two pending batches.
@@ -963,7 +963,7 @@ contract RollupTest is L1MessageBaseTest {
         ); // first chunk with too many txs
 
         hevm.expectRevert("Pausable: paused");
-        rollup.finalizeBatchs();
+        rollup.finalizeBatches();
         hevm.stopPrank();
 
         // unpause

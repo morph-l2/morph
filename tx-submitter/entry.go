@@ -99,7 +99,7 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 			return err
 		}
 
-		sr := services.NewSR(
+		sr := services.NewRollup(
 			ctx,
 			m,
 			l1Client,

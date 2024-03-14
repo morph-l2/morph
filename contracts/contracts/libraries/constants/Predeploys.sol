@@ -64,31 +64,31 @@ library Predeploys {
      * @notice Address of the L2ERC721Bridge predeploy.
      */
     address internal constant L2TxFeeVault =
-        0x530000000000000000000000000000000000001a;
+        0x530000000000000000000000000000000000000a;
 
     /**
      * @notice Address of the ProxyAdmin predeploy.
      */
     address internal constant PROXY_ADMIN =
-        0x530000000000000000000000000000000000001B;
+        0x530000000000000000000000000000000000000b;
 
-   /**
+    /**
      * @notice Address of the L2ERC1155Gateway predeploy.
      */
     address internal constant L2_ERC1155_Gateway =
-        0x530000000000000000000000000000000000001c;
+        0x530000000000000000000000000000000000000c;
 
-   /**
+    /**
      * @notice Address of the MorphStandardERC20 predeploy.
      */
     address internal constant Morph_Standard_ERC20 =
-        0x530000000000000000000000000000000000001D;
+        0x530000000000000000000000000000000000000D;
 
     /**
      * @notice Address of the MorphStandardERC20Factory predeploy.
      */
     address internal constant Morph_Standard_ERC20_Factory =
-        0x530000000000000000000000000000000000001e;
+        0x530000000000000000000000000000000000000e;
 
     /**
      * @notice Address of the GasPriceOracle predeploy. Includes fee information
@@ -96,4 +96,16 @@ library Predeploys {
      */
     address internal constant GAS_PRICE_ORACLE =
         0x530000000000000000000000000000000000000f;
+
+    /**
+     * @notice Address of the L2WETHGateway predeploy.
+     */
+    address internal constant L2_WETH_Gateway =
+        0x5300000000000000000000000000000000000010;
+
+    /**
+     * @notice Address of the L2WETH predeploy.
+     */
+    address internal constant L2_WETH =
+        0x5300000000000000000000000000000000000011;
 }

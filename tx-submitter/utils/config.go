@@ -57,6 +57,9 @@ type Config struct {
 
 	// decentralized
 	PriorityRollup bool
+
+	// tx fee limit
+	TxFeeLimit uint64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -84,6 +87,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPort.Name),
 		// decentralized
 		PriorityRollup: ctx.GlobalBool(flags.PriorityRollupFlag.Name),
+		// tx config
+		TxFeeLimit: ctx.GlobalUint64(flags.TxFeeLimitFlag.Name),
 	}
 
 	return cfg, nil

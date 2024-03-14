@@ -26,7 +26,8 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _data,
+        uint256 nonce
     );
     event RefundERC20(
         address indexed token,
@@ -433,7 +434,8 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 address(this),
                 address(this),
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
@@ -575,7 +577,8 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
@@ -722,7 +725,8 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                dataToCall
+                dataToCall,
+                0
             );
 
             uint256 gatewayBalance = l1Token.balanceOf(address(gateway));

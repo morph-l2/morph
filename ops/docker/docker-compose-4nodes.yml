@@ -52,10 +52,10 @@ services:
 #        chain-genesis:
 #          condition: service_completed_successfully
       ports:
-        - 4000:4000
-        - 3500:3500
-        - 8080:8080
-        - 6060:6060
+        - 4000
+        - 3500
+        - 8080
+        - 6060
       volumes:
         - l1_consensus:/consensus
         - l1_execution:/execution
@@ -105,7 +105,7 @@ services:
       - --nodiscover
       - --syncmode=full
     ports:
-      - 8551:8551
+      - 8551
       - 9545:8545
       - 9546:8546
     depends_on:
@@ -507,6 +507,7 @@ services:
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
       - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000003
+      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
 
 
   tx-submitter-1:
@@ -545,6 +546,7 @@ services:
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
       - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000003
+      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
 
 
 
@@ -584,6 +586,7 @@ services:
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
       - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000003
+      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
 
 
   tx-submitter-3:
@@ -622,6 +625,7 @@ services:
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
       - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000003
+      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
 
 
   gas-price-oracle:
