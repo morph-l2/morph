@@ -155,7 +155,10 @@ func L2NodeMain(ctx *cli.Context) error {
 		ms.Stop()
 	}
 	if tmNode != nil {
-		tmNode.Stop()
+		if stopErr := tmNode.Stop(); stopErr != nil {
+			nodeConfig.Logger.Error("failed to stop tendermint node", "err", stopErr)
+			return stopErr
+		}
 	}
 	if syncer != nil {
 		syncer.Stop()
