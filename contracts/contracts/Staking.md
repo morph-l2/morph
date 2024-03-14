@@ -2,95 +2,81 @@
 
 ## Stake ETH
 
-- Staking 金额固定且不可修改
+- Staking amount is immutable
 
-1. `L1` 加入白名单
-2. `L1` 注册并质押 ETH
-3. `L1` Restaking
-4. `L1 -> L2` Bridge Staking 消息
+1. `L1` Add to whitelist
+2. `L1` Register and stake ETH
+3. `L1 -> L2` Bridge Staking message
 
 ## Withdraw
 
-- 退出锁定期应足够长，以保证 L2 中 Stakers 和 Sequencer 已完成更新
-- TBD: Staker 全部退出后如何处理？
+- The exit lock period should be long enough to ensure that stakers and sequencers in L2 have been updated
+- TBD: When the removal causes the number of stakers to be 0, it will not be successful because L2 Unable to produce new block
 
-1. `L1` 申请 Withdraw，进入锁定期
-2. `L1` UnRestaking
-3. `L1 -> L2` Bridge 退出消息
-4. `L2` 更新 Stakers 和 SequencerSet
-5. `L1` 到达锁定期且 Staker 不在 SequencerSet 中，允许 Claim，Claim 后从 Stakers 中移除
+1. `L1` Apply for Withdrawal, enter lock peroid
+2. `L1 -> L2` Bridge withdrawal message
+3. `L2` Update stakers sequencer set
+4. `L1` Reach unlock height and staker not in sequencer set，claim allowed，remove staker after claiming
 
-## Delegate Stake Morph & Sequencer Selection
+## Delegate stake Morph & sequencer selection
 
-- Sequencer 数量固定为 1-X 个，L2 启动前 L1 中 Staker 数量应大于等于 X 个
-- L2 初始启动时应将 Staker 初始化为与 L1 一致，且前 X 个作为 SequencerSet
-- 所有用户可向 L2 中所有 Staker 委托质押 Morph Token
-- Staker 按照 Morph 质押数量排序，选取前 X 个作为 SequencerSet，合约内实时更新，共识层延迟一块更新完成
-- 用户解除委托或转委托需要锁定期 (具体时间 TBD)
-- 若 Staker 被移除，则用户委托质押的金额立即释放
-- 若 Staker 全部移除，则链停止，重启方案 TBD
+- The number of Sequencers is fixed at 1-X. The number of Staker in L1 should be greater than or equal to X before L2 is started
+- When L2 is fisrt started, staker should be initialized to be consistent with L1, and the first X ones will be sequencers
+- All users can delegate stake Morph token to all Staker in L2
+- Staker sorts according to the staked Morph token amount, selects the first X as sequencers
+- A lock-in period is required for users to undelegate or redelegate
+- If staker was removed, all delegation staking will be released and need claim manually
+- TBD: All stakers were removed
 
 ## Rollup
 
-- BLS 功能未实现前，只有 Staker（not withdrawing, not slashing）可以进行 Rollup
-  - TBD：不经过验签存在风险，某个 Staker 上传 Batch 导致挑战成功，所有签名者全部被 Slash
-- BLS 功能实现后，任何人都可以进行 Rollup（须验签通过）
-- TBD: Sequencer 使用 Index 还是 Address？优化减小数据
-- TBD: 挑战导致 Sequencer 或 Staker 全部退出后如何处理？
+- Before BLS implementation, only staker (not withdrawing, not slashing) can rollup. After the implementation, everyone can rollup
+- TBD: When the slash causes the number of stakers or sequencer to be 0, it will not be successful because L2 Unable to produce new block
 
-1. Rollup 合约请求 Staking 合约验证 BLS 签名。参数：
+1. Rollup contract request verifying BLS signature to staking contract. Parameters:
    - sign(batch_hash + sequencer_set_change)
    - signed_sequencers_addresses
    - sequencer_set_addresses
-2. Staking 合约验证签名并更新 latest_sequencer_set
-   - latest_sequencer_set 为空（首个 Rollup）时 sequencer_set_change 为空
-
-## Slash Defense Challenge Failed
-
-- Sequencer 挑战失败后罚没质押金额
-- 每个 Sequencer 只会被惩罚一次，罚没全部质押金额
-- TBD：挑战成功奖励金额 = 所有 Sequencer 被罚没的金额？
-
-1. `L1` 挑战者发起挑战
-2. `L1` 挑战者挑战成功，记录奖励信息及解锁区块
-3. `L1` UnRestaking 受罚者
-4. `L1 -> L2` Bridge 受罚者退出 Stakers 消息
-5. `L2` 更新 Stakers 和 SequencerSet
-6. `L1` 达到解锁区块后（UnRestaking 完成），挑战者 Claim 奖励，将受罚者移除 Stakers
+2. Staking contract verifies signature and update latest_sequencer_set
+   - If latest_sequencer_set is null (first rollup), sequencer_set_change should be null
 
 ## Record
 
-- 出块记录: Oracle
+- Block record: Oracle
   - sequencer: `array(block_number, block_proposer, (block_size ? tx_number ?))`
-- Delegate Staking 记录: 合约存储
+- Delegate staking revord: Contract
   - staker: `array(block, amount)`,
   - delegate_staker: `array(staker, block, amount)`
-- Rollup 记录: Oracle
+- Rollup record: Oracle
   - submitter: `array(submitter, BatchInfo(index, startBlock, endBlock, rollupTime, size))`
 
-## Pay Reward
+## Rollup reward
 
-- TBD: 奖励来源
-  - 方案一：自动增发到 Distribute 合约（需要修改电路？）
-  - 方案二：外部定期向 Distribute 合约转账
+- Reward source: gasfee
+- Reward calculation: Ergodic the blocks to claim, statistics on the number of Rollups and data volume, minus the timeout penalty
+- Distribute: distribute to submitter by EOA account
+- Penalty for rollup timeout: timeout times reaches the threshold
 
-## Sequencer Claim Reward
+## Staking reward
 
-- Claim 奖励时自动扣除 Slash 金额
-- Slash:
-  - TBD: Sequencer 超过一定区块数未出块
-  - TBD: 作为 Submitter 超时达到一定数量
-- 每次 Claim 奖励区间为上次 Claim 高度至当前区块
-  - Calculate block reward：遍历 Claim 区间区块，记录每个区块的奖励金额 (sequencer 奖励 & delegate_staker 奖励)，累加 Sequencer 奖励后减去惩罚，计算总奖励金额
-  - Calculate rollup reward：遍历 Claim 区间区块，统计 Rollup 数量及数据量，减去超时惩罚，计算总奖励金额
-- TBD: 具体金额及分配比例
-- TBD: 若奖励来源为外部向 Distribute 合约转账则需确定可以 Claim 的区间
+- Reward source: Morph inflation, claim by `Distribute` contract
+- Claim: Manual claim
+- Reward calculation: Calculate rewards according to the proportion of blocks produced, record the total reward amount of each block, and record the height of each claim
+  - Sequencer: commission (+ block reward?)
+  - Delegate Staker: Proportion minus commission
 
-## Delegate Staker Claim Reward
+## Penalty for defense challenge fails
 
-- 遍历 Claim 区间区块，逐块计算委托的 Staker 奖励金额并记录 (Sequencer 和所有 delegate_staker 只需计算一次)，按比例计算所得份额，累加后获得总奖励
-- TBD: 具体金额及分配比例
+- Sequencer will be confiscated all stake amount and removed from sequencer set if defense challenge fails
+- Even if challenged repeatedly, each sequencer will only be slash once
+- TBD: The reward for a successful challenge is a fixed proportion of the staking amount, and is greater than the challenge deposit
 
----
+1. `L1` Challenger start a challenge
+2. `L1` Challenger win, confiscate all staking amount of sequencers
+3. `L1 -> L2` Bridge stakers removed message
+4. `L2` Update stakers and sequencer set
+5. `L1` Confirm stakers were removed on L2, challenger claim reward and remove stakers on L1
 
-TBD: Sequencer 长期不出块是否踢出 SequencerSet, 若踢出则自动触发还是手动触发
+## Penalty for not producing blocks
+
+- If a Sequencer does not produce blocks for a long time, other Sequencers can kick it out
