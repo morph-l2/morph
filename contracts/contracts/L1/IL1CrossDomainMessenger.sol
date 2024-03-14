@@ -9,17 +9,6 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
      * Events *
      **********/
 
-    /**
-     * @notice Emitted when a withdrawal transaction is proven.
-     *
-     * @param withdrawalHash Hash of the withdrawal transaction.
-     */
-    event WithdrawalProven(
-        bytes32 indexed withdrawalHash,
-        address indexed from,
-        address indexed to
-    );
-
     /// @notice Emitted when the maximum number of times each message can be replayed is updated.
     /// @param oldMaxReplayTimes The old maximum number of times each message can be replayed.
     /// @param newMaxReplayTimes The new maximum number of times each message can be replayed.
