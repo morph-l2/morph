@@ -175,7 +175,10 @@ contract Staking is IStaking, OwnableUpgradeable {
         require(sequencersSize > 0, "sequencersSize must greater than 0");
         require(tmKey != 0, "invalid tendermint pubkey");
         require(blsKey.length == 256, "invalid bls pubkey");
-        require(msg.value >= _gasFee + limit, "staking value is not enough");
+        require(
+            limit > 0 && msg.value >= _gasFee + limit,
+            "staking value is not enough"
+        );
 
         uint256 stakingAmount = msg.value - _gasFee;
 
@@ -239,7 +242,9 @@ contract Staking is IStaking, OwnableUpgradeable {
         uint256 _gasFee
     ) external payable inWhitelist onlyStaker {
         require(
-            msg.value > 0 && stakings[msg.sender].balance + msg.value > limit,
+            limit > 0 &&
+                msg.value > 0 &&
+                stakings[msg.sender].balance + msg.value > limit,
             "staking value not enough"
         );
         stakings[msg.sender].balance += msg.value;
