@@ -652,44 +652,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function _defenderWin(
-        uint64 batchIndex,
-        address prover,
-        string memory _type
-    ) internal {
-        address challengerAddr = challenges[batchIndex].challenger;
-        uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        challengerDeposits[challengerAddr] -= challengeDeposit;
-        _transfer(prover, challengeDeposit);
-        emit ChallengeRes(batchIndex, prover, _type);
-    }
-
-    function _challengerWin(
-        uint64 batchIndex,
-        uint256[] memory sequencerIndex,
-        string memory _type,
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) internal {
-        address challenger = challenges[batchIndex].challenger;
-        uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        _transfer(challenger, challengeDeposit);
-        IL1Sequencer(l1StakingContract).slash(
-            sequencerIndex,
-            challenger,
-            _minGasLimit,
-            _gasFee
-        );
-        emit ChallengeRes(batchIndex, challenger, _type);
-    }
-
-    function _transfer(address _to, uint256 _amount) internal {
-        if (_amount > 0) {
-            (bool success, ) = _to.call{value: _amount}(hex"");
-            require(success, "Rollup: ETH transfer failed");
-        }
-    }
-
     function finalizeBatches() public whenNotPaused {
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
@@ -824,6 +786,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice Update PROOF_WINDOW.
     /// @param _newWindow New proof window.
     function updateProofWindow(uint256 _newWindow) external onlyOwner {
+        emit UpdateProofWindow(PROOF_WINDOW, _newWindow);
         PROOF_WINDOW = _newWindow;
     }
 
@@ -832,6 +795,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function updateFinalizePeriodSeconds(
         uint256 _newPeriod
     ) external onlyOwner {
+        emit UpdateFinalizationPeriodSeconds(
+            FINALIZATION_PERIOD_SECONDS,
+            _newPeriod
+        );
         FINALIZATION_PERIOD_SECONDS = _newPeriod;
     }
 
@@ -904,6 +871,57 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Internal Functions *
      **********************/
 
+    /// @dev Internal function executed when the defender wins.
+    /// @param batchIndex The index of the batch indicating where the challenge occurred.
+    /// @param prover The zkProof prover address.
+    /// @param _type Description of the challenge type.
+    function _defenderWin(
+        uint64 batchIndex,
+        address prover,
+        string memory _type
+    ) internal {
+        address challengerAddr = challenges[batchIndex].challenger;
+        uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
+        challengerDeposits[challengerAddr] -= challengeDeposit;
+        _transfer(prover, challengeDeposit);
+        emit ChallengeRes(batchIndex, prover, _type);
+    }
+
+    /// @dev Internal function executed when the challenger wins.
+    /// @param batchIndex The index of the batch indicating where the challenge occurred.
+    /// @param sequencerIndex An array containing the indices of sequencers to be slashed.
+    /// @param _type Description of the challenge type.
+    /// @param _minGasLimit Minimum gas limit used for slashing sequencers.
+    /// @param _gasFee Gas fee used for slashing sequencers.
+    function _challengerWin(
+        uint64 batchIndex,
+        uint256[] memory sequencerIndex,
+        string memory _type,
+        uint32 _minGasLimit,
+        uint256 _gasFee
+    ) internal {
+        address challenger = challenges[batchIndex].challenger;
+        uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
+        _transfer(challenger, challengeDeposit);
+        IL1Sequencer(l1StakingContract).slash(
+            sequencerIndex,
+            challenger,
+            _minGasLimit,
+            _gasFee
+        );
+        emit ChallengeRes(batchIndex, challenger, _type);
+    }
+
+    /// @dev Internal function to transfer ETH to a specified address.
+    /// @param _to The address to transfer ETH to.
+    /// @param _amount The amount of ETH to transfer.
+    function _transfer(address _to, uint256 _amount) internal {
+        if (_amount > 0) {
+            (bool success, ) = _to.call{value: _amount}(hex"");
+            require(success, "Rollup: ETH transfer failed");
+        }
+    }
+
     /// @dev Internal function to load batch header from calldata to memory.
     /// @param _batchHeader The batch header in calldata.
     /// @return memPtr The start memory offset of loaded batch header.
@@ -919,6 +937,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         _batchHash = BatchHeaderV0Codec.computeBatchHash(memPtr, _length);
     }
 
+    /// @dev Internal function to storage the latestL2BlockNumber.
+    /// @param _chunk The batch chunk in memory.
     function setLatestL2BlockNumber(bytes memory _chunk) internal {
         uint256 blockPtr;
         uint256 chunkPtr;
@@ -1113,16 +1133,22 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         return _ptr;
     }
 
+    /// @dev Public function to checks whether the batch is in challenge.
+    /// @param batchIndex The index of the batch to be checked.
     function batchInChallenge(uint256 batchIndex) public view returns (bool) {
         return
             challenges[batchIndex].challenger != address(0) &&
             !challenges[batchIndex].finished;
     }
 
+    /// @dev Public function to checks whether batch exists.
+    /// @param batchIndex The index of the batch to be checked.
     function batchExist(uint256 batchIndex) public view returns (bool) {
         return committedBatchStores[batchIndex].originTimestamp > 0;
     }
 
+    /// @dev Public function to checks whether the batch is in challengeWindow.
+    /// @param batchIndex The index of the batch to be checked.
     function batchInsideChallengeWindow(
         uint256 batchIndex
     ) public view returns (bool) {
