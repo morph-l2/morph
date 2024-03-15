@@ -180,8 +180,16 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
                 message
             )
         );
-
-        messageProve(_from, address(l1ETHGateway), amount, 0, message);
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                _from,
+                address(l1ETHGateway),
+                amount,
+                0,
+                message
+            );
 
         uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
         uint256 recipientBalance = recipient.balance;
@@ -193,12 +201,14 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
         emit FailedRelayedMessage(_xDomainCalldataHash);
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             _from,
             address(l1ETHGateway),
             amount,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
 
         assertEq(messengerBalance, address(l1CrossDomainMessenger).balance);
@@ -234,8 +244,16 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
                 message
             )
         );
-        messageProve(_from, address(l1ETHGateway), amount, 0, message);
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                _from,
+                address(l1ETHGateway),
+                amount,
+                0,
+                message
+            );
         uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
         uint256 recipientBalance = recipient.balance;
         assertBoolEq(
@@ -249,14 +267,15 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             emit FinalizeWithdrawETH(sender, address(recipient), amount, "");
         }
 
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             _from,
             address(l1ETHGateway),
             amount,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
-
         assertEq(
             messengerBalance - amount,
             address(l1CrossDomainMessenger).balance

@@ -35,8 +35,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         assertEq(getTreeRoot(), wdRoot);
 
         // prove without rollup
-        hevm.expectRevert("Messenger: do not submit withdrawalRoot");
-        l1CrossDomainMessenger.proveMessage(
+        hevm.expectRevert("Messenger: withdrawalRoot not finalized");
+        l1CrossDomainMessenger.proveAndRelayMessage(
             from,
             to,
             value,
@@ -47,60 +47,34 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         // mock call rollup withdrawal root submitted success
-        uint256 withdrawalBatchIndex = 1;
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
             abi.encodeWithSelector(IRollup.withdrawalRoots.selector, wdRoot),
-            abi.encode(withdrawalBatchIndex)
-        );
-        l1CrossDomainMessenger.proveMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
-
-        // prove again
-        hevm.expectRevert("Messenger: withdrawal hash has already been proven");
-        l1CrossDomainMessenger.proveMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
-
-        hevm.expectRevert(
-            "Messenger: proven withdrawal finalization period has not elapsed"
-        );
-        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
-
-        // warp finalization period
-        (, uint256 provenTime, ) = l1CrossDomainMessenger.provenWithdrawals(
-            _xDomainCalldataHash
-        );
-        hevm.warp(provenTime + FINALIZATION_PERIOD_SECONDS + 1);
-
-        hevm.expectRevert("Messenger: batch not verified");
-        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
-
-        // finalize batch
-        hevm.mockCall(
-            address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.finalizedStateRoots.selector,
-                withdrawalBatchIndex
-            ),
-            abi.encode(bytes32(uint256(1)))
+            abi.encode(true)
         );
         uint256 balanceBefore = address(bob).balance;
-        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
+        l1CrossDomainMessenger.proveAndRelayMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            wdProof,
+            wdRoot
+        );
         assertEq(balanceBefore + value, address(bob).balance);
+
+        // prove again
+        hevm.expectRevert("Messenger: withdrawal has already been finalized");
+        l1CrossDomainMessenger.proveAndRelayMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            wdProof,
+            wdRoot
+        );
     }
 
     function testReplayMessage(uint256 exceedValue) external {
@@ -275,7 +249,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         hevm.expectRevert("Messenger: Forbid to call message queue");
-        l1CrossDomainMessenger.proveMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             from,
             to,
             value,
@@ -311,7 +285,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         hevm.expectRevert("Messenger: Forbid to call self");
-        l1CrossDomainMessenger.proveMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             from,
             to,
             value,
@@ -476,7 +450,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         (, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
             .getProveWithdrawalTransactionInputs(bytes32(uint256(1)));
         hevm.expectRevert("Pausable: paused");
-        l1CrossDomainMessenger.proveMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(0),
             address(0),
             0,
@@ -484,14 +458,6 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             new bytes(0),
             wdProof,
             wdRoot
-        );
-        hevm.expectRevert("Pausable: paused");
-        l1CrossDomainMessenger.relayMessage(
-            address(0),
-            address(0),
-            0,
-            0,
-            new bytes(0)
         );
         hevm.expectRevert("Pausable: paused");
         l1CrossDomainMessenger.replayMessage(

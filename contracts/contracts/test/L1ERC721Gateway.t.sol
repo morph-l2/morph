@@ -255,13 +255,16 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
             message
         );
 
-        messageProve(
-            address(uint160(address(counterpartGateway)) + 1),
-            address(gateway),
-            0,
-            0,
-            message
-        );
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(uint160(address(counterpartGateway)) + 1),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
@@ -276,12 +279,14 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         assertEq(address(gateway), l1Token.ownerOf(tokenId));
         assertEq(gatewayBalance, l1Token.balanceOf(address(gateway)));
@@ -331,14 +336,16 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
             message
         );
 
-        messageProve(
-            address(uint160(address(counterpartGateway)) + 1),
-            address(gateway),
-            0,
-            0,
-            message
-        );
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(uint160(address(counterpartGateway)) + 1),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
@@ -355,12 +362,15 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(address(gateway), l1Token.ownerOf(_tokenIds[i]));
@@ -417,14 +427,17 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
             0,
             message
         );
-        messageProve(
-            address(counterpartGateway),
-            address(gateway),
-            0,
-            0,
-            message
-        );
 
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(counterpartGateway),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // emit FinalizeBatchWithdrawERC721 from L1ERC721Gateway
         {
             hevm.expectEmit(true, true, true, true);
@@ -454,12 +467,15 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(counterpartGateway),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(recipient, l1Token.ownerOf(_tokenIds[i]));

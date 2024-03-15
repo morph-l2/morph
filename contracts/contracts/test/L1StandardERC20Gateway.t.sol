@@ -340,9 +340,16 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 message
             )
         );
-
-        messageProve(_from, address(l1StandardERC20Gateway), 0, 0, message);
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                _from,
+                address(l1StandardERC20Gateway),
+                0,
+                0,
+                message
+            );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
@@ -357,14 +364,15 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
         );
 
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             _from,
             address(l1StandardERC20Gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
-
         assertEq(
             gatewayBalance,
             l1Token.balanceOf(address(l1StandardERC20Gateway))
@@ -412,8 +420,16 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 message
             )
         );
-
-        messageProve(_from, address(l1StandardERC20Gateway), 0, 0, message);
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                _from,
+                address(l1StandardERC20Gateway),
+                0,
+                0,
+                message
+            );
 
         // emit FinalizeWithdrawERC20 from L1StandardERC20Gateway
         {
@@ -443,14 +459,15 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
         );
 
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             _from,
             address(l1StandardERC20Gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
-
         assertEq(
             gatewayBalance - amount,
             l1Token.balanceOf(address(l1StandardERC20Gateway))

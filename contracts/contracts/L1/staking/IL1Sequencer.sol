@@ -2,7 +2,15 @@
 pragma solidity =0.8.24;
 
 interface IL1Sequencer {
+    /**
+     * @notice pause
+     */
     function pause() external;
+
+    /**
+     * @notice unpause
+     */
+    function unpause() external;
 
     /**
      * @notice newest sequencers version
@@ -17,24 +25,14 @@ interface IL1Sequencer {
     /**
      * @notice verify BLS signature
      * @param version sequencer set version
-     * @param indexs sequencer index
+     * @param sequencers sequencers signed
      * @param signature batch signature
      */
     function verifySignature(
         uint256 version,
-        uint256[] memory indexs,
+        address[] memory sequencers,
         bytes memory signature
     ) external returns (bool);
-
-    /**
-     * @notice challenger win, slash sequencers
-     */
-    function slash(
-        uint256[] memory sequencerIndex,
-        address challenger,
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) external;
 
     /**
      * @notice update sequencers version
