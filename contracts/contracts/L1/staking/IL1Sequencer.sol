@@ -27,16 +27,6 @@ interface IL1Sequencer {
     ) external returns (bool);
 
     /**
-     * @notice challenger win, slash sequencers
-     */
-    function slash(
-        uint256[] memory sequencerIndex,
-        address challenger,
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) external;
-
-    /**
      * @notice update sequencers version
      * @param _sequencerAddrs sequencer addresses
      * @param _sequencerBytes sequencer information bytes

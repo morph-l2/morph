@@ -903,7 +903,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address challenger = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         _transfer(challenger, challengeDeposit);
-        IL1Sequencer(l1StakingContract).slash(
+        IStaking(l1StakingContract).slash(
+            IL1Sequencer(l1SequencerContract).getSequencerAddrs(
+                IL1Sequencer(l1SequencerContract).currentVersion()
+            ),
             sequencerIndex,
             challenger,
             _minGasLimit,

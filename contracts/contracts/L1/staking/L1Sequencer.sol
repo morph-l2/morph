@@ -117,24 +117,6 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     }
 
     /**
-     * @notice challenger win, slash sequencers
-     */
-    function slash(
-        uint256[] memory sequencerIndex,
-        address challenger,
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) external onlyRollupContract {
-        IStaking(stakingContract).slash(
-            sequencerAddrs[currentVersion],
-            sequencerIndex,
-            challenger,
-            _minGasLimit,
-            _gasFee
-        );
-    }
-
-    /**
      * @notice confirm sequencer ser version
      * @param version sequencer set version
      */
