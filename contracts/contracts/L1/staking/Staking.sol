@@ -82,6 +82,11 @@ contract Staking is IStaking, OwnableUpgradeable {
     event Claimed(address addr, uint256 balance);
 
     /**
+     * @notice params updated
+     */
+    event ParamsUpdated(uint256 _sequencersSize, uint256 _limit, uint256 _lock);
+
+    /**
      * @notice only sequencer contract
      */
     modifier onlySequencerContract() {
@@ -270,20 +275,6 @@ contract Staking is IStaking, OwnableUpgradeable {
     }
 
     /**
-     * @notice update params
-     * @param _limit smallest staking value
-     * @param _lock withdraw lock time
-     */
-    function updateParams(uint256 _limit, uint256 _lock) external onlyOwner {
-        if (_limit > 0) {
-            limit = _limit;
-        }
-        if (_lock > 0) {
-            lock = _lock;
-        }
-    }
-
-    /**
      * @notice get staker index
      */
     function getStakerIndex(
@@ -375,9 +366,16 @@ contract Staking is IStaking, OwnableUpgradeable {
 
     /**
      * @notice update params
+     * @param _limit smallest staking value
+     * @param _lock withdraw lock time
+     * @param _sequencersSize sequencers size
+     * @param _minGasLimit min gas limit
+     * @param _gasFee gas fee
      */
     function updateParams(
         uint256 _sequencersSize,
+        uint256 _limit,
+        uint256 _lock,
         uint32 _minGasLimit,
         uint256 _gasFee
     ) external onlyOwner {
@@ -388,12 +386,21 @@ contract Staking is IStaking, OwnableUpgradeable {
             "invalid new sequencers size"
         );
 
+        if (_limit > 0) {
+            limit = _limit;
+        }
+        if (_lock > 0) {
+            lock = _lock;
+        }
+
         if (sequencersSize < stakers.length) {
             sequencersSize = _sequencersSize;
             updateSequencers(_minGasLimit, _gasFee);
             return;
         }
         sequencersSize = _sequencersSize;
+
+        emit ParamsUpdated(sequencersSize, limit, lock);
     }
 
     /**
