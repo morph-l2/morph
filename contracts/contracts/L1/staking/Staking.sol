@@ -86,6 +86,7 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     event ParamsUpdated(uint256 _sequencersSize, uint256 _limit, uint256 _lock);
 
+    /**
      * @notice whitelist updated
      */
     event WhitelistUpdated(address[] add, address[] remove);
