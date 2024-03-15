@@ -78,8 +78,12 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
         _pause();
     }
 
-    function pause() external override onlyStakingContract whenNotPaused {
+    function pause() external override onlyStakingContract {
         _pause();
+    }
+
+    function unpause() external override onlyStakingContract {
+        _unpause();
     }
 
     function updateSequencersVersion(
