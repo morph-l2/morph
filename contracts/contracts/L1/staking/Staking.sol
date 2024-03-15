@@ -336,6 +336,10 @@ contract Staking is IStaking, OwnableUpgradeable {
         enableSlash = enanble;
     }
 
+    function unpauseSequencer() external onlyOwner {
+        IL1Sequencer(sequencerContract).unpause();
+    }
+
     /**
      * @notice challenger win, slash sequencers
      */
