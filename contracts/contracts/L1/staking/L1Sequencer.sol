@@ -63,13 +63,6 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     }
 
     /**
-     * @notice do not receive ETH
-     */
-    receive() external payable {
-        require(false);
-    }
-
-    /**
      * @notice initializer
      * @param _stakingContract staking contract address
      * @param _rollupContract rollup contract address

@@ -86,6 +86,10 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     event ParamsUpdated(uint256 _sequencersSize, uint256 _limit, uint256 _lock);
 
+     * @notice whitelist updated
+     */
+    event WhitelistUpdated(address[] add, address[] remove);
+
     /**
      * @notice only sequencer contract
      */
@@ -180,7 +184,10 @@ contract Staking is IStaking, OwnableUpgradeable {
         require(sequencersSize > 0, "sequencersSize must greater than 0");
         require(tmKey != 0, "invalid tendermint pubkey");
         require(blsKey.length == 256, "invalid bls pubkey");
-        require(msg.value >= _gasFee + limit, "staking value is not enough");
+        require(
+            limit > 0 && msg.value >= _gasFee + limit,
+            "staking value is not enough"
+        );
 
         uint256 stakingAmount = msg.value - _gasFee;
 
@@ -244,7 +251,9 @@ contract Staking is IStaking, OwnableUpgradeable {
         uint256 _gasFee
     ) external payable inWhitelist onlyStaker {
         require(
-            msg.value > 0 && stakings[msg.sender].balance + msg.value > limit,
+            limit > 0 &&
+                msg.value > 0 &&
+                stakings[msg.sender].balance + msg.value > limit,
             "staking value not enough"
         );
         stakings[msg.sender].balance += msg.value;
@@ -311,6 +320,7 @@ contract Staking is IStaking, OwnableUpgradeable {
         delete stakings[msg.sender];
 
         if (stakers.length == 0) {
+            updateSequencers(_minGasLimit, _gasFee);
             IL1Sequencer(sequencerContract).pause();
             return;
         }
@@ -416,6 +426,8 @@ contract Staking is IStaking, OwnableUpgradeable {
         for (uint256 i = 0; i < remove.length; i++) {
             whitelist[remove[i]] = false;
         }
+
+        emit WhitelistUpdated(add, remove);
     }
 
     /**
