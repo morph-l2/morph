@@ -3,6 +3,7 @@ module github.com/morph-l2/node
 go 1.20
 
 require (
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/go-kit/kit v0.12.0
 	github.com/hashicorp/go-multierror v1.1.1

@@ -5,7 +5,7 @@ go-work-sync: ## update the dependencies
 .PHONY: go-work-sync
 
 submodules:
-	git submodule update --init --recursive
+	git submodule update --init 
 .PHONY: submodules
 
 format: ## format the code
@@ -61,9 +61,7 @@ devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
 .PHONY: devnet-logs
 
-submodules:
-	git submodule update --init --recursive
-.PHONY: submodules
+
 
 # tx-submitter
 SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)

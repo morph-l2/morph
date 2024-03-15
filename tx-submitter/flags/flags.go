@@ -48,9 +48,10 @@ var (
 	}
 
 	PrivateKeyFlag = cli.StringFlag{
-		Name:   "private-key",
-		Usage:  "The private key to use for sending to the rollup contract",
-		EnvVar: prefixEnvVar("L1_PRIVATE_KEY"),
+		Name:     "private-key",
+		Usage:    "The private key to use for sending to the rollup contract",
+		EnvVar:   prefixEnvVar("L1_PRIVATE_KEY"),
+		Required: true,
 	}
 
 	TxTimeoutFlag = cli.DurationFlag{
@@ -121,6 +122,39 @@ var (
 		Usage:  "Port at which the metrics server is running",
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	// tx fee limit
+	TxFeeLimitFlag = cli.Uint64Flag{
+		Name:     "tx-fee-limit",
+		Usage:    "The maximum fee for a transaction",
+		Value:    5e17, //0.5eth
+		EnvVar:   prefixEnvVar("TX_FEE_LIMIT"),
+		Required: true,
+	}
+
+	// log to file
+	LogFilename = cli.StringFlag{
+		Name:   "log.filename",
+		Usage:  "The target file for writing logs, backup log files will be retained in the same directory.",
+		EnvVar: prefixEnvVar("LOG_FILENAME"),
+	}
+	LogFileMaxSize = cli.IntFlag{
+		Name:   "log.maxsize",
+		Usage:  "The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes. It is used only when log.filename is provided.",
+		Value:  100,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_SIZE"),
+	}
+	LogFileMaxAge = cli.IntFlag{
+		Name:   "log.maxage",
+		Usage:  "The maximum number of days to retain old log files based on the timestamp encoded in their filename. It defaults to 30 days. It is used only when log.filename is provided.",
+		Value:  30,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_AGE"),
+	}
+	LogCompress = cli.BoolFlag{
+		Name:   "log.compress",
+		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
+		EnvVar: prefixEnvVar("LOG_COMPRESS"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -136,6 +170,7 @@ var requiredFlags = []cli.Flag{
 	SubmitterAddressFlag,
 	L2SequencerAddressFlag,
 	PrivateKeyFlag,
+	TxFeeLimitFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -143,6 +178,11 @@ var optionalFlags = []cli.Flag{
 	MetricsServerEnable,
 	MetricsHostname,
 	MetricsPort,
+
+	LogFilename,
+	LogFileMaxSize,
+	LogFileMaxAge,
+	LogCompress,
 }
 
 // Flags contains the list of configuration options available to the binary.

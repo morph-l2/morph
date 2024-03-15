@@ -3,6 +3,7 @@ package tx_summitter
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/morph-l2/bindings/bindings"
@@ -15,6 +16,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/urfave/cli"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // Main is the entrypoint into the batch submitter service. This method returns
@@ -34,7 +36,31 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		// Set up our logging. If Sentry is enabled, we will use our custom log
 		// handler that logs to stdout and forwards any error messages to Sentry
 		// for collection. Otherwise, logs will only be posted to stdout.
-		logHandler := log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+		output := io.Writer(os.Stdout)
+		if cfg.LogFilename != "" {
+			f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+			if err != nil {
+				return fmt.Errorf("wrong log.filename set: %d", err)
+			}
+			f.Close()
+
+			if cfg.LogFileMaxSize < 1 {
+				return fmt.Errorf("wrong log.maxsize set: %d", cfg.LogFileMaxSize)
+			}
+
+			if cfg.LogFileMaxAge < 1 {
+				return fmt.Errorf("wrong log.maxage set: %d", cfg.LogFileMaxAge)
+			}
+			logFile := &lumberjack.Logger{
+				Filename: cfg.LogFilename,
+				MaxSize:  cfg.LogFileMaxSize, // megabytes
+				MaxAge:   cfg.LogFileMaxAge,  // days
+				Compress: cfg.LogCompress,
+			}
+			output = io.MultiWriter(output, logFile)
+		}
+
+		logHandler := log.StreamHandler(output, log.TerminalFormat(false))
 
 		logLevel, err := log.LvlFromString(cfg.LogLevel)
 		if err != nil {
@@ -44,7 +70,6 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 		// Parse sequencer private key and rollup contract address.
-
 		privKey, rollupAddr, err := utils.ParsePkAndWallet(cfg.PrivateKey, cfg.RollupAddress)
 		if err != nil {
 			return err
