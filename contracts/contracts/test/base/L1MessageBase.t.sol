@@ -56,7 +56,7 @@ contract L1MessageBaseTest is CommonTest {
     IRollup.BatchSignature public nilBatchSig;
     address sequencerAddr = address(uint160(beginSeq));
     uint256 public sequencerVersion;
-    uint256[] public sequencerIndex;
+    address[] public sequencerSigned;
     bytes public signature;
 
     event UpdateSequencer(address indexed account, bool status);
@@ -291,10 +291,10 @@ contract L1MessageBaseTest is CommonTest {
                 payable(address(l1MessageQueueWithGasPriceOracle))
             );
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
-                payable(_messenger), // _messenger
-                address(_rollup), // _rollup
-                address(_enforcedTxGateway) // _enforcedTxGateway
-            );
+            payable(_messenger), // _messenger
+            address(_rollup), // _rollup
+            address(_enforcedTxGateway) // _enforcedTxGateway
+        );
         assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.messenger());
         assertEq(_rollup, l1MessageQueueWithGasPriceOracleImpl.rollup());
         assertEq(

@@ -94,37 +94,19 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     /**
      * @notice verify BLS signature
      * @param version sequencer set version
-     * @param indexs sequencer index
+     * @param sequencers sequencers signed
      * @param signature batch signature
      */
     function verifySignature(
         uint256 version,
-        uint256[] memory indexs,
+        address[] memory sequencers,
         bytes memory signature
     ) external onlyRollupContract whenNotPaused returns (bool) {
         confirmVersion(version);
         // TODO: verify BLS signature
-        indexs = indexs;
+        sequencers = sequencers;
         signature = signature;
         return true;
-    }
-
-    /**
-     * @notice challenger win, slash sequencers
-     */
-    function slash(
-        uint256[] memory sequencerIndex,
-        address challenger,
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) external onlyRollupContract {
-        IStaking(stakingContract).slash(
-            sequencerAddrs[currentVersion],
-            sequencerIndex,
-            challenger,
-            _minGasLimit,
-            _gasFee
-        );
     }
 
     /**

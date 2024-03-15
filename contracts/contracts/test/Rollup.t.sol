@@ -141,7 +141,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -292,7 +292,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
 
@@ -319,7 +319,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // second chunk with too many txs
         hevm.stopPrank();
@@ -354,7 +354,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -488,7 +488,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -509,7 +509,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -530,7 +530,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -551,7 +551,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -572,7 +572,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -596,7 +596,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -624,7 +624,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -648,7 +648,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -676,7 +676,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -704,7 +704,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -728,7 +728,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -752,7 +752,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -774,7 +774,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -826,7 +826,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
         hevm.stopPrank();
@@ -859,7 +859,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
         hevm.stopPrank();
@@ -916,7 +916,6 @@ contract RollupTest is L1MessageBaseTest {
         // change to random EOA operator
         hevm.expectEmit(true, false, false, true);
         emit UpdateProver(_prover, true);
-
         assertBoolEq(rollup.isProver(_prover), false);
         rollup.addProver(_prover);
         assertBoolEq(rollup.isProver(_prover), true);
@@ -959,7 +958,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
 

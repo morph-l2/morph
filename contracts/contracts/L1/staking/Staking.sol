@@ -352,7 +352,6 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     function slash(
         address[] memory sequencers,
-        uint256[] memory sequencerIndex,
         address challenger,
         uint32 _minGasLimit,
         uint256 _gasFee
@@ -363,8 +362,8 @@ contract Staking is IStaking, OwnableUpgradeable {
 
         // do slash & update sequencer set
         uint256 valueSum;
-        for (uint256 i = 0; i < sequencerIndex.length; i++) {
-            address sequencer = sequencers[sequencerIndex[i]];
+        for (uint256 i = 0; i < sequencers.length; i++) {
+            address sequencer = sequencers[i];
             valueSum += stakings[sequencer].balance;
             uint256 index = getStakerIndex(sequencer);
             for (uint256 j = index; j < stakers.length - 1; j++) {
@@ -374,6 +373,9 @@ contract Staking is IStaking, OwnableUpgradeable {
             delete stakings[sequencer];
         }
         updateSequencers(_minGasLimit, _gasFee);
+        if (stakers.length == 0) {
+            IL1Sequencer(sequencerContract).pause();
+        }
         _transfer(challenger, valueSum);
     }
 
