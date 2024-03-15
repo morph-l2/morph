@@ -82,6 +82,11 @@ contract Staking is IStaking, OwnableUpgradeable {
     event Claimed(address addr, uint256 balance);
 
     /**
+     * @notice whitelist updated
+     */
+    event WhitelistUpdated(address[] add, address[] remove);
+
+    /**
      * @notice only sequencer contract
      */
     modifier onlySequencerContract() {
@@ -409,6 +414,8 @@ contract Staking is IStaking, OwnableUpgradeable {
         for (uint256 i = 0; i < remove.length; i++) {
             whitelist[remove[i]] = false;
         }
+
+        emit WhitelistUpdated(add, remove);
     }
 
     /**
