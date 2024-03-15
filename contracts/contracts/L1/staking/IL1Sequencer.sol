@@ -2,7 +2,15 @@
 pragma solidity =0.8.24;
 
 interface IL1Sequencer {
+    /**
+     * @notice pause
+     */
     function pause() external;
+
+    /**
+     * @notice unpause
+     */
+    function unpause() external;
 
     /**
      * @notice newest sequencers version
