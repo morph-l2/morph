@@ -77,7 +77,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
         bytes32 dataHash;
-        uint256[] sequencerIndex;
+        address[] sequencers;
         uint256 l1MessagePopped;
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
@@ -265,7 +265,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _postStateRoot,
             _withdrawalRoot,
             _dataHash,
-            new uint256[](0),
+            new address[](0),
             0,
             0,
             "",
@@ -282,14 +282,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function commitBatch(
         BatchData calldata batchData,
         uint256 version,
-        uint256[] memory sequencerIndex,
+        address[] memory sequencers,
         bytes memory signature
     ) external payable override OnlySequencer whenNotPaused {
         // verify bls signature
         require(
             IL1Sequencer(l1SequencerContract).verifySignature(
                 version,
-                sequencerIndex,
+                sequencers,
                 signature
             ),
             "the signature verification failed"
@@ -307,13 +307,18 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "new state root is zero"
         );
 
-        _commitBatch(batchData, _chunksLength, sequencerIndex);
+        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
+        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
+        address[] memory _sequencer = new address[](1);
+        _sequencer[0] = msg.sender;
+
+        _commitBatch(batchData, _chunksLength, _sequencer);
     }
 
     function _commitBatch(
         BatchData calldata batchData,
         uint256 _chunksLength,
-        uint256[] memory sequencerIndex
+        address[] memory sequencers
     ) internal {
         // The overall memory layout in this function is organized as follows
         // +---------------------+-------------------+------------------+
@@ -440,7 +445,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.postStateRoot,
             batchData.withdrawalRoot,
             _dataHash,
-            sequencerIndex,
+            sequencers,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
@@ -585,7 +590,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         ) {
             _challengerWin(
                 _batchIndex,
-                committedBatchStores[_batchIndex].sequencerIndex,
+                committedBatchStores[_batchIndex].sequencers,
                 "Timeout",
                 _minGasLimit,
                 _gasFee
@@ -889,13 +894,13 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @dev Internal function executed when the challenger wins.
     /// @param batchIndex The index of the batch indicating where the challenge occurred.
-    /// @param sequencerIndex An array containing the indices of sequencers to be slashed.
+    /// @param sequencers An array containing the sequencers to be slashed.
     /// @param _type Description of the challenge type.
     /// @param _minGasLimit Minimum gas limit used for slashing sequencers.
     /// @param _gasFee Gas fee used for slashing sequencers.
     function _challengerWin(
         uint64 batchIndex,
-        uint256[] memory sequencerIndex,
+        address[] memory sequencers,
         string memory _type,
         uint32 _minGasLimit,
         uint256 _gasFee
@@ -904,10 +909,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         _transfer(challenger, challengeDeposit);
         IStaking(l1StakingContract).slash(
-            IL1Sequencer(l1SequencerContract).getSequencerAddrs(
-                IL1Sequencer(l1SequencerContract).currentVersion()
-            ),
-            sequencerIndex,
+            sequencers,
             challenger,
             _minGasLimit,
             _gasFee

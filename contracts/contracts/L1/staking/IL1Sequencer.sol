@@ -17,12 +17,12 @@ interface IL1Sequencer {
     /**
      * @notice verify BLS signature
      * @param version sequencer set version
-     * @param indexs sequencer index
+     * @param sequencers sequencers signed
      * @param signature batch signature
      */
     function verifySignature(
         uint256 version,
-        uint256[] memory indexs,
+        address[] memory sequencers,
         bytes memory signature
     ) external returns (bool);
 
