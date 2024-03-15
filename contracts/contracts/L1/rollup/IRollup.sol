@@ -34,6 +34,16 @@ interface IRollup {
         bytes32 withdrawRoot
     );
 
+    /// @notice Emitted when owner updates the PROOF_WINDOW parameter.
+    /// @param oldWindow The old PROOF_WINDOW.
+    /// @param newWindow The new PROOF_WINDOW.
+    event UpdateProofWindow(uint256 oldWindow, uint256 newWindow);
+
+    /// @notice Emitted when owner updates the FINALIZATION_PERIOD_SECONDS parameter.
+    /// @param oldPeriod The old FINALIZATION_PERIOD_SECONDS.
+    /// @param newPeriod The new FINALIZATION_PERIOD_SECONDS.
+    event UpdateFinalizationPeriodSeconds(uint256 oldPeriod, uint256 newPeriod);
+
     /// @notice Emitted when owner updates the status of prover.
     /// @param account The address of account updated.
     /// @param status The status of the account updated.
@@ -60,7 +70,7 @@ interface IRollup {
         uint256 newMaxNumTxInChunk
     );
 
-    /// @notice Emitted when the state of Chanllenge is updated.
+    /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex The index of the batch.
     /// @param challenger The address of challenger.
     /// @param challengeDeposit The deposit of challenger.
@@ -70,7 +80,7 @@ interface IRollup {
         uint256 challengeDeposit
     );
 
-    /// @notice Emitted when the result of Chanllenge is updated.
+    /// @notice Emitted when the result of Challenge is updated.
     /// @param batchIndex The index of the batch.
     /// @param winner  The address of winner.
     /// @param res The result of challenge.
