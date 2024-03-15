@@ -320,6 +320,7 @@ contract Staking is IStaking, OwnableUpgradeable {
         delete stakings[msg.sender];
 
         if (stakers.length == 0) {
+            updateSequencers(_minGasLimit, _gasFee);
             IL1Sequencer(sequencerContract).pause();
             return;
         }
