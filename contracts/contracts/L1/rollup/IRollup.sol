@@ -112,7 +112,7 @@ interface IRollup {
     /// @param withdrawalRoot The withdrawal root.
     function withdrawalRoots(
         bytes32 withdrawalRoot
-    ) external view returns (uint256);
+    ) external view returns (bool);
 
     /// @notice Return whether the batch is finalized by batch index.
     /// @param batchIndex The index of the batch.
