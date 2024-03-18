@@ -25,6 +25,7 @@ export const StakingInit = async (
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
     // Sequencer config
+    const WhitelistImplAddress = getContractAddressByName(path, ImplStorageName.Whitelist)
     const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
     const L1SequencerImplAddress = getContractAddressByName(path, ImplStorageName.L1SequencerStorageName)
     const L1SequencerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Sequencer)
@@ -33,6 +34,17 @@ export const StakingInit = async (
     const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
     const StakingImplAddress = getContractAddressByName(path, ImplStorageName.StakingStorageName)
     const StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.Staking)
+
+    const WhitelistCheckerImpl = await hre.ethers.getContractAt(ContractFactoryName.Whitelist, WhitelistImplAddress, deployer)
+    let addList = [L1SequencerProxyAddress]
+    await WhitelistCheckerImpl.updateWhitelistStatus(addList, true)
+    for (let i = 0; i < addList.length; i++) {
+        let res = await WhitelistCheckerImpl.isSenderAllowed(addList[i])
+        if (res != true) {
+            console.error('whitelist check failed')
+            return ''
+        }
+    }
 
     const IL1SequencerProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1SequencerProxyAddress, deployer)
     if (
@@ -126,7 +138,7 @@ export const StakingInit = async (
             StakingFactory.interface,
             deployer,
         )
- 
+
         await assertContractVariable(
             contractTmp,
             'sequencerContract',

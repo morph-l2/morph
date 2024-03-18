@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { storge, getContractAddressByName, assertContractVariableWithSigner } from "../src/deploy-utils";
+import { storage, getContractAddressByName, assertContractVariableWithSigner } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
@@ -37,7 +37,7 @@ export const deployContractProxyByStorageName = async (
     )
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    const err = await storge(path, storageName, proxy.address.toLocaleLowerCase(), blockNumber || 0)
+    const err = await storage(path, storageName, proxy.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -76,7 +76,7 @@ export const deployContractProxys = async (
     console.log("%s=%s ; TX_HASH: %s", WETHImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storge(path, WETHImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await storage(path, WETHImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
