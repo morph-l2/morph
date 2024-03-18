@@ -27,7 +27,7 @@ pub static MAINNET_KZG_TRUSTED_SETUP: Lazy<Arc<KzgSettings>> = Lazy::new(|| Arc:
 
 /// Loads the trusted setup parameters from the given bytes and returns the [KzgSettings].
 pub fn load_trusted_setup() -> KzgSettings {
-    let trusted_setup_file = Path::new("./res/4844_trusted_setup.txt");
+    let trusted_setup_file = Path::new("./configs/4844_trusted_setup.txt");
     assert!(trusted_setup_file.exists());
     let kzg_settings = KzgSettings::load_trusted_setup_file(trusted_setup_file).unwrap();
     return kzg_settings;
