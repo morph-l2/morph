@@ -42,17 +42,17 @@ func (b *Bytes32) UnmarshalText(text []byte) error {
 	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
 }
 
-func (b Bytes32) MarshalText() ([]byte, error) {
+func (b *Bytes32) MarshalText() ([]byte, error) {
 	return hexutil.Bytes(b[:]).MarshalText()
 }
 
-func (b Bytes32) String() string {
+func (b *Bytes32) String() string {
 	return hexutil.Encode(b[:])
 }
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
-func (b Bytes32) TerminalString() string {
+func (b *Bytes32) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[29:])
 }
 
@@ -66,17 +66,17 @@ func (b *Bytes256) UnmarshalText(text []byte) error {
 	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
 }
 
-func (b Bytes256) MarshalText() ([]byte, error) {
+func (b *Bytes256) MarshalText() ([]byte, error) {
 	return hexutil.Bytes(b[:]).MarshalText()
 }
 
-func (b Bytes256) String() string {
+func (b *Bytes256) String() string {
 	return hexutil.Encode(b[:])
 }
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
-func (b Bytes256) TerminalString() string {
+func (b *Bytes256) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[253:])
 }
 
@@ -114,17 +114,17 @@ func (b *Bytes48) UnmarshalText(text []byte) error {
 	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
 }
 
-func (b Bytes48) MarshalText() ([]byte, error) {
+func (b *Bytes48) MarshalText() ([]byte, error) {
 	return hexutil.Bytes(b[:]).MarshalText()
 }
 
-func (b Bytes48) String() string {
+func (b *Bytes48) String() string {
 	return hexutil.Encode(b[:])
 }
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
-func (b Bytes48) TerminalString() string {
+func (b *Bytes48) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[45:])
 }
 
