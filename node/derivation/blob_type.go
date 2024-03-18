@@ -1,6 +1,7 @@
 package derivation
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -29,7 +30,7 @@ func (ie InputError) Unwrap() error {
 // Any type of InputError counts, regardless of code.
 func (ie InputError) Is(target error) bool {
 	_, ok := target.(InputError)
-	return ok // we implement Unwrap, so we do not have to check the inner type now
+	return ok || errors.Is(target, ie.Unwrap())
 }
 
 type Bytes32 [32]byte
