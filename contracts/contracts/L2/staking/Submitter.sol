@@ -2,10 +2,10 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
+
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {IL2Sequencer} from "../staking/IL2Sequencer.sol";
+import {ISequencer} from "./ISequencer.sol";
 import {IGov} from "../staking/IGov.sol";
 import {ISubmitter} from "./ISubmitter.sol";
 
@@ -21,9 +21,9 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     }
 
     // l2SequencerContract address
-    address public immutable L2_SEQUENCER_CONTRACT;
+    address public immutable SEQUENCER_CONTRACT;
     // GovContract address
-    address public immutable L2_GOV_CONTRACT;
+    address public immutable GOV_CONTRACT;
 
     // uint256 next batch index;
     uint256 public override nextBatchIndex;
@@ -52,8 +52,8 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
      * @notice constructor
      */
     constructor() {
-        L2_SEQUENCER_CONTRACT = Predeploys.L2_SEQUENCER;
-        L2_GOV_CONTRACT = Predeploys.L2_GOV;
+        SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
+        GOV_CONTRACT = Predeploys.GOV;
     }
 
     function initialize(
@@ -103,7 +103,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
      * @notice epoch updated
      */
     function epochUpdated(uint256 epoch) public {
-        require(msg.sender == L2_GOV_CONTRACT, "only gov contract");
+        require(msg.sender == GOV_CONTRACT, "only gov contract");
         epochHistory.push(EpochHistory(epoch, block.timestamp));
     }
 
@@ -111,10 +111,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
      * @notice sequencers updated
      */
     function sequencersUpdated(address[] memory sequencers) public {
-        require(
-            msg.sender == L2_SEQUENCER_CONTRACT,
-            "only l2 sequencer contract"
-        );
+        require(msg.sender == SEQUENCER_CONTRACT, "only l2 sequencer contract");
         sequencerHistory.push(SequencerHistory(sequencers, block.timestamp));
     }
 
@@ -138,7 +135,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         address[] memory sequencers = sequencerHistory[
             sequencerHistory.length - 1
         ].sequencerAddresses;
-        uint256 epoch = IGov(L2_GOV_CONTRACT).rollupEpoch();
+        uint256 epoch = IGov(GOV_CONTRACT).rollupEpoch();
 
         uint256 sequencersLen = sequencers.length;
 
@@ -185,7 +182,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         address[] memory sequencers = sequencerHistory[
             sequencerHistory.length - 1
         ].sequencerAddresses;
-        uint256 epoch = IGov(L2_GOV_CONTRACT).rollupEpoch();
+        uint256 epoch = IGov(GOV_CONTRACT).rollupEpoch();
         uint256 sequencersLen = sequencers.length;
 
         uint256 turns = (block.timestamp - start) / epoch;

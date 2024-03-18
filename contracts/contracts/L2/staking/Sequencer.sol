@@ -2,15 +2,18 @@
 pragma solidity =0.8.24;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {IL2Sequencer} from "./IL2Sequencer.sol";
-import {ISubmitter} from "../submitter/ISubmitter.sol";
-import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
+
+import {IL2Staking} from "./IL2Staking.sol";
+import {ISequencer} from "./ISequencer.sol";
+import {ISubmitter} from "./ISubmitter.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
-contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
+contract L2Sequencer is Initializable, ISequencer {
     // submitter contract address
     address public immutable L2_SUBMITTER_CONTRACT;
+    // l2 staking contract address
+    address public immutable L2_STAKING_CONTRACT;
 
     // current sequencers version
     uint256 public override currentVersion = 0;
@@ -23,29 +26,27 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
     address[] public override preSequencerAddresses;
 
     // sequencer infos array
-    Types.SequencerInfo[] public sequencerInfos;
-    Types.SequencerInfo[] public preSequencerInfos;
+    Types.StakerInfo[] public sequencerInfos;
+    Types.StakerInfo[] public preSequencerInfos;
 
     // event of sequencer update
     event SequencerUpdated(address[] sequencers, uint256 version);
 
     /**
-     *
-     * @param _otherSequencer Address of the sequencer on the other network.
+     * @notice only L2Staking contract
      */
-    constructor(
-        address payable _otherSequencer
-    )
-        Sequencer(
-            payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
-            _otherSequencer
-        )
-    {
-        L2_SUBMITTER_CONTRACT = Predeploys.L2_SUBMITTER;
+    modifier onlyL2StakingContract() {
+        require(msg.sender == L2_STAKING_CONTRACT, "only L2Staking contract");
+        _;
+    }
+
+    constructor() {
+        L2_SUBMITTER_CONTRACT = Predeploys.SUBMITTER;
+        L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
     }
 
     function initialize(
-        Types.SequencerInfo[] memory _sequencers
+        Types.StakerInfo[] memory _sequencers
     ) public initializer {
         for (uint256 i = 0; i < _sequencers.length; i++) {
             sequencerAddresses.push(_sequencers[i].addr);
@@ -55,8 +56,8 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
 
     function updateSequencers(
         uint256 version,
-        Types.SequencerInfo[] memory _sequencers
-    ) public onlyOtherSequencer {
+        Types.StakerInfo[] memory _sequencers
+    ) public onlyL2StakingContract {
         ISubmitter(L2_SUBMITTER_CONTRACT).sequencersUpdated(sequencerAddresses);
 
         preVersion = currentVersion;
@@ -95,7 +96,7 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
      */
     function getSequencerInfos(
         bool previous
-    ) external view returns (Types.SequencerInfo[] memory) {
+    ) external view returns (Types.StakerInfo[] memory) {
         if (previous) {
             return preSequencerInfos;
         }

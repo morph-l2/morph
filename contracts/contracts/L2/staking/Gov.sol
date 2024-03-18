@@ -4,8 +4,8 @@ pragma solidity =0.8.24;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {ISubmitter} from "../submitter/ISubmitter.sol";
-import {IL2Sequencer} from "./IL2Sequencer.sol";
+import {ISubmitter} from "./ISubmitter.sol";
+import {ISequencer} from "./ISequencer.sol";
 import {IGov} from "./IGov.sol";
 
 contract Gov is Initializable, IGov {
@@ -29,10 +29,10 @@ contract Gov is Initializable, IGov {
      *************/
 
     // sequencers infos
-    address public immutable L2_SEQUENCER_CONTRACT;
+    address public immutable SEQUENCER_CONTRACT;
 
     // submitter contract address
-    address public immutable L2_SUBMITTER_CONTRACT;
+    address public immutable SUBMITTER_CONTRACT;
 
     uint256 public sequencersVersion = 0;
 
@@ -54,7 +54,7 @@ contract Gov is Initializable, IGov {
      * @notice Ensures that the caller is a sequencer in the sequencer contract.
      */
     modifier onlySequencer() {
-        (bool _in, ) = IL2Sequencer(L2_SEQUENCER_CONTRACT).inSequencersSet(
+        (bool _in, ) = ISequencer(SEQUENCER_CONTRACT).inSequencersSet(
             false,
             msg.sender
         );
@@ -66,8 +66,8 @@ contract Gov is Initializable, IGov {
      * @notice constructor
      */
     constructor() {
-        L2_SEQUENCER_CONTRACT = Predeploys.L2_SEQUENCER;
-        L2_SUBMITTER_CONTRACT = Predeploys.L2_SUBMITTER;
+        SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
+        SUBMITTER_CONTRACT = Predeploys.SUBMITTER;
     }
 
     /**
@@ -116,7 +116,7 @@ contract Gov is Initializable, IGov {
                 proposal.maxChunks != 0,
             "invalid batch params"
         );
-        uint256 version = IL2Sequencer(L2_SEQUENCER_CONTRACT).currentVersion();
+        uint256 version = ISequencer(SEQUENCER_CONTRACT).currentVersion();
         if (version > sequencersVersion) {
             // update version and sequencers
             sequencersVersion = version;
@@ -137,7 +137,7 @@ contract Gov is Initializable, IGov {
      */
     function vote(uint256 propID) external onlySequencer {
         require(proposalInfos[propID].active, "proposal inactive");
-        (uint256 index, uint256 version) = IL2Sequencer(L2_SEQUENCER_CONTRACT)
+        (uint256 index, uint256 version) = ISequencer(SEQUENCER_CONTRACT)
             .sequencerIndex(false, msg.sender);
         require(
             !votes[propID][index],
@@ -155,13 +155,13 @@ contract Gov is Initializable, IGov {
         votes[propID][index] = true;
         proposalInfos[propID].votes += 1;
 
-        (uint256 _length, ) = IL2Sequencer(L2_SEQUENCER_CONTRACT).sequencersLen(
+        (uint256 _length, ) = ISequencer(SEQUENCER_CONTRACT).sequencersLen(
             false
         );
         // check votes
         if (proposalInfos[propID].votes > (_length * 2) / 3) {
             if (rollupEpoch != proposalData[propID].rollupEpoch) {
-                ISubmitter(L2_SUBMITTER_CONTRACT).epochUpdated(rollupEpoch);
+                ISubmitter(SUBMITTER_CONTRACT).epochUpdated(rollupEpoch);
             }
             batchBlockInterval = proposalData[propID].batchBlockInterval;
             batchMaxBytes = proposalData[propID].batchMaxBytes;
@@ -173,6 +173,6 @@ contract Gov is Initializable, IGov {
     }
 
     function l2Sequencer() public view returns (address) {
-        return L2_SEQUENCER_CONTRACT;
+        return SEQUENCER_CONTRACT;
     }
 }
