@@ -23,7 +23,7 @@ export const StakingRegister = async (
     tmKey: string,
     blsKey: string
 ): Promise<string> => {
-    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStroageName)
+    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
     const StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.Staking)
 
     const StakingProxyWithSigner = new ethers.Contract(

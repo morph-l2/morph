@@ -30,13 +30,15 @@ interface IL2ERC20Gateway {
     /// @param to The address of recipient in L1.
     /// @param amount The amount of token will be deposited from L2 to L1.
     /// @param data The optional calldata passed to recipient in L1.
+    /// @param nonce The nonce of cross-chain messages sent at L2.
     event WithdrawERC20(
         address indexed l1Token,
         address indexed l2Token,
         address indexed from,
         address to,
         uint256 amount,
-        bytes data
+        bytes data,
+        uint256 nonce
     );
 
     /*************************

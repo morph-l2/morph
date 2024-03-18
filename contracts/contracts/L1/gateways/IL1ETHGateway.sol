@@ -24,11 +24,13 @@ interface IL1ETHGateway {
     /// @param to The address of recipient in L2.
     /// @param amount The amount of ETH will be deposited from L1 to L2.
     /// @param data The optional calldata passed to recipient in L2.
+    /// @param nonce The nonce of cross-chain messages sent at L1.
     event DepositETH(
         address indexed from,
         address indexed to,
         uint256 amount,
-        bytes data
+        bytes data,
+        uint256 nonce
     );
 
     /// @notice Emitted when some ETH is refunded.

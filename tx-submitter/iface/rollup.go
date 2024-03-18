@@ -12,13 +12,13 @@ import (
 type IRollup interface {
 	LatestL2BlockNumber(opts *bind.CallOpts) (*big.Int, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
-	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData, version *big.Int, sequencerIndex []*big.Int, signature []byte) (*types.Transaction, error)
+	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData, version *big.Int, sequencers []common.Address, signature []byte) (*types.Transaction, error)
 	// Stake(opts *bind.TransactOpts) (*types.Transaction, error)
 	// IsSequencer(opts *bind.CallOpts, arg0 common.Address) (bool, error)
 	// MINDEPOSIT(opts *bind.CallOpts) (*big.Int, error)
 	// Deposits(opts *bind.CallOpts, arg0 common.Address) (*big.Int, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
-	FinalizeBatchsByNum(opts *bind.TransactOpts, num *big.Int) (*types.Transaction, error)
+	FinalizeBatchesByNum(opts *bind.TransactOpts, num *big.Int) (*types.Transaction, error)
 	FINALIZATIONPERIODSECONDS(opts *bind.CallOpts) (*big.Int, error)
 	CommittedBatchStores(opts *bind.CallOpts, arg0 *big.Int) (struct {
 		BatchHash              [32]byte
@@ -32,7 +32,7 @@ type IRollup interface {
 		TotalL1MessagePopped   *big.Int
 		SkippedL1MessageBitmap []byte
 		BlockNumber            *big.Int
-		BlobVersionedhash      [32]byte
+		BlobVersionedHash      [32]byte
 	}, error)
 }
 
