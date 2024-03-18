@@ -421,11 +421,3 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
 }
-
-func L1MessagesToTxs(l1Messages []types.L1Message) []eth.L1MessageTx {
-	txs := make([]eth.L1MessageTx, len(l1Messages))
-	for i, l1Message := range l1Messages {
-		txs[i] = l1Message.L1MessageTx
-	}
-	return txs
-}

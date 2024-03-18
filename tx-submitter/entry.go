@@ -21,7 +21,7 @@ import (
 // a closure that executes the service and blocks until the service exits. The
 // use of a closure allows the parameters bound to the top-level main package,
 // e.g. GitVersion, to be captured and used once the function is executed.
-func Main(gitCommit string) func(ctx *cli.Context) error {
+func Main() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
 		cfg, err := utils.NewConfig(cliCtx)
 		if err != nil {
