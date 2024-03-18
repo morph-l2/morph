@@ -194,9 +194,9 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType, l1_provider: &Pro
         let aggr_proof = Bytes::from(prove_result.proof_data);
         let kzg_data = Bytes::from(prove_result.blob_kzg);
 
-        let mut call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data);
-        if util::read_env_var("SHADOW", false) {
-            let shadow_rollup = Address::from_str(util::read_env_var("SHADOW", "0x1".to_string()).as_str()).unwrap();
+        let mut call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data, 1u32, U256::from(1));
+        if util::read_env_var("SHADOW_PROVING", false) {
+            let shadow_rollup = Address::from_str(util::read_env_var("L1_SHADOW_ROLLUP", "0x1".to_string()).as_str()).unwrap();
             call.tx.set_to(shadow_rollup);
         }
 
@@ -324,7 +324,6 @@ async fn query_kzg_commitment(batch_index: u64) -> Option<Vec<u8>> {
 
     // ComputeProof computes the KZG proof at the given point for the polynomial
 
-
     let commitment_bytes: Vec<u8> = match hex::decode(commitments.first().unwrap().as_str().unwrap_or("0xf")) {
         Ok(cb) => cb,
         Err(_) => {
@@ -397,9 +396,9 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
         U64::from(1)
     };
     let mut filter = l1_rollup.challenge_state_filter().filter.from_block(start).address(l1_rollup.address());
-    let shadow = util::read_env_var("SHADOW", false);
+    let shadow = util::read_env_var("SHADOW_PROVING", false);
     if shadow {
-        let shadow_rollup = Address::from_str(util::read_env_var("SHADOW", "0x1".to_string()).as_str()).unwrap();
+        let shadow_rollup = Address::from_str(util::read_env_var("L1_SHADOW_ROLLUP", "0x1".to_string()).as_str()).unwrap();
         filter = filter.address(shadow_rollup);
     }
     let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {

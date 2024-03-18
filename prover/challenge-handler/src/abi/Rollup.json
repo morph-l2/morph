@@ -16,6 +16,11 @@
     "type": "constructor"
   },
   {
+    "inputs": [],
+    "name": "ErrZeroAddress",
+    "type": "error"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -255,25 +260,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "status",
-        "type": "bool"
-      }
-    ],
-    "name": "UpdateSequencer",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "oldVerifier",
         "type": "address"
       },
@@ -305,22 +291,9 @@
     "name": "MESSENGER",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "address",
         "name": "",
         "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MIN_DEPOSIT",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -334,6 +307,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ZEROVERSIONEDHASH",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -361,19 +347,6 @@
       }
     ],
     "name": "addProver",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_account",
-        "type": "address"
-      }
-    ],
-    "name": "addSequencer",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -446,6 +419,25 @@
     "name": "challengeState",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "challengerDeposits",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -554,9 +546,19 @@
         "type": "tuple"
       },
       {
-        "internalType": "uint32",
-        "name": "minGasLimit",
-        "type": "uint32"
+        "internalType": "uint256",
+        "name": "version",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "sequencerIndex",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signature",
+        "type": "bytes"
       }
     ],
     "name": "commitBatch",
@@ -585,6 +587,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "uint256",
+        "name": "finalizeTimestamp",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes32",
         "name": "prevStateRoot",
         "type": "bytes32"
@@ -605,9 +612,9 @@
         "type": "bytes32"
       },
       {
-        "internalType": "address",
-        "name": "sequencer",
-        "type": "address"
+        "internalType": "uint256[]",
+        "name": "sequencerIndex",
+        "type": "uint256[]"
       },
       {
         "internalType": "uint256",
@@ -628,6 +635,11 @@
         "internalType": "uint256",
         "name": "blockNumber",
         "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "blobVersionedhash",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -647,25 +659,6 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "deposits",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -747,7 +740,30 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "inChallenge",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
+      {
+        "internalType": "address",
+        "name": "_l1SequencerContract",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_l1StakingContract",
+        "type": "address"
+      },
       {
         "internalType": "address",
         "name": "_messageQueue",
@@ -761,11 +777,6 @@
       {
         "internalType": "uint256",
         "name": "_maxNumTxInChunk",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_minDeposit",
         "type": "uint256"
       },
       {
@@ -842,19 +853,26 @@
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "l1SequencerContract",
+    "outputs": [
       {
         "internalType": "address",
         "name": "",
         "type": "address"
       }
     ],
-    "name": "isSequencer",
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l1StakingContract",
     "outputs": [
       {
-        "internalType": "bool",
+        "internalType": "address",
         "name": "",
-        "type": "bool"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -980,6 +998,16 @@
         "internalType": "bytes",
         "name": "_kzgData",
         "type": "bytes"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_minGasLimit",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_gasFee",
+        "type": "uint256"
       }
     ],
     "name": "proveState",
@@ -1009,19 +1037,6 @@
       }
     ],
     "name": "removeProver",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_account",
-        "type": "address"
-      }
-    ],
-    "name": "removeSequencer",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1062,13 +1077,6 @@
     "name": "setPause",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "stake",
-    "outputs": [],
-    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -1114,19 +1122,6 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_newDepositAmount",
-        "type": "uint256"
-      }
-    ],
-    "name": "updateMinDepositAmount",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
         "name": "_newWindow",
         "type": "uint256"
       }
@@ -1160,19 +1155,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "withdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
