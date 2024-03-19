@@ -438,8 +438,7 @@ contract RollupTest is L1MessageBaseTest {
             ),
             sequencerAddrs,
             sequencerBLSKeys,
-            defaultGasLimit,
-            address(2048)
+            defaultGasLimit
         );
 
         hevm.stopPrank();

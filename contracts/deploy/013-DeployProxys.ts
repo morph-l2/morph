@@ -68,18 +68,20 @@ export const deployContractProxys = async (
     const WETHFactoryName = ContractFactoryName.WETH
     const WETHImplStorageName = ImplStorageName.WETH
 
+
     // ************************ token contracts deploy ************************
     // L1WETH deploy
-    const Factory = await hre.ethers.getContractFactory(WETHFactoryName)
-    const contract = await Factory.deploy()
+    let Factory = await hre.ethers.getContractFactory(WETHFactoryName)
+    let contract = await Factory.deploy()
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", WETHImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    const blockNumber = await hre.ethers.provider.getBlockNumber()
+    let blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     let err = await storage(path, WETHImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
+
     // ************************ messenger contracts deploy ************************
     // L1CrossDomainMessengerProxy deploy 
     err = await deployContractProxyByStorageName(hre, path, deployer, L1CrossDomainMessengerStorageName)
