@@ -90,7 +90,11 @@ contract L1CrossDomainMessenger is
         address _rollup,
         address _messageQueue
     ) public initializer {
-        if (_rollup == address(0) || _messageQueue == address(0)) {
+        if (
+            _rollup == address(0) ||
+            _messageQueue == address(0) ||
+            _feeVault == address(0)
+        ) {
             revert ErrZeroAddress();
         }
         CrossDomainMessenger.__Messenger_init(
