@@ -17,7 +17,7 @@ format: ## format the code
 .PHONY: format
 
 docker-build:
-	cd ops/docker && docker compose build
+	cd ops/docker && docker compose -f docker-compose-4nodes.yml build
 .PHONY: docker-build
 
 base-image:
