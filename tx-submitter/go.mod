@@ -7,6 +7,7 @@ require (
 	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.14
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
@@ -74,5 +75,4 @@ require (
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/net v0.18.0 // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )

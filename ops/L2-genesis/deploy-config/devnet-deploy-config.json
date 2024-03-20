@@ -1,6 +1,7 @@
 {
   "l1ChainID": 900,
   "l2ChainID": 53077,
+  "l2GenesisBlockBaseFeePerGas": "0x989680",
 
   "finalSystemOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "proxyAdminOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
