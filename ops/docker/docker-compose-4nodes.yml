@@ -372,6 +372,7 @@ services:
       - "8551"
       - "6060"
       - "30303"
+      - "7075:7070"
     volumes:
       - "sentry_geth_data:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
