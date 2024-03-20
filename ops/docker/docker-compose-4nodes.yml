@@ -136,6 +136,7 @@ services:
       - "8551"
       - "6060"
       - "30303"
+      - "7070:7070"
     volumes:
       - "morph_data_0:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
@@ -159,6 +160,7 @@ services:
       - "8551"
       - "6060"
       - "30303"
+      - "7071:7070"
     volumes:
       - "morph_data_1:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
@@ -183,6 +185,7 @@ services:
       - "8551"
       - "6060"
       - "30303"
+      - "7072:7070"
     volumes:
       - "morph_data_2:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
@@ -207,6 +210,7 @@ services:
       - "8551"
       - "6060"
       - "30303"
+      - "7073:7070"
     volumes:
       - "morph_data_3:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
@@ -420,6 +424,7 @@ services:
        - "7545:8545"
        - "7546:8546"
        - "7551:8551"
+       - "7074:7070"
      healthcheck:
        test: curl -f http://localhost:8545
        interval: 30s

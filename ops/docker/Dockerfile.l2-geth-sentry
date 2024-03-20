@@ -17,5 +17,5 @@ VOLUME ["/db"]
 
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
 
-EXPOSE 8545 8546 8551 30303 30303/udp
+EXPOSE 8545 8546 8551 7070 30303 30303/udp
 

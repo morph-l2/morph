@@ -40,7 +40,7 @@ VOLUME ["/db"]
 
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
-EXPOSE 8545 8546 8551 30303 30303/udp
+EXPOSE 8545 8546 8551 7070 30303 30303/udp
 
 
 
@@ -84,7 +84,7 @@ VOLUME ["/db"]
 
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
 
-EXPOSE 8545 8546 8551 30303 30303/udp
+EXPOSE 8545 8546 8551 7070 30303 30303/udp
 
 
 # Build Geth in a stock Go builder container
@@ -100,4 +100,4 @@ COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 COPY ops/docker/entrypoint-l2.sh /entrypoint.sh
 VOLUME ["/db"]
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
-EXPOSE 8545 8546 8551 30303 30303/udp
+EXPOSE 8545 8546 8551 7070 30303 30303/udp
