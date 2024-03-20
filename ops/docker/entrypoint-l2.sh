@@ -46,7 +46,10 @@ COMMAND="geth \
 --miner.etherbase=$MINER_ETHERBASE \
 --miner.gaslimit=10000000 \
 --metrics \
---metrics.addr=0.0.0.0 $optional_bootnodes"
+--metrics.addr=0.0.0.0 \
+--pprof \
+--pprof.addr=0.0.0.0 \
+--pprof.port=7070 $optional_bootnodes"
 
 
 $COMMAND
