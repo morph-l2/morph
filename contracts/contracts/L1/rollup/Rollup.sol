@@ -654,6 +654,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
+    /// @dev Finalizes batches up to the last committed batch index.
+    /// @notice This function iterates from the last finalized batch index to the last committed batch index,
+    /// finalizing each batch in the process.
     function finalizeBatches() public whenNotPaused {
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
@@ -661,17 +664,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i <= lastCommittedBatchIndex;
             i++
         ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
             finalizeBatch(i);
         }
     }
 
+    /// @dev Finalizes batches up to a specified number.
+    /// @param num The number of batches to finalize.
     function finalizeBatchesByNum(uint256 num) public whenNotPaused {
         require(num > 1, "finalize batch must bigger than 1");
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
@@ -680,17 +678,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             i <= lastFinalizedBatchIndexCache + num;
             i++
         ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
             finalizeBatch(i);
         }
     }
 
+    /// @dev Finalizes a specific batch by verifying its state and updating contract state accordingly.
+    /// @param _batchIndex The index of the batch to finalize.
     function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
