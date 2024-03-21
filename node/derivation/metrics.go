@@ -51,7 +51,7 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 		StateException: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
-			Name:      "derive_root_exception",
+			Name:      "batch_root_exception",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
 	}
@@ -69,7 +69,7 @@ func (m *Metrics) SetRollupL2Height(height uint64) {
 	m.RollupL2Height.Set(float64(height))
 }
 
-func (m *Metrics) SetStatus(status uint64) {
+func (m *Metrics) SetBatchStatus(status uint64) {
 	m.StateException.Set(float64(status))
 }
 
