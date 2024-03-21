@@ -1,4 +1,5 @@
 use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
+use crate::abi::shadow_rollup_abi::ShadowRollup;
 use crate::metrics::METRICS;
 use crate::util;
 use ethers::providers::{Http, Provider};
@@ -38,11 +39,13 @@ mod task_status {
 }
 
 type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
+type ShadowRollupType = ShadowRollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 
 pub async fn handle_challenge() -> Result<(), Box<dyn Error>> {
     // Prepare parameter.
     let l1_rpc = var("HANDLER_L1_RPC").expect("Cannot detect L1_RPC env var");
     let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
+    let l1_shadow_rollup_address = var("HANDLER_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
     let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
     let private_key = var("CHALLENGE_HANDLER_PRIVATE_KEY").expect("Cannot detect L1_ROLLUP_PRIVATE_KEY env var");
 
@@ -55,14 +58,15 @@ pub async fn handle_challenge() -> Result<(), Box<dyn Error>> {
     ));
     let wallet_address: Address = l1_signer.address();
 
-    let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str())?, l1_signer);
+    let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str())?, l1_signer.clone());
+    let l1_shadow_rollup: ShadowRollupType = ShadowRollup::new(Address::from_str(l1_shadow_rollup_address.as_str())?, l1_signer.clone());
 
-    handle_with_prover(wallet_address, l1_provider, l1_rollup).await;
+    handle_with_prover(wallet_address, l1_provider, l1_rollup, l1_shadow_rollup).await;
 
     Ok(())
 }
 
-async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>, l1_rollup: RollupType) {
+async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>, l1_rollup: RollupType, l1_shadow_rollup: ShadowRollupType) {
     let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
 
     loop {
@@ -89,7 +93,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
         METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
 
         // Step2. detecte challenge event.
-        let batch_index = match detecte_challenge_event(latest, &l1_rollup, &l1_provider).await {
+        let batch_index = match detecte_challenge_event(latest, &l1_shadow_rollup, &l1_provider).await {
             Some(value) => value,
             None => continue,
         };
@@ -99,7 +103,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
             Some(prove_result) => {
                 log::info!("query proof and prove state: {:#?}", batch_index);
                 if !prove_result.proof_data.is_empty() {
-                    prove_state(batch_index, &l1_rollup, &l1_provider).await;
+                    prove_state(batch_index, &l1_shadow_rollup, &l1_provider).await;
                     continue;
                 }
             }
@@ -134,7 +138,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
                 task_status::PROVING => log::info!("waiting for prev proof to be generated"),
                 task_status::PROVED => {
                     log::info!("proof already generated");
-                    prove_state(batch_index, &l1_rollup, &l1_provider).await;
+                    prove_state(batch_index, &l1_shadow_rollup, &l1_provider).await;
                     continue;
                 }
                 _ => {
@@ -157,7 +161,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
                 Some(prove_result) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
-                        prove_state(batch_index, &l1_rollup, &l1_provider).await;
+                        prove_state(batch_index, &l1_shadow_rollup, &l1_provider).await;
                         break;
                     }
                 }
@@ -170,7 +174,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
     }
 }
 
-async fn prove_state(batch_index: u64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> bool {
+async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType, l1_provider: &Provider<Http>) -> bool {
     for _ in 0..2 {
         std::thread::sleep(Duration::from_secs(30));
         let prove_result = match query_proof(batch_index).await {
@@ -194,7 +198,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType, l1_provider: &Pro
         let aggr_proof = Bytes::from(prove_result.proof_data);
         let kzg_data = Bytes::from(prove_result.blob_kzg);
 
-        let call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data, 1u32, U256::from(1));
+        let call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data);
         let rt = call.send().await;
         let pending_tx = match rt {
             Ok(pending_tx) => {
@@ -382,7 +386,7 @@ async fn query_challenged_batch(latest: U64, l1_rollup: &RollupType, batch_index
     None
 }
 
-async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Option<u64> {
+async fn detecte_challenge_event(latest: U64, l1_rollup: &ShadowRollupType, l1_provider: &Provider<Http>) -> Option<u64> {
     let start = if latest > U64::from(7200 * 3) {
         // Depends on challenge period
         latest - U64::from(7200 * 3)

@@ -24,7 +24,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let l1_rpc = var("CHALLENGER_L1_RPC").expect("Cannot detect L1_RPC env var");
     let l1_rollup_address = var("CHALLENGER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
-    let l1_shadow_rollup_address = var("CHALLENGER_L1_SHADOW_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
+    let l1_shadow_rollup_address = var("CHALLENGER_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
     let private_key = var("CHALLENGER_PRIVATEKEY").expect("Cannot detect CHALLENGER_PRIVATEKEY env var");
 
     // Provider & Signer
@@ -106,7 +106,17 @@ async fn auto_challenge(
     }
 
     // Prepare shadow batch
-    let batch = l1_rollup.committed_batch_stores(U256::from(batch_index)).await?;
+    let batch = match l1_rollup.committed_batch_stores(U256::from(batch_index)).await {
+        Ok(value) => value,
+        Err(msg) => {
+            log::error!("query committed_batch_stores error: {:?}", msg);
+            return Ok(());
+        }
+    };
+    // log::info!("committed_batch_stores.withdrawal_root = {:#?}", batch.5);
+    // log::info!("committed_batch_stores.data_hash = {:#?}", batch.6);
+    // log::info!("committed_batch_stores.blob_versioned_hash = {:#?}", batch.11);
+
     let shadow_tx = l1_shadow_rollup.commit_batch(
         batch_index,
         BatchStore {
@@ -114,7 +124,7 @@ async fn auto_challenge(
             post_state_root: batch.4,
             withdrawal_root: batch.5,
             data_hash: batch.6,
-            blob_versioned_hash: batch.12,
+            blob_versioned_hash: batch.11,
         },
     );
     let rt = shadow_tx.send().await;

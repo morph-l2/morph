@@ -1,8 +1,9 @@
 use axum::{routing::get, Router};
-use challenge_handler::util::read_env_var;
+use challenge_handler::util::{self, read_env_var};
 use challenge_handler::{
     handler,
     metrics::{METRICS, REGISTRY},
+    shadow_handler,
 };
 use dotenv::dotenv;
 use env_logger::Env;
@@ -20,7 +21,11 @@ async fn main() {
     metric_mng().await;
 
     // Start challenge handler.
-    let result = handler::handle_challenge().await;
+    let result = if util::read_env_var("SHADOW_PROVING", false) {
+        shadow_handler::handle_challenge().await
+    } else {
+        handler::handle_challenge().await
+    };
 
     // Handle result.
     match result {

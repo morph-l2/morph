@@ -612,11 +612,6 @@
         "type": "bytes32"
       },
       {
-        "internalType": "uint256[]",
-        "name": "sequencerIndex",
-        "type": "uint256[]"
-      },
-      {
         "internalType": "uint256",
         "name": "l1MessagePopped",
         "type": "uint256"
@@ -638,7 +633,7 @@
       },
       {
         "internalType": "bytes32",
-        "name": "blobVersionedhash",
+        "name": "blobVersionedHash",
         "type": "bytes32"
       }
     ],
