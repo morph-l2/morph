@@ -126,14 +126,13 @@ func Main() func(ctx *cli.Context) error {
 		// metrics
 		{
 			if cfg.MetricsServerEnable {
-				go func() {
-					_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
-					if err != nil {
-						log.Error("metrics server failed to start", "err", err)
-					}
-				}()
-				log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
+				_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
+				if err != nil {
+					log.Error("metrics server failed to start", "err", err)
+					return err
+				}
 			}
+			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
 		log.Info("starting tx submitter",
