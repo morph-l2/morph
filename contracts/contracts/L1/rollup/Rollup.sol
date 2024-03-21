@@ -300,30 +300,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "new state root is zero"
         );
 
-        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
-        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-        address[] memory _sequencer = new address[](1);
-        _sequencer[0] = msg.sender;
-
-        bytes32 batchHash = _commitBatch(batchData, _chunksLength, _sequencer);
-
-        // verify bls signature
-        require(
-            IL1Sequencer(l1SequencerContract).verifySignature(
-                version,
-                sequencers,
-                signature,
-                batchHash
-            ),
-            "the signature verification failed"
-        );
-    }
-
-    function _commitBatch(
-        BatchData calldata batchData,
-        uint256 _chunksLength,
-        address[] memory sequencers
-    ) internal returns (bytes32) {
         // The overall memory layout in this function is organized as follows
         // +---------------------+-------------------+------------------+
         // | parent batch header | chunk data hashes | new batch header |
@@ -342,6 +318,41 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.parentBatchHeader
         );
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
+
+        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
+        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
+        address[] memory _sequencer = new address[](1);
+        _sequencer[0] = msg.sender;
+
+        _commitBatch(
+            batchData,
+            _chunksLength,
+            _sequencer,
+            batchPtr,
+            _parentBatchHash,
+            _batchIndex
+        );
+
+        // verify bls signature
+        require(
+            IL1Sequencer(l1SequencerContract).verifySignature(
+                version,
+                sequencers,
+                signature,
+                committedBatchStores[_batchIndex].batchHash
+            ),
+            "the signature verification failed"
+        );
+    }
+
+    function _commitBatch(
+        BatchData calldata batchData,
+        uint256 _chunksLength,
+        address[] memory sequencers,
+        uint256 batchPtr,
+        bytes32 _parentBatchHash,
+        uint256 _batchIndex
+    ) internal {
         // re-compute batchHash using _blobVersionedHash
         _parentBatchHash = keccak256(
             abi.encodePacked(
@@ -458,8 +469,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
         lastCommittedBatchIndex = _batchIndex;
         emit CommitBatch(_batchIndex, _batchHash);
-
-        return _batchHash;
     }
 
     /// @inheritdoc IRollup
