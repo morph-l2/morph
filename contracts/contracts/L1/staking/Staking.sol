@@ -447,9 +447,10 @@ contract Staking is IStaking, OwnableUpgradeable {
                 block.number > withdrawals[msg.sender].unlock,
             "invalid withdrawal"
         );
+        uint256 amount = withdrawals[msg.sender].balance;
         delete withdrawals[msg.sender];
-        _transfer(msg.sender, withdrawals[msg.sender].balance);
-        emit Claimed(msg.sender, withdrawals[msg.sender].balance);
+        _transfer(msg.sender, amount);
+        emit Claimed(msg.sender, amount);
     }
 
     /**
