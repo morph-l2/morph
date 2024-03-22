@@ -120,11 +120,19 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      */
     bool public inChallenge;
 
+    /// @dev Structure to store information about a batch challenge.
+    /// @param batchIndex The index of the challenged batch.
+    /// @param challenger The address of the challenger.
+    /// @param challengeDeposit The amount of deposit put up by the challenger.
+    /// @param startTime The timestamp when the challenge started.
+    /// @param challengeSuccess Flag indicating whether the challenge was successful.
+    /// @param finished Flag indicating whether the challenge has been resolved.
     struct BatchChallenge {
         uint64 batchIndex;
         address challenger;
         uint256 challengeDeposit;
         uint256 startTime;
+        bool challengeSuccess;
         bool finished;
     }
 
@@ -556,6 +564,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _msgSender(),
             msg.value,
             block.timestamp,
+            false,
             false
         );
         emit ChallengeState(batchIndex, _msgSender(), msg.value);
@@ -600,6 +609,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         if (
             challenges[_batchIndex].startTime + PROOF_WINDOW <= block.timestamp
         ) {
+            // set status
+            challenges[_batchIndex].challengeSuccess = true;
             _challengerWin(
                 _batchIndex,
                 committedBatchStores[_batchIndex].sequencers,
@@ -674,6 +685,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
+        require(!batchChallengedSuccess(_batchIndex), "batch should be revert");
         require(
             !batchInsideChallengeWindow(_batchIndex),
             "batch in challenge window"
@@ -1123,6 +1135,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         return
             challenges[batchIndex].challenger != address(0) &&
             !challenges[batchIndex].finished;
+    }
+
+    /// @dev Retrieves the success status of a batch challenge.
+    /// @param batchIndex The index of the batch to check.
+    function batchChallengedSuccess(
+        uint256 batchIndex
+    ) public view returns (bool) {
+        return challenges[batchIndex].challengeSuccess;
     }
 
     /// @dev Public function to checks whether batch exists.
