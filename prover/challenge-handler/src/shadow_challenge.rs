@@ -18,9 +18,7 @@ type ShadowRollupType = ShadowRollup<SignerMiddleware<Provider<Http>, LocalWalle
  */
 pub async fn run() -> Result<(), Box<dyn Error>> {
     // Prepare env.
-    log::info!("starting auto-challenge...");
-    dotenv().ok();
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    log::info!("starting challenge...");
     let l1_rpc = var("CHALLENGER_L1_RPC").expect("Cannot detect L1_RPC env var");
     let l1_rollup_address = var("CHALLENGER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
     let l1_shadow_rollup_address = var("CHALLENGER_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");

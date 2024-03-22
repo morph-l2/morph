@@ -17,8 +17,8 @@ type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     // Prepare env.
-    env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
     dotenv().ok();
+    env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
     let l1_rpc = var("CHALLENGER_L1_RPC").expect("Cannot detect L1_RPC env var");
     let l1_rollup_address = var("CHALLENGER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
     let private_key = var("CHALLENGER_PRIVATEKEY").expect("Cannot detect CHALLENGER_PRIVATEKEY env var");
