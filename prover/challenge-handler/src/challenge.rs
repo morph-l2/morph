@@ -1,5 +1,4 @@
-use challenge_handler::abi::rollup_abi::Rollup;
-use challenge_handler::abi::shadow_rollup_abi::{BatchStore, ShadowRollup};
+use crate::abi::rollup_abi::Rollup;
 use dotenv::dotenv;
 use env_logger::Env;
 use ethers::prelude::*;
@@ -11,23 +10,18 @@ use std::sync::Arc;
 use std::time::Duration;
 
 type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
-type ShadowRollupType = ShadowRollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 
 /**
  * Automatically challenge the latest batch.
  */
-#[tokio::main]
-pub async fn main() -> Result<(), Box<dyn Error>> {
+pub async fn run() -> Result<(), Box<dyn Error>> {
     // Prepare env.
     log::info!("starting auto-challenge...");
-    dotenv().ok();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    dotenv().ok();
     let l1_rpc = var("CHALLENGER_L1_RPC").expect("Cannot detect L1_RPC env var");
     let l1_rollup_address = var("CHALLENGER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
-    let l1_shadow_rollup_address = var("CHALLENGER_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
     let private_key = var("CHALLENGER_PRIVATEKEY").expect("Cannot detect CHALLENGER_PRIVATEKEY env var");
-
-    // Provider & Signer
     let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc)?;
     let l1_signer = Arc::new(SignerMiddleware::new(
         l1_provider.clone(),
@@ -35,12 +29,10 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             .unwrap()
             .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
     ));
-
-    let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str())?, l1_signer.clone());
-    let l1_shadow_rollup: ShadowRollupType = ShadowRollup::new(Address::from_str(l1_shadow_rollup_address.as_str())?, l1_signer.clone());
-
     let challenger_address = l1_signer.address();
-    // Check rollup param.
+    let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str())?, l1_signer);
+
+    // Check rollup state.
     let is_challenger: bool = match l1_rollup.is_challenger(challenger_address).await {
         Ok(x) => x,
         Err(e) => {
@@ -57,18 +49,19 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let proof_window = l1_rollup.proof_window().await?;
     log::info!("finalization_period: {:#?}  proof_window: {:#?}", finalization_period, proof_window);
 
+    // TODO IStaking
+    // let min_deposit: U256 = l1_rollup.min_deposit().await?;
+    let min_deposit: U256 = U256::from(1);
+    log::info!("min_deposit: {:#?}", min_deposit);
+
     loop {
         std::thread::sleep(Duration::from_secs(12));
-        let _ = auto_challenge(&l1_provider, &l1_rollup, &l1_shadow_rollup, U256::from(1)).await;
+        let _ = auto_challenge(&l1_provider, &l1_rollup, min_deposit).await;
     }
 }
 
-async fn auto_challenge(
-    l1_provider: &Provider<Http>,
-    l1_rollup: &RollupType,
-    l1_shadow_rollup: &ShadowRollupType,
-    min_deposit: U256,
-) -> Result<(), Box<dyn Error>> {
+async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, min_deposit: U256) -> Result<(), Box<dyn Error>> {
+    // Search for the latest batch.
     let latest = match l1_provider.get_block_number().await {
         Ok(bn) => bn,
         Err(e) => {
@@ -80,109 +73,90 @@ async fn auto_challenge(
     // Check layer2 state.
     verify_state_transition().await;
 
-    // Check prev shadow challenge.
-    match detecte_challenge(latest, &l1_shadow_rollup, &l1_provider).await {
+    // Check prev challenge.
+    match detecte_challenge(latest, &l1_rollup, &l1_provider).await {
         Some(true) => {
-            return Ok(()); // Prev challenge is not finished.
+            return Ok(());
         }
-        Some(false) => (), // Prev challenge already finished.
+        Some(false) => (),
         None => {
             log::warn!("prev challenge unknown");
             return Ok(());
         }
     }
 
-    let batch_index = match get_latest_batch_index(latest, l1_rollup, l1_provider).await {
-        Ok(value) => value,
-        Err(msg) => {
-            log::error!("prev challenge unknown: {:?}", msg);
-            return Ok(());
-        }
-    };
-
-    if l1_shadow_rollup.batch_in_challenge(U256::from(batch_index)).await? {
-        log::info!("batch_in_challenge = true, No need for challenge, batch index = {:#?}", batch_index);
-        return Ok(());
-    }
-
-    // Prepare shadow batch
-    let batch = match l1_rollup.committed_batch_stores(U256::from(batch_index)).await {
-        Ok(value) => value,
-        Err(msg) => {
-            log::error!("query committed_batch_stores error: {:?}", msg);
-            return Ok(());
-        }
-    };
-    // log::info!("committed_batch_stores.withdrawal_root = {:#?}", batch.5);
-    // log::info!("committed_batch_stores.data_hash = {:#?}", batch.6);
-    // log::info!("committed_batch_stores.blob_versioned_hash = {:#?}", batch.11);
-
-    let shadow_tx = l1_shadow_rollup.commit_batch(
-        batch_index,
-        BatchStore {
-            prev_state_root: batch.3,
-            post_state_root: batch.4,
-            withdrawal_root: batch.5,
-            data_hash: batch.6,
-            blob_versioned_hash: batch.11,
-        },
-    );
-    let rt = shadow_tx.send().await;
-    let pending_tx = match rt {
-        Ok(pending_tx) => pending_tx,
-        Err(e) => {
-            log::error!("send tx of shadow_rollup.commit_batch error hex: {:#?}", e);
-            return Ok(());
-        }
-    };
-    check_receipt(l1_provider, pending_tx).await;
-
-    // Challenge shadow state.
-    let tx: FunctionCall<_, _, _> = l1_shadow_rollup.challenge_state(batch_index).value(min_deposit);
-    let rt = tx.send().await;
-    let pending_tx = match rt {
-        Ok(pending_tx) => pending_tx,
-        Err(e) => {
-            log::error!("send tx of challenge_state error hex: {:#?}", e);
-            return Ok(());
-        }
-    };
-    check_receipt(l1_provider, pending_tx).await;
-
-    Ok(())
-}
-
-async fn get_latest_batch_index(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Result<u64, String> {
     log::info!("latest blocknum = {:#?}", latest);
     let start = if latest > U64::from(200) {
         latest - U64::from(200)
     } else {
         U64::from(1)
     };
+
     let filter = l1_rollup.commit_batch_filter().filter.from_block(start).address(l1_rollup.address());
     let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
         Ok(logs) => logs,
         Err(e) => {
             log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
-            return Err("l1_rollup.commit_batch.get_logs error".to_string());
+            return Ok(());
         }
     };
+
     if logs.is_empty() {
-        return Err("There have been no commit_batch logs for the last 200 blocks".to_string());
+        log::error!("There have been no commit_batch logs for the last 200 blocks.");
+        return Ok(());
     }
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
     let batch_index = match logs.last() {
         Some(log) => log.topics[1].to_low_u64_be(),
         None => {
-            return Err("find commit_batch log error".to_string());
+            log::error!("find commit_batch log error");
+            return Ok(());
         }
     };
     log::info!("latest batch index = {:#?}", batch_index);
-    Ok(batch_index)
-}
 
-async fn check_receipt(l1_provider: &Provider<Http>, pending_tx: PendingTransaction<'_, Http>) {
-    let check = || async {
+    // Challenge state.
+    let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
+    if is_batch_finalized {
+        log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
+        return Ok(());
+    }
+
+    let challenges = match l1_rollup.challenges(U256::from(batch_index)).await {
+        Ok(x) => x,
+        Err(e) => {
+            log::info!("query l1_rollup.challenges error, batch index = {:#?}, {:#?}", batch_index, e);
+            return Ok(());
+        }
+    };
+
+    if challenges.1 != Address::default() {
+        log::info!("already challenge, batch index = {:#?}", batch_index);
+        return Ok(());
+    }
+
+    // l1_rollup.connect()
+    let tx: FunctionCall<_, _, _> = l1_rollup.challenge_state(batch_index).value(min_deposit);
+    let rt = tx.send().await;
+    let pending_tx = match rt {
+        Ok(pending_tx) => {
+            log::info!("tx of challenge_state has been sent: {:#?}", pending_tx.tx_hash());
+            pending_tx
+        }
+        Err(e) => {
+            log::error!("send tx of challenge_state error hex: {:#?}", e);
+            match e {
+                ContractError::Revert(data) => {
+                    let msg = String::decode_with_selector(&data).unwrap_or(String::from("decode contract revert error"));
+                    log::error!("send tx of challenge_state error msg: {:#?}", msg);
+                }
+                _ => {}
+            }
+            return Ok(());
+        }
+    };
+
+    let check_receipt = || async {
         let receipt = l1_provider.get_transaction_receipt(pending_tx.tx_hash()).await.unwrap();
         match receipt {
             Some(tr) => {
@@ -203,13 +177,15 @@ async fn check_receipt(l1_provider: &Provider<Http>, pending_tx: PendingTransact
 
     for _ in 1..5 {
         std::thread::sleep(Duration::from_secs(12));
-        if check().await {
+        if check_receipt().await {
             break;
         };
     }
+
+    Ok(())
 }
 
-async fn detecte_challenge(latest: U64, l1_rollup: &ShadowRollupType, l1_provider: &Provider<Http>) -> Option<bool> {
+async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Option<bool> {
     let start = if latest > U64::from(7200) {
         // Depends on proof window
         latest - U64::from(7200)
@@ -243,10 +219,11 @@ async fn detecte_challenge(latest: U64, l1_rollup: &ShadowRollupType, l1_provide
         };
         let is_batch_finalized: bool = l1_rollup.is_batch_finalized(U256::from(batch_index)).await.unwrap();
 
-        if batch_in_challenge && !is_batch_finalized {
+        if batch_in_challenge {
             log::warn!("prev challenge not finalized, batch index = {:#?}", batch_index);
             return Some(true);
         }
+        log::info!("batch status not in challenge, batch index = {:#?}", batch_index);
     }
     log::info!("all batch's status not in challenge now");
     Some(false)
