@@ -191,6 +191,7 @@ contract L1MessageBaseTest is CommonTest {
                 Staking.initialize.selector,
                 address(alice),
                 address(l1SequencerProxy),
+                address(rollupProxy),
                 SEQUENCER_SIZE,
                 MIN_DEPOSIT,
                 LOCK
