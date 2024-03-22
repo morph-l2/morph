@@ -202,6 +202,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 		if !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes()) {
+			d.metrics.SetBatchStatus(stateException)
 			// TODO The challenge switch is currently on and will be turned on in the future
 			if d.validator != nil && d.validator.ChallengeEnable() {
 				if err := d.validator.ChallengeState(batchInfo.batchIndex); err != nil {
@@ -211,6 +212,8 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			}
 			d.logger.Info("root hash is not equal", "originStateRootHash", batchInfo.root, "deriveStateRootHash", lastHeader.Root.Hex())
 			return
+		} else {
+			d.metrics.SetBatchStatus(stateNormal)
 		}
 		d.db.WriteLatestDerivationL1Height(lg.BlockNumber)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)

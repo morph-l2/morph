@@ -79,7 +79,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
             batchStartBlock == nextBatchStartBlock,
             "invalid batchStartBlock"
         );
-        require(true);
+
         confirmedBatchs[batchIndex] = Types.BatchInfo(
             submitter,
             batchStartBlock,
