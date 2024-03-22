@@ -21,7 +21,7 @@ type Metrics struct {
 	L1SyncHeight   metrics.Gauge
 	RollupL2Height metrics.Gauge
 	DeriveL2Height metrics.Gauge
-	StateException metrics.Gauge
+	BatchStatus    metrics.Gauge
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -48,7 +48,7 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "derive_l2_height",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
-		StateException: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+		BatchStatus: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
 			Name:      "batch_root_exception",
@@ -70,7 +70,7 @@ func (m *Metrics) SetRollupL2Height(height uint64) {
 }
 
 func (m *Metrics) SetBatchStatus(status uint64) {
-	m.StateException.Set(float64(status))
+	m.BatchStatus.Set(float64(status))
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {
