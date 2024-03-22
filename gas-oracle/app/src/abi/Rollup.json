@@ -222,6 +222,25 @@
       {
         "indexed": false,
         "internalType": "uint256",
+        "name": "oldPeriod",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newPeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "UpdateFinalizationPeriodSeconds",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
         "name": "oldMaxNumTxInChunk",
         "type": "uint256"
       },
@@ -233,6 +252,25 @@
       }
     ],
     "name": "UpdateMaxNumTxInChunk",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldWindow",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "UpdateProofWindow",
     "type": "event"
   },
   {
@@ -551,9 +589,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256[]",
-        "name": "sequencerIndex",
-        "type": "uint256[]"
+        "internalType": "address[]",
+        "name": "sequencers",
+        "type": "address[]"
       },
       {
         "internalType": "bytes",
@@ -633,7 +671,7 @@
       },
       {
         "internalType": "bytes32",
-        "name": "blobVersionedhash",
+        "name": "blobVersionedHash",
         "type": "bytes32"
       }
     ],
@@ -674,7 +712,7 @@
   },
   {
     "inputs": [],
-    "name": "finalizeBatchs",
+    "name": "finalizeBatches",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -687,7 +725,7 @@
         "type": "uint256"
       }
     ],
-    "name": "finalizeBatchsByNum",
+    "name": "finalizeBatchesByNum",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1163,9 +1201,9 @@
     "name": "withdrawalRoots",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bool",
         "name": "",
-        "type": "uint256"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
