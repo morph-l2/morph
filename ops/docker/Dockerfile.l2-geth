@@ -28,7 +28,7 @@ RUN cd /go-ethereum && env GO111MODULE=on GOFLAGS=-buildvcs=false go run build/c
 FROM ubuntu:20.04 as l2-geth
 
 RUN apt-get -qq update \
-    && apt-get -qq install -y --no-install-recommends ca-certificates
+    && apt-get -qq install -y --no-install-recommends ca-certificates valgrind
 
 COPY --from=go-rust-builder /go-ethereum/build/bin/geth /usr/local/bin/
 COPY --from=zkp-builder /app/target/release/libzkp.so /usr/local/lib/
