@@ -388,7 +388,7 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
         .filter(|tx| !tx.tx_type.is_l1_msg())
         .flat_map(|tx| {
             let mut tx_data = tx.rlp_signed.clone();
-            tx_data.extend_from_slice(&(tx.rlp_signed.len() as u32).to_le_bytes());
+            tx_data.extend_from_slice(&(tx.rlp_signed.len() as u32).to_be_bytes());
             tx_data
         })
         .collect();
