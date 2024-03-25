@@ -196,52 +196,37 @@ func (sr *Rollup) finalize() error {
 		return fmt.Errorf("get last committed error:%v", err)
 	}
 
-	// check if need to finalize
-	// get last
+	target := new(big.Int).Add(lastFinalized, big.NewInt(1))
+	if target.Cmp(lastCommited) > 0 {
+		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommited.Uint64())
+		return nil
+	}
+	// check finalize time
+	committedBatch, err := sr.Rollup.CommittedBatchStores(nil, target)
+	if err != nil {
+		return fmt.Errorf("get committed batch error:%v", err)
+	}
+	bk, err := sr.L1Client.BlockByNumber(context.Background(), nil)
+	if err != nil {
+		return fmt.Errorf("get block by number error:%v", err)
+	}
 	period, err := sr.Rollup.FINALIZATIONPERIODSECONDS(nil)
 	if err != nil {
 		return fmt.Errorf("get finalization period error:%v", err)
 	}
 	periodU64 := period.Uint64()
-	var finalizeIndex uint64
-
-	for i := lastCommited.Uint64(); i > lastFinalized.Uint64(); i-- {
-		committedBatch, err := sr.Rollup.CommittedBatchStores(nil, big.NewInt(int64(i)))
-		if err != nil {
-			return fmt.Errorf("get committed batch error:%v", err)
-		}
-		// timestamp
-		timestamp := uint64(time.Now().Unix())
-		if committedBatch.OriginTimestamp.Uint64()+periodU64 < timestamp {
-			finalizeIndex = i
-			break
-		}
+	if bk.Time() < committedBatch.OriginTimestamp.Uint64()+periodU64 {
+		log.Info("no need to finalize, block time < origin timestamp")
 	}
-
-	if finalizeIndex == 0 {
-		log.Info("no need to finalize")
-		return nil
-	}
-
-	finalizeCnt := finalizeIndex - lastFinalized.Uint64()
-	if finalizeCnt < minFinalizeNum {
-		log.Info(fmt.Sprintf("no need to finalize, finalize num < %d", minFinalizeNum))
-		return nil
-	}
-	// finalize up to 5 batch
-	if finalizeCnt > sr.MaxFinalizeNum {
-		finalizeCnt = sr.MaxFinalizeNum
-	}
-	// send tx
-	// update gas limit
+	// finalize
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
 	if err != nil {
 		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
 	}
 	opts.NoSend = true
-	tx, err := sr.Rollup.FinalizeBatchesByNum(opts, big.NewInt(int64(finalizeCnt)))
+	tx, err := sr.Rollup.FinalizeBatch(opts, target)
 	if err != nil {
-		return fmt.Errorf("craft FinalizeBatchesByNum tx failed:%v", err)
+		return fmt.Errorf("craft FinalizeBatch tx failed:%v", err)
 	}
 	if uint64(tx.Size()) > txMaxSize {
 		return core.ErrOversizedData
@@ -269,7 +254,7 @@ func (sr *Rollup) finalize() error {
 				log.Info("replace tx success")
 			}
 		} else if utils.ErrStringMatch(err, core.ErrGasLimit) { // ErrGasLimit
-			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "finalize_cnt", finalizeCnt)
+			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "finalize_index", target)
 			return fmt.Errorf("send tx error:%v", err.Error())
 		} else if utils.ErrStringMatch(err, core.ErrNonceTooLow) { //ErrNonceTooLow
 			return fmt.Errorf("send tx error:%v", err.Error())
@@ -279,7 +264,7 @@ func (sr *Rollup) finalize() error {
 	} else {
 		log.Info("tx sent",
 			// for business
-			"finalize_cnt", finalizeCnt,
+			"finalize_index", target,
 			// tx
 			"tx_hash", newSignedTx.Hash().String(),
 			"type", newSignedTx.Type(),
@@ -315,7 +300,7 @@ func (sr *Rollup) finalize() error {
 			//block info
 			"block_number", receipt.BlockNumber.Uint64(),
 			// for business
-			"finalize_cnt", finalizeCnt,
+			"finalize_index", target,
 			// receipt info
 			"gas_used", receipt.GasUsed,
 			// tx info
@@ -337,7 +322,7 @@ func (sr *Rollup) finalize() error {
 			//block info
 			"block_number", receipt.BlockNumber.Uint64(),
 			// for business
-			"finalize_cnt", finalizeCnt,
+			"finalize_index", target,
 			// receipt info
 			"gas_used", receipt.GasUsed,
 			// tx info
