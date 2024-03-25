@@ -1,6 +1,6 @@
 use crate::utils::{
-    get_block_traces_by_number, GENERATE_EVM_VERIFIER, MAINNET_KZG_TRUSTED_SETUP, PROVER_L2_RPC, PROVER_PARAMS_DIR,
-    PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, SCROLL_PROVER_ASSETS_DIR,
+    get_block_traces_by_number, kzg_to_versioned_hash, GENERATE_EVM_VERIFIER, MAINNET_KZG_TRUSTED_SETUP, PROVER_L2_RPC,
+    PROVER_PARAMS_DIR, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, SCROLL_PROVER_ASSETS_DIR,
 };
 use bls12_381::Scalar as Fp;
 use c_kzg::{Blob, KzgCommitment, KzgProof};
@@ -126,6 +126,13 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         }
     };
 
+    let versioned_hash = kzg_to_versioned_hash(commitment.to_bytes().to_vec().as_slice());
+    log::info!(
+        "=========> versioned_hash = {:#?} versioned_hash_Hex= {:#?}",
+        &versioned_hash,
+        ethers::utils::hex::encode(&versioned_hash)
+    );
+
     let mut pre: Vec<u8> = vec![];
     pre.extend(commitment.to_bytes().to_vec());
     pre.extend(batch_data_hash);
@@ -171,6 +178,19 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     blob_kzg.extend_from_slice(proof.as_slice());
     let mut params_file = File::create(format!("{}/blob_kzg.data", proof_path.as_str())).unwrap();
     params_file.write_all(&blob_kzg[..]).unwrap();
+
+    let verify_kzg_proof = KzgProof::verify_kzg_proof(
+        &commitment.to_bytes(),
+        &challenge_point.to_be_bytes().into(),
+        &y,
+        &proof.to_bytes(),
+        &kzg_settings,
+    );
+    match verify_kzg_proof {
+        Ok(v) => log::error!("verify_kzg_proof = {:#?}", v),
+        Err(e) => log::error!("verify_kzg_proof_error = {:#?}", e),
+    };
+    // KzgProof::verify_blob_kzg_proof(&Blob::from_bytes(&batch_blob).unwrap(), &commitment.to_bytes(), proof_bytes, &kzg_settings);
 
     // todo: get batch_commit from eth trace
     let batch_commit: U256 = U256::from(0);

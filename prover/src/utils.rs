@@ -1,7 +1,10 @@
 use std::{path::Path, str::FromStr, sync::Arc};
 
 use c_kzg::KzgSettings;
-use ethers::providers::{Http, Provider};
+use ethers::{
+    core::k256::sha2::{Digest, Sha256},
+    providers::{Http, Provider},
+};
 use once_cell::sync::Lazy;
 use prometheus::{IntGauge, Registry};
 use prover::BlockTrace;
@@ -31,6 +34,15 @@ pub fn load_trusted_setup() -> KzgSettings {
     assert!(trusted_setup_file.exists());
     let kzg_settings = KzgSettings::load_trusted_setup_file(trusted_setup_file).unwrap();
     return kzg_settings;
+}
+
+pub fn kzg_to_versioned_hash(commitment: &[u8]) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(commitment);
+    let hash = hasher.finalize();
+    let mut hashed_bytes = hash.as_slice().to_vec();
+    hashed_bytes[0] = 0x01;
+    hashed_bytes
 }
 
 // Fetches block traces by provider
