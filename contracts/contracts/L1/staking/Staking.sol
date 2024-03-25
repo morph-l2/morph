@@ -353,12 +353,11 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     function slash(
         address[] memory sequencers,
-        address challenger,
         uint32 _minGasLimit,
         uint256 _gasFee
-    ) external onlyRollupContract {
+    ) external onlyRollupContract returns (uint256) {
         if (!enableSlash) {
-            return;
+            return 0;
         }
 
         // do slash & update sequencer set
@@ -377,7 +376,8 @@ contract Staking is IStaking, OwnableUpgradeable {
         if (stakers.length == 0) {
             IL1Sequencer(sequencerContract).pause();
         }
-        _transfer(challenger, valueSum);
+        _transfer(rollupContract, valueSum);
+        return valueSum;
     }
 
     function _transfer(address _to, uint256 _amount) internal {

@@ -111,9 +111,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     mapping(address => uint256) public challengerDeposits;
 
     /**
-     * @notice Store Challenge Information.(batchIndex => BatchChallenge)
+     * @notice Store Challenge information. (batchIndex => BatchChallenge)
      */
     mapping(uint256 => BatchChallenge) public challenges;
+
+    /**
+     * @notice Store Challenge reward information. (batchIndex => BatchChallengeReward)
+     */
+    mapping(uint256 => BatchChallengeReward) public batchChallengeReward;
 
     /**
      * @notice whether in challenge
@@ -123,9 +128,16 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     struct BatchChallenge {
         uint64 batchIndex;
         address challenger;
+        address challengerReceiveAddress;
+        address proverReceiveAddress;
         uint256 challengeDeposit;
         uint256 startTime;
         bool finished;
+    }
+
+    struct BatchChallengeReward {
+        address receiver;
+        uint256 amount;
     }
 
     /**********************
@@ -508,7 +520,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     // challengeState challenges a batch by submitting a deposit.
-    function challengeState(uint64 batchIndex) external payable onlyChallenger {
+    function challengeState(
+        uint64 batchIndex,
+        address challengerReceiver
+    ) external payable onlyChallenger {
         require(!inChallenge, "already in challenge");
         require(
             lastFinalizedBatchIndex < batchIndex,
@@ -539,11 +554,18 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
+            challengerReceiver,
+            address(0),
             msg.value,
             block.timestamp,
             false
         );
-        emit ChallengeState(batchIndex, _msgSender(), msg.value);
+        emit ChallengeState(
+            batchIndex,
+            _msgSender(),
+            challengerReceiver,
+            msg.value
+        );
 
         for (
             uint256 i = lastFinalizedBatchIndex + 1;
@@ -562,6 +584,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     // _kzgData: [y(32) | commitment(48) | proof(48)]
     function proveState(
         uint64 _batchIndex,
+        address _proverReceiveAddress,
         bytes calldata _aggrProof,
         bytes calldata _kzgData,
         uint32 _minGasLimit,
@@ -579,6 +602,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // Mark challenge as finished
         challenges[_batchIndex].finished = true;
+        challenges[_batchIndex].proverReceiveAddress = _proverReceiveAddress;
         inChallenge = false;
 
         // Check for timeout
@@ -887,7 +911,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         challengerDeposits[challengerAddr] -= challengeDeposit;
-        _transfer(prover, challengeDeposit);
+        batchChallengeReward[batchIndex] = BatchChallengeReward(
+            challenges[batchIndex].proverReceiveAddress,
+            challengeDeposit
+        );
         emit ChallengeRes(batchIndex, prover, _type);
     }
 
@@ -905,15 +932,29 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 _gasFee
     ) internal {
         address challenger = challenges[batchIndex].challenger;
-        uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        _transfer(challenger, challengeDeposit);
-        IStaking(l1StakingContract).slash(
+        uint256 reward = IStaking(l1StakingContract).slash(
             sequencers,
-            challenger,
             _minGasLimit,
             _gasFee
         );
+        batchChallengeReward[batchIndex] = BatchChallengeReward(
+            challenges[batchIndex].challengerReceiveAddress,
+            challenges[batchIndex].challengeDeposit + reward
+        );
         emit ChallengeRes(batchIndex, challenger, _type);
+    }
+
+    /// @notice Claim challenge reward
+    /// @param batchIndex The index of the batch
+    function claimReward(uint256 batchIndex) external {
+        address receiver = batchChallengeReward[batchIndex].receiver;
+        uint256 amount = batchChallengeReward[batchIndex].amount;
+        require(
+            receiver != address(0) && amount != 0,
+            "invalid batchChallengeReward"
+        );
+        delete batchChallengeReward[batchIndex];
+        _transfer(receiver, amount);
     }
 
     /// @dev Internal function to transfer ETH to a specified address.

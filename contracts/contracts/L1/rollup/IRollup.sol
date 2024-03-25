@@ -73,10 +73,12 @@ interface IRollup {
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex The index of the batch.
     /// @param challenger The address of challenger.
+    /// @param challengerReceiveAddress The receive address of challenger.
     /// @param challengeDeposit The deposit of challenger.
     event ChallengeState(
         uint64 indexed batchIndex,
         address challenger,
+        address challengerReceiveAddress,
         uint256 challengeDeposit
     );
 
@@ -143,6 +145,10 @@ interface IRollup {
     /// @param batchHeader The header of current batch, see the encoding in comments of `commitBatch`.
     /// @param count The number of subsequent batches to revert, including current batch.
     function revertBatch(bytes calldata batchHeader, uint256 count) external;
+
+    /// @notice Claim challenge reward
+    /// @param batchIndex The index of the batch
+    function claimReward(uint256 batchIndex) external;
 
     /// @param version The version of current batch.
     /// @param parentBatchHeader The header of parent batch, see the comments of `BatchHeaderV0Codec`.
