@@ -201,22 +201,14 @@ func (sr *Rollup) finalize() error {
 		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommited.Uint64())
 		return nil
 	}
-	// check finalize time
-	committedBatch, err := sr.Rollup.CommittedBatchStores(nil, target)
+	// in challange window
+	inWindow, err := sr.Rollup.BatchInsideChallengeWindow(nil, target)
 	if err != nil {
-		return fmt.Errorf("get committed batch error:%v", err)
+		return fmt.Errorf("get batch inside challenge window error:%v", err)
 	}
-	bk, err := sr.L1Client.BlockByNumber(context.Background(), nil)
-	if err != nil {
-		return fmt.Errorf("get block by number error:%v", err)
-	}
-	period, err := sr.Rollup.FINALIZATIONPERIODSECONDS(nil)
-	if err != nil {
-		return fmt.Errorf("get finalization period error:%v", err)
-	}
-	periodU64 := period.Uint64()
-	if bk.Time() < committedBatch.OriginTimestamp.Uint64()+periodU64 {
-		log.Info("no need to finalize, block time < origin timestamp")
+	if inWindow {
+		log.Info("batch inside challenge window, wait for the next turn")
+		return nil
 	}
 	// finalize
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)

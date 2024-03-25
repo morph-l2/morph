@@ -30,6 +30,7 @@ type IRollup interface {
 		BlockNumber            *big.Int
 		BlobVersionedHash      [32]byte
 	}, error)
+	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 }
 
 // ISubmitter is the interface for the submitter on L2
