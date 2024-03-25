@@ -113,7 +113,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             }
         };
     }
-    let batch_data_hash = keccak256(data_hash_preimage);
+    let batch_data_hash: [u8; 32] = keccak256(data_hash_preimage);
 
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
     let commitment = match KzgCommitment::blob_to_kzg_commitment(&Blob::from_bytes(&batch_blob).unwrap(), &kzg_settings)
@@ -130,7 +130,21 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     pre.extend(commitment.to_bytes().to_vec());
     pre.extend(batch_data_hash);
     let mut challenge_point_bytes = keccak256(pre.as_slice());
+
     challenge_point_bytes[0] = 0;
+
+    log::info!(
+        "=========> batch_data_hash = {:#?} challenge_point_bytes= {:#?}",
+        batch_data_hash,
+        challenge_point_bytes
+    );
+
+    log::info!(
+        "=========> batch_data_hash_Hex = {:#?} challenge_point_bytes_Hex= {:#?}",
+        ethers::utils::hex::encode(batch_data_hash),
+        ethers::utils::hex::encode(challenge_point_bytes)
+    );
+
     let challenge_point = U256::from(&challenge_point_bytes);
     // let challenge_point = U256::from(128);
     Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap();
