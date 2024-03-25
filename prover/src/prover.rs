@@ -4,6 +4,7 @@ use crate::utils::{
 };
 use bls12_381::Scalar as Fp;
 use c_kzg::{Blob, KzgCommitment, KzgProof};
+use eth_types::geth_types::TxType;
 use eth_types::{Field, ToBigEndian, ToLittleEndian, U256};
 use ethers::providers::Provider;
 use ethers::utils::keccak256;
@@ -372,10 +373,25 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
         let zero_blob: Vec<u8> = vec![0; 32 * 4096];
         return Ok(zero_blob);
     }
-    log::error!("first tx hash: {:#?}, {:#?}", block.txs[0].hash, block.txs[0].callee_address.unwrap());
+    log::error!(
+        "first tx hash: {:#?}, {:#?}",
+        block.txs[0].hash,
+        block.txs[0].callee_address.unwrap()
+    );
 
     // get data from block.txs.rlp_signed
-    let data: Vec<u8> = block.txs.iter().flat_map(|tx| &tx.rlp_signed).cloned().collect();
+    // let data: Vec<u8> = block.txs.iter().flat_map(|tx| &tx.rlp_signed).cloned().collect();
+
+    let data: Vec<u8> = block
+        .txs
+        .iter()
+        .filter(|tx| !tx.tx_type.is_l1_msg())
+        .flat_map(|tx| {
+            let mut tx_data = tx.rlp_signed.clone();
+            tx_data.extend_from_slice(&(tx.rlp_signed.len() as u32).to_le_bytes());
+            tx_data
+        })
+        .collect();
 
     if data.len() > MAX_BLOB_DATA_SIZE {
         return Err(format!("data is too large for blob. len={}", data.len()));
