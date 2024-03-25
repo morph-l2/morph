@@ -366,29 +366,25 @@ async fn get_chunk_traces(
     Some(chunk_traces)
 }
 
-
 const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
 pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
     if block.txs.len() == 0 {
         let zero_blob: Vec<u8> = vec![0; 32 * 4096];
         return Ok(zero_blob);
     }
+    log::error!("first tx hash: {:#?}, {:#?}", block.txs[0].hash, block.txs[0].callee_address.unwrap());
+
     // get data from block.txs.rlp_signed
-    let data: Vec<u8> = block
-        .txs
-        .iter()
-        .flat_map(|tx| &tx.rlp_signed)
-        .cloned()
-        .collect();
+    let data: Vec<u8> = block.txs.iter().flat_map(|tx| &tx.rlp_signed).cloned().collect();
 
     if data.len() > MAX_BLOB_DATA_SIZE {
         return Err(format!("data is too large for blob. len={}", data.len()));
     }
 
-    let mut result:Vec<u8> = vec![];
+    let mut result: Vec<u8> = vec![];
 
     result.push(0);
-    result.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
     let offset = std::cmp::min(27, data.len());
     result.extend_from_slice(&data[..offset]);
 
@@ -398,7 +394,7 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
         }
         return Ok(result);
     }
-    
+
     for chunk in data[27..].chunks(31) {
         let len = std::cmp::min(31, chunk.len());
         result.push(0);
