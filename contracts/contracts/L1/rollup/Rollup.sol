@@ -593,65 +593,80 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _gasFee
             );
         } else {
-            // Check validity of proof
-            require(_aggrProof.length > 0, "Invalid proof");
+            _verifyProof(_batchIndex, _aggrProof, _kzgData);
+            // Record defender win
+            _defenderWin(_batchIndex, _msgSender(), "Proof success");
+        }
+    }
 
-            // Check validity of KZG data
-            require(_kzgData.length == 128, "Invalid KZG data");
+    function _verifyProof(
+        uint64 _batchIndex,
+        bytes calldata _aggrProof,
+        bytes calldata _kzgData
+    ) private view {
+        // Check validity of proof
+        require(_aggrProof.length > 0, "Invalid proof");
 
-            // Compute public input hash
-            bytes32 _publicInputHash = keccak256(
+        // Check validity of KZG data
+        require(_kzgData.length == 128, "Invalid KZG data");
+
+        // Compute xBytes
+        bytes memory _xBytes = computeXBytes(_batchIndex, _kzgData[32:80]);
+
+        // Create input for verification
+        bytes memory _input = abi.encode(
+            committedBatchStores[_batchIndex].blobVersionedHash,
+            _xBytes,
+            _kzgData
+        );
+
+        bool ret;
+        bytes memory _output;
+        assembly {
+            ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
+        }
+        require(ret, "verify 4844-proof failed");
+
+        IRollupVerifier(verifier).verifyAggregateProof(
+            _batchIndex,
+            _aggrProof,
+            computePublicInputHash(_batchIndex, _xBytes, _kzgData[0:32])
+        );
+    }
+
+    function computeXBytes(
+        uint64 _batchIndex,
+        bytes memory commitment
+    ) private view returns (bytes memory) {
+        bytes memory xBytes = abi.encode(
+            keccak256(
+                abi.encodePacked(
+                    commitment,
+                    committedBatchStores[_batchIndex].dataHash
+                )
+            )
+        );
+        xBytes[0] = 0x0; // make sure x < BLS_MODULUS
+        return xBytes;
+    }
+
+    function computePublicInputHash(
+        uint64 _batchIndex,
+        bytes memory _xBytes,
+        bytes memory _yBytes
+    ) private view returns (bytes32) {
+        return
+            keccak256(
                 abi.encodePacked(
                     layer2ChainId,
                     committedBatchStores[_batchIndex].prevStateRoot,
                     committedBatchStores[_batchIndex].postStateRoot,
                     committedBatchStores[_batchIndex].withdrawalRoot,
-                    committedBatchStores[_batchIndex].dataHash
+                    committedBatchStores[_batchIndex].dataHash,
+                    _xBytes,
+                    _yBytes
                 )
             );
-
-            // Extract commitment
-            bytes memory _commitment = _kzgData[32:80];
-
-            // Compute xBytes
-            bytes memory _xBytes = abi.encode(
-                keccak256(
-                    abi.encodePacked(
-                        _commitment,
-                        committedBatchStores[_batchIndex].dataHash
-                    )
-                )
-            );
-            // make sure x < BLS_MODULUS
-            _xBytes[0] = 0x0;
-
-            // Create input for verification
-            bytes memory _input = abi.encode(
-                committedBatchStores[_batchIndex].blobVersionedHash,
-                _xBytes,
-                _kzgData
-            );
-
-            bool ret;
-            bytes memory _output;
-            assembly {
-                ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
-            }
-            require(ret, "verify 4844-proof failed");
-
-            // Verify batch
-            bytes32 _newPublicInputHash = keccak256(
-                abi.encodePacked(_publicInputHash, _xBytes, _kzgData[0:32])
-            );
-            IRollupVerifier(verifier).verifyAggregateProof(
-                _batchIndex,
-                _aggrProof,
-                _newPublicInputHash
-            );
-
-            // Record defender win
-            _defenderWin(_batchIndex, _msgSender(), "Proof success");
-        }
     }
 
     function finalizeBatches() public whenNotPaused {
