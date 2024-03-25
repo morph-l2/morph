@@ -1,4 +1,4 @@
 [submodule "go-ethereum"]
 	path = go-ethereum
 	url = https://github.com/morph-l2/go-ethereum.git
-    branch = fix_libp2p
+    branch = eip4844
