@@ -1,7 +1,6 @@
 use crate::utils::{
-     get_block_traces_by_number, kzg_to_versioned_hash, GENERATE_EVM_VERIFIER,
-    MAINNET_KZG_TRUSTED_SETUP, PROVER_L2_RPC, PROVER_PARAMS_DIR, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME,
-    SCROLL_PROVER_ASSETS_DIR,
+    get_block_traces_by_number, kzg_to_versioned_hash, GENERATE_EVM_VERIFIER, MAINNET_KZG_TRUSTED_SETUP, PROVER_L2_RPC,
+    PROVER_PARAMS_DIR, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, SCROLL_PROVER_ASSETS_DIR,
 };
 use bls12_381::Scalar as Fp;
 use c_kzg::{Blob, KzgCommitment, KzgProof};
@@ -99,9 +98,12 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     let mut offset = 0;
     let mut data_hash_preimage = Vec::<u8>::new();
 
+    let mut txs = Vec::<Transaction>::new();
+
     for chunk_trace in chunk_traces.iter() {
         match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
             Ok(witness) => {
+                txs.extend_from_slice(witness.txs.as_slice());
                 let partial_result = block_to_blob_local(&witness).unwrap();
                 batch_blob[offset..offset + partial_result.len()].copy_from_slice(&partial_result);
                 offset += partial_result.len();
@@ -117,6 +119,9 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         };
     }
 
+    // let data: Vec<u8> = txs.iter().flat_map(|tx| &tx.rlp_signed).cloned().collect();
+    // let blob_bytes = encode_txs_blob(&data);
+
     let batch_data_hash: [u8; 32] = keccak256(data_hash_preimage);
 
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
@@ -130,6 +135,11 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         }
     };
 
+    log::info!("=========> batch total txs.len = {:#?}", txs.len());
+    log::info!(
+        "=========> commitment = {:#?}",
+        ethers::utils::hex::encode(&commitment.to_bytes().to_vec())
+    );
     let versioned_hash = kzg_to_versioned_hash(commitment.to_bytes().to_vec().as_slice());
     log::info!(
         "=========> versioned_hash = {:#?}",
@@ -144,7 +154,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     challenge_point_bytes[0] = 0;
 
     log::info!(
-        "=========> batch_data_hash = {:#?} ,challenge_point_bytes= {:#?}",
+        "=========> batch_data_hash = {:#?} ,challenge_point= {:#?}",
         ethers::utils::hex::encode(batch_data_hash),
         ethers::utils::hex::encode(challenge_point_bytes)
     );
@@ -356,6 +366,7 @@ async fn get_chunk_traces(
     Some(chunk_traces)
 }
 
+
 const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
 pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
     if block.txs.len() == 0 {
@@ -377,7 +388,7 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
     let mut result:Vec<u8> = vec![];
 
     result.push(0);
-    result.extend_from_slice(&(data.len() as u32).to_ne_bytes());
+    result.extend_from_slice(&(data.len() as u32).to_be_bytes());
     let offset = std::cmp::min(27, data.len());
     result.extend_from_slice(&data[..offset]);
 
