@@ -400,7 +400,7 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
     let mut result: Vec<u8> = vec![];
 
     result.push(0);
-    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    result.extend_from_slice(&(data.len() as u32).to_be_bytes());
     let offset = std::cmp::min(27, data.len());
     result.extend_from_slice(&data[..offset]);
 
