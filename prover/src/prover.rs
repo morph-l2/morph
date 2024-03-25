@@ -1,10 +1,11 @@
 use crate::utils::{
-    get_block_traces_by_number, kzg_to_versioned_hash, GENERATE_EVM_VERIFIER, MAINNET_KZG_TRUSTED_SETUP, PROVER_L2_RPC,
-    PROVER_PARAMS_DIR, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, SCROLL_PROVER_ASSETS_DIR,
+     get_block_traces_by_number, kzg_to_versioned_hash, GENERATE_EVM_VERIFIER,
+    MAINNET_KZG_TRUSTED_SETUP, PROVER_L2_RPC, PROVER_PARAMS_DIR, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME,
+    SCROLL_PROVER_ASSETS_DIR,
 };
 use bls12_381::Scalar as Fp;
 use c_kzg::{Blob, KzgCommitment, KzgProof};
-use eth_types::{ToBigEndian, ToLittleEndian, U256};
+use eth_types::{Field, ToBigEndian, ToLittleEndian, U256};
 use ethers::providers::Provider;
 use ethers::utils::keccak256;
 use prover::aggregator::Prover as BatchProver;
@@ -21,6 +22,7 @@ use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
 use zkevm_circuits::blob_circuit::block_to_blob;
 use zkevm_circuits::blob_circuit::util::{poly_eval_partial, FP_S};
+use zkevm_circuits::witness::{Block, Transaction};
 
 const BLOB_DATA_SIZE: usize = 4096 * 32;
 
@@ -96,10 +98,11 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     let mut batch_blob = [0u8; BLOB_DATA_SIZE];
     let mut offset = 0;
     let mut data_hash_preimage = Vec::<u8>::new();
+
     for chunk_trace in chunk_traces.iter() {
         match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
             Ok(witness) => {
-                let partial_result = block_to_blob(&witness).unwrap();
+                let partial_result = block_to_blob_local(&witness).unwrap();
                 batch_blob[offset..offset + partial_result.len()].copy_from_slice(&partial_result);
                 offset += partial_result.len();
 
@@ -113,6 +116,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             }
         };
     }
+
     let batch_data_hash: [u8; 32] = keccak256(data_hash_preimage);
 
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
@@ -128,8 +132,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
 
     let versioned_hash = kzg_to_versioned_hash(commitment.to_bytes().to_vec().as_slice());
     log::info!(
-        "=========> versioned_hash = {:#?} versioned_hash_Hex= {:#?}",
-        &versioned_hash,
+        "=========> versioned_hash = {:#?}",
         ethers::utils::hex::encode(&versioned_hash)
     );
 
@@ -141,13 +144,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     challenge_point_bytes[0] = 0;
 
     log::info!(
-        "=========> batch_data_hash = {:#?} challenge_point_bytes= {:#?}",
-        batch_data_hash,
-        challenge_point_bytes
-    );
-
-    log::info!(
-        "=========> batch_data_hash_Hex = {:#?} challenge_point_bytes_Hex= {:#?}",
+        "=========> batch_data_hash = {:#?} ,challenge_point_bytes= {:#?}",
         ethers::utils::hex::encode(batch_data_hash),
         ethers::utils::hex::encode(challenge_point_bytes)
     );
@@ -187,8 +184,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         &kzg_settings,
     );
     match verify_kzg_proof {
-        Ok(v) => log::error!("verify_kzg_proof = {:#?}", v),
-        Err(e) => log::error!("verify_kzg_proof_error = {:#?}", e),
+        Ok(v) => log::debug!("verify_kzg_proof = {:#?}", v),
+        Err(e) => log::debug!("verify_kzg_proof_error = {:#?}", e),
     };
     // KzgProof::verify_blob_kzg_proof(&Blob::from_bytes(&batch_blob).unwrap(), &commitment.to_bytes(), proof_bytes, &kzg_settings);
 
@@ -357,4 +354,48 @@ async fn get_chunk_traces(
         chunk_traces.push(chunk_trace)
     }
     Some(chunk_traces)
+}
+
+const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
+pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
+    if block.txs.len() == 0 {
+        let zero_blob: Vec<u8> = vec![0; 32 * 4096];
+        return Ok(zero_blob);
+    }
+    // get data from block.txs.rlp_signed
+    let data: Vec<u8> = block
+        .txs
+        .iter()
+        .flat_map(|tx| &tx.rlp_signed)
+        .cloned()
+        .collect();
+
+    if data.len() > MAX_BLOB_DATA_SIZE {
+        return Err(format!("data is too large for blob. len={}", data.len()));
+    }
+
+    let mut result:Vec<u8> = vec![];
+
+    result.push(0);
+    result.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    let offset = std::cmp::min(27, data.len());
+    result.extend_from_slice(&data[..offset]);
+
+    if data.len() <= 27 {
+        for _ in 0..(27 - data.len()) {
+            result.push(0);
+        }
+        return Ok(result);
+    }
+    
+    for chunk in data[27..].chunks(31) {
+        let len = std::cmp::min(31, chunk.len());
+        result.push(0);
+        result.extend_from_slice(&chunk[..len]);
+        for _ in 0..(31 - len) {
+            result.push(0);
+        }
+    }
+
+    Ok(result)
 }
