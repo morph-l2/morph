@@ -14,6 +14,7 @@ import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
 import {IL1Sequencer} from "../staking/IL1Sequencer.sol";
 import {IStaking} from "../staking/IStaking.sol";
+import {console} from "hardhat/console.sol";
 
 // solhint-disable no-inline-assembly
 // solhint-disable reason-string
@@ -669,9 +670,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             );
     }
 
-    function splitUint256(bytes memory _combined) public pure returns (bytes memory) {
+    function splitUint256(
+        bytes memory _combined
+    ) public pure returns (bytes memory) {
         require(_combined.length == 32, "Input length must be 32 bytes");
-        
+
         uint256 combinedUint;
         assembly {
             combinedUint := mload(add(_combined, 0x20))
@@ -680,33 +683,64 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 part1;
         uint256 part2;
         uint256 part3;
-        
+
         // Extract the three parts
         part1 = reverseBytes(combinedUint & ((1 << 88) - 1));  // Mask the lowest 88 bits and reverse bytes
         part2 = reverseBytes((combinedUint >> 88) & ((1 << 88) - 1));  // Shift right by 88 bits, mask the next 88 bits, and reverse bytes
         part3 = reverseBytes((combinedUint >> 176) & ((1 << 87) - 1));  // Shift right by 176 bits, mask the next 87 bits, and reverse bytes
         
-        bytes memory result = new bytes(32);
+        bytes memory result = new bytes(96);
         assembly {
             // Store the parts in the result bytes
             mstore(add(result, 0x20), part1)
             mstore(add(result, 0x40), part2)
             mstore(add(result, 0x60), part3)
         }
+
         return result;
     }
-    
-    function reverseBytes(uint256 input) private pure returns (uint256 output) {
-        uint256 len = 32;  // 256 bits
-        assembly {
-            let reversed := mload(0x40)  // Allocate memory for output
-            for { let i := 0 } lt(i, len) { i := add(i, 1) } {
-                let byteIndex := sub(sub(len, 1), i)  // Calculate byte index in little endian
-                let byteValue := byte(byteIndex, input)  // Get byte from input
-                mstore8(add(reversed, i), byteValue)  // Store byte in reversed order
-            }
-            output := reversed
-        }
+
+    function reverseBytes(uint256 input) private pure returns (uint256 v) {
+        v = input;
+        
+        // swap bytes
+        v =
+            ((v &
+                0xFF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00) >>
+                8) |
+            ((v &
+                0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) <<
+                8);
+
+        // swap 2-byte long pairs
+        v =
+            ((v &
+                0xFFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000) >>
+                16) |
+            ((v &
+                0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) <<
+                16);
+
+        // swap 4-byte long pairs
+        v =
+            ((v &
+                0xFFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000) >>
+                32) |
+            ((v &
+                0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) <<
+                32);
+
+        // swap 8-byte long pairs
+        v =
+            ((v &
+                0xFFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF0000000000000000) >>
+                64) |
+            ((v &
+                0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) <<
+                64);
+
+        // swap 16-byte long pairs
+        v = (v >> 128) | (v << 128);
     }
 
     function finalizeBatches() public whenNotPaused {
