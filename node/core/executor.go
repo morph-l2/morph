@@ -81,6 +81,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("obtained next L1Message index when initilize executor", "index", index)
 
 	sequencer, err := bindings.NewL2Sequencer(config.L2SequencerAddress, eClient)
 	if err != nil {
