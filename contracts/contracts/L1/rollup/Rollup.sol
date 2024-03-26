@@ -623,17 +623,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             // Check validity of KZG data
             require(_kzgData.length == 128, "Invalid KZG data");
 
-            // Compute public input hash
-            bytes32 _publicInputHash = keccak256(
-                abi.encodePacked(
-                    layer2ChainId,
-                    committedBatchStores[_batchIndex].prevStateRoot,
-                    committedBatchStores[_batchIndex].postStateRoot,
-                    committedBatchStores[_batchIndex].withdrawalRoot,
-                    committedBatchStores[_batchIndex].dataHash
-                )
-            );
-
             // Extract commitment
             bytes memory _commitment = _kzgData[32:80];
 
@@ -663,19 +652,40 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             }
             require(ret, "verify 4844-proof failed");
 
-            // Verify batch
-            bytes32 _newPublicInputHash = keccak256(
-                abi.encodePacked(_publicInputHash, _xBytes, _kzgData[0:32])
-            );
-            IRollupVerifier(verifier).verifyAggregateProof(
-                _batchIndex,
-                _aggrProof,
-                _newPublicInputHash
-            );
+            verifyBatch(_batchIndex, _xBytes, _kzgData, _aggrProof);
 
             // Record defender win
             _defenderWin(_batchIndex, _msgSender(), "Proof success");
         }
+    }
+
+    function verifyBatch(
+        uint256 _batchIndex,
+        bytes memory _xBytes,
+        bytes calldata _kzgData,
+        bytes calldata _aggrProof
+    ) internal view {
+        // Verify batch
+        bytes32 _newPublicInputHash = keccak256(
+            abi.encodePacked(
+                keccak256(
+                    abi.encodePacked(
+                        layer2ChainId,
+                        committedBatchStores[_batchIndex].prevStateRoot,
+                        committedBatchStores[_batchIndex].postStateRoot,
+                        committedBatchStores[_batchIndex].withdrawalRoot,
+                        committedBatchStores[_batchIndex].dataHash
+                    )
+                ),
+                _xBytes,
+                _kzgData[0:32]
+            )
+        );
+        IRollupVerifier(verifier).verifyAggregateProof(
+            _batchIndex,
+            _aggrProof,
+            _newPublicInputHash
+        );
     }
 
     function finalizeBatches() public whenNotPaused {
