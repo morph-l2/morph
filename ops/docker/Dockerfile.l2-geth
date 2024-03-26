@@ -25,7 +25,7 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
 RUN cd /go-ethereum && env GO111MODULE=on GOFLAGS=-buildvcs=false go run build/ci.go install -buildtags circuit_capacity_checker ./cmd/geth
 
 # Pull Geth into a second stage deploy alpine container
-FROM ubuntu:20.04 as l2-geth
+FROM ubuntu:bionic as l2-geth
 
 RUN apt-get -qq update \
     && apt-get -qq install -y --no-install-recommends ca-certificates valgrind bpfcc-tools
