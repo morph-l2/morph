@@ -11,6 +11,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/eth/catalyst"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
+	"github.com/scroll-tech/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 )
 
@@ -175,6 +176,30 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 			err = respErr
 		}
 		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
+
+func (rc *RetryableClient) MorphHeaderByNumber(ctx context.Context, blockNumber *big.Int) (ret *eth.Header, err error) {
+	var bn rpc.BlockNumber
+	if blockNumber == nil {
+		bn = rpc.LatestBlockNumber
+	} else {
+		bn = rpc.BlockNumber(blockNumber.Int64())
+	}
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.ethClient.GetBlockByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockNumber: &bn})
+		if respErr != nil {
+			rc.logger.Info("failed to call BlockNumber", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp.Header()
 		return nil
 	}, rc.b); retryErr != nil {
 		return nil, retryErr

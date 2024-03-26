@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/morph-l2/bindings/bindings"
@@ -57,25 +56,11 @@ type Executor struct {
 	metrics *Metrics
 }
 
-func getNextL1MsgIndex(client *ethclient.Client, logger tmlog.Logger) (uint64, error) {
-	currentHeader, err := client.HeaderByNumber(context.Background(), nil)
+func getNextL1MsgIndex(client *types.RetryableClient, logger tmlog.Logger) (uint64, error) {
+	currentHeader, err := client.MorphHeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return 0, err
 	}
-	if err != nil {
-		var count = 0
-		for err != nil && strings.Contains(err.Error(), "connection refused") {
-			time.Sleep(5 * time.Second)
-			count++
-			logger.Error("connection refused, try again", "retryCount", count)
-			currentHeader, err = client.HeaderByNumber(context.Background(), nil)
-		}
-		if err != nil {
-			logger.Error("failed to get currentHeader", "error", err)
-			return 0, fmt.Errorf("failed to get currentHeader, err: %v", err)
-		}
-	}
-
 	return currentHeader.NextL1MsgIndex, nil
 }
 
@@ -91,7 +76,8 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	index, err := getNextL1MsgIndex(eClient, logger)
+	l2Client := types.NewRetryableClient(aClient, eClient, config.Logger)
+	index, err := getNextL1MsgIndex(l2Client, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +100,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		tmPubKeyBytes = tmPubKey.Bytes()
 	}
 	executor := &Executor{
-		l2Client:            types.NewRetryableClient(aClient, eClient, config.Logger),
+		l2Client:            l2Client,
 		bc:                  &Version1Converter{},
 		sequencerContract:   sequencer,
 		govContract:         gov,
