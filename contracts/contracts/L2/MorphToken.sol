@@ -3,18 +3,25 @@
 pragma solidity ^0.8.0;
 
 import "./IMorphToken.sol";
-//import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 contract MorphToken is Initializable, IMorphToken {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
     uint256 private _totalSupply;
+    // The basis value of the annual issue.
     uint256 private _additionalBase;
+    // Annual increase ratio
+    // It's an integer, and it's treated with _rate/100.
     uint256 private _rate;
-    // Additional issue start time
-    uint256 private _beginTime;
-    uint256 private _preAdditionalTime;
+    // The next exchange rate used.
+    uint256 private _postRate;
+    // Additional issue start time.
+    uint256 private _additionalBeginTime;
+    // Additional issuance time of the previous year.
+    uint256 private _preYearAdditionalTime;
+    // Additional issuance time of the previous day.
+    uint256 private _preDayAdditionalTime;
     string private _name;
     string private _symbol;
     address public _distribute;
@@ -34,13 +41,18 @@ contract MorphToken is Initializable, IMorphToken {
      * All two of these values are immutable: they can only be set once during
      * construction.
      */
-    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 rate_, uint256 initialSupply_) public initializer {
+    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 rate_, uint256 initialSupply_, uint256 beginTime_) public initializer {
         require(distribute_ != address(0), "invalid distribute contract address");
         _name = name_;
         _symbol = symbol_;
         _distribute = distribute_;
         _rate = rate_;
+        _postRate = rate_;
+        _additionalBeginTime = beginTime_;
+        _preDayAdditionalTime = beginTime_;
+        _preYearAdditionalTime = beginTime_;
         _mint(msg.sender, initialSupply_);
+        _additionalBase = initialSupply_;
     }
 
     /**
@@ -71,7 +83,7 @@ contract MorphToken is Initializable, IMorphToken {
      * no way affects any of the arithmetic of the contract, including
      * {IMorphToken-balanceOf} and {IMorphToken-transfer}.
      */
-    function decimals() public view returns (uint8) {
+    function decimals() public pure returns (uint8) {
         return 18;
     }
 
@@ -80,6 +92,34 @@ contract MorphToken is Initializable, IMorphToken {
      */
     function totalSupply() public view returns (uint256) {
         return _totalSupply;
+    }
+
+    /**
+     * @dev See {IMorphToken-additionalBase}.
+     */
+    function additionalBase() public view returns (uint256) {
+        return _additionalBase;
+    }
+
+    /**
+     * @dev See {IMorphToken-rate}.
+     */
+    function rate() public view returns (uint256) {
+        return _rate;
+    }
+
+    /**
+     * @dev See {IMorphToken-setPostRate}.
+     */
+    function setPostRate(uint256 rate_) public {
+        _postRate = rate_;
+    }
+
+    /**
+     * @dev See {IMorphToken-additionalBeginTime}.
+     */
+    function additionalBeginTime() public view returns (uint256) {
+        return _additionalBeginTime;
     }
 
     /**
@@ -224,36 +264,62 @@ contract MorphToken is Initializable, IMorphToken {
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
      * the total supply.
+     * Only mint once a day,
+     * but can unify the previous days of mint after several days
      *
      * Emits a {Transfer} event with `from` set to the zero address.
      *
      * Requirements:
      *
-     * - `account` cannot be the zero address.
+     * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
-    function mint(address account, uint256 amount) external onlyDistribute {
-        require(block.timestamp > _beginTime, "mint feature is not yet available");
-        uint256 cm = calculateAdditionalAmount();
+    function mint(address account) external onlyDistribute {
+        require(block.timestamp > _additionalBeginTime, "mint feature is not yet available");
 
-
-        uint256 tm = (block.timestamp - _preAdditionalTime) / 24 * 60 * 60;
-        if (tm == 0) {
-            revert("");
-        }else {
-
+        if (account == address(0)) {
+            account = msg.sender;
         }
 
-        _mint(account, amount);
-    }
+        // Current time Indicates the number of years since the last issue
+        // 31536000 = 365 * 24 * 60 * 60 (one year)
+        uint256 intervalYears = (block.timestamp - _preYearAdditionalTime) / 31536000;
+        if (intervalYears == 0) {
+            // Current time Indicates the number of days since the last issue
+            // 86400 = 24 * 60 * 60 (one day)
+            uint256 interval = (block.timestamp - _preDayAdditionalTime) / 86400;
+            if (interval == 0) {
+                revert("only mint once a day");
+            }else {
+                // The daily increment value is calculated based on the basic increment value
+                // and increment rate
+                // eg: (_rate / 100) * _additionalBase / 365
+                uint256 increment = _additionalBase * _rate / 100 / 365;
+                _mint(account, interval * increment);
+                _preDayAdditionalTime = _preDayAdditionalTime + interval * 86400;
+            }
+        } else {
+            // Cross-year cycle
+            for (uint256 i = 0; i < intervalYears; i++) {
+                uint256 incrementOfOneDay = _additionalBase * _rate / 100 / 365;
+                uint256 intervalDays = (_preYearAdditionalTime + 31536000 - _preDayAdditionalTime) / 86400;
+                _mint(account, intervalDays * incrementOfOneDay);
+                // Ignore decimal places and round them
+                _additionalBase += _additionalBase * _rate / 100 / 365 * 365;
+                _preDayAdditionalTime = _preDayAdditionalTime + intervalDays * 86400;
+                _preYearAdditionalTime += 31536000;
+            }
+            uint256 intervals = (block.timestamp - _preDayAdditionalTime) / 86400;
+            uint256 incrementOfOneDays = _additionalBase * _rate / 100 / 365;
+            _mint(account, intervals * incrementOfOneDays);
+            _preDayAdditionalTime = _preDayAdditionalTime + intervals * 86400;
+        }
 
-    // @dev Calculate the daily rate of inflation
-    // _totalSupply * _rate / 100 / 365;
-    // The total amount of additional issuance in this round
-    function calculateAdditionalAmount() public view returns (uint256) {
-//        if ((block.timestamp - _preAdditionalTime) > 365 * 24 * 60 * 60) {
-//            _additionalBase = _totalSupply;
-//        }
-        return _additionalBase * _rate / 100 / 365 * 365;
+        if (_rate != _postRate) {
+            _rate = _postRate;
+            _additionalBase = _totalSupply;
+            _preDayAdditionalTime = block.timestamp;
+            _preYearAdditionalTime = block.timestamp;
+        }
     }
 
     function _mint(address account, uint256 amount) internal {
@@ -312,5 +378,5 @@ contract MorphToken is Initializable, IMorphToken {
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[44] private __gap;
+    uint256[38] private __gap;
 }

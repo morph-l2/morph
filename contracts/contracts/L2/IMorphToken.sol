@@ -16,7 +16,27 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      * @param distribute_ Assign the _distribute field to use.
      * @param initialSupply_ Initialize amount.
      */
-    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 rate_, uint256 initialSupply_) external;
+    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 rate_, uint256 initialSupply_, uint256 beginTime_) external;
+
+    /**
+     * @dev Returns the base value of the data for the current year.
+     */
+    function additionalBase() external view returns (uint256);
+
+    /**
+     * @dev Returns _rate field.
+     */
+    function rate() external view returns (uint256);
+
+    /**
+     * @dev set _postRate field.
+     */
+    function setPostRate(uint256 rate_) external;
+
+    /**
+     * @dev Returns Additional issue start time.
+     */
+    function additionalBeginTime() external view returns (uint256);
 
     /**
      * @dev Atomically increases the allowance granted to `spender` by the caller.
@@ -46,12 +66,12 @@ interface IMorphToken is IERC20MetadataUpgradeable {
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
      * the total supply.
+     * Only mint once a day,
+     * but can unify the previous days of mint after several days
      *
      * Requirements:
      *
-     * - `account` cannot be the zero address.
+     * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
-    function mint(address account, uint256 amount) external;
-
-    function calculateOneDayRateOfInflation() external view returns (uint256);
+    function mint(address account) external;
 }
