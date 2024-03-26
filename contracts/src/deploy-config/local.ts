@@ -15,11 +15,11 @@ const config = {
   gasPriceOracleTxGasContractCreation: 2,
   gasPriceOracleZeroGas: 1,
   gasPriceOracleNonZeroGas: 1,
+  l2BaseFee: 0.1,  // Gwei 
 
   // rollup contract config
   // initialize config
   rollupMaxNumTxInChunk: 100,
-  rollupMinDeposit: 1,
   finalizationPeriodSeconds: 10,
   rollupProofWindow: 86400,
   // challenge config

@@ -109,7 +109,7 @@ export const getContractAddressByName = (
     return ''
 }
 
-export const storge = async (
+export const storage = async (
     path: string,
     contractsName: string,
     contractAddress: string,

@@ -21,6 +21,32 @@ export const ContractInit = async (
     config: any
 ): Promise<string> => {
     console.log("ContractInit")
+    // ------------------ gasPriceOracle init -----------------
+    {
+        const GasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName)
+        const GasPriceOracle = await hre.ethers.getContractAt(ContractFactoryName.L1MessageQueueWithGasPriceOracle, GasPriceOracleProxyAddress, deployer)
+        // base fee
+        const baseFeeStr = (config.l2BaseFee).toString()
+        let res = await GasPriceOracle.setL2BaseFee(ethers.utils.parseUnits(baseFeeStr, "gwei"))
+        let rec = await res.wait()
+        console.log(`set base fee ${rec.status === 1 } setL2BaseFee(${await GasPriceOracle.l2BaseFee()}) gwei`)
+
+        const WhitelistImplAddress = getContractAddressByName(path, ImplStorageName.Whitelist)
+        const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
+        const WhitelistCheckerImpl = await hre.ethers.getContractAt(ContractFactoryName.Whitelist, WhitelistImplAddress, deployer)
+        let addList = [L1SequencerProxyAddress]
+        res = await WhitelistCheckerImpl.updateWhitelistStatus(addList, true)
+        rec = await res.wait()
+        for (let i = 0; i < addList.length; i++) {
+            let res = await WhitelistCheckerImpl.isSenderAllowed(addList[i])
+            if (res != true) {
+                console.error('whitelist check failed')
+                return ''
+            }
+        }
+        console.log(`add ${addList} to whitelist success`)
+    }
+
     // ------------------ rollup init -----------------
     {
         const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
@@ -45,6 +71,7 @@ export const ContractInit = async (
         console.log('addChallenger(%s)', challenger)
         await Rollup.addChallenger(challenger)
     }
+
     // ------------------ staking init -----------------
     {
         const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)

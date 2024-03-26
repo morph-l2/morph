@@ -126,7 +126,7 @@ export const StakingInit = async (
             StakingFactory.interface,
             deployer,
         )
- 
+
         await assertContractVariable(
             contractTmp,
             'sequencerContract',

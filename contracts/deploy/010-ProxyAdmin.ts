@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storge } from "../src/deploy-utils";
+import { assertContractVariable, storage } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
@@ -29,7 +29,7 @@ export const deployProxyAdmin = async (
     await assertContractVariable(contract, 'owner', await deployer.getAddress())
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storge(path, ProxyAdminImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await storage(path, ProxyAdminImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

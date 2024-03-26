@@ -564,8 +564,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint64 _batchIndex,
         bytes calldata _aggrProof,
         bytes calldata _kzgData,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint32 _minGasLimit
     ) external {
         // Ensure challenge exists and is not finished
         require(
@@ -589,8 +588,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _batchIndex,
                 committedBatchStores[_batchIndex].sequencers,
                 "Timeout",
-                _minGasLimit,
-                _gasFee
+                _minGasLimit
             );
         } else {
             // Check validity of proof
@@ -896,23 +894,16 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @param sequencers An array containing the sequencers to be slashed.
     /// @param _type Description of the challenge type.
     /// @param _minGasLimit Minimum gas limit used for slashing sequencers.
-    /// @param _gasFee Gas fee used for slashing sequencers.
     function _challengerWin(
         uint64 batchIndex,
         address[] memory sequencers,
         string memory _type,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint32 _minGasLimit
     ) internal {
         address challenger = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         _transfer(challenger, challengeDeposit);
-        IStaking(l1StakingContract).slash(
-            sequencers,
-            challenger,
-            _minGasLimit,
-            _gasFee
-        );
+        IStaking(l1StakingContract).slash(sequencers, challenger, _minGasLimit);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
 
