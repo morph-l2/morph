@@ -663,10 +663,50 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                     committedBatchStores[_batchIndex].postStateRoot,
                     committedBatchStores[_batchIndex].withdrawalRoot,
                     committedBatchStores[_batchIndex].dataHash,
-                    _xBytes,
-                    _yBytes
+                    splitUint256(_xBytes),
+                    splitUint256(_yBytes)
                 )
             );
+    }
+
+    function splitUint256(bytes memory _combined) public pure returns (bytes memory) {
+        require(_combined.length == 32, "Input length must be 32 bytes");
+        
+        uint256 combinedUint;
+        assembly {
+            combinedUint := mload(add(_combined, 0x20))
+        }
+
+        uint256 part1;
+        uint256 part2;
+        uint256 part3;
+        
+        // Extract the three parts
+        part1 = reverseBytes(combinedUint & ((1 << 88) - 1));  // Mask the lowest 88 bits and reverse bytes
+        part2 = reverseBytes((combinedUint >> 88) & ((1 << 88) - 1));  // Shift right by 88 bits, mask the next 88 bits, and reverse bytes
+        part3 = reverseBytes((combinedUint >> 176) & ((1 << 87) - 1));  // Shift right by 176 bits, mask the next 87 bits, and reverse bytes
+        
+        bytes memory result = new bytes(32);
+        assembly {
+            // Store the parts in the result bytes
+            mstore(add(result, 0x20), part1)
+            mstore(add(result, 0x40), part2)
+            mstore(add(result, 0x60), part3)
+        }
+        return result;
+    }
+    
+    function reverseBytes(uint256 input) private pure returns (uint256 output) {
+        uint256 len = 32;  // 256 bits
+        assembly {
+            let reversed := mload(0x40)  // Allocate memory for output
+            for { let i := 0 } lt(i, len) { i := add(i, 1) } {
+                let byteIndex := sub(sub(len, 1), i)  // Calculate byte index in little endian
+                let byteValue := byte(byteIndex, input)  // Get byte from input
+                mstore8(add(reversed, i), byteValue)  // Store byte in reversed order
+            }
+            output := reversed
+        }
     }
 
     function finalizeBatches() public whenNotPaused {
