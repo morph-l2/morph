@@ -57,7 +57,7 @@ type Executor struct {
 }
 
 func getNextL1MsgIndex(client *types.RetryableClient, logger tmlog.Logger) (uint64, error) {
-	currentHeader, err := client.MorphHeaderByNumber(context.Background(), nil)
+	currentHeader, err := client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return 0, err
 	}
