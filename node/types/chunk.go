@@ -117,16 +117,6 @@ func maxRowNumber(rc types.RowConsumption) (max uint64) {
 	return
 }
 
-// SetTxHashBytes To compute the chunk.Hash, l1TxHashes are indispensable and will
-// be filled later
-func (ck *Chunk) SetTxHashBytes(txHashBytes []byte) {
-	ck.l1TxHashes = txHashBytes
-}
-
-func (ck *Chunk) ResetBlockNum(blockNum int) {
-	ck.blockNum = blockNum
-}
-
 func (ck *Chunk) BlockContext() []byte {
 	return ck.blockContext
 }
