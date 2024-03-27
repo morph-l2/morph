@@ -16,7 +16,7 @@ use prover::{BlockTrace, ChunkHash, ChunkProof, CompressionCircuit};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::{BufReader, BufWriter, Write};
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
@@ -100,8 +100,19 @@ fn save_trace(batch_index: u64, chunk_traces: &Vec<Vec<BlockTrace>>) {
     log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
 }
 
-async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, chunk_prover: &mut ChunkProver) {
+fn load_trace(batch_index: u64) -> Vec<Vec<BlockTrace>> {
+    let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+    let file = File::open(format!("{}/chunk_traces.json", path.as_str())).unwrap();
+    let reader = BufReader::new(file);
+
+    let chunk_traces: Vec<Vec<BlockTrace>> = serde_json::from_reader(reader).unwrap();
+    return chunk_traces;
+}
+
+async fn generate_proof(batch_index: u64, chunk_traces1: Vec<Vec<BlockTrace>>, chunk_prover: &mut ChunkProver) {
     let start = Instant::now();
+
+    let chunk_traces = load_trace(batch_index);
 
     let proof_path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     fs::create_dir_all(proof_path.clone()).unwrap();
