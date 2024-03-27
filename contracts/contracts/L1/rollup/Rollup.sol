@@ -669,43 +669,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function finalizeBatches() public whenNotPaused {
-        uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
-        for (
-            uint256 i = lastFinalizedBatchIndexCache + 1;
-            i <= lastCommittedBatchIndex;
-            i++
-        ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
-            finalizeBatch(i);
-        }
-    }
-
-    function finalizeBatchesByNum(uint256 num) public whenNotPaused {
-        require(num > 1, "finalize batch must bigger than 1");
-        uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
-        for (
-            uint256 i = lastFinalizedBatchIndexCache + 1;
-            i <= lastFinalizedBatchIndexCache + num;
-            i++
-        ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
-            finalizeBatch(i);
-        }
-    }
-
+    /// @dev Finalizes a specific batch by verifying its state and updating contract state accordingly.
+    /// @param _batchIndex The index of the batch to finalize.
     function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
