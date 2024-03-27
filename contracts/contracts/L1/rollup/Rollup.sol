@@ -116,9 +116,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     mapping(uint256 => BatchChallenge) public challenges;
 
     /**
-     * @notice Store Challenge reward information. (batchIndex => BatchChallengeReward)
+     * @notice Store Challenge reward information. (receiver => amount)
      */
-    mapping(uint256 => BatchChallengeReward) public batchChallengeReward;
+    mapping(address => uint256) public batchChallengeReward;
 
     /**
      * @notice whether in challenge
@@ -924,10 +924,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         challengerDeposits[challengerAddr] -= challengeDeposit;
-        batchChallengeReward[batchIndex] = BatchChallengeReward(
-            challenges[batchIndex].proverReceiveAddress,
-            challengeDeposit
-        );
+        batchChallengeReward[
+            challenges[batchIndex].proverReceiveAddress
+        ] += challengeDeposit;
         emit ChallengeRes(batchIndex, prover, _type);
     }
 
@@ -950,24 +949,18 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _minGasLimit,
             _gasFee
         );
-        batchChallengeReward[batchIndex] = BatchChallengeReward(
-            challenges[batchIndex].challengerReceiveAddress,
-            challenges[batchIndex].challengeDeposit + reward
-        );
+        batchChallengeReward[
+            challenges[batchIndex].challengerReceiveAddress
+        ] += (challenges[batchIndex].challengeDeposit + reward);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
 
     /// @notice Claim challenge reward
-    /// @param batchIndex The index of the batch
-    function claimReward(uint256 batchIndex) external {
-        address receiver = batchChallengeReward[batchIndex].receiver;
-        uint256 amount = batchChallengeReward[batchIndex].amount;
-        require(
-            receiver != address(0) && amount != 0,
-            "invalid batchChallengeReward"
-        );
-        delete batchChallengeReward[batchIndex];
-        _transfer(receiver, amount);
+    function claimReward() external {
+        uint256 amount = batchChallengeReward[_msgSender()];
+        require(amount != 0, "invalid batchChallengeReward");
+        delete batchChallengeReward[_msgSender()];
+        _transfer(_msgSender(), amount);
     }
 
     /// @dev Internal function to transfer ETH to a specified address.

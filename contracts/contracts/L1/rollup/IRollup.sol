@@ -147,8 +147,7 @@ interface IRollup {
     function revertBatch(bytes calldata batchHeader, uint256 count) external;
 
     /// @notice Claim challenge reward
-    /// @param batchIndex The index of the batch
-    function claimReward(uint256 batchIndex) external;
+    function claimReward() external;
 
     /// @param version The version of current batch.
     /// @param parentBatchHeader The header of parent batch, see the comments of `BatchHeaderV0Codec`.
