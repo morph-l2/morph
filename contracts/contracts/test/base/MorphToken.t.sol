@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Test} from "forge-std/Test.sol";
 import {MorphToken} from "../../L2/MorphToken.sol";
+import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
+import {Test} from "forge-std/Test.sol";
 
 contract MorphTokenTest is Test {
     MorphToken morphToken;
 
+    address public alice = address(1);
+    address public distribute = address(10);
     function setUp() public {
         morphToken = new MorphToken();
-        morphToken.initialize("Morph", "MPH", address(10), 6, 1000000000e18, block.timestamp);
+        morphToken.initialize("Morph", "MPH", distribute, 6, 1000000000e18, block.timestamp);
     }
 
     function test_name() public {
@@ -24,7 +27,158 @@ contract MorphTokenTest is Test {
         assertEq(morphToken.decimals(), 18);
     }
 
-//    function test_calculateOneDayRateOfInflation() public {
-//        assertEq(morphToken.calculateOneDayRateOfInflation(), 290411);
-//    }
+    function test_totalSupply() public {
+        assertEq(morphToken.totalSupply(), 1000000000e18);
+    }
+
+    function test_additionalBase() public {
+        assertEq(morphToken.additionalBase(), 1000000000e18);
+    }
+
+    function test_rate() public {
+        assertEq(morphToken.rate(), 6);
+    }
+
+    function test_additionalBeginTime() public {
+        assertEq(morphToken.additionalBeginTime(), block.timestamp);
+    }
+
+    function test_balanceOf() public {
+        assertEq(morphToken.balanceOf(address(this)), 1000000000e18);
+    }
+
+    function test_transfer() public {
+        bool s = morphToken.transfer(alice, 10000000e18);
+        assertEq(s, true);
+        assertEq(morphToken.balanceOf(alice), 10000000e18);
+    }
+}
+
+
+contract MorphTokenTest_mint is DSTestPlus {
+    MorphToken morphToken;
+
+    uint256 beginTime = block.timestamp;
+    uint256 rate = 6;
+    uint256 totalSupply = 1000000000e18;
+
+    address public alice = address(1);
+    function setUp() public {
+        morphToken = new MorphToken();
+        morphToken.initialize("Morph", "MPH", address(this), rate, totalSupply, beginTime);
+        emit log_uint(block.timestamp);
+    }
+
+    function test_mint_withOtherAddress() public {
+        hevm.prank(alice);
+        hevm.expectRevert("only distribute contract can call");
+        morphToken.mint(address(0));
+    }
+
+
+    function test_mint_lessThanOneDay() public {
+        hevm.warp(beginTime + 86300);
+        emit log_uint(block.timestamp);
+        hevm.expectRevert("only mint once a day");
+        morphToken.mint(address(0));
+        //assertUint128Eq();
+    }
+
+    function test_mint_moreThanOneDay() public {
+        hevm.warp(beginTime + 86500);
+        emit log_uint(block.timestamp);
+        //hevm.expectRevert("only mint once a day");
+        morphToken.mint(address(0));
+        uint256 add = totalSupply * rate / 100 / 365;
+        emit log_uint(add);
+        assertEq(morphToken.totalSupply(), totalSupply + add);
+    }
+
+    function test_mint_moreThanTenDay() public {
+        hevm.warp(beginTime + 86400 * 10 + 100);
+        emit log_uint(block.timestamp);
+        //hevm.expectRevert("only mint once a day");
+        morphToken.mint(address(0));
+        uint256 add = totalSupply * rate / 100 / 365;
+        emit log_uint(add);
+        assertEq(morphToken.totalSupply(), totalSupply + add * 10);
+    }
+
+    function test_mint_equalToOneYear() public {
+        hevm.warp(beginTime + 31536000);
+        emit log_uint(block.timestamp);
+        //hevm.expectRevert("only mint once a day");
+        morphToken.mint(address(0));
+        uint256 add = totalSupply * rate / 100 / 365;
+        emit log_uint(add);
+        assertEq(morphToken.totalSupply(), totalSupply + add * 365);
+    }
+
+    function test_mint_moreThanOneYear() public {
+        hevm.warp(beginTime + 31536000 + 86400 * 10);
+        emit log_uint(block.timestamp);
+        //hevm.expectRevert("only mint once a day");
+        morphToken.mint(address(0));
+        uint256 add = totalSupply * rate / 100 / 365;
+        emit log_uint(add);
+        uint256 nextBase = totalSupply + add * 365;
+        emit log_uint(nextBase);
+        uint256 nextAdd = nextBase * rate / 100 / 365;
+        emit log_uint(nextAdd);
+        assertEq(morphToken.totalSupply(), totalSupply + add * 365 + nextAdd * 10);
+    }
+
+    function test_mint_toOther() public {
+        uint256 oneDayIncrement = totalSupply * rate / 100 / 365;
+        hevm.warp(beginTime + 86500);
+        morphToken.mint(alice);
+        uint256 oneDayTotal = totalSupply + oneDayIncrement;
+        assertEq(morphToken.balanceOf(alice), oneDayIncrement);
+        assertEq(morphToken.totalSupply(), oneDayTotal);
+    }
+
+    function test_mint() public {
+        uint256 oneDayIncrement = totalSupply * rate / 100 / 365;
+        hevm.warp(beginTime + 86500);
+        morphToken.mint(address(0));
+        uint256 oneDayTotal = totalSupply + oneDayIncrement;
+        assertEq(morphToken.totalSupply(), oneDayTotal);
+
+        hevm.warp(beginTime + 86500 + 17 * 86500);
+        morphToken.mint(address(0));
+        uint256 seventeenDayTotal = oneDayTotal + 17 * oneDayIncrement;
+        assertEq(morphToken.totalSupply(), seventeenDayTotal);
+
+        hevm.warp(beginTime + 86500 + 17 * 86500 + 365 * 86500);
+        morphToken.mint(address(0));
+
+        uint256 base = seventeenDayTotal + 347 * oneDayIncrement;
+        uint256 total = base + (base * rate / 100 / 365) * 18;
+        assertEq(morphToken.totalSupply(), total);
+    }
+
+
+    function test_mint_setRate() public {
+        uint256 oneDayIncrement = totalSupply * rate / 100 / 365;
+        hevm.warp(beginTime + 86500);
+        morphToken.mint(address(0));
+        uint256 oneDayTotal = totalSupply + oneDayIncrement;
+        assertEq(morphToken.totalSupply(), oneDayTotal);
+
+        assertEq(morphToken.rate(), rate);
+        morphToken.setPostRate(7);
+
+        hevm.warp(beginTime + 86500 + 86500);
+        morphToken.mint(address(0));
+        uint256 twoDayTotal = oneDayTotal + oneDayIncrement;
+        assertEq(morphToken.totalSupply(), twoDayTotal);
+
+        assertEq(morphToken.rate(), 7);
+
+        hevm.warp(beginTime + 86500 + 86500 + 86500);
+        morphToken.mint(address(0));
+        uint256 newOneDayIncrement = twoDayTotal * 7 / 100 / 365;
+        uint256 threeDayTotal = twoDayTotal + newOneDayIncrement;
+        assertEq(morphToken.totalSupply(), threeDayTotal);
+    }
 }
