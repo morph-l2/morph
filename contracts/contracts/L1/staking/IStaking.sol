@@ -12,8 +12,7 @@ interface IStaking {
      */
     function slash(
         address[] memory sequencers,
-        address challenger,
         uint32 _minGasLimit,
         uint256 _gasFee
-    ) external;
+    ) external returns (uint256);
 }

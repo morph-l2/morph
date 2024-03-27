@@ -211,7 +211,7 @@ contract L1MessageBaseTest is CommonTest {
         l1CrossDomainMessenger = L1CrossDomainMessenger(
             payable(address(l1CrossDomainMessengerProxy))
         );
-        rollup = Rollup(address(rollupProxy));
+        rollup = Rollup(payable(address(rollupProxy)));
         l1MessageQueueWithGasPriceOracle = L1MessageQueueWithGasPriceOracle(
             address(l1MessageQueueWithGasPriceOracleProxy)
         );
