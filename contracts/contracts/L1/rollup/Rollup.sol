@@ -26,7 +26,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      *************/
 
     /// @notice The zero versioned hash.
-    bytes32 public ZEROVERSIONEDHASH;
+    bytes32 public ZERO_VERSIONED_HASH;
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
@@ -193,7 +193,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
 
-        ZEROVERSIONEDHASH = bytes32(
+        ZERO_VERSIONED_HASH = bytes32(
             hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
         );
 
@@ -255,7 +255,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "nonzero parent batch hash"
         );
 
-        _batchHash = keccak256(abi.encodePacked(_batchHash, ZEROVERSIONEDHASH));
+        _batchHash = keccak256(
+            abi.encodePacked(_batchHash, ZERO_VERSIONED_HASH)
+        );
 
         committedBatchStores[0] = BatchStore(
             _batchHash,
@@ -270,7 +272,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             0,
             "",
             0,
-            ZEROVERSIONEDHASH
+            ZERO_VERSIONED_HASH
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -285,15 +287,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address[] memory sequencers,
         bytes memory signature
     ) external payable override OnlySequencer whenNotPaused {
-        // verify bls signature
-        require(
-            IL1Sequencer(l1SequencerContract).verifySignature(
-                version,
-                sequencers,
-                signature
-            ),
-            "the signature verification failed"
-        );
         require(batchData.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchData.chunks.length;
@@ -307,19 +300,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "new state root is zero"
         );
 
-        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
-        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-        address[] memory _sequencer = new address[](1);
-        _sequencer[0] = msg.sender;
-
-        _commitBatch(batchData, _chunksLength, _sequencer);
-    }
-
-    function _commitBatch(
-        BatchData calldata batchData,
-        uint256 _chunksLength,
-        address[] memory sequencers
-    ) internal {
         // The overall memory layout in this function is organized as follows
         // +---------------------+-------------------+------------------+
         // | parent batch header | chunk data hashes | new batch header |
@@ -338,6 +318,41 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.parentBatchHeader
         );
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
+
+        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
+        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
+        address[] memory _sequencer = new address[](1);
+        _sequencer[0] = msg.sender;
+
+        _commitBatch(
+            batchData,
+            _chunksLength,
+            _sequencer,
+            batchPtr,
+            _parentBatchHash,
+            _batchIndex
+        );
+
+        // verify bls signature
+        require(
+            IL1Sequencer(l1SequencerContract).verifySignature(
+                version,
+                sequencers,
+                signature,
+                committedBatchStores[_batchIndex].batchHash
+            ),
+            "the signature verification failed"
+        );
+    }
+
+    function _commitBatch(
+        BatchData calldata batchData,
+        uint256 _chunksLength,
+        address[] memory sequencers,
+        uint256 batchPtr,
+        bytes32 _parentBatchHash,
+        uint256 _batchIndex
+    ) internal {
         // re-compute batchHash using _blobVersionedHash
         _parentBatchHash = keccak256(
             abi.encodePacked(
@@ -431,7 +446,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         bytes32 _blobVersionedHash = blobhash(0);
         if (_blobVersionedHash == bytes32(0)) {
-            _blobVersionedHash = ZEROVERSIONEDHASH;
+            _blobVersionedHash = ZERO_VERSIONED_HASH;
         }
         _batchHash = keccak256(
             abi.encodePacked(_batchHash, _blobVersionedHash)
