@@ -34,18 +34,17 @@ const (
 	txSlotSize     = 32 * 1024
 	txMaxSize      = 4 * txSlotSize // 128KB
 	minFinalizeNum = 2              // min finalize num from contract
-	minGasLimit    = 1000
 )
 
 type Rollup struct {
 	ctx     context.Context
 	metrics *metrics.Metrics
 
-	L1Client    iface.Client
-	L2Clients   []iface.L2Client
-	Rollup      iface.IRollup
-	L2Submitter iface.ISubmitter
-	L2Sequencer iface.L2Sequencer
+	L1Client     iface.Client
+	L2Clients    []iface.L2Client
+	Rollup       iface.IRollup
+	L2Submitters []iface.IL2Submitter
+	L2Sequencers []iface.IL2Sequencer
 
 	chainId    *big.Int
 	privKey    *ecdsa.PrivateKey
@@ -68,8 +67,8 @@ func NewRollup(
 	l1 iface.Client,
 	l2 []iface.L2Client,
 	rollup iface.IRollup,
-	l2Submitter iface.ISubmitter,
-	l2Sequencer iface.L2Sequencer,
+	l2Submitters []iface.IL2Submitter,
+	l2Sequencers []iface.IL2Sequencer,
 	chainId *big.Int,
 	priKey *ecdsa.PrivateKey,
 	rollupAddr common.Address,
@@ -81,11 +80,11 @@ func NewRollup(
 		ctx:     ctx,
 		metrics: metrics,
 
-		L1Client:    l1,
-		L2Clients:   l2,
-		Rollup:      rollup,
-		L2Submitter: l2Submitter,
-		L2Sequencer: l2Sequencer,
+		L1Client:     l1,
+		L2Clients:    l2,
+		Rollup:       rollup,
+		L2Submitters: l2Submitters,
+		L2Sequencers: l2Sequencers,
 
 		privKey:    priKey,
 		chainId:    chainId,
@@ -360,16 +359,16 @@ func (sr *Rollup) rollup() error {
 
 	if !sr.PriorityRollup {
 		// is the turn of the submitter
-		nextSubmitter, _, _, err := sr.L2Submitter.GetCurrentSubmitter(nil)
+		currentSubmitter, err := sr.getCurrentSubmitter()
 		if err != nil {
 			return fmt.Errorf("get next submitter error:%v", err)
 		}
-		log.Info("current rolluped submitter", "rolluped_submitter", nextSubmitter.Hex(), "submitter", sr.walletAddr())
+		log.Info("current rolluped submitter", "rolluped_submitter", currentSubmitter.Hex(), "submitter", sr.walletAddr())
 
-		if nextSubmitter.Hex() == sr.walletAddr() {
-			log.Info("submitter is me, start to submit")
+		if currentSubmitter.Hex() == sr.walletAddr() {
+			log.Info("start to rollup")
 		} else {
-			log.Info("submitter is not me, wait for the next turn")
+			log.Info("not my turn, wait for the next turn")
 			time.Sleep(3 * time.Second)
 			return nil
 		}
@@ -727,13 +726,8 @@ func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*
 
 // Init is run before the submitter to check whether the submitter can be started
 func (sr *Rollup) Init() error {
-	isSequencer, _, err := sr.L2Sequencer.InSequencersSet(
-		&bind.CallOpts{
-			Pending: false,
-			Context: context.Background()},
-		false,
-		common.HexToAddress(sr.walletAddr()),
-	)
+
+	isSequencer, err := sr.inSequencersSet()
 	if err != nil {
 		return err
 	}
@@ -969,4 +963,36 @@ func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Trans
 
 	}
 	return nil, nil, errors.New("replace tx failed after try 10 times")
+}
+
+func (r *Rollup) getCurrentSubmitter() (*common.Address, error) {
+
+	for _, l2Submitter := range r.L2Submitters {
+		current, _, _, err := l2Submitter.GetCurrentSubmitter(nil)
+		if err != nil {
+			log.Warn("get current submitter error", "error", err)
+			continue
+		}
+		return &current, nil
+
+	}
+
+	return nil, errors.New("failed to get current submitter")
+}
+
+func (r *Rollup) inSequencersSet() (bool, error) {
+
+	for _, l2Sequencer := range r.L2Sequencers {
+		isSequencer, _, err := l2Sequencer.InSequencersSet(
+			nil,
+			false,
+			common.HexToAddress(r.walletAddr()),
+		)
+		if err != nil {
+			log.Warn("get in sequencer set error", "error", err)
+			continue
+		}
+		return isSequencer, nil
+	}
+	return false, errors.New("failed to get in sequencer set")
 }

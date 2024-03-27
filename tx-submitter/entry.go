@@ -23,7 +23,7 @@ import (
 // a closure that executes the service and blocks until the service exits. The
 // use of a closure allows the parameters bound to the top-level main package,
 // e.g. GitVersion, to be captured and used once the function is executed.
-func Main(gitCommit string) func(ctx *cli.Context) error {
+func Main() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
 		cfg, err := utils.NewConfig(cliCtx)
 		if err != nil {
@@ -107,21 +107,28 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		m := metrics.NewMetrics()
 		abi, _ := bindings.RollupMetaData.GetAbi()
 
-		// l2 submitter
-		l2Submitter, err := bindings.NewSubmitter(
-			common.HexToAddress(cfg.SubmitterAddress),
-			l2Clients[0],
-		)
-		if err != nil {
-			return err
-		}
-		// l2 sequencer
-		l2Sequencer, err := bindings.NewL2Sequencer(
-			common.HexToAddress(cfg.SequencerAddress),
-			l2Clients[0],
-		)
-		if err != nil {
-			return err
+		// l2 submitters
+		var l2Submitters []iface.IL2Submitter
+		// l2 sequencers
+		var l2Sequencers []iface.IL2Sequencer
+		for _, l2Client := range l2Clients {
+			l2Sequencer, err := bindings.NewL2Sequencer(
+				common.HexToAddress(cfg.SequencerAddress),
+				l2Client,
+			)
+			if err != nil {
+				return err
+			}
+			l2Sequencers = append(l2Sequencers, l2Sequencer)
+
+			l2Submitter, err := bindings.NewSubmitter(
+				common.HexToAddress(cfg.SubmitterAddress),
+				l2Client,
+			)
+			if err != nil {
+				return err
+			}
+			l2Submitters = append(l2Submitters, l2Submitter)
 		}
 
 		sr := services.NewRollup(
@@ -130,8 +137,8 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 			l1Client,
 			l2Clients,
 			l1Rollup,
-			l2Submitter,
-			l2Sequencer,
+			l2Submitters,
+			l2Sequencers,
 			chainID,
 			privKey,
 			*rollupAddr,
@@ -144,14 +151,13 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		// metrics
 		{
 			if cfg.MetricsServerEnable {
-				go func() {
-					_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
-					if err != nil {
-						log.Error("metrics server failed to start", "err", err)
-					}
-				}()
-				log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
+				_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
+				if err != nil {
+					log.Error("metrics server failed to start", "err", err)
+					return err
+				}
 			}
+			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
 		log.Info("starting tx submitter",

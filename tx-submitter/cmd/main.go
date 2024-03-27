@@ -34,7 +34,7 @@ func main() {
 	app.Usage = "Batch Submitter Service"
 	app.Description = "Service for generating and submitting batched transactions " +
 		"that synchronize L2 state to L1 contracts"
-	app.Action = submitter.Main(GitCommit)
+	app.Action = submitter.Main()
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)

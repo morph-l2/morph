@@ -7,7 +7,6 @@ var (
 	L1MessagePrefix   = []byte("l1")
 
 	derivationL1HeightKey = []byte("LastDerivationL1Height")
-	latestBatchBlsKey     = []byte("latestBatchBlsKey")
 )
 
 // encodeBlockNumber encodes an L1 enqueue index as big endian uint64
