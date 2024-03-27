@@ -172,6 +172,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         MESSENGER = _messenger;
     }
 
+    /// @notice Allow the contract to receive ETH.
+    receive() external payable {}
+
     function initialize(
         address _l1SequencerContract,
         address _l1StakingContract,
