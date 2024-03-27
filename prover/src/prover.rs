@@ -16,7 +16,7 @@ use prover::{BlockTrace, ChunkHash, ChunkProof, CompressionCircuit};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
@@ -81,10 +81,23 @@ pub async fn prove_for_queue(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) {
             continue;
         }
 
+        save_trace(batch_index, &chunk_traces);
+
         // Step3. Generate evm proof
         generate_proof(batch_index, chunk_traces, &mut chunk_prover).await;
         prove_queue.lock().await.pop();
     }
+}
+
+fn save_trace(batch_index: u64, chunk_traces: &Vec<Vec<BlockTrace>>) {
+    let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+    fs::create_dir_all(path.clone()).unwrap();
+    let file = File::create(format!("{}/chunk_traces.json", path.as_str())).unwrap();
+    let writer = BufWriter::new(file);
+
+    serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();
+
+    log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
 }
 
 async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, chunk_prover: &mut ChunkProver) {
@@ -104,8 +117,12 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     for chunk_trace in chunk_traces.iter() {
         match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
             Ok(witness) => {
-                log::info!("=======> witness.withdraw_root = {:#?}, witness.prev_withdraw_root = {:#?}", witness.withdraw_root, witness.prev_withdraw_root);
-                
+                log::info!(
+                    "=======> witness.withdraw_root = {:#?}, witness.prev_withdraw_root = {:#?}",
+                    witness.withdraw_root,
+                    witness.prev_withdraw_root
+                );
+
                 txs.extend_from_slice(witness.txs.as_slice());
                 let partial_result = block_to_blob_local(&witness).unwrap();
                 batch_blob[offset..offset + partial_result.len()].copy_from_slice(&partial_result);
@@ -391,7 +408,7 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
         .flat_map(|tx| {
             let mut tx_data: Vec<u8> = vec![];
             tx_data.extend_from_slice(&(tx.rlp_signed.len() as u32).to_be_bytes());
-            tx_data.extend_from_slice( &tx.rlp_signed.clone());
+            tx_data.extend_from_slice(&tx.rlp_signed.clone());
             tx_data
         })
         .collect();
