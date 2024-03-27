@@ -104,6 +104,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     for chunk_trace in chunk_traces.iter() {
         match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
             Ok(witness) => {
+                log::info!("=======> witness.withdraw_root = {:#?}", witness.withdraw_root);
                 txs.extend_from_slice(witness.txs.as_slice());
                 let partial_result = block_to_blob_local(&witness).unwrap();
                 batch_blob[offset..offset + partial_result.len()].copy_from_slice(&partial_result);
