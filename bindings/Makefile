@@ -14,6 +14,7 @@ bindings: l1-staking-bindings \
 	l1-gateway-router-bindings \
 	l1-weth-gateway-bindings \
 	l1-message-queue-with-gas-price-oracle-bindings \
+	l1-custom-erc20-gateway-bindings \
     morph-rollup-bindings \
     multiple-version-rollup-verifier-bindings \
 	l2-cross-domain-messenger-bindings \
@@ -30,6 +31,8 @@ bindings: l1-staking-bindings \
 	l2-erc20-gateway-bindings \
 	l2-erc721-gateway-bindings \
 	l2-erc1155-gateway-bindings \
+	l2-custom-erc20-gateway-bindings \
+	l2-withdrawlock-erc20-gateway-bindings \
 	transparent-upgradeable-proxy-bindings \
 	proxy-admin-bindings \
 	morph-standard-erc20-bindings \
@@ -73,6 +76,8 @@ l1-gateway-router-bindings: compile
 	./gen_bindings.sh contracts/L1/gateways/L1GatewayRouter.sol:L1GatewayRouter $(pkg)
 l1-weth-gateway-bindings: compile
 	./gen_bindings.sh contracts/L1/gateways/L1WETHGateway.sol:L1WETHGateway $(pkg)
+l1-custom-erc20-gateway-bindings: compile
+	./gen_bindings.sh contracts/L1/gateways/L1CustomERC20Gateway.sol:L1CustomERC20Gateway $(pkg)
 
 # Rollup
 l1-message-queue-with-gas-price-oracle-bindings: compile
@@ -118,6 +123,10 @@ l2-erc721-gateway-bindings: compile
 	./gen_bindings.sh contracts/L2/gateways/L2ERC721Gateway.sol:L2ERC721Gateway $(pkg)
 l2-erc1155-gateway-bindings: compile
 	./gen_bindings.sh contracts/L2/gateways/L2ERC1155Gateway.sol:L2ERC1155Gateway $(pkg)
+l2-custom-erc20-gateway-bindings: compile
+	./gen_bindings.sh contracts/L2/gateways/L2CustomERC20Gateway.sol:L2CustomERC20Gateway $(pkg)
+l2-withdrawlock-erc20-gateway-bindings: compile
+	./gen_bindings.sh contracts/L2/gateways/L2WithdrawLockERC20Gateway.sol:L2WithdrawLockERC20Gateway $(pkg)
 
 ## Common
 # Proxy
