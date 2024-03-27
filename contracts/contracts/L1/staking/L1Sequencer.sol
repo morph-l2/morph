@@ -144,7 +144,6 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
             sequencerAddrs[0] = _sequencerAddrs;
             sequencerBLSKeys[0] = _sequencerBLSKeys;
             _unpause();
-            return;
         } else {
             require(!paused(), "send message when unpaused");
             updateSequencersVersion(_sequencerAddrs, _sequencerBLSKeys);
