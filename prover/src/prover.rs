@@ -4,7 +4,6 @@ use crate::utils::{
 };
 use bls12_381::Scalar as Fp;
 use c_kzg::{Blob, KzgCommitment, KzgProof};
-use eth_types::geth_types::TxType;
 use eth_types::{Field, ToBigEndian, ToLittleEndian, U256};
 use ethers::providers::Provider;
 use ethers::utils::keccak256;
@@ -81,7 +80,7 @@ pub async fn prove_for_queue(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) {
             continue;
         }
 
-        save_trace(batch_index, &chunk_traces);
+        // save_trace(batch_index, &chunk_traces);
 
         // Step3. Generate evm proof
         generate_proof(batch_index, chunk_traces, &mut chunk_prover).await;
@@ -89,30 +88,8 @@ pub async fn prove_for_queue(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) {
     }
 }
 
-fn save_trace(batch_index: u64, chunk_traces: &Vec<Vec<BlockTrace>>) {
-    let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
-    fs::create_dir_all(path.clone()).unwrap();
-    let file = File::create(format!("{}/chunk_traces.json", path.as_str())).unwrap();
-    let writer = BufWriter::new(file);
-
-    serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();
-
-    log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
-}
-
-fn load_trace(batch_index: u64) -> Vec<Vec<BlockTrace>> {
-    let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
-    let file = File::open(format!("{}/chunk_traces.json", path.as_str())).unwrap();
-    let reader = BufReader::new(file);
-
-    let chunk_traces: Vec<Vec<BlockTrace>> = serde_json::from_reader(reader).unwrap();
-    return chunk_traces;
-}
-
-async fn generate_proof(batch_index: u64, chunk_traces1: Vec<Vec<BlockTrace>>, chunk_prover: &mut ChunkProver) {
+async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, chunk_prover: &mut ChunkProver) {
     let start = Instant::now();
-
-    let chunk_traces = load_trace(batch_index);
 
     let proof_path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     fs::create_dir_all(proof_path.clone()).unwrap();
@@ -397,6 +374,26 @@ async fn get_chunk_traces(
     Some(chunk_traces)
 }
 
+fn save_trace(batch_index: u64, chunk_traces: &Vec<Vec<BlockTrace>>) {
+    let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+    fs::create_dir_all(path.clone()).unwrap();
+    let file = File::create(format!("{}/chunk_traces.json", path.as_str())).unwrap();
+    let writer = BufWriter::new(file);
+
+    serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();
+
+    log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
+}
+
+fn load_trace(batch_index: u64) -> Vec<Vec<BlockTrace>> {
+    let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+    let file = File::open(format!("{}/chunk_traces.json", path.as_str())).unwrap();
+    let reader = BufReader::new(file);
+
+    let chunk_traces: Vec<Vec<BlockTrace>> = serde_json::from_reader(reader).unwrap();
+    return chunk_traces;
+}
+
 const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
 pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
     if block.txs.len() == 0 {
@@ -452,4 +449,21 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
     }
 
     Ok(result)
+}
+
+#[tokio::test]
+async fn test_generate_proof() {
+    use dotenv::dotenv;
+
+    dotenv().ok();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+
+    let mut chunk_prover = ChunkProver::from_dirs(PROVER_PARAMS_DIR.as_str(), SCROLL_PROVER_ASSETS_DIR.as_str());
+    log::info!("Chunk_prover initialized");
+
+    let chunk_traces = load_trace(17);
+    log::info!("Loading traces from file successful");
+
+    log::info!("Starting generate proof");
+    generate_proof(17, chunk_traces, &mut chunk_prover).await;
 }
