@@ -24,13 +24,13 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     EnumerableSetUpgradeable.AddressSet internal stakers;
 
     // user staking info
-    mapping(address => mapping(address => uint256)) public stakingInfo;
+    mapping(address => mapping(address => uint256)) public override stakingInfo;
 
     // user unstaking info
-    mapping(address => mapping(address => UnStakingInfo)) public unstakingInfo;
+    mapping(address => mapping(address => UnStakingInfo)) public override unstakingInfo;
 
     // staker's morph amount
-    mapping(address => uint256) public stakersAmount;
+    mapping(address => uint256) public override stakersAmount;
 
     // staker's all delegators
     mapping(address => EnumerableSetUpgradeable.AddressSet) internal delegators;
@@ -66,7 +66,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
      */
     event UnStaked(address indexed who, address indexed staker, uint256 amount);
     /**
-     * @notice claim info
+     * @notice withdrawed info
      */
     event Withdrawed(address indexed who, address indexed staker, uint256 amount);
     /**
@@ -76,7 +76,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
     /*********************** Constructor **************************/
     constructor() {
-        _disableInitializers();
+        // _disableInitializers();
     }
 
     /*********************** Init **************************/
@@ -274,6 +274,15 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         Types.StakerInfo[] memory remove
     ) external {}
 
+    /**
+     * @notice test stakers
+     */
+    function testStakers(address[] memory _stakers) external {
+        for (uint256 i = 0; i < _stakers.length; i++) {
+            stakers.add(_stakers[i]);
+        }
+    }
+
     /*********************** Internal Functions **************************/
     /**
      * @notice check if the user has staked to staker
@@ -311,7 +320,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /**
-     * @notice Sort stakers by amount
+     * @notice sort stakers by amount
      */
     function _getSortedStakers() internal view returns (address[] memory) {
         address[] memory _stakers = _getStakers();

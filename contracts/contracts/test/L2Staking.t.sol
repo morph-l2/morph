@@ -1,379 +1,245 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-// import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
+import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
+import "forge-std/console2.sol";
+import {ERC20PresetFixedSupply} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {L2Staking} from "../L2/staking/L2Staking.sol";
+
 // import {Types} from "../libraries/common/Types.sol";
 
-// contract StakingRegisterTest is L1MessageBaseTest {
-//     function testSetUpCheck() external {
-//         assertEq(l1Sequencer.stakingContract(), address(staking));
-//         assertEq(l1Sequencer.rollupContract(), address(rollup));
-//         assertEq(address(l1Sequencer.OTHER_SEQUENCER()), address(l2Sequencer));
-//         assertEq(
-//             address(l1Sequencer.MESSENGER()),
-//             address(l1CrossDomainMessenger)
-//         );
-//         assertEq(staking.sequencerContract(), address(l1Sequencer));
-//         assertEq(staking.sequencersSize(), SEQUENCER_SIZE);
-//         assertEq(staking.limit(), MIN_DEPOSIT);
-//     }
+contract L2StakingTest is DSTestPlus {
+    address public alice = address(1);
+    address public blob = address(2);
 
-//     function testRegisterAlice() external {
-//         bytes[] memory sequencers = new bytes[](1);
-//         hevm.deal(alice, 5 * MIN_DEPOSIT);
-//         hevm.startPrank(alice);
+    ERC20PresetFixedSupply morphToken;
+    L2Staking iStaking;
 
-//         Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
-//             alice
-//         );
-//         sequencers[0] = sequencerInfo.blsKey;
+    uint256 totalSupply = 100000000000000000000 ether;
 
-//         address[] memory add = new address[](1);
-//         address[] memory remove;
-//         add[0] = alice;
-//         staking.updateWhitelist(add, remove);
+    uint256 lock = 10;
+    uint256 sequencersSize = 7;
+    uint256 limit = 1000 ether;
 
-//         hevm.expectEmit(true, true, true, true);
-//         emit Registered(
-//             alice,
-//             sequencerInfo.tmKey,
-//             sequencerInfo.blsKey,
-//             2 * MIN_DEPOSIT
-//         );
-//         version++;
-//         staking.register{value: 2 * MIN_DEPOSIT}(
-//             sequencerInfo.tmKey,
-//             sequencerInfo.blsKey,
-//             defaultGasLimit,
-//             0
-//         );
+    uint256 morphBalance = 20 ether;
 
-//         (
-//             address addrCheck,
-//             bytes32 tmKeyCheck,
-//             bytes memory blsKeyCheck,
-//             uint256 balanceCheck
-//         ) = staking.stakings(alice);
-//         assertEq(addrCheck, alice);
-//         assertEq(tmKeyCheck, sequencerInfo.tmKey);
-//         assertBytesEq(blsKeyCheck, sequencerInfo.blsKey);
-//         assertEq(balanceCheck, 2 * MIN_DEPOSIT);
-//         hevm.stopPrank();
-//     }
+    address public tom = address(5);
+    address public jerry = address(6);
 
-//     function testRegisterExceedSequencerSize() external {
-//         uint256 beginSeq = 10;
-//         for (uint256 i = 0; i < SEQUENCER_SIZE + 1; i++) {
-//             address user = address(uint160(beginSeq + i));
-//             hevm.deal(user, 3 * MIN_DEPOSIT);
-//             Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
-//                 user
-//             );
-//             if (i < SEQUENCER_SIZE) {
-//                 sequencerAddrs.push(sequencerInfo.addr);
-//                 sequencerBLSKeys.push(sequencerInfo.blsKey);
-//             }
+    address[] sequencers = [tom, jerry];
 
-//             hevm.prank(alice);
-//             address[] memory add = new address[](1);
-//             address[] memory remove;
-//             add[0] = user;
-//             staking.updateWhitelist(add, remove);
+    function setUp() public {
+        morphToken = new ERC20PresetFixedSupply("Morph", "MPH", totalSupply, alice);
 
-//             hevm.prank(user);
-//             hevm.expectEmit(true, true, true, true);
-//             emit Registered(
-//                 user,
-//                 sequencerInfo.tmKey,
-//                 sequencerInfo.blsKey,
-//                 2 * MIN_DEPOSIT
-//             );
-//             staking.register{value: 2 * MIN_DEPOSIT}(
-//                 sequencerInfo.tmKey,
-//                 sequencerInfo.blsKey,
-//                 defaultGasLimit,
-//                 0
-//             );
-//             (
-//                 address addrCheck,
-//                 bytes32 tmKeyCheck,
-//                 bytes memory blsKeyCheck,
-//                 uint256 balanceCheck
-//             ) = staking.stakings(user);
-//             assertEq(addrCheck, user);
-//             assertEq(tmKeyCheck, sequencerInfo.tmKey);
-//             assertBytesEq(blsKeyCheck, sequencerInfo.blsKey);
-//             assertEq(balanceCheck, 2 * MIN_DEPOSIT);
-//         }
-//         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-//             address sequencerAddr = staking.sequencersAddr(i);
-//             bytes memory sequencerBLS = staking.sequencersBLS(i);
-//             address user = address(uint160(beginSeq + i));
-//             (address addrCheck, , bytes memory blsKeyCheck, ) = staking
-//                 .stakings(user);
-//             assertEq(sequencerAddr, addrCheck);
-//             assertBytesEq(sequencerBLS, blsKeyCheck);
-//             assertEq(sequencerAddr, sequencerAddrs[i]);
-//             assertBytesEq(sequencerBLS, sequencerBLSKeys[i]);
-//         }
+        iStaking = new L2Staking();
+        iStaking.initialize(alice, address(1), address(morphToken), sequencersSize, limit, lock);
+        iStaking.testStakers(sequencers);
 
-//         {
-//             hevm.deal(bob, 5 * MIN_DEPOSIT);
-//             // bob staking 3 eth
-//             Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
-//                 bob
-//             );
-//             for (uint256 i = SEQUENCER_SIZE - 1; i > 0; i--) {
-//                 sequencerAddrs[i] = sequencerAddrs[i - 1];
-//                 sequencerBLSKeys[i] = sequencerBLSKeys[i - 1];
-//             }
-//             sequencerAddrs[0] = sequencerInfo.addr;
-//             sequencerBLSKeys[0] = sequencerInfo.blsKey;
+        hevm.startPrank(alice);
+        morphToken.transfer(blob, morphBalance);
+        morphToken.transfer(tom, limit + morphBalance);
+        hevm.stopPrank();
+    }
 
-//             address[] memory add = new address[](1);
-//             address[] memory remove;
-//             add[0] = bob;
-//             hevm.prank(alice);
-//             staking.updateWhitelist(add, remove);
+    /**
+     * @notice using the standard erc20 token
+     */
+    function testMorph() public {
+        assertEq(
+            totalSupply,
+            morphToken.balanceOf(blob) + morphToken.balanceOf(alice) + morphToken.balanceOf(tom)
+        );
+    }
 
-//             hevm.expectEmit(true, true, true, true);
-//             version++;
-//             emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
+    /**
+     * @notice normal staking by delegator
+     */
+    function testDelegatorStaking() public {
+        address[] memory stakers = iStaking.getStakers();
+        assertEq(tom, stakers[0]);
 
-//             hevm.prank(bob);
-//             staking.register{value: 3 * MIN_DEPOSIT}(
-//                 sequencerInfo.tmKey,
-//                 sequencerInfo.blsKey,
-//                 defaultGasLimit,
-//                 0
-//             );
-//             address sequencerAddr = staking.sequencersAddr(0);
-//             bytes memory sequencerBLS = staking.sequencersBLS(0);
-//             assertEq(sequencerAddr, sequencerInfo.addr);
-//             assertBytesEq(sequencerBLS, sequencerInfo.blsKey);
-//         }
-//     }
-// }
+        hevm.startPrank(blob);
+        morphToken.approve(address(iStaking), type(uint256).max);
 
-// contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
-//     event Staked(address addr, uint256 balance);
-//     event Withdrawed(address addr, uint256 balance);
-//     event Claimed(address addr, uint256 balance);
+        iStaking.stake(tom, morphBalance);
 
-//     function setUp() public virtual override {
-//         super.setUp();
-//         // staking 10 -> 13
-//         for (uint256 i = 0; i < SEQUENCER_SIZE * 2; i++) {
-//             address user = address(uint160(beginSeq + i));
-//             hevm.deal(user, 3 * MIN_DEPOSIT);
-//             Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
-//                 user
-//             );
-//             address[] memory add = new address[](1);
-//             address[] memory remove;
-//             add[0] = user;
-//             hevm.prank(alice);
-//             staking.updateWhitelist(add, remove);
+        uint256 amount = iStaking.stakingInfo(blob, tom);
+        assertEq(morphBalance, amount);
+        hevm.stopPrank();
+    }
 
-//             hevm.expectEmit(true, true, true, true);
-//             emit Registered(
-//                 user,
-//                 sequencerInfo.tmKey,
-//                 sequencerInfo.blsKey,
-//                 2 * MIN_DEPOSIT
-//             );
+    /**
+     * @notice failed staking, staker not exists
+     */
+    function testDelegatorStakingToNotExistsStaker() public {
+        address[] memory stakers = iStaking.getStakers();
+        assertEq(tom, stakers[0]);
 
-//             hevm.prank(user);
-//             staking.register{value: 2 * MIN_DEPOSIT}(
-//                 sequencerInfo.tmKey,
-//                 sequencerInfo.blsKey,
-//                 defaultGasLimit,
-//                 0
-//             );
-//             (
-//                 address addrCheck,
-//                 bytes32 tmKeyCheck,
-//                 bytes memory blsKeyCheck,
-//                 uint256 balanceCheck
-//             ) = staking.stakings(user);
-//             assertEq(addrCheck, user);
-//             assertEq(tmKeyCheck, sequencerInfo.tmKey);
-//             assertBytesEq(blsKeyCheck, sequencerInfo.blsKey);
-//             assertEq(balanceCheck, 2 * MIN_DEPOSIT);
-//             if (i < SEQUENCER_SIZE) {
-//                 sequencerAddrs.push(sequencerInfo.addr);
-//                 sequencerBLSKeys.push(sequencerInfo.blsKey);
-//             }
-//         }
-//         version++;
-//         checkSeuqnsers();
-//     }
+        hevm.startPrank(blob);
+        morphToken.approve(address(iStaking), type(uint256).max);
 
-//     function test_stakeETH_sequencer_stake_more() external {
-//         bytes memory blsKeyCheck;
-//         uint256 balancesPre;
-//         bytes memory sequencerBLS = staking.sequencersBLS(0);
-//         address user = address(uint160(beginSeq));
-//         (, , blsKeyCheck, ) = staking.stakings(user);
-//         assertBytesEq(blsKeyCheck, sequencerBLS);
+        hevm.expectRevert("staker not exist");
+        iStaking.stake(alice, morphBalance);
 
-//         user = address(uint160(beginSeq + 1));
-//         hevm.deal(user, 3 * MIN_DEPOSIT);
-//         (, , blsKeyCheck, balancesPre) = staking.stakings(user);
-//         hevm.prank(user);
-//         emit Staked(user, balancesPre + MIN_DEPOSIT);
-//         staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
-//         checkSeuqnsers();
-//         assertEq(user, staking.stakers(0));
-//     }
+        hevm.stopPrank();
+    }
 
-//     function test_stakeETH_staker_stake_more() external {
-//         address addrCheck;
-//         bytes memory blsKeyCheck;
-//         uint256 balancesPre;
-//         address sequencerAddr = staking.sequencersAddr(0);
-//         bytes memory sequencerBLS = staking.sequencersBLS(0);
-//         address user = address(uint160(beginSeq));
-//         (addrCheck, , blsKeyCheck, ) = staking.stakings(user);
-//         assertEq(addrCheck, sequencerAddr);
-//         assertBytesEq(blsKeyCheck, sequencerBLS);
+    /**
+     * @notice failed unstaking, when staking amount zero
+     */
+    function testDelegatorUnstakingIfStakingAmountZero() public {
+        hevm.startPrank(blob);
 
-//         // user(begin + 3) stake 3eth
-//         user = address(uint160(beginSeq + SEQUENCER_SIZE));
-//         hevm.deal(user, 3 * MIN_DEPOSIT);
-//         (addrCheck, , blsKeyCheck, balancesPre) = staking.stakings(user);
-//         for (uint256 i = SEQUENCER_SIZE - 1; i > 0; i--) {
-//             sequencerAddrs[i] = sequencerAddrs[i - 1];
-//             sequencerBLSKeys[i] = sequencerBLSKeys[i - 1];
-//         }
-//         sequencerAddrs[0] = addrCheck;
-//         sequencerBLSKeys[0] = blsKeyCheck;
-//         version++;
-//         hevm.prank(user);
-//         hevm.expectEmit(true, true, true, true);
-//         emit Staked(user, balancesPre + MIN_DEPOSIT);
-//         staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
-//         sequencerAddr = staking.sequencersAddr(0);
-//         sequencerBLS = staking.sequencersBLS(0);
-//         checkSeuqnsers();
-//         assertEq(addrCheck, sequencerAddr);
-//         assertBytesEq(blsKeyCheck, sequencerBLS);
+        hevm.expectRevert("staking amount is zero");
+        iStaking.unstake(tom);
 
-//         // user(begin + 2) stake 3eth
-//         user = address(uint160(beginSeq + SEQUENCER_SIZE - 1));
-//         hevm.deal(user, 3 * MIN_DEPOSIT);
-//         (addrCheck, , blsKeyCheck, balancesPre) = staking.stakings(user);
-//         for (uint256 i = SEQUENCER_SIZE - 1; i > 1; i--) {
-//             sequencerAddrs[i] = sequencerAddrs[i - 1];
-//             sequencerBLSKeys[i] = sequencerBLSKeys[i - 1];
-//         }
-//         sequencerAddrs[1] = addrCheck;
-//         sequencerBLSKeys[1] = blsKeyCheck;
-//         version++;
-//         hevm.prank(user);
-//         hevm.expectEmit(true, true, true, true);
-//         emit Staked(user, balancesPre + MIN_DEPOSIT);
-//         staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
-//         sequencerAddr = staking.sequencersAddr(1);
-//         sequencerBLS = staking.sequencersBLS(1);
-//         checkSeuqnsers();
-//         assertEq(addrCheck, sequencerAddr);
-//         assertBytesEq(blsKeyCheck, sequencerBLS);
-//     }
+        hevm.stopPrank();
+    }
 
-//     function test_staker_withdraw_claim() external {
-//         uint256 preStakerNum = staking.stakersNumber();
+    /**
+     * @notice normal unstaking
+     */
+    function testDelegatorUnstaking() public {
+        hevm.startPrank(blob);
 
-//         // user(begin + 3) withdraw
-//         address user = address(uint160(beginSeq + SEQUENCER_SIZE));
-//         (, , , uint256 balancesPre) = staking.stakings(user);
-//         hevm.expectEmit(true, true, true, true);
-//         emit Withdrawed(user, balancesPre);
-//         hevm.prank(user);
-//         staking.withdrawETH(defaultGasLimit, 0);
-//         (, , , uint256 balancesStaking) = staking.stakings(user);
-//         uint256 stakerNum = staking.stakersNumber();
-//         (uint256 lockBalances, uint256 lockToNum, bool exit) = staking
-//             .withdrawals(user);
-//         assertEq(balancesStaking, 0);
-//         assertEq(stakerNum, preStakerNum - 1);
-//         assertEq(lockBalances, balancesPre);
-//         assertEq(lockToNum, block.number + LOCK);
-//         assertTrue(exit);
+        morphToken.approve(address(iStaking), type(uint256).max);
+        iStaking.stake(tom, morphBalance);
 
-//         // roll to block.number + LOCK
-//         uint256 preBalance = user.balance;
-//         hevm.roll(block.number + LOCK + 1);
-//         hevm.prank(user);
-//         hevm.expectEmit(true, true, true, true);
-//         emit Claimed(user, lockBalances);
-//         staking.claimETH();
-//         assertEq(user.balance, preBalance + lockBalances);
-//         (lockBalances, lockToNum, exit) = staking.withdrawals(user);
-//         assertEq(lockBalances, 0);
-//         assertEq(lockToNum, 0);
-//         assertFalse(exit);
-//     }
+        uint256 stakerAmount0 = iStaking.stakersAmount(tom);
 
-//     function test_sequencer_withdraw_claim() external {
-//         uint256 preStakerNum = staking.stakersNumber();
+        uint256 amount0 = iStaking.stakingInfo(blob, tom);
+        iStaking.unstake(tom);
+        uint256 amount1 = iStaking.stakingInfo(blob, tom);
+        assertEq(0, amount1);
 
-//         // user(begin) withdraw
-//         address inUser = address(uint160(beginSeq + SEQUENCER_SIZE));
-//         (address inAddr, , bytes memory inBlsKey, ) = staking.stakings(inUser);
+        uint256 stakerAmount1 = iStaking.stakersAmount(tom);
+        assertEq(stakerAmount0 - stakerAmount1, amount0);
 
-//         address user = address(uint160(beginSeq));
-//         (, , , uint256 balancesPre) = staking.stakings(user);
-//         // update sequencers array
-//         for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
-//             sequencerAddrs[i] = sequencerAddrs[i + 1];
-//             sequencerBLSKeys[i] = sequencerBLSKeys[i + 1];
-//         }
-//         sequencerAddrs.pop();
-//         sequencerAddrs.push(inAddr);
-//         sequencerBLSKeys.pop();
-//         sequencerBLSKeys.push(inBlsKey);
-//         version++;
-//         // expect emit events
-//         emit Withdrawed(user, balancesPre);
-//         emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
-//         // withdraw
-//         hevm.prank(user);
-//         staking.withdrawETH(defaultGasLimit, 0);
-//         // check params
-//         (, , , uint256 balancesStaking) = staking.stakings(user);
-//         uint256 stakerNum = staking.stakersNumber();
-//         (uint256 lockBalances, uint256 lockToNum, bool exit) = staking
-//             .withdrawals(user);
-//         address checkAddress = staking.stakers(SEQUENCER_SIZE - 1);
-//         checkSeuqnsers();
-//         assertEq(inUser, checkAddress);
-//         assertEq(balancesStaking, 0);
-//         assertEq(stakerNum, preStakerNum - 1);
-//         assertEq(lockBalances, balancesPre);
-//         assertEq(lockToNum, block.number + LOCK);
-//         assertTrue(exit);
+        hevm.stopPrank();
+    }
 
-//         // roll to block.number + LOCK
-//         uint256 preBalance = user.balance;
-//         hevm.roll(block.number + LOCK + 1);
-//         hevm.prank(user);
-//         hevm.expectEmit(true, true, true, true);
-//         emit Claimed(user, lockBalances);
-//         staking.claimETH();
-//         assertEq(user.balance, preBalance + lockBalances);
-//         (lockBalances, lockToNum, exit) = staking.withdrawals(user);
-//         assertEq(lockBalances, 0);
-//         assertEq(lockToNum, 0);
-//         assertFalse(exit);
-//     }
+    /**
+     * @notice failed withdrawal, no record of unstaking
+     */
+    function testDelegatorInvalidWithdrawal() public {
+        hevm.startPrank(blob);
 
-//     function checkSeuqnsers() internal {
-//         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-//             address sequencerAddr = staking.sequencersAddr(i);
-//             bytes memory sequencerBlsKey = staking.sequencersBLS(i);
-//             assertEq(sequencerAddrs[i], sequencerAddr);
-//             assertBytesEq(sequencerBLSKeys[i], sequencerBlsKey);
-//         }
-//     }
-// }
+        hevm.expectRevert("invalid withdrawal");
+        iStaking.withdrawal(tom);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice failed withdrawal, amount in lock period
+     */
+    function testDelegatorWithdrawalInLockPeriod() public {
+        hevm.startPrank(blob);
+
+        morphToken.approve(address(iStaking), type(uint256).max);
+        iStaking.stake(tom, morphBalance);
+        iStaking.unstake(tom);
+
+        hevm.expectRevert("invalid withdrawal");
+        iStaking.withdrawal(tom);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice normal withdrawal
+     */
+    function testDelegatorWithdrawal() public {
+        hevm.startPrank(blob);
+
+        morphToken.approve(address(iStaking), type(uint256).max);
+        iStaking.stake(tom, morphBalance);
+        iStaking.unstake(tom);
+
+        hevm.roll(lock + 2);
+
+        iStaking.withdrawal(tom);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice failed restaking, pre withdrawal in lock period
+     */
+    function testDelegatorRestakeInLockPeriod() public {
+        hevm.startPrank(blob);
+
+        morphToken.approve(address(iStaking), type(uint256).max);
+        iStaking.stake(tom, morphBalance);
+        iStaking.unstake(tom);
+        hevm.expectRevert("not allowed");
+        iStaking.stake(tom, morphBalance);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice normal restaking
+     */
+    function testDelegatorRestakeAfterLockPeriod() public {
+        hevm.startPrank(blob);
+
+        morphToken.approve(address(iStaking), type(uint256).max);
+        iStaking.stake(tom, morphBalance);
+        iStaking.unstake(tom);
+
+        hevm.roll(lock + 2);
+
+        iStaking.withdrawal(tom);
+
+        iStaking.stake(tom, morphBalance);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice failed staking, staker own staking needs to meet the limit amount
+     */
+    function testStakerAmountLessThanLimit() public {
+        hevm.startPrank(tom);
+        morphToken.approve(address(iStaking), type(uint256).max);
+
+        hevm.expectRevert("staking amount is not enough");
+        iStaking.stake(tom, morphBalance);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice normal staking, staker own staking meet the limit amount
+     */
+    function testStakerAmountEqualLimit() public {
+        hevm.startPrank(tom);
+        morphToken.approve(address(iStaking), type(uint256).max);
+
+        iStaking.stake(tom, limit);
+
+        uint256 amount = iStaking.stakingInfo(tom, tom);
+        assertEq(limit, amount);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice normal staking, staker own staking greater than limit amount
+     */
+    function testStakerAmountGreaterThanLimit() public {
+        hevm.startPrank(tom);
+        morphToken.approve(address(iStaking), type(uint256).max);
+
+        iStaking.stake(tom, limit);
+
+        uint256 amount0 = iStaking.stakingInfo(tom, tom);
+        assertEq(limit, amount0);
+
+        iStaking.stake(tom, morphBalance);
+        uint256 amount1 = iStaking.stakingInfo(tom, tom);
+        assertEq(limit + morphBalance, amount1);
+
+        hevm.stopPrank();
+    }
+}
