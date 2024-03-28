@@ -61,7 +61,7 @@ contract L2StakingTest is DSTestPlus {
         hevm.startPrank(blob);
         morphToken.approve(address(iStaking), type(uint256).max);
 
-        iStaking.stake(tom, morphBalance);
+        iStaking.delegateStake(tom, morphBalance);
 
         uint256 amount = iStaking.stakingInfo(blob, tom);
         assertEq(morphBalance, amount);
@@ -79,7 +79,7 @@ contract L2StakingTest is DSTestPlus {
         morphToken.approve(address(iStaking), type(uint256).max);
 
         hevm.expectRevert("staker not exist");
-        iStaking.stake(alice, morphBalance);
+        iStaking.delegateStake(alice, morphBalance);
 
         hevm.stopPrank();
     }
@@ -91,7 +91,7 @@ contract L2StakingTest is DSTestPlus {
         hevm.startPrank(blob);
 
         hevm.expectRevert("staking amount is zero");
-        iStaking.unstake(tom);
+        iStaking.unDelegateStake(tom);
 
         hevm.stopPrank();
     }
@@ -103,77 +103,77 @@ contract L2StakingTest is DSTestPlus {
         hevm.startPrank(blob);
 
         morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.stake(tom, morphBalance);
+        iStaking.delegateStake(tom, morphBalance);
 
         uint256 stakerAmount0 = iStaking.stakersAmount(tom);
 
         uint256 amount0 = iStaking.stakingInfo(blob, tom);
-        iStaking.unstake(tom);
+        iStaking.unDelegateStake(tom);
         uint256 amount1 = iStaking.stakingInfo(blob, tom);
-        assertEq(0, amount1);
+        assertEq(amount0, amount1);
 
         uint256 stakerAmount1 = iStaking.stakersAmount(tom);
-        assertEq(stakerAmount0 - stakerAmount1, amount0);
+        assertEq(stakerAmount0, stakerAmount1);
 
         hevm.stopPrank();
     }
 
     /**
-     * @notice failed withdrawal, no record of unstaking
+     * @notice failed claim, no record of unstaking
      */
-    function testDelegatorInvalidWithdrawal() public {
+    function testDelegatorInvalidclaim() public {
         hevm.startPrank(blob);
 
-        hevm.expectRevert("invalid withdrawal");
-        iStaking.withdrawal(tom);
+        hevm.expectRevert("invalid claim");
+        iStaking.claim(tom);
 
         hevm.stopPrank();
     }
 
     /**
-     * @notice failed withdrawal, amount in lock period
+     * @notice failed claim, amount in lock period
      */
-    function testDelegatorWithdrawalInLockPeriod() public {
-        hevm.startPrank(blob);
-
-        morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.stake(tom, morphBalance);
-        iStaking.unstake(tom);
-
-        hevm.expectRevert("invalid withdrawal");
-        iStaking.withdrawal(tom);
-
-        hevm.stopPrank();
-    }
-
-    /**
-     * @notice normal withdrawal
-     */
-    function testDelegatorWithdrawal() public {
+    function testDelegatorclaimInLockPeriod() public {
         hevm.startPrank(blob);
 
         morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.stake(tom, morphBalance);
-        iStaking.unstake(tom);
+        iStaking.delegateStake(tom, morphBalance);
+        iStaking.unDelegateStake(tom);
+
+        hevm.expectRevert("invalid claim");
+        iStaking.claim(tom);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice normal claim
+     */
+    function testDelegatorclaim() public {
+        hevm.startPrank(blob);
+
+        morphToken.approve(address(iStaking), type(uint256).max);
+        iStaking.delegateStake(tom, morphBalance);
+        iStaking.unDelegateStake(tom);
 
         hevm.roll(lock + 2);
 
-        iStaking.withdrawal(tom);
+        iStaking.claim(tom);
 
         hevm.stopPrank();
     }
 
     /**
-     * @notice failed restaking, pre withdrawal in lock period
+     * @notice failed restaking, pre claim in lock period
      */
     function testDelegatorRestakeInLockPeriod() public {
         hevm.startPrank(blob);
 
         morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.stake(tom, morphBalance);
-        iStaking.unstake(tom);
+        iStaking.delegateStake(tom, morphBalance);
+        iStaking.unDelegateStake(tom);
         hevm.expectRevert("not allowed");
-        iStaking.stake(tom, morphBalance);
+        iStaking.delegateStake(tom, morphBalance);
         hevm.stopPrank();
     }
 
@@ -184,14 +184,14 @@ contract L2StakingTest is DSTestPlus {
         hevm.startPrank(blob);
 
         morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.stake(tom, morphBalance);
-        iStaking.unstake(tom);
+        iStaking.delegateStake(tom, morphBalance);
+        iStaking.unDelegateStake(tom);
 
         hevm.roll(lock + 2);
 
-        iStaking.withdrawal(tom);
+        iStaking.claim(tom);
 
-        iStaking.stake(tom, morphBalance);
+        iStaking.delegateStake(tom, morphBalance);
 
         hevm.stopPrank();
     }
@@ -204,7 +204,7 @@ contract L2StakingTest is DSTestPlus {
         morphToken.approve(address(iStaking), type(uint256).max);
 
         hevm.expectRevert("staking amount is not enough");
-        iStaking.stake(tom, morphBalance);
+        iStaking.delegateStake(tom, morphBalance);
 
         hevm.stopPrank();
     }
@@ -216,7 +216,7 @@ contract L2StakingTest is DSTestPlus {
         hevm.startPrank(tom);
         morphToken.approve(address(iStaking), type(uint256).max);
 
-        iStaking.stake(tom, limit);
+        iStaking.delegateStake(tom, limit);
 
         uint256 amount = iStaking.stakingInfo(tom, tom);
         assertEq(limit, amount);
@@ -231,12 +231,12 @@ contract L2StakingTest is DSTestPlus {
         hevm.startPrank(tom);
         morphToken.approve(address(iStaking), type(uint256).max);
 
-        iStaking.stake(tom, limit);
+        iStaking.delegateStake(tom, limit);
 
         uint256 amount0 = iStaking.stakingInfo(tom, tom);
         assertEq(limit, amount0);
 
-        iStaking.stake(tom, morphBalance);
+        iStaking.delegateStake(tom, morphBalance);
         uint256 amount1 = iStaking.stakingInfo(tom, tom);
         assertEq(limit + morphBalance, amount1);
 

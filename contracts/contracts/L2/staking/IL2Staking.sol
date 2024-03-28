@@ -60,23 +60,23 @@ interface IL2Staking {
     function isStakingTo(address staker) external view returns (bool);
 
     /**
-     * @notice user withdrawal
+     * @notice user claim
      * @param staker stake to
      */
-    function withdrawal(address staker) external;
+    function claim(address staker) external;
 
     /**
      * @notice user unstake morph to staker
      * @param staker stake to
      */
-    function unstake(address staker) external;
+    function unDelegateStake(address staker) external;
 
     /**
      * @notice user stake morph to staker
      * @param staker stake to
      * @param amount stake amount
      */
-    function stake(address staker, uint256 amount) external;
+    function delegateStake(address staker, uint256 amount) external;
 
     /**
      * @notice update params
@@ -88,11 +88,10 @@ interface IL2Staking {
 
     /**
      * @notice update stakers
+     * @param stakers, sync from l1
+     * @param isAdd, add & remove
      */
-    function updateStakers(
-        Types.StakerInfo[] memory add,
-        Types.StakerInfo[] memory remove
-    ) external;
+    function updateStakers(Types.StakerInfo[] memory stakers, bool isAdd) external;
 
     /**
      * @notice test stakers

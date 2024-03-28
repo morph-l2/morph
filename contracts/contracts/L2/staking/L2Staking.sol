@@ -60,15 +60,15 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     /**
      * @notice stake info
      */
-    event Staked(address indexed who, address indexed staker, uint256 amount);
+    event Delegated(address indexed who, address indexed staker, uint256 amount);
     /**
      * @notice unstake info
      */
-    event UnStaked(address indexed who, address indexed staker, uint256 amount);
+    event UnDelegated(address indexed who, address indexed staker, uint256 amount);
     /**
      * @notice withdrawed info
      */
-    event Withdrawed(address indexed who, address indexed staker, uint256 amount);
+    event Claimed(address indexed who, address indexed staker, uint256 amount);
     /**
      * @notice params updated
      */
@@ -120,7 +120,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
      * @param staker stake to
      * @param amount stake amount
      */
-    function stake(address staker, uint256 amount) external isStaker(staker) nonReentrant {
+    function delegateStake(address staker, uint256 amount) external isStaker(staker) nonReentrant {
         uint256 userStakingAmount = stakingInfo[msg.sender][staker];
         if (stakers.contains(msg.sender)) {
             if (userStakingAmount < limit) {
@@ -147,17 +147,19 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
         delegators[staker].add(msg.sender);
 
-        emit Staked(msg.sender, staker, amount);
+        emit Delegated(msg.sender, staker, amount);
 
         // update sequencer set
         _updateSequencers();
+
+        //
     }
 
     /**
-     * @notice user unstake morph to staker
+     * @notice user unstake morph
      * @param staker stake to
      */
-    function unstake(address staker) external isStaker(staker) nonReentrant {
+    function unDelegateStake(address staker) external isStaker(staker) nonReentrant {
         UnStakingInfo memory info = unstakingInfo[msg.sender][staker];
 
         require(!info.exit, "no withdrawal");
@@ -166,12 +168,9 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         uint256 userStakingAmount = stakingInfo[msg.sender][staker];
 
         // @todo
-        // staker self, need to consider limit amount
-        stakingInfo[msg.sender][staker] = 0;
+        // staker self, consider staking amount whether to keep the limit
 
-        uint256 stakerAmount = stakersAmount[staker];
-        stakersAmount[staker] = stakerAmount - userStakingAmount;
-
+        // record undeledate
         info.amount = userStakingAmount;
         info.unlock = block.number + lock;
         info.exit = true;
@@ -179,33 +178,43 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         // update unstaking info
         unstakingInfo[msg.sender][staker] = info;
 
-        emit UnStaked(msg.sender, staker, userStakingAmount);
+        emit UnDelegated(msg.sender, staker, userStakingAmount);
 
         // update sequencer set
         _updateSequencers();
     }
 
     /**
-     * @notice user withdrawal
+     * @notice user claim morph
      * @param staker stake to
      */
-    function withdrawal(address staker) external nonReentrant {
+    function claim(address staker) external nonReentrant {
         require(
             unstakingInfo[msg.sender][staker].amount > 0 &&
                 block.number > unstakingInfo[msg.sender][staker].unlock,
-            "invalid withdrawal"
+            "invalid claim"
         );
 
-        uint256 unstakingAmount = unstakingInfo[msg.sender][staker].amount;
+        uint256 userStakingAmount = stakingInfo[msg.sender][staker];
+        uint256 userUnstakingAmount = unstakingInfo[msg.sender][staker].amount;
+        // check staking status
+        require(userStakingAmount == userUnstakingAmount, "invalid claim");
+
         uint256 balanceBefore = iMorphToken.balanceOf(address(this));
-        iMorphToken.transfer(msg.sender, unstakingAmount);
+        iMorphToken.transfer(msg.sender, userUnstakingAmount);
         uint256 balanceAfter = iMorphToken.balanceOf(address(this));
         require(
-            balanceBefore > balanceAfter && balanceBefore - balanceAfter == unstakingAmount,
+            balanceBefore > balanceAfter && balanceBefore - balanceAfter == userUnstakingAmount,
             "morph token transfer fail"
         );
 
-        emit Withdrawed(msg.sender, staker, unstakingAmount);
+        // update staking info
+        stakingInfo[msg.sender][staker] = 0;
+
+        uint256 stakerAmount = stakersAmount[staker];
+        stakersAmount[staker] = stakerAmount - userUnstakingAmount;
+
+        emit Claimed(msg.sender, staker, userUnstakingAmount);
 
         delete unstakingInfo[msg.sender][staker];
     }
@@ -268,11 +277,11 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
     /**
      * @notice update stakers
+     * @param stakers, sync from l1
+     * @param isAdd, add & remove
      */
-    function updateStakers(
-        Types.StakerInfo[] memory add,
-        Types.StakerInfo[] memory remove
-    ) external {}
+
+    function updateStakers(Types.StakerInfo[] memory stakers, bool isAdd) external {}
 
     /**
      * @notice test stakers
@@ -296,16 +305,20 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
      * @notice Select the size of staker with the largest staking amount
      */
     function _updateSequencers() internal {
-        address[] memory _stakers = _getSortedStakers();
+        address[] memory mStakers = _getSortedStakers();
 
         uint256 size = sequencersSize;
-        if (_stakers.length < sequencersSize) {
-            size = _stakers.length;
+        if (mStakers.length < sequencersSize) {
+            size = mStakers.length;
         }
 
         address[] memory _update = new address[](size);
         for (uint256 i = 0; i < size; i++) {
-            _update[i] = _stakers[i];
+            // need staker morph amount >= limit
+            uint256 amount = stakersAmount[mStakers[i]];
+            if (amount >= limit) {
+                _update[i] = mStakers[i];
+            }
         }
 
         //todo update sequencer set
@@ -323,24 +336,24 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
      * @notice sort stakers by amount
      */
     function _getSortedStakers() internal view returns (address[] memory) {
-        address[] memory _stakers = _getStakers();
+        address[] memory mStakers = _getStakers();
 
-        for (uint256 i = 0; i < _stakers.length; i++) {
-            uint256 amount0 = stakersAmount[_stakers[i]];
+        for (uint256 i = 0; i < mStakers.length; i++) {
+            uint256 amount0 = stakersAmount[mStakers[i]];
             uint256 maxIndex = i;
 
-            for (uint256 j = i + 1; j < _stakers.length; j++) {
-                uint256 amount1 = stakersAmount[_stakers[j]];
+            for (uint256 j = i + 1; j < mStakers.length; j++) {
+                uint256 amount1 = stakersAmount[mStakers[j]];
                 if (amount1 > amount0) {
                     maxIndex = j;
                 }
 
-                address temp = _stakers[i];
-                _stakers[i] = _stakers[maxIndex];
-                _stakers[maxIndex] = temp;
+                address temp = mStakers[i];
+                mStakers[i] = mStakers[maxIndex];
+                mStakers[maxIndex] = temp;
             }
         }
 
-        return _stakers;
+        return mStakers;
     }
 }
