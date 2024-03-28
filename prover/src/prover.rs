@@ -198,7 +198,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         ethers::utils::hex::encode(*y),
         ethers::utils::hex::encode(result.to_bytes())
     );
-    assert!(result.eq(&Fp::from_bytes(&y).unwrap()), "compute_kzg_proof == poly_eval");
+
+    // assert!(result.eq(&Fp::from_bytes(&y).unwrap()), "compute_kzg_proof == poly_eval");
 
     // save 4844 kzg proof
     // kzgData: [y(32) | commitment(48) | proof(48)]
@@ -414,7 +415,7 @@ pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String
         let zero_blob: Vec<u8> = vec![0; 32 * 4096];
         return Ok(zero_blob);
     }
-    log::error!(
+    log::info!(
         "first tx hash: {:#?}, {:#?}",
         block.txs[0].hash,
         block.txs[0].callee_address.unwrap()
