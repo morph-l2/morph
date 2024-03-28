@@ -15,12 +15,12 @@ use prover::{BlockTrace, ChunkHash, ChunkProof, CompressionCircuit};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, BufWriter, Write};
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
 use zkevm_circuits::blob_circuit::block_to_blob;
-use zkevm_circuits::blob_circuit::util::{blob_width_th_root_of_unity, poly_eval, poly_eval_partial, FP_S};
+use zkevm_circuits::blob_circuit::util::{blob_width_th_root_of_unity, poly_eval, poly_eval_partial};
 use zkevm_circuits::witness::{Block, Transaction};
 
 const BLOB_DATA_SIZE: usize = 4096 * 32;
@@ -232,6 +232,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     };
 
     // todo: get batch_commit from eth trace
+    let mut partial_ys: Vec<U256> = Vec::new();
+
     let batch_commit: U256 = U256::from(0);
     let mut index = 0;
     for chunk_trace in chunk_traces.iter() {
@@ -270,7 +272,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
                     )
                     .to_bytes(),
                 );
-                log::info!(">>partial_result = {:#?}", partial_result.to_le_bytes());
+                log::info!(">>partial_result = {:#?}", partial_result);
+                partial_ys.push(partial_result.clone());
                 Fp::from_bytes(&partial_result.to_le_bytes()).unwrap();
 
                 chunk_witness.partial_result = partial_result;
@@ -324,6 +327,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         chunk_proofs.push((chunk_hash, chunk_proof));
         index += partial_result_bytes.unwrap().len() / 32;
     }
+
     if chunk_proofs.len() != chunk_traces.len() {
         log::error!("chunk proofs len err, batchIndex = {:#?} ", batch_index);
         return;
@@ -347,6 +351,17 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             log::error!("batch_{:#?} prove err: {:#?}", batch_index, e);
         }
     }
+
+    let mut partial_y = Fp::zero();
+    for i in 0..4 {
+        partial_y = partial_y + Fp::from_bytes(&partial_ys[i].to_le_bytes()).unwrap();
+    }
+    log::info!(
+        "y_sum_from_prover: {:?}, hex: {:?}",
+        U256::from_little_endian(&partial_y.to_bytes()),
+        ethers::utils::hex::encode(&partial_y.to_bytes())
+    );
+    
     let duration = start.elapsed();
     let minutes = duration.as_secs() / 60;
     PROVE_TIME.set(minutes.try_into().unwrap());
