@@ -157,7 +157,8 @@ contract L1SequencerVerifyTest is L1SequencerTest {
                 l1Sequencer.verifySignature(
                     newnestVersion,
                     sequencers,
-                    signature
+                    signature,
+                    bytes32(0)
                 )
             );
         }

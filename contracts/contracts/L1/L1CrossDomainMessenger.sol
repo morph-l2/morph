@@ -90,7 +90,11 @@ contract L1CrossDomainMessenger is
         address _rollup,
         address _messageQueue
     ) public initializer {
-        if (_rollup == address(0) || _messageQueue == address(0)) {
+        if (
+            _rollup == address(0) ||
+            _messageQueue == address(0) ||
+            _feeVault == address(0)
+        ) {
             revert ErrZeroAddress();
         }
         CrossDomainMessenger.__Messenger_init(
@@ -359,6 +363,7 @@ contract L1CrossDomainMessenger is
     function updateMaxReplayTimes(
         uint256 _newMaxReplayTimes
     ) external onlyOwner {
+        require(_newMaxReplayTimes > 0, "replay times must be greater than 0");
         uint256 _oldMaxReplayTimes = maxReplayTimes;
         maxReplayTimes = _newMaxReplayTimes;
 

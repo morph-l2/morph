@@ -100,16 +100,19 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
      * @param version sequencer set version
      * @param sequencers sequencers signed
      * @param signature batch signature
+     * @param batchHash batch hash
      */
     function verifySignature(
         uint256 version,
         address[] memory sequencers,
-        bytes memory signature
+        bytes memory signature,
+        bytes32 batchHash
     ) external onlyRollupContract whenNotPaused returns (bool) {
         confirmVersion(version);
         // TODO: verify BLS signature
         sequencers = sequencers;
         signature = signature;
+        batchHash = batchHash;
         return true;
     }
 

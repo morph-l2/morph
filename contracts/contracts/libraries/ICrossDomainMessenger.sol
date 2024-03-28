@@ -51,6 +51,9 @@ interface ICrossDomainMessenger {
      *****************************/
 
     /// @notice Send cross chain message from L1 to L2 or L2 to L1.
+    /// @dev EOA addresses and contracts that have not implemented `onDropMessage`
+    /// cannot execute the `dropMessage` operation.
+    /// Please proceed with caution to control risk.
     /// @param target The address of account who receive the message.
     /// @param value The amount of ether passed when call target contract.
     /// @param message The content of the message.
@@ -63,6 +66,9 @@ interface ICrossDomainMessenger {
     ) external payable;
 
     /// @notice Send cross chain message from L1 to L2 or L2 to L1.
+    /// @dev EOA addresses and contracts that have not implemented `onDropMessage`
+    /// cannot execute the `dropMessage` operation.
+    /// Please proceed with caution to control risk.
     /// @param target The address of account who receive the message.
     /// @param value The amount of ether passed when call target contract.
     /// @param message The content of the message.

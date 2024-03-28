@@ -27,11 +27,13 @@ interface IL1Sequencer {
      * @param version sequencer set version
      * @param sequencers sequencers signed
      * @param signature batch signature
+     * @param batchHash batch hash
      */
     function verifySignature(
         uint256 version,
         address[] memory sequencers,
-        bytes memory signature
+        bytes memory signature,
+        bytes32 batchHash
     ) external returns (bool);
 
     /**
