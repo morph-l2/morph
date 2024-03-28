@@ -79,6 +79,7 @@ dependencies = [
  "lazy_static",
  "log",
  "prometheus",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match result {
         Ok(()) => Ok(()),
         Err(e) => {
-            log::error!("oracle exec error: {:#?}", e);
+            log::error!("gas oracle exec error: {:#?}", e);
             Err(e)
         }
     }
