@@ -32,9 +32,9 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
      * @notice sequencer updated
      */
     event SequencerUpdated(
+        uint256 indexed version,
         address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
+        bytes[] sequencersBLS
     );
 
     /**
@@ -144,23 +144,23 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
             sequencerAddrs[0] = _sequencerAddrs;
             sequencerBLSKeys[0] = _sequencerBLSKeys;
             _unpause();
-            return;
+        } else {
+            require(!paused(), "send message when unpaused");
+            updateSequencersVersion(_sequencerAddrs, _sequencerBLSKeys);
+
+            MESSENGER.sendMessage{value: msg.value}(
+                address(OTHER_SEQUENCER),
+                0,
+                _sequencerBytes,
+                _gasLimit,
+                _refundAddress
+            );
         }
-        require(!paused(), "send message when unpaused");
-        updateSequencersVersion(_sequencerAddrs, _sequencerBLSKeys);
 
         emit SequencerUpdated(
+            newestVersion,
             _sequencerAddrs,
-            _sequencerBLSKeys,
-            newestVersion
-        );
-
-        MESSENGER.sendMessage{value: msg.value}(
-            address(OTHER_SEQUENCER),
-            0,
-            _sequencerBytes,
-            _gasLimit,
-            _refundAddress
+            _sequencerBLSKeys
         );
     }
 
