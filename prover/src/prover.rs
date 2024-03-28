@@ -184,22 +184,28 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         }
     };
 
-
     let omega = blob_width_th_root_of_unity();
     let values: Vec<Fp> = batch_blob
         .chunks(32)
         .into_iter()
-        .filter_map(|chunk| Some(Fp::from_bytes(chunk.try_into().unwrap()).unwrap()))
+        .filter_map(|chunk| {
+            let mut element = chunk.to_vec();
+            element.reverse();
+            Some(Fp::from_bytes(element.as_slice().try_into().unwrap()).unwrap())
+        })
         .collect();
     let result = poly_eval(values, Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap(), omega);
-    
+
     log::info!(
         "=========> point_y = {:#?} ,point_y_poly_eval= {:#?}",
         ethers::utils::hex::encode(*y),
         ethers::utils::hex::encode(result.to_bytes())
     );
 
-    // assert!(result.eq(&Fp::from_bytes(&y).unwrap()), "compute_kzg_proof == poly_eval");
+    assert!(
+        result.eq(&Fp::from_bytes(&y).unwrap()),
+        "compute_kzg_proof == poly_eval"
+    );
 
     // save 4844 kzg proof
     // kzgData: [y(32) | commitment(48) | proof(48)]
