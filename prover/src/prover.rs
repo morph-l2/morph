@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
 use zkevm_circuits::blob_circuit::block_to_blob;
-use zkevm_circuits::blob_circuit::util::{poly_eval_partial, FP_S};
+use zkevm_circuits::blob_circuit::util::{blob_width_th_root_of_unity, poly_eval, poly_eval_partial, FP_S};
 use zkevm_circuits::witness::{Block, Transaction};
 
 const BLOB_DATA_SIZE: usize = 4096 * 32;
@@ -184,6 +184,22 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         }
     };
 
+
+    let omega = blob_width_th_root_of_unity();
+    let values: Vec<Fp> = batch_blob
+        .chunks(32)
+        .into_iter()
+        .filter_map(|chunk| Some(Fp::from_bytes(chunk.try_into().unwrap()).unwrap()))
+        .collect();
+    let result = poly_eval(values, Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap(), omega);
+    
+    log::info!(
+        "=========> point_y = {:#?} ,point_y_poly_eval= {:#?}",
+        ethers::utils::hex::encode(*y),
+        ethers::utils::hex::encode(result.to_bytes())
+    );
+    assert!(result.eq(&Fp::from_bytes(&y).unwrap()), "compute_kzg_proof == poly_eval");
+
     // save 4844 kzg proof
     // kzgData: [y(32) | commitment(48) | proof(48)]
     // https://github.com/morph-l2/morph/blob/eip4844-contract-verify/contracts/contracts/L1/rollup/Rollup.sol
@@ -205,7 +221,6 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         Ok(v) => log::debug!("verify_kzg_proof = {:#?}", v),
         Err(e) => log::debug!("verify_kzg_proof_error = {:#?}", e),
     };
-    // KzgProof::verify_blob_kzg_proof(&Blob::from_bytes(&batch_blob).unwrap(), &commitment.to_bytes(), proof_bytes, &kzg_settings);
 
     // todo: get batch_commit from eth trace
     let batch_commit: U256 = U256::from(0);
@@ -230,7 +245,6 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         let partial_result_bytes = block_to_blob(&chunk_witness).ok();
 
         // compute partial_result from witness block;
-        let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
         match block_to_blob(&chunk_witness) {
             Ok(blob) => {
                 let mut result: Vec<Fp> = Vec::new();
