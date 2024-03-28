@@ -15,7 +15,7 @@ use prover::{BlockTrace, ChunkHash, ChunkProof, CompressionCircuit};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
@@ -112,7 +112,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
                 );
 
                 txs.extend_from_slice(witness.txs.as_slice());
-                let partial_result = block_to_blob_local(&witness).unwrap();
+                let partial_result = block_to_blob(&witness).unwrap();
                 batch_blob[offset..offset + partial_result.len()].copy_from_slice(&partial_result);
                 offset += partial_result.len();
 
@@ -202,8 +202,10 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         ethers::utils::hex::encode(result.to_bytes())
     );
 
+    let mut l_y = y.to_vec();
+    l_y.reverse();
     assert!(
-        result.eq(&Fp::from_bytes(&y).unwrap()),
+        result.eq(&Fp::from_bytes(&l_y.as_slice().try_into().unwrap()).unwrap()),
         "compute_kzg_proof == poly_eval"
     );
 
