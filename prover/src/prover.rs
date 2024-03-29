@@ -19,10 +19,8 @@ use std::io::{BufReader, BufWriter, Write};
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
-use zkevm_circuits::blob_circuit::block_to_blob;
 use zkevm_circuits::blob_circuit::util::{blob_width_th_root_of_unity, poly_eval, poly_eval_partial};
-use zkevm_circuits::witness::{Block, Transaction};
-
+use zkevm_circuits::witness::{BlobValue, Block, Transaction};
 const BLOB_DATA_SIZE: usize = 4096 * 32;
 
 // proveRequest
@@ -112,9 +110,9 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
                 );
 
                 txs.extend_from_slice(witness.txs.as_slice());
-                let partial_result = block_to_blob(&witness).unwrap();
-                batch_blob[offset..offset + partial_result.len()].copy_from_slice(&partial_result);
-                offset += partial_result.len();
+                let partial_blob: BlobValue = BlobValue::from_tx(&witness.txs).unwrap();
+                batch_blob[offset..offset + partial_blob.0.len()].copy_from_slice(&partial_blob.0);
+                offset += partial_blob.0.len();
 
                 let chunk_hash = ChunkHash::from_witness_block(&witness, false);
                 data_hash_preimage.extend_from_slice(chunk_hash.data_hash.as_bytes())
@@ -253,20 +251,16 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             }
         };
 
-        let partial_result_bytes = block_to_blob(&chunk_witness).ok();
+        let partial_result_bytes: BlobValue = BlobValue::from_tx(&chunk_witness.txs).unwrap();
 
         // compute partial_result from witness block;
-        match block_to_blob(&chunk_witness) {
+        match BlobValue::from_tx(&chunk_witness.txs) {
             Ok(blob) => {
-                let mut result: Vec<Fp> = Vec::new();
-                for chunk in blob.chunks(32) {
-                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();
-                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
-                }
+                let result: Vec<Fp> = blob.to_coefficient();
                 partial_result = U256::from_little_endian(
                     &poly_eval_partial(
                         result,
-                        Fp::from_bytes(&chunk_witness.challenge_point.to_le_bytes()).unwrap(),
+                        Fp::from_bytes(&chunk_witness.blob.z.to_le_bytes()).unwrap(),
                         omega,
                         index,
                     )
@@ -276,7 +270,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
                 partial_ys.push(partial_result.clone());
                 Fp::from_bytes(&partial_result.to_le_bytes()).unwrap();
 
-                chunk_witness.partial_result = partial_result;
+                chunk_witness.blob.p_y = partial_result;
             }
             Err(e) => {
                 log::error!("chunk-hash: block_to_blob failed: {}", e);
@@ -325,7 +319,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         params_file.write_all(&protocol[..]).unwrap();
 
         chunk_proofs.push((chunk_hash, chunk_proof));
-        index += partial_result_bytes.unwrap().len() / 32;
+        index += partial_result_bytes.0.len() / 32;
     }
 
     if chunk_proofs.len() != chunk_traces.len() {
