@@ -292,6 +292,25 @@
   {
     "inputs": [
       {
+        "internalType": "bytes",
+        "name": "_combined",
+        "type": "bytes"
+      }
+    ],
+    "name": "splitUint256",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "newOwner",
         "type": "address"
@@ -330,7 +349,7 @@
   },
   {
     "inputs": [],
-    "name": "verifier",
+    "name": "zkevm_verifier",
     "outputs": [
       {
         "internalType": "address",

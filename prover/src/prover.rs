@@ -353,7 +353,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     }
 
     let mut partial_y = Fp::zero();
-    for i in 0..4 {
+    for i in 0..chunk_traces.len() {
         partial_y = partial_y + Fp::from_bytes(&partial_ys[i].to_le_bytes()).unwrap();
     }
     log::info!(
@@ -361,7 +361,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         U256::from_little_endian(&partial_y.to_bytes()),
         ethers::utils::hex::encode(&partial_y.to_bytes())
     );
-    
+
     let duration = start.elapsed();
     let minutes = duration.as_secs() / 60;
     PROVE_TIME.set(minutes.try_into().unwrap());
