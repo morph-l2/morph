@@ -47,7 +47,7 @@ dependencies = [
 [[package]]
 name = "aggregator"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "ark-std 0.3.0",
  "bls12_381",
@@ -644,7 +644,7 @@ checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 [[package]]
 name = "bus-mapping"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -1458,7 +1458,7 @@ dependencies = [
 [[package]]
 name = "eth-types"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "ethers-core",
  "ethers-signers",
@@ -1778,7 +1778,7 @@ dependencies = [
 [[package]]
 name = "external-tracer"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "eth-types",
  "geth-utils",
@@ -2015,7 +2015,7 @@ dependencies = [
 [[package]]
 name = "gadgets"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "digest 0.7.6",
  "eth-types",
@@ -2048,7 +2048,7 @@ dependencies = [
 [[package]]
 name = "geth-utils"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "env_logger 0.9.3",
  "gobuild 0.1.0-alpha.2 (git+https://github.com/scroll-tech/gobuild.git)",
@@ -2744,7 +2744,7 @@ dependencies = [
 [[package]]
 name = "keccak256"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "env_logger 0.9.3",
  "eth-types",
@@ -3055,7 +3055,7 @@ dependencies = [
 [[package]]
 name = "mock"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -3071,7 +3071,7 @@ dependencies = [
 [[package]]
 name = "mpt-zktrie"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "eth-types",
  "halo2-mpt-circuits",
@@ -3706,7 +3706,7 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "aggregator",
  "anyhow",
@@ -5712,7 +5712,7 @@ dependencies = [
 [[package]]
 name = "zkevm-circuits"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#4ab4ab9f077689c3d7faa194400bdc014abde2e2"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=eip4844-enhance#329cbdbd3a2c6d9a7df14c2c8f7171eb2ed382fd"
 dependencies = [
  "array-init",
  "bls12_381",
