@@ -19,6 +19,7 @@ use std::io::{BufReader, BufWriter, Write};
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
+use zkevm_circuits::blob_circuit::block_to_blob;
 use zkevm_circuits::blob_circuit::util::{blob_width_th_root_of_unity, poly_eval, poly_eval_partial};
 use zkevm_circuits::witness::{Block, Transaction};
 
