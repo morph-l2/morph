@@ -22,9 +22,9 @@ contract L1MessageBaseTest is CommonTest {
         uint256 balance
     );
     event SequencerUpdated(
+        uint256 indexed version,
         address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
+        bytes[] sequencersBLS
     );
     Staking staking;
     uint256 public beginSeq = 10;
@@ -268,10 +268,10 @@ contract L1MessageBaseTest is CommonTest {
                 payable(address(l1MessageQueueWithGasPriceOracle))
             );
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
-            payable(_messenger), // _messenger
-            address(_rollup), // _rollup
-            address(_enforcedTxGateway) // _enforcedTxGateway
-        );
+                payable(_messenger), // _messenger
+                address(_rollup), // _rollup
+                address(_enforcedTxGateway) // _enforcedTxGateway
+            );
         assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.messenger());
         assertEq(_rollup, l1MessageQueueWithGasPriceOracleImpl.rollup());
         assertEq(
