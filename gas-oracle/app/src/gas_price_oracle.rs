@@ -23,6 +23,8 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
     let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("Cannot detect GAS_ORACLE_L1_RPC env var");
     let l2_rpc = var("GAS_ORACLE_L2_RPC").expect("Cannot detect GAS_ORACLE_L2_RPC env var");
+    let _ =
+        var("GAS_ORACLE_L1_BEACON_RPC").expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env var");
 
     let gas_threshold: u128 = var("GAS_THRESHOLD")
         .expect("Cannot detect GAS_THRESHOLD env var")
