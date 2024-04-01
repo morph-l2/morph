@@ -396,7 +396,8 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	var lastHeader *eth.Header
 	for _, chunk := range rollupData.chunks {
 		for _, blockData := range chunk.blockContextes {
-			blockData.SafeL2Data.BatchHash = &rollupData.batchHash
+			batchHash := rollupData.batchHash
+			blockData.SafeL2Data.BatchHash = &batchHash
 			latestBlockNumber, err := d.l2Client.BlockNumber(context.Background())
 			if err != nil {
 				return nil, fmt.Errorf("get derivation geth block number error:%v", err)
