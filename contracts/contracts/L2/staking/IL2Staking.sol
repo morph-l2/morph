@@ -6,10 +6,10 @@ import {Types} from "../../libraries/common/Types.sol";
 interface IL2Staking {
     /**
      * @notice information staking by delegator to staker
-     * @param staker stake to
      * @param delegator who
+     * @param staker stake to
      */
-    function stakingInfo(address delegator, address staker) external view returns (uint256);
+    function stakingInfo(address staker, address delegator) external view returns (uint256);
 
     /**
      * @notice staker's morph amount
@@ -18,14 +18,23 @@ interface IL2Staking {
     function stakersAmount(address staker) external view returns (uint256);
 
     /**
+     * @notice staker information.
+     * @custom:field staker
+     * @return {addr, tmKey, blsKey, active}
+     */
+    function stakerInfo(
+        address staker
+    ) external view returns (address, bytes32, bytes memory, bool);
+
+    /**
      * @notice delegator's unstaking info
      * @param staker stake to
      * @param delegator who
      */
     function unstakingInfo(
-        address delegator,
-        address staker
-    ) external view returns (uint256, uint256, bool);
+        address staker,
+        address delegator
+    ) external view returns (uint256, uint256);
 
     /**
      * @notice smallest staking value
@@ -33,9 +42,9 @@ interface IL2Staking {
     function limit() external view returns (uint256);
 
     /**
-     * @notice lock block number after withdrawal
+     * @notice epoch number
      */
-    function lock() external view returns (uint256);
+    function epoch() external view returns (uint256);
 
     /**
      * @notice number of currently active
@@ -80,21 +89,16 @@ interface IL2Staking {
 
     /**
      * @notice update params
-     * @param _limit smallest staking value
-     * @param _lock withdraw lock time
      * @param _sequencersSize sequencers size
+     * @param _limit smallest staking value
+     * @param _epoch epoch number
      */
-    function updateParams(uint256 _sequencersSize, uint256 _limit, uint256 _lock) external;
+    function updateParams(uint256 _sequencersSize, uint256 _limit, uint256 _epoch) external;
 
     /**
      * @notice update stakers
-     * @param stakers, sync from l1
-     * @param isAdd, add & remove
+     * @param stakers, sync from l1, {addr, tmKey, blsKey}
+     * @param active, active & inActive
      */
-    function updateStakers(Types.StakerInfo[] memory stakers, bool isAdd) external;
-
-    /**
-     * @notice test stakers
-     */
-    function testStakers(address[] memory _stakers) external;
+    function updateStakers(Types.StakerInfo[] memory stakers, bool active) external;
 }
