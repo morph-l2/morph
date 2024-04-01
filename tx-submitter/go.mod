@@ -7,6 +7,7 @@ require (
 	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.14
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (

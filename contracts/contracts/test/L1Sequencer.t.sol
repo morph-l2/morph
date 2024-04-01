@@ -147,14 +147,18 @@ contract L1SequencerVerifyTest is L1SequencerTest {
     }
 
     function testVerifySignatureNewnest() external {
-        uint256[] memory indexs = new uint256[](0);
+        address[] memory sequencers = new address[](0);
         bytes memory signature = bytes("");
         hevm.startPrank(address(rollup));
         uint256 currentVersion = l1Sequencer.currentVersion();
         uint256 newnestVersion = l1Sequencer.newestVersion();
         for (uint256 i = currentVersion; i <= newnestVersion; i++) {
             assertTrue(
-                l1Sequencer.verifySignature(newnestVersion, indexs, signature)
+                l1Sequencer.verifySignature(
+                    newnestVersion,
+                    sequencers,
+                    signature
+                )
             );
         }
         hevm.stopPrank();

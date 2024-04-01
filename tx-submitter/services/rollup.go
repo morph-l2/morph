@@ -56,6 +56,9 @@ type Rollup struct {
 	Finalize       bool
 	MaxFinalizeNum uint64
 	PriorityRollup bool
+
+	// tx cfg
+	txFeeLimit uint64
 }
 
 func NewRollup(
@@ -93,6 +96,8 @@ func NewRollup(
 		Finalize:       cfg.Finalize,
 		MaxFinalizeNum: cfg.MaxFinalizeNum,
 		PriorityRollup: cfg.PriorityRollup,
+
+		txFeeLimit: cfg.TxFeeLimit,
 	}
 }
 
@@ -250,7 +255,7 @@ func (sr *Rollup) finalize() error {
 	}
 
 	var receipt *types.Receipt
-	err = sr.L1Client.SendTransaction(context.Background(), newSignedTx)
+	err = sr.SendTx(newSignedTx)
 	if err != nil {
 		log.Info("send tx error", "error", err.Error())
 		// ErrReplaceUnderpriced,ErrAlreadyKnown
@@ -433,7 +438,7 @@ func (sr *Rollup) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
@@ -444,7 +449,7 @@ func (sr *Rollup) rollup() error {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
@@ -504,7 +509,7 @@ func (sr *Rollup) rollup() error {
 
 	tx_send_time := time.Now().Unix()
 	var receipt *types.Receipt
-	err = sr.L1Client.SendTransaction(context.Background(), newSignedTx)
+	err = sr.SendTx(newSignedTx)
 	if err != nil {
 		log.Info("send tx error", "error", err.Error())
 
@@ -802,6 +807,40 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 	return newTx, nil
 }
 
+// send tx to l1 with business logic check
+func (r *Rollup) SendTx(tx *types.Transaction) error {
+
+	// judge tx info is valid
+	if tx == nil {
+		return errors.New("nil tx")
+	}
+	return sendTx(r.L1Client, r.txFeeLimit, tx)
+
+}
+
+// send tx to l1 with business logic check
+func sendTx(client iface.Client, txFeeLimit uint64, tx *types.Transaction) error {
+	// fee limit
+	if txFeeLimit > 0 {
+		var fee uint64
+		// calc tx gas fee
+		if tx.Type() == types.BlobTxType {
+			// blob fee
+			fee = tx.BlobGasFeeCap().Uint64() * tx.BlobGas()
+			// tx fee
+			fee += tx.GasPrice().Uint64() * tx.Gas()
+		} else {
+			fee = tx.GasPrice().Uint64() * tx.Gas()
+		}
+
+		if fee > txFeeLimit {
+			return fmt.Errorf("%v:limit=%v,but got=%v", utils.ErrExceedFeeLimit, txFeeLimit, fee)
+		}
+	}
+
+	return client.SendTransaction(context.Background(), tx)
+}
+
 func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
 	if tx == nil {
 		return nil, nil, errors.New("nil tx")
@@ -893,7 +932,7 @@ func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Trans
 			return nil, nil, err
 		}
 		// send tx
-		err = sr.L1Client.SendTransaction(context.Background(), newTx)
+		err = sr.SendTx(newTx)
 		if err != nil { // tx rejected
 			log.Error("send replace tx", "err", err)
 			// if not underprice return

@@ -82,6 +82,16 @@ contract Staking is IStaking, OwnableUpgradeable {
     event Claimed(address addr, uint256 balance);
 
     /**
+     * @notice params updated
+     */
+    event ParamsUpdated(uint256 _sequencersSize, uint256 _limit, uint256 _lock);
+
+    /**
+     * @notice whitelist updated
+     */
+    event WhitelistUpdated(address[] add, address[] remove);
+
+    /**
      * @notice only sequencer contract
      */
     modifier onlySequencerContract() {
@@ -175,7 +185,10 @@ contract Staking is IStaking, OwnableUpgradeable {
         require(sequencersSize > 0, "sequencersSize must greater than 0");
         require(tmKey != 0, "invalid tendermint pubkey");
         require(blsKey.length == 256, "invalid bls pubkey");
-        require(msg.value >= _gasFee + limit, "staking value is not enough");
+        require(
+            limit > 0 && msg.value >= _gasFee + limit,
+            "staking value is not enough"
+        );
 
         uint256 stakingAmount = msg.value - _gasFee;
 
@@ -239,7 +252,9 @@ contract Staking is IStaking, OwnableUpgradeable {
         uint256 _gasFee
     ) external payable inWhitelist onlyStaker {
         require(
-            msg.value > 0 && stakings[msg.sender].balance + msg.value > limit,
+            limit > 0 &&
+                msg.value > 0 &&
+                stakings[msg.sender].balance + msg.value > limit,
             "staking value not enough"
         );
         stakings[msg.sender].balance += msg.value;
@@ -266,20 +281,6 @@ contract Staking is IStaking, OwnableUpgradeable {
             indexAfterSort < sequencersSize
         ) {
             updateSequencers(_minGasLimit, _gasFee);
-        }
-    }
-
-    /**
-     * @notice update params
-     * @param _limit smallest staking value
-     * @param _lock withdraw lock time
-     */
-    function updateParams(uint256 _limit, uint256 _lock) external onlyOwner {
-        if (_limit > 0) {
-            limit = _limit;
-        }
-        if (_lock > 0) {
-            lock = _lock;
         }
     }
 
@@ -320,6 +321,7 @@ contract Staking is IStaking, OwnableUpgradeable {
         delete stakings[msg.sender];
 
         if (stakers.length == 0) {
+            updateSequencers(_minGasLimit, _gasFee);
             IL1Sequencer(sequencerContract).pause();
             return;
         }
@@ -336,12 +338,15 @@ contract Staking is IStaking, OwnableUpgradeable {
         enableSlash = enanble;
     }
 
+    function unpauseSequencer() external onlyOwner {
+        IL1Sequencer(sequencerContract).unpause();
+    }
+
     /**
      * @notice challenger win, slash sequencers
      */
     function slash(
         address[] memory sequencers,
-        uint256[] memory sequencerIndex,
         address challenger,
         uint32 _minGasLimit,
         uint256 _gasFee
@@ -352,8 +357,8 @@ contract Staking is IStaking, OwnableUpgradeable {
 
         // do slash & update sequencer set
         uint256 valueSum;
-        for (uint256 i = 0; i < sequencerIndex.length; i++) {
-            address sequencer = sequencers[sequencerIndex[i]];
+        for (uint256 i = 0; i < sequencers.length; i++) {
+            address sequencer = sequencers[i];
             valueSum += stakings[sequencer].balance;
             uint256 index = getStakerIndex(sequencer);
             for (uint256 j = index; j < stakers.length - 1; j++) {
@@ -363,6 +368,9 @@ contract Staking is IStaking, OwnableUpgradeable {
             delete stakings[sequencer];
         }
         updateSequencers(_minGasLimit, _gasFee);
+        if (stakers.length == 0) {
+            IL1Sequencer(sequencerContract).pause();
+        }
         _transfer(challenger, valueSum);
     }
 
@@ -375,9 +383,16 @@ contract Staking is IStaking, OwnableUpgradeable {
 
     /**
      * @notice update params
+     * @param _limit smallest staking value
+     * @param _lock withdraw lock time
+     * @param _sequencersSize sequencers size
+     * @param _minGasLimit min gas limit
+     * @param _gasFee gas fee
      */
     function updateParams(
         uint256 _sequencersSize,
+        uint256 _limit,
+        uint256 _lock,
         uint32 _minGasLimit,
         uint256 _gasFee
     ) external onlyOwner {
@@ -388,12 +403,21 @@ contract Staking is IStaking, OwnableUpgradeable {
             "invalid new sequencers size"
         );
 
+        if (_limit > 0) {
+            limit = _limit;
+        }
+        if (_lock > 0) {
+            lock = _lock;
+        }
+
         if (sequencersSize < stakers.length) {
             sequencersSize = _sequencersSize;
             updateSequencers(_minGasLimit, _gasFee);
             return;
         }
         sequencersSize = _sequencersSize;
+
+        emit ParamsUpdated(sequencersSize, limit, lock);
     }
 
     /**
@@ -409,6 +433,8 @@ contract Staking is IStaking, OwnableUpgradeable {
         for (uint256 i = 0; i < remove.length; i++) {
             whitelist[remove[i]] = false;
         }
+
+        emit WhitelistUpdated(add, remove);
     }
 
     /**

@@ -207,14 +207,16 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
             message
         );
 
-        messageProve(
-            address(uint160(address(counterpartGateway)) + 1),
-            address(gateway),
-            0,
-            0,
-            message
-        );
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(uint160(address(counterpartGateway)) + 1),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
@@ -228,12 +230,14 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         assertEq(gatewayBalance, l1Token.balanceOf(address(gateway)));
         assertEq(recipientBalance, l1Token.balanceOf(recipient));
@@ -278,13 +282,16 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
             message
         );
 
-        messageProve(
-            address(counterpartGateway),
-            address(gateway),
-            0,
-            0,
-            message
-        );
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(counterpartGateway),
+                address(gateway),
+                0,
+                0,
+                message
+            );
 
         // emit FinalizeWithdrawERC20 from L1StandardERC20Gateway
         {
@@ -313,12 +320,14 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(counterpartGateway),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         assertEq(gatewayBalance - amount, l1Token.balanceOf(address(gateway)));
         assertEq(

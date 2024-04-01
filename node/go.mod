@@ -7,7 +7,6 @@ require (
 	github.com/go-kit/kit v0.12.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/holiman/uint256 v1.2.4
 	github.com/prometheus/client_golang v1.17.0
 	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
 	github.com/spf13/viper v1.13.0
@@ -15,6 +14,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
@@ -52,6 +52,7 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.13 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
+	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.15 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect

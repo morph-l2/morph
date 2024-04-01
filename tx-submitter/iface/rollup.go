@@ -12,7 +12,7 @@ import (
 type IRollup interface {
 	LatestL2BlockNumber(opts *bind.CallOpts) (*big.Int, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
-	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData, version *big.Int, sequencerIndex []*big.Int, signature []byte) (*types.Transaction, error)
+	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData, version *big.Int, sequencers []common.Address, signature []byte) (*types.Transaction, error)
 	// Stake(opts *bind.TransactOpts) (*types.Transaction, error)
 	// IsSequencer(opts *bind.CallOpts, arg0 common.Address) (bool, error)
 	// MINDEPOSIT(opts *bind.CallOpts) (*big.Int, error)
