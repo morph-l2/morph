@@ -51,6 +51,7 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
             sequencerAddresses.push(_sequencers[i].addr);
             sequencerInfos.push(_sequencers[i]);
         }
+        ISubmitter(L2_SUBMITTER_CONTRACT).sequencersUpdated(sequencerAddresses);
     }
 
     function updateSequencers(
