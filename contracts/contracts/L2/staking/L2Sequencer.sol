@@ -58,8 +58,6 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
         uint256 version,
         Types.SequencerInfo[] memory _sequencers
     ) public onlyOtherSequencer {
-        ISubmitter(L2_SUBMITTER_CONTRACT).sequencersUpdated(sequencerAddresses);
-
         preVersion = currentVersion;
         delete preSequencerInfos;
         delete preSequencerAddresses;
@@ -76,6 +74,8 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
             sequencerAddresses.push(_sequencers[i].addr);
             sequencerInfos.push(_sequencers[i]);
         }
+
+        ISubmitter(L2_SUBMITTER_CONTRACT).sequencersUpdated(sequencerAddresses);
         emit SequencerUpdated(sequencerAddresses, version);
     }
 
