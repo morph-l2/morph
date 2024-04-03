@@ -21,7 +21,7 @@ async fn main() {
     metric_mng().await;
 
     // Start challenge handler.
-    let result = if util::read_env_var("SHADOW_PROVING", false) {
+    let result = if util::read_env_var("SHADOW_PROVING", true) {
         shadow_handler::handle_challenge().await
     } else {
         handler::handle_challenge().await

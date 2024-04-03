@@ -4,7 +4,7 @@ use crate::utils::{
 };
 use bls12_381::Scalar as Fp;
 use c_kzg::{Blob, KzgCommitment, KzgProof};
-use eth_types::{Field, ToBigEndian, ToLittleEndian, U256};
+use eth_types::{ToBigEndian, ToLittleEndian, U256};
 use ethers::providers::Provider;
 use ethers::utils::keccak256;
 use prover::aggregator::Prover as BatchProver;
@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
 use zkevm_circuits::blob_circuit::util::{blob_width_th_root_of_unity, poly_eval, poly_eval_partial};
-use zkevm_circuits::witness::{BlobValue, Block, Transaction};
+use zkevm_circuits::witness::{BlobValue, Transaction};
 const BLOB_DATA_SIZE: usize = 4096 * 32;
 
 // proveRequest
@@ -103,12 +103,6 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     for chunk_trace in chunk_traces.iter() {
         match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
             Ok(witness) => {
-                log::info!(
-                    "=======> witness.withdraw_root = {:#?}, witness.prev_withdraw_root = {:#?}",
-                    witness.withdraw_root,
-                    witness.prev_withdraw_root
-                );
-
                 txs.extend_from_slice(witness.txs.as_slice());
                 let partial_blob: BlobValue = BlobValue::from_tx(&witness.txs).unwrap();
                 batch_blob[offset..offset + partial_blob.0.len()].copy_from_slice(&partial_blob.0);
@@ -125,9 +119,6 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         };
     }
 
-    // let data: Vec<u8> = txs.iter().flat_map(|tx| &tx.rlp_signed).cloned().collect();
-    // let blob_bytes = encode_txs_blob(&data);
-
     let batch_data_hash: [u8; 32] = keccak256(data_hash_preimage);
 
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
@@ -141,13 +132,13 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         }
     };
 
-    log::info!("=========> batch total txs.len = {:#?}", txs.len());
-    log::info!(
+    log::debug!("=========> batch total txs.len = {:#?}", txs.len());
+    log::debug!(
         "=========> commitment = {:#?}",
         ethers::utils::hex::encode(&commitment.to_bytes().to_vec())
     );
     let versioned_hash = kzg_to_versioned_hash(commitment.to_bytes().to_vec().as_slice());
-    log::info!(
+    log::debug!(
         "=========> versioned_hash = {:#?}",
         ethers::utils::hex::encode(&versioned_hash)
     );
@@ -159,7 +150,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
 
     challenge_point_bytes[0] = 0;
 
-    log::info!(
+    log::debug!(
         "=========> batch_data_hash = {:#?} ,challenge_point= {:#?}",
         ethers::utils::hex::encode(batch_data_hash),
         ethers::utils::hex::encode(challenge_point_bytes)
@@ -194,7 +185,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
         .collect();
     let result = poly_eval(values, Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap(), omega);
 
-    log::info!(
+    log::debug!(
         "=========> point_y = {:#?} ,point_y_poly_eval= {:#?}",
         ethers::utils::hex::encode(*y),
         ethers::utils::hex::encode(result.to_bytes())
@@ -230,7 +221,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     };
 
     // todo: get batch_commit from eth trace
-    let mut partial_ys: Vec<U256> = Vec::new();
+    let mut partial_ys: Vec<U256> = Vec::new(); // For testing
 
     let batch_commit: U256 = U256::from(0);
     let mut index = 0;
@@ -266,10 +257,8 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
                     )
                     .to_bytes(),
                 );
-                log::info!(">>partial_result = {:#?}", partial_result);
                 partial_ys.push(partial_result.clone());
-                Fp::from_bytes(&partial_result.to_le_bytes()).unwrap();
-
+                Fp::from_bytes(&partial_result.to_le_bytes()).unwrap(); // Check field
                 chunk_witness.blob.p_y = partial_result;
             }
             Err(e) => {
@@ -284,7 +273,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
             batch_index,
             index
         );
-        log::info!(
+        log::debug!(
             "=========gen_chunk_proof_with_index, batch_commit= {:#?}, challenge_point= {:#?}, index= {:#?} ",
             batch_commit,
             challenge_point,
@@ -350,7 +339,7 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     for i in 0..chunk_traces.len() {
         partial_y = partial_y + Fp::from_bytes(&partial_ys[i].to_le_bytes()).unwrap();
     }
-    log::info!(
+    log::debug!(
         "y_sum_from_prover: {:?}, hex: {:?}",
         U256::from_little_endian(&partial_y.to_bytes()),
         ethers::utils::hex::encode(&partial_y.to_bytes())
@@ -424,63 +413,6 @@ fn load_trace(batch_index: u64) -> Vec<Vec<BlockTrace>> {
 
     let chunk_traces: Vec<Vec<BlockTrace>> = serde_json::from_reader(reader).unwrap();
     return chunk_traces;
-}
-
-const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
-pub fn block_to_blob_local<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
-    if block.txs.len() == 0 {
-        let zero_blob: Vec<u8> = vec![0; 32 * 4096];
-        return Ok(zero_blob);
-    }
-    log::info!(
-        "first tx hash: {:#?}, {:#?}",
-        block.txs[0].hash,
-        block.txs[0].callee_address.unwrap()
-    );
-
-    // get data from block.txs.rlp_signed
-    // let data: Vec<u8> = block.txs.iter().flat_map(|tx| &tx.rlp_signed).cloned().collect();
-
-    let data: Vec<u8> = block
-        .txs
-        .iter()
-        .filter(|tx| !tx.tx_type.is_l1_msg())
-        .flat_map(|tx| {
-            let mut tx_data: Vec<u8> = vec![];
-            tx_data.extend_from_slice(&(tx.rlp_signed.len() as u32).to_be_bytes());
-            tx_data.extend_from_slice(&tx.rlp_signed.clone());
-            tx_data
-        })
-        .collect();
-
-    if data.len() > MAX_BLOB_DATA_SIZE {
-        return Err(format!("data is too large for blob. len={}", data.len()));
-    }
-
-    let mut result: Vec<u8> = vec![];
-
-    result.push(0);
-    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
-    let offset = std::cmp::min(27, data.len());
-    result.extend_from_slice(&data[..offset]);
-
-    if data.len() <= 27 {
-        for _ in 0..(27 - data.len()) {
-            result.push(0);
-        }
-        return Ok(result);
-    }
-
-    for chunk in data[27..].chunks(31) {
-        let len = std::cmp::min(31, chunk.len());
-        result.push(0);
-        result.extend_from_slice(&chunk[..len]);
-        for _ in 0..(31 - len) {
-            result.push(0);
-        }
-    }
-
-    Ok(result)
 }
 
 #[tokio::test]

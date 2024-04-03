@@ -2,9 +2,9 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_rollup",
-        "type": "address"
+        "internalType": "uint64",
+        "name": "_chainId",
+        "type": "uint64"
       },
       {
         "internalType": "address",
@@ -235,6 +235,19 @@
   },
   {
     "inputs": [],
+    "name": "layer2ChainId",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "owner",
     "outputs": [
       {
@@ -277,19 +290,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "rollup",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes",
@@ -317,19 +317,6 @@
       }
     ],
     "name": "transferOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_rollup",
-        "type": "address"
-      }
-    ],
-    "name": "updateRollup",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

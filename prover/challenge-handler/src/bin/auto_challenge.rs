@@ -11,7 +11,7 @@ async fn main() {
     log::info!("Starting challenge handler...");
 
     // Start challenger.
-    let result = if util::read_env_var("SHADOW_PROVING", false) {
+    let result = if util::read_env_var("SHADOW_PROVING", true) {
         shadow_challenge::run().await
     } else {
         challenge::run().await
