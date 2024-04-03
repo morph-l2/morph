@@ -171,9 +171,17 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     /**
      * @notice whether is current sequencer
      * @param addr address
+     * @param version sequencer version
      */
-    function isSequencer(address addr) external view returns (bool) {
-        for (uint256 i = 0; i < sequencerAddrs[currentVersion].length; i++) {
+    function isSequencer(
+        address addr,
+        uint256 version
+    ) external view returns (bool) {
+        require(
+            version >= currentVersion && version <= newestVersion,
+            "invalid version"
+        );
+        for (uint256 i = 0; i < sequencerAddrs[version].length; i++) {
             if (sequencerAddrs[currentVersion][i] == addr) {
                 return true;
             }

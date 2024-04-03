@@ -140,10 +140,13 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Function Modifiers *
      **********************/
 
-    modifier OnlySequencer() {
+    modifier OnlySequencer(uint256 version) {
         // @note In the decentralized mode, it should be only called by a list of validator.
         require(
-            IL1Sequencer(l1SequencerContract).isSequencer(_msgSender()),
+            IL1Sequencer(l1SequencerContract).isSequencer(
+                _msgSender(),
+                version
+            ),
             "caller not sequencer"
         );
         _;
@@ -294,7 +297,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 version,
         address[] memory sequencers,
         bytes memory signature
-    ) external payable override OnlySequencer whenNotPaused {
+    ) external payable override OnlySequencer(version) whenNotPaused {
         require(batchData.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchData.chunks.length;
