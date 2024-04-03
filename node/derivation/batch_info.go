@@ -52,8 +52,6 @@ type BatchInfo struct {
 	blockNum         uint64
 	txNum            uint64
 	version          uint64
-	dataHash         common.Hash
-	batchHash        common.Hash
 	chunks           []*Chunk
 	l1BlockNumber    uint64
 	txHash           common.Hash

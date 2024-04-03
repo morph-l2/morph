@@ -318,7 +318,6 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
-	blobHashes := batch.Sidecar.BlobHashes()
 	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
 	if err != nil {
 		return nil, fmt.Errorf("decode batch header error:%v", err)
@@ -327,37 +326,26 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 	if err := batchInfo.ParseBatch(batch); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
-	if err := d.handleL1Message(batchInfo, &parentBatchHeader, blobHashes); err != nil {
+	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
 	batchInfo.batchIndex = parentBatchHeader.BatchIndex + 1
 	return batchInfo, nil
 }
 
-func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *types.BatchHeader, blobHashes []common.Hash) error {
-	batchHeader := types.BatchHeader{
-		Version:                uint8(rollupData.version),
-		BatchIndex:             parentBatchHeader.BatchIndex + 1,
-		DataHash:               rollupData.dataHash,
-		ParentBatchHash:        parentBatchHeader.ParentBatchHash,
-		SkippedL1MessageBitmap: rollupData.skippedL1MessageBitmap.Bytes(),
-	}
-	var l1MessagePopped, totalL1MessagePopped uint64
-	totalL1MessagePopped = parentBatchHeader.TotalL1MessagePopped
-	var chunkHashes []byte
+func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped uint64) error {
+	totalL1MessagePopped := parentTotalL1MessagePopped
 	for index, chunk := range rollupData.chunks {
-		var chunkTxHashes []byte
 		for bIndex, block := range chunk.blockContextes {
 			var l1Transactions []*eth.Transaction
 			l1Messages, err := d.getL1Message(totalL1MessagePopped, uint64(block.l1MsgNum))
 			if err != nil {
 				return fmt.Errorf("get l1 message error:%v", err)
 			}
-			l1MessagePopped += uint64(block.l1MsgNum)
 			totalL1MessagePopped += uint64(block.l1MsgNum)
 			if len(l1Messages) > 0 {
 				for _, l1Message := range l1Messages {
-					if rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentBatchHeader.TotalL1MessagePopped)) == 1 {
+					if rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentTotalL1MessagePopped)) == 1 {
 						continue
 					}
 					transaction := eth.NewTx(&l1Message.L1MessageTx)
@@ -367,19 +355,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *t
 			rollupData.chunks[index].blockContextes[bIndex].SafeL2Data.Transactions = append(encodeTransactions(l1Transactions), chunk.blockContextes[bIndex].SafeL2Data.Transactions...)
 		}
 
-		for _, bc := range rollupData.chunks[index].blockContextes {
-			txs := decodeTransactions(bc.SafeL2Data.Transactions)
-			for _, tx := range txs {
-				chunkTxHashes = append(chunkTxHashes, tx.Hash().Bytes()...)
-			}
-		}
-		chunk.Raw.SetTxHashBytes(chunkTxHashes)
-		chunkHashes = append(chunkHashes, chunk.Raw.Hash().Bytes()...)
 	}
-	rollupData.dataHash = crypto.Keccak256Hash(chunkHashes)
-	batchHeader.TotalL1MessagePopped = totalL1MessagePopped
-	batchHeader.L1MessagePopped = l1MessagePopped
-	rollupData.batchHash = types.NewBatchHeaderWithBlobHashes(batchHeader, blobHashes).BatchHash()
 	return nil
 }
 
@@ -396,8 +372,6 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	var lastHeader *eth.Header
 	for _, chunk := range rollupData.chunks {
 		for _, blockData := range chunk.blockContextes {
-			batchHash := rollupData.batchHash
-			blockData.SafeL2Data.BatchHash = &batchHash
 			latestBlockNumber, err := d.l2Client.BlockNumber(context.Background())
 			if err != nil {
 				return nil, fmt.Errorf("get derivation geth block number error:%v", err)
