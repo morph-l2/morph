@@ -133,9 +133,8 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
         bytes memory _sequencerBytes,
         address[] memory _sequencerAddrs,
         bytes[] memory _sequencerBLSKeys,
-        uint32 _gasLimit,
-        address _refundAddress
-    ) external payable override onlyStakingContract {
+        uint32 _gasLimit
+    ) external override onlyStakingContract {
         if (newestVersion == 0 && sequencerAddrs[0].length == 0) {
             // init sequencers
             sequencerAddrs[0] = _sequencerAddrs;
@@ -152,12 +151,11 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
             newestVersion
         );
 
-        MESSENGER.sendMessage{value: msg.value}(
+        MESSENGER.sendMessage(
             address(OTHER_SEQUENCER),
             0,
             _sequencerBytes,
-            _gasLimit,
-            _refundAddress
+            _gasLimit
         );
     }
 
