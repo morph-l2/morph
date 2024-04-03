@@ -40,7 +40,7 @@ contract L2StakingTest is DSTestPlus {
         morphToken = new ERC20PresetFixedSupply("Morph", "MPH", totalSupply, alice);
 
         iStaking = new L2Staking();
-        iStaking.initialize(alice, address(1), address(morphToken), sequencersSize, limit, epoch);
+        iStaking.initialize(alice, address(1), address(morphToken), sequencersSize, epoch);
 
         Types.StakerInfo[] memory sequencers = new Types.StakerInfo[](2);
         sequencers[0] = tom;
@@ -136,10 +136,8 @@ contract L2StakingTest is DSTestPlus {
      */
     function testDelegatorInvalidclaim() public {
         hevm.startPrank(blob);
-
         hevm.expectRevert("no information on unstaking");
-        iStaking.claim(tom.addr);
-
+        iStaking.withdrawal(tom.addr);
         hevm.stopPrank();
     }
 
@@ -155,8 +153,8 @@ contract L2StakingTest is DSTestPlus {
 
         (uint256 amount, uint256 unlock) = iStaking.unstakingInfo(tom.addr, blob);
 
-        hevm.expectRevert("claim cannot be made during the lock-up period");
-        iStaking.claim(tom.addr);
+        hevm.expectRevert("withdrawal cannot be made during the lock-up period");
+        iStaking.withdrawal(tom.addr);
 
         hevm.stopPrank();
     }
@@ -173,7 +171,7 @@ contract L2StakingTest is DSTestPlus {
 
         hevm.roll(epoch);
 
-        iStaking.claim(tom.addr);
+        iStaking.withdrawal(tom.addr);
 
         hevm.stopPrank();
     }
@@ -204,21 +202,8 @@ contract L2StakingTest is DSTestPlus {
 
         hevm.roll(epoch);
 
-        iStaking.claim(tom.addr);
+        iStaking.withdrawal(tom.addr);
 
-        iStaking.delegateStake(tom.addr, morphBalance);
-
-        hevm.stopPrank();
-    }
-
-    /**
-     * @notice failed staking, staker own staking needs to meet the limit amount
-     */
-    function testStakerAmountLessThanLimit() public {
-        hevm.startPrank(tom.addr);
-        morphToken.approve(address(iStaking), type(uint256).max);
-
-        hevm.expectRevert("staking amount is not enough");
         iStaking.delegateStake(tom.addr, morphBalance);
 
         hevm.stopPrank();
@@ -235,25 +220,6 @@ contract L2StakingTest is DSTestPlus {
 
         uint256 amount = iStaking.stakingInfo(tom.addr, tom.addr);
         assertEq(limit, amount);
-
-        hevm.stopPrank();
-    }
-
-    /**
-     * @notice normal staking, staker own staking greater than limit amount
-     */
-    function testStakerAmountGreaterThanLimit() public {
-        hevm.startPrank(tom.addr);
-        morphToken.approve(address(iStaking), type(uint256).max);
-
-        iStaking.delegateStake(tom.addr, limit);
-
-        uint256 amount0 = iStaking.stakingInfo(tom.addr, tom.addr);
-        assertEq(limit, amount0);
-
-        iStaking.delegateStake(tom.addr, morphBalance);
-        uint256 amount1 = iStaking.stakingInfo(tom.addr, tom.addr);
-        assertEq(limit + morphBalance, amount1);
 
         hevm.stopPrank();
     }

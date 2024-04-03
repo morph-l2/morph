@@ -37,11 +37,6 @@ interface IL2Staking {
     ) external view returns (uint256, uint256);
 
     /**
-     * @notice smallest staking value
-     */
-    function limit() external view returns (uint256);
-
-    /**
      * @notice epoch number
      */
     function epoch() external view returns (uint256);
@@ -69,10 +64,21 @@ interface IL2Staking {
     function isStakingTo(address staker) external view returns (bool);
 
     /**
+     * @notice user withdrawal
+     * @param staker stake to
+     */
+    function withdrawal(address staker) external;
+
+    /**
      * @notice user claim
      * @param staker stake to
      */
     function claim(address staker) external;
+
+    /**
+     * @notice user claim all dstribution
+     */
+    function claimAll() external;
 
     /**
      * @notice user unstake morph to staker
@@ -90,10 +96,9 @@ interface IL2Staking {
     /**
      * @notice update params
      * @param _sequencersSize sequencers size
-     * @param _limit smallest staking value
      * @param _epoch epoch number
      */
-    function updateParams(uint256 _sequencersSize, uint256 _limit, uint256 _epoch) external;
+    function updateParams(uint256 _sequencersSize, uint256 _epoch) external;
 
     /**
      * @notice update stakers

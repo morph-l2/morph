@@ -60,9 +60,6 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     // Disdribute
     // IDisdribute
 
-    // staking limit
-    uint256 public override limit;
-
     // total number of sequencers
     uint256 public override sequencersSize;
 
@@ -94,9 +91,13 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
      */
     event Claimed(address indexed staker, address indexed who, uint256 amount);
     /**
+     * @notice withdrawal info
+     */
+    event Withdrawn(address indexed staker, address indexed who, uint256 amount);
+    /**
      * @notice params updated
      */
-    event ParamsUpdated(uint256 sequencersSize, uint256 limit, uint256 epoch);
+    event ParamsUpdated(uint256 sequencersSize, uint256 epoch);
 
     /*********************** Constructor **************************/
     constructor() {
@@ -116,13 +117,11 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         address _sequencerContract,
         address _morphContract,
         uint256 _sequencersSize,
-        uint256 _limit,
         uint256 _epoch
     ) public initializer {
         require(_sequencerContract != address(0), "invalid sequencer contract");
         require(_morphContract != address(0), "invalid morph contract");
         require(_sequencersSize > 0, "sequencersSize must greater than 0");
-        require(_limit > 0, "staking limit must greater than 0");
         require(_epoch > 0, "epoch must greater than 0");
 
         iSequencerSet = ISequencer(_sequencerContract);
@@ -130,7 +129,6 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
         // init params
         sequencersSize = _sequencersSize;
-        limit = _limit;
         epoch = _epoch;
 
         // transfer owner to admin
@@ -149,14 +147,6 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         address staker,
         uint256 amount
     ) external isStaker(staker) checkStaker(staker) nonReentrant {
-        uint256 userStakingAmount = stakingInfo[staker][msg.sender];
-        if (allStakers.contains(msg.sender)) {
-            if (userStakingAmount < limit) {
-                // staker self, need to meet a minimum number
-                require(amount >= limit, "staking amount is not enough");
-            }
-        }
-
         // Re-staking to the same staker is not allowed during the lock-up period
         require(
             block.number >= unstakingInfo[staker][msg.sender].unlock,
@@ -171,6 +161,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
             "morph token transfer fail"
         );
 
+        uint256 userStakingAmount = stakingInfo[staker][msg.sender];
         stakingInfo[staker][msg.sender] = userStakingAmount + amount;
 
         uint256 stakerAmount = stakersAmount[staker];
@@ -194,17 +185,14 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     function unDelegateStake(address staker) external isStaker(staker) nonReentrant {
         UnStakingInfo memory info = unstakingInfo[staker][msg.sender];
 
-        require(info.amount == 0, "need claim");
+        require(info.amount == 0, "needs to be withdrawn");
         require(_isStakingTo(staker), "staking amount is zero");
 
-        uint256 userStakingAmount = stakingInfo[staker][msg.sender];
-
-        // @todo
-        // staker self, consider staking amount whether to keep the limit
+        uint256 delegatorStakingAmount = stakingInfo[staker][msg.sender];
 
         // record undeledate
         uint256 unlock = (block.number / epoch + 1) * epoch;
-        info.amount = userStakingAmount;
+        info.amount = delegatorStakingAmount;
         info.unlock = unlock;
 
         // update unstaking info
@@ -213,9 +201,9 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         // update staking info
         stakingInfo[staker][msg.sender] = 0;
         uint256 stakerAmount = stakersAmount[staker];
-        stakersAmount[staker] = stakerAmount - userStakingAmount;
+        stakersAmount[staker] = stakerAmount - delegatorStakingAmount;
 
-        emit UnDelegated(staker, msg.sender, userStakingAmount);
+        emit UnDelegated(staker, msg.sender, delegatorStakingAmount);
 
         // update sequencer set
         _updateSequencers();
@@ -225,14 +213,14 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /**
-     * @notice user claim morph
+     * @notice user withdrawal
      * @param staker stake to
      */
-    function claim(address staker) external nonReentrant {
+    function withdrawal(address staker) external {
         require(unstakingInfo[staker][msg.sender].amount > 0, "no information on unstaking");
         require(
             block.number >= unstakingInfo[staker][msg.sender].unlock,
-            "claim cannot be made during the lock-up period"
+            "withdrawal cannot be made during the lock-up period"
         );
 
         uint256 unstakingAmount = unstakingInfo[staker][msg.sender].amount;
@@ -245,13 +233,22 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
             "morph token transfer fail"
         );
 
-        emit Claimed(staker, msg.sender, unstakingAmount);
+        emit Withdrawn(staker, msg.sender, unstakingAmount);
 
         delete unstakingInfo[staker][msg.sender];
+    }
 
+    /**
+     * @notice user claim morph
+     * @param staker stake to
+     */
+    function claim(address staker) external nonReentrant {
         // @todo
         // distribute claim
+        // emit Claimed(staker, msg.sender, unstakingAmount);
     }
+
+    function claimAll() external {}
 
     /**
      * @notice check if the user has staked to staker
@@ -279,28 +276,20 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     /**
      * @notice update params
      * @param _sequencersSize sequencers size
-     * @param _limit smallest staking value
      * @param _epoch epoch number
      */
-    function updateParams(
-        uint256 _sequencersSize,
-        uint256 _limit,
-        uint256 _epoch
-    ) external onlyOwner {
+    function updateParams(uint256 _sequencersSize, uint256 _epoch) external onlyOwner {
         require(
             _sequencersSize > 0 &&
                 _sequencersSize != sequencersSize &&
                 _sequencersSize >= allStakers.length(),
             "invalid new sequencers size"
         );
-        if (_limit > 0) {
-            limit = _limit;
-        }
         if (_epoch > 0) {
             epoch = _epoch;
         }
         sequencersSize = _sequencersSize;
-        emit ParamsUpdated(sequencersSize, limit, epoch);
+        emit ParamsUpdated(sequencersSize, epoch);
 
         // @todo check if the size less than current sequencer set size
         // if (sequencersSize < iSequencerSet.getCount()) {
@@ -355,7 +344,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
             // need staker morph amount >= limit
             // staker is active
             uint256 amount = stakersAmount[mStakers[i]];
-            if (amount >= limit && stakerInfo[mStakers[i]].active) {
+            if (stakerInfo[mStakers[i]].active) {
                 _update[i] = mStakers[i];
             }
         }
