@@ -168,12 +168,12 @@ func (ck *Chunk) Decode(chunkBytes []byte) error {
 }
 
 func (ck *Chunk) Hash() common.Hash {
-	var bytes []byte
+	var bz []byte
 	for i := 0; i < ck.blockNum; i++ {
-		bytes = append(bytes, ck.blockContext[i*60:i*60+58]...)
+		bz = append(bz, ck.blockContext[i*60:i*60+58]...)
 	}
-	bytes = append(bytes, ck.l1TxHashes...)
-	return crypto.Keccak256Hash(bytes)
+	bz = append(bz, ck.l1TxHashes...)
+	return crypto.Keccak256Hash(bz)
 }
 
 type Chunks struct {
@@ -205,8 +205,8 @@ func (cks *Chunks) Append(blockContext, txsPayload []byte, l1TxHashes []common.H
 		return
 	}
 	lastChunk := cks.data[len(cks.data)-1]
-	accRc, max := lastChunk.accumulateRowUsages(rc)
-	if lastChunk.blockNum+1 > MaxBlocksPerChunk || max > NormalizedRowLimit { // add a new chunk
+	accRc, maxRowUsages := lastChunk.accumulateRowUsages(rc)
+	if lastChunk.blockNum+1 > MaxBlocksPerChunk || maxRowUsages > NormalizedRowLimit { // add a new chunk
 		lastChunk.Seal()
 		cks.data = append(cks.data, NewChunk(blockContext, txsPayload, l1TxHashes, rc))
 		cks.size += 1
@@ -217,37 +217,37 @@ func (cks *Chunks) Append(blockContext, txsPayload []byte, l1TxHashes []common.H
 }
 
 func (cks *Chunks) Encode() ([][]byte, error) {
-	var bytes [][]byte
+	var bytesArray [][]byte
 	for _, ck := range cks.data {
 		ckBytes, err := ck.Encode()
 		if err != nil {
 			return nil, err
 		}
-		bytes = append(bytes, ckBytes)
+		bytesArray = append(bytesArray, ckBytes)
 	}
-	return bytes, nil
+	return bytesArray, nil
 }
 
 func (cks *Chunks) TxPayload() []byte {
-	var bytes []byte
+	var bz []byte
 	for _, ck := range cks.data {
-		bytes = append(bytes, ck.txsPayload...)
+		bz = append(bz, ck.txsPayload...)
 	}
-	return bytes
+	return bz
 }
 
 func (cks *Chunks) SealTxPayloadForBlob() []byte {
-	var bytes []byte
+	var bz []byte
 	for _, ck := range cks.data {
 		if !ck.Sealed() {
 			ck.Seal()
 		}
-		bytes = append(bytes, ck.sealedPayload...)
+		bz = append(bz, ck.sealedPayload...)
 	}
-	if IsAllZero(bytes) {
-		bytes = nil
+	if IsAllZero(bz) {
+		bz = nil
 	}
-	return bytes
+	return bz
 }
 
 func (cks *Chunks) DataHash() common.Hash {
@@ -290,8 +290,8 @@ func (cks *Chunks) IsChunksAppendedWithNewBlock(blockRc types.RowConsumption) (a
 	if lastChunk.blockNum+1 > MaxBlocksPerChunk {
 		return true, addedZeroNum(len(lastChunk.txsPayload) + 4) // the extra 4 bytes to store the size of the txsPayload
 	}
-	_, max := lastChunk.accumulateRowUsages(blockRc)
-	if max > NormalizedRowLimit {
+	_, maxRowUsages := lastChunk.accumulateRowUsages(blockRc)
+	if maxRowUsages > NormalizedRowLimit {
 		return true, addedZeroNum(len(lastChunk.txsPayload) + 4)
 	}
 	return false, 0

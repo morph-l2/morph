@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"math/bits"
 
 	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -545,11 +544,4 @@ func heightFromBCBytes(blockBytes []byte) (uint64, error) {
 		return 0, err
 	}
 	return curBlock.Number, nil
-}
-
-func skippedNums(skippedBitMap []*big.Int) (count int) {
-	for _, s := range skippedBitMap {
-		count += bits.OnesCount64(s.Uint64())
-	}
-	return
 }

@@ -87,7 +87,8 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	bi.version = uint64(batch.Version)
 	var txPayload []byte
 	for _, blob := range batch.Sidecar.Blobs {
-		data, err := types.DecodeRawTxPayload(&blob)
+		blobCopy := blob
+		data, err := types.DecodeRawTxPayload(&blobCopy)
 		if err != nil {
 			return err
 		}
