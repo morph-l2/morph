@@ -3,6 +3,7 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import {ICrossDomainMessenger} from "../../libraries/ICrossDomainMessenger.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -20,7 +21,7 @@ import {IStaking} from "../staking/IStaking.sol";
 
 /// @title Rollup
 /// @notice This contract maintains data for the Morph rollup.
-contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
+contract Rollup is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, IRollup {
     /*************
      * Constants *
      *************/
@@ -172,6 +173,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         if (_messageQueue == address(0) || _verifier == address(0)) {
             revert ErrZeroAddress();
         }
+        __UUPSUpgradeable_init();
         __Pausable_init();
         __Ownable_init();
 
@@ -200,6 +202,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /*************************
      * Public View Functions *

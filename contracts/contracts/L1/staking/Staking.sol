@@ -8,8 +8,9 @@ import {Types} from "../../libraries/common/Types.sol";
 import {IL1Sequencer} from "./IL1Sequencer.sol";
 import {IStaking} from "./IStaking.sol";
 import {IL2Sequencer} from "../../L2/staking/IL2Sequencer.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract Staking is IStaking, OwnableUpgradeable {
+contract Staking is UUPSUpgradeable, IStaking, OwnableUpgradeable {
     // Staker info
     struct StakingInfo {
         address addr;
@@ -163,12 +164,15 @@ contract Staking is IStaking, OwnableUpgradeable {
         require(_sequencerContract != address(0), "invalid sequencer contract");
         require(_sequencersSize > 0, "sequencersSize must greater than 0");
         require(_limit > 0, "staking limit must greater than 0");
+        __UUPSUpgradeable_init();
         sequencerContract = _sequencerContract;
         sequencersSize = _sequencersSize;
         limit = _limit;
         lock = _lock;
         _transferOwnership(_admin);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /**
      * @notice register staker

@@ -4,12 +4,14 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {BitMapsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/BitMapsUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IL1MessageQueueWithGasPriceOracle} from "./IL1MessageQueueWithGasPriceOracle.sol";
 import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
 
 contract L1MessageQueueWithGasPriceOracle is
+    UUPSUpgradeable, 
     OwnableUpgradeable,
     IL1MessageQueue,
     IL1MessageQueueWithGasPriceOracle
@@ -98,9 +100,12 @@ contract L1MessageQueueWithGasPriceOracle is
     }
 
     function initialize(uint256 _maxGasLimit) external initializer {
+        __UUPSUpgradeable_init();
         OwnableUpgradeable.__Ownable_init();
         maxGasLimit = _maxGasLimit;
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /*************************
      * Public View Functions *

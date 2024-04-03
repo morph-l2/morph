@@ -10,6 +10,7 @@ import {IL1MessageQueue} from "./rollup/IL1MessageQueue.sol";
 import {IRollup} from "./rollup/IRollup.sol";
 import {Verify} from "../libraries/common/Tree.sol";
 import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @custom:proxied
@@ -19,6 +20,7 @@ import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
  *         interface instead of interacting with lower-level contracts directly.
  */
 contract L1CrossDomainMessenger is
+    UUPSUpgradeable,
     IL1CrossDomainMessenger,
     CrossDomainMessenger,
     Verify
@@ -93,6 +95,7 @@ contract L1CrossDomainMessenger is
         if (_rollup == address(0) || _messageQueue == address(0)) {
             revert ErrZeroAddress();
         }
+        __UUPSUpgradeable_init();
         CrossDomainMessenger.__Messenger_init(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             _feeVault
@@ -105,6 +108,8 @@ contract L1CrossDomainMessenger is
         maxReplayTimes = 3;
         emit UpdateMaxReplayTimes(0, 3);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /*****************************
      * Public Mutating Functions *
