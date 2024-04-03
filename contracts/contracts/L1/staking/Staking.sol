@@ -357,20 +357,34 @@ contract Staking is IStaking, OwnableUpgradeable {
 
         // do slash & update sequencer set
         uint256 valueSum;
+        bool changed;
         for (uint256 i = 0; i < sequencers.length; i++) {
             address sequencer = sequencers[i];
-            valueSum += stakings[sequencer].balance;
-            uint256 index = getStakerIndex(sequencer);
-            for (uint256 j = index; j < stakers.length - 1; j++) {
-                stakers[j] = stakers[j + 1];
+
+            if (withdrawals[sequencers[i]].exit) {
+                valueSum += withdrawals[sequencers[i]].balance;
+                delete withdrawals[sequencers[i]];
+            } else {
+                valueSum += stakings[sequencer].balance;
+                uint256 index = getStakerIndex(sequencer);
+                if (index <= sequencersSize) {
+                    changed = true;
+                }
+                for (uint256 j = index; j < stakers.length - 1; j++) {
+                    stakers[j] = stakers[j + 1];
+                }
+                stakers.pop();
+                delete stakings[sequencer];
             }
-            stakers.pop();
-            delete stakings[sequencer];
         }
-        updateSequencers(_minGasLimit, _gasFee);
-        if (stakers.length == 0) {
-            IL1Sequencer(sequencerContract).pause();
+
+        if (changed) {
+            updateSequencers(_minGasLimit, _gasFee);
+            if (stakers.length == 0) {
+                IL1Sequencer(sequencerContract).pause();
+            }
         }
+
         _transfer(challenger, valueSum);
     }
 
