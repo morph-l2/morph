@@ -121,6 +121,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      */
     bool public inChallenge;
 
+    uint256 internal constant BLS_MODULUS =
+        52435875175126190479447740508185965837690552500527637822603658699938581184513;
+
     struct BatchChallenge {
         uint64 batchIndex;
         address challenger;
@@ -621,12 +624,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _kzgData
         );
 
-        bool ret;
-        bytes memory _output;
-        assembly {
-            ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
-        }
-        require(ret, "verify 4844-proof failed");
+        // Verify 4844-proof
+        (bool success, bytes memory data) = address(0x0A).staticcall(_input);
+        require(success, "failed to call point evaluation precompile");
+        (, uint256 result) = abi.decode(data, (uint256, uint256));
+        require(result == BLS_MODULUS, "precompile unexpected output");
 
         IRollupVerifier(verifier).verifyAggregateProof(
             _batchIndex,
@@ -685,9 +687,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 part3;
 
         // Extract the three parts
-        part1 = reverseBytes(combinedUint & ((1 << 88) - 1));  // Mask the lowest 88 bits and reverse bytes
-        part2 = reverseBytes((combinedUint >> 88) & ((1 << 88) - 1));  // Shift right by 88 bits, mask the next 88 bits, and reverse bytes
-        part3 = reverseBytes((combinedUint >> 176) & ((1 << 87) - 1));  // Shift right by 176 bits, mask the next 87 bits, and reverse bytes
+        part1 = combinedUint & ((1 << 88) - 1);  // Mask the lowest 88 bits and reverse bytes
+        part2 = (combinedUint >> 88) & ((1 << 88) - 1);  // Shift right by 88 bits, mask the next 88 bits, and reverse bytes
+        part3 = (combinedUint >> 176) & ((1 << 87) - 1);  // Shift right by 176 bits, mask the next 87 bits, and reverse bytes
         
         bytes memory result = new bytes(96);
         assembly {
@@ -698,49 +700,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
 
         return result;
-    }
-
-    function reverseBytes(uint256 input) private pure returns (uint256 v) {
-        v = input;
-        
-        // swap bytes
-        v =
-            ((v &
-                0xFF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00) >>
-                8) |
-            ((v &
-                0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) <<
-                8);
-
-        // swap 2-byte long pairs
-        v =
-            ((v &
-                0xFFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000) >>
-                16) |
-            ((v &
-                0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) <<
-                16);
-
-        // swap 4-byte long pairs
-        v =
-            ((v &
-                0xFFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000) >>
-                32) |
-            ((v &
-                0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) <<
-                32);
-
-        // swap 8-byte long pairs
-        v =
-            ((v &
-                0xFFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF0000000000000000) >>
-                64) |
-            ((v &
-                0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) <<
-                64);
-
-        // swap 16-byte long pairs
-        v = (v >> 128) | (v << 128);
     }
 
     function finalizeBatches() public whenNotPaused {
