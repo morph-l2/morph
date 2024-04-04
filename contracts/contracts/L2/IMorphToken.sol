@@ -10,33 +10,35 @@ import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/tok
 interface IMorphToken is IERC20MetadataUpgradeable {
 
     /**
+     * @dev Emitted the owner sets the next valid exchange rate.
+     */
+    event SetRate(uint256 indexed rate, uint256 indexed beginTime);
+
+    /**
      * @dev Initialization parameter, which can only be called once.
      * @param name_ Assign the _name field to use.
      * @param symbol_ Assign the _symbol field to use.
      * @param distribute_ Assign the _distribute field to use.
      * @param initialSupply_ Initialize amount.
      */
-    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 rate_, uint256 initialSupply_, uint256 beginTime_) external;
+    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) external;
 
     /**
-     * @dev Returns the base value of the data for the current year.
+     * @dev set rate
+     * 1.0001596535874529 is the 365 square root of 1.06.
+     * 1.0019008376772350 is the 365 square root of 2.
+     *
+     * @param rate The value of rate must be a decimal place multiplied by 1e16.
+     * eg: When 6% is issued annually, the value of the rate is 1596535874529.
+     * eg: When 100% is issued annually, the value of the rate is 19008376772350.
+     * the exchange rate must be greater than or equal to zero and less than or equal to 19008376772350.
+     * That is, there will be no additional issuance or the maximum annual increase will be doubled.
+     *
+     * @param beginTime The effective time of the exchange rate is incremental,
+     * and the effective time interval of every two exchange rates must be more than two weeks.
+     *
      */
-    function additionalBase() external view returns (uint256);
-
-    /**
-     * @dev Returns _rate field.
-     */
-    function rate() external view returns (uint256);
-
-    /**
-     * @dev set _postRate field.
-     */
-    function setPostRate(uint256 rate_) external;
-
-    /**
-     * @dev Returns Additional issue start time.
-     */
-    function additionalBeginTime() external view returns (uint256);
+    function setRate(uint256 rate, uint256 beginTime) external;
 
     /**
      * @dev Atomically increases the allowance granted to `spender` by the caller.
@@ -73,5 +75,5 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      *
      * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
-    function mint(address account) external;
+    function mint() external;
 }

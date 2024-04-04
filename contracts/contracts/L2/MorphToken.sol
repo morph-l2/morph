@@ -3,23 +3,32 @@
 pragma solidity ^0.8.0;
 
 import "./IMorphToken.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract MorphToken is Initializable, IMorphToken {
+
+contract MorphToken is OwnableUpgradeable, IMorphToken {
+    using EnumerableSet for EnumerableSet.UintSet;
+
+    struct RateSet {
+        // index store block.timestamp
+        EnumerableSet.UintSet index;
+        // values store block.timestamp => rate
+        mapping(uint256 => uint256) values;
+    }
+
+    struct Rate {
+        uint256 currentBeginTime;
+        uint256 currentRate;
+        uint256 nextEffectiveTime;
+        RateSet outmoded;
+        RateSet pending;
+    }
+
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
+    Rate private _rate;
     uint256 private _totalSupply;
-    // The basis value of the annual issue.
-    uint256 private _additionalBase;
-    // Annual increase ratio
-    // It's an integer, and it's treated with _rate/100.
-    uint256 private _rate;
-    // The next exchange rate used.
-    uint256 private _postRate;
-    // Additional issue start time.
-    uint256 private _additionalBeginTime;
-    // Additional issuance time of the previous year.
-    uint256 private _preYearAdditionalTime;
     // Additional issuance time of the previous day.
     uint256 private _preDayAdditionalTime;
     string private _name;
@@ -41,18 +50,54 @@ contract MorphToken is Initializable, IMorphToken {
      * All two of these values are immutable: they can only be set once during
      * construction.
      */
-    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 rate_, uint256 initialSupply_, uint256 beginTime_) public initializer {
+    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) public initializer {
         require(distribute_ != address(0), "invalid distribute contract address");
+        require(beginTime_ >= block.timestamp, "beginTime is less than the current time");
+
+        __Ownable_init();
+
         _name = name_;
         _symbol = symbol_;
         _distribute = distribute_;
-        _rate = rate_;
-        _postRate = rate_;
-        _additionalBeginTime = beginTime_;
         _preDayAdditionalTime = beginTime_;
-        _preYearAdditionalTime = beginTime_;
         _mint(msg.sender, initialSupply_);
-        _additionalBase = initialSupply_;
+
+        _rate.currentBeginTime = beginTime_;
+        _rate.currentRate = rate_;
+
+        emit SetRate(rate_, beginTime_);
+    }
+
+    /**
+     * @dev See {IMorphToken-setRate}.
+     */
+    function setRate(uint256 rate, uint256 beginTime) public onlyOwner {
+        require(beginTime > block.timestamp, "beginTime must be more than the current time");
+
+        // 1209600 = 14 * 24 * 60 * 60 (fortnight)
+        if (_rate.pending.index.length() == 0) {
+            require(beginTime >= _rate.currentBeginTime + 1209600,
+                "beginTime must be two weeks after the current validity period");
+        }else {
+            require(beginTime > _rate.pending.index.at(_rate.pending.index.length() - 1) + 1209600,
+                "beginTime must be more than two weeks after the last exchange rate takes effect");
+        }
+
+        // mint function is in days, when a new issue exchange rate effective time in a unit,
+        // then the effective exchange rate of this unit is the previous exchange rate value,
+        // and the effective exchange rate value can only be calculated until the next mint unit.
+        //
+        // In addition, since the start time of mint function is known,
+        // the start and end time of each unit can be calculated,
+        // and the specific effective time of rate can be calculated in advance.
+        if ((beginTime - _preDayAdditionalTime) % 86400 > 0) {
+            beginTime = ((beginTime - _preDayAdditionalTime) / 86400 + 1) * 86400 + _preDayAdditionalTime;
+        }
+
+        _rate.pending.index.add(beginTime);
+        _rate.pending.values[beginTime] = rate;
+
+        emit SetRate(rate, beginTime);
     }
 
     /**
@@ -92,34 +137,6 @@ contract MorphToken is Initializable, IMorphToken {
      */
     function totalSupply() public view returns (uint256) {
         return _totalSupply;
-    }
-
-    /**
-     * @dev See {IMorphToken-additionalBase}.
-     */
-    function additionalBase() public view returns (uint256) {
-        return _additionalBase;
-    }
-
-    /**
-     * @dev See {IMorphToken-rate}.
-     */
-    function rate() public view returns (uint256) {
-        return _rate;
-    }
-
-    /**
-     * @dev See {IMorphToken-setPostRate}.
-     */
-    function setPostRate(uint256 rate_) public {
-        _postRate = rate_;
-    }
-
-    /**
-     * @dev See {IMorphToken-additionalBeginTime}.
-     */
-    function additionalBeginTime() public view returns (uint256) {
-        return _additionalBeginTime;
     }
 
     /**
@@ -273,52 +290,64 @@ contract MorphToken is Initializable, IMorphToken {
      *
      * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
-    function mint(address account) external onlyDistribute {
-        require(block.timestamp > _additionalBeginTime, "mint feature is not yet available");
+    function mint() external onlyDistribute {
+        require((block.timestamp - _preDayAdditionalTime) / 86400 == 0, "only mint once a day");
 
-        if (account == address(0)) {
-            account = msg.sender;
+        uint256 length = _rate.pending.index.length();
+        for (uint256 i = 0; i < length; i++) {
+            if (_rate.nextEffectiveTime <= block.timestamp) {
+
+                if (_rate.pending.index.contains(_rate.currentBeginTime)) {
+                    _rate.outmoded.index.add(_rate.nextEffectiveTime);
+                    _rate.outmoded.values[_rate.nextEffectiveTime] = _rate.pending.values[_rate.currentBeginTime];
+
+                    _rate.pending.index.remove(_rate.currentBeginTime);
+                    delete _rate.pending.values[_rate.currentBeginTime];
+                }
+
+                _rate.currentBeginTime = _rate.nextEffectiveTime;
+
+                uint256 small = type(uint256).max;
+                for (uint256 j = 0; j < _rate.pending.index.length(); j++) {
+                    uint256 startTime = _rate.pending.index.at(j);
+                    if (small > startTime) {
+                        small = startTime;
+                    }
+                }
+                if (small == type(uint256).max) {
+                    _rate.nextEffectiveTime = 0;
+                }else {
+                    _rate.nextEffectiveTime = small;
+                }
+            }
         }
 
-        // Current time Indicates the number of years since the last issue
-        // 31536000 = 365 * 24 * 60 * 60 (one year)
-        uint256 intervalYears = (block.timestamp - _preYearAdditionalTime) / 31536000;
-        if (intervalYears == 0) {
-            // Current time Indicates the number of days since the last issue
-            // 86400 = 24 * 60 * 60 (one day)
-            uint256 interval = (block.timestamp - _preDayAdditionalTime) / 86400;
-            if (interval == 0) {
-                revert("only mint once a day");
-            }else {
-                // The daily increment value is calculated based on the basic increment value
-                // and increment rate
-                // eg: (_rate / 100) * _additionalBase / 365
-                uint256 increment = _additionalBase * _rate / 100 / 365;
-                _mint(account, interval * increment);
-                _preDayAdditionalTime = _preDayAdditionalTime + interval * 86400;
+        uint256 outmodedLength = _rate.outmoded.index.length();
+        if (outmodedLength != 0) {
+            for (uint256 i = 0; i < outmodedLength; i++) {
+
+                uint256 validTime = _rate.outmoded.index.at(0);
+
+                if (validTime > _preDayAdditionalTime) {
+                    // Current time Indicates the number of days since the last issue.
+                    uint256 day = (validTime - _preDayAdditionalTime) / 86400;
+                    for (uint256 k = 0; k < day; k++) {
+                        _mint(msg.sender, _totalSupply * _rate.outmoded.values[validTime] / 1e16);
+                        // 86400 = 24 * 60 * 60 (one day)
+                        _preDayAdditionalTime = _preDayAdditionalTime + 86400;
+                    }
+                }
+
+                delete _rate.outmoded.values[validTime];
+                _rate.outmoded.index.remove(0);
             }
-        } else {
-            // Cross-year cycle
-            for (uint256 i = 0; i < intervalYears; i++) {
-                uint256 incrementOfOneDay = _additionalBase * _rate / 100 / 365;
-                uint256 intervalDays = (_preYearAdditionalTime + 31536000 - _preDayAdditionalTime) / 86400;
-                _mint(account, intervalDays * incrementOfOneDay);
-                // Ignore decimal places and round them
-                _additionalBase += _additionalBase * _rate / 100 / 365 * 365;
-                _preDayAdditionalTime = _preDayAdditionalTime + intervalDays * 86400;
-                _preYearAdditionalTime += 31536000;
-            }
-            uint256 intervals = (block.timestamp - _preDayAdditionalTime) / 86400;
-            uint256 incrementOfOneDays = _additionalBase * _rate / 100 / 365;
-            _mint(account, intervals * incrementOfOneDays);
-            _preDayAdditionalTime = _preDayAdditionalTime + intervals * 86400;
         }
 
-        if (_rate != _postRate) {
-            _rate = _postRate;
-            _additionalBase = _totalSupply;
-            _preDayAdditionalTime = block.timestamp;
-            _preYearAdditionalTime = block.timestamp;
+        // use current rate
+        uint256 currentDays = (block.timestamp - _preDayAdditionalTime) / 86400;
+        for (uint256 i = 0; i < currentDays; i++) {
+            _mint(msg.sender, _totalSupply * _rate.currentRate / 1e16);
+            _preDayAdditionalTime = _preDayAdditionalTime + 86400;
         }
     }
 
