@@ -289,7 +289,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      */
     function mint() external onlyDistribute {
         require(block.timestamp > _preDayAdditionalTime, "the mint function is not enabled");
-        require((block.timestamp - _preDayAdditionalTime) / 86400 == 0, "only mint once a day");
+        require((block.timestamp - _preDayAdditionalTime) / 86400 != 0, "only mint once a day");
 
         uint256 length = _rate.pending.index.length();
         for (uint256 i = 0; i < length; i++) {
@@ -299,9 +299,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
             }
 
             if (_rate.nextEffectiveTime <= block.timestamp) {
-
-                _rate.outmoded.index.add(_rate.currentBeginTime);
-                _rate.outmoded.values[_rate.currentBeginTime] = _rate.currentRate;
+                // end time
+                _rate.outmoded.index.add(_rate.nextEffectiveTime);
+                _rate.outmoded.values[_rate.nextEffectiveTime] = _rate.currentRate;
 
                 _rate.currentBeginTime = _rate.nextEffectiveTime;
                 _rate.currentRate = _rate.pending.values[_rate.nextEffectiveTime];
@@ -309,18 +309,13 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
                 _rate.pending.index.remove(_rate.nextEffectiveTime);
                 delete _rate.pending.values[_rate.nextEffectiveTime];
 
-                uint256 small = type(uint256).max;
-                for (uint256 j = 0; j < _rate.pending.index.length(); j++) {
-                    uint256 startTime = _rate.pending.index.at(j);
-                    if (small > startTime) {
-                        small = startTime;
-                    }
-                }
-                if (small == type(uint256).max) {
-                    _rate.nextEffectiveTime = 0;
+                if (_rate.pending.index.length() != 0) {
+                    _rate.nextEffectiveTime = _rate.pending.index.at(0);
                 }else {
-                    _rate.nextEffectiveTime = small;
+                    _rate.nextEffectiveTime = 0;
                 }
+            }else {
+                break;
             }
         }
 
@@ -340,7 +335,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
             }
 
             delete _rate.outmoded.values[validTime];
-            _rate.outmoded.index.remove(0);
+            _rate.outmoded.index.remove(validTime);
         }
 
         // use current rate
