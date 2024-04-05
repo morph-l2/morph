@@ -1,6 +1,7 @@
 use crate::abi::gas_price_oracle_abi::GasPriceOracle;
 use crate::abi::rollup_abi::Rollup;
-use crate::{l1_base_fee, overhead};
+use crate::l1_base_fee;
+use crate::overhead::OverHead;
 use dotenv::dotenv;
 use ethers::prelude::*;
 use ethers::providers::{Http, Provider};
@@ -17,31 +18,39 @@ use tower_http::trace::TraceLayer;
 use crate::metrics::*;
 use tokio::runtime::Runtime;
 
+struct Config {
+    l1_rpc: String,
+    l2_rpc: String,
+    gas_threshold: u128,
+    overhead_threshold: u128,
+    interval: u64,
+    overhead_interval: u64,
+    l1_rollup_address: Address,
+    l2_oracle_address: Address,
+    private_key: String,
+}
+
+impl Config {
+    fn new() -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            l1_rpc: var("GAS_ORACLE_L1_RPC")?,
+            l2_rpc: var("GAS_ORACLE_L2_RPC")?,
+            gas_threshold: var("GAS_THRESHOLD")?.parse()?,
+            overhead_threshold: var("OVERHEAD_THRESHOLD")?.parse()?,
+            interval: var("INTERVAL")?.parse()?,
+            overhead_interval: var("OVERHEAD_INTERVAL")?.parse()?,
+            l1_rollup_address: Address::from_str(&var("L1_ROLLUP")?)?,
+            l2_oracle_address: Address::from_str(&var("L2_GAS_PRICE_ORACLE")?)?,
+            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY")?,
+        })
+    }
+}
+
 /// Update data of gasPriceOrale contract on L2 network.
 pub async fn update() -> Result<(), Box<dyn Error>> {
     // Prepare parameter.
     dotenv().ok();
-    let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("Cannot detect GAS_ORACLE_L1_RPC env var");
-    let l2_rpc = var("GAS_ORACLE_L2_RPC").expect("Cannot detect GAS_ORACLE_L2_RPC env var");
-    let _ =
-        var("GAS_ORACLE_L1_BEACON_RPC").expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env var");
 
-    let gas_threshold: u128 = var("GAS_THRESHOLD")
-        .expect("Cannot detect GAS_THRESHOLD env var")
-        .parse()
-        .expect("Cannot parse GAS_THRESHOLD env var");
-    let overhead_threshold: u128 = var("OVERHEAD_THRESHOLD")
-        .expect("Cannot detect OVERHEAD_THRESHOLD env var")
-        .parse()
-        .expect("Cannot parse OVERHEAD_THRESHOLD env var");
-    let interval: u64 = var("INTERVAL")
-        .expect("Cannot detect INTERVAL env var")
-        .parse()
-        .expect("Cannot parse INTERVAL env var");
-    let overhead_interval: u64 = var("OVERHEAD_INTERVAL")
-        .expect("Cannot detect OVERHEAD_INTERVAL env var")
-        .parse()
-        .expect("Cannot parse OVERHEAD_INTERVAL env var");
     let _: f64 = var("TXN_PER_BLOCK")
         .expect("Cannot detect TXN_PER_BLOCK env var")
         .parse()
@@ -50,18 +59,15 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
         .expect("Cannot detect TXN_PER_BATCH env var")
         .parse()
         .expect("Cannot parse TXN_PER_BATCH env var");
-    let l1_rollup_address = var("L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
-    let l2_oracle_address =
-        var("L2_GAS_PRICE_ORACLE").expect("Cannot detect L2_GAS_PRICE_ORACLE env var");
-    let private_key =
-        var("L2_GAS_ORACLE_PRIVATE_KEY").expect("Cannot detect L2_GAS_ORACLE_PRIVATE_KEY env var");
+
+    let config = Config::new()?;
 
     // Prepare signer.
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc)?;
-    let l2_provider: Provider<Http> = Provider::<Http>::try_from(l2_rpc)?;
+    let l1_provider: Provider<Http> = Provider::<Http>::try_from(config.l1_rpc)?;
+    let l2_provider: Provider<Http> = Provider::<Http>::try_from(config.l2_rpc)?;
     let l2_signer = Arc::new(SignerMiddleware::new(
         l2_provider.clone(),
-        Wallet::from_str(private_key.as_str())
+        Wallet::from_str(config.private_key.as_str())
             .unwrap()
             .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
     ));
@@ -69,10 +75,18 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
 
     // Prepare contract.
     let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
-        GasPriceOracle::new(Address::from_str(l2_oracle_address.as_str())?, l2_signer);
-    let l1_rollup: Rollup<Provider<Http>> = Rollup::new(
-        Address::from_str(l1_rollup_address.as_str())?,
-        Arc::new(l1_provider.clone()),
+        GasPriceOracle::new(config.l2_oracle_address, l2_signer);
+    let l1_rollup: Rollup<Provider<Http>> =
+        Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
+
+    // let l1_rpc = config.l1_rpc.clone();
+    let overhead = OverHead::new(
+        l1_provider.clone(),
+        l2_oracle.clone(),
+        l1_rollup,
+        config.overhead_threshold,
+        var("GAS_ORACLE_L1_RPC")?,
+        var("GAS_ORACLE_L1_BEACON_RPC")?,
     );
 
     // Register metrics.
@@ -82,30 +96,24 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     tokio::spawn(async move {
         let mut update_times = 0;
         loop {
-            std::thread::sleep(Duration::from_millis(interval));
+            std::thread::sleep(Duration::from_millis(config.interval));
             update_times += 1;
             l1_base_fee::update(
                 l1_provider.clone(),
                 l2_provider.clone(),
                 l2_wallet_address,
                 l2_oracle.clone(),
-                gas_threshold,
+                config.gas_threshold,
             )
             .await;
 
-            if update_times < overhead_interval {
+            if update_times < config.overhead_interval {
                 // Waiting for the latest batch to be submitted.
                 continue;
             }
             // Waiting for confirmation of the previous transaction.
-            std::thread::sleep(Duration::from_millis(interval));
-            overhead::update(
-                l1_provider.clone(),
-                l2_oracle.clone(),
-                l1_rollup.clone(),
-                overhead_threshold,
-            )
-            .await;
+            std::thread::sleep(Duration::from_millis(config.interval));
+            overhead.update().await;
             update_times = 0
         }
     });
