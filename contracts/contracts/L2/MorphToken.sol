@@ -45,10 +45,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
     }
 
     /**
-     * @dev Sets the values for {name} and {symbol}.
-     *
-     * All two of these values are immutable: they can only be set once during
-     * construction.
+     * @dev See {IMorphToken-initialize}.
      */
     function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) public initializer {
         require(distribute_ != address(0), "invalid distribute contract address");
@@ -291,21 +288,26 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
     function mint() external onlyDistribute {
+        require(block.timestamp > _preDayAdditionalTime, "the mint function is not enabled");
         require((block.timestamp - _preDayAdditionalTime) / 86400 == 0, "only mint once a day");
 
         uint256 length = _rate.pending.index.length();
         for (uint256 i = 0; i < length; i++) {
+
+            if (_rate.nextEffectiveTime == 0) {
+                _rate.nextEffectiveTime = _rate.pending.index.at(0);
+            }
+
             if (_rate.nextEffectiveTime <= block.timestamp) {
 
-                if (_rate.pending.index.contains(_rate.currentBeginTime)) {
-                    _rate.outmoded.index.add(_rate.nextEffectiveTime);
-                    _rate.outmoded.values[_rate.nextEffectiveTime] = _rate.pending.values[_rate.currentBeginTime];
-
-                    _rate.pending.index.remove(_rate.currentBeginTime);
-                    delete _rate.pending.values[_rate.currentBeginTime];
-                }
+                _rate.outmoded.index.add(_rate.currentBeginTime);
+                _rate.outmoded.values[_rate.currentBeginTime] = _rate.currentRate;
 
                 _rate.currentBeginTime = _rate.nextEffectiveTime;
+                _rate.currentRate = _rate.pending.values[_rate.nextEffectiveTime];
+
+                _rate.pending.index.remove(_rate.nextEffectiveTime);
+                delete _rate.pending.values[_rate.nextEffectiveTime];
 
                 uint256 small = type(uint256).max;
                 for (uint256 j = 0; j < _rate.pending.index.length(); j++) {
@@ -323,36 +325,34 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         }
 
         uint256 outmodedLength = _rate.outmoded.index.length();
-        if (outmodedLength != 0) {
-            for (uint256 i = 0; i < outmodedLength; i++) {
+        for (uint256 i = 0; i < outmodedLength; i++) {
 
-                uint256 validTime = _rate.outmoded.index.at(0);
+            uint256 validTime = _rate.outmoded.index.at(0);
 
-                if (validTime > _preDayAdditionalTime) {
-                    // Current time Indicates the number of days since the last issue.
-                    uint256 day = (validTime - _preDayAdditionalTime) / 86400;
-                    for (uint256 k = 0; k < day; k++) {
-                        _mint(msg.sender, _totalSupply * _rate.outmoded.values[validTime] / 1e16);
-                        // 86400 = 24 * 60 * 60 (one day)
-                        _preDayAdditionalTime = _preDayAdditionalTime + 86400;
-                    }
+            if (validTime > _preDayAdditionalTime) {
+                // Current time Indicates the number of days since the last issue.
+                uint256 day = (validTime - _preDayAdditionalTime) / 86400;
+                for (uint256 k = 0; k < day; k++) {
+                    _mint(msg.sender, _totalSupply * _rate.outmoded.values[validTime] / 1e16);
+                    // 86400 = 24 * 60 * 60 (one day)
+                    _preDayAdditionalTime += 86400;
                 }
-
-                delete _rate.outmoded.values[validTime];
-                _rate.outmoded.index.remove(0);
             }
+
+            delete _rate.outmoded.values[validTime];
+            _rate.outmoded.index.remove(0);
         }
 
         // use current rate
         uint256 currentDays = (block.timestamp - _preDayAdditionalTime) / 86400;
         for (uint256 i = 0; i < currentDays; i++) {
             _mint(msg.sender, _totalSupply * _rate.currentRate / 1e16);
-            _preDayAdditionalTime = _preDayAdditionalTime + 86400;
+            _preDayAdditionalTime += 86400;
         }
     }
 
     function _mint(address account, uint256 amount) internal {
-        require(account != address(0), "mint to the zero address");
+        // require(account != address(0), "mint to the zero address");
 
         _totalSupply += amount;
         unchecked {

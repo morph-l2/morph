@@ -20,6 +20,8 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      * @param symbol_ Assign the _symbol field to use.
      * @param distribute_ Assign the _distribute field to use.
      * @param initialSupply_ Initialize amount.
+     * @param rate_ Annual increment parameter.
+     * @param beginTime_ Mint begin time.
      */
     function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) external;
 
