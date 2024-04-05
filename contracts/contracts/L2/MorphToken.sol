@@ -21,7 +21,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         uint256 currentBeginTime;
         uint256 currentRate;
         uint256 nextEffectiveTime;
+        // Deadline date => rate
         RateSet outmoded;
+        // begin date => rate
         RateSet pending;
     }
 
