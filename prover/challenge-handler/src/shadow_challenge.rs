@@ -1,7 +1,5 @@
 use crate::abi::rollup_abi::Rollup;
 use crate::abi::shadow_rollup_abi::{BatchStore, ShadowRollup};
-use dotenv::dotenv;
-use env_logger::Env;
 use ethers::prelude::*;
 use ethers::signers::Wallet;
 use std::env::var;
@@ -142,7 +140,7 @@ async fn auto_challenge(
             return Ok(());
         }
     };
-    check_receipt(l1_provider, pending_tx).await;
+    check_receipt("shadow_commit_batch", l1_provider, pending_tx).await;
 
     // Challenge shadow state.
     let tx: FunctionCall<_, _, _> = l1_shadow_rollup.challenge_state(batch_index).value(min_deposit);
@@ -154,7 +152,7 @@ async fn auto_challenge(
             return Ok(());
         }
     };
-    check_receipt(l1_provider, pending_tx).await;
+    check_receipt("shadow_challenge_state", l1_provider, pending_tx).await;
 
     Ok(())
 }
@@ -188,21 +186,21 @@ async fn get_latest_batch_index(latest: U64, l1_rollup: &RollupType, l1_provider
     Ok(batch_index)
 }
 
-async fn check_receipt(l1_provider: &Provider<Http>, pending_tx: PendingTransaction<'_, Http>) {
+async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: PendingTransaction<'_, Http>) {
     let check = || async {
         let receipt = l1_provider.get_transaction_receipt(pending_tx.tx_hash()).await.unwrap();
         match receipt {
             Some(tr) => {
                 // Either 1 (success) or 0 (failure).
                 match tr.status.unwrap_or_default().as_u64() {
-                    1 => log::info!("challenge_state receipt success: {:#?}", pending_tx.tx_hash()),
-                    _ => log::error!("challenge_state receipt fail: {:#?}", tr),
+                    1 => log::info!("{:?} receipt success: {:#?}", method, pending_tx.tx_hash()),
+                    _ => log::error!("{:?} receipt fail: {:#?}", method, tr),
                 };
                 return true;
             }
             // Maybe still pending.
             None => {
-                log::info!("challenge_state receipt pending");
+                log::info!("{:?} receipt pending", method);
                 return false;
             }
         }
@@ -251,7 +249,7 @@ async fn detecte_challenge(latest: U64, l1_rollup: &ShadowRollupType, l1_provide
         let is_batch_finalized: bool = l1_rollup.is_batch_finalized(U256::from(batch_index)).await.unwrap();
 
         if batch_in_challenge && !is_batch_finalized {
-            log::warn!("prev challenge not finalized, batch index = {:#?}", batch_index);
+            log::info!("prev challenge not finalized, batch index = {:#?}", batch_index);
             return Some(true);
         }
     }
