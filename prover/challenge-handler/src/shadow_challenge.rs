@@ -56,7 +56,13 @@ pub async fn run() -> Result<(), Box<dyn Error>> {
 
     loop {
         std::thread::sleep(Duration::from_secs(12));
-        let _ = auto_challenge(&l1_provider, &l1_rollup, &l1_shadow_rollup, U256::from(1)).await;
+        let result = auto_challenge(&l1_provider, &l1_rollup, &l1_shadow_rollup, U256::from(1)).await;
+        match result {
+            Ok(()) => (),
+            Err(e) => {
+                log::error!("auto_challenge error: {:#?}", e);
+            }
+        }
     }
 }
 
@@ -97,10 +103,17 @@ async fn auto_challenge(
         }
     };
 
-    if l1_shadow_rollup.batch_in_challenge(U256::from(batch_index)).await? {
-        log::info!("batch_in_challenge = true, No need for challenge, batch index = {:#?}", batch_index);
-        return Ok(());
-    }
+    match l1_shadow_rollup.batch_in_challenge(U256::from(batch_index)).await {
+        Ok(true) => {
+            log::info!("batch_in_challenge = true, No need for challenge, batch index = {:#?}", batch_index);
+            return Ok(());
+        }
+        Ok(false) => (),
+        Err(e) => {
+            log::error!("query batch_in_challenge error: {:?}", e);
+            return Ok(());
+        }
+    };
 
     // Prepare shadow batch
     let batch = match l1_rollup.committed_batch_stores(U256::from(batch_index)).await {
@@ -110,9 +123,6 @@ async fn auto_challenge(
             return Ok(());
         }
     };
-    // log::info!("committed_batch_stores.withdrawal_root = {:#?}", batch.5);
-    // log::info!("committed_batch_stores.data_hash = {:#?}", batch.6);
-    // log::info!("committed_batch_stores.blob_versioned_hash = {:#?}", batch.11);
 
     let shadow_tx = l1_shadow_rollup.commit_batch(
         batch_index,
