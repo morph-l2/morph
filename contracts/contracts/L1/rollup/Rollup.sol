@@ -76,7 +76,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
-        bytes32 dataHash;
+        bytes32 l1DataHash;
         address[] sequencers;
         uint256 l1MessagePopped;
         uint256 totalL1MessagePopped;
@@ -244,9 +244,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         require(finalizedStateRoots[0] == bytes32(0), "genesis batch imported");
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
-        bytes32 _dataHash = BatchHeaderV0Codec.dataHash(memPtr);
+        bytes32 _l1DataHash = BatchHeaderV0Codec.l1DataHash(memPtr);
 
-        // check all fields except `dataHash` and `lastBlockHash` are zero
+        // check all fields except `l1DataHash` and `lastBlockHash` are zero
         unchecked {
             uint256 sum = BatchHeaderV0Codec.version(memPtr) +
                 BatchHeaderV0Codec.batchIndex(memPtr) +
@@ -255,7 +255,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             require(sum == 0, "not all fields are zero");
         }
         require(
-            BatchHeaderV0Codec.dataHash(memPtr) != bytes32(0),
+            BatchHeaderV0Codec.l1DataHash(memPtr) != bytes32(0),
             "zero data hash"
         );
         require(
@@ -274,7 +274,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             bytes32(0),
             _postStateRoot,
             _withdrawalRoot,
-            _dataHash,
+            _l1DataHash,
             new address[](0),
             0,
             0,
@@ -422,10 +422,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             );
         }
         // compute the data hash for current batch
-        bytes32 _dataHash;
+        bytes32 _l1DataHash;
         assembly {
             let dataLen := mul(_chunksLength, 0x20)
-            _dataHash := keccak256(sub(dataPtr, dataLen), dataLen)
+            _l1DataHash := keccak256(sub(dataPtr, dataLen), dataLen)
             batchPtr := mload(0x40) // reset batchPtr
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
@@ -440,7 +440,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchPtr,
             _totalL1MessagesPoppedOverall
         );
-        BatchHeaderV0Codec.storeDataHash(batchPtr, _dataHash);
+        BatchHeaderV0Codec.storeL1DataHash(batchPtr, _l1DataHash);
         BatchHeaderV0Codec.storeParentBatchHash(batchPtr, _parentBatchHash);
         BatchHeaderV0Codec.storeSkippedBitmap(
             batchPtr,
@@ -467,7 +467,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.prevStateRoot,
             batchData.postStateRoot,
             batchData.withdrawalRoot,
-            _dataHash,
+            _l1DataHash,
             sequencers,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
@@ -588,8 +588,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint64 _batchIndex,
         bytes calldata _aggrProof,
         bytes calldata _kzgData,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint32 _minGasLimit
     ) external {
         // Ensure challenge exists and is not finished
         require(
@@ -615,8 +614,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _batchIndex,
                 committedBatchStores[_batchIndex].sequencers,
                 "Timeout",
-                _minGasLimit,
-                _gasFee
+                _minGasLimit
             );
         } else {
             // Check validity of proof
@@ -632,19 +630,20 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                     committedBatchStores[_batchIndex].prevStateRoot,
                     committedBatchStores[_batchIndex].postStateRoot,
                     committedBatchStores[_batchIndex].withdrawalRoot,
-                    committedBatchStores[_batchIndex].dataHash
+                    committedBatchStores[_batchIndex].l1DataHash
                 )
             );
 
             // Extract commitment
             bytes memory _commitment = _kzgData[32:80];
 
+            // TODO: verify xBytes via zkp
             // Compute xBytes
             bytes memory _xBytes = abi.encode(
                 keccak256(
                     abi.encodePacked(
                         _commitment,
-                        committedBatchStores[_batchIndex].dataHash
+                        committedBatchStores[_batchIndex].l1DataHash
                     )
                 )
             );
@@ -888,23 +887,16 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @param sequencers An array containing the sequencers to be slashed.
     /// @param _type Description of the challenge type.
     /// @param _minGasLimit Minimum gas limit used for slashing sequencers.
-    /// @param _gasFee Gas fee used for slashing sequencers.
     function _challengerWin(
         uint64 batchIndex,
         address[] memory sequencers,
         string memory _type,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint32 _minGasLimit
     ) internal {
         address challenger = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         _transfer(challenger, challengeDeposit);
-        IStaking(l1StakingContract).slash(
-            sequencers,
-            challenger,
-            _minGasLimit,
-            _gasFee
-        );
+        IStaking(l1StakingContract).slash(sequencers, challenger, _minGasLimit);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
 
@@ -1011,7 +1003,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
 
         // concatenate tx hashes
-        uint256 l2TxPtr = ChunkCodec.l2TxPtr(chunkPtr, _numBlocks);
         while (_numBlocks > 0) {
             // concatenate l1 message hashes
             uint256 _numL1MessagesInBlock = ChunkCodec.numL1Messages(blockPtr);
@@ -1031,17 +1022,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _numTransactionsInBlock >= _numL1MessagesInBlock,
                 "num txs less than num L1 msgs"
             );
-            for (
-                uint256 j = _numL1MessagesInBlock;
-                j < _numTransactionsInBlock;
-                j++
-            ) {
-                assembly {
-                    mstore(dataPtr, mload(l2TxPtr))
-                    l2TxPtr := add(l2TxPtr, 0x20)
-                    dataPtr := add(dataPtr, 0x20)
-                }
-            }
 
             unchecked {
                 _totalNumL1MessagesInChunk += _numL1MessagesInBlock;
@@ -1057,12 +1037,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         require(
             (dataPtr - txHashStartDataPtr) / 32 <= maxNumTxInChunk,
             "too many txs in one chunk"
-        );
-
-        // check chunk has correct length
-        require(
-            l2TxPtr - chunkPtr == _chunk.length,
-            "incomplete l2 transaction data"
         );
 
         // compute data hash and store to memory
