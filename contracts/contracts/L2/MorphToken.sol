@@ -51,6 +51,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      */
     function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) public initializer {
         require(distribute_ != address(0), "invalid distribute contract address");
+        require(beginTime_ % 86400 == 0, "beginTime must be the start of the day");
         require(beginTime_ >= block.timestamp, "beginTime is less than the current time");
 
         __Ownable_init();
