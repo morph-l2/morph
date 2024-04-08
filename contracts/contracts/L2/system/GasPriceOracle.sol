@@ -14,6 +14,14 @@ contract GasPriceOracle is Ownable {
     /// @dev The precision used in the scalar.
     uint256 private constant PRECISION = 1e9;
 
+    /// @dev The maximum possible l1 fee overhead.
+    ///      Computed based on current l1 block gas limit.
+    uint256 private constant MAX_OVERHEAD = 30000000 / 16;
+
+    /// @dev The maximum possible l1 fee scale.
+    ///      x1000 should be enough.
+    uint256 private constant MAX_SCALE = 1000 * PRECISION;
+
     /*//////////////////////////////////////////////////////////////
                                STORAGE
     //////////////////////////////////////////////////////////////*/
@@ -114,6 +122,8 @@ contract GasPriceOracle is Ownable {
      */
     // slither-disable-next-line external-function
     function setOverhead(uint256 _overhead) external onlyAllowed {
+        require(_overhead <= MAX_OVERHEAD, "exceed maximum overhead");
+
         overhead = _overhead;
         emit OverheadUpdated(_overhead);
     }
@@ -124,6 +134,8 @@ contract GasPriceOracle is Ownable {
      */
     // slither-disable-next-line external-function
     function setScalar(uint256 _scalar) external onlyAllowed {
+        require(_scalar <= MAX_SCALE, "exceed maximum scale");
+
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
     }
