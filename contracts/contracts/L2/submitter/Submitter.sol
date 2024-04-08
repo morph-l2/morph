@@ -72,13 +72,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
             rollupTime
         );
 
-        emit ACKRollup(
-            batchIndex,
-            submitter,
-            batchStartBlock,
-            batchEndBlock,
-            rollupTime
-        );
+        emit ACKRollup(batchIndex, submitter, batchStartBlock, batchEndBlock, rollupTime);
 
         nextBatchIndex++;
         nextBatchStartBlock = batchEndBlock + 1;
@@ -97,20 +91,14 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     /**
      * @notice get the current sequencer's turn
      */
-    function getTurn(
-        address submitter
-    ) external view returns (uint256, uint256) {
-        uint256 currentVersion = IL2Sequencer(L2_SEQUENCER_CONTRACT)
-            .currentVersion();
+    function getTurn(address submitter) external view returns (uint256, uint256) {
+        uint256 currentVersion = IL2Sequencer(L2_SEQUENCER_CONTRACT).currentVersion();
 
         uint256 start = IL2Sequencer(L2_SEQUENCER_CONTRACT)
             .getSequencerHistory(currentVersion)
             .timestamp;
 
-        if (
-            epochHistory.length > 0 &&
-            epochHistory[epochHistory.length - 1].timestamp > start
-        ) {
+        if (epochHistory.length > 0 && epochHistory[epochHistory.length - 1].timestamp > start) {
             start = epochHistory[epochHistory.length - 1].timestamp;
         }
 
@@ -146,22 +134,14 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     /**
      * @notice get current submitter
      */
-    function getCurrentSubmitter()
-        external
-        view
-        returns (address, uint256, uint256)
-    {
-        uint256 currentVersion = IL2Sequencer(L2_SEQUENCER_CONTRACT)
-            .currentVersion();
+    function getCurrentSubmitter() external view returns (address, uint256, uint256) {
+        uint256 currentVersion = IL2Sequencer(L2_SEQUENCER_CONTRACT).currentVersion();
 
         uint256 start = IL2Sequencer(L2_SEQUENCER_CONTRACT)
             .getSequencerHistory(currentVersion)
             .timestamp;
 
-        if (
-            epochHistory.length > 0 &&
-            epochHistory[epochHistory.length - 1].timestamp > start
-        ) {
+        if (epochHistory.length > 0 && epochHistory[epochHistory.length - 1].timestamp > start) {
             start = epochHistory[epochHistory.length - 1].timestamp;
         }
 
@@ -175,14 +155,9 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         uint256 turns = (block.timestamp - start) / epoch;
         uint256 currentSubmitterIndex = turns % sequencersLen;
 
-        uint256 currentEpochStart = block.timestamp -
-            ((block.timestamp - start) % epoch);
+        uint256 currentEpochStart = block.timestamp - ((block.timestamp - start) % epoch);
 
-        return (
-            sequencers[currentSubmitterIndex],
-            currentEpochStart,
-            currentEpochStart + epoch
-        );
+        return (sequencers[currentSubmitterIndex], currentEpochStart, currentEpochStart + epoch);
     }
 
     /**
@@ -197,9 +172,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     /**
      * @notice get epoch info
      */
-    function getEpoch(
-        uint256 epochIndex
-    ) external view returns (Types.EpochInfo memory epochInfo) {
+    function getEpoch(uint256 epochIndex) external view returns (Types.EpochInfo memory epochInfo) {
         return epochs[epochIndex];
     }
 }
