@@ -4,8 +4,8 @@ pragma solidity =0.8.24;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {ISubmitter} from "./ISubmitter.sol";
-import {ISequencer} from "./ISequencer.sol";
+import {ISubmitter} from "../submitter/ISubmitter.sol";
+import {IL2Sequencer} from "./IL2Sequencer.sol";
 import {IGov} from "./IGov.sol";
 
 contract Gov is Initializable, IGov {
@@ -54,10 +54,7 @@ contract Gov is Initializable, IGov {
      * @notice Ensures that the caller is a sequencer in the sequencer contract.
      */
     modifier onlySequencer() {
-        (bool _in, ) = ISequencer(SEQUENCER_CONTRACT).inSequencersSet(
-            false,
-            msg.sender
-        );
+        (bool _in, ) = IL2Sequencer(SEQUENCER_CONTRACT).inSequencersSet(false, msg.sender);
         require(_in, "only sequencer can propose");
         _;
     }
@@ -91,9 +88,7 @@ contract Gov is Initializable, IGov {
         require(_rollupEpoch > 0, "invalid rollup epoch");
         require(_maxChunks > 0, "invalid max chunks");
         require(
-            _batchBlockInterval != 0 ||
-                _batchMaxBytes != 0 ||
-                _batchTimeout != 0,
+            _batchBlockInterval != 0 || _batchMaxBytes != 0 || _batchTimeout != 0,
             "invalid batch params"
         );
         proposalInterval = _proposalInterval;
@@ -116,7 +111,7 @@ contract Gov is Initializable, IGov {
                 proposal.maxChunks != 0,
             "invalid batch params"
         );
-        uint256 version = ISequencer(SEQUENCER_CONTRACT).currentVersion();
+        uint256 version = IL2Sequencer(SEQUENCER_CONTRACT).currentVersion();
         if (version > sequencersVersion) {
             // update version and sequencers
             sequencersVersion = version;
@@ -137,27 +132,21 @@ contract Gov is Initializable, IGov {
      */
     function vote(uint256 propID) external onlySequencer {
         require(proposalInfos[propID].active, "proposal inactive");
-        (uint256 index, uint256 version) = ISequencer(SEQUENCER_CONTRACT)
-            .sequencerIndex(false, msg.sender);
-        require(
-            !votes[propID][index],
-            "sequencer already vote for this proposal"
+        (uint256 index, uint256 version) = IL2Sequencer(SEQUENCER_CONTRACT).sequencerIndex(
+            false,
+            msg.sender
         );
+        require(!votes[propID][index], "sequencer already vote for this proposal");
 
         // check proposal version and end time
-        require(
-            proposalInfos[propID].seqsVersion == version,
-            "version mismatch"
-        );
+        require(proposalInfos[propID].seqsVersion == version, "version mismatch");
         require(proposalInfos[propID].endTime >= block.timestamp, "time end");
 
         // vote
         votes[propID][index] = true;
         proposalInfos[propID].votes += 1;
 
-        (uint256 _length, ) = ISequencer(SEQUENCER_CONTRACT).sequencersLen(
-            false
-        );
+        (uint256 _length, ) = IL2Sequencer(SEQUENCER_CONTRACT).sequencersLen(false);
         // check votes
         if (proposalInfos[propID].votes > (_length * 2) / 3) {
             if (rollupEpoch != proposalData[propID].rollupEpoch) {

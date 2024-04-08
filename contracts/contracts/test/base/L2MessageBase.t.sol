@@ -61,16 +61,13 @@ contract L2MessageBaseTest is CommonTest {
                 )
             ).code
         );
-        hevm.etch(
-            Predeploys.GAS_PRICE_ORACLE,
-            address(new GasPriceOracle(multisig)).code
-        );
+        hevm.etch(Predeploys.GAS_PRICE_ORACLE, address(new GasPriceOracle(multisig)).code);
         TransparentUpgradeableProxy l2ToL1MessagePasserProxy = TransparentUpgradeableProxy(
-                payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
-            );
+            payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
+        );
         TransparentUpgradeableProxy l2CrossDomainMessengerProxy = TransparentUpgradeableProxy(
-                payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-            );
+            payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+        );
         gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
 
         hevm.store(
@@ -92,21 +89,16 @@ contract L2MessageBaseTest is CommonTest {
         hevm.startPrank(multisig);
 
         l2ToL1MessagePasserImpl = new L2ToL1MessagePasser();
-        ITransparentUpgradeableProxy(address(l2ToL1MessagePasserProxy))
-            .upgradeTo(address(l2ToL1MessagePasserImpl));
-        l2ToL1MessagePasser = L2ToL1MessagePasser(
-            address(l2ToL1MessagePasserProxy)
+        ITransparentUpgradeableProxy(address(l2ToL1MessagePasserProxy)).upgradeTo(
+            address(l2ToL1MessagePasserImpl)
         );
+        l2ToL1MessagePasser = L2ToL1MessagePasser(address(l2ToL1MessagePasserProxy));
 
         l2CrossDomainMessengerImpl = new L2CrossDomainMessenger();
-        ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxy))
-            .upgradeToAndCall(
-                address(l2CrossDomainMessengerImpl),
-                abi.encodeWithSelector(
-                    L2CrossDomainMessenger.initialize.selector,
-                    NON_ZERO_ADDRESS
-                )
-            );
+        ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxy)).upgradeToAndCall(
+            address(l2CrossDomainMessengerImpl),
+            abi.encodeWithSelector(L2CrossDomainMessenger.initialize.selector, NON_ZERO_ADDRESS)
+        );
         l2CrossDomainMessenger = L2CrossDomainMessenger(
             payable(address(l2CrossDomainMessengerProxy))
         );
