@@ -11,16 +11,11 @@ const config = {
   l1MessageQueueMaxGasLimit: 100000000,
 
   // gasPriceOracle config
-  gasPriceOracleTxGas: 21000,
-  gasPriceOracleTxGasContractCreation: 53000,
-  gasPriceOracleZeroGas: 4,
-  gasPriceOracleNonZeroGas: 16,
   l2BaseFee: 0.1,  // Gwei 
   
   // rollup contract config
   // initialize config
   rollupMaxNumTxInChunk: 100,
-  rollupMinDeposit: 1,
   finalizationPeriodSeconds: 600,
   rollupProofWindow: 86400,
   // challenge config
