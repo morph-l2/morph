@@ -46,9 +46,8 @@ interface IL1Sequencer {
         bytes memory _sequencerBytes,
         address[] memory _sequencerAddrs,
         bytes[] memory _sequencerBLSKeys,
-        uint32 gasLimit,
-        address _refundAddress
-    ) external payable;
+        uint32 gasLimit
+    ) external;
 
     /**
      * @notice sequencer addresses

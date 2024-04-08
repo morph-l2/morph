@@ -8,6 +8,7 @@ import {BitMapsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/stru
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IL1MessageQueueWithGasPriceOracle} from "./IL1MessageQueueWithGasPriceOracle.sol";
 import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
+import {IWhitelist} from "../../libraries/common/IWhitelist.sol";
 
 contract L1MessageQueueWithGasPriceOracle is
     OwnableUpgradeable,
@@ -57,6 +58,9 @@ contract L1MessageQueueWithGasPriceOracle is
     /// @dev The bitmap for skipped messages, where `skippedMessageBitmap[i]` keeps the bits from `[i*256, (i+1)*256)`.
     mapping(uint256 => uint256) private skippedMessageBitmap;
 
+    /// @inheritdoc IL1MessageQueueWithGasPriceOracle
+    address public whitelistChecker;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -97,9 +101,13 @@ contract L1MessageQueueWithGasPriceOracle is
         enforcedTxGateway = _enforcedTxGateway;
     }
 
-    function initialize(uint256 _maxGasLimit) external initializer {
+    function initialize(
+        uint256 _maxGasLimit,
+        address _whitelistChecker
+    ) external initializer {
         OwnableUpgradeable.__Ownable_init();
         maxGasLimit = _maxGasLimit;
+        whitelistChecker = _whitelistChecker;
     }
 
     /*************************
@@ -126,6 +134,10 @@ contract L1MessageQueueWithGasPriceOracle is
     function estimateCrossDomainMessageFee(
         uint256 _gasLimit
     ) external view returns (uint256) {
+        // GasFee is waived for whitelisted users
+        if (IWhitelist(whitelistChecker).isSenderAllowed(msg.sender)) {
+            return 0;
+        }
         return _gasLimit * l2BaseFee;
     }
 
@@ -407,6 +419,15 @@ contract L1MessageQueueWithGasPriceOracle is
         emit UpdateMaxGasLimit(_oldMaxGasLimit, _newMaxGasLimit);
     }
 
+    /// @notice Update whitelist checker contract.
+    /// @dev This function can only called by contract owner.
+    /// @param _newWhitelistChecker The address of new whitelist checker contract.
+    function updateWhitelistChecker(
+        address _newWhitelistChecker
+    ) external onlyOwner {
+        emit UpdateWhitelistChecker(whitelistChecker, _newWhitelistChecker);
+        whitelistChecker = _newWhitelistChecker;
+    }
     /**********************
      * Internal Functions *
      **********************/

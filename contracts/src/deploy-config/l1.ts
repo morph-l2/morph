@@ -15,20 +15,20 @@ const config = {
   gasPriceOracleTxGasContractCreation: 53000,
   gasPriceOracleZeroGas: 4,
   gasPriceOracleNonZeroGas: 16,
-
+  l2BaseFee: 0.1,  // Gwei 
+  
   // rollup contract config
   // initialize config
   rollupMaxNumTxInChunk: 100,
-  rollupMinDeposit: 1,
   finalizationPeriodSeconds: 10,
   rollupProofWindow: 86400,
   // challenge config
   rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
   // genesis config
-  rollupGenesisStateRoot: '0x248e8d5cbb65937f2c8ec74e41ad7f140dc9ad4c01a5670fd797b834355749c8',
+  rollupGenesisStateRoot: '0x18972ff1ab6b74654eaa1aa27721219e750edd91203340f4cf80f683a4ec781c',
   withdrawRoot: '0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757',
-  batchHeader: '0x00000000000000000000000000000000000000000000000000a41117169d3b503b7d0dc4ac8cad9892fb26fd85f14d41ecff39074ba1e19dd60000000000000000000000000000000000000000000000000000000000000000',
+  batchHeader: '0x00000000000000000000000000000000000000000000000000918e1e0213024b9de9772d2e97118cdd16ebafa7b26cdcb32f651f1220578ae50000000000000000000000000000000000000000000000000000000000000000',
 
   // staking config
   // staking initialize config

@@ -11,7 +11,6 @@ pragma solidity ^0.8.16;
 ///   * block[i]             60          BlockContext    60*i+1      The (i+1)'th block in this chunk
 ///   * ......
 ///   * block[n-1]           60          BlockContext    60*n-59     The last block in this chunk
-///   * l2TransactionHashes  dynamic     bytes           60*n+1
 /// ```
 ///
 /// @dev Below is the encoding for `BlockContext`, total 60 bytes.
@@ -42,23 +41,9 @@ library ChunkCodec {
 
         // should contain at least the number of the blocks and block contexts
         require(
-            _length >= 1 + _numBlocks * BLOCK_CONTEXT_LENGTH,
+            _length == 1 + _numBlocks * BLOCK_CONTEXT_LENGTH,
             "invalid chunk length"
         );
-    }
-
-    /// @notice Return the start memory offset of `l2Transactions`.
-    /// @dev The caller should make sure `_numBlocks` is correct.
-    /// @param chunkPtr The start memory offset of the chunk in memory.
-    /// @param _numBlocks The number of blocks in current chunk.
-    /// @return _l2TxPtr the start memory offset of `l2Transactions`.
-    function l2TxPtr(
-        uint256 chunkPtr,
-        uint256 _numBlocks
-    ) internal pure returns (uint256 _l2TxPtr) {
-        unchecked {
-            _l2TxPtr = chunkPtr + 1 + _numBlocks * BLOCK_CONTEXT_LENGTH;
-        }
     }
 
     /// @notice Return the number of blocks in current chunk.
