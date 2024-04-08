@@ -14,7 +14,6 @@ import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
 import {IL1Sequencer} from "../staking/IL1Sequencer.sol";
 import {IStaking} from "../staking/IStaking.sol";
-import {console} from "hardhat/console.sol";
 
 // solhint-disable no-inline-assembly
 // solhint-disable reason-string
@@ -27,7 +26,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      *************/
 
     /// @notice The zero versioned hash.
-    bytes32 public ZEROVERSIONEDHASH;
+    bytes32 internal immutable ZERO_VERSIONED_HASH =
+        0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
+
+    /// @notice The BLS MODULUS
+    uint256 internal immutable BLS_MODULUS =
+        52435875175126190479447740508185965837690552500527637822603658699938581184513;
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
@@ -121,9 +125,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      */
     bool public inChallenge;
 
-    uint256 internal constant BLS_MODULUS =
-        52435875175126190479447740508185965837690552500527637822603658699938581184513;
-
     struct BatchChallenge {
         uint64 batchIndex;
         address challenger;
@@ -197,10 +198,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
 
-        ZEROVERSIONEDHASH = bytes32(
-            hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
-        );
-
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
     }
@@ -259,7 +256,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "nonzero parent batch hash"
         );
 
-        _batchHash = keccak256(abi.encodePacked(_batchHash, ZEROVERSIONEDHASH));
+        _batchHash = keccak256(
+            abi.encodePacked(_batchHash, ZERO_VERSIONED_HASH)
+        );
 
         committedBatchStores[0] = BatchStore(
             _batchHash,
@@ -274,7 +273,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             0,
             "",
             0,
-            ZEROVERSIONEDHASH
+            ZERO_VERSIONED_HASH
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -435,7 +434,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         bytes32 _blobVersionedHash = blobhash(0);
         if (_blobVersionedHash == bytes32(0)) {
-            _blobVersionedHash = ZEROVERSIONEDHASH;
+            _blobVersionedHash = ZERO_VERSIONED_HASH;
         }
         _batchHash = keccak256(
             abi.encodePacked(_batchHash, _blobVersionedHash)
@@ -685,10 +684,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 part3;
 
         // Extract the three parts
-        part1 = combinedUint & ((1 << 88) - 1);  // Mask the lowest 88 bits and reverse bytes
-        part2 = (combinedUint >> 88) & ((1 << 88) - 1);  // Shift right by 88 bits, mask the next 88 bits, and reverse bytes
-        part3 = (combinedUint >> 176) & ((1 << 87) - 1);  // Shift right by 176 bits, mask the next 87 bits, and reverse bytes
-        
+        part1 = combinedUint & ((1 << 88) - 1); // Mask the lowest 88 bits and reverse bytes
+        part2 = (combinedUint >> 88) & ((1 << 88) - 1); // Shift right by 88 bits, mask the next 88 bits, and reverse bytes
+        part3 = (combinedUint >> 176) & ((1 << 87) - 1); // Shift right by 176 bits, mask the next 87 bits, and reverse bytes
+
         bytes memory result = new bytes(96);
         assembly {
             // Store the parts in the result bytes
