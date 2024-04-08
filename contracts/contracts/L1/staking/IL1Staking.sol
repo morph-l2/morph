@@ -17,15 +17,17 @@ interface IL1Staking {
      * @param signedSequencers  signed sequencers
      * @param sequencerSet      sequencer set
      * @param signature         batch signature
+     * @param batchHash         batch hash
      */
     function verifySignature(
         address[] memory signedSequencers,
         address[] memory sequencerSet,
-        bytes memory signature
+        bytes memory signature,
+        bytes32 batchHash
     ) external returns (bool);
 
     /**
      * @notice challenger win, slash sequencers
      */
-    function slash(address[] memory sequencers, address challenger) external;
+    function slash(address[] memory sequencers) external returns (uint256);
 }

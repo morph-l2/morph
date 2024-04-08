@@ -20,30 +20,6 @@ library Types {
     }
 
     /**
-     * @notice Struct representing a sequencer information.
-     *
-     * @custom:field addr   Address of the sequencer.
-     * @custom:field tmKey  Tendermint key(ED25519) of the seuqencer.
-     * @custom:field blsKey BLS key of the seuqencer.
-     */
-    struct SequencerInfo {
-        address addr;
-        bytes32 tmKey;
-        bytes blsKey;
-    }
-
-    /**
-     * @notice SequencerHistory representing a sequencerset change.
-     *
-     * @custom:field sequencerAddresses     sequencers
-     * @custom:field timestamp              sequencer change time
-     */
-    struct SequencerHistory {
-        address[] sequencerAddresses;
-        uint256 timestamp;
-    }
-
-    /**
      * @notice BatchInfo representing a batch.
      *
      * @custom:field submitter      batch submitter

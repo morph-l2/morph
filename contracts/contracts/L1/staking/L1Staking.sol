@@ -3,9 +3,9 @@ pragma solidity =0.8.24;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Staking} from "../../libraries/staking/Staking.sol";
 import {IL1Staking} from "./IL1Staking.sol";
@@ -181,13 +181,15 @@ contract L1Staking is IL1Staking, OwnableUpgradeable, Staking {
      * @notice challenger win, slash sequencers
      */
     function slash(
-        address[] memory sequencers,
-        address challenger
-    ) external onlyRollupContract {
+        address[] memory sequencers
+    ) external onlyRollupContract returns (uint256) {
         // TODO record slash info (unslashed staker)
         // TODO unRestaking sequencers
         // TODO remover staker
         // updateStakers();
+        // _transfer(rollupContract, valueSum);
+        // return valueSum;
+        return 0;
     }
 
     /**
@@ -255,11 +257,13 @@ contract L1Staking is IL1Staking, OwnableUpgradeable, Staking {
      * @param signedSequencers  signed sequencers
      * @param sequencerSet      sequencer set
      * @param signature         batch signature
+     * @param batchHash         batch hash
      */
     function verifySignature(
         address[] memory signedSequencers,
         address[] memory sequencerSet,
-        bytes memory signature
+        bytes memory signature,
+        bytes32 batchHash
     ) external returns (bool) {
         // TODO verify BLS signature
         // TODO update latest sequencer set

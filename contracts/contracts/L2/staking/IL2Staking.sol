@@ -9,7 +9,10 @@ interface IL2Staking {
      * @param delegator who
      * @param staker stake to whom
      */
-    function stakingInfo(address staker, address delegator) external view returns (uint256);
+    function stakingInfo(
+        address staker,
+        address delegator
+    ) external view returns (uint256);
 
     /**
      * @notice staker's all morph amount
@@ -55,7 +58,9 @@ interface IL2Staking {
      * @notice Get all the delegators which staked to staker
      * @param staker sequencers size
      */
-    function getDelegators(address staker) external view returns (address[] memory);
+    function getDelegators(
+        address staker
+    ) external view returns (address[] memory);
 
     /**
      * @notice check if the user has staked to staker
@@ -105,5 +110,8 @@ interface IL2Staking {
      * @param stakers, sync from l1, {addr, tmKey, blsKey}
      * @param active, active & inActive
      */
-    function updateStakers(Types.SequencerInfo[] memory stakers, bool active) external;
+    function updateStakers(
+        Types.StakerInfo[] memory stakers,
+        bool active
+    ) external;
 }
