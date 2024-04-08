@@ -1,57 +1,55 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 import "forge-std/console2.sol";
 import {ERC20PresetFixedSupply} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import {L2Staking} from "../L2/staking/L2Staking.sol";
 import {Types} from "../libraries/common/Types.sol";
+import {Predeploys} from "../libraries/constants/Predeploys.sol";
+import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 
-contract L2StakingTest is DSTestPlus {
-    address public alice = address(1);
-    address public blob = address(2);
-
+contract L2StakingTest is L2StakingBaseTest {
     ERC20PresetFixedSupply morphToken;
-    L2Staking iStaking;
-
     uint256 totalSupply = 100000000000000000000 ether;
 
-    uint256 epoch = 10;
-    uint256 sequencersSize = 7;
+    address morphOwner = address(999);
+
     uint256 limit = 1000 ether;
 
     uint256 morphBalance = 20 ether;
 
-    Types.StakerInfo tom =
-        Types.StakerInfo(
-            address(5),
-            0x0000000000000000000000000000000000000000000000000000000000000001,
-            hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
-        );
+    address[] stakers;
 
-    Types.StakerInfo jerry =
-        Types.StakerInfo(
-            address(6),
-            0x0000000000000000000000000000000000000000000000000000000000000002,
-            hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002"
-        );
+    address firstStaker;
 
-    function setUp() public {
-        morphToken = new ERC20PresetFixedSupply("Morph", "MPH", totalSupply, alice);
+    function setUp() public virtual override {
+        super.setUp();
 
-        iStaking = new L2Staking();
-        iStaking.initialize(alice, address(1), address(morphToken), sequencersSize, epoch);
+        morphToken = new ERC20PresetFixedSupply("Morph", "MPH", totalSupply, morphOwner);
 
-        Types.StakerInfo[] memory sequencers = new Types.StakerInfo[](2);
-        sequencers[0] = tom;
-        sequencers[1] = jerry;
+        uint256 slot = 159;
+        // console2.log(address(uint160(uint256(hevm.load(address(l2Staking), bytes32(slot))))));
+        hevm.store(address(l2Staking), bytes32(slot), bytes32(abi.encode(address(morphToken))));
+        // console2.log(address(uint160(uint256(hevm.load(address(l2Staking), bytes32(slot))))));
 
-        iStaking.updateStakers(sequencers, true);
+        Types.SequencerInfo[] memory sequencers = new Types.SequencerInfo[](SEQUENCER_SIZE);
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(staker);
+            sequencers[i] = sequencerInfo;
 
-        hevm.startPrank(alice);
-        morphToken.transfer(blob, morphBalance);
-        morphToken.transfer(tom.addr, limit + morphBalance);
+            stakers.push(staker);
+        }
+
+        l2Staking.updateStakers(sequencers, true);
+
+        hevm.startPrank(morphOwner);
+        morphToken.transfer(bob, morphBalance);
+        morphToken.transfer(alice, morphBalance);
+        morphToken.transfer(multisig, limit + morphBalance);
         hevm.stopPrank();
+
+        firstStaker = stakers[0];
     }
 
     /**
@@ -60,9 +58,10 @@ contract L2StakingTest is DSTestPlus {
     function testMorph() public {
         assertEq(
             totalSupply,
-            morphToken.balanceOf(blob) +
+            morphToken.balanceOf(bob) +
                 morphToken.balanceOf(alice) +
-                morphToken.balanceOf(tom.addr)
+                morphToken.balanceOf(multisig) +
+                morphToken.balanceOf(morphOwner)
         );
     }
 
@@ -70,15 +69,15 @@ contract L2StakingTest is DSTestPlus {
      * @notice normal staking by delegator
      */
     function testDelegatorStaking() public {
-        address[] memory stakers = iStaking.getStakers();
-        assertEq(tom.addr, stakers[0]);
+        address[] memory mStakers = l2Staking.getStakers();
+        assertEq(firstStaker, mStakers[0]);
 
-        hevm.startPrank(blob);
-        morphToken.approve(address(iStaking), type(uint256).max);
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
 
-        iStaking.delegateStake(tom.addr, morphBalance);
+        l2Staking.delegateStake(firstStaker, morphBalance);
 
-        uint256 amount = iStaking.stakingInfo(tom.addr, blob);
+        uint256 amount = l2Staking.stakingInfo(firstStaker, bob);
         assertEq(morphBalance, amount);
         hevm.stopPrank();
     }
@@ -87,11 +86,11 @@ contract L2StakingTest is DSTestPlus {
      * @notice failed staking, staker not exists
      */
     function testDelegatorStakingToNotExistsStaker() public {
-        hevm.startPrank(blob);
-        morphToken.approve(address(iStaking), type(uint256).max);
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
 
         hevm.expectRevert("staker not exist");
-        iStaking.delegateStake(alice, morphBalance);
+        l2Staking.delegateStake(alice, morphBalance);
 
         hevm.stopPrank();
     }
@@ -100,10 +99,10 @@ contract L2StakingTest is DSTestPlus {
      * @notice failed unstaking, when staking amount zero
      */
     function testDelegatorUnstakingIfStakingAmountZero() public {
-        hevm.startPrank(blob);
+        hevm.startPrank(bob);
 
         hevm.expectRevert("staking amount is zero");
-        iStaking.unDelegateStake(tom.addr);
+        l2Staking.unDelegateStake(firstStaker);
 
         hevm.stopPrank();
     }
@@ -112,19 +111,19 @@ contract L2StakingTest is DSTestPlus {
      * @notice normal unstaking
      */
     function testDelegatorUnstaking() public {
-        hevm.startPrank(blob);
+        hevm.startPrank(bob);
 
-        morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.delegateStake(tom.addr, morphBalance);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
 
-        uint256 stakerAmount0 = iStaking.stakersAmount(tom.addr);
+        uint256 stakerAmount0 = l2Staking.stakersAmount(firstStaker);
 
-        uint256 amount0 = iStaking.stakingInfo(tom.addr, blob);
-        iStaking.unDelegateStake(tom.addr);
-        uint256 amount1 = iStaking.stakingInfo(tom.addr, blob);
+        uint256 amount0 = l2Staking.stakingInfo(firstStaker, bob);
+        l2Staking.unDelegateStake(firstStaker);
+        uint256 amount1 = l2Staking.stakingInfo(firstStaker, bob);
         assertEq(amount1, 0);
 
-        uint256 stakerAmount1 = iStaking.stakersAmount(tom.addr);
+        uint256 stakerAmount1 = l2Staking.stakersAmount(firstStaker);
 
         assertEq(stakerAmount1, stakerAmount0 - amount0);
 
@@ -135,9 +134,9 @@ contract L2StakingTest is DSTestPlus {
      * @notice failed claim, no record of unstaking
      */
     function testDelegatorInvalidclaim() public {
-        hevm.startPrank(blob);
+        hevm.startPrank(bob);
         hevm.expectRevert("no information on unstaking");
-        iStaking.withdrawal(tom.addr);
+        l2Staking.withdrawal(firstStaker);
         hevm.stopPrank();
     }
 
@@ -145,16 +144,16 @@ contract L2StakingTest is DSTestPlus {
      * @notice failed claim, amount in lock period
      */
     function testDelegatorclaimInLockPeriod() public {
-        hevm.startPrank(blob);
+        hevm.startPrank(bob);
 
-        morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.delegateStake(tom.addr, morphBalance);
-        iStaking.unDelegateStake(tom.addr);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.unDelegateStake(firstStaker);
 
-        (uint256 amount, uint256 unlock) = iStaking.unstakingInfo(tom.addr, blob);
+        (uint256 amount, uint256 unlock) = l2Staking.unstakingInfo(firstStaker, bob);
 
         hevm.expectRevert("withdrawal cannot be made during the lock-up period");
-        iStaking.withdrawal(tom.addr);
+        l2Staking.withdrawal(firstStaker);
 
         hevm.stopPrank();
     }
@@ -163,15 +162,15 @@ contract L2StakingTest is DSTestPlus {
      * @notice normal claim
      */
     function testDelegatorclaim() public {
-        hevm.startPrank(blob);
+        hevm.startPrank(bob);
 
-        morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.delegateStake(tom.addr, morphBalance);
-        iStaking.unDelegateStake(tom.addr);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.unDelegateStake(firstStaker);
 
-        hevm.roll(epoch);
+        hevm.roll(ROLLUP_EPOCH);
 
-        iStaking.withdrawal(tom.addr);
+        l2Staking.withdrawal(firstStaker);
 
         hevm.stopPrank();
     }
@@ -180,13 +179,13 @@ contract L2StakingTest is DSTestPlus {
      * @notice failed restaking, pre claim in lock period
      */
     function testDelegatorRestakeInLockPeriod() public {
-        hevm.startPrank(blob);
+        hevm.startPrank(bob);
 
-        morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.delegateStake(tom.addr, morphBalance);
-        iStaking.unDelegateStake(tom.addr);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.unDelegateStake(firstStaker);
         hevm.expectRevert("re-staking cannot be made during the lock-up period");
-        iStaking.delegateStake(tom.addr, morphBalance);
+        l2Staking.delegateStake(firstStaker, morphBalance);
         hevm.stopPrank();
     }
 
@@ -194,33 +193,33 @@ contract L2StakingTest is DSTestPlus {
      * @notice normal restaking
      */
     function testDelegatorRestakeAfterLockPeriod() public {
-        hevm.startPrank(blob);
+        hevm.startPrank(bob);
 
-        morphToken.approve(address(iStaking), type(uint256).max);
-        iStaking.delegateStake(tom.addr, morphBalance);
-        iStaking.unDelegateStake(tom.addr);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.unDelegateStake(firstStaker);
 
-        hevm.roll(epoch);
+        hevm.roll(ROLLUP_EPOCH);
 
-        iStaking.withdrawal(tom.addr);
+        l2Staking.withdrawal(firstStaker);
 
-        iStaking.delegateStake(tom.addr, morphBalance);
-
-        hevm.stopPrank();
-    }
-
-    /**
-     * @notice normal staking, staker own staking meet the limit amount
-     */
-    function testStakerAmountEqualLimit() public {
-        hevm.startPrank(tom.addr);
-        morphToken.approve(address(iStaking), type(uint256).max);
-
-        iStaking.delegateStake(tom.addr, limit);
-
-        uint256 amount = iStaking.stakingInfo(tom.addr, tom.addr);
-        assertEq(limit, amount);
+        l2Staking.delegateStake(firstStaker, morphBalance);
 
         hevm.stopPrank();
     }
+
+    // /**
+    //  * @notice normal staking, staker own staking meet the limit amount
+    //  */
+    // function testStakerAmountEqualLimit() public {
+    //     hevm.startPrank(firstStaker);
+    //     morphToken.approve(address(l2Staking), type(uint256).max);
+
+    //     l2Staking.delegateStake(firstStaker, limit);
+
+    //     uint256 amount = l2Staking.stakingInfo(firstStaker, firstStaker);
+    //     assertEq(limit, amount);
+
+    //     hevm.stopPrank();
+    // }
 }

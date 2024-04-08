@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.so
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {L2Sequencer} from "../../L2/staking/L2Sequencer.sol";
+import {L2Staking} from "../../L2/staking/L2Staking.sol";
 import {Gov} from "../../L2/staking/Gov.sol";
 import {Submitter} from "../../L2/submitter/Submitter.sol";
 import {Types} from "../../libraries/common/Types.sol";
@@ -27,6 +28,9 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
     // Gov config
     Gov public l2Gov;
+
+    // L2Staking instance
+    L2Staking public l2Staking;
 
     uint256 public PROPOSAL_INTERVAL = 1000;
     uint256 public ROLLUP_EPOCH = 1000;
@@ -65,6 +69,16 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 )
             ).code
         );
+        hevm.etch(
+            Predeploys.L2_STAKING,
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(multisig),
+                    new bytes(0)
+                )
+            ).code
+        );
         TransparentUpgradeableProxy l2SequencerProxy = TransparentUpgradeableProxy(
             payable(Predeploys.L2_SEQUENCER)
         );
@@ -73,6 +87,9 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         );
         TransparentUpgradeableProxy l2GovProxy = TransparentUpgradeableProxy(
             payable(Predeploys.L2_GOV)
+        );
+        TransparentUpgradeableProxy l2StakingProxy = TransparentUpgradeableProxy(
+            payable(Predeploys.L2_STAKING)
         );
         hevm.store(
             address(l2SequencerProxy),
@@ -89,12 +106,21 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             bytes32(PROXY_OWNER_KEY),
             bytes32(abi.encode(address(multisig)))
         );
+        hevm.store(
+            address(l2StakingProxy),
+            bytes32(PROXY_OWNER_KEY),
+            bytes32(abi.encode(address(multisig)))
+        );
 
         hevm.startPrank(multisig);
         // deploy impl contracts
         L2Sequencer l2SequencerImpl = new L2Sequencer(payable(NON_ZERO_ADDRESS));
+
         Gov govImpl = new Gov();
+
         Submitter submitterImpl = new Submitter();
+
+        L2Staking l2StakingImpl = new L2Staking();
 
         // upgrade proxy
         Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](SEQUENCER_SIZE);
@@ -125,14 +151,28 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             abi.encodeWithSelector(Submitter.initialize.selector, sequencerAddrs, block.timestamp)
         );
 
+        ITransparentUpgradeableProxy(address(l2StakingProxy)).upgradeToAndCall(
+            address(l2StakingImpl),
+            abi.encodeWithSelector(
+                L2Staking.initialize.selector,
+                multisig,
+                Predeploys.L2_SEQUENCER,
+                Predeploys.MORPH_TOKEN,
+                SEQUENCER_SIZE,
+                ROLLUP_EPOCH
+            )
+        );
+
         // set address
         l2Sequencer = L2Sequencer(payable(address(l2SequencerProxy)));
         l2Gov = Gov(payable(address(l2GovProxy)));
         l2Submitter = Submitter(payable(address(l2SubmitterProxy)));
+        l2Staking = L2Staking(payable(address(l2StakingProxy)));
 
         _changeAdmin(address(l2Sequencer));
         _changeAdmin(address(l2Gov));
         _changeAdmin(address(l2Submitter));
+        _changeAdmin(address(l2Staking));
 
         hevm.stopPrank();
     }

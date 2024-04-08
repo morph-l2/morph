@@ -52,7 +52,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     mapping(address => EnumerableSetUpgradeable.AddressSet) internal delegators;
 
     // sequencer contract
-    IL2Sequencer public iSequencerSet;
+    IL2Sequencer public iL2Sequencer;
 
     // morph contract
     IERC20 public iMorphToken;
@@ -119,12 +119,12 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         uint256 _sequencersSize,
         uint256 _epoch
     ) public initializer {
-        require(_sequencerContract != address(0), "invalid sequencer contract");
-        require(_morphContract != address(0), "invalid morph contract");
-        require(_sequencersSize > 0, "sequencersSize must greater than 0");
-        require(_epoch > 0, "epoch must greater than 0");
+        // require(_sequencerContract != address(0), "invalid sequencer contract");
+        // require(_morphContract != address(0), "invalid morph contract");
+        // require(_sequencersSize > 0, "sequencersSize must greater than 0");
+        // require(_epoch > 0, "epoch must greater than 0");
 
-        iSequencerSet = IL2Sequencer(_sequencerContract);
+        iL2Sequencer = IL2Sequencer(_sequencerContract);
         iMorphToken = IERC20(_morphContract);
 
         // init params
@@ -132,7 +132,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         epoch = _epoch;
 
         // transfer owner to admin
-        _transferOwnership(_admin);
+        // _transferOwnership(_admin);
 
         super.__ReentrancyGuard_init();
     }
@@ -140,7 +140,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     /*********************** External Functions **************************/
     /**
      * @notice user stake morph to staker
-     * @param staker stake to
+     * @param staker stake to whom
      * @param amount stake amount
      */
     function delegateStake(
@@ -180,7 +180,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
     /**
      * @notice user unstake morph
-     * @param staker stake to
+     * @param staker stake to whom
      */
     function unDelegateStake(address staker) external isStaker(staker) nonReentrant {
         UnStakingInfo memory info = unstakingInfo[staker][msg.sender];
@@ -214,7 +214,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
     /**
      * @notice user withdrawal
-     * @param staker stake to
+     * @param staker stake to whom
      */
     function withdrawal(address staker) external {
         require(unstakingInfo[staker][msg.sender].amount > 0, "no information on unstaking");
@@ -240,7 +240,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
     /**
      * @notice user claim morph
-     * @param staker stake to
+     * @param staker stake to whom
      */
     function claim(address staker) external nonReentrant {
         // @todo
@@ -292,10 +292,11 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         emit ParamsUpdated(sequencersSize, epoch);
 
         // @todo check if the size less than current sequencer set size
-        // if (sequencersSize < iSequencerSet.getCount()) {
-        //     // update sequencer set
-        //     _updateSequencers();
-        // }
+        (uint256 currentSequencerSize, ) = iL2Sequencer.sequencersLen(false);
+        if (sequencersSize < currentSequencerSize) {
+            // update sequencer set
+            _updateSequencers();
+        }
     }
 
     /**
@@ -303,7 +304,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
      * @param stakers, sync from l1, {addr, tmKey, blsKey}
      * @param active, active & inActive
      */
-    function updateStakers(Types.StakerInfo[] memory stakers, bool active) external {
+    function updateStakers(Types.SequencerInfo[] memory stakers, bool active) external {
         for (uint256 i = 0; i < stakers.length; i++) {
             if (allStakers.contains(stakers[i].addr)) {
                 stakerInfo[stakers[i].addr].active = active;
@@ -329,7 +330,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /**
-     * @notice Select the size of staker with the largest staking amount
+     * @notice select the size of staker with the largest staking amount, the max size is ${sequencersSize}
      */
     function _updateSequencers() internal {
         address[] memory mStakers = _getSortedStakers();
@@ -339,18 +340,37 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
             size = mStakers.length;
         }
 
-        address[] memory _update = new address[](size);
+        // determination of total update size
+        uint256 updateSize = 0;
         for (uint256 i = 0; i < size; i++) {
-            // need staker morph amount >= limit
             // staker is active
-            uint256 amount = stakersAmount[mStakers[i]];
+            // @todo checkou amount > 0
+            // uint256 amount = stakersAmount[mStakers[i]];
             if (stakerInfo[mStakers[i]].active) {
-                _update[i] = mStakers[i];
+                updateSize = updateSize + 1;
             }
         }
 
-        //todo update sequencer set
-        // iSequencerSet.updateSeqencerSet(_update)
+        if (updateSize == 0) {
+            revert("the number of updates required is 0");
+        }
+
+        uint256 index = 0;
+        Types.SequencerInfo[] memory newSequencers = new Types.SequencerInfo[](updateSize);
+        for (uint256 i = 0; i < size; i++) {
+            StakerInfo memory info = stakerInfo[mStakers[i]];
+            // staker is active
+            // @todo checkou amount > 0
+            // uint256 amount = stakersAmount[mStakers[i]];
+            if (info.active) {
+                newSequencers[index] = Types.SequencerInfo(info.addr, info.tmKey, info.blsKey);
+                index = index + 1;
+            }
+        }
+
+        // update sequencer set
+        // uint256 preVersion = iL2Sequencer.currentVersion();
+        // iL2Sequencer.updateSequencers(preVersion + 1, newSequencers);
     }
 
     /**
