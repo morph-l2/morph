@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import {ISequencer} from "./ISequencer.sol";
+import {IL2Sequencer} from "./IL2Sequencer.sol";
 import {IL2Staking} from "./IL2Staking.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Staking} from "../../libraries/staking/Staking.sol";
@@ -52,7 +52,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
     mapping(address => EnumerableSetUpgradeable.AddressSet) internal delegators;
 
     // sequencer contract
-    ISequencer public iSequencerSet;
+    IL2Sequencer public iSequencerSet;
 
     // morph contract
     IERC20 public iMorphToken;
@@ -124,7 +124,7 @@ contract L2Staking is IL2Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable
         require(_sequencersSize > 0, "sequencersSize must greater than 0");
         require(_epoch > 0, "epoch must greater than 0");
 
-        iSequencerSet = ISequencer(_sequencerContract);
+        iSequencerSet = IL2Sequencer(_sequencerContract);
         iMorphToken = IERC20(_morphContract);
 
         // init params
