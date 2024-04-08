@@ -11,17 +11,17 @@
   "fundDevAccounts": false,
 
   "l1StartingBlockTag": "earliest",
-  "maxTxPerBlock": 1000,
+  "maxTxPerBlock": 100,
 
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
   "gasPriceOracleOwner": "0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d",
 
   "govProposalInterval": 1000,
-  "govBatchBlockInterval": 20,
+  "govBatchBlockInterval": 600,
   "govBatchMaxBytes": 124928,
-  "govBatchTimeout": 600,
-  "govRollupEpoch": 100,
+  "govBatchTimeout": 1200,
+  "govRollupEpoch": 600,
   "govBatchMaxChunks": 15,
   "l2SequencerAddresses": [
     "0x48446b07A04307F320fa34790116d73aD4A51810",
