@@ -85,6 +85,16 @@ contract MorphTokenTest_mint is DSTestPlus {
         assertEq(end, beginTime + 86400);
     }
 
+    function test_mint_reward() public {
+        hevm.warp(beginTime + 86500);
+        morphToken.mint();
+        uint256 add = totalSupply * rate / 1e16;
+        totalSupply += add;
+        assertEq(morphToken.totalSupply(), totalSupply);
+        uint256 incr = morphToken.reward(beginTime);
+        assertEq(add, incr);
+    }
+
     function test_mint_moreThanOneDay() public {
         hevm.warp(beginTime + 86500);
         emit log_uint(block.timestamp);

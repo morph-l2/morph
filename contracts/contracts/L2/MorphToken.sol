@@ -29,6 +29,8 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
 
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
+    // begin time of each day => reward
+    mapping(uint256 => uint256) private _rewardRecord;
     Rate private _rate;
     uint256 private _totalSupply;
     // Additional issuance time of the previous day.
@@ -165,6 +167,13 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      */
     function allowance(address owner, address spender) public view returns (uint256) {
         return _allowances[owner][spender];
+    }
+
+    /**
+     * @dev See {IMorphToken-reward}.
+     */
+    function reward(uint256 beginTimeOfOneDay) public view returns (uint256) {
+        return _rewardRecord[beginTimeOfOneDay];
     }
 
     /**
@@ -333,7 +342,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
                 // Current time Indicates the number of days since the last issue.
                 uint256 day = (validTime - _preDayAdditionalTime) / 86400;
                 for (uint256 k = 0; k < day; k++) {
-                    _mint(msg.sender, _totalSupply * _rate.outmoded.values[validTime] / 1e16);
+                    uint256 reward = _totalSupply * _rate.outmoded.values[validTime] / 1e16;
+                    _rewardRecord[_preDayAdditionalTime] = reward;
+                    _mint(msg.sender, reward);
                     // 86400 = 24 * 60 * 60 (one day)
                     _preDayAdditionalTime += 86400;
                 }
@@ -346,7 +357,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         // use current rate
         uint256 currentDays = (block.timestamp - _preDayAdditionalTime) / 86400;
         for (uint256 i = 0; i < currentDays; i++) {
-            _mint(msg.sender, _totalSupply * _rate.currentRate / 1e16);
+            uint256 reward = _totalSupply * _rate.currentRate / 1e16;
+            _rewardRecord[_preDayAdditionalTime] = reward;
+            _mint(msg.sender, reward);
             _preDayAdditionalTime += 86400;
         }
         end = _preDayAdditionalTime;

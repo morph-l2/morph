@@ -26,6 +26,12 @@ interface IMorphToken is IERC20MetadataUpgradeable {
     function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) external;
 
     /**
+     * @dev query reward
+     * @param beginTimeOfOneDay begin time of each day
+     */
+    function reward(uint256 beginTimeOfOneDay) external returns (uint256);
+
+    /**
      * @dev set rate
      * 1.0001596535874529 is the 365 square root of 1.06.
      * 1.0019008376772350 is the 365 square root of 2.
