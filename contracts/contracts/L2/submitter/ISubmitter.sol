@@ -60,9 +60,4 @@ interface ISubmitter {
      * @notice notify epoch updated
      */
     function epochUpdated(uint256 epoch) external;
-
-    /**
-     * @notice notify sequencers updated
-     */
-    function sequencersUpdated(address[] memory sequencers) external;
 }

@@ -2,11 +2,12 @@
 pragma solidity =0.8.24;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+import {Predeploys} from "../../libraries/constants/Predeploys.sol";
+import {Types} from "../../libraries/common/Types.sol";
+import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
 import {IL2Sequencer} from "./IL2Sequencer.sol";
 import {ISubmitter} from "../submitter/ISubmitter.sol";
-import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
-import {Types} from "../../libraries/common/Types.sol";
-import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
     // submitter contract address
@@ -15,12 +16,9 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
     // current sequencers version
     uint256 public override currentVersion = 0;
     uint256 public override currentVersionHeight = 0;
-    uint256 public override preVersion = 0;
     uint256 public override preVersionHeight = 0;
 
-    // addresses of sequencerSet
-    address[] public override sequencerAddresses;
-    address[] public override preSequencerAddresses;
+    mapping(uint256 => Types.SequencerHistory) public sequencerHistory;
 
     // sequencer infos array
     Types.SequencerInfo[] public sequencerInfos;
@@ -47,36 +45,52 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
     function initialize(
         Types.SequencerInfo[] memory _sequencers
     ) public initializer {
+        address[] memory sequencerAddresses = new address[](_sequencers.length);
         for (uint256 i = 0; i < _sequencers.length; i++) {
-            sequencerAddresses.push(_sequencers[i].addr);
+            sequencerAddresses[i] = _sequencers[i].addr;
             sequencerInfos.push(_sequencers[i]);
         }
-        ISubmitter(L2_SUBMITTER_CONTRACT).sequencersUpdated(sequencerAddresses);
+        sequencerHistory[0] = Types.SequencerHistory(
+            sequencerAddresses,
+            block.timestamp
+        );
     }
 
     function updateSequencers(
         uint256 version,
         Types.SequencerInfo[] memory _sequencers
     ) public onlyOtherSequencer {
-        preVersion = currentVersion;
-        delete preSequencerInfos;
-        delete preSequencerAddresses;
-        preSequencerInfos = sequencerInfos;
-        preSequencerAddresses = sequencerAddresses;
-        preVersionHeight = currentVersionHeight;
-
+        require(version == currentVersion + 1, "invalid version");
         currentVersion = version;
+
+        delete preSequencerInfos;
+        preSequencerInfos = sequencerInfos;
         delete sequencerInfos;
-        delete sequencerAddresses;
+
+        preVersionHeight = currentVersionHeight;
         currentVersionHeight = block.number;
 
+        address[] memory sequencerAddresses = new address[](_sequencers.length);
         for (uint256 i = 0; i < _sequencers.length; i++) {
-            sequencerAddresses.push(_sequencers[i].addr);
+            sequencerAddresses[i] = _sequencers[i].addr;
             sequencerInfos.push(_sequencers[i]);
         }
 
-        ISubmitter(L2_SUBMITTER_CONTRACT).sequencersUpdated(sequencerAddresses);
+        sequencerHistory[version] = Types.SequencerHistory(
+            sequencerAddresses,
+            block.timestamp
+        );
+
         emit SequencerUpdated(sequencerAddresses, version);
+    }
+
+    /**
+     * @notice get sequencer history
+     */
+    function getSequencerHistory(
+        uint256 version
+    ) external view returns (Types.SequencerHistory memory) {
+        return sequencerHistory[version];
     }
 
     /**
@@ -85,10 +99,10 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
     function getSequencerAddresses(
         bool previous
     ) external view returns (address[] memory) {
-        if (previous) {
-            return preSequencerAddresses;
+        if (previous && currentVersion > 0) {
+            return sequencerHistory[currentVersion - 1].sequencerAddresses;
         }
-        return sequencerAddresses;
+        return sequencerHistory[currentVersion].sequencerAddresses;
     }
 
     /**
@@ -110,17 +124,32 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
         bool previous,
         address checkAddr
     ) external view returns (bool, uint256) {
-        if (previous) {
-            for (uint256 i = 0; i < preSequencerAddresses.length; i++) {
-                if (checkAddr == preSequencerAddresses[i]) {
-                    return (true, preVersion);
+        if (previous && currentVersion > 0) {
+            for (
+                uint256 i = 0;
+                i <
+                sequencerHistory[currentVersion - 1].sequencerAddresses.length;
+                i++
+            ) {
+                if (
+                    checkAddr ==
+                    sequencerHistory[currentVersion - 1].sequencerAddresses[i]
+                ) {
+                    return (true, currentVersion - 1);
                 }
             }
-            return (false, preVersion);
+            return (false, currentVersion - 1);
         }
 
-        for (uint256 i = 0; i < sequencerAddresses.length; i++) {
-            if (checkAddr == sequencerAddresses[i]) {
+        for (
+            uint256 i = 0;
+            i < sequencerHistory[currentVersion].sequencerAddresses.length;
+            i++
+        ) {
+            if (
+                checkAddr ==
+                sequencerHistory[currentVersion].sequencerAddresses[i]
+            ) {
                 return (true, currentVersion);
             }
         }
@@ -134,16 +163,31 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
         bool previous,
         address checkAddr
     ) external view returns (uint256, uint256) {
-        if (previous) {
-            for (uint256 i = 0; i < preSequencerAddresses.length; i++) {
-                if (checkAddr == preSequencerAddresses[i]) {
-                    return (i, preVersion);
+        if (previous && currentVersion > 0) {
+            for (
+                uint256 i = 0;
+                i <
+                sequencerHistory[currentVersion - 1].sequencerAddresses.length;
+                i++
+            ) {
+                if (
+                    checkAddr ==
+                    sequencerHistory[currentVersion - 1].sequencerAddresses[i]
+                ) {
+                    return (i, currentVersion - 1);
                 }
             }
             revert("sequencer not exist");
         }
-        for (uint256 i = 0; i < sequencerAddresses.length; i++) {
-            if (checkAddr == sequencerAddresses[i]) {
+        for (
+            uint256 i = 0;
+            i < sequencerHistory[currentVersion].sequencerAddresses.length;
+            i++
+        ) {
+            if (
+                checkAddr ==
+                sequencerHistory[currentVersion].sequencerAddresses[i]
+            ) {
                 return (i, currentVersion);
             }
         }
@@ -156,9 +200,15 @@ contract L2Sequencer is Initializable, IL2Sequencer, Sequencer {
     function sequencersLen(
         bool previous
     ) external view returns (uint256, uint256) {
-        if (previous) {
-            return (preSequencerAddresses.length, preVersion);
+        if (previous && currentVersion > 0) {
+            return (
+                sequencerHistory[currentVersion - 1].sequencerAddresses.length,
+                currentVersion - 1
+            );
         }
-        return (sequencerAddresses.length, currentVersion);
+        return (
+            sequencerHistory[currentVersion].sequencerAddresses.length,
+            currentVersion
+        );
     }
 }

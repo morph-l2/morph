@@ -20,6 +20,17 @@ library Types {
     }
 
     /**
+     * @notice SequencerHistory representing a sequencerset change.
+     *
+     * @custom:field sequencerAddresses     sequencers
+     * @custom:field timestamp              sequencer change time
+     */
+    struct SequencerHistory {
+        address[] sequencerAddresses;
+        uint256 timestamp;
+    }
+
+    /**
      * @notice BatchInfo representing a batch.
      *
      * @custom:field submitter      batch submitter
@@ -46,5 +57,16 @@ library Types {
         address submitter;
         uint256 startTime;
         uint256 endTime;
+    }
+
+    /**
+     * @notice BatchInfo representing a epoch change.
+     *
+     * @custom:field epoch      epoch blocks
+     * @custom:field timestamp  epoch change time
+     */
+    struct EpochHistory {
+        uint256 epoch;
+        uint256 timestamp;
     }
 }
