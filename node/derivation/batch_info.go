@@ -52,8 +52,6 @@ type BatchInfo struct {
 	blockNum         uint64
 	txNum            uint64
 	version          uint64
-	dataHash         common.Hash
-	batchHash        common.Hash
 	chunks           []*Chunk
 	l1BlockNumber    uint64
 	txHash           common.Hash
@@ -89,7 +87,8 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	bi.version = uint64(batch.Version)
 	var txPayload []byte
 	for _, blob := range batch.Sidecar.Blobs {
-		data, err := types.DecodeRawTxPayload(&blob)
+		blobCopy := blob
+		data, err := types.DecodeRawTxPayload(&blobCopy)
 		if err != nil {
 			return err
 		}

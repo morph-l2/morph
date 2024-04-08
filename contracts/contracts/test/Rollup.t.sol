@@ -228,21 +228,14 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             ) // bitmap0
             mstore(add(batchHeader2, add(0x20, 121)), 42) // bitmap1
         }
-        chunk0 = new bytes(1 + 60 + 3 * 32);
+        chunk0 = new bytes(1 + 60);
         assembly {
             mstore(add(chunk0, 0x20), shl(248, 1)) // numBlocks = 1
             mstore(add(chunk0, add(0x21, 56)), shl(240, 3)) // numTransactions = 3
             mstore(add(chunk0, add(0x21, 58)), shl(240, 0)) // numL1Messages = 0
         }
 
-        bytes32 txHash = keccak256(abi.encodePacked(bytes1(uint8(0)))); // tx = "0x00"
-
-        for (uint256 i = 0; i < 3; i++) {
-            assembly {
-                mstore(add(chunk0, add(93, mul(i, 32))), txHash) // tx = "0x00"
-            }
-        }
-        chunk1 = new bytes(1 + 60 * 3 + 51 * 32);
+        chunk1 = new bytes(1 + 60 * 3);
         assembly {
             mstore(add(chunk1, 0x20), shl(248, 3)) // numBlocks = 3
             mstore(add(chunk1, add(33, 56)), shl(240, 5)) // block0.numTransactions = 5
@@ -252,11 +245,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(chunk1, add(153, 56)), shl(240, 300)) // block1.numTransactions = 300
             mstore(add(chunk1, add(153, 58)), shl(240, 256)) // block1.numL1Messages = 256
         }
-        for (uint256 i = 0; i < 51; i++) {
-            assembly {
-                mstore(add(chunk1, add(213, mul(i, 32))), txHash) // tx = "0x00"
-            }
-        }
+
         chunks = new bytes[](2);
         chunks[0] = chunk0;
         chunks[1] = chunk1;
@@ -336,7 +325,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         emit CommitBatch(
             2,
             bytes32(
-                0xcfbb018dbe120e5c2195c3b22e2a224a9510349dfda20361cb13c1115c4d6214
+                0x00d59adae5b8cdbc80e8320e003214848bcd8613101df8c760e537ca7e78eb3d
             )
         );
 
@@ -363,7 +352,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(
             batchHash2,
             bytes32(
-                0xcfbb018dbe120e5c2195c3b22e2a224a9510349dfda20361cb13c1115c4d6214
+                0x00d59adae5b8cdbc80e8320e003214848bcd8613101df8c760e537ca7e78eb3d
             )
         );
 
@@ -438,8 +427,7 @@ contract RollupTest is L1MessageBaseTest {
             ),
             sequencerAddrs,
             sequencerBLSKeys,
-            defaultGasLimit,
-            address(2048)
+            defaultGasLimit
         );
 
         hevm.stopPrank();
@@ -709,12 +697,12 @@ contract RollupTest is L1MessageBaseTest {
         );
         hevm.stopPrank();
 
-        // incomplete l2 transaction data, revert
+        // invalid chunk length, revert
         chunk0 = new bytes(1 + 60 + 1);
         chunk0[0] = bytes1(uint8(1)); // one block in this chunk
         chunks[0] = chunk0;
         hevm.startPrank(sequencerAddr);
-        hevm.expectRevert("incomplete l2 transaction data");
+        hevm.expectRevert("invalid chunk length");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
