@@ -77,5 +77,5 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      *
      * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
-    function mint() external;
+    function mint() external returns (uint256, uint256);
 }

@@ -77,6 +77,14 @@ contract MorphTokenTest_mint is DSTestPlus {
         morphToken.mint();
     }
 
+    function test_mint_beginAndEnd() public {
+        hevm.warp(beginTime + 86400);
+        emit log_uint(block.timestamp);
+        (uint256 begin, uint256 end) = morphToken.mint();
+        assertEq(begin, beginTime);
+        assertEq(end, beginTime + 86400);
+    }
+
     function test_mint_moreThanOneDay() public {
         hevm.warp(beginTime + 86500);
         emit log_uint(block.timestamp);

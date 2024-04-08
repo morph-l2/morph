@@ -290,9 +290,11 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      *
      * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
-    function mint() external onlyDistribute {
+    function mint() external onlyDistribute returns (uint256 begin, uint256 end) {
         require(block.timestamp > _preDayAdditionalTime, "the mint function is not enabled");
         require((block.timestamp - _preDayAdditionalTime) / 86400 != 0, "only mint once a day");
+
+        begin = _preDayAdditionalTime;
 
         uint256 length = _rate.pending.index.length();
         for (uint256 i = 0; i < length; i++) {
@@ -347,6 +349,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
             _mint(msg.sender, _totalSupply * _rate.currentRate / 1e16);
             _preDayAdditionalTime += 86400;
         }
+        end = _preDayAdditionalTime;
     }
 
     function _mint(address account, uint256 amount) internal {
