@@ -77,7 +77,8 @@ contract GasPriceOracle is Ownable {
     modifier onlyAllowed() {
         // solhint-disable-next-line avoid-tx-origin
         require(
-            owner() == msg.sender || !allowListEnabled || isAllowed[msg.sender],
+            owner() == msg.sender ||
+                (allowListEnabled && isAllowed[msg.sender]),
             "not allowed"
         );
         _;
