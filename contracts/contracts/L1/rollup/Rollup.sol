@@ -26,11 +26,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      *************/
 
     /// @notice The zero versioned hash.
-    bytes32 internal immutable ZERO_VERSIONED_HASH =
+    bytes32 internal constant ZERO_VERSIONED_HASH =
         0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
 
     /// @notice The BLS MODULUS
-    uint256 internal immutable BLS_MODULUS =
+    uint256 internal constant BLS_MODULUS =
         52435875175126190479447740508185965837690552500527637822603658699938581184513;
 
     /// @notice The chain id of the corresponding layer 2 chain.
@@ -208,10 +208,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
-
-        ZERO_VERSIONED_HASH = bytes32(
-            hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
-        );
 
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
