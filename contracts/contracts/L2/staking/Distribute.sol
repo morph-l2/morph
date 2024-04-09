@@ -39,7 +39,7 @@ contract Distribute is Initializable, OwnableUpgradeable {
         bool valid;
     }
 
-    uint256 private _usedEpochIndex;
+    uint256 private _usedMintEpochIndex;
     address private _morphToken;
     address private _record;
     address private _gov;
@@ -99,37 +99,49 @@ contract Distribute is Initializable, OwnableUpgradeable {
         uint256 internalDays = (mintEnd - mintBegin) / 86400;
 
         for (uint256 i = 0; i < internalDays; i++) {
-            //? if not data
-            for (uint256 j = _timeToBlockNumber.index.length() - 1; j >= 0; j--) {
-                uint256 tm = mintBegin + (i * 86400);
-                if (_timeToBlockNumber.index.at(j) >= tm && _timeToBlockNumber.index.at(j) < tm + 86400) {
+            if (_timeToBlockNumber.index.length() <= internalDays) {
+                revert("mapping block time to block number data not enable");
+            }
+
+            uint256 tm = mintBegin + (i * 86400);
+
+            for (uint256 j = 0; j < _timeToBlockNumber.index.length(); j++) {
+
+                uint256 beginTimeOfOneDay = _timeToBlockNumber.index.at(j);
+
+                if (beginTimeOfOneDay >= tm && beginTimeOfOneDay < tm + 86400) {
 
                     uint256 rewardOfOneDay = IMorphToken(_morphToken).reward(tm);
-
-                    uint256 beginTimeOfOneDay = _timeToBlockNumber.index.at(j);
-                    // ?
+                    // if (_timeToBlockNumber.index.length() <= internalDays) to
                     uint256 nextBeginTimeOfOneDay = _timeToBlockNumber.index.at(j + 1);
                     uint256 beginBlockNumberOfOneDay = _timeToBlockNumber.value[beginTimeOfOneDay];
                     uint256 endBlockNumberOfOneDay = _timeToBlockNumber.value[nextBeginTimeOfOneDay] - 1;
 
                     uint256 totalBlockNumberOfOneDay = endBlockNumberOfOneDay - beginBlockNumberOfOneDay + 1;
-                    for (uint256 k = _usedEpochIndex;;k++) {
+                    for (uint256 k = _usedMintEpochIndex;;k++) {
+
                         (uint256 epochIndexBeginNumber, uint256 epochIndexEndNumber) = IRecords(_record).epochInfo(k);
 
                         if (beginBlockNumberOfOneDay <= epochIndexBeginNumber && epochIndexEndNumber <= endBlockNumberOfOneDay) {
                             _rewards[k] = rewardOfOneDay * (epochIndexEndNumber - epochIndexBeginNumber + 1) / totalBlockNumberOfOneDay;
-                            _usedEpochIndex = k;
+                            _usedMintEpochIndex = k;
                             continue;
                         }else if (beginBlockNumberOfOneDay > epochIndexBeginNumber && epochIndexEndNumber < endBlockNumberOfOneDay) {
                             _rewards[k] += rewardOfOneDay * (epochIndexEndNumber - beginBlockNumberOfOneDay + 1) / totalBlockNumberOfOneDay;
-                            _usedEpochIndex = k;
+                            _usedMintEpochIndex = k;
                             continue;
                         }else if (beginBlockNumberOfOneDay < epochIndexBeginNumber && epochIndexEndNumber > endBlockNumberOfOneDay) {
                             _rewards[k] += rewardOfOneDay * (endBlockNumberOfOneDay - epochIndexBeginNumber + 1) / totalBlockNumberOfOneDay;
-                            _usedEpochIndex = k;
+                            _usedMintEpochIndex = k;
                             continue;
                         }
                         break;
+                    }
+
+                    for (uint256 m = j; m >= 0; m--) {
+                        uint256 timeIndex = _timeToBlockNumber.index.at(m);
+                        _timeToBlockNumber.index.remove(timeIndex);
+                        delete _timeToBlockNumber.value(timeIndex);
                     }
                 }
             }
