@@ -20,7 +20,7 @@ echo "HOLESKY_RPC_URL is $HOLESKY_RPC_URL"
 cat "deploy-config/holesky-deploy-config.json" > $TESTNET/holesky-deploy-config.json
 (
 go run cmd/main.go genesis l2 \
---l1-rpc $SEPOLIA_RPC_URL \
+--l1-rpc $HOLESKY_RPC_URL \
 --deploy-config $TESTNET/holesky-deploy-config.json \
 --deployment-dir "$PWD/../../contracts/holesky.json" \
 --outfile.l2 $TESTNET/genesis-l2.json \
