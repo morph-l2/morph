@@ -157,7 +157,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
 
         // finalize batch1
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS() + 1);
-        rollup.finalizeBatches();
+        rollup.finalizeBatch(1);
         assertTrue(rollup.isBatchFinalized(1));
         assertEq(rollup.finalizedStateRoots(1), stateRoot);
         assertTrue(rollup.withdrawalRoots(bytes32(uint256(3))));
@@ -359,7 +359,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         // verify committed batch correctly
         hevm.startPrank(address(0));
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS());
-        rollup.finalizeBatches();
+        rollup.finalizeBatch(2);
         hevm.stopPrank();
 
         assertTrue(rollup.isBatchFinalized(2));
@@ -768,10 +768,6 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testFinalizeBatches() public {
-        rollup.finalizeBatches();
-    }
-
     function testRevertBatch() public {
         // caller not owner, revert
         hevm.startPrank(address(1));
@@ -951,7 +947,7 @@ contract RollupTest is L1MessageBaseTest {
         ); // first chunk with too many txs
 
         hevm.expectRevert("Pausable: paused");
-        rollup.finalizeBatches();
+        rollup.finalizeBatch(0);
         hevm.stopPrank();
 
         // unpause

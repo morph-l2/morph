@@ -103,6 +103,7 @@ abstract contract CrossDomainMessenger is
     /// @dev This function can only called by contract owner.
     /// @param _newFeeVault The address of new fee vault contract.
     function updateFeeVault(address _newFeeVault) external onlyOwner {
+        require(_newFeeVault != address(0), "feeVault cannot be address(0)");
         address _oldFeeVault = feeVault;
 
         feeVault = _newFeeVault;

@@ -23,9 +23,9 @@ contract L1MessageBaseTest is CommonTest {
         uint256 balance
     );
     event SequencerUpdated(
+        uint256 indexed version,
         address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
+        bytes[] sequencersBLS
     );
     Staking staking;
     uint256 public beginSeq = 10;
