@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
+import "forge-std/console2.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {L2Sequencer} from "../../L2/staking/L2Sequencer.sol";
+import {L2Sequencer} from "../../L2/staking/Sequencer.sol";
 import {L2Staking} from "../../L2/staking/L2Staking.sol";
 import {Gov} from "../../L2/staking/Gov.sol";
-import {Submitter} from "../../L2/submitter/Submitter.sol";
 import {Types} from "../../libraries/common/Types.sol";
 
 contract L2StakingBaseTest is L2MessageBaseTest {
@@ -22,8 +22,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
     uint256 public constant SEQUENCER_SIZE = 3;
 
-    // Submitter config
-    Submitter public l2Submitter;
     uint256 public NEXT_EPOCH_START = 1700000000;
 
     // Gov config
@@ -40,7 +38,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         super.setUp();
         // Set the proxy at the correct address
         hevm.etch(
-            Predeploys.L2_SEQUENCER,
+            Predeploys.SEQUENCER,
             address(
                 new TransparentUpgradeableProxy(
                     address(emptyContract),
@@ -50,17 +48,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             ).code
         );
         hevm.etch(
-            Predeploys.L2_SUBMITTER,
-            address(
-                new TransparentUpgradeableProxy(
-                    address(emptyContract),
-                    address(multisig),
-                    new bytes(0)
-                )
-            ).code
-        );
-        hevm.etch(
-            Predeploys.L2_GOV,
+            Predeploys.GOV,
             address(
                 new TransparentUpgradeableProxy(
                     address(emptyContract),
@@ -80,24 +68,16 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             ).code
         );
         TransparentUpgradeableProxy l2SequencerProxy = TransparentUpgradeableProxy(
-            payable(Predeploys.L2_SEQUENCER)
-        );
-        TransparentUpgradeableProxy l2SubmitterProxy = TransparentUpgradeableProxy(
-            payable(Predeploys.L2_SUBMITTER)
-        );
+                payable(Predeploys.SEQUENCER)
+            );
         TransparentUpgradeableProxy l2GovProxy = TransparentUpgradeableProxy(
-            payable(Predeploys.L2_GOV)
+            payable(Predeploys.GOV)
         );
         TransparentUpgradeableProxy l2StakingProxy = TransparentUpgradeableProxy(
-            payable(Predeploys.L2_STAKING)
-        );
+                payable(Predeploys.L2_STAKING)
+            );
         hevm.store(
             address(l2SequencerProxy),
-            bytes32(PROXY_OWNER_KEY),
-            bytes32(abi.encode(address(multisig)))
-        );
-        hevm.store(
-            address(l2SubmitterProxy),
             bytes32(PROXY_OWNER_KEY),
             bytes32(abi.encode(address(multisig)))
         );
@@ -114,26 +94,30 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
         hevm.startPrank(multisig);
         // deploy impl contracts
-        L2Sequencer l2SequencerImpl = new L2Sequencer(payable(NON_ZERO_ADDRESS));
+        L2Sequencer l2SequencerImpl = new L2Sequencer();
 
         Gov govImpl = new Gov();
 
-        Submitter submitterImpl = new Submitter();
-
-        L2Staking l2StakingImpl = new L2Staking();
+        L2Staking l2StakingImpl = new L2Staking(payable(NON_ZERO_ADDRESS));
 
         // upgrade proxy
-        Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](SEQUENCER_SIZE);
+        Types.StakerInfo[] memory stakerInfos = new Types.StakerInfo[](
+            SEQUENCER_SIZE
+        );
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address user = address(uint160(beginSeq + i));
-            Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(user);
-            sequencerInfos[i] = sequencerInfo;
-            sequencerAddrs.push(sequencerInfo.addr);
+            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(user);
+            stakerInfos[i] = stakerInfo;
+            sequencerAddrs.push(stakerInfo.addr);
         }
-        ITransparentUpgradeableProxy(address(l2SequencerProxy)).upgradeToAndCall(
-            address(l2SequencerImpl),
-            abi.encodeWithSelector(L2Sequencer.initialize.selector, sequencerInfos)
-        );
+        ITransparentUpgradeableProxy(address(l2SequencerProxy))
+            .upgradeToAndCall(
+                address(l2SequencerImpl),
+                abi.encodeWithSelector(
+                    L2Sequencer.initialize.selector,
+                    sequencerAddrs
+                )
+            );
         ITransparentUpgradeableProxy(address(l2GovProxy)).upgradeToAndCall(
             address(govImpl),
             abi.encodeWithSelector(
@@ -146,18 +130,12 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 MAX_CHUNKS // maxChunks
             )
         );
-        ITransparentUpgradeableProxy(address(l2SubmitterProxy)).upgradeToAndCall(
-            address(submitterImpl),
-            abi.encodeWithSelector(Submitter.initialize.selector, sequencerAddrs, block.timestamp)
-        );
 
         ITransparentUpgradeableProxy(address(l2StakingProxy)).upgradeToAndCall(
             address(l2StakingImpl),
             abi.encodeWithSelector(
                 L2Staking.initialize.selector,
                 multisig,
-                Predeploys.L2_SEQUENCER,
-                Predeploys.MORPH_TOKEN,
                 SEQUENCER_SIZE,
                 ROLLUP_EPOCH
             )
@@ -166,12 +144,10 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         // set address
         l2Sequencer = L2Sequencer(payable(address(l2SequencerProxy)));
         l2Gov = Gov(payable(address(l2GovProxy)));
-        l2Submitter = Submitter(payable(address(l2SubmitterProxy)));
         l2Staking = L2Staking(payable(address(l2StakingProxy)));
 
         _changeAdmin(address(l2Sequencer));
         _changeAdmin(address(l2Gov));
-        _changeAdmin(address(l2Submitter));
         _changeAdmin(address(l2Staking));
 
         hevm.stopPrank();

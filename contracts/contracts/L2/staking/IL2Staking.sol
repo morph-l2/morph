@@ -70,7 +70,7 @@ interface IL2Staking {
 
     /**
      * @notice user withdrawal
-     * @param staker stake to
+     * @param staker stake to whom
      */
     function withdrawal(address staker) external;
 
@@ -87,13 +87,13 @@ interface IL2Staking {
 
     /**
      * @notice user unstake morph to staker
-     * @param staker stake to
+     * @param staker stake to whom
      */
     function unDelegateStake(address staker) external;
 
     /**
      * @notice user stake morph to staker
-     * @param staker stake to
+     * @param staker stake to whom
      * @param amount stake amount
      */
     function delegateStake(address staker, uint256 amount) external;

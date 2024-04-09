@@ -2,14 +2,15 @@
 pragma solidity =0.8.24;
 
 import "forge-std/console2.sol";
-import {ERC20PresetFixedSupply} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ERC20PresetFixedSupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetFixedSupplyUpgradeable.sol";
 import {L2Staking} from "../L2/staking/L2Staking.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract L2StakingTest is L2StakingBaseTest {
-    ERC20PresetFixedSupply morphToken;
+    ERC20PresetFixedSupplyUpgradeable morphToken;
     uint256 totalSupply = 100000000000000000000 ether;
 
     address morphOwner = address(999);
@@ -25,31 +26,46 @@ contract L2StakingTest is L2StakingBaseTest {
     function setUp() public virtual override {
         super.setUp();
 
-        morphToken = new ERC20PresetFixedSupply("Morph", "MPH", totalSupply, morphOwner);
+        morphToken = new ERC20PresetFixedSupplyUpgradeable();
+        hevm.etch(Predeploys.MORPH_TOKEN, address(morphToken).code);
+        morphToken = ERC20PresetFixedSupplyUpgradeable(Predeploys.MORPH_TOKEN);
+        morphToken.initialize("Morph", "MPH", totalSupply, morphOwner);
 
-        uint256 slot = 159;
-        // console2.log(address(uint160(uint256(hevm.load(address(l2Staking), bytes32(slot))))));
-        hevm.store(address(l2Staking), bytes32(slot), bytes32(abi.encode(address(morphToken))));
-        // console2.log(address(uint160(uint256(hevm.load(address(l2Staking), bytes32(slot))))));
-
-        Types.SequencerInfo[] memory sequencers = new Types.SequencerInfo[](SEQUENCER_SIZE);
+        Types.StakerInfo[] memory sequencers = new Types.StakerInfo[](
+            SEQUENCER_SIZE
+        );
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address staker = address(uint160(beginSeq + i));
-            Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(staker);
-            sequencers[i] = sequencerInfo;
+            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(
+                staker
+            );
+            sequencers[i] = Types.StakerInfo(
+                stakerInfo.addr,
+                stakerInfo.tmKey,
+                stakerInfo.blsKey
+            );
 
             stakers.push(staker);
         }
+        firstStaker = stakers[0];
 
+        hevm.mockCall(
+            address(l2Staking.messenger()),
+            abi.encodeWithSelector(
+                ICrossDomainMessenger.xDomainMessageSender.selector
+            ),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+
+        hevm.startPrank(address(l2CrossDomainMessenger));
         l2Staking.updateStakers(sequencers, true);
+        hevm.stopPrank();
 
         hevm.startPrank(morphOwner);
         morphToken.transfer(bob, morphBalance);
         morphToken.transfer(alice, morphBalance);
         morphToken.transfer(multisig, limit + morphBalance);
         hevm.stopPrank();
-
-        firstStaker = stakers[0];
     }
 
     /**
@@ -150,9 +166,14 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(firstStaker, morphBalance);
         l2Staking.unDelegateStake(firstStaker);
 
-        (uint256 amount, uint256 unlock) = l2Staking.unstakingInfo(firstStaker, bob);
+        (uint256 amount, uint256 unlock) = l2Staking.unstakingInfo(
+            firstStaker,
+            bob
+        );
 
-        hevm.expectRevert("withdrawal cannot be made during the lock-up period");
+        hevm.expectRevert(
+            "withdrawal cannot be made during the lock-up period"
+        );
         l2Staking.withdrawal(firstStaker);
 
         hevm.stopPrank();
@@ -184,7 +205,9 @@ contract L2StakingTest is L2StakingBaseTest {
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, morphBalance);
         l2Staking.unDelegateStake(firstStaker);
-        hevm.expectRevert("re-staking cannot be made during the lock-up period");
+        hevm.expectRevert(
+            "re-staking cannot be made during the lock-up period"
+        );
         l2Staking.delegateStake(firstStaker, morphBalance);
         hevm.stopPrank();
     }

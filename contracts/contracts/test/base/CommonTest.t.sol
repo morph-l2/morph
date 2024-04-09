@@ -23,7 +23,8 @@ contract CommonTest is DSTestPlus, MockTree {
 
     FFIInterface ffi;
 
-    bytes32 PROXY_OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 PROXY_OWNER_KEY =
+        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
     bytes32 PROXY_IMPLEMENTATION_KEY =
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
@@ -69,7 +70,9 @@ contract CommonTest is DSTestPlus, MockTree {
     }
 
     function _changeAdmin(address proxy) internal {
-        ITransparentUpgradeableProxy(address(proxy)).changeAdmin(address(proxyAdmin));
+        ITransparentUpgradeableProxy(address(proxy)).changeAdmin(
+            address(proxyAdmin)
+        );
     }
 }
 
@@ -120,14 +123,19 @@ contract FFIInterface is Test {
         return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
     }
 
-    function generateStakingInfo(address _staker) external returns (Types.SequencerInfo memory) {
+    function generateStakingInfo(
+        address _staker
+    ) external returns (Types.StakerInfo memory) {
         string[] memory cmds = new string[](3);
         cmds[0] = "scripts/differential-testing/differential-testing";
         cmds[1] = "generateStakingInfo";
         cmds[2] = vm.toString(_staker);
 
         bytes memory result = vm.ffi(cmds);
-        Types.SequencerInfo memory sequencerInfo = abi.decode(result, (Types.SequencerInfo));
-        return sequencerInfo;
+        Types.StakerInfo memory stakerInfo = abi.decode(
+            result,
+            (Types.StakerInfo)
+        );
+        return stakerInfo;
     }
 }
