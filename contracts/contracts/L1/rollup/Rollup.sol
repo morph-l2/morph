@@ -26,11 +26,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      *************/
 
     /// @notice The zero versioned hash.
-    bytes32 internal immutable ZERO_VERSIONED_HASH =
+    bytes32 internal constant ZERO_VERSIONED_HASH =
         0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
 
     /// @notice The BLS MODULUS
-    uint256 internal immutable BLS_MODULUS =
+    uint256 internal constant BLS_MODULUS =
         52435875175126190479447740508185965837690552500527637822603658699938581184513;
 
     /// @notice The chain id of the corresponding layer 2 chain.
@@ -125,11 +125,19 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      */
     bool public inChallenge;
 
+    /// @dev Structure to store information about a batch challenge.
+    /// @param batchIndex The index of the challenged batch.
+    /// @param challenger The address of the challenger.
+    /// @param challengeDeposit The amount of deposit put up by the challenger.
+    /// @param startTime The timestamp when the challenge started.
+    /// @param challengeSuccess Flag indicating whether the challenge was successful.
+    /// @param finished Flag indicating whether the challenge has been resolved.
     struct BatchChallenge {
         uint64 batchIndex;
         address challenger;
         uint256 challengeDeposit;
         uint256 startTime;
+        bool challengeSuccess;
         bool finished;
     }
 
@@ -137,10 +145,13 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Function Modifiers *
      **********************/
 
-    modifier OnlySequencer() {
+    modifier OnlySequencer(uint256 version) {
         // @note In the decentralized mode, it should be only called by a list of validator.
         require(
-            IL1Sequencer(l1SequencerContract).isSequencer(_msgSender()),
+            IL1Sequencer(l1SequencerContract).isSequencer(
+                _msgSender(),
+                version
+            ),
             "caller not sequencer"
         );
         _;
@@ -287,16 +298,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 version,
         address[] memory sequencers,
         bytes memory signature
-    ) external payable override OnlySequencer whenNotPaused {
-        // verify bls signature
-        require(
-            IL1Sequencer(l1SequencerContract).verifySignature(
-                version,
-                sequencers,
-                signature
-            ),
-            "the signature verification failed"
-        );
+    ) external payable override OnlySequencer(version) whenNotPaused {
         require(batchData.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchData.chunks.length;
@@ -310,19 +312,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             "new state root is zero"
         );
 
-        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
-        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-        address[] memory _sequencer = new address[](1);
-        _sequencer[0] = msg.sender;
-
-        _commitBatch(batchData, _chunksLength, _sequencer);
-    }
-
-    function _commitBatch(
-        BatchData calldata batchData,
-        uint256 _chunksLength,
-        address[] memory sequencers
-    ) internal {
         // The overall memory layout in this function is organized as follows
         // +---------------------+-------------------+------------------+
         // | parent batch header | chunk data hashes | new batch header |
@@ -341,6 +330,41 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchData.parentBatchHeader
         );
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
+
+        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
+        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
+        address[] memory _sequencer = new address[](1);
+        _sequencer[0] = msg.sender;
+
+        _commitBatch(
+            batchData,
+            _chunksLength,
+            _sequencer,
+            batchPtr,
+            _parentBatchHash,
+            _batchIndex
+        );
+
+        // verify bls signature
+        require(
+            IL1Sequencer(l1SequencerContract).verifySignature(
+                version,
+                sequencers,
+                signature,
+                committedBatchStores[_batchIndex].batchHash
+            ),
+            "the signature verification failed"
+        );
+    }
+
+    function _commitBatch(
+        BatchData calldata batchData,
+        uint256 _chunksLength,
+        address[] memory sequencers,
+        uint256 batchPtr,
+        bytes32 _parentBatchHash,
+        uint256 _batchIndex
+    ) internal {
         // re-compute batchHash using _blobVersionedHash
         _parentBatchHash = keccak256(
             abi.encodePacked(
@@ -544,6 +568,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _msgSender(),
             msg.value,
             block.timestamp,
+            false,
             false
         );
         emit ChallengeState(batchIndex, _msgSender(), msg.value);
@@ -587,6 +612,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         if (
             challenges[_batchIndex].startTime + PROOF_WINDOW <= block.timestamp
         ) {
+            // set status
+            challenges[_batchIndex].challengeSuccess = true;
             _challengerWin(
                 _batchIndex,
                 committedBatchStores[_batchIndex].sequencers,
@@ -699,46 +726,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         return result;
     }
 
-    function finalizeBatches() public whenNotPaused {
-        uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
-        for (
-            uint256 i = lastFinalizedBatchIndexCache + 1;
-            i <= lastCommittedBatchIndex;
-            i++
-        ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
-            finalizeBatch(i);
-        }
-    }
-
-    function finalizeBatchesByNum(uint256 num) public whenNotPaused {
-        require(num > 1, "finalize batch must bigger than 1");
-        uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
-        for (
-            uint256 i = lastFinalizedBatchIndexCache + 1;
-            i <= lastFinalizedBatchIndexCache + num;
-            i++
-        ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
-            finalizeBatch(i);
-        }
-    }
-
+    /// @dev Finalizes a specific batch by verifying its state and updating contract state accordingly.
+    /// @param _batchIndex The index of the batch to finalize.
     function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
+        require(!batchChallengedSuccess(_batchIndex), "batch should be revert");
         require(
             !batchInsideChallengeWindow(_batchIndex),
             "batch in challenge window"
@@ -1163,6 +1156,14 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         return
             challenges[batchIndex].challenger != address(0) &&
             !challenges[batchIndex].finished;
+    }
+
+    /// @dev Retrieves the success status of a batch challenge.
+    /// @param batchIndex The index of the batch to check.
+    function batchChallengedSuccess(
+        uint256 batchIndex
+    ) public view returns (bool) {
+        return challenges[batchIndex].challengeSuccess;
     }
 
     /// @dev Public function to checks whether batch exists.

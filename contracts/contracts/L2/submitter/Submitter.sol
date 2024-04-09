@@ -10,16 +10,6 @@ import {IGov} from "../staking/IGov.sol";
 import {ISubmitter} from "./ISubmitter.sol";
 
 contract Submitter is ISubmitter, OwnableUpgradeable {
-    struct SequencerHistory {
-        address[] sequencerAddresses;
-        uint256 timestamp;
-    }
-
-    struct EpochHistory {
-        uint256 epoch;
-        uint256 timestamp;
-    }
-
     // l2SequencerContract address
     address public immutable L2_SEQUENCER_CONTRACT;
     // GovContract address
@@ -34,8 +24,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     // epoch info
     mapping(uint256 => Types.EpochInfo) public epochs;
 
-    SequencerHistory[] public sequencerHistory;
-    EpochHistory[] public epochHistory;
+    Types.EpochHistory[] public epochHistory;
 
     /**
      * @notice ack rollup
@@ -56,12 +45,8 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         L2_GOV_CONTRACT = Predeploys.L2_GOV;
     }
 
-    function initialize(
-        address[] memory sequencers,
-        uint256 timestamp
-    ) public initializer {
+    function initialize() public initializer {
         __Ownable_init();
-        sequencerHistory.push(SequencerHistory(sequencers, timestamp));
     }
 
     /**
@@ -104,18 +89,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
      */
     function epochUpdated(uint256 epoch) public {
         require(msg.sender == L2_GOV_CONTRACT, "only gov contract");
-        epochHistory.push(EpochHistory(epoch, block.timestamp));
-    }
-
-    /**
-     * @notice sequencers updated
-     */
-    function sequencersUpdated(address[] memory sequencers) public {
-        require(
-            msg.sender == L2_SEQUENCER_CONTRACT,
-            "only l2 sequencer contract"
-        );
-        sequencerHistory.push(SequencerHistory(sequencers, block.timestamp));
+        epochHistory.push(Types.EpochHistory(epoch, block.timestamp));
     }
 
     // ============================================================================
@@ -126,7 +100,12 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     function getTurn(
         address submitter
     ) external view returns (uint256, uint256) {
-        uint256 start = sequencerHistory[sequencerHistory.length - 1].timestamp;
+        uint256 currentVersion = IL2Sequencer(L2_SEQUENCER_CONTRACT)
+            .currentVersion();
+
+        uint256 start = IL2Sequencer(L2_SEQUENCER_CONTRACT)
+            .getSequencerHistory(currentVersion)
+            .timestamp;
 
         if (
             epochHistory.length > 0 &&
@@ -135,9 +114,9 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
             start = epochHistory[epochHistory.length - 1].timestamp;
         }
 
-        address[] memory sequencers = sequencerHistory[
-            sequencerHistory.length - 1
-        ].sequencerAddresses;
+        address[] memory sequencers = IL2Sequencer(L2_SEQUENCER_CONTRACT)
+            .getSequencerHistory(currentVersion)
+            .sequencerAddresses;
         uint256 epoch = IGov(L2_GOV_CONTRACT).rollupEpoch();
 
         uint256 sequencersLen = sequencers.length;
@@ -172,8 +151,12 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         view
         returns (address, uint256, uint256)
     {
-        require(sequencerHistory.length > 0, "invalid sequencer");
-        uint256 start = sequencerHistory[sequencerHistory.length - 1].timestamp;
+        uint256 currentVersion = IL2Sequencer(L2_SEQUENCER_CONTRACT)
+            .currentVersion();
+
+        uint256 start = IL2Sequencer(L2_SEQUENCER_CONTRACT)
+            .getSequencerHistory(currentVersion)
+            .timestamp;
 
         if (
             epochHistory.length > 0 &&
@@ -182,9 +165,10 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
             start = epochHistory[epochHistory.length - 1].timestamp;
         }
 
-        address[] memory sequencers = sequencerHistory[
-            sequencerHistory.length - 1
-        ].sequencerAddresses;
+        address[] memory sequencers = IL2Sequencer(L2_SEQUENCER_CONTRACT)
+            .getSequencerHistory(currentVersion)
+            .sequencerAddresses;
+
         uint256 epoch = IGov(L2_GOV_CONTRACT).rollupEpoch();
         uint256 sequencersLen = sequencers.length;
 
