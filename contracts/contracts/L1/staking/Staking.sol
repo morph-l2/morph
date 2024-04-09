@@ -92,6 +92,11 @@ contract Staking is IStaking, OwnableUpgradeable {
     event WhitelistUpdated(address[] add, address[] remove);
 
     /**
+     * @notice staker staked
+     */
+    event EnableSlash(bool enable);
+
+    /**
      * @notice only sequencer contract
      */
     modifier onlySequencerContract() {
@@ -296,9 +301,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     /**
      * @notice withdraw ETH
      */
-    function withdrawETH(
-        uint32 _minGasLimit
-    ) external payable noExit {
+    function withdrawETH(uint32 _minGasLimit) external payable noExit {
         uint256 index = getStakerIndex(msg.sender);
 
         withdrawals[msg.sender] = Withdrawal(
@@ -330,6 +333,7 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     function toggleSlash(bool enanble) external onlyOwner {
         enableSlash = enanble;
+        emit EnableSlash(enableSlash);
     }
 
     function unpauseSequencer() external onlyOwner {

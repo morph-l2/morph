@@ -26,7 +26,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      *************/
 
     /// @notice The zero versioned hash.
-    bytes32 public ZERO_VERSIONED_HASH;
+    bytes32 internal immutable ZERO_VERSIONED_HASH =
+        0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
+
+    /// @notice The BLS MODULUS
+    uint256 internal immutable BLS_MODULUS =
+        52435875175126190479447740508185965837690552500527637822603658699938581184513;
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
@@ -620,66 +625,109 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 _minGasLimit
             );
         } else {
-            // Check validity of proof
-            require(_aggrProof.length > 0, "Invalid proof");
+            _verifyProof(_batchIndex, _aggrProof, _kzgData);
+            // Record defender win
+            _defenderWin(_batchIndex, _msgSender(), "Proof success");
+        }
+    }
 
-            // Check validity of KZG data
-            require(_kzgData.length == 128, "Invalid KZG data");
+    function _verifyProof(
+        uint64 _batchIndex,
+        bytes calldata _aggrProof,
+        bytes calldata _kzgData
+    ) private view {
+        // Check validity of proof
+        require(_aggrProof.length > 0, "Invalid proof");
 
-            // Compute public input hash
-            bytes32 _publicInputHash = keccak256(
+        // Check validity of KZG data
+        require(_kzgData.length == 128, "Invalid KZG data");
+
+        // Compute xBytes
+        bytes memory _xBytes = computeXBytes(_batchIndex, _kzgData[32:80]);
+
+        // Create input for verification
+        bytes memory _input = abi.encode(
+            committedBatchStores[_batchIndex].blobVersionedHash,
+            _xBytes,
+            _kzgData
+        );
+
+        // Verify 4844-proof
+        (bool success, bytes memory data) = address(0x0A).staticcall(_input);
+        require(success, "failed to call point evaluation precompile");
+        (, uint256 result) = abi.decode(data, (uint256, uint256));
+        require(result == BLS_MODULUS, "precompile unexpected output");
+
+        IRollupVerifier(verifier).verifyAggregateProof(
+            _batchIndex,
+            _aggrProof,
+            computePublicInputHash(_batchIndex, _xBytes, _kzgData[0:32])
+        );
+    }
+
+    function computeXBytes(
+        uint64 _batchIndex,
+        bytes memory commitment
+    ) private view returns (bytes memory) {
+        bytes memory xBytes = abi.encode(
+            keccak256(
+                abi.encodePacked(
+                    commitment,
+                    committedBatchStores[_batchIndex].l1DataHash
+                )
+            )
+        );
+        xBytes[0] = 0x0; // make sure x < BLS_MODULUS
+        return xBytes;
+    }
+
+    function computePublicInputHash(
+        uint64 _batchIndex,
+        bytes memory _xBytes,
+        bytes memory _yBytes
+    ) private view returns (bytes32) {
+        return
+            keccak256(
                 abi.encodePacked(
                     layer2ChainId,
                     committedBatchStores[_batchIndex].prevStateRoot,
                     committedBatchStores[_batchIndex].postStateRoot,
                     committedBatchStores[_batchIndex].withdrawalRoot,
-                    committedBatchStores[_batchIndex].l1DataHash
+                    committedBatchStores[_batchIndex].l1DataHash,
+                    splitUint256(_xBytes),
+                    splitUint256(_yBytes)
                 )
             );
+    }
 
-            // Extract commitment
-            bytes memory _commitment = _kzgData[32:80];
+    function splitUint256(
+        bytes memory _combined
+    ) public pure returns (bytes memory) {
+        require(_combined.length == 32, "Input length must be 32 bytes");
 
-            // TODO: verify xBytes via zkp
-            // Compute xBytes
-            bytes memory _xBytes = abi.encode(
-                keccak256(
-                    abi.encodePacked(
-                        _commitment,
-                        committedBatchStores[_batchIndex].l1DataHash
-                    )
-                )
-            );
-            // make sure x < BLS_MODULUS
-            _xBytes[0] = 0x0;
-
-            // Create input for verification
-            bytes memory _input = abi.encode(
-                committedBatchStores[_batchIndex].blobVersionedHash,
-                _xBytes,
-                _kzgData
-            );
-
-            bool ret;
-            bytes memory _output;
-            assembly {
-                ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
-            }
-            require(ret, "verify 4844-proof failed");
-
-            // Verify batch
-            bytes32 _newPublicInputHash = keccak256(
-                abi.encodePacked(_publicInputHash, _xBytes, _kzgData[0:32])
-            );
-            IRollupVerifier(verifier).verifyAggregateProof(
-                _batchIndex,
-                _aggrProof,
-                _newPublicInputHash
-            );
-
-            // Record defender win
-            _defenderWin(_batchIndex, _msgSender(), "Proof success");
+        uint256 combinedUint;
+        assembly {
+            combinedUint := mload(add(_combined, 0x20))
         }
+
+        uint256 part1;
+        uint256 part2;
+        uint256 part3;
+
+        // Extract the three parts
+        part1 = combinedUint & ((1 << 88) - 1); // Mask the lowest 88 bits and reverse bytes
+        part2 = (combinedUint >> 88) & ((1 << 88) - 1); // Shift right by 88 bits, mask the next 88 bits, and reverse bytes
+        part3 = (combinedUint >> 176) & ((1 << 87) - 1); // Shift right by 176 bits, mask the next 87 bits, and reverse bytes
+
+        bytes memory result = new bytes(96);
+        assembly {
+            // Store the parts in the result bytes
+            mstore(add(result, 0x20), part1)
+            mstore(add(result, 0x40), part2)
+            mstore(add(result, 0x60), part3)
+        }
+
+        return result;
     }
 
     /// @dev Finalizes a specific batch by verifying its state and updating contract state accordingly.
