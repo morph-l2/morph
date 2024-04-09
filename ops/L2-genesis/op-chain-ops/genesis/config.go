@@ -308,10 +308,9 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	}
 
 	imConfig := &immutables.Config{
-		L2SequencerAddresses:    config.L2SequencerAddresses,
-		L2SequencerTmKeys:       config.L2SequencerTmKeys,
-		L2SequencerBlsKeys:      blsKeys,
-		L2GenesisBlockTimestamp: config.L2GenesisBlockTimestamp,
+		L2SequencerAddresses: config.L2SequencerAddresses,
+		L2SequencerTmKeys:    config.L2SequencerTmKeys,
+		L2SequencerBlsKeys:   blsKeys,
 	}
 	return immutable, imConfig, nil
 }
