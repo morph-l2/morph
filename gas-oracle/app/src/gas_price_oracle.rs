@@ -33,15 +33,21 @@ struct Config {
 impl Config {
     fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            l1_rpc: var("GAS_ORACLE_L1_RPC")?,
-            l2_rpc: var("GAS_ORACLE_L2_RPC")?,
-            gas_threshold: var("GAS_THRESHOLD")?.parse()?,
-            overhead_threshold: var("OVERHEAD_THRESHOLD")?.parse()?,
-            interval: var("INTERVAL")?.parse()?,
-            overhead_interval: var("OVERHEAD_INTERVAL")?.parse()?,
-            l1_rollup_address: Address::from_str(&var("L1_ROLLUP")?)?,
-            l2_oracle_address: Address::from_str(&var("L2_GAS_PRICE_ORACLE")?)?,
-            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY")?,
+            l1_rpc: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env"),
+            l2_rpc: var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env"),
+            gas_threshold: var("GAS_THRESHOLD").expect("GAS_THRESHOLD env").parse()?,
+            overhead_threshold: var("OVERHEAD_THRESHOLD")
+                .expect("OVERHEAD_THRESHOLD env")
+                .parse()?,
+            interval: var("INTERVAL").expect("INTERVAL env").parse()?,
+            overhead_interval: var("OVERHEAD_INTERVAL")
+                .expect("OVERHEAD_INTERVAL env")
+                .parse()?,
+            l1_rollup_address: Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env"))?,
+            l2_oracle_address: Address::from_str(
+                &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
+            )?,
+            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env"),
         })
     }
 }

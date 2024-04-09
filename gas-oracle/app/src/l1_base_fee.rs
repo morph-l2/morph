@@ -136,6 +136,8 @@ async fn update_base_fee(
     Ok(())
 }
 
+const MAX_SCALAR: f64 = 1000.0;
+
 async fn update_scalar(
     l1_gas_price: U256,
     l1_base_fee: U256,
@@ -148,6 +150,8 @@ async fn update_scalar(
         return Err(());
     }
     let mut scalar_ratio_from_l1 = l1_gas_price.as_u128() as f64 / l1_base_fee.as_u128() as f64;
+    scalar_ratio_from_l1 = scalar_ratio_from_l1.min(MAX_SCALAR);
+
     let scalar_ratio_from_l2 = current_scalar.as_u128() as f64 / DEFAULT_SCALAR;
     let scalar_diff = scalar_ratio_from_l1 - scalar_ratio_from_l2;
 
@@ -158,13 +162,13 @@ async fn update_scalar(
         scalar_diff
     );
     if scalar_diff.abs() * 100.0 > gas_threshold as f64 {
-        // delta smoothing
-        scalar_ratio_from_l1 = if scalar_diff > 10.0 {
-            // 10x
-            10.0
-        } else {
-            scalar_ratio_from_l1
-        };
+        // change smoothing
+        // scalar_ratio_from_l1 = if scalar_diff > 10.0 {
+        //     // 10x
+        //     10.0 + scalar_ratio_from_l2
+        // } else {
+        //     scalar_ratio_from_l1
+        // };
         // Set scalar for l2.
         let scalar_expect = (DEFAULT_SCALAR * scalar_ratio_from_l1).ceil() as u128;
         std::thread::sleep(Duration::from_millis(8000));
