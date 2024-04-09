@@ -34,6 +34,7 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(async (_, __, runSuper
 const DEPLOYER_PK = process.env.DEPLOYER_PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 const QA_URL = process.env.QA_RPC_URL || 'http://127.0.0.1:8545'
 const SEPOLIA_URL = process.env.SEPOLIA_RPC_URL || 'http://127.0.0.1:8545'
+const HOLESKY_URL = process.env.HOLESKY_RPC_URL || 'http://127.0.0.1:8545'
 
 module.exports = {
   defaultNetwork: 'hardhat',
@@ -87,6 +88,13 @@ module.exports = {
     sepolia: {
       url: SEPOLIA_URL,
       chainId: 11155111,
+      gas: 'auto',
+      gasPrice: 'auto',
+      accounts: [DEPLOYER_PK]
+    },
+    holesky: {
+      url: HOLESKY_URL,
+      chainId: 17000,
       gas: 'auto',
       gasPrice: 'auto',
       accounts: [DEPLOYER_PK]

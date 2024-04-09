@@ -66,6 +66,7 @@ export const ContractInit = async (
         }
         console.log('importGenesisBatch(%s, %s, %s)', batchHeader, genesisStateRoot, withdrawRoot)
         await Rollup.importGenesisBatch(batchHeader, genesisStateRoot, withdrawRoot)
+        // TODO to be removed later
         console.log('addProver(%s)', submitter)
         await Rollup.addProver(submitter)
         console.log('addChallenger(%s)', challenger)

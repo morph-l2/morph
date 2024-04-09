@@ -23,7 +23,7 @@ type IRollup interface {
 		PrevStateRoot          [32]byte
 		PostStateRoot          [32]byte
 		WithdrawalRoot         [32]byte
-		DataHash               [32]byte
+		L1DataHash             [32]byte
 		L1MessagePopped        *big.Int
 		TotalL1MessagePopped   *big.Int
 		SkippedL1MessageBitmap []byte
