@@ -660,7 +660,7 @@ services:
       ./app
     environment:
       - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
-      - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_RPC}
+      - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
       - GAS_ORACLE_L2_RPC=http://morph-geth-0:8545
       - GAS_THRESHOLD=5
       - INTERVAL=28000
