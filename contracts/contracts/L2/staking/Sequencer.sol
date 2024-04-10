@@ -138,4 +138,11 @@ contract L2Sequencer is Initializable, ISequencer {
         }
         return false;
     }
+
+    /**
+     * @notice get latest sequencer set
+     */
+    function getLatestSeqeuncerSet() external view returns (address[] memory) {
+        return sequencerSet2;
+    }
 }
