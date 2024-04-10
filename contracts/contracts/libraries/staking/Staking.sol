@@ -21,7 +21,7 @@ abstract contract Staking {
         require(
             msg.sender == address(MESSENGER) &&
                 MESSENGER.xDomainMessageSender() == address(OTHER_STAKING),
-            "Sequencer: function can only be called from the other staking contract"
+            "Staking: function can only be called from the other staking contract"
         );
         _;
     }

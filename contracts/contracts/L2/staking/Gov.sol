@@ -4,11 +4,10 @@ pragma solidity =0.8.24;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {ISubmitter} from "./ISubmitter.sol";
 import {ISequencer} from "./ISequencer.sol";
 import {IGov} from "./IGov.sol";
 
-contract Gov is Initializable, IGov {
+contract Gov is IGov, Initializable {
     struct ProposalData {
         uint256 batchBlockInterval;
         uint256 batchMaxBytes;
@@ -28,11 +27,11 @@ contract Gov is Initializable, IGov {
      * Constants *
      *************/
 
-    // sequencers infos
+    // sequencer contract address
     address public immutable SEQUENCER_CONTRACT;
 
-    // submitter contract address
-    address public immutable SUBMITTER_CONTRACT;
+    // record contract address
+    address public immutable RECORD_CONTRACT;
 
     uint256 public sequencersVersion = 0;
 
@@ -54,10 +53,7 @@ contract Gov is Initializable, IGov {
      * @notice Ensures that the caller is a sequencer in the sequencer contract.
      */
     modifier onlySequencer() {
-        (bool _in, ) = ISequencer(SEQUENCER_CONTRACT).inSequencersSet(
-            false,
-            msg.sender
-        );
+        bool _in = ISequencer(SEQUENCER_CONTRACT).isSequencer(msg.sender);
         require(_in, "only sequencer can propose");
         _;
     }
@@ -67,7 +63,6 @@ contract Gov is Initializable, IGov {
      */
     constructor() {
         SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
-        SUBMITTER_CONTRACT = Predeploys.SUBMITTER;
     }
 
     /**
@@ -108,71 +103,63 @@ contract Gov is Initializable, IGov {
      * @notice submit a proposal
      */
     function propose(ProposalData memory proposal) external onlySequencer {
-        require(
-            (proposal.batchBlockInterval != 0 ||
-                proposal.batchMaxBytes != 0 ||
-                proposal.batchTimeout != 0) &&
-                proposal.rollupEpoch != 0 &&
-                proposal.maxChunks != 0,
-            "invalid batch params"
-        );
-        uint256 version = ISequencer(SEQUENCER_CONTRACT).currentVersion();
-        if (version > sequencersVersion) {
-            // update version and sequencers
-            sequencersVersion = version;
-        }
-
-        proposalNumbers++;
-        proposalData[proposalNumbers] = proposal;
-        proposalInfos[proposalNumbers] = ProposalInfo(
-            true, // active
-            block.timestamp + proposalInterval, // end time
-            version,
-            0 // votes
-        );
+        // require(
+        //     (proposal.batchBlockInterval != 0 ||
+        //         proposal.batchMaxBytes != 0 ||
+        //         proposal.batchTimeout != 0) &&
+        //         proposal.rollupEpoch != 0 &&
+        //         proposal.maxChunks != 0,
+        //     "invalid batch params"
+        // );
+        // uint256 version = ISequencer(SEQUENCER_CONTRACT).currentVersion();
+        // if (version > sequencersVersion) {
+        //     // update version and sequencers
+        //     sequencersVersion = version;
+        // }
+        // proposalNumbers++;
+        // proposalData[proposalNumbers] = proposal;
+        // proposalInfos[proposalNumbers] = ProposalInfo(
+        //     true, // active
+        //     block.timestamp + proposalInterval, // end time
+        //     version,
+        //     0 // votes
+        // );
     }
 
     /**
      * @notice vote a propsal
      */
     function vote(uint256 propID) external onlySequencer {
-        require(proposalInfos[propID].active, "proposal inactive");
-        (uint256 index, uint256 version) = ISequencer(SEQUENCER_CONTRACT)
-            .sequencerIndex(false, msg.sender);
-        require(
-            !votes[propID][index],
-            "sequencer already vote for this proposal"
-        );
-
-        // check proposal version and end time
-        require(
-            proposalInfos[propID].seqsVersion == version,
-            "version mismatch"
-        );
-        require(proposalInfos[propID].endTime >= block.timestamp, "time end");
-
-        // vote
-        votes[propID][index] = true;
-        proposalInfos[propID].votes += 1;
-
-        (uint256 _length, ) = ISequencer(SEQUENCER_CONTRACT).sequencersLen(
-            false
-        );
-        // check votes
-        if (proposalInfos[propID].votes > (_length * 2) / 3) {
-            if (rollupEpoch != proposalData[propID].rollupEpoch) {
-                ISubmitter(SUBMITTER_CONTRACT).epochUpdated(rollupEpoch);
-            }
-            batchBlockInterval = proposalData[propID].batchBlockInterval;
-            batchMaxBytes = proposalData[propID].batchMaxBytes;
-            batchTimeout = proposalData[propID].batchTimeout;
-            rollupEpoch = proposalData[propID].rollupEpoch;
-            maxChunks = proposalData[propID].maxChunks;
-            proposalInfos[propID].active = false;
-        }
-    }
-
-    function l2Sequencer() public view returns (address) {
-        return SEQUENCER_CONTRACT;
+        // require(proposalInfos[propID].active, "proposal inactive");
+        // (uint256 index, uint256 version) = ISequencer(SEQUENCER_CONTRACT)
+        //     .sequencerIndex(false, msg.sender);
+        // require(
+        //     !votes[propID][index],
+        //     "sequencer already vote for this proposal"
+        // );
+        // // check proposal version and end time
+        // require(
+        //     proposalInfos[propID].seqsVersion == version,
+        //     "version mismatch"
+        // );
+        // require(proposalInfos[propID].endTime >= block.timestamp, "time end");
+        // // vote
+        // votes[propID][index] = true;
+        // proposalInfos[propID].votes += 1;
+        // (uint256 _length, ) = ISequencer(SEQUENCER_CONTRACT).sequencersLen(
+        //     false
+        // );
+        // // check votes
+        // if (proposalInfos[propID].votes > (_length * 2) / 3) {
+        //     if (rollupEpoch != proposalData[propID].rollupEpoch) {
+        //         // ISubmitter(SUBMITTER_CONTRACT).epochUpdated(rollupEpoch);
+        //     }
+        //     batchBlockInterval = proposalData[propID].batchBlockInterval;
+        //     batchMaxBytes = proposalData[propID].batchMaxBytes;
+        //     batchTimeout = proposalData[propID].batchTimeout;
+        //     rollupEpoch = proposalData[propID].rollupEpoch;
+        //     maxChunks = proposalData[propID].maxChunks;
+        //     proposalInfos[propID].active = false;
+        // }
     }
 }

@@ -47,4 +47,15 @@ library Types {
         uint256 startTime;
         uint256 endTime;
     }
+
+    /**
+     * @notice BatchInfo representing a epoch change.
+     *
+     * @custom:field epoch      epoch blocks
+     * @custom:field timestamp  epoch change time
+     */
+    struct EpochHistory {
+        uint256 epoch;
+        uint256 timestamp;
+    }
 }
