@@ -342,9 +342,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
                 // Current time Indicates the number of days since the last issue.
                 uint256 day = (validTime - _preDayAdditionalTime) / 86400;
                 for (uint256 k = 0; k < day; k++) {
-                    uint256 reward = _totalSupply * _rate.outmoded.values[validTime] / 1e16;
-                    _rewardRecord[_preDayAdditionalTime] = reward;
-                    _mint(msg.sender, reward);
+                    uint256 outmodedReward = _totalSupply * _rate.outmoded.values[validTime] / 1e16;
+                    _rewardRecord[_preDayAdditionalTime] = outmodedReward;
+                    _mint(msg.sender, outmodedReward);
                     // 86400 = 24 * 60 * 60 (one day)
                     _preDayAdditionalTime += 86400;
                 }
@@ -357,9 +357,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         // use current rate
         uint256 currentDays = (block.timestamp - _preDayAdditionalTime) / 86400;
         for (uint256 i = 0; i < currentDays; i++) {
-            uint256 reward = _totalSupply * _rate.currentRate / 1e16;
-            _rewardRecord[_preDayAdditionalTime] = reward;
-            _mint(msg.sender, reward);
+            uint256 currentReward = _totalSupply * _rate.currentRate / 1e16;
+            _rewardRecord[_preDayAdditionalTime] = currentReward;
+            _mint(msg.sender, currentReward);
             _preDayAdditionalTime += 86400;
         }
         end = _preDayAdditionalTime;
