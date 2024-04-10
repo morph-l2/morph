@@ -166,11 +166,20 @@ contract Gov is IGov, Initializable {
     }
 
     /**
-     * @notice check whether proposal has been approved
+     * @notice whether the proposal can be approved
      */
-    function isProposalApproved(
+    function isProposalCanBeApproved(
         uint256 _proposalId
     ) external view returns (bool) {
+        // already approved
+        if (proposalInfos[_proposalId].approved) {
+            return false;
+        }
+
+        // out of date
+        if (!_proposalActive(_proposalId)) {
+            return false;
+        }
         return _checkProposal(_proposalId);
     }
 
@@ -195,17 +204,7 @@ contract Gov is IGov, Initializable {
      * @notice check whether proposal has been approved
      */
     function _checkProposal(uint256 _proposalId) internal view returns (bool) {
-        // already approved
-        if (proposalInfos[_proposalId].approved) {
-            return true;
-        }
-
-        // out of date
-        if (!_proposalActive(_proposalId)) {
-            return false;
-        }
-
-        // checking voided ballots
+        // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
             .getLatestSeqeuncerSet();
         uint256 validVotes = 0;

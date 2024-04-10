@@ -51,9 +51,9 @@ interface IGov {
     function executeProposal(uint256 _proposalId) external;
 
     /**
-     * @notice check whether proposal has been approved
+     * @notice whether the proposal can be approved
      */
-    function isProposalApproved(
+    function isProposalCanBeApproved(
         uint256 _proposalId
     ) external view returns (bool);
 
