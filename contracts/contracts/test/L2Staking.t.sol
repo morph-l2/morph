@@ -231,6 +231,35 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
+    /**
+     * @notice update sequencer set
+     */
+    function testUpdateSequencerSet() public {
+        address[] memory mStakers = l2Staking.getStakers();
+
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+
+        l2Staking.delegateStake(mStakers[0], 2 ether);
+        address[] memory latestSequencerSet = l2Sequencer
+            .getLatestSeqeuncerSet();
+        assertEq(latestSequencerSet[0], mStakers[0]);
+        assertEq(latestSequencerSet[1], mStakers[1]);
+        assertEq(latestSequencerSet[2], mStakers[2]);
+
+        l2Staking.delegateStake(mStakers[1], 8 ether);
+        latestSequencerSet = l2Sequencer.getLatestSeqeuncerSet();
+        assertEq(latestSequencerSet[0], mStakers[1]);
+        assertEq(latestSequencerSet[1], mStakers[0]);
+        assertEq(latestSequencerSet[2], mStakers[2]);
+
+        l2Staking.delegateStake(mStakers[2], 3 ether);
+        latestSequencerSet = l2Sequencer.getLatestSeqeuncerSet();
+        assertEq(latestSequencerSet[0], mStakers[1]);
+        assertEq(latestSequencerSet[1], mStakers[2]);
+        assertEq(latestSequencerSet[2], mStakers[0]);
+    }
+
     // /**
     //  * @notice normal staking, staker own staking meet the limit amount
     //  */

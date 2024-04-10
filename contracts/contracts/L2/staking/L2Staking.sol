@@ -435,19 +435,17 @@ contract L2Staking is
         address[] memory mStakers = _getStakers();
 
         for (uint256 i = 0; i < mStakers.length; i++) {
-            uint256 amount0 = stakersAmount[mStakers[i]];
             uint256 maxIndex = i;
-
             for (uint256 j = i + 1; j < mStakers.length; j++) {
+                uint256 amount0 = stakersAmount[mStakers[maxIndex]];
                 uint256 amount1 = stakersAmount[mStakers[j]];
                 if (amount1 > amount0) {
                     maxIndex = j;
                 }
-
-                address temp = mStakers[i];
-                mStakers[i] = mStakers[maxIndex];
-                mStakers[maxIndex] = temp;
             }
+            address temp = mStakers[i];
+            mStakers[i] = mStakers[maxIndex];
+            mStakers[maxIndex] = temp;
         }
 
         return mStakers;
