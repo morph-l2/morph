@@ -6,7 +6,6 @@ import "./IMorphToken.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-
 contract MorphToken is OwnableUpgradeable, IMorphToken {
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -39,7 +38,6 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
     string private _symbol;
     address public _distribute;
 
-
     /**
      * @notice Ensures that the caller message from distribute contract.
      */
@@ -51,10 +49,26 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
     /**
      * @dev See {IMorphToken-initialize}.
      */
-    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) public initializer {
-        require(distribute_ != address(0), "invalid distribute contract address");
-        require(beginTime_ % 86400 == 0, "beginTime must be the start of the day");
-        require(beginTime_ >= block.timestamp, "beginTime is less than the current time");
+    function initialize(
+        string memory name_,
+        string memory symbol_,
+        address distribute_,
+        uint256 initialSupply_,
+        uint256 rate_,
+        uint256 beginTime_
+    ) public initializer {
+        require(
+            distribute_ != address(0),
+            "invalid distribute contract address"
+        );
+        require(
+            beginTime_ % 86400 == 0,
+            "beginTime must be the start of the day"
+        );
+        require(
+            beginTime_ >= block.timestamp,
+            "beginTime is less than the current time"
+        );
 
         __Ownable_init();
 
@@ -74,15 +88,24 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      * @dev See {IMorphToken-setRate}.
      */
     function setRate(uint256 rate, uint256 beginTime) public onlyOwner {
-        require(beginTime > block.timestamp, "beginTime must be more than the current time");
+        require(
+            beginTime > block.timestamp,
+            "beginTime must be more than the current time"
+        );
 
         // 1209600 = 14 * 24 * 60 * 60 (fortnight)
         if (_rate.pending.index.length() == 0) {
-            require(beginTime >= _rate.currentBeginTime + 1209600,
-                "beginTime must be two weeks after the current validity period");
-        }else {
-            require(beginTime > _rate.pending.index.at(_rate.pending.index.length() - 1) + 1209600,
-                "beginTime must be more than two weeks after the last exchange rate takes effect");
+            require(
+                beginTime >= _rate.currentBeginTime + 1209600,
+                "beginTime must be two weeks after the current validity period"
+            );
+        } else {
+            require(
+                beginTime >
+                    _rate.pending.index.at(_rate.pending.index.length() - 1) +
+                        1209600,
+                "beginTime must be more than two weeks after the last exchange rate takes effect"
+            );
         }
 
         // mint function is in days, when a new issue exchange rate effective time in a unit,
@@ -93,7 +116,10 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         // the start and end time of each unit can be calculated,
         // and the specific effective time of rate can be calculated in advance.
         if ((beginTime - _preDayAdditionalTime) % 86400 > 0) {
-            beginTime = ((beginTime - _preDayAdditionalTime) / 86400 + 1) * 86400 + _preDayAdditionalTime;
+            beginTime =
+                ((beginTime - _preDayAdditionalTime) / 86400 + 1) *
+                86400 +
+                _preDayAdditionalTime;
         }
 
         _rate.pending.index.add(beginTime);
@@ -165,7 +191,10 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
     /**
      * @dev See {IMorphToken-allowance}.
      */
-    function allowance(address owner, address spender) public view returns (uint256) {
+    function allowance(
+        address owner,
+        address spender
+    ) public view returns (uint256) {
         return _allowances[owner][spender];
     }
 
@@ -208,7 +237,11 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      * - the caller must have allowance for ``from``'s tokens of at least
      * `amount`.
      */
-    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public override returns (bool) {
         address spender = msg.sender;
         _spendAllowance(from, spender, amount);
         _transfer(from, to, amount);
@@ -227,7 +260,10 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      *
      * - `spender` cannot be the zero address.
      */
-    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+    function increaseAllowance(
+        address spender,
+        uint256 addedValue
+    ) public virtual returns (bool) {
         address owner = msg.sender;
         _approve(owner, spender, allowance(owner, spender) + addedValue);
         return true;
@@ -247,10 +283,16 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      * - `spender` must have allowance for the caller of at least
      * `subtractedValue`.
      */
-    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+    function decreaseAllowance(
+        address spender,
+        uint256 subtractedValue
+    ) public virtual returns (bool) {
         address owner = msg.sender;
         uint256 currentAllowance = allowance(owner, spender);
-        require(currentAllowance >= subtractedValue, "decreased allowance below zero");
+        require(
+            currentAllowance >= subtractedValue,
+            "decreased allowance below zero"
+        );
         unchecked {
             _approve(owner, spender, currentAllowance - subtractedValue);
         }
@@ -280,8 +322,8 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         require(fromBalance >= amount, "transfer amount exceeds balance");
         unchecked {
             _balances[from] = fromBalance - amount;
-        // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
-        // decrementing then incrementing.
+            // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
+            // decrementing then incrementing.
             _balances[to] += amount;
         }
 
@@ -299,15 +341,24 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      *
      * - `account` Used if passed a non-zero address, otherwise the caller address.
      */
-    function mint() external onlyDistribute returns (uint256 begin, uint256 end) {
-        require(block.timestamp > _preDayAdditionalTime, "the mint function is not enabled");
-        require((block.timestamp - _preDayAdditionalTime) / 86400 != 0, "only mint once a day");
+    function mint()
+        external
+        onlyDistribute
+        returns (uint256 begin, uint256 end)
+    {
+        require(
+            block.timestamp > _preDayAdditionalTime,
+            "the mint function is not enabled"
+        );
+        require(
+            (block.timestamp - _preDayAdditionalTime) / 86400 != 0,
+            "only mint once a day"
+        );
 
         begin = _preDayAdditionalTime;
 
         uint256 length = _rate.pending.index.length();
         for (uint256 i = 0; i < length; i++) {
-
             if (_rate.nextEffectiveTime == 0) {
                 _rate.nextEffectiveTime = _rate.pending.index.at(0);
             }
@@ -315,34 +366,37 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
             if (_rate.nextEffectiveTime <= block.timestamp) {
                 // end time
                 _rate.outmoded.index.add(_rate.nextEffectiveTime);
-                _rate.outmoded.values[_rate.nextEffectiveTime] = _rate.currentRate;
+                _rate.outmoded.values[_rate.nextEffectiveTime] = _rate
+                    .currentRate;
 
                 _rate.currentBeginTime = _rate.nextEffectiveTime;
-                _rate.currentRate = _rate.pending.values[_rate.nextEffectiveTime];
+                _rate.currentRate = _rate.pending.values[
+                    _rate.nextEffectiveTime
+                ];
 
                 _rate.pending.index.remove(_rate.nextEffectiveTime);
                 delete _rate.pending.values[_rate.nextEffectiveTime];
 
                 if (_rate.pending.index.length() != 0) {
                     _rate.nextEffectiveTime = _rate.pending.index.at(0);
-                }else {
+                } else {
                     _rate.nextEffectiveTime = 0;
                 }
-            }else {
+            } else {
                 break;
             }
         }
 
         uint256 outmodedLength = _rate.outmoded.index.length();
         for (uint256 i = 0; i < outmodedLength; i++) {
-
             uint256 validTime = _rate.outmoded.index.at(0);
 
             if (validTime > _preDayAdditionalTime) {
                 // Current time Indicates the number of days since the last issue.
                 uint256 day = (validTime - _preDayAdditionalTime) / 86400;
                 for (uint256 k = 0; k < day; k++) {
-                    uint256 outmodedReward = _totalSupply * _rate.outmoded.values[validTime] / 1e16;
+                    uint256 outmodedReward = (_totalSupply *
+                        _rate.outmoded.values[validTime]) / 1e16;
                     _rewardRecord[_preDayAdditionalTime] = outmodedReward;
                     _mint(msg.sender, outmodedReward);
                     // 86400 = 24 * 60 * 60 (one day)
@@ -357,7 +411,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         // use current rate
         uint256 currentDays = (block.timestamp - _preDayAdditionalTime) / 86400;
         for (uint256 i = 0; i < currentDays; i++) {
-            uint256 currentReward = _totalSupply * _rate.currentRate / 1e16;
+            uint256 currentReward = (_totalSupply * _rate.currentRate) / 1e16;
             _rewardRecord[_preDayAdditionalTime] = currentReward;
             _mint(msg.sender, currentReward);
             _preDayAdditionalTime += 86400;
@@ -370,12 +424,11 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
 
         _totalSupply += amount;
         unchecked {
-        // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
+            // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
             _balances[account] += amount;
         }
         emit Transfer(address(0), account, amount);
     }
-
 
     /**
      * @dev Sets `amount` as the allowance of `spender` over the `owner` s tokens.
@@ -406,7 +459,11 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
      *
      * Might emit an {Approval} event.
      */
-    function _spendAllowance(address owner, address spender, uint256 amount) internal {
+    function _spendAllowance(
+        address owner,
+        address spender,
+        uint256 amount
+    ) internal {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
             require(currentAllowance >= amount, "insufficient allowance");

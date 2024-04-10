@@ -10,9 +10,17 @@ contract MorphTokenTest is Test {
 
     address public alice = address(1);
     address public distribute = address(10);
+
     function setUp() public {
         morphToken = new MorphToken();
-        morphToken.initialize("Morph", "MPH", distribute, 1000000000e18, 1596535874529, 86400);
+        morphToken.initialize(
+            "Morph",
+            "MPH",
+            distribute,
+            1000000000e18,
+            1596535874529,
+            86400
+        );
     }
 
     function test_name() public {
@@ -42,7 +50,6 @@ contract MorphTokenTest is Test {
     }
 }
 
-
 contract MorphTokenTest_mint is DSTestPlus {
     MorphToken private morphToken;
 
@@ -51,11 +58,26 @@ contract MorphTokenTest_mint is DSTestPlus {
     uint256 private totalSupply = 1000000000e18;
 
     address public alice = address(1);
+
     function setUp() public {
         morphToken = new MorphToken();
         hevm.expectRevert("beginTime must be the start of the day");
-        morphToken.initialize("Morph", "MPH", address(this), totalSupply, rate, 86300);
-        morphToken.initialize("Morph", "MPH", address(this), totalSupply, rate, beginTime);
+        morphToken.initialize(
+            "Morph",
+            "MPH",
+            address(this),
+            totalSupply,
+            rate,
+            86300
+        );
+        morphToken.initialize(
+            "Morph",
+            "MPH",
+            address(this),
+            totalSupply,
+            rate,
+            beginTime
+        );
         emit log_uint(block.timestamp);
     }
 
@@ -88,7 +110,7 @@ contract MorphTokenTest_mint is DSTestPlus {
     function test_mint_reward() public {
         hevm.warp(beginTime + 86500);
         morphToken.mint();
-        uint256 add = totalSupply * rate / 1e16;
+        uint256 add = (totalSupply * rate) / 1e16;
         totalSupply += add;
         assertEq(morphToken.totalSupply(), totalSupply);
         uint256 incr = morphToken.reward(beginTime);
@@ -99,7 +121,7 @@ contract MorphTokenTest_mint is DSTestPlus {
         hevm.warp(beginTime + 86500);
         emit log_uint(block.timestamp);
         morphToken.mint();
-        totalSupply += totalSupply * rate / 1e16;
+        totalSupply += (totalSupply * rate) / 1e16;
         emit log_uint(totalSupply);
         assertEq(morphToken.totalSupply(), totalSupply);
     }
@@ -110,7 +132,7 @@ contract MorphTokenTest_mint is DSTestPlus {
         morphToken.mint();
 
         for (uint256 i = 0; i < 10; i++) {
-            totalSupply += totalSupply * rate / 1e16;
+            totalSupply += (totalSupply * rate) / 1e16;
         }
         emit log_uint(totalSupply);
         assertEq(morphToken.totalSupply(), totalSupply);
@@ -126,7 +148,9 @@ contract MorphTokenTest_mint is DSTestPlus {
     function test_setRate_notMoreThanCurrentBeginTime() public {
         uint256 rate1 = 1696535874529;
         uint256 beginTime1 = beginTime + 86400;
-        hevm.expectRevert("beginTime must be two weeks after the current validity period");
+        hevm.expectRevert(
+            "beginTime must be two weeks after the current validity period"
+        );
         morphToken.setRate(rate1, beginTime1);
     }
 
@@ -138,12 +162,13 @@ contract MorphTokenTest_mint is DSTestPlus {
 
         uint256 rate2 = 1796535874529;
         uint256 beginTime2 = beginTime1 + 1209500;
-        hevm.expectRevert("beginTime must be more than two weeks after the last exchange rate takes effect");
+        hevm.expectRevert(
+            "beginTime must be more than two weeks after the last exchange rate takes effect"
+        );
         morphToken.setRate(rate2, beginTime2);
     }
 
     function test_mint_setRate() public {
-
         uint256 rate1 = 1696535874529;
         uint256 beginTime1 = beginTime + 86400 * 20 + 86300;
         morphToken.setRate(rate1, beginTime1);
@@ -160,15 +185,15 @@ contract MorphTokenTest_mint is DSTestPlus {
         emit log_uint(block.timestamp);
 
         for (uint256 i = 0; i < 21; i++) {
-            totalSupply += totalSupply * rate / 1e16;
+            totalSupply += (totalSupply * rate) / 1e16;
         }
 
         for (uint256 i = 0; i < 21; i++) {
-            totalSupply += totalSupply * rate1 / 1e16;
+            totalSupply += (totalSupply * rate1) / 1e16;
         }
 
         for (uint256 i = 0; i < 1; i++) {
-            totalSupply += totalSupply * rate1 / 1e16;
+            totalSupply += (totalSupply * rate1) / 1e16;
         }
 
         morphToken.mint();
