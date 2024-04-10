@@ -45,7 +45,6 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     uint256 private _usedMintEpochIndex;
     address private _morphToken;
     address private _record;
-    address private _gov;
     address private _stake;
     // delegator => [sequencer]
     mapping(address => EnumerableSet.AddressSet) private _vestIn;
@@ -71,14 +70,6 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         _;
     }
 
-    /**
-     * @notice Ensures that the caller message from gov contract.
-     */
-    modifier onlyGov() {
-        require(msg.sender == _gov, "only gov contract can call");
-        _;
-    }
-
     modifier onlyStake() {
         require(msg.sender == _stake, "only stake contract can call");
         _;
@@ -87,7 +78,6 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     function initialize(
         address morphToken_,
         address record_,
-        address gov_,
         address stake_
     ) public initializer {
         require(
@@ -99,12 +89,11 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         require(stake_ != address(0), "invalid stake contract address");
         _morphToken = morphToken_;
         _record = record_;
-        _gov = gov_;
         _stake = stake_;
     }
 
     // from record contract
-    function notify(uint256 blockTime, uint256 blockNumber) public onlyGov {
+    function notify(uint256 blockTime, uint256 blockNumber) public onlyRecord {
         require(
             blockTime <= block.timestamp,
             "blockTime must be smaller than or equal to the current block time"

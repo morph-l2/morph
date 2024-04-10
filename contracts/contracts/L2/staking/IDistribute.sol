@@ -16,7 +16,6 @@ interface IDistribute {
     function initialize(
         address morphToken_,
         address record_,
-        address gov_,
         address stake_
     ) external;
 
