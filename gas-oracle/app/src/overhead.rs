@@ -14,6 +14,7 @@ use std::ops::Mul;
 use std::str::FromStr;
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
+const MAX_OVERHEAD: usize = 30000000 / 32; // 937,500
 
 pub struct OverHead {
     l1_provider: Provider<Http>,
@@ -106,7 +107,7 @@ impl OverHead {
             return;
         }
 
-        let latest_overhead = match self
+        let mut latest_overhead = match self
             .overhead_inspect(log.transaction_hash.unwrap(), log.block_number.unwrap())
             .await
         {
@@ -136,13 +137,15 @@ impl OverHead {
             .overhead
             .set(i64::try_from(current_overhead).unwrap_or(-1));
 
+        latest_overhead = latest_overhead.min(MAX_OVERHEAD);
         let abs_diff = U256::from(latest_overhead).abs_diff(current_overhead);
-        log::info!("set_overhead can been sent");
+        log::info!(
+            "overhead actual_change = {:#?}, expected_change =  {:#?}",
+            abs_diff,
+            self.overhead_threshold
+        );
+
         if abs_diff < U256::from(self.overhead_threshold) {
-            log::info!(
-                "overhead change value below threshold, change value = : {:#?}",
-                abs_diff
-            );
             return;
         }
 
@@ -153,7 +156,7 @@ impl OverHead {
             .legacy();
         let rt = tx.send().await;
         match rt {
-            Ok(info) => log::info!("tx of update_overhead has been sent: {:?}", info.tx_hash()),
+            Ok(info) => log::info!("tx of set_overhead has been sent: {:?}", info.tx_hash()),
             Err(e) => log::error!("update overhead error: {:#?}", e),
         }
         *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;

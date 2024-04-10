@@ -1,8 +1,7 @@
 use crate::abi::gas_price_oracle_abi::GasPriceOracle;
 use crate::abi::rollup_abi::Rollup;
-use crate::l1_base_fee;
+use crate::l1_base_fee::BaseFee;
 use crate::overhead::OverHead;
-use dotenv::dotenv;
 use ethers::prelude::*;
 use ethers::providers::{Http, Provider};
 use ethers::signers::Wallet;
@@ -10,6 +9,7 @@ use ethers::types::Address;
 use std::env::var;
 use std::time::Duration;
 use std::{error::Error, str::FromStr, sync::Arc};
+use tokio::time::sleep;
 
 use axum::{routing::get, Router};
 use prometheus::{self, Encoder, TextEncoder};
@@ -54,9 +54,6 @@ impl Config {
 
 /// Update data of gasPriceOrale contract on L2 network.
 pub async fn update() -> Result<(), Box<dyn Error>> {
-    // Prepare parameter.
-    dotenv().ok();
-
     let _: f64 = var("TXN_PER_BLOCK")
         .expect("Cannot detect TXN_PER_BLOCK env var")
         .parse()
@@ -85,6 +82,14 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     let l1_rollup: Rollup<Provider<Http>> =
         Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
 
+    let base_fee = BaseFee::new(
+        l1_provider.clone(),
+        l2_provider.clone(),
+        l2_wallet_address,
+        l2_oracle.clone(),
+        config.gas_threshold,
+    );
+
     // let l1_rpc = config.l1_rpc.clone();
     let overhead = OverHead::new(
         l1_provider.clone(),
@@ -102,23 +107,17 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     tokio::spawn(async move {
         let mut update_times = 0;
         loop {
-            std::thread::sleep(Duration::from_millis(config.interval));
+            sleep(Duration::from_millis(config.interval)).await;
+
             update_times += 1;
-            l1_base_fee::update(
-                l1_provider.clone(),
-                l2_provider.clone(),
-                l2_wallet_address,
-                l2_oracle.clone(),
-                config.gas_threshold,
-            )
-            .await;
+            base_fee.update().await;
 
             if update_times < config.overhead_interval {
                 // Waiting for the latest batch to be submitted.
                 continue;
             }
             // Waiting for confirmation of the previous transaction.
-            std::thread::sleep(Duration::from_millis(config.interval));
+            sleep(Duration::from_millis(8000)).await;
             overhead.update().await;
             update_times = 0
         }
