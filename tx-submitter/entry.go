@@ -3,6 +3,7 @@ package tx_summitter
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/morph-l2/bindings/bindings"
@@ -15,13 +16,14 @@ import (
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/urfave/cli"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // Main is the entrypoint into the batch submitter service. This method returns
 // a closure that executes the service and blocks until the service exits. The
 // use of a closure allows the parameters bound to the top-level main package,
 // e.g. GitVersion, to be captured and used once the function is executed.
-func Main(gitCommit string) func(ctx *cli.Context) error {
+func Main() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
 		cfg, err := utils.NewConfig(cliCtx)
 		if err != nil {
@@ -34,7 +36,31 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		// Set up our logging. If Sentry is enabled, we will use our custom log
 		// handler that logs to stdout and forwards any error messages to Sentry
 		// for collection. Otherwise, logs will only be posted to stdout.
-		logHandler := log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+		output := io.Writer(os.Stdout)
+		if cfg.LogFilename != "" {
+			f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+			if err != nil {
+				return fmt.Errorf("wrong log.filename set: %d", err)
+			}
+			f.Close()
+
+			if cfg.LogFileMaxSize < 1 {
+				return fmt.Errorf("wrong log.maxsize set: %d", cfg.LogFileMaxSize)
+			}
+
+			if cfg.LogFileMaxAge < 1 {
+				return fmt.Errorf("wrong log.maxage set: %d", cfg.LogFileMaxAge)
+			}
+			logFile := &lumberjack.Logger{
+				Filename: cfg.LogFilename,
+				MaxSize:  cfg.LogFileMaxSize, // megabytes
+				MaxAge:   cfg.LogFileMaxAge,  // days
+				Compress: cfg.LogCompress,
+			}
+			output = io.MultiWriter(output, logFile)
+		}
+
+		logHandler := log.StreamHandler(output, log.TerminalFormat(false))
 
 		logLevel, err := log.LvlFromString(cfg.LogLevel)
 		if err != nil {
@@ -44,7 +70,6 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 		// Parse sequencer private key and rollup contract address.
-
 		privKey, rollupAddr, err := utils.ParsePkAndWallet(cfg.PrivateKey, cfg.RollupAddress)
 		if err != nil {
 			return err
@@ -82,21 +107,28 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		m := metrics.NewMetrics()
 		abi, _ := bindings.RollupMetaData.GetAbi()
 
-		// l2 submitter
-		l2Submitter, err := bindings.NewSubmitter(
-			common.HexToAddress(cfg.SubmitterAddress),
-			l2Clients[0],
-		)
-		if err != nil {
-			return err
-		}
-		// l2 sequencer
-		l2Sequencer, err := bindings.NewL2Sequencer(
-			common.HexToAddress(cfg.SequencerAddress),
-			l2Clients[0],
-		)
-		if err != nil {
-			return err
+		// l2 submitters
+		var l2Submitters []iface.IL2Submitter
+		// l2 sequencers
+		var l2Sequencers []iface.IL2Sequencer
+		for _, l2Client := range l2Clients {
+			l2Sequencer, err := bindings.NewL2Sequencer(
+				common.HexToAddress(cfg.SequencerAddress),
+				l2Client,
+			)
+			if err != nil {
+				return err
+			}
+			l2Sequencers = append(l2Sequencers, l2Sequencer)
+
+			l2Submitter, err := bindings.NewSubmitter(
+				common.HexToAddress(cfg.SubmitterAddress),
+				l2Client,
+			)
+			if err != nil {
+				return err
+			}
+			l2Submitters = append(l2Submitters, l2Submitter)
 		}
 
 		sr := services.NewRollup(
@@ -105,8 +137,8 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 			l1Client,
 			l2Clients,
 			l1Rollup,
-			l2Submitter,
-			l2Sequencer,
+			l2Submitters,
+			l2Sequencers,
 			chainID,
 			privKey,
 			*rollupAddr,
@@ -125,8 +157,8 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 						log.Error("metrics server failed to start", "err", err)
 					}
 				}()
-				log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 			}
+			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
 		log.Info("starting tx submitter",

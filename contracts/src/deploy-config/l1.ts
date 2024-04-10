@@ -11,24 +11,20 @@ const config = {
   l1MessageQueueMaxGasLimit: 100000000,
 
   // gasPriceOracle config
-  gasPriceOracleTxGas: 21000,
-  gasPriceOracleTxGasContractCreation: 53000,
-  gasPriceOracleZeroGas: 4,
-  gasPriceOracleNonZeroGas: 16,
-
+  l2BaseFee: 0.1,  // Gwei 
+  
   // rollup contract config
   // initialize config
   rollupMaxNumTxInChunk: 100,
-  rollupMinDeposit: 1,
   finalizationPeriodSeconds: 10,
   rollupProofWindow: 86400,
   // challenge config
   rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
   // genesis config
-  rollupGenesisStateRoot: '0x12594faf63c2f5ce08759601637da0de2dbbeaeeb713e18c0447c40e0bc1b961',
+  rollupGenesisStateRoot: '0x2eaee776dae9f0fa56d3bb7dd63468769a8d3131b79c091eb282fa5e5238d771',
   withdrawRoot: '0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757',
-  batchHeader: '0x0000000000000000000000000000000000000000000000000075f0a3e0bee062f652f7b3037759e7b55a912f210448c42a9e3f239072ee604e0000000000000000000000000000000000000000000000000000000000000000',
+  batchHeader: '0x000000000000000000000000000000000000000000000000008d9e9445a23a0424c82b6653dbc57acafe7198edb6e80d4087a27c3abb14e7190000000000000000000000000000000000000000000000000000000000000000',
 
   // staking config
   // staking initialize config

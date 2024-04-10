@@ -141,7 +141,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -157,10 +157,10 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
 
         // finalize batch1
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS() + 1);
-        rollup.finalizeBatches();
+        rollup.finalizeBatch(1);
         assertTrue(rollup.isBatchFinalized(1));
         assertEq(rollup.finalizedStateRoots(1), stateRoot);
-        assertEq(rollup.withdrawalRoots(bytes32(uint256(3))), 1);
+        assertTrue(rollup.withdrawalRoots(bytes32(uint256(3))));
         assertEq(rollup.lastFinalizedBatchIndex(), 1);
         assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(0));
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
@@ -228,21 +228,14 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             ) // bitmap0
             mstore(add(batchHeader2, add(0x20, 121)), 42) // bitmap1
         }
-        chunk0 = new bytes(1 + 60 + 3 * 32);
+        chunk0 = new bytes(1 + 60);
         assembly {
             mstore(add(chunk0, 0x20), shl(248, 1)) // numBlocks = 1
             mstore(add(chunk0, add(0x21, 56)), shl(240, 3)) // numTransactions = 3
             mstore(add(chunk0, add(0x21, 58)), shl(240, 0)) // numL1Messages = 0
         }
 
-        bytes32 txHash = keccak256(abi.encodePacked(bytes1(uint8(0)))); // tx = "0x00"
-
-        for (uint256 i = 0; i < 3; i++) {
-            assembly {
-                mstore(add(chunk0, add(93, mul(i, 32))), txHash) // tx = "0x00"
-            }
-        }
-        chunk1 = new bytes(1 + 60 * 3 + 51 * 32);
+        chunk1 = new bytes(1 + 60 * 3);
         assembly {
             mstore(add(chunk1, 0x20), shl(248, 3)) // numBlocks = 3
             mstore(add(chunk1, add(33, 56)), shl(240, 5)) // block0.numTransactions = 5
@@ -252,11 +245,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(chunk1, add(153, 56)), shl(240, 300)) // block1.numTransactions = 300
             mstore(add(chunk1, add(153, 58)), shl(240, 256)) // block1.numL1Messages = 256
         }
-        for (uint256 i = 0; i < 51; i++) {
-            assembly {
-                mstore(add(chunk1, add(213, mul(i, 32))), txHash) // tx = "0x00"
-            }
-        }
+
         chunks = new bytes[](2);
         chunks[0] = chunk0;
         chunks[1] = chunk1;
@@ -292,7 +281,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
 
@@ -319,7 +308,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // second chunk with too many txs
         hevm.stopPrank();
@@ -336,7 +325,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         emit CommitBatch(
             2,
             bytes32(
-                0xcfbb018dbe120e5c2195c3b22e2a224a9510349dfda20361cb13c1115c4d6214
+                0x00d59adae5b8cdbc80e8320e003214848bcd8613101df8c760e537ca7e78eb3d
             )
         );
 
@@ -354,7 +343,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -363,19 +352,19 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(
             batchHash2,
             bytes32(
-                0xcfbb018dbe120e5c2195c3b22e2a224a9510349dfda20361cb13c1115c4d6214
+                0x00d59adae5b8cdbc80e8320e003214848bcd8613101df8c760e537ca7e78eb3d
             )
         );
 
         // verify committed batch correctly
         hevm.startPrank(address(0));
         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS());
-        rollup.finalizeBatches();
+        rollup.finalizeBatch(2);
         hevm.stopPrank();
 
         assertTrue(rollup.isBatchFinalized(2));
         assertEq(rollup.finalizedStateRoots(2), stateRoot);
-        assertEq(rollup.withdrawalRoots(bytes32(uint256(5))), 2);
+        assertTrue(rollup.withdrawalRoots(bytes32(uint256(5))));
         assertEq(rollup.lastFinalizedBatchIndex(), 2);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 265);
         // 1 ~ 4, zero
@@ -438,8 +427,7 @@ contract RollupTest is L1MessageBaseTest {
             ),
             sequencerAddrs,
             sequencerBLSKeys,
-            defaultGasLimit,
-            address(2048)
+            defaultGasLimit
         );
 
         hevm.stopPrank();
@@ -488,7 +476,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -509,7 +497,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -530,7 +518,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -551,7 +539,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -572,7 +560,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -596,7 +584,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -624,7 +612,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -648,7 +636,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -676,7 +664,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -704,17 +692,17 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
 
-        // incomplete l2 transaction data, revert
+        // invalid chunk length, revert
         chunk0 = new bytes(1 + 60 + 1);
         chunk0[0] = bytes1(uint8(1)); // one block in this chunk
         chunks[0] = chunk0;
         hevm.startPrank(sequencerAddr);
-        hevm.expectRevert("incomplete l2 transaction data");
+        hevm.expectRevert("invalid chunk length");
         batchData = IRollup.BatchData(
             0,
             batchHeader0,
@@ -728,7 +716,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -752,7 +740,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
@@ -774,14 +762,10 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         );
         hevm.stopPrank();
-    }
-
-    function testFinalizeBatches() public {
-        rollup.finalizeBatches();
     }
 
     function testRevertBatch() public {
@@ -826,7 +810,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
         hevm.stopPrank();
@@ -859,7 +843,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
         hevm.stopPrank();
@@ -884,7 +868,6 @@ contract RollupTest is L1MessageBaseTest {
         rollup.revertBatch(batchHeader0, 3);
 
         // succeed to revert next two pending batches.
-
         hevm.expectEmit(true, true, false, true);
         emit RevertBatch(1, rollup.committedBatches(1));
         hevm.expectEmit(true, true, false, true);
@@ -892,9 +875,11 @@ contract RollupTest is L1MessageBaseTest {
 
         assertGt(uint256(rollup.committedBatches(1)), 0);
         assertGt(uint256(rollup.committedBatches(2)), 0);
+        assertEq(uint256(rollup.lastCommittedBatchIndex()), 2);
         rollup.revertBatch(batchHeader1, 2);
         assertEq(uint256(rollup.committedBatches(1)), 0);
         assertEq(uint256(rollup.committedBatches(2)), 0);
+        assertEq(uint256(rollup.lastCommittedBatchIndex()), 0);
         hevm.stopPrank();
     }
 
@@ -915,7 +900,6 @@ contract RollupTest is L1MessageBaseTest {
         // change to random EOA operator
         hevm.expectEmit(true, false, false, true);
         emit UpdateProver(_prover, true);
-
         assertBoolEq(rollup.isProver(_prover), false);
         rollup.addProver(_prover);
         assertBoolEq(rollup.isProver(_prover), true);
@@ -958,12 +942,12 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(
             batchData,
             sequencerVersion,
-            sequencerIndex,
+            sequencerSigned,
             signature
         ); // first chunk with too many txs
 
         hevm.expectRevert("Pausable: paused");
-        rollup.finalizeBatches();
+        rollup.finalizeBatch(0);
         hevm.stopPrank();
 
         // unpause
@@ -1096,7 +1080,7 @@ contract RollupTest is L1MessageBaseTest {
         batchHeader = new bytes(89);
         batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
         assertEq(rollup.finalizedStateRoots(0), bytes32(0));
-        assertEq(rollup.withdrawalRoots(0), 0);
+        assertFalse(rollup.withdrawalRoots(0));
         assertEq(rollup.committedBatches(0), bytes32(0));
         rollup.importGenesisBatch(
             batchHeader,
@@ -1104,7 +1088,7 @@ contract RollupTest is L1MessageBaseTest {
             getTreeRoot()
         );
         assertEq(rollup.finalizedStateRoots(0), bytes32(uint256(1)));
-        assertEq(rollup.withdrawalRoots(0), 0);
+        assertFalse(rollup.withdrawalRoots(0));
         assertGt(uint256(rollup.committedBatches(0)), 0);
 
         // Genesis batch imported, revert

@@ -60,6 +60,11 @@ type Config struct {
 
 	// tx fee limit
 	TxFeeLimit uint64
+
+	LogFilename    string
+	LogFileMaxSize int
+	LogFileMaxAge  int
+	LogCompress    bool
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -89,6 +94,11 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		PriorityRollup: ctx.GlobalBool(flags.PriorityRollupFlag.Name),
 		// tx config
 		TxFeeLimit: ctx.GlobalUint64(flags.TxFeeLimitFlag.Name),
+
+		LogFilename:    ctx.GlobalString(flags.LogFilename.Name),
+		LogFileMaxSize: ctx.GlobalInt(flags.LogFileMaxSize.Name),
+		LogFileMaxAge:  ctx.GlobalInt(flags.LogFileMaxAge.Name),
+		LogCompress:    ctx.GlobalBool(flags.LogCompress.Name),
 	}
 
 	return cfg, nil
