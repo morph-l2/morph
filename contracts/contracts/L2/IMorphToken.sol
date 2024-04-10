@@ -8,7 +8,6 @@ import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/tok
  * @dev Interface of the MorphToken standard as defined in the EIP.
  */
 interface IMorphToken is IERC20MetadataUpgradeable {
-
     /**
      * @dev Emitted the owner sets the next valid exchange rate.
      */
@@ -23,7 +22,14 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      * @param rate_ Annual increment parameter.
      * @param beginTime_ Mint begin time.
      */
-    function initialize(string memory name_, string memory symbol_, address distribute_, uint256 initialSupply_, uint256 rate_, uint256 beginTime_) external;
+    function initialize(
+        string memory name_,
+        string memory symbol_,
+        address distribute_,
+        uint256 initialSupply_,
+        uint256 rate_,
+        uint256 beginTime_
+    ) external;
 
     /**
      * @dev query reward
@@ -58,7 +64,10 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      *
      * - `spender` cannot be the zero address.
      */
-    function increaseAllowance(address spender, uint256 addedValue) external returns (bool);
+    function increaseAllowance(
+        address spender,
+        uint256 addedValue
+    ) external returns (bool);
 
     /**
      * @dev Atomically decreases the allowance granted to `spender` by the caller.
@@ -72,7 +81,10 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      * - `spender` must have allowance for the caller of at least
      * `subtractedValue`.
      */
-    function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
+    function decreaseAllowance(
+        address spender,
+        uint256 subtractedValue
+    ) external returns (bool);
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
      * the total supply.
