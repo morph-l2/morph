@@ -443,9 +443,11 @@ contract L2Staking is
                     maxIndex = j;
                 }
             }
-            address temp = mStakers[i];
-            mStakers[i] = mStakers[maxIndex];
-            mStakers[maxIndex] = temp;
+            if (i != maxIndex) {
+                address temp = mStakers[i];
+                mStakers[i] = mStakers[maxIndex];
+                mStakers[maxIndex] = temp;
+            }
         }
 
         return mStakers;
