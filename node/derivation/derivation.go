@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/bindings/predeploys"
 	"math/big"
 	"os"
 	"time"
@@ -43,6 +44,7 @@ type Derivation struct {
 	rollup                *bindings.Rollup
 	metrics               *Metrics
 	l1BeaconClient        *L1BeaconClient
+	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
 	latestDerivation uint64
 	db               Database
@@ -73,6 +75,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		return nil, err
 	}
 	eClient, err := ethclient.Dial(cfg.L2.EthAddr)
+	if err != nil {
+		return nil, err
+	}
+	msgPasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, eClient)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +114,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logProgressInterval:   cfg.LogProgressInterval,
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
+		L2ToL1MessagePasser:   msgPasser,
 	}, nil
 }
 
@@ -201,7 +208,14 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		// only last block of batch
 		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
-		if !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes()) {
+		withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
+			BlockNumber: lastHeader.Number,
+		})
+		if err != nil {
+			d.logger.Error("get withdrawal root failed", "error", err)
+			return
+		}
+		if !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes()) || !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes()) {
 			d.metrics.SetBatchStatus(stateException)
 			// TODO The challenge switch is currently on and will be turned on in the future
 			if d.validator != nil && d.validator.ChallengeEnable() {
@@ -210,7 +224,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 					return
 				}
 			}
-			d.logger.Info("root hash is not equal", "originStateRootHash", batchInfo.root, "deriveStateRootHash", lastHeader.Root.Hex())
+			d.logger.Info("root hash or withdrawal hash is not equal",
+				"originStateRootHash", batchInfo.root,
+				"deriveStateRootHash", lastHeader.Root.Hex(),
+				"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
+				"deriveWithdrawalRoot", common.BytesToHash(withdrawalRoot[:]).Hex(),
+			)
 			return
 		} else {
 			d.metrics.SetBatchStatus(stateNormal)

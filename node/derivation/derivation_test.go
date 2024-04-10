@@ -3,6 +3,7 @@ package derivation
 import (
 	"context"
 	"crypto/ecdsa"
+	"github.com/morph-l2/bindings/predeploys"
 	"math/big"
 	"os"
 	"reflect"
@@ -53,6 +54,8 @@ func testNewDerivationClient(t *testing.T) *Derivation {
 	require.NoError(t, err)
 	eClient, err := ethclient.Dial("http://localhost:7545")
 	require.NoError(t, err)
+	msgPasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, eClient)
+	require.NoError(t, err)
 	logger := tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))
 	baseHttp := NewBasicHTTPClient("http://localhost:3500", logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
@@ -67,6 +70,7 @@ func testNewDerivationClient(t *testing.T) *Derivation {
 		fetchBlockRange:       100,
 		pollInterval:          1,
 		l1BeaconClient:        l1BeaconClient,
+		L2ToL1MessagePasser:   msgPasser,
 	}
 	return &d
 }
@@ -74,6 +78,12 @@ func testNewDerivationClient(t *testing.T) *Derivation {
 func TestFetchRollupData(t *testing.T) {
 	d := testNewDerivationClient(t)
 	_, err := d.fetchRollupDataByTxHash(common.HexToHash("0xf2eaf0c8c121751a544046bc5358db521dc0b8dce660c674ad64c8f1a2a12c1b"), 390)
+	require.NoError(t, err)
+}
+
+func TestFetchWithdrawalRoot(t *testing.T) {
+	d := testNewDerivationClient(t)
+	_, err := d.L2ToL1MessagePasser.MessageRoot(nil)
 	require.NoError(t, err)
 }
 
