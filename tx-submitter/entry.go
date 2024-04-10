@@ -157,7 +157,6 @@ func Main() func(ctx *cli.Context) error {
 						log.Error("metrics server failed to start", "err", err)
 					}
 				}()
-
 			}
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
