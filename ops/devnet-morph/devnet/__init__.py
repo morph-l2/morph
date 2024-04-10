@@ -74,6 +74,10 @@ def main():
 
 def devnet_l1(paths, result=None):
     log.info('Starting L1.')
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build', '--no-cache', 'l1'], check=False,
+                cwd=paths.ops_dir, env={
+            'PWD': paths.ops_dir
+        })
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], check=False,
                 cwd=paths.ops_dir, env={
             'PWD': paths.ops_dir
