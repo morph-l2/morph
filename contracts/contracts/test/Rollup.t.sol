@@ -3,7 +3,7 @@ pragma solidity =0.8.24;
 
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {ChunkCodec} from "../libraries/codec/ChunkCodec.sol";
+import {ChunkCodecV0} from "../libraries/codec/ChunkCodecV0.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {IL2Sequencer} from "../L2/staking/IL2Sequencer.sol";
 import {Types} from "../libraries/common/Types.sol";
@@ -1000,7 +1000,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.importGenesisBatch(batchHeader, bytes32(0), getTreeRoot());
 
         // batch header length too small, revert
-        batchHeader = new bytes(88);
+        batchHeader = new bytes(120);
         hevm.expectRevert("batch header length too small");
         rollup.importGenesisBatch(
             batchHeader,
@@ -1009,7 +1009,7 @@ contract RollupTest is L1MessageBaseTest {
         );
 
         // wrong bitmap length, revert
-        batchHeader = new bytes(90);
+        batchHeader = new bytes(122);
         hevm.expectRevert("wrong bitmap length");
         rollup.importGenesisBatch(
             batchHeader,
@@ -1018,7 +1018,7 @@ contract RollupTest is L1MessageBaseTest {
         );
 
         // not all fields are zero, revert
-        batchHeader = new bytes(89);
+        batchHeader = new bytes(121);
         batchHeader[0] = bytes1(uint8(1)); // version not zero
         hevm.expectRevert("not all fields are zero");
         rollup.importGenesisBatch(
@@ -1027,7 +1027,7 @@ contract RollupTest is L1MessageBaseTest {
             getTreeRoot()
         );
 
-        batchHeader = new bytes(89);
+        batchHeader = new bytes(121);
         batchHeader[1] = bytes1(uint8(1)); // batchIndex not zero
         hevm.expectRevert("not all fields are zero");
         rollup.importGenesisBatch(
@@ -1036,7 +1036,7 @@ contract RollupTest is L1MessageBaseTest {
             getTreeRoot()
         );
 
-        batchHeader = new bytes(89 + 32);
+        batchHeader = new bytes(121 + 32);
         assembly {
             mstore(add(batchHeader, add(0x20, 9)), shl(192, 1)) // l1MessagePopped not zero
         }
@@ -1047,7 +1047,7 @@ contract RollupTest is L1MessageBaseTest {
             getTreeRoot()
         );
 
-        batchHeader = new bytes(89);
+        batchHeader = new bytes(121);
         batchHeader[17] = bytes1(uint8(1)); // totalL1MessagePopped not zero
         hevm.expectRevert("not all fields are zero");
         rollup.importGenesisBatch(
@@ -1057,7 +1057,7 @@ contract RollupTest is L1MessageBaseTest {
         );
 
         // zero data hash, revert
-        batchHeader = new bytes(89);
+        batchHeader = new bytes(121);
         hevm.expectRevert("zero data hash");
         rollup.importGenesisBatch(
             batchHeader,
@@ -1066,9 +1066,9 @@ contract RollupTest is L1MessageBaseTest {
         );
 
         // nonzero parent batch hash, revert
-        batchHeader = new bytes(89);
+        batchHeader = new bytes(121);
         batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
-        batchHeader[57] = bytes1(uint8(1)); // parentBatchHash not zero
+        batchHeader[89] = bytes1(uint8(1)); // parentBatchHash not zero
         hevm.expectRevert("nonzero parent batch hash");
         rollup.importGenesisBatch(
             batchHeader,
@@ -1076,9 +1076,25 @@ contract RollupTest is L1MessageBaseTest {
             getTreeRoot()
         );
 
-        // import correctly
-        batchHeader = new bytes(89);
+        // invalid versioned hash, revert
+        batchHeader = new bytes(121);
         batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
+        hevm.expectRevert("invalid versioned hash");
+        rollup.importGenesisBatch(
+            batchHeader,
+            bytes32(uint256(1)),
+            getTreeRoot()
+        );
+
+        // import correctly
+        batchHeader = new bytes(121);
+        batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
+        assembly {
+            mstore(
+                add(batchHeader, add(0x20, 57)),
+                0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014
+            ) // ZERO_VERSIONED_HASH
+        }
         assertEq(rollup.finalizedStateRoots(0), bytes32(0));
         assertFalse(rollup.withdrawalRoots(0));
         assertEq(rollup.committedBatches(0), bytes32(0));
