@@ -83,7 +83,11 @@ func TestFetchRollupData(t *testing.T) {
 
 func TestFetchWithdrawalRoot(t *testing.T) {
 	d := testNewDerivationClient(t)
-	_, err := d.L2ToL1MessagePasser.MessageRoot(nil)
+	bn, err := d.l2Client.BlockNumber(context.Background())
+	require.NoError(t, err)
+	_, err = d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
+		BlockNumber: big.NewInt(int64(bn)),
+	})
 	require.NoError(t, err)
 }
 
