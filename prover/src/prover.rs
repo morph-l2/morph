@@ -14,7 +14,7 @@ use prover::{BatchHash, BlockTrace, ChunkHash, ChunkProof, CompressionCircuit, M
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufReader, BufWriter, Write};
 use std::iter::repeat;
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
