@@ -217,7 +217,7 @@ contract EnforcedTxGateway is
 
         // charge fee
         uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_gasLimit);
+            .estimateCrossDomainMessageFee(_sender, _gasLimit);
         require(msg.value >= _fee, "Insufficient value for fee");
         if (_fee > 0) {
             (bool _success, ) = feeVault.call{value: _fee}("");

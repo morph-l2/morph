@@ -132,10 +132,11 @@ contract L1MessageQueueWithGasPriceOracle is
 
     /// @inheritdoc IL1MessageQueue
     function estimateCrossDomainMessageFee(
+        address _sender,
         uint256 _gasLimit
     ) external view returns (uint256) {
         // GasFee is waived for whitelisted users
-        if (IWhitelist(whitelistChecker).isSenderAllowed(msg.sender)) {
+        if (IWhitelist(whitelistChecker).isSenderAllowed(_sender)) {
             return 0;
         }
         return _gasLimit * l2BaseFee;

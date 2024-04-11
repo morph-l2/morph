@@ -32,7 +32,10 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         l2GasPriceOracle.setL2BaseFee(1);
 
         // estimate fee without sender in whitelist
-        uint256 fee = l2GasPriceOracle.estimateCrossDomainMessageFee(gasLimit);
+        uint256 fee = l2GasPriceOracle.estimateCrossDomainMessageFee(
+            multisig,
+            gasLimit
+        );
         assertEq(fee, gasLimit * 1);
 
         // add address this to whitelist
@@ -44,7 +47,10 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         assertTrue(whitelistChecker.isSenderAllowed(address(multisig)));
 
         // estimate fee with sender in whitelist
-        fee = l2GasPriceOracle.estimateCrossDomainMessageFee(gasLimit);
+        fee = l2GasPriceOracle.estimateCrossDomainMessageFee(
+            multisig,
+            gasLimit
+        );
         assertEq(fee, 0);
 
         hevm.stopPrank();
