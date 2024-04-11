@@ -18,7 +18,7 @@ import (
 )
 
 type BatchingCache struct {
-	parentBatchHeader *types.BatchHeaderWithBlobHashes
+	parentBatchHeader *types.BatchHeader
 	prevStateRoot     common.Hash
 
 	// accumulated batch data
@@ -29,7 +29,7 @@ type BatchingCache struct {
 	withdrawRoot          common.Hash
 	lastPackedBlockHeight uint64
 	// caches sealedBatchHeader according to the above accumulated batch data
-	sealedBatchHeader *types.BatchHeaderWithBlobHashes
+	sealedBatchHeader *types.BatchHeader
 	sealedSidecar     *eth.BlobTxSidecar
 
 	currentBlockContext               []byte
@@ -84,7 +84,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			return false, 0, err
 		}
 
-		parentBatchHeader := new(types.BatchHeaderWithBlobHashes)
+		parentBatchHeader := new(types.BatchHeader)
 		if len(parentBatchHeaderBytes) == 0 {
 			genesisHeader, err := e.l2Client.HeaderByNumber(context.Background(), big.NewInt(0))
 			if err != nil {
@@ -94,11 +94,10 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			if err != nil {
 				return false, 0, err
 			}
-			parentBatchHeader = &types.BatchHeaderWithBlobHashes{
-				BatchHeader: genesisBatchHeader,
-			}
+			parentBatchHeader = &genesisBatchHeader
 		} else {
-			if err = parentBatchHeader.UnmarshalBinary(parentBatchHeaderBytes); err != nil {
+			*parentBatchHeader, err = types.DecodeBatchHeader(parentBatchHeaderBytes)
+			if err != nil {
 				return false, 0, err
 			}
 		}
@@ -205,27 +204,28 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		copy(skippedL1MessageBitmapBytes[32*ii+padding:], bz)
 	}
 
+	txPayload := e.batchingCache.chunks.SealTxPayloadForBlob()
+	sidecar, err := types.MakeBlobTxSidecarWithTxPayload(txPayload)
+	if err != nil {
+		return nil, nil, err
+	}
+	blobHashes := []common.Hash{types.EmptyVersionedHash}
+	if sidecar != nil && len(sidecar.Blobs) > 0 {
+		blobHashes = sidecar.BlobHashes()
+	}
 	batchHeader := types.BatchHeader{
 		Version:                0,
 		BatchIndex:             e.batchingCache.parentBatchHeader.BatchIndex + 1,
 		L1MessagePopped:        e.batchingCache.totalL1MessagePopped - e.batchingCache.parentBatchHeader.TotalL1MessagePopped,
 		TotalL1MessagePopped:   e.batchingCache.totalL1MessagePopped,
 		DataHash:               e.batchingCache.chunks.DataHash(),
-		ParentBatchHash:        e.batchingCache.parentBatchHeader.BatchHash(),
+		BlobVersionedHash:      blobHashes[0], // currently we only have one blob
+		ParentBatchHash:        e.batchingCache.parentBatchHeader.Hash(),
 		SkippedL1MessageBitmap: skippedL1MessageBitmapBytes,
 	}
-	txPayload := e.batchingCache.chunks.SealTxPayloadForBlob()
-	sidecar, err := types.MakeBlobTxSidecarWithTxPayload(txPayload)
-	if err != nil {
-		return nil, nil, err
-	}
-	var blobHashes []common.Hash
-	if sidecar != nil && len(sidecar.Blobs) > 0 {
-		blobHashes = sidecar.BlobHashes()
-	}
-	e.batchingCache.sealedBatchHeader = types.NewBatchHeaderWithBlobHashes(batchHeader, blobHashes)
+	e.batchingCache.sealedBatchHeader = &batchHeader
 	e.batchingCache.sealedSidecar = sidecar
-	batchHash := e.batchingCache.sealedBatchHeader.BatchHash()
+	batchHash := e.batchingCache.sealedBatchHeader.Hash()
 	e.logger.Info("Sealed batch header", "batchHash", batchHash.Hex())
 	e.logger.Info(fmt.Sprintf("===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===blockNum: %d \n===ParentBatchHash: %x \n===SkippedL1MessageBitmap: %x \n",
 		batchHeader.BatchIndex,
@@ -240,7 +240,7 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		e.logger.Info(fmt.Sprintf("===chunk%d: %x \n", i, chunk))
 	}
 	e.logger.Info(fmt.Sprintf("===txs: %x \n", txPayload))
-	return batchHash[:], e.batchingCache.sealedBatchHeader.MarshalBinary(), nil
+	return batchHash[:], e.batchingCache.sealedBatchHeader.Encode(), nil
 }
 
 // CommitBatch commit the sealed batch. It does nothing if no batch header is sealed.
@@ -281,7 +281,7 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
 		Version:                0,
 		Index:                  e.batchingCache.parentBatchHeader.BatchIndex + 1,
-		Hash:                   e.batchingCache.sealedBatchHeader.BatchHash(),
+		Hash:                   e.batchingCache.sealedBatchHeader.Hash(),
 		ParentBatchHeader:      e.batchingCache.parentBatchHeader.Encode(),
 		Chunks:                 chunksBytes,
 		SkippedL1MessageBitmap: e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
@@ -367,11 +367,11 @@ func (e *Executor) PackCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes
 }
 
 func (e *Executor) BatchHash(batchHeaderBytes []byte) ([]byte, error) {
-	batchHeaderWithBlobHashes := new(types.BatchHeaderWithBlobHashes)
-	if err := batchHeaderWithBlobHashes.UnmarshalBinary(batchHeaderBytes); err != nil {
+	batchHeader, err := types.DecodeBatchHeader(batchHeaderBytes)
+	if err != nil {
 		return nil, err
 	}
-	return batchHeaderWithBlobHashes.BatchHash().Bytes(), nil
+	return batchHeader.Hash().Bytes(), nil
 }
 
 func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.Txs) error {
