@@ -379,9 +379,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             data,
             gas
         );
-        // give enought value
+        // give enough value
         uint256 fee = l1MessageQueueWithGasPriceOracle
-            .estimateCrossDomainMessageFee(gas);
+            .estimateCrossDomainMessageFee(sender, gas);
         l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(
             to,
             value,
@@ -391,6 +391,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
 
         // send more value with refund address
         fee = l1MessageQueueWithGasPriceOracle.estimateCrossDomainMessageFee(
+            sender,
             gas
         );
         l1CrossDomainMessenger.sendMessage{value: 1 ether + fee * 2}(

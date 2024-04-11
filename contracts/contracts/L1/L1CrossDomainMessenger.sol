@@ -233,7 +233,7 @@ contract L1CrossDomainMessenger is
 
         // compute and deduct the messaging fee to fee vault.
         uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_newGasLimit);
+            .estimateCrossDomainMessageFee(_from, _newGasLimit);
 
         // charge relayer fee
         require(msg.value >= _fee, "Insufficient msg.value for fee");
@@ -392,7 +392,7 @@ contract L1CrossDomainMessenger is
 
         // compute and deduct the messaging fee to fee vault.
         uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_gasLimit);
+            .estimateCrossDomainMessageFee(_msgSender(), _gasLimit);
         require(msg.value >= _fee + _value, "Insufficient msg.value");
         if (_fee > 0) {
             (bool _success, ) = feeVault.call{value: _fee}("");
