@@ -3,7 +3,6 @@ package derivation
 import (
 	"context"
 	"crypto/ecdsa"
-	"github.com/morph-l2/bindings/predeploys"
 	"math/big"
 	"os"
 	"reflect"
@@ -11,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/morph-l2/bindings/bindings"
+	"github.com/morph-l2/bindings/predeploys"
 	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
