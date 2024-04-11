@@ -7,6 +7,7 @@ import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/util
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {ISequencer} from "./ISequencer.sol";
 import {IGov} from "./IGov.sol";
+import {IL2Staking} from "./IL2Staking.sol";
 
 contract Gov is IGov, Initializable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
@@ -21,6 +22,9 @@ contract Gov is IGov, Initializable {
 
     // record contract address
     address public immutable RECORD_CONTRACT;
+
+    // staking contract address
+    address public immutable L2_STAKING_CONTRACT;
 
     // batch configs
     uint256 public override batchBlockInterval = 0;
@@ -65,6 +69,7 @@ contract Gov is IGov, Initializable {
      */
     constructor() {
         SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
+        L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
     }
 
     /*********************** Init **************************/
@@ -189,7 +194,7 @@ contract Gov is IGov, Initializable {
      */
     function _executeProposal(uint256 _proposalId) internal {
         if (rollupEpoch != proposalData[_proposalId].rollupEpoch) {
-            // ISubmitter(SUBMITTER_CONTRACT).epochUpdated(rollupEpoch);
+            // IL2Staking(L2_STAKING_CONTRACT).updateParams(_sequenceSize, rollupEpoch);
         }
         batchBlockInterval = proposalData[_proposalId].batchBlockInterval;
         batchMaxBytes = proposalData[_proposalId].batchMaxBytes;
