@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/morph-l2/bindings/predeploys"
 	"math/big"
 	"os"
 	"time"
 
 	"github.com/morph-l2/bindings/bindings"
+	"github.com/morph-l2/bindings/predeploys"
 	"github.com/morph-l2/node/sync"
 	"github.com/morph-l2/node/types"
 	"github.com/morph-l2/node/validator"
