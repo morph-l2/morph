@@ -2,9 +2,10 @@
 
 pragma solidity ^0.8.0;
 
-import "./IMorphToken.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+import {IMorphToken} from "./IMorphToken.sol";
 
 contract MorphToken is OwnableUpgradeable, IMorphToken {
     using EnumerableSet for EnumerableSet.UintSet;

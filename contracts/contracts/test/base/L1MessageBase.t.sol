@@ -28,7 +28,7 @@ pragma solidity =0.8.24;
 //     // L1Sequencer config
 //     L1Sequencer l1Sequencer;
 
-//     address l2Sequencer = address(Predeploys.L2_SEQUENCER);
+//     address sequencer = address(Predeploys.L2_SEQUENCER);
 
 //     // Rollup config
 //     Rollup rollup;

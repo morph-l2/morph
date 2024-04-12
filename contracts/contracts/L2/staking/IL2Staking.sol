@@ -55,6 +55,13 @@ interface IL2Staking {
     function getStakers() external view returns (address[] memory);
 
     /**
+     * @notice get stakers info
+     */
+    function getStakesInfo(
+        address[] memory stakers
+    ) external view returns (Types.StakerInfo[] memory);
+
+    /**
      * @notice Get all the delegators which staked to staker
      * @param staker sequencers size
      */

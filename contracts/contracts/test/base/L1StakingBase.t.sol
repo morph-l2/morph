@@ -5,7 +5,7 @@ pragma solidity =0.8.24;
 
 // import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 // import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-// import {L2Sequencer} from "../../L2/staking/L2Sequencer.sol";
+// import {Sequencer} from "../../L2/staking/Sequencer.sol";
 // import {Gov} from "../../L2/staking/Gov.sol";
 // import {Submitter} from "../../L2/submitter/Submitter.sol";
 // import {Types} from "../../libraries/common/Types.sol";
@@ -16,8 +16,8 @@ pragma solidity =0.8.24;
 //     bytes[] public sequencerBLSKeys;
 //     address[] public sequencerAddrs;
 
-//     // L2Sequencer config
-//     L2Sequencer public l2Sequencer;
+//     // Sequencer config
+//     Sequencer public sequencer;
 
 //     uint256 public constant SEQUENCER_SIZE = 3;
 
@@ -65,7 +65,7 @@ pragma solidity =0.8.24;
 //                 )
 //             ).code
 //         );
-//         TransparentUpgradeableProxy l2SequencerProxy = TransparentUpgradeableProxy(
+//         TransparentUpgradeableProxy sequencerProxy = TransparentUpgradeableProxy(
 //                 payable(Predeploys.L2_SEQUENCER)
 //             );
 //         TransparentUpgradeableProxy l2SubmitterProxy = TransparentUpgradeableProxy(
@@ -75,7 +75,7 @@ pragma solidity =0.8.24;
 //             payable(Predeploys.L2_GOV)
 //         );
 //         hevm.store(
-//             address(l2SequencerProxy),
+//             address(sequencerProxy),
 //             bytes32(PROXY_OWNER_KEY),
 //             bytes32(abi.encode(address(multisig)))
 //         );
@@ -92,7 +92,7 @@ pragma solidity =0.8.24;
 
 //         hevm.startPrank(multisig);
 //         // deploy impl contracts
-//         L2Sequencer l2SequencerImpl = new L2Sequencer(
+//         Sequencer sequencerImpl = new Sequencer(
 //             payable(NON_ZERO_ADDRESS)
 //         );
 //         Gov govImpl = new Gov();
@@ -110,11 +110,11 @@ pragma solidity =0.8.24;
 //             sequencerInfos[i] = sequencerInfo;
 //             sequencerAddrs.push(sequencerInfo.addr);
 //         }
-//         ITransparentUpgradeableProxy(address(l2SequencerProxy))
+//         ITransparentUpgradeableProxy(address(sequencerProxy))
 //             .upgradeToAndCall(
-//                 address(l2SequencerImpl),
+//                 address(sequencerImpl),
 //                 abi.encodeWithSelector(
-//                     L2Sequencer.initialize.selector,
+//                     Sequencer.initialize.selector,
 //                     sequencerInfos
 //                 )
 //             );
@@ -141,11 +141,11 @@ pragma solidity =0.8.24;
 //             );
 
 //         // set address
-//         l2Sequencer = L2Sequencer(payable(address(l2SequencerProxy)));
+//         sequencer = Sequencer(payable(address(sequencerProxy)));
 //         l2Gov = Gov(payable(address(l2GovProxy)));
 //         l2Submitter = Submitter(payable(address(l2SubmitterProxy)));
 
-//         _changeAdmin(address(l2Sequencer));
+//         _changeAdmin(address(sequencer));
 //         _changeAdmin(address(l2Gov));
 //         _changeAdmin(address(l2Submitter));
 

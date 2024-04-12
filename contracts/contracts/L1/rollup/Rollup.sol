@@ -23,9 +23,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Constants *
      *************/
 
-    /// @notice The zero versioned hash.
-    bytes32 public ZERO_VERSIONED_HASH;
-
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
 
@@ -33,6 +30,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * @notice Messenger contract on this domain.
      */
     address public immutable MESSENGER;
+
+    /// @notice The zero versioned hash.
+    bytes32 public ZERO_VERSIONED_HASH;
 
     // l1 staking contract
     address public l1StakingContract;
@@ -62,28 +62,24 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     uint256 public override lastCommittedBatchIndex;
 
-    uint256 public latestL2BlockNumber;
-
-    struct BatchStore {
-        bytes32 batchHash;
-        uint256 originTimestamp;
-        uint256 finalizeTimestamp;
-        bytes32 prevStateRoot;
-        bytes32 postStateRoot;
-        bytes32 withdrawalRoot;
-        bytes32 dataHash;
-        address[] sequencers;
-        uint256 l1MessagePopped;
-        uint256 totalL1MessagePopped;
-        bytes skippedL1MessageBitmap;
-        uint256 blockNumber;
-        bytes32 blobVersionedHash;
-    }
-
-    mapping(uint256 => BatchStore) public committedBatchStores;
-
     /// @inheritdoc IRollup
     mapping(uint256 => bytes32) public override finalizedStateRoots;
+
+    /**
+     * @notice Store latest layer 2 block number.
+     */
+    uint256 public latestL2BlockNumber;
+
+    /**
+     * @notice Store committed batch.
+     */
+    mapping(uint256 => BatchStore) public committedBatchStores;
+
+    /**
+     * @notice Store committed batch signature.
+     */
+    mapping(uint256 => BatchSignatureStore) public batchSigStore;
+    // TODO: update when challenge
 
     /**
      * @notice Store the withdrawalRoot.
@@ -119,21 +115,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * @notice whether in challenge
      */
     bool public inChallenge;
-
-    struct BatchChallenge {
-        uint64 batchIndex;
-        address challenger;
-        address challengerReceiveAddress;
-        address proverReceiveAddress;
-        uint256 challengeDeposit;
-        uint256 startTime;
-        bool finished;
-    }
-
-    struct BatchChallengeReward {
-        address receiver;
-        uint256 amount;
-    }
 
     /**********************
      * Function Modifiers *
@@ -271,12 +252,16 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _postStateRoot,
             _withdrawalRoot,
             _dataHash,
-            new address[](0),
             0,
             0,
             "",
             0,
             ZERO_VERSIONED_HASH
+        );
+        batchSigStore[0] = BatchSignatureStore(
+            bytes32(0),
+            bytes32(0),
+            new address[](0)
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -287,9 +272,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     function commitBatch(
         BatchData calldata batchData,
-        address[] memory signedSequencers,
-        bytes calldata sequencerSets,
-        bytes memory signature
+        BatchSignature calldata batchSignature
     ) external payable override OnlyStaker whenNotPaused {
         require(batchData.version == 0, "invalid version");
         // check whether the batch is empty
@@ -323,79 +306,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
         uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
 
-        // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
-        // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-        address[] memory _sequencer = new address[](1);
-        _sequencer[0] = msg.sender;
-
-        _commitBatch(
-            batchData,
-            _chunksLength,
-            _sequencer,
-            batchPtr,
-            _parentBatchHash,
-            _batchIndex
-        );
-
-        require(
-            _checkSequencerSetVerifyHash(batchData, sequencerSets),
-            "the sequencer set verification failed"
-        );
-
-        // verify bls signature
-        require(
-            IL1Staking(l1StakingContract).verifySignature(
-                signedSequencers,
-                _getValidSequencerSet(sequencerSets, 0),
-                signature,
-                committedBatchStores[_batchIndex].batchHash
-            ),
-            "the signature verification failed"
-        );
-    }
-
-    function _checkSequencerSetVerifyHash(
-        BatchData calldata batchData,
-        bytes calldata sequencerSets
-    ) internal view returns (bool) {
-        bytes32 SEQUENCER_SET_VERIFY_HASH = keccak256(sequencerSets);
-        // TODO check SEQUENCER_SET_VERIFY_HASH in batch
-        return true;
-    }
-
-    function _getValidSequencerSet(
-        bytes calldata sequencerSets,
-        uint256 blockHeight
-    ) internal pure returns (address[] memory) {
-        (
-            ,
-            address[] memory sequencerSet0,
-            uint256 blockHeight1,
-            address[] memory sequencerSet1,
-            uint256 blockHeight2,
-            address[] memory sequencerSet2
-        ) = abi.decode(
-                sequencerSets,
-                (uint256, address[], uint256, address[], uint256, address[])
-            );
-
-        if (blockHeight >= blockHeight2) {
-            return sequencerSet2;
-        }
-        if (blockHeight >= blockHeight1) {
-            return sequencerSet1;
-        }
-        return sequencerSet0;
-    }
-
-    function _commitBatch(
-        BatchData calldata batchData,
-        uint256 _chunksLength,
-        address[] memory signedSequencers,
-        uint256 batchPtr,
-        bytes32 _parentBatchHash,
-        uint256 _batchIndex
-    ) internal {
         // re-compute batchHash using _blobVersionedHash
         _parentBatchHash = keccak256(
             abi.encodePacked(
@@ -481,37 +391,108 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             batchPtr,
             batchData.skippedL1MessageBitmap
         );
-        // compute batch hash
-        bytes32 _batchHash = BatchHeaderV0Codec.computeBatchHash(
-            batchPtr,
-            89 + batchData.skippedL1MessageBitmap.length
-        );
 
         bytes32 _blobVersionedHash = blobhash(0);
         if (_blobVersionedHash == bytes32(0)) {
             _blobVersionedHash = ZERO_VERSIONED_HASH;
         }
-        _batchHash = keccak256(
-            abi.encodePacked(_batchHash, _blobVersionedHash)
-        );
 
         committedBatchStores[_batchIndex] = BatchStore(
-            _batchHash,
+            keccak256(
+                abi.encodePacked(
+                    BatchHeaderV0Codec.computeBatchHash(
+                        batchPtr,
+                        89 + batchData.skippedL1MessageBitmap.length
+                    ),
+                    _blobVersionedHash
+                )
+            ),
             block.timestamp,
             block.timestamp + FINALIZATION_PERIOD_SECONDS,
             batchData.prevStateRoot,
             batchData.postStateRoot,
             batchData.withdrawalRoot,
             _dataHash,
-            signedSequencers,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
             latestL2BlockNumber,
             _blobVersionedHash
         );
+
+        batchSigStore[_batchIndex] = BatchSignatureStore(
+            _getBLSMsgHash(batchData), // TODO
+            keccak256(batchSignature.sequencerSets),
+            // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
+            // Therefore, if the batch is successfully challenged, only the submitter will be punished.
+            new address[](1) // TODO: => batchSignature.signedSequencers
+        );
+        batchSigStore[_batchIndex].signedSequencers[0] = _msgSender();
         lastCommittedBatchIndex = _batchIndex;
-        emit CommitBatch(_batchIndex, _batchHash);
+
+        require(
+            _checkSequencerSetVerifyHash(
+                batchData,
+                batchSigStore[_batchIndex].sequencerSetVerifyHash
+            ),
+            "the sequencer set verification failed"
+        );
+
+        // verify bls signature
+        require(
+            IL1Staking(l1StakingContract).verifySignature(
+                batchSignature.signedSequencers,
+                _getValidSequencerSet(batchSignature.sequencerSets, 0),
+                batchSigStore[_batchIndex].blsMsgHash,
+                batchSignature.signature
+            ),
+            "the signature verification failed"
+        );
+
+        emit CommitBatch(
+            _batchIndex,
+            committedBatchStores[_batchIndex].batchHash
+        );
+    }
+
+    function _getBLSMsgHash(
+        BatchData calldata batchData
+    ) internal view returns (bytes32) {
+        // TODO
+        return bytes32(0);
+    }
+
+    function _checkSequencerSetVerifyHash(
+        BatchData calldata batchData,
+        bytes32 sequencerSetVerifyHash
+    ) internal view returns (bool) {
+        // TODO check SEQUENCER_SET_VERIFY_HASH in batch
+        return true;
+    }
+
+    function _getValidSequencerSet(
+        bytes calldata sequencerSets,
+        uint256 blockHeight
+    ) internal pure returns (address[] memory) {
+        (
+            ,
+            address[] memory sequencerSet0,
+            uint256 blockHeight1,
+            address[] memory sequencerSet1,
+            uint256 blockHeight2,
+            address[] memory sequencerSet2
+        ) = abi.decode(
+                sequencerSets,
+                (uint256, address[], uint256, address[], uint256, address[])
+            );
+
+        if (blockHeight >= blockHeight2) {
+            return sequencerSet2;
+        }
+        if (blockHeight >= blockHeight1) {
+            return sequencerSet1;
+        }
+        return sequencerSet0;
     }
 
     /// @inheritdoc IRollup
@@ -655,7 +636,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         ) {
             _challengerWin(
                 _batchIndex,
-                committedBatchStores[_batchIndex].sequencers,
+                batchSigStore[_batchIndex].signedSequencers,
                 "Timeout"
             );
         } else {

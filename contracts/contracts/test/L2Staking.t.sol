@@ -241,20 +241,19 @@ contract L2StakingTest is L2StakingBaseTest {
         morphToken.approve(address(l2Staking), type(uint256).max);
 
         l2Staking.delegateStake(mStakers[0], 2 ether);
-        address[] memory latestSequencerSet = l2Sequencer
-            .getLatestSeqeuncerSet();
+        address[] memory latestSequencerSet = sequencer.getLatestSeqeuncerSet();
         assertEq(latestSequencerSet[0], mStakers[0]);
         assertEq(latestSequencerSet[1], mStakers[1]);
         assertEq(latestSequencerSet[2], mStakers[2]);
 
         l2Staking.delegateStake(mStakers[1], 8 ether);
-        latestSequencerSet = l2Sequencer.getLatestSeqeuncerSet();
+        latestSequencerSet = sequencer.getLatestSeqeuncerSet();
         assertEq(latestSequencerSet[0], mStakers[1]);
         assertEq(latestSequencerSet[1], mStakers[0]);
         assertEq(latestSequencerSet[2], mStakers[2]);
 
         l2Staking.delegateStake(mStakers[2], 3 ether);
-        latestSequencerSet = l2Sequencer.getLatestSeqeuncerSet();
+        latestSequencerSet = sequencer.getLatestSeqeuncerSet();
         assertEq(latestSequencerSet[0], mStakers[1]);
         assertEq(latestSequencerSet[1], mStakers[2]);
         assertEq(latestSequencerSet[2], mStakers[0]);

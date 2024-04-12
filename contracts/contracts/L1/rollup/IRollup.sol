@@ -130,14 +130,10 @@ interface IRollup {
     /// @notice Commit a batch of transactions on layer 1.
     ///
     /// @param batchData        The BatchData struct
-    /// @param signedSequencers The signed sequencers
-    /// @param sequencerSets    The latest 3 sequencer sets
-    /// @param signature        The BLS signature
+    /// @param batchSignature   The BLS signature
     function commitBatch(
         BatchData calldata batchData,
-        address[] memory signedSequencers,
-        bytes calldata sequencerSets,
-        bytes memory signature
+        BatchSignature calldata batchSignature
     ) external payable;
 
     /// @notice Revert a pending batch.
@@ -156,7 +152,6 @@ interface IRollup {
     /// @param prevStateRoot The state root of parent batch.
     /// @param postStateRoot The state root of current batch.
     /// @param withdrawalRoot The withdraw trie root of current batch.
-    /// @param signature The signature of current batch.
     struct BatchData {
         uint8 version;
         bytes parentBatchHeader;
@@ -165,15 +160,74 @@ interface IRollup {
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
-        BatchSignature signature;
     }
 
-    /// @param version the version of staking contract
-    /// @param signers The index list of signers of current batch.
-    /// @param signature The bls signature.
+    /// @param signedSequencers The signed sequencers
+    /// @param sequencerSets    The latest 3 sequencer sets
+    /// @param signature        The BLS signature
     struct BatchSignature {
-        uint256 version;
-        uint256[] signers;
+        address[] signedSequencers;
+        bytes sequencerSets;
         bytes signature;
+    }
+
+    /// @param batchHash
+    /// @param originTimestamp
+    /// @param finalizeTimestamp
+    /// @param prevStateRoot
+    /// @param postStateRoot
+    /// @param withdrawalRoot
+    /// @param dataHash
+    /// @param l1MessagePopped
+    /// @param totalL1MessagePopped
+    /// @param skippedL1MessageBitmap
+    /// @param blockNumber
+    /// @param blobVersionedHash
+    struct BatchStore {
+        bytes32 batchHash;
+        uint256 originTimestamp;
+        uint256 finalizeTimestamp;
+        bytes32 prevStateRoot;
+        bytes32 postStateRoot;
+        bytes32 withdrawalRoot;
+        bytes32 dataHash;
+        uint256 l1MessagePopped;
+        uint256 totalL1MessagePopped;
+        bytes skippedL1MessageBitmap;
+        uint256 blockNumber;
+        bytes32 blobVersionedHash;
+    }
+
+    /// @param blsMsgHash
+    /// @param sequencerSetVerifyHash
+    /// @param sequencers
+    struct BatchSignatureStore {
+        bytes32 blsMsgHash;
+        bytes32 sequencerSetVerifyHash;
+        address[] signedSequencers;
+    }
+
+    /// @param batchIndex
+    /// @param challenger
+    /// @param challengerReceiveAddress
+    /// @param proverReceiveAddress
+    /// @param challengeDeposit
+    /// @param startTime
+    /// @param finished
+    struct BatchChallenge {
+        uint64 batchIndex;
+        address challenger;
+        address challengerReceiveAddress;
+        address proverReceiveAddress;
+        uint256 challengeDeposit;
+        uint256 startTime;
+        bool finished;
+    }
+
+    /// @param receiver
+    /// @param amount
+    struct BatchChallengeReward {
+        address receiver;
+        uint256 amount;
     }
 }

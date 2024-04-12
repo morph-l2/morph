@@ -8,7 +8,7 @@ pragma solidity =0.8.24;
 //     function testSetUpCheck() external {
 //         assertEq(l1Sequencer.stakingContract(), address(staking));
 //         assertEq(l1Sequencer.rollupContract(), address(rollup));
-//         assertEq(address(l1Sequencer.OTHER_SEQUENCER()), address(l2Sequencer));
+//         assertEq(address(l1Sequencer.OTHER_SEQUENCER()), address(sequencer));
 //         assertEq(
 //             address(l1Sequencer.MESSENGER()),
 //             address(l1CrossDomainMessenger)

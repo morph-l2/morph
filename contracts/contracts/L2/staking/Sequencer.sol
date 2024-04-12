@@ -7,7 +7,7 @@ import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {ISequencer} from "./ISequencer.sol";
 
-contract L2Sequencer is Initializable, ISequencer {
+contract Sequencer is Initializable, ISequencer {
     // l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
 

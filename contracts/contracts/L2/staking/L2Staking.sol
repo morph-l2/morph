@@ -75,6 +75,7 @@ contract L2Staking is
     uint256 public override epoch;
 
     /*********************** modifiers **************************/
+
     modifier isStaker(address _staker) {
         require(allStakers.contains(_staker), "staker not exist");
         _;
@@ -330,6 +331,25 @@ contract L2Staking is
      */
     function getStakers() external view returns (address[] memory) {
         return _getStakers();
+    }
+
+    /**
+     * @notice get stakers info
+     */
+    function getStakesInfo(
+        address[] memory addresses
+    ) external view returns (Types.StakerInfo[] memory) {
+        Types.StakerInfo[] memory stakers = new Types.StakerInfo[](
+            addresses.length
+        );
+        for (uint256 i = 0; i < addresses.length; i++) {
+            stakers[i] = Types.StakerInfo(
+                stakerInfo[addresses[i]].addr,
+                stakerInfo[addresses[i]].tmKey,
+                stakerInfo[addresses[i]].blsKey
+            );
+        }
+        return stakers;
     }
 
     /**

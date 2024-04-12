@@ -5,7 +5,7 @@ pragma solidity =0.8.24;
 
 // import {ChunkCodec} from "../libraries/codec/ChunkCodec.sol";
 // import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
-// import {IL2Sequencer} from "../L2/staking/IL2Sequencer.sol";
+// import {ISequencer} from "../L2/staking/ISequencer.sol";
 // import {Types} from "../libraries/common/Types.sol";
 // import {Rollup} from "../L1/rollup/Rollup.sol";
 // import {IRollup} from "../L1/rollup/IRollup.sol";
@@ -433,7 +433,7 @@ pragma solidity =0.8.24;
 //         hevm.prank(address(staking));
 //         l1Sequencer.updateAndSendSequencerSet(
 //             abi.encodeWithSelector(
-//                 IL2Sequencer.updateSequencers.selector,
+//                 ISequencer.updateSequencers.selector,
 //                 sequencerInfos
 //             ),
 //             sequencerAddrs,

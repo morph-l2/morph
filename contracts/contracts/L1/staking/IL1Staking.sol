@@ -16,14 +16,14 @@ interface IL1Staking {
      * @notice verify BLS signature
      * @param signedSequencers  signed sequencers
      * @param sequencerSet      sequencer set
+     * @param msgHash           bls message hash
      * @param signature         batch signature
-     * @param batchHash         batch hash
      */
     function verifySignature(
         address[] memory signedSequencers,
         address[] memory sequencerSet,
-        bytes memory signature,
-        bytes32 batchHash
+        bytes32 msgHash,
+        bytes memory signature
     ) external returns (bool);
 
     /**
