@@ -6,6 +6,13 @@ pragma solidity ^0.8.0;
  * @dev Interface of the Distribute.
  */
 interface IDistribute {
+
+    // event of claimAll
+    event ClaimAll(address from, address to, uint256 amount);
+
+    // event of claim
+    event Claim(address from, address to, uint256 amount);
+
     /**
      * @dev Initialization parameter, which can only be called once.
      * @param morphToken_ address
@@ -22,10 +29,9 @@ interface IDistribute {
     function notify(uint256 blockTime, uint256 blockNumber) external;
 
     function notifyUnDelegate(
-        uint256 epochIndex,
         address sequencer,
         address account,
-        uint256 blockNumber
+        uint256 deadlineClaimEpochIndex
     ) external;
 
     function notifyDelegate(
@@ -38,7 +44,7 @@ interface IDistribute {
 
     function mint() external;
 
-    function claimAll(address account) external;
+    function claimAll() external;
 
-    function claim(address sequencer, address account) external;
+    function claim(address sequencer) external;
 }
