@@ -394,28 +394,28 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     /**
      * @dev See {IDistribute-claimAll}.
      */
-    function claimAll() public {
+    function claimAll(address account) public {
         uint256 accountTotalReward = 0;
-        for (uint256 i = 0; i < _vestIn[msg.sender].length(); i++) {
-            accountTotalReward += _claim(_vestIn[msg.sender].at(i), msg.sender);
+        for (uint256 i = 0; i < _vestIn[account].length(); i++) {
+            accountTotalReward += _claim(_vestIn[account].at(i), msg.sender);
         }
-        IMorphToken(_morphToken).transfer(msg.sender, accountTotalReward);
+        IMorphToken(_morphToken).transfer(account, accountTotalReward);
 
-        emit ClaimAll(address(this), msg.sender, accountTotalReward);
+        emit ClaimAll(address(this), account, accountTotalReward);
     }
 
     /**
      * @dev See {IDistribute-claim}.
      */
-    function claim(address sequencer) public {
-        if (!_vestIn[msg.sender].contains(sequencer)) {
+    function claim(address sequencer, address account) public {
+        if (!_vestIn[account].contains(sequencer)) {
             revert("not delegate to the sequencer");
         }
 
-        uint256 accountReward = _claim(sequencer, msg.sender);
-        IMorphToken(_morphToken).transfer(msg.sender, accountReward);
+        uint256 accountReward = _claim(sequencer, account);
+        IMorphToken(_morphToken).transfer(account, accountReward);
 
-        emit Claim(address(this), msg.sender, accountReward);
+        emit Claim(address(this), account, accountReward);
     }
 
     function _claim(
