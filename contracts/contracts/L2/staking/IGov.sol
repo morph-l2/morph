@@ -36,6 +36,11 @@ interface IGov {
     function maxChunks() external view returns (uint256);
 
     /**
+     * @notice current proposal id number
+     */
+    function proposalId() external view returns (uint256);
+
+    /**
      * @notice create a proposal
      */
     function propose(ProposalData memory proposal) external;
@@ -65,4 +70,14 @@ interface IGov {
     function proposalInfos(
         uint256 _proposalId
     ) external view returns (uint256, bool);
+
+    /**
+     * @custom:field _proposalId
+     * @custom:field _voter
+     * @return {bool}, check if an account has been voted
+     */
+    function isVoted(
+        uint256 _proposalId,
+        address _voter
+    ) external view returns (bool);
 }

@@ -345,7 +345,7 @@ contract L2Staking is
         require(
             _sequencersSize > 0 &&
                 _sequencersSize != sequencersSize &&
-                _sequencersSize >= allStakers.length(),
+                _sequencersSize < allStakers.length(),
             "invalid new sequencers size"
         );
         if (_epoch > 0) {

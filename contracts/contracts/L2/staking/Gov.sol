@@ -36,7 +36,7 @@ contract Gov is IGov, Initializable {
     // proposal duration
     uint256 public proposalInterval;
     // proposal id
-    uint256 public proposalId = 0;
+    uint256 public override proposalId = 0;
     // proposal data
     mapping(uint256 => ProposalData) public proposalData;
     // proposal info
@@ -186,6 +186,18 @@ contract Gov is IGov, Initializable {
             return false;
         }
         return _checkProposal(_proposalId);
+    }
+
+    /**
+     * @custom:field _proposalId
+     * @custom:field _voter
+     * @return {bool}, check if an account has been voted
+     */
+    function isVoted(
+        uint256 _proposalId,
+        address _voter
+    ) external view returns (bool) {
+        return votes[_proposalId].contains(_voter);
     }
 
     /*********************** Internal Functions **************************/
