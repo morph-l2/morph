@@ -23,4 +23,9 @@ interface ISequencer {
      * @notice whether the address is a sequencer
      */
     function isSequencer(address addr) external view returns (bool);
+
+    /**
+     * @notice get latest sequencer set
+     */
+    function getLatestSeqeuncerSet() external view returns (address[] memory);
 }

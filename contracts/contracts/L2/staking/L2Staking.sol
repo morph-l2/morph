@@ -11,6 +11,7 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Staking} from "../../libraries/staking/Staking.sol";
 import {IL2Staking} from "./IL2Staking.sol";
 import {ISequencer} from "./ISequencer.sol";
+import {IDistribute} from "./IDistribute.sol";
 
 contract L2Staking is
     IL2Staking,
@@ -66,9 +67,6 @@ contract L2Staking is
 
     // staker's all delegators
     mapping(address => EnumerableSetUpgradeable.AddressSet) internal delegators;
-
-    // Disdribute
-    // IDisdribute
 
     // total number of sequencers
     uint256 public override sequencersSize;
@@ -145,22 +143,22 @@ contract L2Staking is
         uint256 _sequencersSize,
         uint256 _epoch
     ) public initializer {
-        // require(_sequencersSize > 0, "sequencersSize must greater than 0");
-        // require(_epoch > 0, "epoch must greater than 0");
+        require(_sequencersSize > 0, "sequencersSize must greater than 0");
+        require(_epoch > 0, "epoch must greater than 0");
 
         // init params
         sequencersSize = _sequencersSize;
         epoch = _epoch;
 
         // transfer owner to admin
-        // _transferOwnership(_admin);
+        _transferOwnership(_admin);
 
         super.__ReentrancyGuard_init();
     }
 
     /*********************** External Functions **************************/
     /**
-     * @notice user stake morph to staker
+     * @notice delegator stake morph to staker
      * @param staker stake to whom
      * @param amount stake amount
      */
@@ -204,12 +202,18 @@ contract L2Staking is
         // update sequencer set
         _updateSequencerSet();
 
-        // @todo
         // push record to distribute
+        IDistribute(DISTRIBUTE_CONTRACT).notifyDelegate(
+            block.number / epoch,
+            staker,
+            msg.sender,
+            amount,
+            block.number
+        );
     }
 
     /**
-     * @notice user unstake morph
+     * @notice delegator unstake morph
      * @param staker stake to whom
      */
     function unDelegateStake(
@@ -240,12 +244,17 @@ contract L2Staking is
         // update sequencer set
         _updateSequencerSet();
 
-        // @todo
         // push record to distribute
+        IDistribute(DISTRIBUTE_CONTRACT).notifyUnDelegate(
+            block.number / epoch,
+            staker,
+            msg.sender,
+            block.number
+        );
     }
 
     /**
-     * @notice user withdrawal
+     * @notice delegator withdrawal
      * @param staker stake to whom
      */
     function withdrawal(address staker) external {
@@ -279,16 +288,25 @@ contract L2Staking is
     }
 
     /**
-     * @notice user claim morph
+     * @notice delegator claim reward
      * @param staker stake to whom
      */
     function claim(address staker) external nonReentrant {
-        // @todo
-        // distribute claim
+        // claim reward
+        // reward from distribution
+        IDistribute(DISTRIBUTE_CONTRACT).claim(staker, msg.sender);
+
         // emit Claimed(staker, msg.sender, unstakingAmount);
     }
 
-    function claimAll() external {}
+    /**
+     * @notice delegator claim all reward
+     */
+    function claimAll() external {
+        // claim all reward
+        // reward from distribution，if staking to multiple staker.
+        IDistribute(DISTRIBUTE_CONTRACT).claimAll(msg.sender);
+    }
 
     /**
      * @notice check if the user has staked to staker
@@ -327,7 +345,7 @@ contract L2Staking is
         require(
             _sequencersSize > 0 &&
                 _sequencersSize != sequencersSize &&
-                _sequencersSize >= allStakers.length(),
+                _sequencersSize < allStakers.length(),
             "invalid new sequencers size"
         );
         if (_epoch > 0) {
@@ -435,15 +453,15 @@ contract L2Staking is
         address[] memory mStakers = _getStakers();
 
         for (uint256 i = 0; i < mStakers.length; i++) {
-            uint256 amount0 = stakersAmount[mStakers[i]];
             uint256 maxIndex = i;
-
             for (uint256 j = i + 1; j < mStakers.length; j++) {
+                uint256 amount0 = stakersAmount[mStakers[maxIndex]];
                 uint256 amount1 = stakersAmount[mStakers[j]];
                 if (amount1 > amount0) {
                     maxIndex = j;
                 }
-
+            }
+            if (i != maxIndex) {
                 address temp = mStakers[i];
                 mStakers[i] = mStakers[maxIndex];
                 mStakers[maxIndex] = temp;

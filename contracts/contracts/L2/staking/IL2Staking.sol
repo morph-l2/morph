@@ -63,36 +63,36 @@ interface IL2Staking {
     ) external view returns (address[] memory);
 
     /**
-     * @notice check if the user has staked to staker
+     * @notice check if the delegator has staked to staker
      * @param staker sequencers size
      */
     function isStakingTo(address staker) external view returns (bool);
 
     /**
-     * @notice user withdrawal
+     * @notice delegator withdrawal
      * @param staker stake to whom
      */
     function withdrawal(address staker) external;
 
     /**
-     * @notice user claim
+     * @notice delegator claim reward
      * @param staker stake to whom
      */
     function claim(address staker) external;
 
     /**
-     * @notice user claim all dstribution
+     * @notice delegator claim all reward
      */
     function claimAll() external;
 
     /**
-     * @notice user unstake morph to staker
+     * @notice delegator unstake morph to staker
      * @param staker stake to whom
      */
     function unDelegateStake(address staker) external;
 
     /**
-     * @notice user stake morph to staker
+     * @notice delegator stake morph to staker
      * @param staker stake to whom
      * @param amount stake amount
      */
