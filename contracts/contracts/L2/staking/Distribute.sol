@@ -61,7 +61,8 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     mapping(address => mapping(uint256 => Distribution)) private _collect;
 
     // mapping(sequencer => mapping(delegator => DelegatorEpochRecord));
-    mapping(address => mapping(address => DelegatorEpochRecord)) private _epochRecord;
+    mapping(address => mapping(address => DelegatorEpochRecord))
+        private _epochRecord;
 
     // epoch index => reward
     mapping(uint256 => uint256) private _rewards;
@@ -130,8 +131,12 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         require(sequencer != address(0), "invalid sequencer address");
         require(account != address(0), "invalid account address");
 
-        if (_epochRecord[sequencer][account].claimed >= deadlineClaimEpochIndex) {
-            revert("deadline claim epoch index must be granter than claimed epoch index");
+        if (
+            _epochRecord[sequencer][account].claimed >= deadlineClaimEpochIndex
+        ) {
+            revert(
+                "deadline claim epoch index must be granter than claimed epoch index"
+            );
         }
 
         _epochRecord[sequencer][account].deadline = deadlineClaimEpochIndex;
@@ -171,7 +176,13 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                     (
                         uint256 totalShare,
                         uint256 newAccountShare
-                    ) = _additiveDilution(startNumber, endNumber, blockNumber);
+                    ) = _additiveDilution(
+                            startNumber,
+                            endNumber,
+                            blockNumber,
+                            amount,
+                            _collect[sequencer][i].totalAmount
+                        );
 
                     dt.totalAmount =
                         _collect[sequencer][i].totalAmount +
@@ -244,7 +255,9 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             (uint256 totalShare, uint256 newAccountShare) = _additiveDilution(
                 startNumber,
                 endNumber,
-                blockNumber
+                blockNumber,
+                amount,
+                _collect[sequencer][epochIndex].totalAmount
             );
 
             dt.totalAmount += amount;
@@ -301,16 +314,13 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             uint256 tm = mintBegin + (i * 86400);
 
             for (uint256 j = 0; j < _blockInfo.index.length(); j++) {
-
                 uint256 beginTimeOfOneDay = _blockInfo.index.at(j);
 
                 if (beginTimeOfOneDay >= tm && beginTimeOfOneDay < tm + 86400) {
                     uint256 rewardOfOneDay = IMorphToken(_morphToken).reward(
                         tm
                     );
-                    uint256 nextBeginTimeOfOneDay = _blockInfo.index.at(
-                        j + 1
-                    );
+                    uint256 nextBeginTimeOfOneDay = _blockInfo.index.at(j + 1);
                     uint256 beginBlockNumberOfOneDay = _blockInfo.value[
                         beginTimeOfOneDay
                     ];
@@ -412,7 +422,6 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         address sequencer,
         address account
     ) internal returns (uint256) {
-
         uint256 endClaimEpochIndex = _usedMintEpochIndex;
 
         (uint256 startNumber, uint256 endNumber) = IRecords(_record).epochInfo(
@@ -423,7 +432,8 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             endClaimEpochIndex = _usedMintEpochIndex - 1;
         }
 
-        uint256 accountDeadlineEpochIndex = _epochRecord[sequencer][account].deadline;
+        uint256 accountDeadlineEpochIndex = _epochRecord[sequencer][account]
+            .deadline;
         if (
             accountDeadlineEpochIndex != 0 &&
             endClaimEpochIndex > accountDeadlineEpochIndex
@@ -435,7 +445,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         uint256 claimedEpochIndex = _epochRecord[sequencer][account].claimed;
         if (claimedEpochIndex == 0) {
             beginClaimEpochIndex = _epochRecord[sequencer][account].begin;
-        }else {
+        } else {
             beginClaimEpochIndex = claimedEpochIndex + 1;
         }
 
@@ -505,20 +515,29 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         _epochRecord[sequencer][account].claimed = endClaimEpochIndex;
 
         if (endClaimEpochIndex == _epochRecord[sequencer][account].deadline) {
-
             _vestIn[account].remove(sequencer);
 
             delete _epochRecord[sequencer][account];
 
-            _collect[sequencer][endClaimEpochIndex].totalAmount -= _collect[sequencer][endClaimEpochIndex].amounts[account];
+            _collect[sequencer][endClaimEpochIndex].totalAmount -= _collect[
+                sequencer
+            ][endClaimEpochIndex].amounts.value[account];
             // todo
             _collect[sequencer][endClaimEpochIndex].totalShare = 0;
 
-            _collect[sequencer][endClaimEpochIndex].shares.index.remove(account);
-            delete _collect[sequencer][endClaimEpochIndex].shares.value[account];
+            _collect[sequencer][endClaimEpochIndex].shares.index.remove(
+                account
+            );
+            delete _collect[sequencer][endClaimEpochIndex].shares.value[
+                account
+            ];
 
-            _collect[sequencer][endClaimEpochIndex].amounts.index.remove(account);
-            delete _collect[sequencer][endClaimEpochIndex].amounts.value[account];
+            _collect[sequencer][endClaimEpochIndex].amounts.index.remove(
+                account
+            );
+            delete _collect[sequencer][endClaimEpochIndex].amounts.value[
+                account
+            ];
         }
 
         return accountReward;

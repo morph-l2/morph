@@ -6,7 +6,6 @@ pragma solidity ^0.8.0;
  * @dev Interface of the Distribute.
  */
 interface IDistribute {
-
     // event of claimAll
     event ClaimAll(address from, address to, uint256 amount);
 
@@ -17,7 +16,6 @@ interface IDistribute {
      * @dev Initialization parameter, which can only be called once.
      * @param morphToken_ address
      * @param record_ address
-     * @param gov_ address
      * @param stake_ address
      */
     function initialize(
