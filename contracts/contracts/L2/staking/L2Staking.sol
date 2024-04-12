@@ -203,13 +203,13 @@ contract L2Staking is
         _updateSequencerSet();
 
         // push record to distribute
-        IDistribute(DISTRIBUTE_CONTRACT).notifyDelegate(
-            block.number / epoch,
-            staker,
-            msg.sender,
-            amount,
-            block.number
-        );
+        // IDistribute(DISTRIBUTE_CONTRACT).notifyDelegate(
+        //     block.number / epoch,
+        //     staker,
+        //     msg.sender,
+        //     amount,
+        //     block.number
+        // );
     }
 
     /**
@@ -245,18 +245,18 @@ contract L2Staking is
         _updateSequencerSet();
 
         // push record to distribute
-        IDistribute(DISTRIBUTE_CONTRACT).notifyUnDelegate(
-            staker,
-            msg.sender,
-            block.number / epoch
-        );
+        // IDistribute(DISTRIBUTE_CONTRACT).notifyUnDelegate(
+        //     staker,
+        //     msg.sender,
+        //     block.number / epoch
+        // );
     }
 
     /**
      * @notice delegator withdrawal
      * @param staker stake to whom
      */
-    function withdrawal(address staker) external {
+    function withdrawal(address staker) external isStaker(staker) nonReentrant {
         require(
             unstakingInfo[staker][msg.sender].amount > 0,
             "no information on unstaking"
@@ -290,7 +290,7 @@ contract L2Staking is
      * @notice delegator claim reward
      * @param staker stake to whom
      */
-    function claim(address staker) external nonReentrant {
+    function claim(address staker) external isStaker(staker) nonReentrant {
         // claim reward
         // reward from distribution
         IDistribute(DISTRIBUTE_CONTRACT).claim(staker, msg.sender);
@@ -301,7 +301,7 @@ contract L2Staking is
     /**
      * @notice delegator claim all reward
      */
-    function claimAll() external {
+    function claimAll() external nonReentrant {
         // claim all reward
         // reward from distribution，if staking to multiple staker.
         IDistribute(DISTRIBUTE_CONTRACT).claimAll(msg.sender);
