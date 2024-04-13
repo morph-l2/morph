@@ -17,6 +17,9 @@ import (
 	tmtypes "github.com/tendermint/tendermint/types"
 )
 
+// MaxNumChunks is the maximum number of chunks that a batch can contain.
+const MaxNumChunks int = 15
+
 type BatchingCache struct {
 	parentBatchHeader *types.BatchHeader
 	prevStateRoot     common.Hash
@@ -52,7 +55,7 @@ func NewBatchingCache() *BatchingCache {
 }
 
 func (bc *BatchingCache) IsEmpty() bool {
-	return bc.chunks == nil || bc.chunks.Size() == 0
+	return bc.chunks == nil || bc.chunks.SizeInCalldata() == 0
 }
 
 func (bc *BatchingCache) IsCurrentEmpty() bool {
@@ -171,17 +174,15 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 
 	chunkNum := e.batchingCache.chunks.ChunkNum()
 	var exceeded bool
-	var extraSize int
 	// if current block will be filled in a new chunk
-	chunkAppended, zeroNum := e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption)
+	chunkAppended := e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption)
 	if chunkAppended {
 		chunkNum += 1
-		// if current block takes up a new chunk,
-		// then both the added zero bytes and the first 4bytes within this chunk are all need to be counted.
-		extraSize += zeroNum + 4
 	}
-	blobSizeWithCurBlock := e.batchingCache.chunks.CurrentPayloadForBlobSize() +
-		len(e.batchingCache.currentTxsPayload) + extraSize
+	// chunk in blob:
+	// num_chunks (2 bytes) and chunki_size (4 bytes per chunk) + l2TxRawBytes
+	blobSizeWithCurBlock := 2 + MaxNumChunks*4 + e.batchingCache.chunks.TxPayloadSize() +
+		len(e.batchingCache.currentTxsPayload)
 	if blobSizeWithCurBlock > types.MaxBlobTxPayloadSize {
 		exceeded = true
 	}
@@ -447,10 +448,6 @@ func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, to
 			continue
 		}
 		l2TxNum++
-
-		var txLen [4]byte
-		binary.BigEndian.PutUint32(txLen[:], uint32(len(txBz)))
-		txsPayload = append(txsPayload, txLen[:]...)
 		txsPayload = append(txsPayload, txBz...)
 	}
 

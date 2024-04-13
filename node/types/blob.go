@@ -1,12 +1,14 @@
 package types
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
+	"github.com/scroll-tech/go-ethereum/rlp"
 )
 
 const MaxBlobTxPayloadSize = 4096 * 31
@@ -31,6 +33,51 @@ func BlobFromSealedTxPayload(sealedTxPayload []byte) (b *kzg4844.Blob, err error
 		return nil, fmt.Errorf("failed to fit all data into blob. bytes remaining: %v", len(sealedTxPayload)-offset)
 	}
 	return
+}
+
+func DecodeTxsFromBlob(b *kzg4844.Blob) ([]*eth.Transaction, error) {
+	data := make([]byte, MaxBlobTxPayloadSize)
+	for i := 0; i < 4096; i++ {
+		if b[i*32] != 0 {
+			return nil, fmt.Errorf("invalid blob, found non-zero high order byte %x of field element %d", b[i*32], i)
+		}
+		copy(data[i*31:i*31+31], b[i*32+1:i*32+32])
+	}
+
+	// metadata || tx_payload
+	// metadata consists of num_chunks (2 bytes) and chunki_size (4 bytes per chunk)
+	dataReader := bytes.NewReader(data[2:])
+	var txPayloadSize uint32
+	for i := 0; i < 15; i++ {
+		var size uint32
+		binary.Read(dataReader, binary.BigEndian, size)
+		txPayloadSize += size
+	}
+	txPayload := data[62 : 62+txPayloadSize]
+
+	var byteOccupied int
+	var sizeBytes []byte
+	b3 := byte(txPayloadSize >> 16)
+	b2 := byte(txPayloadSize >> 8)
+	b1 := byte(txPayloadSize)
+	if b3 > 0 {
+		byteOccupied = 3
+		sizeBytes = []byte{b3, b2, b1}
+	} else if b2 > 0 {
+		byteOccupied = 2
+		sizeBytes = []byte{b2, b1}
+	} else {
+		byteOccupied = 1
+		sizeBytes = []byte{b1}
+	}
+
+	fistByte := byte(247 + byteOccupied)
+	simulatedRLP := append(append([]byte{fistByte}, sizeBytes...), txPayload...)
+	decoded := make([]*eth.Transaction, 0)
+	if err := rlp.DecodeBytes(simulatedRLP, &decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
 }
 
 func DecodeRawTxPayload(b *kzg4844.Blob) ([]byte, error) {
