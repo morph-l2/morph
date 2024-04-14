@@ -13,7 +13,7 @@ fuzz_runs = 16
 evm_version = 'cancun'
 
 fs_permissions = [
-  { 'access' = 'read-write', 'path' = './.resource-metering.csv' },
+    { 'access' = 'read-write', 'path' = './.resource-metering.csv' },
 ]
 
 [profile.ci]
