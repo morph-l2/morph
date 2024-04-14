@@ -204,8 +204,8 @@ contract L2Staking is
 
         // push record to distribute
         IDistribute(DISTRIBUTE_CONTRACT).notifyDelegate(
-            block.number / epoch,
             staker,
+            block.number / epoch,
             msg.sender,
             amount,
             block.number

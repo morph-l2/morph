@@ -7,10 +7,23 @@ pragma solidity ^0.8.0;
  */
 interface IDistribute {
     // event of claimAll
-    event ClaimAll(address from, address to, uint256 amount);
+    event ClaimAll(address indexed from, address indexed to, uint256 amount);
 
     // event of claim
-    event Claim(address from, address to, uint256 amount);
+    event Claim(address indexed from, address indexed to, uint256 amount);
+
+    event NotifyDelegate(
+        address indexed sequencer,
+        uint256 indexed epochIndex,
+        address indexed account,
+        uint256 amount,
+        uint256 blockNumber);
+
+    event NotifyUnDelegate(
+        address indexed sequencer,
+        address indexed account,
+        uint256 deadlineClaimEpochIndex
+    );
 
     /**
      * @dev Initialization parameter, which can only be called once.
@@ -33,8 +46,8 @@ interface IDistribute {
     ) external;
 
     function notifyDelegate(
-        uint256 epochIndex,
         address sequencer,
+        uint256 epochIndex,
         address account,
         uint256 amount,
         uint256 blockNumber
