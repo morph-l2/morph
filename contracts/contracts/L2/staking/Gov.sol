@@ -19,10 +19,8 @@ contract Gov is IGov, Initializable {
 
     // sequencer contract address
     address public immutable SEQUENCER_CONTRACT;
-
     // record contract address
     address public immutable RECORD_CONTRACT;
-
     // staking contract address
     address public immutable L2_STAKING_CONTRACT;
 
@@ -31,12 +29,13 @@ contract Gov is IGov, Initializable {
     uint256 public override batchMaxBytes = 0;
     uint256 public override batchTimeout = 0;
     uint256 public override rollupEpoch = 0;
+    uint256 public override rewardEpoch = 0;
     uint256 public override maxChunks = 0;
 
     // proposal duration
     uint256 public proposalInterval;
     // proposal id
-    uint256 public override proposalId = 0;
+    uint256 public override proposalID = 0;
     // proposal data
     mapping(uint256 => ProposalData) public proposalData;
     // proposal info
@@ -54,12 +53,12 @@ contract Gov is IGov, Initializable {
         _;
     }
 
-    modifier proposalCheck(uint256 _proposalId) {
+    modifier proposalCheck(uint256 _proposalID) {
         require(
-            !proposalInfos[_proposalId].approved,
+            !proposalInfos[_proposalID].approved,
             "proposal already approved"
         );
-        require(_proposalActive(_proposalId), "proposal out of date");
+        require(_proposalActive(_proposalID), "proposal out of date");
         _;
     }
 
@@ -80,6 +79,7 @@ contract Gov is IGov, Initializable {
      * @param _batchMaxBytes max batch bytes
      * @param _batchTimeout batch timeout
      * @param _rollupEpoch rollup epoch
+     * @param _rewardEpoch rollup epoch
      * @param _maxChunks max chunks
      */
     function initialize(
@@ -88,10 +88,12 @@ contract Gov is IGov, Initializable {
         uint256 _batchMaxBytes,
         uint256 _batchTimeout,
         uint256 _rollupEpoch,
+        uint256 _rewardEpoch,
         uint256 _maxChunks
     ) public initializer {
         require(_proposalInterval > 0, "invalid proposal interval");
         require(_rollupEpoch > 0, "invalid rollup epoch");
+        require(_rewardEpoch > 0, "invalid reward epoch");
         require(_maxChunks > 0, "invalid max chunks");
         require(
             _batchBlockInterval != 0 ||
@@ -104,6 +106,7 @@ contract Gov is IGov, Initializable {
         batchMaxBytes = _batchMaxBytes;
         batchTimeout = _batchTimeout;
         rollupEpoch = _rollupEpoch;
+        rewardEpoch = _rewardEpoch;
         maxChunks = _maxChunks;
     }
 
@@ -121,9 +124,9 @@ contract Gov is IGov, Initializable {
             "invalid batch params"
         );
 
-        proposalId = proposalId + 1;
-        proposalData[proposalId] = proposal;
-        proposalInfos[proposalId] = ProposalInfo(
+        proposalID = proposalID + 1;
+        proposalData[proposalID] = proposal;
+        proposalInfos[proposalID] = ProposalInfo(
             block.timestamp + proposalInterval, // end time
             false // approved
         );
@@ -133,28 +136,28 @@ contract Gov is IGov, Initializable {
      * @notice vote a propsal
      */
     function vote(
-        uint256 _proposalId
-    ) external onlySequencer proposalCheck(_proposalId) {
+        uint256 _proposalID
+    ) external onlySequencer proposalCheck(_proposalID) {
         require(
-            !votes[_proposalId].contains(msg.sender),
+            !votes[_proposalID].contains(msg.sender),
             "sequencer already vote for this proposal"
         );
 
         // update votes
-        votes[_proposalId].add(msg.sender);
+        votes[_proposalID].add(msg.sender);
 
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
             .getLatestSeqeuncerSet();
         for (uint i = 0; i < latestSequencerSet.length; i++) {
-            if (!votes[_proposalId].contains(latestSequencerSet[i])) {
-                votes[_proposalId].remove(latestSequencerSet[i]);
+            if (!votes[_proposalID].contains(latestSequencerSet[i])) {
+                votes[_proposalID].remove(latestSequencerSet[i]);
             }
         }
 
         // check votes
-        if (votes[_proposalId].length() > (latestSequencerSet.length * 2) / 3) {
-            _executeProposal(_proposalId);
+        if (votes[_proposalID].length() > (latestSequencerSet.length * 2) / 3) {
+            _executeProposal(_proposalID);
         }
     }
 
@@ -162,11 +165,11 @@ contract Gov is IGov, Initializable {
      * @notice execute an approved proposal
      */
     function executeProposal(
-        uint256 _proposalId
-    ) external proposalCheck(_proposalId) {
-        bool approved = _checkProposal(_proposalId);
+        uint256 _proposalID
+    ) external proposalCheck(_proposalID) {
+        bool approved = _checkProposal(_proposalID);
         if (approved) {
-            _executeProposal(_proposalId);
+            _executeProposal(_proposalID);
         }
     }
 
@@ -174,59 +177,60 @@ contract Gov is IGov, Initializable {
      * @notice whether the proposal can be approved
      */
     function isProposalCanBeApproved(
-        uint256 _proposalId
+        uint256 _proposalID
     ) external view returns (bool) {
         // already approved
-        if (proposalInfos[_proposalId].approved) {
+        if (proposalInfos[_proposalID].approved) {
             return false;
         }
 
         // out of date
-        if (!_proposalActive(_proposalId)) {
+        if (!_proposalActive(_proposalID)) {
             return false;
         }
-        return _checkProposal(_proposalId);
+        return _checkProposal(_proposalID);
     }
 
     /**
-     * @custom:field _proposalId
+     * @custom:field _proposalID
      * @custom:field _voter
      * @return {bool}, check if an account has been voted
      */
     function isVoted(
-        uint256 _proposalId,
+        uint256 _proposalID,
         address _voter
     ) external view returns (bool) {
-        return votes[_proposalId].contains(_voter);
+        return votes[_proposalID].contains(_voter);
     }
 
     /*********************** Internal Functions **************************/
     /**
      * @notice execute an approved proposal
      */
-    function _executeProposal(uint256 _proposalId) internal {
-        if (rollupEpoch != proposalData[_proposalId].rollupEpoch) {
+    function _executeProposal(uint256 _proposalID) internal {
+        if (rollupEpoch != proposalData[_proposalID].rollupEpoch) {
             // IL2Staking(L2_STAKING_CONTRACT).updateParams(_sequenceSize, rollupEpoch);
         }
-        batchBlockInterval = proposalData[_proposalId].batchBlockInterval;
-        batchMaxBytes = proposalData[_proposalId].batchMaxBytes;
-        batchTimeout = proposalData[_proposalId].batchTimeout;
-        rollupEpoch = proposalData[_proposalId].rollupEpoch;
-        maxChunks = proposalData[_proposalId].maxChunks;
+        batchBlockInterval = proposalData[_proposalID].batchBlockInterval;
+        batchMaxBytes = proposalData[_proposalID].batchMaxBytes;
+        batchTimeout = proposalData[_proposalID].batchTimeout;
+        rollupEpoch = proposalData[_proposalID].rollupEpoch;
+        rewardEpoch = proposalData[_proposalID].rewardEpoch;
+        maxChunks = proposalData[_proposalID].maxChunks;
 
-        proposalInfos[_proposalId].approved = true;
+        proposalInfos[_proposalID].approved = true;
     }
 
     /**
      * @notice check whether proposal has been approved
      */
-    function _checkProposal(uint256 _proposalId) internal view returns (bool) {
+    function _checkProposal(uint256 _proposalID) internal view returns (bool) {
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
             .getLatestSeqeuncerSet();
         uint256 validVotes = 0;
         for (uint i = 0; i < latestSequencerSet.length; i++) {
-            if (votes[_proposalId].contains(latestSequencerSet[i])) {
+            if (votes[_proposalID].contains(latestSequencerSet[i])) {
                 validVotes = validVotes + 1;
             }
         }
@@ -236,7 +240,7 @@ contract Gov is IGov, Initializable {
         return false;
     }
 
-    function _proposalActive(uint256 _proposalId) internal view returns (bool) {
-        return proposalInfos[_proposalId].endTime >= block.timestamp;
+    function _proposalActive(uint256 _proposalID) internal view returns (bool) {
+        return proposalInfos[_proposalID].endTime >= block.timestamp;
     }
 }

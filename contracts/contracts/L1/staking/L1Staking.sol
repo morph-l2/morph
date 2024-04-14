@@ -70,6 +70,11 @@ contract L1Staking is
     event Slashed(address[] stakers);
 
     /**
+     * @notice params updated
+     */
+    event ParamsUpdated(uint256 gasLimit);
+
+    /**
      * @notice whether in whitelist
      */
     modifier inWhitelist(address addr) {
@@ -176,14 +181,14 @@ contract L1Staking is
         emit Registered(addr, tmKey, blsKey);
 
         // send message to add staker on l2
-        updateStakers(stakers[addr], new address[](0));
+        _addStaker(stakers[addr]);
     }
 
     /**
      * @notice withdraw staking
      */
     function withdraw() external {
-        (bool exist, uint256 index) = getStakerIndex(msg.sender);
+        (bool exist, uint256 index) = _getStakerIndex(msg.sender);
         require(exist, "only staker");
         require(withdrawals[msg.sender] == 0, "withdrawing");
 
@@ -195,10 +200,7 @@ contract L1Staking is
         // send message to remove staker on l2
         address[] memory remove = new address[](1);
         remove[0] = msg.sender;
-        updateStakers(
-            Types.StakerInfo(address(0), bytes32(0), bytes("")),
-            remove
-        );
+        _removeStakers(remove);
     }
 
     /**
@@ -241,7 +243,7 @@ contract L1Staking is
                 delete stakers[sequencers[i]];
                 valueSum += STAKING_VALUE;
             } else {
-                (bool exist, uint256 index) = getStakerIndex(sequencers[i]);
+                (bool exist, uint256 index) = _getStakerIndex(sequencers[i]);
                 if (exist) {
                     stakerList[index] = stakerList[stakerList.length - 1];
                     stakerList.pop();
@@ -261,10 +263,7 @@ contract L1Staking is
         emit Slashed(sequencers);
 
         // send message to remove stakers on l2
-        updateStakers(
-            Types.StakerInfo(address(0), bytes32(0), bytes("")),
-            sequencers
-        );
+        _removeStakers(sequencers);
 
         return reward;
     }
@@ -273,7 +272,7 @@ contract L1Staking is
      * @notice get staker index
      * @param staker    staker address
      */
-    function getStakerIndex(
+    function _getStakerIndex(
         address staker
     ) internal view returns (bool exist, uint256 index) {
         for (uint256 i = 0; i < stakerList.length; i++) {
@@ -285,22 +284,27 @@ contract L1Staking is
     }
 
     /**
-     * @notice update stakers
+     * @notice add staker
      * @param add       staker to add
-     * @param remove    stakers to remove
      */
-    function updateStakers(
-        Types.StakerInfo memory add,
-        address[] memory remove
-    ) internal {
+    function _addStaker(Types.StakerInfo memory add) internal {
         MESSENGER.sendMessage{value: msg.value}(
             address(OTHER_STAKING),
             0,
-            abi.encodeWithSelector(
-                IL2Staking.updateStakers.selector,
-                add,
-                remove
-            ),
+            abi.encodeWithSelector(IL2Staking.addStaker.selector, add),
+            DEFAULT_GAS_LIMIT
+        );
+    }
+
+    /**
+     * @notice remove stakers
+     * @param remove    stakers to remove
+     */
+    function _removeStakers(address[] memory remove) internal {
+        MESSENGER.sendMessage{value: msg.value}(
+            address(OTHER_STAKING),
+            0,
+            abi.encodeWithSelector(IL2Staking.removeStakers.selector, remove),
             DEFAULT_GAS_LIMIT
         );
     }
@@ -349,5 +353,15 @@ contract L1Staking is
     ) external onlyOwner nonReentrant {
         _transfer(receiver, slashRemaining);
         slashRemaining = 0;
+    }
+
+    /**
+     * @notice claim slash remaining
+     * @param gasLimit  gas limit
+     */
+    function updateParams(uint256 gasLimit) external onlyOwner {
+        require(gasLimit > 0, "gas limit must greater than 0");
+        DEFAULT_GAS_LIMIT = gasLimit;
+        emit ParamsUpdated(gasLimit);
     }
 }
