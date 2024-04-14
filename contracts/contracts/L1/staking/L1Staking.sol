@@ -18,6 +18,8 @@ contract L1Staking is IL1Staking, OwnableUpgradeable, Staking {
     uint256 public override STAKING_VALUE;
     // exit lock blocks
     uint256 public LOCK_BLOCKS;
+    // slash collector
+    address public SLASH_COLLECTOR;
 
     // staker whitelist
     mapping(address => bool) public whitelist;
@@ -80,18 +82,22 @@ contract L1Staking is IL1Staking, OwnableUpgradeable, Staking {
      * @notice initializer
      * @param rollupContract    rollup contract address
      * @param admin             params admin
+     * @param slashCollector    slash collector
      * @param stakingValue      smallest staking value
      * @param lockBlocks        withdraw lock blocks
      */
     function initialize(
         address rollupContract,
         address admin,
+        address slashCollector,
         uint256 stakingValue,
         uint256 lockBlocks
     ) public initializer {
         require(rollupContract != address(0), "invalid rollup contract");
+        require(slashCollector != address(0), "invalid slashCollector");
         require(stakingValue > 0, "staking limit must greater than 0");
         ROLLUP_CONTRACT = rollupContract;
+        SLASH_COLLECTOR = slashCollector;
         STAKING_VALUE = stakingValue;
         LOCK_BLOCKS = lockBlocks;
         _transferOwnership(admin);
@@ -108,8 +114,6 @@ contract L1Staking is IL1Staking, OwnableUpgradeable, Staking {
         bytes32 tmKey,
         bytes memory blsKey
     ) external payable inWhitelist(addr) {
-        // TODO: restaking
-
         require(addr != address(0), "invalid address");
         require(stakings[addr].addr == address(0), "already registered");
         require(tmKey != 0, "invalid tendermint pubkey");

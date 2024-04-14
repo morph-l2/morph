@@ -9,6 +9,7 @@ interface IL1Staking {
 
     /**
      * @notice whether address is staker
+     * @param addr  the address to check
      */
     function isStaker(address addr) external returns (bool);
 
@@ -28,6 +29,7 @@ interface IL1Staking {
 
     /**
      * @notice challenger win, slash sequencers
+     * @param sequencers  the sequencers to slash
      */
     function slash(address[] memory sequencers) external returns (uint256);
 }

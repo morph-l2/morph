@@ -130,11 +130,7 @@ interface IRollup {
     /// @notice Commit a batch of transactions on layer 1.
     ///
     /// @param batchData        The BatchData struct
-    /// @param batchSignature   The BLS signature
-    function commitBatch(
-        BatchData calldata batchData,
-        BatchSignature calldata batchSignature
-    ) external payable;
+    function commitBatch(BatchData calldata batchData) external payable;
 
     /// @notice Revert a pending batch.
     /// @dev one can only revert unfinalized batches.
@@ -145,13 +141,14 @@ interface IRollup {
     /// @notice Claim challenge reward
     function claimReward() external;
 
-    /// @param version The version of current batch.
-    /// @param parentBatchHeader The header of parent batch, see the comments of `BatchHeaderV0Codec`.
-    /// @param chunks The list of encoded chunks, see the comments of `ChunkCodec`.
-    /// @param skippedL1MessageBitmap The bitmap indicates whether each L1 message is skipped or not.
-    /// @param prevStateRoot The state root of parent batch.
-    /// @param postStateRoot The state root of current batch.
-    /// @param withdrawalRoot The withdraw trie root of current batch.
+    /// @param version                  The version of current batch.
+    /// @param parentBatchHeader        The header of parent batch, see the comments of `BatchHeaderV0Codec`.
+    /// @param chunks                   The list of encoded chunks, see the comments of `ChunkCodec`.
+    /// @param skippedL1MessageBitmap   The bitmap indicates whether each L1 message is skipped or not.
+    /// @param prevStateRoot            The state root of parent batch.
+    /// @param postStateRoot            The state root of current batch.
+    /// @param withdrawalRoot           The withdraw trie root of current batch.
+    /// @param signature                The withdraw trie root of current batch.
     struct BatchData {
         uint8 version;
         bytes parentBatchHeader;
@@ -160,12 +157,13 @@ interface IRollup {
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
+        BatchSignatureData signatureData;
     }
 
     /// @param signedSequencers The signed sequencers
     /// @param sequencerSets    The latest 3 sequencer sets
     /// @param signature        The BLS signature
-    struct BatchSignature {
+    struct BatchSignatureData {
         address[] signedSequencers;
         bytes sequencerSets;
         bytes signature;
@@ -183,6 +181,7 @@ interface IRollup {
     /// @param skippedL1MessageBitmap
     /// @param blockNumber
     /// @param blobVersionedHash
+    /// @param signatureStore
     struct BatchStore {
         bytes32 batchHash;
         uint256 originTimestamp;
@@ -196,12 +195,13 @@ interface IRollup {
         bytes skippedL1MessageBitmap;
         uint256 blockNumber;
         bytes32 blobVersionedHash;
+        BatchSignature signature;
     }
 
     /// @param blsMsgHash
     /// @param sequencerSetVerifyHash
     /// @param sequencers
-    struct BatchSignatureStore {
+    struct BatchSignature {
         bytes32 blsMsgHash;
         bytes32 sequencerSetVerifyHash;
         address[] signedSequencers;

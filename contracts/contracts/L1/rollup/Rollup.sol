@@ -65,56 +65,32 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     mapping(uint256 => bytes32) public override finalizedStateRoots;
 
-    /**
-     * @notice Store latest layer 2 block number.
-     */
+    /// @notice Store latest layer 2 block number.
     uint256 public latestL2BlockNumber;
 
-    /**
-     * @notice Store committed batch.
-     */
+    /// @notice Store committed batch.
     mapping(uint256 => BatchStore) public committedBatchStores;
 
-    /**
-     * @notice Store committed batch signature.
-     */
-    mapping(uint256 => BatchSignatureStore) public batchSigStore;
-    // TODO: update when challenge
-
-    /**
-     * @notice Store the withdrawalRoot.
-     */
+    /// @notice Store the withdrawalRoot.
     mapping(bytes32 => bool) public withdrawalRoots;
 
-    /**
-     * @notice Batch challenge time.
-     */
+    /// @notice Batch challenge time.
     uint256 public FINALIZATION_PERIOD_SECONDS;
 
-    /**
-     * @notice The time when zkProof was generated and executed.
-     */
+    /// @notice The time when zkProof was generated and executed.
     uint256 public PROOF_WINDOW;
 
-    /**
-     * @notice User pledge record.
-     */
-    mapping(address => uint256) public challengerDeposits;
-
-    /**
-     * @notice Store Challenge Information. (batchIndex => BatchChallenge)
-     */
+    /// @notice Store Challenge Information. (batchIndex => BatchChallenge)
     mapping(uint256 => BatchChallenge) public challenges;
 
-    /**
-     * @notice Store Challenge reward information. (receiver => amount)
-     */
+    /// @notice Store Challenge reward information. (receiver => amount)
     mapping(address => uint256) public batchChallengeReward;
 
-    /**
-     * @notice whether in challenge
-     */
+    /// @notice whether in challenge
     bool public inChallenge;
+
+    /// @notice The index of the revert request.
+    uint256 public revertReqIndex;
 
     /**********************
      * Function Modifiers *
@@ -136,6 +112,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     modifier onlyChallenger() {
         require(isChallenger[_msgSender()], "caller not challenger");
+        _;
+    }
+
+    /// @notice Modifier to ensure that there is no pending revert request.
+    modifier nonReqRevert() {
+        require(revertReqIndex == 0, "need revert");
         _;
     }
 
@@ -256,12 +238,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             0,
             "",
             0,
-            ZERO_VERSIONED_HASH
-        );
-        batchSigStore[0] = BatchSignatureStore(
-            bytes32(0),
-            bytes32(0),
-            new address[](0)
+            ZERO_VERSIONED_HASH,
+            BatchSignature(bytes32(0), bytes32(0), new address[](0))
         );
         finalizedStateRoots[0] = _postStateRoot;
 
@@ -271,9 +249,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @inheritdoc IRollup
     function commitBatch(
-        BatchData calldata batchData,
-        BatchSignature calldata batchSignature
-    ) external payable override OnlyStaker whenNotPaused {
+        BatchData calldata batchData
+    ) external payable override OnlyStaker nonReqRevert whenNotPaused {
         require(batchData.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchData.chunks.length;
@@ -417,23 +394,27 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
             latestL2BlockNumber,
-            _blobVersionedHash
+            _blobVersionedHash,
+            BatchSignature(
+                _getBLSMsgHash(batchData), // TODO
+                keccak256(batchData.signatureData.sequencerSets),
+                // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
+                // Therefore, if the batch is successfully challenged, only the submitter will be punished.
+                new address[](1) // TODO: => batchSignature.signedSequencers
+            )
         );
 
-        batchSigStore[_batchIndex] = BatchSignatureStore(
-            _getBLSMsgHash(batchData), // TODO
-            keccak256(batchSignature.sequencerSets),
-            // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
-            // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-            new address[](1) // TODO: => batchSignature.signedSequencers
-        );
-        batchSigStore[_batchIndex].signedSequencers[0] = _msgSender();
+        committedBatchStores[_batchIndex].signature.signedSequencers[
+                0
+            ] = _msgSender();
         lastCommittedBatchIndex = _batchIndex;
 
         require(
             _checkSequencerSetVerifyHash(
                 batchData,
-                batchSigStore[_batchIndex].sequencerSetVerifyHash
+                committedBatchStores[_batchIndex]
+                    .signature
+                    .sequencerSetVerifyHash
             ),
             "the sequencer set verification failed"
         );
@@ -441,10 +422,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         // verify bls signature
         require(
             IL1Staking(l1StakingContract).verifySignature(
-                batchSignature.signedSequencers,
-                _getValidSequencerSet(batchSignature.sequencerSets, 0),
-                batchSigStore[_batchIndex].blsMsgHash,
-                batchSignature.signature
+                batchData.signatureData.signedSequencers,
+                _getValidSequencerSet(batchData.signatureData.sequencerSets, 0),
+                committedBatchStores[_batchIndex].signature.blsMsgHash,
+                batchData.signatureData.signature
             ),
             "the signature verification failed"
         );
@@ -485,7 +466,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 sequencerSets,
                 (uint256, address[], uint256, address[], uint256, address[])
             );
-
         if (blockHeight >= blockHeight2) {
             return sequencerSet2;
         }
@@ -533,14 +513,25 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         lastCommittedBatchIndex = _batchIndex - 1;
         while (_count > 0) {
             committedBatchStores[_batchIndex].batchHash = bytes32(0);
-
+            if (revertReqIndex > 0 && _batchIndex == revertReqIndex) {
+                // if challenge exist and not finished yet, return challenge deposit to challenger
+                if (
+                    challenges[_batchIndex].challenger != address(0) &&
+                    !challenges[_batchIndex].finished
+                ) {
+                    batchChallengeReward[
+                        challenges[_batchIndex].challenger
+                    ] += challenges[_batchIndex].challengeDeposit;
+                }
+                delete challenges[_batchIndex];
+                revertReqIndex = 0;
+            }
             emit RevertBatch(_batchIndex, _batchHash);
 
             unchecked {
                 _batchIndex += 1;
                 _count -= 1;
             }
-
             _batchHash = committedBatchStores[_batchIndex].batchHash;
             if (_batchHash == bytes32(0)) break;
         }
@@ -550,7 +541,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function challengeState(
         uint64 batchIndex,
         address challengerReceiver
-    ) external payable onlyChallenger {
+    ) external payable onlyChallenger nonReqRevert {
         require(!inChallenge, "already in challenge");
         require(
             lastFinalizedBatchIndex < batchIndex,
@@ -577,7 +568,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             msg.value >= IL1Staking(l1StakingContract).STAKING_VALUE(),
             "insufficient value"
         );
-        challengerDeposits[_msgSender()] += msg.value;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
@@ -614,7 +604,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address _proverReceiveAddress,
         bytes calldata _aggrProof,
         bytes calldata _kzgData
-    ) external {
+    ) external nonReqRevert {
         // Ensure challenge exists and is not finished
         require(
             challenges[_batchIndex].challenger != address(0),
@@ -636,7 +626,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         ) {
             _challengerWin(
                 _batchIndex,
-                batchSigStore[_batchIndex].signedSequencers,
+                committedBatchStores[_batchIndex].signature.signedSequencers,
                 "Timeout"
             );
         } else {
@@ -748,7 +738,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         }
     }
 
-    function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
+    function finalizeBatch(
+        uint256 _batchIndex
+    ) public nonReqRevert whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(
@@ -941,10 +933,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address prover,
         string memory _type
     ) internal {
-        address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        challengerDeposits[challengerAddr] -= challengeDeposit;
-        _transfer(prover, challengeDeposit);
+        batchChallengeReward[
+            challenges[batchIndex].proverReceiveAddress
+        ] += challengeDeposit;
         emit ChallengeRes(batchIndex, prover, _type);
     }
 
@@ -957,9 +949,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address[] memory sequencers,
         string memory _type
     ) internal {
+        revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
         uint256 reward = IL1Staking(l1StakingContract).slash(sequencers);
-
         batchChallengeReward[
             challenges[batchIndex].challengerReceiveAddress
         ] += (challenges[batchIndex].challengeDeposit + reward);
