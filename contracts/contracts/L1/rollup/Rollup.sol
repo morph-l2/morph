@@ -3,6 +3,7 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import {ICrossDomainMessenger} from "../../libraries/ICrossDomainMessenger.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -18,7 +19,12 @@ import {IL1Staking} from "../staking/IL1Staking.sol";
 
 /// @title Rollup
 /// @notice This contract maintains data for the Morph rollup.
-contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
+contract Rollup is
+    IRollup,
+    OwnableUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     /*************
      * Constants *
      *************/
@@ -438,16 +444,19 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     function _getBLSMsgHash(
         BatchData calldata batchData
-    ) internal view returns (bytes32) {
-        // TODO
+    ) internal pure returns (bytes32) {
+        // TODO compute bls message hash
+        batchData = batchData;
         return bytes32(0);
     }
 
     function _checkSequencerSetVerifyHash(
         BatchData calldata batchData,
         bytes32 sequencerSetVerifyHash
-    ) internal view returns (bool) {
+    ) internal pure returns (bool) {
         // TODO check SEQUENCER_SET_VERIFY_HASH in batch
+        batchData = batchData;
+        sequencerSetVerifyHash = sequencerSetVerifyHash;
         return true;
     }
 
@@ -539,8 +548,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     // challengeState challenges a batch by submitting a deposit.
     function challengeState(
-        uint64 batchIndex,
-        address challengerReceiver
+        uint64 batchIndex
     ) external payable onlyChallenger nonReqRevert {
         require(!inChallenge, "already in challenge");
         require(
@@ -571,18 +579,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
-            challengerReceiver,
-            address(0),
             msg.value,
             block.timestamp,
             false
         );
-        emit ChallengeState(
-            batchIndex,
-            _msgSender(),
-            challengerReceiver,
-            msg.value
-        );
+        emit ChallengeState(batchIndex, _msgSender(), msg.value);
 
         for (
             uint256 i = lastFinalizedBatchIndex + 1;
@@ -601,10 +602,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     // _kzgData: [y(32) | commitment(48) | proof(48)]
     function proveState(
         uint64 _batchIndex,
-        address _proverReceiveAddress,
         bytes calldata _aggrProof,
         bytes calldata _kzgData
-    ) external nonReqRevert {
+    ) external nonReqRevert nonReentrant {
         // Ensure challenge exists and is not finished
         require(
             challenges[_batchIndex].challenger != address(0),
@@ -617,7 +617,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // Mark challenge as finished
         challenges[_batchIndex].finished = true;
-        challenges[_batchIndex].proverReceiveAddress = _proverReceiveAddress;
         inChallenge = false;
 
         // Check for timeout
@@ -925,25 +924,23 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      **********************/
 
     /// @dev Internal function executed when the defender wins.
-    /// @param batchIndex The index of the batch indicating where the challenge occurred.
-    /// @param prover The zkProof prover address.
-    /// @param _type Description of the challenge type.
+    /// @param batchIndex   The index of the batch indicating where the challenge occurred.
+    /// @param prover       The zkProof prover address.
+    /// @param _type        Description of the challenge type.
     function _defenderWin(
         uint64 batchIndex,
         address prover,
         string memory _type
     ) internal {
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        batchChallengeReward[
-            challenges[batchIndex].proverReceiveAddress
-        ] += challengeDeposit;
+        batchChallengeReward[prover] += challengeDeposit;
         emit ChallengeRes(batchIndex, prover, _type);
     }
 
     /// @dev Internal function executed when the challenger wins.
-    /// @param batchIndex The index of the batch indicating where the challenge occurred.
-    /// @param sequencers An array containing the sequencers to be slashed.
-    /// @param _type Description of the challenge type.
+    /// @param batchIndex   The index of the batch indicating where the challenge occurred.
+    /// @param sequencers   An array containing the sequencers to be slashed.
+    /// @param _type        Description of the challenge type.
     function _challengerWin(
         uint64 batchIndex,
         address[] memory sequencers,
@@ -952,23 +949,24 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
         uint256 reward = IL1Staking(l1StakingContract).slash(sequencers);
-        batchChallengeReward[
-            challenges[batchIndex].challengerReceiveAddress
-        ] += (challenges[batchIndex].challengeDeposit + reward);
+        batchChallengeReward[challenges[batchIndex].challenger] += (challenges[
+            batchIndex
+        ].challengeDeposit + reward);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
 
     /// @notice Claim challenge reward
-    function claimReward() external {
-        uint256 amount = batchChallengeReward[_msgSender()];
+    /// @param receiver The receiver address
+    function claimReward(address receiver) external nonReentrant {
+        uint256 amount = batchChallengeReward[msg.sender];
         require(amount != 0, "invalid batchChallengeReward");
-        delete batchChallengeReward[_msgSender()];
-        _transfer(_msgSender(), amount);
+        delete batchChallengeReward[msg.sender];
+        _transfer(receiver, amount);
     }
 
     /// @dev Internal function to transfer ETH to a specified address.
-    /// @param _to The address to transfer ETH to.
-    /// @param _amount The amount of ETH to transfer.
+    /// @param _to      The address to transfer ETH to.
+    /// @param _amount  The amount of ETH to transfer.
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
             (bool success, ) = _to.call{value: _amount}(hex"");
@@ -977,9 +975,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     /// @dev Internal function to load batch header from calldata to memory.
-    /// @param _batchHeader The batch header in calldata.
-    /// @return memPtr The start memory offset of loaded batch header.
-    /// @return _batchHash The hash of the loaded batch header.
+    /// @param _batchHeader     The batch header in calldata.
+    /// @return memPtr The      start memory offset of loaded batch header.
+    /// @return _batchHash      The hash of the loaded batch header.
     function _loadBatchHeader(
         bytes calldata _batchHeader
     ) internal pure returns (uint256 memPtr, bytes32 _batchHash) {
@@ -1013,12 +1011,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     /// @dev Internal function to commit a chunk.
-    /// @param memPtr The start memory offset to store list of `dataHash`.
-    /// @param _chunk The encoded chunk to commit.
-    /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
-    /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
-    /// @param _skippedL1MessageBitmap The bitmap indicates whether each L1 message is skipped or not.
-    /// @return _totalNumL1MessagesInChunk The total number of L1 message popped in current chunk
+    /// @param memPtr                           The start memory offset to store list of `dataHash`.
+    /// @param _chunk                           The encoded chunk to commit.
+    /// @param _totalL1MessagesPoppedInBatch    The total number of L1 messages popped in current batch.
+    /// @param _totalL1MessagesPoppedOverall    The total number of L1 messages popped in all batches including current batch.
+    /// @param _skippedL1MessageBitmap          The bitmap indicates whether each L1 message is skipped or not.
+    /// @return _totalNumL1MessagesInChunk      The total number of L1 message popped in current chunk
     function _commitChunk(
         uint256 memPtr,
         bytes memory _chunk,
@@ -1133,12 +1131,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     /// @dev Internal function to load L1 message hashes from the message queue.
-    /// @param _ptr The memory offset to store the transaction hash.
-    /// @param _numL1Messages The number of L1 messages to load.
-    /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
-    /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
-    /// @param _skippedL1MessageBitmap The bitmap indicates whether each L1 message is skipped or not.
-    /// @return uint256 The new memory offset after loading.
+    /// @param _ptr                             The memory offset to store the transaction hash.
+    /// @param _numL1Messages                   The number of L1 messages to load.
+    /// @param _totalL1MessagesPoppedInBatch    The total number of L1 messages popped in current batch.
+    /// @param _totalL1MessagesPoppedOverall    The total number of L1 messages popped in all batches including current batch.
+    /// @param _skippedL1MessageBitmap          The bitmap indicates whether each L1 message is skipped or not.
+    /// @return uint256                         The new memory offset after loading.
     function _loadL1MessageHashes(
         uint256 _ptr,
         uint256 _numL1Messages,
@@ -1146,7 +1144,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 _totalL1MessagesPoppedOverall,
         bytes calldata _skippedL1MessageBitmap
     ) internal view returns (uint256) {
-        if (_numL1Messages == 0) return _ptr;
+        if (_numL1Messages == 0) {
+            return _ptr;
+        }
+
         IL1MessageQueue _messageQueue = IL1MessageQueue(messageQueue);
 
         unchecked {

@@ -13,19 +13,19 @@ interface IRollup {
      **********/
 
     /// @notice Emitted when a new batch is committed.
-    /// @param batchIndex The index of the batch.
-    /// @param batchHash The hash of the batch.
+    /// @param batchIndex   The index of the batch.
+    /// @param batchHash    The hash of the batch.
     event CommitBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
 
     /// @notice revert a pending batch.
-    /// @param batchIndex The index of the batch.
-    /// @param batchHash The hash of the batch
+    /// @param batchIndex   The index of the batch.
+    /// @param batchHash    The hash of the batch
     event RevertBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
 
     /// @notice Emitted when a batch is finalized.
-    /// @param batchIndex The index of the batch.
-    /// @param batchHash The hash of the batch
-    /// @param stateRoot The state root on layer 2 after this batch.
+    /// @param batchIndex   The index of the batch.
+    /// @param batchHash    The hash of the batch
+    /// @param stateRoot    The state root on layer 2 after this batch.
     /// @param withdrawRoot The merkle root on layer2 after this batch.
     event FinalizeBatch(
         uint256 indexed batchIndex,
@@ -35,57 +35,55 @@ interface IRollup {
     );
 
     /// @notice Emitted when owner updates the PROOF_WINDOW parameter.
-    /// @param oldWindow The old PROOF_WINDOW.
-    /// @param newWindow The new PROOF_WINDOW.
+    /// @param oldWindow    The old PROOF_WINDOW.
+    /// @param newWindow    The new PROOF_WINDOW.
     event UpdateProofWindow(uint256 oldWindow, uint256 newWindow);
 
     /// @notice Emitted when owner updates the FINALIZATION_PERIOD_SECONDS parameter.
-    /// @param oldPeriod The old FINALIZATION_PERIOD_SECONDS.
-    /// @param newPeriod The new FINALIZATION_PERIOD_SECONDS.
+    /// @param oldPeriod    The old FINALIZATION_PERIOD_SECONDS.
+    /// @param newPeriod    The new FINALIZATION_PERIOD_SECONDS.
     event UpdateFinalizationPeriodSeconds(uint256 oldPeriod, uint256 newPeriod);
 
     /// @notice Emitted when owner updates the status of prover.
-    /// @param account The address of account updated.
-    /// @param status The status of the account updated.
+    /// @param account  The address of account updated.
+    /// @param status   The status of the account updated.
     event UpdateProver(address indexed account, bool status);
 
     /// @notice Emitted when owner updates the status of prover.
-    /// @param account The address of account updated.
-    /// @param status The status of the account updated.
+    /// @param account  The address of account updated.
+    /// @param status   The status of the account updated.
     event UpdateChallenger(address indexed account, bool status);
 
     /// @notice Emitted when the address of rollup verifier is updated.
-    /// @param oldVerifier The address of old rollup verifier.
-    /// @param newVerifier The address of new rollup verifier.
+    /// @param oldVerifier  The address of old rollup verifier.
+    /// @param newVerifier  The address of new rollup verifier.
     event UpdateVerifier(
         address indexed oldVerifier,
         address indexed newVerifier
     );
 
     /// @notice Emitted when the value of `maxNumTxInChunk` is updated.
-    /// @param oldMaxNumTxInChunk The old value of `maxNumTxInChunk`.
-    /// @param newMaxNumTxInChunk The new value of `maxNumTxInChunk`.
+    /// @param oldMaxNumTxInChunk   The old value of `maxNumTxInChunk`.
+    /// @param newMaxNumTxInChunk   The new value of `maxNumTxInChunk`.
     event UpdateMaxNumTxInChunk(
         uint256 oldMaxNumTxInChunk,
         uint256 newMaxNumTxInChunk
     );
 
     /// @notice Emitted when the state of Challenge is updated.
-    /// @param batchIndex The index of the batch.
-    /// @param challenger The address of challenger.
-    /// @param challengerReceiveAddress The receive address of challenger.
+    /// @param batchIndex       The index of the batch.
+    /// @param challenger       The address of challenger.
     /// @param challengeDeposit The deposit of challenger.
     event ChallengeState(
         uint64 indexed batchIndex,
         address challenger,
-        address challengerReceiveAddress,
         uint256 challengeDeposit
     );
 
     /// @notice Emitted when the result of Challenge is updated.
-    /// @param batchIndex The index of the batch.
-    /// @param winner  The address of winner.
-    /// @param res The result of challenge.
+    /// @param batchIndex   The index of the batch.
+    /// @param winner       The address of winner.
+    /// @param res          The result of challenge.
     event ChallengeRes(uint64 indexed batchIndex, address winner, string res);
 
     /*************************
@@ -134,12 +132,13 @@ interface IRollup {
 
     /// @notice Revert a pending batch.
     /// @dev one can only revert unfinalized batches.
-    /// @param batchHeader The header of current batch, see the encoding in comments of `commitBatch`.
-    /// @param count The number of subsequent batches to revert, including current batch.
+    /// @param batchHeader  The header of current batch, see the encoding in comments of `commitBatch`.
+    /// @param count        The number of subsequent batches to revert, including current batch.
     function revertBatch(bytes calldata batchHeader, uint256 count) external;
 
     /// @notice Claim challenge reward
-    function claimReward() external;
+    /// @param receiver The receiver address
+    function claimReward(address receiver) external;
 
     /// @param version                  The version of current batch.
     /// @param parentBatchHeader        The header of parent batch, see the comments of `BatchHeaderV0Codec`.
@@ -209,16 +208,12 @@ interface IRollup {
 
     /// @param batchIndex
     /// @param challenger
-    /// @param challengerReceiveAddress
-    /// @param proverReceiveAddress
     /// @param challengeDeposit
     /// @param startTime
     /// @param finished
     struct BatchChallenge {
         uint64 batchIndex;
         address challenger;
-        address challengerReceiveAddress;
-        address proverReceiveAddress;
         uint256 challengeDeposit;
         uint256 startTime;
         bool finished;
