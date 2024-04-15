@@ -183,7 +183,12 @@ fn compute_and_save_kzg(
         .collect();
     let mut chunk_hashes: Vec<ChunkHash> = blocks
         .iter()
-        .map(|block| ChunkHash::from_witness_block(&block, false))
+        .map(|block| {
+            log::info!("block_withdraw_root: {:?}", block.withdraw_root);
+            let c_hash = ChunkHash::from_witness_block(&block, false);
+            log::info!("c_hash_withdraw_root: {:?}", c_hash.withdraw_root);
+            c_hash
+        })
         .collect();
 
     let number_of_valid_chunks = chunk_hashes.len();
@@ -192,6 +197,11 @@ fn compute_and_save_kzg(
         padding_chunk_hash.is_padding = true;
         chunk_hashes.extend(repeat(padding_chunk_hash).take(MAX_AGG_SNARKS - number_of_valid_chunks));
     }
+    log::info!(
+        "lastest_hash_withdraw_root: {:?}",
+        chunk_hashes[MAX_AGG_SNARKS - 1].withdraw_root
+    );
+
     log::info!(
         "=========> prev_state_root of batch_{:?} = {:#?}",
         batch_index,

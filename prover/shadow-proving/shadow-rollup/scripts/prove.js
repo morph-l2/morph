@@ -50,7 +50,7 @@ async function commitBatch(shadow_rollup, customHttpProvider) {
     let batchData = {
         prevStateRoot: "0x1306f43ca4580b9b94bc83e79c23fbcaaff7f261557c7ea90c86c5b4c17584d2",
         postStateRoot: "0x1acb7b53ebd05988c1267d6cdebcc61f871d099cc2e983d1a2c371cb53fdd1fa",
-        withdrawalRoot: "0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757",
+        withdrawalRoot: "0x0000000000000000000000000000000000000000000000000000000000000000",
         dataHash: "0xc8655a6aa50d4385480cc0b65f64f6b060a1b57ab68ee5a572516b946e9cdf70",
         blobVersionedHash: "0x0113416a8338bd500524d63315f3c3f6e9b96d3d5a3ad303451c4f4af31d5993"
     };
