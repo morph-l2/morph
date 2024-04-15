@@ -42,7 +42,7 @@ interface IDistribute {
 
     function mint() external;
 
-    function claimAll(address account) external;
+    function claimAll(address delegator) external;
 
-    function claim(address sequencer, address account) external;
+    function claim(address delegatee, address delegator) external;
 }

@@ -20,12 +20,22 @@ interface ISequencer {
     function getCurrentSeqeuncerSetSize() external view returns (uint256);
 
     /**
-     * @notice whether the address is a sequencer
+     * @notice get latest sequencer set
+     */
+    function getLatestSeqeuncerSet() external view returns (address[] memory);
+
+    /**
+     * @notice get latest sequencer set size
+     */
+    function getLatestSeqeuncerSetSize() external view returns (uint256);
+
+    /**
+     * @notice whether the address is a latest sequencer
      */
     function isSequencer(address addr) external view returns (bool);
 
     /**
-     * @notice get latest sequencer set
+     * @notice whether the address is a current sequencer
      */
-    function getLatestSeqeuncerSet() external view returns (address[] memory);
+    function isCurrentSequencer(address addr) external view returns (bool);
 }

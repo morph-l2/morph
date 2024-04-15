@@ -4,62 +4,92 @@ pragma solidity =0.8.24;
 import {Types} from "../../libraries/common/Types.sol";
 
 interface IL2Staking {
-    /**
-     * @notice Unstaking representing a unstaking info.
-     *
-     * @custom:field amount  staking amuont
-     * @custom:field unlock  unlock block height
-     */
-    struct Unstaking {
-        uint256 amount;
-        uint256 unlock;
+    // Enum representing shipping status
+    enum Stage {
+        Initial,
+        IssueToken,
+        Reward
     }
 
     /**
-     * @notice stakers information.
-     * @custom:field staker
-     * @return {addr, tmKey, blsKey, active}
+     * @notice Struct representing a staker status.
+     *
+     * @custom:field ranking    morph delegate staking ranking, start from 1
+     * @custom:field candidacy  wether is candidate
      */
-    function stakers(
-        address staker
-    ) external view returns (address, bytes32, bytes memory);
+    struct StakerStatus {
+        uint256 ranking;
+        bool candidacy;
+    }
 
     /**
-     * @notice staker's status
-     * @param staker    staker
+     * @notice Undelegation representing a undelegation info.
+     *
+     * @custom:field delegatee  delegatee
+     * @custom:field amount     staking amuont
+     * @custom:field unlock     unlock epoch index
      */
-    function stakerStatus(address staker) external view returns (bool);
+    struct Undelegation {
+        address delegatee;
+        uint256 amount;
+        uint256 unlockEpoch;
+    }
 
     /**
-     * @notice information staking by delegator to staker
-     * @param staker    delegatee
-     * @param delegator delegator
+     * @notice reward epoch
      */
-    function stakings(
-        address staker,
-        address delegator
-    ) external view returns (uint256);
+    function REWARD_START_TIME() external view returns (uint256);
 
     /**
-     * @notice delegator's unstaking info
-     * @param staker    delegatee
-     * @param delegator delegator
+     * @notice reward epoch
      */
-    function unstakings(
-        address staker,
-        address delegator
-    ) external view returns (uint256, uint256);
+    function REWARD_EPOCH() external view returns (uint256);
 
     /**
-     * @notice staker's all morph amount
-     * @param staker stake to whom
+     * @notice max size of sequencer set
      */
-    function stakersAmount(address staker) external view returns (uint256);
+    function SEQUENCER_MAX_SIZE() external view returns (uint256);
 
-    /**
-     * @notice number of currently active
-     */
-    function sequencersSize() external view returns (uint256);
+    // /**
+    //  * @notice stakers information.
+    //  * @custom:field staker
+    //  * @return {addr, tmKey, blsKey, active}
+    //  */
+    // function stakers(
+    //     address staker
+    // ) external view returns (address, bytes32, bytes memory);
+
+    // /**
+    //  * @notice staker's status
+    //  * @param staker    staker
+    //  */
+    // function stakerStatus(address staker) external view returns (bool);
+
+    // /**
+    //  * @notice information staking by delegator to staker
+    //  * @param staker    delegatee
+    //  * @param delegator delegator
+    //  */
+    // function stakings(
+    //     address staker,
+    //     address delegator
+    // ) external view returns (uint256);
+
+    // /**
+    //  * @notice delegator's unstaking info
+    //  * @param staker    delegatee
+    //  * @param delegator delegator
+    //  */
+    // function unstakings(
+    //     address staker,
+    //     address delegator
+    // ) external view returns (uint256, uint256);
+
+    // /**
+    //  * @notice staker's all morph amount
+    //  * @param staker stake to whom
+    //  */
+    // function stakersAmount(address staker) external view returns (uint256);
 
     // /**
     //  * @notice get all stakers

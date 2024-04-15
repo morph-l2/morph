@@ -10,23 +10,6 @@ import {IMorphToken} from "./IMorphToken.sol";
 contract MorphToken is OwnableUpgradeable, IMorphToken {
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
 
-    struct OrderedSet {
-        // index store block.timestamp
-        DoubleEndedQueue.Bytes32Deque index;
-        // values store block.timestamp => rate
-        mapping(uint256 => uint256) values;
-    }
-
-    struct Rate {
-        uint256 currentBeginTime;
-        uint256 currentRate;
-        uint256 nextEffectiveTime;
-        // Deadline date => rate
-        OrderedSet outmoded;
-        // begin date => rate
-        OrderedSet pending;
-    }
-
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
     // begin time of each day => reward
@@ -380,7 +363,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
                 delete _rate.pending.values[uint256(front)];
 
                 if (!_rate.pending.index.empty()) {
-                    _rate.nextEffectiveTime = uint256(_rate.pending.index.front());
+                    _rate.nextEffectiveTime = uint256(
+                        _rate.pending.index.front()
+                    );
                 } else {
                     _rate.nextEffectiveTime = 0;
                 }

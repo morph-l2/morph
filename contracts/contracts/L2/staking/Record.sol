@@ -16,6 +16,9 @@ contract Record is IRecord, Initializable {
     // oracle address
     address public ORACLE;
 
+    // TODO rollup epoch history
+    // TODO sequencer set history
+
     /**
      * @notice constructor
      */

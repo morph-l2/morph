@@ -2,12 +2,30 @@
 
 pragma solidity ^0.8.0;
 
+import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
 
 /**
  * @dev Interface of the MorphToken standard as defined in the EIP.
  */
 interface IMorphToken is IERC20MetadataUpgradeable {
+    struct OrderedSet {
+        // index store block.timestamp
+        DoubleEndedQueue.Bytes32Deque index;
+        // values store block.timestamp => rate
+        mapping(uint256 => uint256) values;
+    }
+
+    struct Rate {
+        uint256 currentBeginTime;
+        uint256 currentRate;
+        uint256 nextEffectiveTime;
+        // Deadline date => rate
+        OrderedSet outmoded;
+        // begin date => rate
+        OrderedSet pending;
+    }
+
     /**
      * @dev Emitted the owner sets the next valid exchange rate.
      */

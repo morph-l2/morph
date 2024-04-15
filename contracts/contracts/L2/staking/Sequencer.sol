@@ -11,7 +11,7 @@ contract Sequencer is Initializable, ISequencer {
     // l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
 
-    /// @notice The hash of sequencer set list.
+    /// The hash of latest three sequencer set.
     bytes32 public SEQUENCER_SET_VERIFY_HASH;
 
     // The latest three sequencerSet changes and effective height
@@ -49,7 +49,7 @@ contract Sequencer is Initializable, ISequencer {
     }
 
     /**
-     * @notice update sequencer set
+     * @notice update sequencer set. If new sequencer set is nil, layer2 will stop producing blocks
      */
     function updateSequencerSet(
         address[] memory newSequencerSet
@@ -112,24 +112,45 @@ contract Sequencer is Initializable, ISequencer {
     }
 
     /**
+     * @notice get latest sequencer set
+     */
+    function getLatestSeqeuncerSet() external view returns (address[] memory) {
+        return sequencerSet2;
+    }
+
+    /**
+     * @notice get latest sequencer set size
+     */
+    function getLatestSeqeuncerSetSize() external view returns (uint256) {
+        return sequencerSet2.length;
+    }
+
+    /**
      * @notice whether the address is a sequencer
      */
     function isSequencer(address addr) external view returns (bool) {
+        return _contains(sequencerSet2, addr);
+    }
+
+    /**
+     * @notice whether the address is a current sequencer
+     */
+    function isCurrentSequencer(address addr) external view returns (bool) {
         if (block.number >= blockHeight2) {
-            return inAddressList(addr, sequencerSet2);
+            return _contains(sequencerSet2, addr);
         }
         if (block.number >= blockHeight1) {
-            return inAddressList(addr, sequencerSet1);
+            return _contains(sequencerSet1, addr);
         }
-        return inAddressList(addr, sequencerSet0);
+        return _contains(sequencerSet0, addr);
     }
 
     /**
      * @notice whether the address is the address list
      */
-    function inAddressList(
-        address addr,
-        address[] memory addressList
+    function _contains(
+        address[] memory addressList,
+        address addr
     ) internal pure returns (bool) {
         for (uint256 i = 0; i < addressList.length; i++) {
             if (addr == addressList[i]) {
@@ -137,12 +158,5 @@ contract Sequencer is Initializable, ISequencer {
             }
         }
         return false;
-    }
-
-    /**
-     * @notice get latest sequencer set
-     */
-    function getLatestSeqeuncerSet() external view returns (address[] memory) {
-        return sequencerSet2;
     }
 }

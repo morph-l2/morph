@@ -17,20 +17,17 @@ contract Gov is IGov, Initializable {
         bool approved;
     }
 
-    // sequencer contract address
-    address public immutable SEQUENCER_CONTRACT;
-    // record contract address
-    address public immutable RECORD_CONTRACT;
     // staking contract address
     address public immutable L2_STAKING_CONTRACT;
+    // sequencer contract address
+    address public immutable SEQUENCER_CONTRACT;
 
     // batch configs
     uint256 public override batchBlockInterval = 0;
     uint256 public override batchMaxBytes = 0;
     uint256 public override batchTimeout = 0;
-    uint256 public override rollupEpoch = 0;
-    uint256 public override rewardEpoch = 0;
     uint256 public override maxChunks = 0;
+    uint256 public override rollupEpoch = 0;
 
     // proposal duration
     uint256 public proposalInterval;
@@ -42,6 +39,17 @@ contract Gov is IGov, Initializable {
     mapping(uint256 => ProposalInfo) public override proposalInfos;
     // proposal voter info
     mapping(uint256 => EnumerableSetUpgradeable.AddressSet) internal votes;
+
+    /************************ events ***************************/
+
+    // event of proposal executed
+    event ProposalExecuted(
+        uint256 batchBlockInterval,
+        uint256 batchMaxBytes,
+        uint256 batchTimeout,
+        uint256 maxChunks,
+        uint256 rollupEpoch
+    );
 
     /*********************** modifiers **************************/
     /**
@@ -67,8 +75,8 @@ contract Gov is IGov, Initializable {
      * @notice constructor
      */
     constructor() {
-        SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
+        SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
     }
 
     /*********************** Init **************************/
@@ -78,23 +86,20 @@ contract Gov is IGov, Initializable {
      * @param _batchBlockInterval batch block interval
      * @param _batchMaxBytes max batch bytes
      * @param _batchTimeout batch timeout
-     * @param _rollupEpoch rollup epoch
-     * @param _rewardEpoch rollup epoch
      * @param _maxChunks max chunks
+     * @param _rollupEpoch rollup epoch
      */
     function initialize(
         uint256 _proposalInterval,
         uint256 _batchBlockInterval,
         uint256 _batchMaxBytes,
         uint256 _batchTimeout,
-        uint256 _rollupEpoch,
-        uint256 _rewardEpoch,
-        uint256 _maxChunks
+        uint256 _maxChunks,
+        uint256 _rollupEpoch
     ) public initializer {
         require(_proposalInterval > 0, "invalid proposal interval");
-        require(_rollupEpoch > 0, "invalid rollup epoch");
-        require(_rewardEpoch > 0, "invalid reward epoch");
         require(_maxChunks > 0, "invalid max chunks");
+        require(_rollupEpoch > 0, "invalid rollup epoch");
         require(
             _batchBlockInterval != 0 ||
                 _batchMaxBytes != 0 ||
@@ -105,9 +110,8 @@ contract Gov is IGov, Initializable {
         batchBlockInterval = _batchBlockInterval;
         batchMaxBytes = _batchMaxBytes;
         batchTimeout = _batchTimeout;
-        rollupEpoch = _rollupEpoch;
-        rewardEpoch = _rewardEpoch;
         maxChunks = _maxChunks;
+        rollupEpoch = _rollupEpoch;
     }
 
     /*********************** External Functions **************************/
@@ -208,17 +212,21 @@ contract Gov is IGov, Initializable {
      * @notice execute an approved proposal
      */
     function _executeProposal(uint256 _proposalID) internal {
-        if (rollupEpoch != proposalData[_proposalID].rollupEpoch) {
-            // IL2Staking(L2_STAKING_CONTRACT).updateParams(_sequenceSize, rollupEpoch);
-        }
         batchBlockInterval = proposalData[_proposalID].batchBlockInterval;
         batchMaxBytes = proposalData[_proposalID].batchMaxBytes;
         batchTimeout = proposalData[_proposalID].batchTimeout;
-        rollupEpoch = proposalData[_proposalID].rollupEpoch;
-        rewardEpoch = proposalData[_proposalID].rewardEpoch;
         maxChunks = proposalData[_proposalID].maxChunks;
+        rollupEpoch = proposalData[_proposalID].rollupEpoch;
 
         proposalInfos[_proposalID].approved = true;
+
+        emit ProposalExecuted(
+            batchBlockInterval,
+            batchMaxBytes,
+            batchTimeout,
+            maxChunks,
+            rollupEpoch
+        );
     }
 
     /**
@@ -234,10 +242,7 @@ contract Gov is IGov, Initializable {
                 validVotes = validVotes + 1;
             }
         }
-        if (validVotes > (latestSequencerSet.length * 2) / 3) {
-            return true;
-        }
-        return false;
+        return validVotes > (latestSequencerSet.length * 2) / 3;
     }
 
     function _proposalActive(uint256 _proposalID) internal view returns (bool) {

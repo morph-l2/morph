@@ -21,13 +21,13 @@ contract L1Staking is
     // rollup Contract
     address public ROLLUP_CONTRACT;
     // staking value, immutable
-    uint256 public override STAKING_VALUE;
+    uint256 public STAKING_VALUE;
     // exit lock blocks
     uint256 public WITHDRAWAL_LOCK_BLOCKS;
     // percentage awarded to challenger
     uint256 public REWARD_PERCENTAGE;
     // default crosschain gas limit
-    uint256 public DEFAULT_GAS_LIMIT;
+    uint256 public DEFAULT_GAS_LIMIT; // TODO add calculation logic
 
     // slash remaining
     uint256 slashRemaining;
@@ -39,15 +39,6 @@ contract L1Staking is
     mapping(address => Types.StakerInfo) public stakers;
     // withdrawl unlock time
     mapping(address => uint256) public withdrawals;
-    // slash unlock time
-    mapping(address => bool) public slashing;
-    // slash reward unlock time
-    mapping(address => uint256) public slashReward;
-
-    // latest sequencer set
-    address[] public sequencersAddr;
-    // latest sequencer bls keys
-    bytes[] public sequencersBLS;
 
     /**
      * @notice staker registered

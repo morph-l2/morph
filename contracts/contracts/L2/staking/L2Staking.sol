@@ -12,7 +12,6 @@ import {Staking} from "../../libraries/staking/Staking.sol";
 import {IL2Staking} from "./IL2Staking.sol";
 import {ISequencer} from "./ISequencer.sol";
 import {IDistribute} from "./IDistribute.sol";
-import {IGov} from "./IGov.sol";
 
 contract L2Staking is
     IL2Staking,
@@ -31,46 +30,40 @@ contract L2Staking is
     // GovContract address
     address public immutable GOV_CONTRACT;
 
-    // undelegate lock blocks
-    uint256 public lockBlocks;
-    // contract stage. {0: init, 1: issue_token, 2: reward}
-    uint256 public stage;
+    // reward epoch, seconds of one day (3600 * 24)
+    uint256 public immutable REWARD_EPOCH = 86400;
+    // reward start time
+    uint256 public override REWARD_START_TIME;
+    // max number of sequencers
+    uint256 public override SEQUENCER_MAX_SIZE;
+    // undelegate lock epochs
+    uint256 public UNDELEGATE_LOCK_EPOCHS;
 
+    // layer2 stage
+    Stage public STAGE = Stage.Initial;
+
+    // sequencer candidate number
+    uint256 public candidateNumber;
     // Sync from l1 staking
-    EnumerableSetUpgradeable.AddressSet internal stakerList;
+    address[] public stakerAddrs;
+    // mapping(staker => staker_status)
+    mapping(address => StakerStatus) public stakerStatus;
+    // mapping(staker => staker_info)
+    mapping(address => Types.StakerInfo) public stakers;
 
-    // staker's all delegators
+    // mapping(staker => total_amount)
+    mapping(address => uint256) public stakerDelegations;
+    // mapping(staker => delegators)
     mapping(address => EnumerableSetUpgradeable.AddressSet) internal delegators;
-
-    // staker info
-    mapping(address => Types.StakerInfo) public override stakers;
-
-    // staker status
-    mapping(address => bool) public override stakerStatus;
-
-    // user staking info
-    mapping(address => mapping(address => uint256)) public override stakings;
-
-    // user unstaking info
-    mapping(address => mapping(address => Unstaking))
-        public
-        override unstakings;
-
-    // staker's morph amount
-    mapping(address => uint256) public override stakersAmount;
-
-    // total number of sequencers
-    uint256 public override sequencersSize;
+    // mapping(staker => mapping(delegator => amount))
+    mapping(address => mapping(address => uint256)) public delegations;
+    // mapping(delegator => Undelegation[])
+    mapping(address => Undelegation[]) public undelegations;
 
     /*********************** modifiers **************************/
 
-    modifier isStaker(address _staker) {
-        require(stakerList.contains(_staker), "staker not exist");
-        _;
-    }
-
-    modifier checkStaker(address _staker) {
-        require(stakerStatus[_staker], "staker not active");
+    modifier isStaker(address addr) {
+        require(stakerStatus[addr].ranking > 0, "not staker");
         _;
     }
 
@@ -79,28 +72,29 @@ contract L2Staking is
      * @notice stake info
      */
     event Delegated(
-        address indexed staker,
-        address indexed who,
+        address indexed delegatee,
+        address indexed delegator,
         uint256 amount
     );
     /**
      * @notice unstake info
      */
-    event UnDelegated(
-        address indexed staker,
-        address indexed who,
-        uint256 amount
+    event Undelegated(
+        address indexed delegatee,
+        address indexed delegator,
+        uint256 amount,
+        uint256 ublockEpoch
     );
     /**
      * @notice claim info
      */
-    event Claimed(address indexed staker, address indexed who, uint256 amount);
+    event Claimed(address indexed delegator, uint256 amount);
     /**
      * @notice withdrawal info
      */
-    event Withdrawn(
-        address indexed staker,
-        address indexed who,
+    event withdrawn(
+        address indexed delegatee,
+        address indexed delegator,
         uint256 amount
     );
     /**
@@ -123,16 +117,35 @@ contract L2Staking is
     }
 
     /*********************** Init **************************/
-    /* * @notice initializer
-     * @param _admin            params admin
-     * @param _sequencersSize   size of sequencer set
+
+    /*
+     * @notice initializer
+     * @param _admin                params admin
+     * @param _sequencersMaxSize    max size of sequencer set
+     * @param _undelegateLockEpochs undelegate lock epochs
+     * @param _rewardStartTime      reward start time
+     * @param _stakers              stakers
      */
     function initialize(
         address _admin,
-        uint256 _sequencersSize
+        uint256 _sequencersMaxSize,
+        uint256 _undelegateLockEpochs,
+        uint256 _rewardStartTime,
+        Types.StakerInfo[] calldata _stakers
     ) public initializer {
-        require(_sequencersSize > 0, "sequencersSize must greater than 0");
-        sequencersSize = _sequencersSize;
+        require(_sequencersMaxSize > 0, "sequencersSize must greater than 0");
+        SEQUENCER_MAX_SIZE = _sequencersMaxSize;
+        require(_undelegateLockEpochs > 0, "invalid undelegateLockEpochs");
+        UNDELEGATE_LOCK_EPOCHS = _undelegateLockEpochs;
+        // TODO check rewardStartTime, must be same as the time morph start inflation
+        REWARD_START_TIME = _rewardStartTime;
+
+        require(_stakers.length > 0, "invalid initial stakers");
+        for (uint256 i = 0; i < _stakers.length; i++) {
+            stakers[_stakers[i].addr] = _stakers[i];
+            stakerAddrs.push(_stakers[i].addr);
+            stakerStatus[_stakers[i].addr] = StakerStatus(i + 1, false);
+        }
 
         // transfer owner to admin
         _transferOwnership(_admin);
@@ -141,6 +154,46 @@ contract L2Staking is
     }
 
     /*********************** External Functions **************************/
+
+    /**
+     * @notice add staker, sync from L1
+     * @param add   staker to add. {addr, tmKey, blsKey}
+     */
+    function addStaker(Types.StakerInfo memory add) external onlyOtherStaking {
+        if (stakerStatus[add.addr].ranking > 0) {
+            stakerAddrs.push(add.addr);
+            stakerStatus[add.addr] = StakerStatus(stakerAddrs.length, false);
+        }
+        stakers[add.addr] = add;
+        _updateSequencerSet();
+    }
+
+    /**
+     * @notice remove stakers, sync from L1. If new sequencer set is nil, layer2 will stop producing blocks
+     * @param remove    staker to remove
+     */
+    function removeStakers(address[] memory remove) external onlyOtherStaking {
+        for (uint256 i = 0; i < remove.length; i++) {
+            if (stakerStatus[remove[i]].ranking > 0) {
+                for (
+                    uint256 j = stakerStatus[remove[i]].ranking - 1;
+                    j < stakerAddrs.length - 1;
+                    j++
+                ) {
+                    delete stakerStatus[remove[i]];
+                    stakerAddrs[j] = stakerAddrs[j + 1];
+                    stakerStatus[stakerAddrs[j]].ranking -= 1;
+                }
+                stakerAddrs.pop();
+                // TODO undelegate all delegator
+                if (STAGE != Stage.Initial) {
+                    // TODO update candidateNumber
+                }
+            }
+        }
+        _updateSequencerSet();
+    }
+
     /**
      * @notice delegator stake morph to staker
      * @param staker    stake to whom
@@ -149,44 +202,24 @@ contract L2Staking is
     function delegateStake(
         address staker,
         uint256 amount
-    ) external isStaker(staker) checkStaker(staker) nonReentrant {
-        // Re-staking to the same staker is not allowed during the lock-up period
-        require(
-            block.number >= unstakings[staker][msg.sender].unlock,
-            "re-staking cannot be made during the lock-up period"
-        );
+    ) external isStaker(staker) nonReentrant {
+        require(amount > 0, "invalid stake amount");
+        // Re-staking to the same staker is not allowed before claiming undelegation
+        require(!_unclaimed(msg.sender, staker), "undelegation unclaimed");
 
-        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(
-            address(this)
-        );
-        IERC20(MORPH_TOKEN_CONTRACT).transferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
-        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(
-            address(this)
-        );
-        require(
-            balanceAfter > balanceBefore &&
-                balanceAfter - balanceBefore == amount,
-            "morph token transfer fail"
-        );
-
-        uint256 userStakingAmount = stakings[staker][msg.sender];
-        stakings[staker][msg.sender] = userStakingAmount + amount;
-
-        uint256 stakerAmount = stakersAmount[staker];
-        stakersAmount[staker] = stakerAmount + amount;
-
-        delegators[staker].add(msg.sender);
-
+        delegations[staker][msg.sender] += amount;
+        stakerDelegations[staker] += amount;
+        delegators[staker].add(msg.sender); // will not be added repeatedly
         emit Delegated(staker, msg.sender, amount);
 
-        // update sequencer set
+        _transferFrom(msg.sender, address(this), amount);
+
+        // TODO update candidateNumber
+        // TODO update stakers ranking
+
         _updateSequencerSet();
 
-        // push record to distribute
+        // TODO push record to distribute
         // IDistribute(DISTRIBUTE_CONTRACT).notifyDelegate(
         //     block.number / epoch,
         //     staker,
@@ -203,33 +236,34 @@ contract L2Staking is
     function undelegateStake(
         address staker
     ) external isStaker(staker) nonReentrant {
-        Unstaking memory info = unstakings[staker][msg.sender];
-
-        require(info.amount == 0, "needs to be withdrawn");
+        // must claim before you can delegate stake again
+        require(!_unclaimed(msg.sender, staker), "undelegation unclaimed");
         require(_isStakingTo(staker), "staking amount is zero");
 
-        uint256 delegatorStakingAmount = stakings[staker][msg.sender];
+        Undelegation memory undelegation = Undelegation(
+            staker,
+            delegations[staker][msg.sender],
+            _currentEpoch() + UNDELEGATE_LOCK_EPOCHS + 1
+        );
 
-        // record undeledate
-        uint256 rewardEpoch = IGov(GOV_CONTRACT).rewardEpoch();
-        uint256 unlock = (block.number / rewardEpoch + 1) * rewardEpoch;
-        info.amount = delegatorStakingAmount;
-        info.unlock = unlock;
+        undelegations[msg.sender].push(undelegation);
+        delete delegations[staker][msg.sender];
+        stakerDelegations[staker] -= undelegation.amount;
+        delegators[staker].remove(msg.sender);
 
-        // update unstaking info
-        unstakings[staker][msg.sender] = info;
+        emit Undelegated(
+            staker,
+            msg.sender,
+            undelegation.amount,
+            undelegation.unlockEpoch
+        );
 
-        // update staking info
-        stakings[staker][msg.sender] = 0;
-        uint256 stakerAmount = stakersAmount[staker];
-        stakersAmount[staker] = stakerAmount - delegatorStakingAmount;
+        // TODO update candidateNumber
+        // TODO update stakers ranking
 
-        emit UnDelegated(staker, msg.sender, delegatorStakingAmount);
-
-        // update sequencer set
         _updateSequencerSet();
 
-        // push record to distribute
+        // TODO push record to distribute
         // IDistribute(DISTRIBUTE_CONTRACT).notifyUnDelegate(
         //     staker,
         //     msg.sender,
@@ -238,66 +272,77 @@ contract L2Staking is
     }
 
     /**
-     * @notice redelegate stake
+     * @notice delegator cliam delegate staking value
      */
-    function redelegateStake() external nonReentrant {
-        // TODO
-    }
+    function claimUndelegation() external nonReentrant {
+        uint256 totalAmount;
+        for (uint256 i = 0; i < undelegations[msg.sender].length; i++) {
+            require(
+                undelegations[msg.sender][i].unlockEpoch <= _currentEpoch(),
+                "withdrawal cannot be made during the lock-up period"
+            );
+            totalAmount += undelegations[msg.sender][i].amount;
+            undelegations[msg.sender][i] = undelegations[msg.sender][
+                undelegations[msg.sender].length - 1
+            ];
+            undelegations[msg.sender].pop();
+        }
+        require(totalAmount > 0, "no MORPH to claim");
+        _transfer(msg.sender, totalAmount);
 
-    /**
-     * @notice delegator withdrawal
-     * @param staker stake to whom
-     */
-    function withdrawal(address staker) external isStaker(staker) nonReentrant {
-        require(
-            unstakings[staker][msg.sender].amount > 0,
-            "no information on unstaking"
-        );
-        require(
-            block.number >= unstakings[staker][msg.sender].unlock,
-            "withdrawal cannot be made during the lock-up period"
-        );
-
-        uint256 unstakingAmount = unstakings[staker][msg.sender].amount;
-
-        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(
-            address(this)
-        );
-        IERC20(MORPH_TOKEN_CONTRACT).transfer(msg.sender, unstakingAmount);
-        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(
-            address(this)
-        );
-        require(
-            balanceBefore > balanceAfter &&
-                balanceBefore - balanceAfter == unstakingAmount,
-            "morph token transfer fail"
-        );
-
-        emit Withdrawn(staker, msg.sender, unstakingAmount);
-
-        delete unstakings[staker][msg.sender];
+        emit Claimed(msg.sender, totalAmount);
     }
 
     /**
      * @notice delegator claim reward
-     * @param staker stake to whom
+     * @param staker    delegatee, claim all if empty
      */
-    function claim(address staker) external isStaker(staker) nonReentrant {
-        // claim reward
-        // reward from distribution
-        IDistribute(DISTRIBUTE_CONTRACT).claim(staker, msg.sender);
-
-        // emit Claimed(staker, msg.sender, unstakingAmount);
+    function claimReward(
+        address staker
+    ) external isStaker(staker) nonReentrant {
+        if (staker == address(0)) {
+            IDistribute(DISTRIBUTE_CONTRACT).claimAll(msg.sender);
+        } else {
+            IDistribute(DISTRIBUTE_CONTRACT).claim(staker, msg.sender);
+        }
     }
 
     /**
-     * @notice delegator claim all reward
+     * @notice update params
+     * @param _sequencersMaxSize   max size of sequencer set
      */
-    function claimAll() external nonReentrant {
-        // claim all reward
-        // reward from distribution，if staking to multiple staker.
-        IDistribute(DISTRIBUTE_CONTRACT).claimAll(msg.sender);
+    function updateParams(uint256 _sequencersMaxSize) external onlyOwner {
+        require(
+            _sequencersMaxSize > 0 && _sequencersMaxSize != SEQUENCER_MAX_SIZE,
+            "invalid new sequencers size"
+        );
+        SEQUENCER_MAX_SIZE = _sequencersMaxSize;
+        emit ParamsUpdated(SEQUENCER_MAX_SIZE);
+
+        if (
+            SEQUENCER_MAX_SIZE <
+            ISequencer(SEQUENCER_CONTRACT).getCurrentSeqeuncerSetSize()
+        ) {
+            // update sequencer set
+            _updateSequencerSet();
+        }
     }
+
+    /**
+     * @notice advance layer2 stage
+     */
+    function StageAdvance() external onlyOwner {
+        // TODO Effective time
+        if (STAGE == Stage.Initial) {
+            // TODO: check & do sth
+            STAGE = Stage.IssueToken;
+        } else if (STAGE == Stage.IssueToken) {
+            // TODO: check & do sth
+            STAGE = Stage.Reward;
+        }
+    }
+
+    /*********************** External View Functions **************************/
 
     /**
      * @notice check if the user has staked to staker
@@ -318,180 +363,127 @@ contract L2Staking is
     }
 
     /**
-     * @notice Get all stakers
-     */
-    function getStakers() external view returns (address[] memory) {
-        return _getStakers();
-    }
-
-    /**
      * @notice get stakers info
      */
     function getStakesInfo(
-        address[] memory stakerAddrs
+        address[] memory _stakerAddrs
     ) external view returns (Types.StakerInfo[] memory) {
         Types.StakerInfo[] memory _stakers = new Types.StakerInfo[](
-            stakerAddrs.length
+            _stakerAddrs.length
         );
-        for (uint256 i = 0; i < stakerAddrs.length; i++) {
+        for (uint256 i = 0; i < _stakerAddrs.length; i++) {
             _stakers[i] = Types.StakerInfo(
-                stakers[stakerAddrs[i]].addr,
-                stakers[stakerAddrs[i]].tmKey,
-                stakers[stakerAddrs[i]].blsKey
+                stakers[_stakerAddrs[i]].addr,
+                stakers[_stakerAddrs[i]].tmKey,
+                stakers[_stakerAddrs[i]].blsKey
             );
         }
         return _stakers;
     }
 
-    /**
-     * @notice update params
-     * @param _sequencersSize   sequencers size
-     */
-    function updateParams(uint256 _sequencersSize) external onlyOwner {
-        require(
-            _sequencersSize > 0 &&
-                _sequencersSize != sequencersSize &&
-                _sequencersSize < stakerList.length(),
-            "invalid new sequencers size"
-        );
-        sequencersSize = _sequencersSize;
-        emit ParamsUpdated(sequencersSize);
-        // @todo check if the size less than current sequencer set size
-        if (
-            // TODO: update accurate judgment conditions
-            sequencersSize <
-            ISequencer(SEQUENCER_CONTRACT).getCurrentSeqeuncerSetSize()
-        ) {
-            // update sequencer set
-            _updateSequencerSet();
-        }
-    }
-
-    /**
-     * @notice add staker, sync from L1
-     * @param add   staker to add. {addr, tmKey, blsKey}
-     */
-    function addStaker(Types.StakerInfo memory add) external onlyOtherStaking {
-        if (!stakerList.contains(add.addr)) {
-            stakerList.add(add.addr);
-            stakers[add.addr] = add;
-        }
-        // TODO: update sequencer set
-        if (stage < 2 && true) {
-            _updateSequencerSet();
-        }
-    }
-
-    /**
-     * @notice remove stakers, sync from L1
-     * @param remove    staker to remove
-     */
-    function removeStakers(address[] memory remove) external onlyOtherStaking {
-        for (uint256 i = 0; i < remove.length; i++) {
-            if (!stakerList.contains(remove[i])) {
-                stakerList.remove(remove[i]);
-            }
-        }
-        // TODO: update sequencer set
-        if (stage < 2 && true) {
-            _updateSequencerSet();
-        }
-    }
-
-    function stageAdvance() external onlyOwner {
-        if (stage == 0) {
-            // TODO: check & do sth
-            stage = 1;
-            return;
-        }
-        if (stage == 1) {
-            // TODO: check & do sth
-            stage = 2;
-            return;
-        }
-    }
-
     /*********************** Internal Functions **************************/
+
+    /**
+     * @notice transfer morph token
+     */
+    function _transfer(address _to, uint256 _amount) internal {
+        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        IERC20(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
+        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        require(
+            _amount > 0 && balanceBefore - balanceAfter == _amount,
+            "morph token transfer failed"
+        );
+    }
+
+    /**
+     * @notice transfer morph token from
+     */
+    function _transferFrom(
+        address _from,
+        address _to,
+        uint256 _amount
+    ) internal {
+        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        IERC20(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount);
+        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        require(
+            _amount > 0 && balanceAfter - balanceBefore == _amount,
+            "morph token transfer failed"
+        );
+    }
+
     /**
      * @notice check if the user has staked to staker
      * @param staker sequencers size
      */
     function _isStakingTo(address staker) internal view returns (bool) {
-        return stakings[staker][msg.sender] > 0;
+        return delegations[staker][msg.sender] > 0;
     }
 
     /**
-     * @notice select the size of staker with the largest staking amount, the max size is ${sequencersSize}
+     * @notice select the size of staker with the largest staking amount, the max size is ${SEQUENCER_MAX_SIZE}
      */
     function _updateSequencerSet() internal {
-        address[] memory mStakers = _getSortedStakers();
-
-        uint256 size = sequencersSize;
-        if (mStakers.length < sequencersSize) {
-            size = mStakers.length;
-        }
-
-        // determination of total update size
-        uint256 updateSize = 0;
-        for (uint256 i = 0; i < size; i++) {
-            // staker is active
-            // @todo checkou amount > 0
-            // uint256 amount = stakersAmount[mStakers[i]];
-            if (stakerStatus[mStakers[i]]) {
-                updateSize = updateSize + 1;
-            }
-        }
-
-        if (updateSize == 0) {
-            revert("the number of updates required is 0");
-        }
-
-        uint256 index = 0;
-        address[] memory newSequencerSet = new address[](updateSize);
-        for (uint256 i = 0; i < size; i++) {
-            Types.StakerInfo memory info = stakers[mStakers[i]];
-            // staker is active
-            // @todo checkou amount > 0
-            // uint256 amount = stakersAmount[mStakers[i]];
-            if (stakerStatus[mStakers[i]]) {
-                newSequencerSet[index] = info.addr;
-                index = index + 1;
-            }
-        }
-
-        // update sequencer set
-        ISequencer(SEQUENCER_CONTRACT).updateSequencerSet(newSequencerSet);
+        // if (STAGE == Stage.Initial) {
+        //     // TODO
+        // } else if (STAGE == Stage.IssueToken) {
+        //     // TODO
+        // } else {
+        //     // TODO
+        // }
+        // uint256 size = SEQUENCER_MAX_SIZE;
+        // if (mStakers.length < SEQUENCER_MAX_SIZE) {
+        //     size = mStakers.length;
+        // }
+        // // determination of total update size
+        // uint256 updateSize = 0;
+        // for (uint256 i = 0; i < size; i++) {
+        //     // staker is active
+        //     // @todo checkou amount > 0
+        //     // uint256 amount = stakersAmount[mStakers[i]];
+        //     if (stakerStatus[mStakers[i]]) {
+        //         updateSize = updateSize + 1;
+        //     }
+        // }
+        // if (updateSize == 0) {
+        //     revert("the number of updates required is 0");
+        // }
+        // uint256 index = 0;
+        // address[] memory newSequencerSet = new address[](updateSize);
+        // for (uint256 i = 0; i < size; i++) {
+        //     Types.StakerInfo memory info = stakers[mStakers[i]];
+        //     // staker is active
+        //     // @todo checkou amount > 0
+        //     // uint256 amount = stakersAmount[mStakers[i]];
+        //     if (stakerStatus[mStakers[i]]) {
+        //         newSequencerSet[index] = info.addr;
+        //         index = index + 1;
+        //     }
+        // }
+        // // update sequencer set
+        // ISequencer(SEQUENCER_CONTRACT).updateSequencerSet(newSequencerSet);
     }
 
     /**
      * @notice get all stakers
      */
-    function _getStakers() internal view returns (address[] memory) {
-        return stakerList.values();
+    function _currentEpoch() internal view returns (uint256) {
+        return (block.timestamp - REWARD_START_TIME) / REWARD_EPOCH;
     }
 
     /**
-     * @notice sort stakers by amount
+     * @notice whether there is a undedeletion unclaimed
      */
-    function _getSortedStakers() internal view returns (address[] memory) {
-        address[] memory mStakers = _getStakers();
-
-        for (uint256 i = 0; i < mStakers.length; i++) {
-            uint256 maxIndex = i;
-            for (uint256 j = i + 1; j < mStakers.length; j++) {
-                uint256 amount0 = stakersAmount[mStakers[maxIndex]];
-                uint256 amount1 = stakersAmount[mStakers[j]];
-                if (amount1 > amount0) {
-                    maxIndex = j;
-                }
-            }
-            if (i != maxIndex) {
-                address temp = mStakers[i];
-                mStakers[i] = mStakers[maxIndex];
-                mStakers[maxIndex] = temp;
+    function _unclaimed(
+        address delegator,
+        address delegatee
+    ) internal view returns (bool) {
+        for (uint256 i = 0; i < undelegations[delegator].length; i++) {
+            if (undelegations[delegator][i].delegatee == delegatee) {
+                return true;
             }
         }
-
-        return mStakers;
+        return false;
     }
 }

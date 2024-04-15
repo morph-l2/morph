@@ -6,9 +6,8 @@ interface IGov {
         uint256 batchBlockInterval;
         uint256 batchMaxBytes;
         uint256 batchTimeout;
-        uint256 rollupEpoch;
-        uint256 rewardEpoch;
         uint256 maxChunks;
+        uint256 rollupEpoch;
     }
 
     /**
@@ -30,11 +29,6 @@ interface IGov {
      * @notice rollup epoch
      */
     function rollupEpoch() external view returns (uint256);
-
-    /**
-     * @notice reward epoch
-     */
-    function rewardEpoch() external view returns (uint256);
 
     /**
      * @notice max chunks
