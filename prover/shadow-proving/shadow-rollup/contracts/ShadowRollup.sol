@@ -93,35 +93,41 @@ contract ShadowRollup is Ownable {
         require(_aggrProof.length > 0, "Invalid proof");
 
         // Check validity of KZG data
-        require(_kzgData.length == 128, "Invalid KZG data");
+        require(_kzgData.length == 160, "Invalid KZG data");
 
         // Extract commitment
-        bytes memory _commitment = _kzgData[32:80];
+        // bytes memory _commitment = _kzgData[32:80];
 
         // Compute xBytes
-        bytes memory _xBytes = computeXBytes(_batchIndex, _commitment);
+        // bytes memory _xBytes = computeXBytes(_batchIndex, _commitment);
 
-        // Create input for verification
-        bytes memory _input = abi.encodePacked(
-            committedBatchStores[_batchIndex].blobVersionedHash,
-            _xBytes,
-            _kzgData
-        );
+        // // Create input for verification
+        // bytes memory _input = abi.encodePacked(
+        //     committedBatchStores[_batchIndex].blobVersionedHash,
+        //     _xBytes,
+        //     _kzgData
+        // );
 
         // Verify 4844-proof
-        (bool success, bytes memory data) = address(0x0A).staticcall(_input);
-        require(success, "failed to call point evaluation precompile");
-        (, uint256 result) = abi.decode(data, (uint256, uint256));
-        require(result == BLS_MODULUS, "UNKNOWN_BLS_MODULUS");
+        // (bool success, bytes memory data) = address(0x0A).staticcall(_input);
+        // require(success, "failed to call point evaluation precompile");
+        // (, uint256 result) = abi.decode(data, (uint256, uint256));
+        // require(result == BLS_MODULUS, "UNKNOWN_BLS_MODULUS");
 
-        bytes32 publicInputHash = computePublicInputHash(
-            _batchIndex,
-            _xBytes,
-            _kzgData[0:32]
+        bytes32 _publicInputHash = keccak256(
+            abi.encodePacked(
+                layer2ChainId,
+                committedBatchStores[_batchIndex].prevStateRoot,
+                committedBatchStores[_batchIndex].postStateRoot,
+                committedBatchStores[_batchIndex].withdrawalRoot,
+                committedBatchStores[_batchIndex].dataHash,
+                _kzgData[0:64],
+                committedBatchStores[_batchIndex].blobVersionedHash
+            )
         );
 
         // Verify zk-proof
-        IZkEvmVerifier(zkevm_verifier).verify(_aggrProof, publicInputHash);
+        IZkEvmVerifier(zkevm_verifier).verify(_aggrProof, _publicInputHash);
 
         // Record defender win
         challenges[_batchIndex].finished = true;

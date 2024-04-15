@@ -3,6 +3,7 @@ use crate::utils::{
     PROVER_PARAMS_DIR, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, SCROLL_PROVER_ASSETS_DIR,
 };
 use c_kzg::{Blob, KzgCommitment, KzgProof};
+use ethers::abi::AbiEncode;
 use ethers::providers::Provider;
 use ethers::types::U256;
 use ethers::utils::hex;
@@ -13,6 +14,7 @@ use prover::utils::chunk_trace_to_witness_block;
 use prover::zkevm::Prover as ChunkProver;
 use prover::{BatchHash, BlockTrace, ChunkHash, ChunkProof, CompressionCircuit, MAX_AGG_SNARKS};
 use serde::{Deserialize, Serialize};
+use std::fmt::format;
 use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -92,7 +94,13 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     let proof_path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     fs::create_dir_all(proof_path.clone()).unwrap();
 
-    if let Err(()) = compute_and_save_kzg(&chunk_traces, batch_index, &proof_path) {
+    if let Err(err_str) = compute_and_save_kzg(&chunk_traces, batch_index, &proof_path) {
+        log::error!(
+            "compute_and_save_kzg of batch = {:#?} error: {:#?}",
+            batch_index,
+            err_str
+        );
+        PROVE_RESULT.set(2);
         return;
     }
 
@@ -164,7 +172,11 @@ async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, ch
     return;
 }
 
-fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, proof_path: &String) -> Result<(), ()> {
+fn compute_and_save_kzg(
+    chunk_traces: &Vec<Vec<BlockTrace>>,
+    batch_index: u64,
+    proof_path: &String,
+) -> Result<(), String> {
     let blocks: Vec<Block<Fr>> = chunk_traces
         .iter()
         .filter_map(|chunk| chunk_trace_to_witness_block(chunk.to_vec()).ok())
@@ -180,6 +192,12 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         padding_chunk_hash.is_padding = true;
         chunk_hashes.extend(repeat(padding_chunk_hash).take(MAX_AGG_SNARKS - number_of_valid_chunks));
     }
+    log::info!(
+        "=========> prev_state_root of batch_{:?} = {:#?}",
+        batch_index,
+        hex::encode(&chunk_hashes[0].prev_state_root)
+    );
+
     let blob = BatchHash::construct(&chunk_hashes).blob_assignments();
     let challenge = blob.challenge;
     let evaluation = blob.evaluation;
@@ -192,9 +210,10 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
     {
         Ok(c) => c,
         Err(e) => {
-            log::error!("generate KzgCommitment of batch = {:#?} error: {:#?}", batch_index, e);
-            PROVE_RESULT.set(2);
-            return Err(());
+            return Err(format!(
+                "generate KzgCommitment of batch = {:#?} error: {:#?}",
+                batch_index, e
+            ));
         }
     };
     let versioned_hash = kzg_to_versioned_hash(commitment.to_bytes().to_vec().as_slice());
@@ -209,21 +228,22 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         match KzgProof::compute_kzg_proof(&Blob::from_bytes(&blob_bytes).unwrap(), &z.into(), &kzg_settings) {
             Ok((proof, y)) => (proof, y),
             Err(e) => {
-                log::error!("compute kzg proof of batch = {:#?} error: {:#?}", batch_index, e);
-                PROVE_RESULT.set(2);
-                return Err(());
+                return Err(format!(
+                    "compute kzg proof of batch = {:#?} error: {:#?}",
+                    batch_index, e
+                ));
             }
         };
 
     log::debug!(
         "=========> y_from_barycentric = {:#?}, y_from_compute_kzg_proof = {:#?}",
-        evaluation,
-        U256::from_big_endian(y.as_slice())
+        hex::encode(evaluation.encode()),
+        hex::encode(y.as_slice())
     );
-    assert!(
-        evaluation == U256::from_big_endian(y.as_slice()),
-        "y_from_barycentric == y_from_compute_kzg_proof"
-    );
+    if evaluation != U256::from_big_endian(y.as_slice()) {
+        return Err("y_from_barycentric != y_from_compute_kzg_proof".to_string());
+    }
+
     // Save 4844 kzgData
     // | z       | y       | kzg_commitment | kzg_proof |
     // |---------|---------|----------------|-----------|
@@ -238,9 +258,7 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
     match params_file.write_all(&blob_kzg[..]) {
         Ok(()) => (),
         Err(e) => {
-            log::error!("save kzg proof of batch = {:#?} error: {:#?}", batch_index, e);
-            PROVE_RESULT.set(2);
-            return Err(());
+            return Err(format!("save kzg proof of batch = {:#?} error: {:#?}", batch_index, e));
         }
     };
 

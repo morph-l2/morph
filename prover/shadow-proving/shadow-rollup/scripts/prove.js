@@ -48,11 +48,11 @@ async function proveState(shadow_rollup, customHttpProvider) {
 
 async function commitBatch(shadow_rollup, customHttpProvider) {
     let batchData = {
-        prevStateRoot: "0x000e99ef296bcca960ab82643bfb8798fe0e3fdd2cfdf63f36149ad21316ad21",
-        postStateRoot: "0x0c331309ce13ebc35b680a146d02b05ccdaec2e4faedddf86c512ec271a1bb5e",
+        prevStateRoot: "0x1306f43ca4580b9b94bc83e79c23fbcaaff7f261557c7ea90c86c5b4c17584d2",
+        postStateRoot: "0x1acb7b53ebd05988c1267d6cdebcc61f871d099cc2e983d1a2c371cb53fdd1fa",
         withdrawalRoot: "0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757",
-        dataHash: "0x85c4206f1433be4d12d2410ffecd6831e09439e52439e3b3f9ef7e0c26d160c7",
-        blobVersionedHash: "0x01ece0bb19bccf011f86762399ee264fc44c0ec388553c543fcfc6c38d135f5b"
+        dataHash: "0xc8655a6aa50d4385480cc0b65f64f6b060a1b57ab68ee5a572516b946e9cdf70",
+        blobVersionedHash: "0x0113416a8338bd500524d63315f3c3f6e9b96d3d5a3ad303451c4f4af31d5993"
     };
     let tx = await shadow_rollup.commitBatch(15, batchData);
     await tx.wait();
