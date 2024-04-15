@@ -47,7 +47,7 @@ dependencies = [
 [[package]]
 name = "aggregator"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "ark-std 0.3.0",
  "c-kzg 1.0.0",
@@ -666,7 +666,7 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 [[package]]
 name = "bus-mapping"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -680,7 +680,7 @@ dependencies = [
  "mock",
  "mpt-zktrie",
  "num",
- "poseidon-circuit",
+ "poseidon-circuit 0.1.0 (git+https://github.com/scroll-tech/poseidon-circuit.git?branch=main)",
  "rand",
  "revm-precompile",
  "serde",
@@ -1474,7 +1474,7 @@ dependencies = [
 [[package]]
 name = "eth-types"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "base64 0.13.1",
  "ethers-core",
@@ -1485,7 +1485,7 @@ dependencies = [
  "itertools 0.11.0",
  "num",
  "num-bigint",
- "poseidon-circuit",
+ "poseidon-circuit 0.1.0 (git+https://github.com/scroll-tech/poseidon-circuit.git?branch=main)",
  "regex",
  "serde",
  "serde_json",
@@ -1783,7 +1783,7 @@ dependencies = [
 [[package]]
 name = "external-tracer"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "eth-types",
  "geth-utils",
@@ -2021,7 +2021,7 @@ dependencies = [
 [[package]]
 name = "gadgets"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "eth-types",
  "halo2_proofs",
@@ -2043,7 +2043,7 @@ dependencies = [
 [[package]]
 name = "geth-utils"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "env_logger 0.10.2",
  "gobuild",
@@ -2218,7 +2218,7 @@ dependencies = [
  "log",
  "num-bigint",
  "num-traits",
- "poseidon-circuit",
+ "poseidon-circuit 0.1.0 (git+https://github.com/scroll-tech/poseidon-circuit.git?branch=scroll-dev-1201)",
  "rand",
  "rand_chacha",
  "serde",
@@ -2726,7 +2726,7 @@ dependencies = [
 [[package]]
 name = "keccak256"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "env_logger 0.10.2",
  "eth-types",
@@ -2974,7 +2974,7 @@ dependencies = [
 [[package]]
 name = "mock"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -2989,7 +2989,7 @@ dependencies = [
 [[package]]
 name = "mpt-zktrie"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "eth-types",
  "halo2-mpt-circuits",
@@ -2997,7 +2997,7 @@ dependencies = [
  "hex",
  "log",
  "num-bigint",
- "poseidon-circuit",
+ "poseidon-circuit 0.1.0 (git+https://github.com/scroll-tech/poseidon-circuit.git?branch=main)",
  "zktrie",
 ]
 
@@ -3476,6 +3476,21 @@ dependencies = [
 [[package]]
 name = "poseidon-circuit"
 version = "0.1.0"
+source = "git+https://github.com/scroll-tech/poseidon-circuit.git?branch=main#babf5f6a69bec40b2e6523df317c073dcd0b1f97"
+dependencies = [
+ "bitvec",
+ "ff 0.13.0",
+ "halo2_proofs",
+ "lazy_static",
+ "log",
+ "rand",
+ "rand_xorshift",
+ "thiserror",
+]
+
+[[package]]
+name = "poseidon-circuit"
+version = "0.1.0"
 source = "git+https://github.com/scroll-tech/poseidon-circuit.git?branch=scroll-dev-1201#c6f058bcf3bb0c7933d1979563c414f5cc480f25"
 dependencies = [
  "bitvec",
@@ -3641,7 +3656,7 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "aggregator",
  "anyhow",
@@ -5764,7 +5779,7 @@ dependencies = [
 [[package]]
 name = "zkevm-circuits"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=blob-4844-scroll#8267fd1be3ac0ad6e81d5da86b7897343436f54d"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#ab2f06e9b7553420e70d3265343b270d980ff9ac"
 dependencies = [
  "array-init",
  "bus-mapping",
@@ -5788,7 +5803,7 @@ dependencies = [
  "mpt-zktrie",
  "num",
  "num-bigint",
- "poseidon-circuit",
+ "poseidon-circuit 0.1.0 (git+https://github.com/scroll-tech/poseidon-circuit.git?branch=main)",
  "rand",
  "rand_chacha",
  "rand_xorshift",

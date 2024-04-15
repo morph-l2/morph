@@ -5,6 +5,7 @@ use crate::utils::{
 use c_kzg::{Blob, KzgCommitment, KzgProof};
 use ethers::providers::Provider;
 use ethers::types::U256;
+use ethers::utils::hex;
 use halo2_proofs::halo2curves::bn256::Fr;
 use prover::aggregator::Prover as BatchProver;
 use prover::config::{LayerId, LAYER4_DEGREE};
@@ -14,7 +15,7 @@ use prover::{BatchHash, BlockTrace, ChunkHash, ChunkProof, CompressionCircuit, M
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::iter::repeat;
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
@@ -48,6 +49,7 @@ pub async fn prove_for_queue(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) {
                         req.batch_index,
                         req.chunks.len()
                     );
+                    log::debug!(">>chunks details = {:#?}", req.chunks);
                     req
                 }
                 None => {
@@ -67,7 +69,7 @@ pub async fn prove_for_queue(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) {
                 continue;
             }
         };
-        log::info!("requesting trace of batch: {:#?}", batch_index);
+        log::info!("Requesting trace of batch: {:#?}", batch_index);
         let chunk_traces = match get_chunk_traces(batch_index, chunks, provider).await {
             Some(chunk_traces) => chunk_traces,
             None => vec![],
@@ -178,8 +180,7 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         padding_chunk_hash.is_padding = true;
         chunk_hashes.extend(repeat(padding_chunk_hash).take(MAX_AGG_SNARKS - number_of_valid_chunks));
     }
-    let batch_hash: BatchHash = BatchHash::construct(&chunk_hashes);
-    let blob = batch_hash.blob_assignments();
+    let blob = BatchHash::construct(&chunk_hashes).blob_assignments();
     let challenge = blob.challenge;
     let evaluation = blob.evaluation;
     let mut blob_bytes = [0u8; BLOB_DATA_SIZE];
@@ -197,9 +198,10 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         }
     };
     let versioned_hash = kzg_to_versioned_hash(commitment.to_bytes().to_vec().as_slice());
-    log::debug!(
-        "=========> versioned_hash = {:#?}",
-        ethers::utils::hex::encode(&versioned_hash)
+    log::info!(
+        "=========> blob_versioned_hash of batch_{:?} = {:#?}",
+        batch_index,
+        hex::encode(&versioned_hash)
     );
     let mut z = [0u8; 32];
     challenge.to_big_endian(&mut z);
@@ -226,13 +228,21 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
     // | z       | y       | kzg_commitment | kzg_proof |
     // |---------|---------|----------------|-----------|
     // | bytes32 | bytes32 | bytes48        | bytes48   |
-    let mut blob_kzg = Vec::<u8>::new();
+    let mut blob_kzg = Vec::with_capacity(160);
     blob_kzg.extend_from_slice(z.as_slice());
     blob_kzg.extend_from_slice(y.as_slice());
     blob_kzg.extend_from_slice(commitment.as_slice());
     blob_kzg.extend_from_slice(proof.as_slice());
+
     let mut params_file = File::create(format!("{}/blob_kzg.data", proof_path.as_str())).unwrap();
-    params_file.write_all(&blob_kzg[..]).map_err(|_| ())?;
+    match params_file.write_all(&blob_kzg[..]) {
+        Ok(()) => (),
+        Err(e) => {
+            log::error!("save kzg proof of batch = {:#?} error: {:#?}", batch_index, e);
+            PROVE_RESULT.set(2);
+            return Err(());
+        }
+    };
 
     Ok(())
 }
@@ -281,6 +291,7 @@ async fn get_chunk_traces(
     Some(chunk_traces)
 }
 
+#[allow(dead_code)]
 fn save_trace(batch_index: u64, chunk_traces: &Vec<Vec<BlockTrace>>) {
     let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     fs::create_dir_all(path.clone()).unwrap();
@@ -292,7 +303,10 @@ fn save_trace(batch_index: u64, chunk_traces: &Vec<Vec<BlockTrace>>) {
     log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
 }
 
+#[cfg(test)]
 fn load_trace(batch_index: u64) -> Vec<Vec<BlockTrace>> {
+    use std::io::BufReader;
+
     let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     let file = File::open(format!("{}/chunk_traces.json", path.as_str())).unwrap();
     let reader = BufReader::new(file);
