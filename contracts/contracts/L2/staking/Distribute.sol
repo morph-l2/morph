@@ -33,10 +33,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
 
     struct Distribution {
         uint256 totalAmount;
-        uint256 totalShare;
         uint256 remainNumber;
-        // mapping(delegator => share)
-        Set shares;
         // mapping(delegator => amount)
         Set amounts;
         bool valid;
@@ -62,7 +59,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
 
     // mapping(sequencer => mapping(delegator => DelegatorEpochRecord));
     mapping(address => mapping(address => DelegatorEpochRecord))
-        private _epochRecord;
+    private _epochRecord;
 
     // epoch index => reward
     mapping(uint256 => uint256) private _rewards;
@@ -140,6 +137,8 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         }
 
         _epochRecord[sequencer][account].deadline = deadlineClaimEpochIndex;
+
+        emit NotifyUnDelegate(sequencer, account, deadlineClaimEpochIndex);
     }
 
     /**
@@ -163,6 +162,8 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             revert("invalid args");
         }
 
+        // the epoch index that actually took effect.
+        epochIndex += 1;
         _epochRecord[sequencer][account].begin = epochIndex;
         _vestIn[account].add(sequencer);
 
@@ -172,24 +173,9 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             // Iterate over epoch index to find the nearest valid value
             for (uint i = epochIndex - 1; i > 0; i--) {
                 if (_collect[sequencer][i].valid) {
-                    // todo
-                    (
-                        uint256 totalShare,
-                        uint256 newAccountShare
-                    ) = _additiveDilution(
-                            startNumber,
-                            endNumber,
-                            blockNumber,
-                            amount,
-                            _collect[sequencer][i].totalAmount
-                        );
-
                     dt.totalAmount =
                         _collect[sequencer][i].totalAmount +
                         amount;
-                    // todo
-                    dt.totalShare = totalShare;
-
                     for (
                         uint256 j = 0;
                         j < _collect[sequencer][i].amounts.index.length();
@@ -203,24 +189,17 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                             .amounts
                             .value[delegator];
 
-                        dt.shares.index.add(delegator);
-                        dt.shares.value[delegator] = delegateAmount;
-
                         dt.amounts.index.add(delegator);
                         dt.amounts.value[delegator] = delegateAmount;
                     }
 
                     if (
-                        !_collect[sequencer][i].shares.index.contains(account)
+                        !_collect[sequencer][i].amounts.index.contains(account)
                     ) {
                         // when it doesn't exist
                         dt.remainNumber =
                             _collect[sequencer][i].amounts.index.length() +
                             1;
-
-                        dt.shares.index.add(account);
-                        // todo
-                        dt.shares.value[account] = newAccountShare;
 
                         dt.amounts.index.add(account);
                         dt.amounts.value[account] = amount;
@@ -231,71 +210,36 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                             .index
                             .length();
 
-                        // todo
-                        dt.shares.value[account] = newAccountShare;
-
                         dt.amounts.value[account] += amount;
                     }
                     dt.valid = true;
-                    return;
                 }
             }
 
-            // When none existed
-            dt.totalAmount = amount;
-            dt.totalShare = amount;
-            dt.remainNumber = 1;
-            dt.shares.index.add(account);
-            dt.shares.value[account] = amount;
-            dt.amounts.index.add(account);
-            dt.amounts.value[account] = amount;
-            dt.valid = true;
+            if (!dt.valid) {
+                // When none existed
+                dt.totalAmount = amount;
+                dt.remainNumber = 1;
+                dt.amounts.index.add(account);
+                dt.amounts.value[account] = amount;
+                dt.valid = true;
+            }
         } else {
-            // todo
-            (uint256 totalShare, uint256 newAccountShare) = _additiveDilution(
-                startNumber,
-                endNumber,
-                blockNumber,
-                amount,
-                _collect[sequencer][epochIndex].totalAmount
-            );
-
             dt.totalAmount += amount;
-            dt.totalShare = totalShare;
 
-            if (!dt.shares.index.contains(account)) {
+            if (!dt.amounts.index.contains(account)) {
                 // when it doesn't exist
                 dt.remainNumber += 1;
-
-                dt.shares.index.add(account);
-                // todo
-                dt.shares.value[account] = newAccountShare;
 
                 dt.amounts.index.add(account);
                 dt.amounts.value[account] = amount;
             } else {
                 // when it exist
-                // todo
-                dt.shares.value[account] = newAccountShare;
-
                 dt.amounts.value[account] += amount;
             }
         }
-    }
 
-    // equity increase : additive dilution
-    function _additiveDilution(
-        uint256 startNumber,
-        uint256 endNumber,
-        uint256 blockNumber,
-        uint256 newAmount,
-        uint256 total
-    ) internal returns (uint256, uint256) {
-        // uint256 totalMolecule = _collect[sequencer][i].totalAmount * (endNumber - startNumber) * (_collect[sequencer][i].totalAmount + amount);
-        //                    uint256 molecule = _collect[sequencer][i].totalAmount * amount * (endNumber - blockNumber);
-        //                    uint256 denominator = ((blockNumber - startNumber) * amount + (endNumber - startNumber) * _collect[sequencer][i].totalAmount);
-        // totalMolecule / denominator;
-        return (0, 0);
+        emit NotifyDelegate(sequencer, epochIndex, account, amount, blockNumber);
     }
 
     /**
@@ -322,15 +266,15 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                     );
                     uint256 nextBeginTimeOfOneDay = _blockInfo.index.at(j + 1);
                     uint256 beginBlockNumberOfOneDay = _blockInfo.value[
-                        beginTimeOfOneDay
-                    ];
+                                beginTimeOfOneDay
+                        ];
                     uint256 endBlockNumberOfOneDay = _blockInfo.value[
-                        nextBeginTimeOfOneDay
-                    ] - 1;
+                                nextBeginTimeOfOneDay
+                        ] - 1;
 
                     uint256 totalBlockNumberOfOneDay = endBlockNumberOfOneDay -
-                        beginBlockNumberOfOneDay +
-                        1;
+                                beginBlockNumberOfOneDay +
+                                1;
                     for (uint256 k = _usedMintEpochIndex; ; k++) {
                         (
                             uint256 epochIndexBeginNumber,
@@ -348,7 +292,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                             _rewards[k] =
                                 (rewardOfOneDay *
                                     (epochIndexEndNumber -
-                                        epochIndexBeginNumber +
+                                    epochIndexBeginNumber +
                                         1)) /
                                 totalBlockNumberOfOneDay;
                             _usedMintEpochIndex = k;
@@ -360,7 +304,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                             _rewards[k] +=
                                 (rewardOfOneDay *
                                     (epochIndexEndNumber -
-                                        beginBlockNumberOfOneDay +
+                                    beginBlockNumberOfOneDay +
                                         1)) /
                                 totalBlockNumberOfOneDay;
                             _usedMintEpochIndex = k;
@@ -372,7 +316,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                             _rewards[k] +=
                                 (rewardOfOneDay *
                                     (endBlockNumberOfOneDay -
-                                        epochIndexBeginNumber +
+                                    epochIndexBeginNumber +
                                         1)) /
                                 totalBlockNumberOfOneDay;
                             _usedMintEpochIndex = k;
@@ -458,16 +402,16 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             if (_collect[sequencer][i].valid) {
                 accountReward +=
                     (epochTotalReward *
-                        ratio *
-                        _collect[sequencer][i].shares.value[account]) /
-                    (_collect[sequencer][i].totalShare * 100);
+                    ratio *
+                        _collect[sequencer][i].amounts.value[account]) /
+                    (_collect[sequencer][i].totalAmount * 100);
                 validEpochIndex = i;
             } else {
                 for (uint j = i - 1; j > 0; j--) {
                     if (_collect[sequencer][j].valid) {
                         accountReward +=
                             (epochTotalReward *
-                                ratio *
+                            ratio *
                                 _collect[sequencer][j].amounts.value[account]) /
                             (_collect[sequencer][j].totalAmount * 100);
                         validEpochIndex = j;
@@ -481,7 +425,6 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             Distribution storage dt = _collect[sequencer][endClaimEpochIndex];
 
             dt.totalAmount = _collect[sequencer][validEpochIndex].totalAmount;
-            dt.totalShare = _collect[sequencer][validEpochIndex].totalAmount;
             dt.remainNumber = _collect[sequencer][validEpochIndex]
                 .amounts
                 .index
@@ -500,9 +443,6 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                     .amounts
                     .value[delegator];
 
-                dt.shares.index.add(delegator);
-                dt.shares.value[delegator] = delegateAmount;
-
                 dt.amounts.index.add(delegator);
                 dt.amounts.value[delegator] = delegateAmount;
             }
@@ -520,23 +460,15 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             delete _epochRecord[sequencer][account];
 
             _collect[sequencer][endClaimEpochIndex].totalAmount -= _collect[
-                sequencer
-            ][endClaimEpochIndex].amounts.value[account];
-            // todo
-            _collect[sequencer][endClaimEpochIndex].totalShare = 0;
+                        sequencer
+                ][endClaimEpochIndex].amounts.value[account];
 
-            _collect[sequencer][endClaimEpochIndex].shares.index.remove(
-                account
-            );
-            delete _collect[sequencer][endClaimEpochIndex].shares.value[
-                account
-            ];
 
             _collect[sequencer][endClaimEpochIndex].amounts.index.remove(
                 account
             );
             delete _collect[sequencer][endClaimEpochIndex].amounts.value[
-                account
+            account
             ];
         }
 
