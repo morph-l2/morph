@@ -2,17 +2,17 @@
 
 pragma solidity ^0.8.0;
 
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {IMorphToken} from "./IMorphToken.sol";
 
 contract MorphToken is OwnableUpgradeable, IMorphToken {
-    using EnumerableSet for EnumerableSet.UintSet;
+    using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
 
-    struct RateSet {
+    struct OrderedSet {
         // index store block.timestamp
-        EnumerableSet.UintSet index;
+        DoubleEndedQueue.Bytes32Deque index;
         // values store block.timestamp => rate
         mapping(uint256 => uint256) values;
     }
@@ -22,9 +22,9 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         uint256 currentRate;
         uint256 nextEffectiveTime;
         // Deadline date => rate
-        RateSet outmoded;
+        OrderedSet outmoded;
         // begin date => rate
-        RateSet pending;
+        OrderedSet pending;
     }
 
     mapping(address => uint256) private _balances;
@@ -95,16 +95,14 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         );
 
         // 1209600 = 14 * 24 * 60 * 60 (fortnight)
-        if (_rate.pending.index.length() == 0) {
+        if (_rate.pending.index.empty()) {
             require(
                 beginTime >= _rate.currentBeginTime + 1209600,
                 "beginTime must be two weeks after the current validity period"
             );
         } else {
             require(
-                beginTime >
-                    _rate.pending.index.at(_rate.pending.index.length() - 1) +
-                        1209600,
+                beginTime > uint256(_rate.pending.index.back()) + 1209600,
                 "beginTime must be more than two weeks after the last exchange rate takes effect"
             );
         }
@@ -123,7 +121,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
                 _preDayAdditionalTime;
         }
 
-        _rate.pending.index.add(beginTime);
+        _rate.pending.index.pushBack(bytes32(beginTime));
         _rate.pending.values[beginTime] = rate;
 
         emit SetRate(rate, beginTime);
@@ -361,12 +359,12 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         uint256 length = _rate.pending.index.length();
         for (uint256 i = 0; i < length; i++) {
             if (_rate.nextEffectiveTime == 0) {
-                _rate.nextEffectiveTime = _rate.pending.index.at(0);
+                _rate.nextEffectiveTime = uint256(_rate.pending.index.front());
             }
 
             if (_rate.nextEffectiveTime <= block.timestamp) {
                 // end time
-                _rate.outmoded.index.add(_rate.nextEffectiveTime);
+                _rate.outmoded.index.pushBack(bytes32(_rate.nextEffectiveTime));
                 _rate.outmoded.values[_rate.nextEffectiveTime] = _rate
                     .currentRate;
 
@@ -375,11 +373,14 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
                     _rate.nextEffectiveTime
                 ];
 
-                _rate.pending.index.remove(_rate.nextEffectiveTime);
-                delete _rate.pending.values[_rate.nextEffectiveTime];
+                bytes32 front = _rate.pending.index.popFront();
+                if (uint256(front) != _rate.nextEffectiveTime) {
+                    revert("internal error");
+                }
+                delete _rate.pending.values[uint256(front)];
 
-                if (_rate.pending.index.length() != 0) {
-                    _rate.nextEffectiveTime = _rate.pending.index.at(0);
+                if (!_rate.pending.index.empty()) {
+                    _rate.nextEffectiveTime = uint256(_rate.pending.index.front());
                 } else {
                     _rate.nextEffectiveTime = 0;
                 }
@@ -390,7 +391,7 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
 
         uint256 outmodedLength = _rate.outmoded.index.length();
         for (uint256 i = 0; i < outmodedLength; i++) {
-            uint256 validTime = _rate.outmoded.index.at(0);
+            uint256 validTime = uint256(_rate.outmoded.index.front());
 
             if (validTime > _preDayAdditionalTime) {
                 // Current time Indicates the number of days since the last issue.
@@ -405,8 +406,11 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
                 }
             }
 
+            bytes32 popFront = _rate.outmoded.index.popFront();
+            if (uint256(popFront) != validTime) {
+                revert("internal error");
+            }
             delete _rate.outmoded.values[validTime];
-            _rate.outmoded.index.remove(validTime);
         }
 
         // use current rate

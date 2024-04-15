@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {MorphToken} from "../../L2/MorphToken.sol";
+import {MorphToken} from "../../L2/system/MorphToken.sol";
 import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -181,7 +181,7 @@ contract MorphTokenTest_mint is DSTestPlus {
         uint256 beginTime3 = beginTime + 86400 * 7 * 9;
         morphToken.setRate(rate3, beginTime3);
 
-        hevm.warp(beginTime + 86400 * 43);
+        hevm.warp(beginTime + 86400 * 100);
         emit log_uint(block.timestamp);
 
         for (uint256 i = 0; i < 21; i++) {
@@ -192,8 +192,12 @@ contract MorphTokenTest_mint is DSTestPlus {
             totalSupply += (totalSupply * rate1) / 1e16;
         }
 
-        for (uint256 i = 0; i < 1; i++) {
-            totalSupply += (totalSupply * rate1) / 1e16;
+        for (uint256 i = 0; i < 21; i++) {
+            totalSupply += (totalSupply * rate2) / 1e16;
+        }
+
+        for (uint256 i = 0; i < 37; i++) {
+            totalSupply += (totalSupply * rate3) / 1e16;
         }
 
         morphToken.mint();
