@@ -30,7 +30,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         );
         upgradeStorage(address(caller), address(rollup), address(alice));
         hevm.deal(caller, 5 * MIN_DEPOSIT);
-        bytes memory batchHeader0 = new bytes(89);
+        bytes memory batchHeader0 = new bytes(121);
 
         hevm.startPrank(caller);
         // import 300 L1 messages
@@ -58,6 +58,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         // import genesis batch first
         assembly {
             mstore(add(batchHeader0, add(0x20, 25)), 1)
+            mstore(add(batchHeader0, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014)
         }
         rollup.importGenesisBatch(
             batchHeader0,
@@ -93,7 +94,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         //   0000000000000000000000000000000000000000000000000000000000000000
         // => hash for batch header
         //   00847173b29b238cf319cde79512b7c213e5a8b4138daa7051914c4592b6dfc7
-        bytes memory batchHeader1 = new bytes(89 + 32);
+        bytes memory batchHeader1 = new bytes(121 + 32);
         assembly {
             mstore(add(batchHeader1, 0x20), 0) // version
             mstore(add(batchHeader1, add(0x20, 1)), shl(192, 1)) // batchIndex = 1
@@ -102,9 +103,13 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(
                 add(batchHeader1, add(0x20, 25)),
                 0xd9cb6bf9264006fcea490d5c261f7453ab95b1b26033a3805996791b8e3a62f3
-            ) // dataHash
-            mstore(add(batchHeader1, add(0x20, 57)), batchHash0) // parentBatchHash
-            mstore(add(batchHeader1, add(0x20, 89)), 0) // bitmap0
+            ) // l1dataHash
+            mstore(
+                add(batchHeader1, add(0x20, 57)),
+                0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014
+            ) // l2 tx blob versioned hash
+            mstore(add(batchHeader1, add(0x20, 89)), batchHash0) // parentBatchHash
+            mstore(add(batchHeader1, add(0x20, 121)), 0) // bitmap0
         }
         chunk0 = new bytes(1 + 60);
         assembly {
@@ -125,7 +130,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         emit CommitBatch(
             1,
             bytes32(
-                0xb6f66703f9b6370dd2869955332d8333348d5d4754cd51ebd618727a047257a4
+                0xc35bc8bef781ebb068a13f9b9ee7498b01e0b36085bd1e6df5b5e972c9139e9b
             )
         );
         batchData = IRollup.BatchData(
@@ -151,7 +156,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(
             batchHash1,
             bytes32(
-                0xb6f66703f9b6370dd2869955332d8333348d5d4754cd51ebd618727a047257a4
+                0xc35bc8bef781ebb068a13f9b9ee7498b01e0b36085bd1e6df5b5e972c9139e9b
             )
         );
 
@@ -211,7 +216,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         //  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa800000000000000000000000000000000000000000000000000000000000000aa
         // => hash for batch header
         //  03a9cdcb9d582251acf60937db006ec99f3505fd4751b7c1f92c9a8ef413e873
-        bytes memory batchHeader2 = new bytes(89 + 32 + 32);
+        bytes memory batchHeader2 = new bytes(121 + 32 + 32);
         assembly {
             mstore(add(batchHeader2, 0x20), 0) // version
             mstore(add(batchHeader2, add(0x20, 1)), shl(192, 2)) // batchIndex = 2
@@ -220,13 +225,17 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(
                 add(batchHeader2, add(0x20, 25)),
                 0x3c71d155351642d15f1542a1543ce423abeca1f8939100a0a34cdc3127b95f69
-            ) // dataHash
-            mstore(add(batchHeader2, add(0x20, 57)), batchHash1) // parentBatchHash
+            ) // l1dataHash
             mstore(
-                add(batchHeader2, add(0x20, 89)),
+                add(batchHeader2, add(0x20, 57)),
+                0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014
+            ) // l2 tx blob versioned hash
+            mstore(add(batchHeader2, add(0x20, 89)), batchHash1) // parentBatchHash
+            mstore(
+                add(batchHeader2, add(0x20, 121)),
                 77194726158210796949047323339125271902179989777093709359638389338608753093160
             ) // bitmap0
-            mstore(add(batchHeader2, add(0x20, 121)), 42) // bitmap1
+            mstore(add(batchHeader2, add(0x20, 153)), 42) // bitmap1
         }
         chunk0 = new bytes(1 + 60);
         assembly {

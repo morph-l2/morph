@@ -14,9 +14,34 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
      **********/
 
     /// @notice Emitted when the address of verifier is updated.
+    /// @param version The version of the verifier.
     /// @param startBatchIndex The start batch index when the verifier will be used.
     /// @param verifier The address of new verifier.
-    event UpdateVerifier(uint256 startBatchIndex, address verifier);
+    event UpdateVerifier(
+        uint256 version,
+        uint256 startBatchIndex,
+        address verifier
+    );
+
+    /**********
+     * Errors *
+     **********/
+
+    /// @dev Thrown when the given address is `address(0)`.
+    error ErrorZeroAddress();
+
+    /// @dev Thrown when the given start batch index is finalized.
+    error ErrorStartBatchIndexFinalized();
+
+    /// @dev Thrown when the given start batch index is smaller than `latestVerifier.startBatchIndex`.
+    error ErrorStartBatchIndexTooSmall();
+
+    /*************
+     * Constants *
+     *************/
+
+    /// @notice The address of rollup contract.
+    address public rollup;
 
     /***********
      * Structs *
@@ -33,23 +58,24 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
      * Variables *
      *************/
 
-    /// @notice The list of legacy zkevm verifier, sorted by batchIndex in increasing order.
-    Verifier[] public legacyVerifiers;
+    /// @notice Mapping from verifier version to the list of legacy zkevm verifiers.
+    /// The verifiers are sorted by batchIndex in increasing order.
+    mapping(uint256 => Verifier[]) public legacyVerifiers;
 
-    /// @notice The lastest used zkevm verifier.
-    Verifier public latestVerifier;
-
-    /// @notice The address of Rollup contract.
-    address public rollup;
+    /// @notice Mapping from verifier version to the lastest used zkevm verifier.
+    mapping(uint256 => Verifier) public latestVerifier;
 
     /***************
      * Constructor *
      ***************/
 
-    constructor(address _verifier) {
-        require(_verifier != address(0), "zero verifier address");
+    constructor(uint256[] memory _versions, address[] memory _verifiers) {
+        for (uint256 i = 0; i < _versions.length; i++) {
+            if (_verifiers[i] == address(0)) revert ErrorZeroAddress();
+            latestVerifier[_versions[i]].verifier = _verifiers[i];
 
-        latestVerifier.verifier = _verifier;
+            emit UpdateVerifier(_versions[i], 0, _verifiers[i]);
+        }
     }
 
     function initialize(address _rollup) external onlyOwner {
@@ -63,23 +89,29 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
      *************************/
 
     /// @notice Return the number of legacy verifiers.
-    function legacyVerifiersLength() external view returns (uint256) {
-        return legacyVerifiers.length;
+    function legacyVerifiersLength(
+        uint256 _version
+    ) external view returns (uint256) {
+        return legacyVerifiers[_version].length;
     }
 
     /// @notice Compute the verifier should be used for specific batch.
+    /// @param _version The version of verifier to query.
     /// @param _batchIndex The batch index to query.
-    function getVerifier(uint256 _batchIndex) public view returns (address) {
+    function getVerifier(
+        uint256 _version,
+        uint256 _batchIndex
+    ) public view returns (address) {
         // Normally, we will use the latest verifier.
-        Verifier memory _verifier = latestVerifier;
+        Verifier memory _verifier = latestVerifier[_version];
 
         if (_verifier.startBatchIndex > _batchIndex) {
-            uint256 _length = legacyVerifiers.length;
-            // In most case, only last few verifier will be used by `Rollup`.
+            uint256 _length = legacyVerifiers[_version].length;
+            // In most case, only last few verifier will be used by `ScrollChain`.
             // So, we use linear search instead of binary search.
             unchecked {
                 for (uint256 i = _length; i > 0; --i) {
-                    _verifier = legacyVerifiers[i - 1];
+                    _verifier = legacyVerifiers[_version][i - 1];
                     if (_verifier.startBatchIndex <= _batchIndex) break;
                 }
             }
@@ -94,11 +126,12 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
 
     /// @inheritdoc IRollupVerifier
     function verifyAggregateProof(
+        uint256 _version,
         uint256 _batchIndex,
         bytes calldata _aggrProof,
         bytes32 _publicInputHash
     ) external view override {
-        address _verifier = getVerifier(_batchIndex);
+        address _verifier = getVerifier(_version, _batchIndex);
 
         IZkEvmVerifier(_verifier).verify(_aggrProof, _publicInputHash);
     }
@@ -111,29 +144,31 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
     /// @param _startBatchIndex The start batch index when the verifier will be used.
     /// @param _verifier The address of new verifier.
     function updateVerifier(
+        uint256 _version,
         uint64 _startBatchIndex,
         address _verifier
     ) external onlyOwner {
-        require(
-            _startBatchIndex > IRollup(rollup).lastFinalizedBatchIndex(),
-            "start batch index finalized"
-        );
+        if (
+            _startBatchIndex <=
+            IRollup(rollup).lastFinalizedBatchIndex()
+        ) revert ErrorStartBatchIndexFinalized();
 
-        Verifier memory _latestVerifier = latestVerifier;
-        require(
-            _startBatchIndex >= _latestVerifier.startBatchIndex,
-            "start batch index too small"
-        );
-        require(_verifier != address(0), "zero verifier address");
+        Verifier memory _latestVerifier = latestVerifier[_version];
+        if (_startBatchIndex < _latestVerifier.startBatchIndex)
+            revert ErrorStartBatchIndexTooSmall();
+        if (_verifier == address(0)) revert ErrorZeroAddress();
 
         if (_latestVerifier.startBatchIndex < _startBatchIndex) {
-            legacyVerifiers.push(_latestVerifier);
+            // don't push when it is the first update of the version.
+            if (_latestVerifier.verifier != address(0)) {
+                legacyVerifiers[_version].push(_latestVerifier);
+            }
             _latestVerifier.startBatchIndex = _startBatchIndex;
         }
         _latestVerifier.verifier = _verifier;
 
-        latestVerifier = _latestVerifier;
+        latestVerifier[_version] = _latestVerifier;
 
-        emit UpdateVerifier(_startBatchIndex, _verifier);
+        emit UpdateVerifier(_version, _startBatchIndex, _verifier);
     }
 }
