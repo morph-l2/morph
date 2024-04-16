@@ -81,7 +81,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("obtained next L1Message index when initilize executor", "index", index)
+	logger.Info("obtained next L1Message pointer when initilize executor", "pointer", index)
 
 	sequencer, err := bindings.NewL2Sequencer(config.L2SequencerAddress, eClient)
 	if err != nil {
@@ -153,7 +153,7 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 			transaction := eth.NewTx(&l1Message.L1MessageTx)
 			transactions[i] = transaction
 			if queueIndex != l1Message.QueueIndex {
-				e.logger.Error("unexpected l1message queue index", "expected", queueIndex, "actual", l1Message.QueueIndex)
+				e.logger.Error("unexpected l1message queue pointer", "expected", queueIndex, "actual", l1Message.QueueIndex)
 				err = types.ErrInvalidL1MessageOrder
 				return
 			}

@@ -22,7 +22,7 @@ func (e *Executor) updateNextL1MessageIndex(l2Block *catalyst.ExecutableL2Data) 
 // 3. the L1 messages from the block.Transactions are sorted correctly(queueIndex increases but does not have to be continuous).
 // 4. the L1 message from the block.Transactions must be one of the collected L1Messages.
 // 5. all the L1 messages from the block.Transactions must precede other normal L2 transactions.
-// 6. the block.NextL1MessageIndex MUST be greater the queue index of the last involved L1Message in the block.
+// 6. the block.NextL1MessageIndex MUST be greater the queue pointer of the last involved L1Message in the block.
 // 7. the skipped transactions from ExecutableL2Data extracted Must be the same as the ones from Layer1.
 func (e *Executor) validateL1Messages(block *catalyst.ExecutableL2Data, collectedL1TxHashes []common.Hash) error {
 	nextExpectedIndex := e.nextL1MsgIndex
@@ -39,13 +39,13 @@ func (e *Executor) validateL1Messages(block *catalyst.ExecutableL2Data, collecte
 			return types.ErrQueryL1Message
 		}
 		if get == nil { // has not been synced from L1 yet
-			e.logger.Error("the collected L1 tx hash is not valid", "L1TxHash", l1TxHash.Hex(), "expected corresponding index", nextExpectedIndex)
+			e.logger.Error("the collected L1 tx hash is not valid", "L1TxHash", l1TxHash.Hex(), "expected corresponding pointer", nextExpectedIndex)
 			return types.ErrUnknownL1Message
 		} else if get.L1TxHash != l1TxHash {
-			e.logger.Error("unexpected l1TxHash for the expected index", "expected index", nextExpectedIndex, "expected l1TxHash", get.L1TxHash.Hex(), "actual l1TxHash", l1TxHash.Hex())
+			e.logger.Error("unexpected l1TxHash for the expected pointer", "expected pointer", nextExpectedIndex, "expected l1TxHash", get.L1TxHash.Hex(), "actual l1TxHash", l1TxHash.Hex())
 			return types.ErrIncorrectL1TxHash
 		} else if get.QueueIndex != nextExpectedIndex {
-			e.logger.Error("unexpected index for the given l1TxHash", "given l1TxHash", l1TxHash.Hex(), "expected index", nextExpectedIndex, "actual index", get.QueueIndex)
+			e.logger.Error("unexpected pointer for the given l1TxHash", "given l1TxHash", l1TxHash.Hex(), "expected pointer", nextExpectedIndex, "actual pointer", get.QueueIndex)
 			return types.ErrIncorrectL1TxHash
 		}
 		cache[get.QueueIndex] = eth.NewTx(&get.L1MessageTx)
@@ -85,15 +85,15 @@ func (e *Executor) validateL1Messages(block *catalyst.ExecutableL2Data, collecte
 			if collectedCount == 0 {
 				e.logger.Error("found the L1Message involved in the block, but no L1Messages collected actually")
 			} else {
-				e.logger.Error("the included L1Message index exceeds the last collected L1Message index",
-					"current index", currentTxQueueIndex,
+				e.logger.Error("the included L1Message pointer exceeds the last collected L1Message pointer",
+					"current pointer", currentTxQueueIndex,
 				)
 			}
 			return types.ErrUnknownL1Message
 		}
 		expectedTxHash := l1MessageTx.Hash()
 		if tx.Hash() != expectedTxHash {
-			e.logger.Error("wrong L1Message content", "index", currentTxQueueIndex)
+			e.logger.Error("wrong L1Message content", "pointer", currentTxQueueIndex)
 			return types.ErrUnknownL1Message
 		}
 		for queueIndex := nextExpectedIndex; queueIndex < currentTxQueueIndex; queueIndex++ {

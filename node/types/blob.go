@@ -130,6 +130,7 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 	}, nil
 }
 
+// Deprecated: DecodeTxsFromBlob is recommended
 func DecodeLegacyTxsFromBlob(b *kzg4844.Blob) (eth.Transactions, error) {
 	data, err := RetrieveBlobBytes(b)
 	if err != nil {

@@ -1,11 +1,9 @@
 package derivation
 
 import (
-	"bytes"
 	"fmt"
 	"math/big"
 
-	node "github.com/morph-l2/node/core"
 	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
@@ -87,16 +85,15 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.skippedL1MessageBitmap = new(big.Int).SetBytes(batch.SkippedL1MessageBitmap[:])
 	bi.version = uint64(batch.Version)
-	var txPayload []byte
+	tq := newTxQueue()
 	for _, blob := range batch.Sidecar.Blobs {
 		blobCopy := blob
-		data, err := types.DecodeRawTxPayload(&blobCopy)
+		data, err := types.DecodeTxsFromBlob(&blobCopy)
 		if err != nil {
 			return err
 		}
-		txPayload = append(txPayload, data...)
+		tq.enqueue(data)
 	}
-	txReader := bytes.NewReader(txPayload)
 	for cbIndex, chunkByte := range batch.Chunks {
 		chunk := new(types.Chunk)
 		if err := chunk.Decode(chunkByte); err != nil {
@@ -128,8 +125,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			if block.txsNum < block.l1MsgNum {
 				return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
 			}
-
-			txs, err := node.DecodeTxsPayload(txReader, int(block.txsNum)-int(block.l1MsgNum))
+			txs, err := tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
 			if err != nil {
 				return fmt.Errorf("decode txsPayload error:%v", err)
 			}
@@ -165,4 +161,34 @@ func decodeTransactions(txsBytes [][]byte) []*eth.Transaction {
 		txs = append(txs, &tx)
 	}
 	return txs
+}
+
+type txQueue struct {
+	txs     eth.Transactions
+	pointer int
+}
+
+func newTxQueue() *txQueue {
+	var txs eth.Transactions
+	return &txQueue{
+		txs: txs,
+	}
+}
+
+func (q *txQueue) enqueue(txs eth.Transactions) {
+	q.txs = append(q.txs, txs...)
+}
+
+func (q *txQueue) dequeue(txNum int) (eth.Transactions, error) {
+	maxLen := q.txs.Len() - q.pointer
+	if maxLen < txNum {
+		return nil, fmt.Errorf("invalid txNum,must small than %v", maxLen)
+	}
+	txs := q.txs[q.pointer : q.pointer+txNum]
+	q.pointer += txNum
+	return txs, nil
+}
+
+func (q *txQueue) isEmpty() bool {
+	return q.pointer == q.txs.Len()
 }

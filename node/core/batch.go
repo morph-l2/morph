@@ -3,10 +3,8 @@ package node
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 
 	"github.com/morph-l2/node/types"
@@ -401,9 +399,9 @@ func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.
 }
 
 func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, totalL1MessagePoppedBefore uint64, skippedBitmapBefore []*big.Int) (txsPayload []byte, l1TxHashes []common.Hash, totalL1MessagePopped uint64, skippedBitmap []*big.Int, l2TxNum int, err error) {
-	// the first queue index that belongs to this batch
+	// the first queue pointer that belongs to this batch
 	baseIndex := totalL1MessagePoppedBeforeTheBatch
-	// the next queue index that we need to process
+	// the next queue pointer that we need to process
 	nextIndex := totalL1MessagePoppedBefore
 
 	skippedBitmap = make([]*big.Int, len(skippedBitmapBefore))
@@ -423,7 +421,7 @@ func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, to
 			currentIndex := tx.L1MessageQueueIndex()
 
 			if currentIndex < nextIndex {
-				return nil, nil, 0, nil, 0, fmt.Errorf("unexpected batch payload, expected queue index: %d, got: %d. transaction hash: %v", nextIndex, currentIndex, tx.Hash())
+				return nil, nil, 0, nil, 0, fmt.Errorf("unexpected batch payload, expected queue pointer: %d, got: %d. transaction hash: %v", nextIndex, currentIndex, tx.Hash())
 			}
 
 			// mark skipped messages
@@ -453,29 +451,6 @@ func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, to
 
 	totalL1MessagePopped = nextIndex
 	return
-}
-
-func DecodeTxsPayload(reader *bytes.Reader, txNum int) ([]*eth.Transaction, error) {
-	var txs []*eth.Transaction
-	for i := 0; i < txNum; i++ {
-		var txLen uint32
-		if err := binary.Read(reader, binary.BigEndian, &txLen); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		txBz := make([]byte, txLen)
-		if err := binary.Read(reader, binary.BigEndian, &txBz); err != nil {
-			return nil, fmt.Errorf("redad txBz error:%v", err)
-		}
-		var tx eth.Transaction
-		if err := tx.UnmarshalBinary(txBz); err != nil {
-			return nil, fmt.Errorf("transaction is not valid: %v", err)
-		}
-		txs = append(txs, &tx)
-	}
-	return txs, nil
 }
 
 func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {
