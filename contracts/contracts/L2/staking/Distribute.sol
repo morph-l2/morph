@@ -21,40 +21,14 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
 
-    struct Set {
-        EnumerableSet.AddressSet index;
-        mapping(address => uint256) value;
-    }
-
-    struct Uint256Set {
-        EnumerableSet.UintSet index;
-        mapping(uint256 => uint256) value;
-    }
-
-    struct Distribution {
-        uint256 totalAmount;
-        uint256 remainNumber;
-        // mapping(delegator => amount)
-        Set amounts;
-        bool valid;
-    }
-
-    struct DelegatorEpochRecord {
-        // begin delegate epoch index
-        uint256 begin;
-        // undelegate epoch index
-        uint256 deadline;
-        // claimed epoch index
-        uint256 claimed;
-    }
-
-    uint256 private _usedMintEpochIndex;
+    // the maximum value of the epoch index recorded after mint execution.
+    uint256 private _latestMintedEpochIndex;
     address private _morphToken;
     address private _record;
     address private _stake;
     // delegator => [sequencer]
     mapping(address => EnumerableSet.AddressSet) private _vestIn;
-    //mapping(sequencer => mapping(epochIndex => Distribution));
+    // mapping(sequencer => mapping(epochIndex => Distribution));
     mapping(address => mapping(uint256 => Distribution)) private _collect;
 
     // mapping(sequencer => mapping(delegator => DelegatorEpochRecord));
@@ -275,7 +249,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                     uint256 totalBlockNumberOfOneDay = endBlockNumberOfOneDay -
                                 beginBlockNumberOfOneDay +
                                 1;
-                    for (uint256 k = _usedMintEpochIndex; ; k++) {
+                    for (uint256 k = _latestMintedEpochIndex; ; k++) {
                         (
                             uint256 epochIndexBeginNumber,
                             uint256 epochIndexEndNumber
@@ -295,7 +269,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                                     epochIndexBeginNumber +
                                         1)) /
                                 totalBlockNumberOfOneDay;
-                            _usedMintEpochIndex = k;
+                            _latestMintedEpochIndex = k;
                             continue;
                         } else if (
                             beginBlockNumberOfOneDay > epochIndexBeginNumber &&
@@ -307,7 +281,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                                     beginBlockNumberOfOneDay +
                                         1)) /
                                 totalBlockNumberOfOneDay;
-                            _usedMintEpochIndex = k;
+                            _latestMintedEpochIndex = k;
                             continue;
                         } else if (
                             epochIndexBeginNumber < endBlockNumberOfOneDay &&
@@ -319,7 +293,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                                     epochIndexBeginNumber +
                                         1)) /
                                 totalBlockNumberOfOneDay;
-                            _usedMintEpochIndex = k;
+                            _latestMintedEpochIndex = k;
                             continue;
                         }
                         break;
@@ -336,12 +310,26 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     }
 
     /**
+     * @dev See {IDistribute-latestMintedEpochIndex}.
+     */
+    function latestMintedEpochIndex() public view returns (uint256) {
+        return _latestMintedEpochIndex;
+    }
+
+    /**
+     * @dev See {IDistribute-claimedEpochIndex}.
+     */
+    function claimedEpochIndex(address sequencer, address account) public view returns (uint256) {
+        return _epochRecord[sequencer][account].claimed;
+    }
+
+    /**
      * @dev See {IDistribute-claimAll}.
      */
-    function claimAll(address account) public {
+    function claimAll(address account, uint256 targetEpochIndex) public {
         uint256 accountTotalReward = 0;
         for (uint256 i = 0; i < _vestIn[account].length(); i++) {
-            accountTotalReward += _claim(_vestIn[account].at(i), msg.sender);
+            accountTotalReward += _claim(_vestIn[account].at(i), account, targetEpochIndex);
         }
         IMorphToken(_morphToken).transfer(account, accountTotalReward);
 
@@ -351,12 +339,12 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     /**
      * @dev See {IDistribute-claim}.
      */
-    function claim(address sequencer, address account) public {
+    function claim(address sequencer, address account, uint256 targetEpochIndex) public {
         if (!_vestIn[account].contains(sequencer)) {
             revert("not delegate to the sequencer");
         }
 
-        uint256 accountReward = _claim(sequencer, account);
+        uint256 accountReward = _claim(sequencer, account, targetEpochIndex);
         IMorphToken(_morphToken).transfer(account, accountReward);
 
         emit Claim(address(this), account, accountReward);
@@ -364,16 +352,18 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
 
     function _claim(
         address sequencer,
-        address account
+        address account,
+        uint256 targetEpochIndex
     ) internal returns (uint256) {
-        uint256 endClaimEpochIndex = _usedMintEpochIndex;
+        // determine the epoch index of the end claim
+        uint256 endClaimEpochIndex = _latestMintedEpochIndex;
 
         (uint256 startNumber, uint256 endNumber) = IRecords(_record).epochInfo(
-            _usedMintEpochIndex
+            _latestMintedEpochIndex
         );
-        // determine whether the epoch starts and ends within two days
+        // determine whether the epoch index starts in one day and ends in another
         if (startNumber / 86400 != endNumber / 86400) {
-            endClaimEpochIndex = _usedMintEpochIndex - 1;
+            endClaimEpochIndex = _latestMintedEpochIndex - 1;
         }
 
         uint256 accountDeadlineEpochIndex = _epochRecord[sequencer][account]
@@ -385,6 +375,17 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             endClaimEpochIndex = accountDeadlineEpochIndex;
         }
 
+        if (targetEpochIndex != 0) {
+            if (targetEpochIndex < _epochRecord[sequencer][account].claimed + 1) {
+                revert("claim epoch index must be greater than claimed epoch index");
+            }
+
+            if (targetEpochIndex < endClaimEpochIndex) {
+                endClaimEpochIndex = targetEpochIndex;
+            }
+        }
+
+        // determine the epoch index of the begin claim
         uint256 beginClaimEpochIndex = 0;
         uint256 claimedEpochIndex = _epochRecord[sequencer][account].claimed;
         if (claimedEpochIndex == 0) {
