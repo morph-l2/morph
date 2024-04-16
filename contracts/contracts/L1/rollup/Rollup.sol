@@ -309,6 +309,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address[] memory sequencers,
         bytes memory signature
     ) external payable override OnlySequencer(version) whenNotPaused {
+        require(batchData.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchData.chunks.length;
         require(_chunksLength > 0, "batch is empty");
@@ -335,10 +336,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         // 3. The memory starting at `newBatchPtr` is used to store the new batch header and compute
         //    the batch hash.
         // the variable `batchPtr` will be reused later for the current batch
-        (uint256 batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(
+        (uint256 _batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(
             batchData.parentBatchHeader
         );
-        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(batchPtr);
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr);
 
         require(
             committedBatchStores[_batchIndex].batchHash == _parentBatchHash,
@@ -364,7 +365,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         _sequencer[0] = msg.sender;
 
         _commitBatch(
-            batchPtr,
+            _batchPtr,
             _batchIndex,
             _parentBatchHash,
             _sequencer,
@@ -458,12 +459,16 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _blobVersionedHash = ZERO_VERSIONED_HASH;
         }
 
-        BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
+        BatchHeaderCodecV0.storeBlobVersionedHash(
+            _batchPtr,
+            _blobVersionedHash
+        );
 
         // compute batch hash
         bytes32 _batchHash = BatchHeaderCodecV0.computeBatchHash(
             _batchPtr,
-            89 + batchData.skippedL1MessageBitmap.length
+            BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
+                batchData.skippedL1MessageBitmap.length
         );
 
         committedBatchStores[_batchIndex] = BatchStore(
