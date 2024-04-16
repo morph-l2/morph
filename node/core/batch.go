@@ -503,6 +503,7 @@ func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {
 		L1MessagePopped:      0,
 		TotalL1MessagePopped: 0,
 		DataHash:             chunks.DataHash(),
+		BlobVersionedHash:    types.EmptyVersionedHash,
 		ParentBatchHash:      common.Hash{},
 	}, nil
 }
