@@ -90,12 +90,12 @@ library BatchHeaderV0Codec {
 
     /// @notice Get the data hash of the batch header.
     /// @param batchPtr The start memory offset of the batch header in memory.
-    /// @return _dataHash The data hash of the batch header.
-    function dataHash(
+    /// @return _l1dataHash The l1 data hash of the batch header.
+    function l1DataHash(
         uint256 batchPtr
-    ) internal pure returns (bytes32 _dataHash) {
+    ) internal pure returns (bytes32 _l1dataHash) {
         assembly {
-            _dataHash := mload(add(batchPtr, 25))
+            _l1dataHash := mload(add(batchPtr, 25))
         }
     }
 
@@ -163,7 +163,7 @@ library BatchHeaderV0Codec {
 
     /// @notice Store the total number of L1 messages popped after current batch to batch header.
     /// @dev Because this function can overwrite the subsequent fields, it must be called before
-    /// `storeDataHash`.
+    /// `storeL1DataHash`.
     /// @param batchPtr The start memory offset of the batch header in memory.
     /// @param _totalL1MessagePopped The total number of L1 messages popped after current batch.
     function storeTotalL1MessagePopped(
@@ -177,10 +177,10 @@ library BatchHeaderV0Codec {
 
     /// @notice Store the data hash of batch header.
     /// @param batchPtr The start memory offset of the batch header in memory.
-    /// @param _dataHash The data hash.
-    function storeDataHash(uint256 batchPtr, bytes32 _dataHash) internal pure {
+    /// @param _l1DataHash The data hash.
+    function storeL1DataHash(uint256 batchPtr, bytes32 _l1DataHash) internal pure {
         assembly {
-            mstore(add(batchPtr, 25), _dataHash)
+            mstore(add(batchPtr, 25), _l1DataHash)
         }
     }
 

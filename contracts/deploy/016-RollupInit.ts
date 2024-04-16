@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, getContractAddressByName, awaitCondition, storge } from "../src/deploy-utils";
+import { assertContractVariable, getContractAddressByName, awaitCondition, storage } from "../src/deploy-utils";
 import { ethers } from 'ethers'
 
 import {
@@ -42,7 +42,7 @@ export const RollupInit = async (
     console.log("%s=%s ; TX_HASH: %s", MultipleVersionRollupVerifierImplStorageName, MultipleVersionRollupVerifierContract.address.toLocaleLowerCase(), MultipleVersionRollupVerifierContract.deployTransaction.hash);
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storge(path, MultipleVersionRollupVerifierImplStorageName, MultipleVersionRollupVerifierContract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await storage(path, MultipleVersionRollupVerifierImplStorageName, MultipleVersionRollupVerifierContract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

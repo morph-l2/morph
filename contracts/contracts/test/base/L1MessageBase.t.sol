@@ -7,6 +7,7 @@ import {CommonTest} from "./CommonTest.t.sol";
 import {Staking} from "../../L1/staking/Staking.sol";
 import {L1Sequencer} from "../../L1/staking/L1Sequencer.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
+import {Whitelist} from "../../libraries/common/Whitelist.sol";
 import {L1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {Rollup} from "../../L1/rollup/Rollup.sol";
@@ -22,9 +23,9 @@ contract L1MessageBaseTest is CommonTest {
         uint256 balance
     );
     event SequencerUpdated(
+        uint256 indexed version,
         address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
+        bytes[] sequencersBLS
     );
     Staking staking;
     uint256 public beginSeq = 10;
@@ -72,6 +73,9 @@ contract L1MessageBaseTest is CommonTest {
         uint256 newMaxNumTxInChunk
     );
 
+    // whitelist config
+    Whitelist whitelistChecker;
+
     // L1MessageQueueWithGasPriceOracle config
     event QueueTransaction(
         address indexed sender,
@@ -107,6 +111,8 @@ contract L1MessageBaseTest is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         hevm.startPrank(multisig);
+        // deploy whitelist
+        whitelistChecker = new Whitelist(address(multisig));
 
         // deploy proxys
         TransparentUpgradeableProxy rollupProxy = new TransparentUpgradeableProxy(
@@ -172,7 +178,8 @@ contract L1MessageBaseTest is CommonTest {
                 address(l1MessageQueueWithGasPriceOracleImpl),
                 abi.encodeWithSelector(
                     L1MessageQueueWithGasPriceOracle.initialize.selector,
-                    l1MessageQueue_maxGasLimit // gasLimit
+                    l1MessageQueue_maxGasLimit, // gasLimit
+                    whitelistChecker // whitelistChecker
                 )
             );
         ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxy))
@@ -268,10 +275,10 @@ contract L1MessageBaseTest is CommonTest {
                 payable(address(l1MessageQueueWithGasPriceOracle))
             );
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
-            payable(_messenger), // _messenger
-            address(_rollup), // _rollup
-            address(_enforcedTxGateway) // _enforcedTxGateway
-        );
+                payable(_messenger), // _messenger
+                address(_rollup), // _rollup
+                address(_enforcedTxGateway) // _enforcedTxGateway
+            );
         assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.messenger());
         assertEq(_rollup, l1MessageQueueWithGasPriceOracleImpl.rollup());
         assertEq(
