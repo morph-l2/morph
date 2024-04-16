@@ -1,13 +1,13 @@
 use axum::{routing::get, Router};
-use challenge_handler::util::{self, read_env_var};
-use challenge_handler::{
-    handler,
-    metrics::{METRICS, REGISTRY},
-    shadow_handler,
-};
 use dotenv::dotenv;
 use env_logger::Env;
 use prometheus::{Encoder, TextEncoder};
+use shadow_proving::shadow_rollup::ShadowRollupAgent;
+use shadow_proving::util::read_env_var;
+use shadow_proving::{
+    metrics::{METRICS, REGISTRY},
+    shadow_prove,
+};
 use tower_http::trace::TraceLayer;
 
 #[tokio::main]
@@ -20,18 +20,20 @@ async fn main() {
     // Start metric management.
     metric_mng().await;
 
-    // Start challenge handler.
-    let result = if util::read_env_var("SHADOW_PROVING", true) {
-        shadow_handler::handle_challenge().await
-    } else {
-        handler::handle_challenge().await
+    let shadow_rollup_agent = ShadowRollupAgent::prepare().await;
+
+    // Sync & Prove
+    let result = match shadow_rollup_agent.sync().await {
+        Ok(Some(batch)) => shadow_prove::prove(batch).await,
+        Ok(None) => Ok(()),
+        Err(e) => Err(e),
     };
 
     // Handle result.
     match result {
         Ok(()) => (),
         Err(e) => {
-            log::error!("challenge handler exec error: {:#?}", e);
+            log::error!("shadow proving exec error: {:#?}", e);
         }
     }
 }

@@ -32,7 +32,6 @@ pub fn call_prover(param: String, function: &str) -> Option<String> {
     Some(rt_text)
 }
 
-
 pub fn call_sequencer(param: String, function: &str) -> Option<String> {
     let prover_rpc = var("HANDLER_SEQUENCER_RPC").expect("Cannot detect HANDLER_SEQUENCER_RPC env var");
 
@@ -76,7 +75,7 @@ async fn test_call_prover() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     dotenv::dotenv().ok();
 
-    use crate::handler::ProveRequest;
+    use crate::shadow_prove::ProveRequest;
     let request = ProveRequest {
         batch_index: 12,
         chunks: vec![vec![1], vec![2]],

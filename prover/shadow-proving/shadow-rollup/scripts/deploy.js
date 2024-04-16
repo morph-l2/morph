@@ -25,6 +25,9 @@ async function main() {
     );
     const signer = new ethers.Wallet(privateKey, customHttpProvider);
     console.log("signer.address: " + signer.address);
+    let balance = await signer.getBalance();
+    console.log("signer.balance: " + ethers.utils.formatEther(balance));
+
 
     ///deploy plonk_verifier
     const bytecode = hexlify(fs.readFileSync(`./contracts/libs/plonk-verifier/${l1_network_name}/plonk_verifier.bin`));

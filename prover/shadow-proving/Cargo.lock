@@ -420,25 +420,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "challenge-handler"
-version = "0.1.0"
-dependencies = [
- "axum",
- "dotenv",
- "env_logger",
- "ethers",
- "hex",
- "lazy_static",
- "log",
- "prometheus",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tower-http 0.4.4",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2942,6 +2923,25 @@ checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
  "digest",
  "keccak",
+]
+
+[[package]]
+name = "shadow-proving"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "dotenv",
+ "env_logger",
+ "ethers",
+ "hex",
+ "lazy_static",
+ "log",
+ "prometheus",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http 0.4.4",
 ]
 
 [[package]]
