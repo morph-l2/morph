@@ -22,13 +22,6 @@ interface ISubmitter {
     ) external view returns (Types.BatchInfo memory batchInfo);
 
     /**
-     * @notice get epoch info
-     */
-    function getEpoch(
-        uint256 epochIndex
-    ) external view returns (Types.EpochInfo memory epochInfo);
-
-    /**
      * @notice get the current sequencer's turn
      */
     function getTurn(
@@ -60,9 +53,4 @@ interface ISubmitter {
      * @notice notify epoch updated
      */
     function epochUpdated(uint256 epoch) external;
-
-    /**
-     * @notice notify sequencers updated
-     */
-    function sequencersUpdated(address[] memory sequencers) external;
 }

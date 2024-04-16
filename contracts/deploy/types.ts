@@ -3,10 +3,11 @@ const ContractFactoryName = {
     DefaultProxy: 'TransparentUpgradeableProxy',
     DefaultProxyInterface: 'ITransparentUpgradeableProxy',
     ProxyAdmin: 'ProxyAdmin',
+    Whitelist: 'Whitelist',
     // empty contract
     EmptyContract: 'EmptyContract',
     // tokens
-    WETH:'WrappedEther',
+    WETH: 'WrappedEther',
     // messenger
     L1CrossDomainMessenger: 'L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'L1MessageQueueWithGasPriceOracle',
@@ -49,10 +50,11 @@ const ProxyStorageName = {
 const ImplStorageName = {
     // system 
     ProxyAdmin: 'Impl__ProxyAdmin',
+    Whitelist: 'Impl__Whitelist',
     // empty contract
     EmptyContract: 'Impl__EmptyContract',
     // tokens
-    WETH:'Impl__WETH',
+    WETH: 'Impl__WETH',
     // messenger
     L1CrossDomainMessengerStorageName: 'Impl__L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'Impl__L1MessageQueueWithGasPriceOracle',

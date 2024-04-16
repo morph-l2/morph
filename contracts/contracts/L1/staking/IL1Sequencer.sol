@@ -27,11 +27,13 @@ interface IL1Sequencer {
      * @param version sequencer set version
      * @param sequencers sequencers signed
      * @param signature batch signature
+     * @param batchHash batch hash
      */
     function verifySignature(
         uint256 version,
         address[] memory sequencers,
-        bytes memory signature
+        bytes memory signature,
+        bytes32 batchHash
     ) external returns (bool);
 
     /**
@@ -44,9 +46,8 @@ interface IL1Sequencer {
         bytes memory _sequencerBytes,
         address[] memory _sequencerAddrs,
         bytes[] memory _sequencerBLSKeys,
-        uint32 gasLimit,
-        address _refundAddress
-    ) external payable;
+        uint32 gasLimit
+    ) external;
 
     /**
      * @notice sequencer addresses
@@ -57,10 +58,14 @@ interface IL1Sequencer {
     ) external view returns (address[] memory);
 
     /**
-     * @notice whether is current sequencer
+     * @notice whether is sequencer
      * @param addr address
+     * @param version sequencer version
      */
-    function isSequencer(address addr) external view returns (bool);
+    function isSequencer(
+        address addr,
+        uint256 version
+    ) external view returns (bool);
 
     /**
      * @notice sequencer BLS keys

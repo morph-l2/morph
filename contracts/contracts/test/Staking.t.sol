@@ -44,8 +44,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         staking.register{value: 2 * MIN_DEPOSIT}(
             sequencerInfo.tmKey,
             sequencerInfo.blsKey,
-            defaultGasLimit,
-            0
+            defaultGasLimit
         );
 
         (
@@ -91,8 +90,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
             staking.register{value: 2 * MIN_DEPOSIT}(
                 sequencerInfo.tmKey,
                 sequencerInfo.blsKey,
-                defaultGasLimit,
-                0
+                defaultGasLimit
             );
             (
                 address addrCheck,
@@ -138,14 +136,13 @@ contract StakingRegisterTest is L1MessageBaseTest {
 
             hevm.expectEmit(true, true, true, true);
             version++;
-            emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
+            emit SequencerUpdated(version, sequencerAddrs, sequencerBLSKeys);
 
             hevm.prank(bob);
             staking.register{value: 3 * MIN_DEPOSIT}(
                 sequencerInfo.tmKey,
                 sequencerInfo.blsKey,
-                defaultGasLimit,
-                0
+                defaultGasLimit
             );
             address sequencerAddr = staking.sequencersAddr(0);
             bytes memory sequencerBLS = staking.sequencersBLS(0);
@@ -187,8 +184,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
             staking.register{value: 2 * MIN_DEPOSIT}(
                 sequencerInfo.tmKey,
                 sequencerInfo.blsKey,
-                defaultGasLimit,
-                0
+                defaultGasLimit
             );
             (
                 address addrCheck,
@@ -222,7 +218,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         (, , blsKeyCheck, balancesPre) = staking.stakings(user);
         hevm.prank(user);
         emit Staked(user, balancesPre + MIN_DEPOSIT);
-        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
+        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
         checkSeuqnsers();
         assertEq(user, staking.stakers(0));
     }
@@ -252,7 +248,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         hevm.prank(user);
         hevm.expectEmit(true, true, true, true);
         emit Staked(user, balancesPre + MIN_DEPOSIT);
-        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
+        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
         sequencerAddr = staking.sequencersAddr(0);
         sequencerBLS = staking.sequencersBLS(0);
         checkSeuqnsers();
@@ -273,7 +269,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         hevm.prank(user);
         hevm.expectEmit(true, true, true, true);
         emit Staked(user, balancesPre + MIN_DEPOSIT);
-        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit, 0);
+        staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
         sequencerAddr = staking.sequencersAddr(1);
         sequencerBLS = staking.sequencersBLS(1);
         checkSeuqnsers();
@@ -290,7 +286,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         hevm.expectEmit(true, true, true, true);
         emit Withdrawed(user, balancesPre);
         hevm.prank(user);
-        staking.withdrawETH(defaultGasLimit, 0);
+        staking.withdrawETH(defaultGasLimit);
         (, , , uint256 balancesStaking) = staking.stakings(user);
         uint256 stakerNum = staking.stakersNumber();
         (uint256 lockBalances, uint256 lockToNum, bool exit) = staking
@@ -336,10 +332,10 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         version++;
         // expect emit events
         emit Withdrawed(user, balancesPre);
-        emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
+        emit SequencerUpdated(version, sequencerAddrs, sequencerBLSKeys);
         // withdraw
         hevm.prank(user);
-        staking.withdrawETH(defaultGasLimit, 0);
+        staking.withdrawETH(defaultGasLimit);
         // check params
         (, , , uint256 balancesStaking) = staking.stakings(user);
         uint256 stakerNum = staking.stakersNumber();
