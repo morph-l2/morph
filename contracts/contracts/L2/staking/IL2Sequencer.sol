@@ -20,26 +20,16 @@ interface IL2Sequencer {
     function currentVersionHeight() external view returns (uint256);
 
     /**
-     * @notice pre sequencers version
-     */
-    function preVersion() external view returns (uint256);
-
-    /**
      * @notice pre sequencers version height
      */
     function preVersionHeight() external view returns (uint256);
 
     /**
-     * @notice get sequencers addresses
+     * @notice get sequencer history
      */
-    function sequencerAddresses(uint256 index) external view returns (address);
-
-    /**
-     * @notice get pre sequencers addresses
-     */
-    function preSequencerAddresses(
-        uint256 index
-    ) external view returns (address);
+    function getSequencerHistory(
+        uint256 version
+    ) external view returns (Types.SequencerHistory memory);
 
     /**
      * @notice get sequencers addresses

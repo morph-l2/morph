@@ -17,7 +17,7 @@ pub enum TypedTransaction {
     // 0x02
     #[serde(rename = "0x02", alias = "0x2")]
     Eip1559(Eip1559TransactionRequest),
-    // 0x7E for Morphism
+    // 0x7E for Morph
     // Just calculate the number of transactions, use Legacy instead
     #[serde(rename = "0x7E")]
     L1MessageTx(TransactionRequest),
@@ -67,7 +67,8 @@ impl Decodable for TypedTransaction {
                 // Legacy (0x00)
                 // use the original rlp
                 Ok(Self::Legacy(TransactionRequest::decode(rlp)?))
-            }
+            } // Ok(Self::Legacy(TransactionRequest::decode_signed_rlp(rlp).unwrap().0))
+              // tx.rlp_signed(signature)
         }
     }
 }

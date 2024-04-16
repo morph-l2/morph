@@ -6,13 +6,13 @@ import fs from "fs";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storge } from "../src/deploy-utils";
+import { assertContractVariable, storage } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
 } from "./types"
-import {hexlify} from "ethers/lib/utils";
+import { hexlify } from "ethers/lib/utils";
 
 export const deployZkEvmVerifierV1 = async (
     hre: HardhatRuntimeEnvironment,
@@ -34,9 +34,9 @@ export const deployZkEvmVerifierV1 = async (
     console.log("%s=%s ; TX_HASH: %s", implStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     // check params
     await assertContractVariable(contract, 'plonkVerifier', receipt.contractAddress)
-    const blockNumber =  await hre.ethers.provider.getBlockNumber()
+    const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storge(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await storage(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
