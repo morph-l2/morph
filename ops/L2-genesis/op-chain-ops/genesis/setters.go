@@ -171,7 +171,7 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 	}
 
-	if name == "L2Sequencer" || name == "Submitter" {
+	if name == "L2Sequencer" {
 		// set slots directly
 		if slots, ok := slotResults[name]; ok {
 			for slotK, slotV := range slots {

@@ -85,6 +85,7 @@ interface IL1MessageQueue {
     /// @notice Return the amount of ETH should pay for cross domain message.
     /// @param sender The address of the message sender.
     /// @param gasLimit Gas limit required to complete the message relay on L2.
+    /// @dev Estimates the fee for a cross-domain message.
     function estimateCrossDomainMessageFee(
         address sender,
         uint256 gasLimit

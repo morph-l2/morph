@@ -99,6 +99,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         // updateMaxReplayTimes to 0
+        hevm.expectRevert("replay times must be greater than 0");
         hevm.prank(multisig);
         l1CrossDomainMessenger.updateMaxReplayTimes(0);
 
@@ -141,18 +142,6 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         uint256 _fee = l1MessageQueueWithGasPriceOracle.l2BaseFee() *
             defaultGasLimit;
 
-        // Exceed maximum replay times
-        hevm.expectRevert("Exceed maximum replay times");
-        l1CrossDomainMessenger.replayMessage{value: _fee}(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            defaultGasLimit,
-            refundAddress
-        );
-
         hevm.prank(multisig);
         l1CrossDomainMessenger.updateMaxReplayTimes(1);
 
@@ -170,6 +159,18 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
         assertEq(balanceBefore + exceedValue, refundAddress.balance);
         assertEq(feeVaultBefore + _fee, l1FeeVault.balance);
+
+        // Exceed maximum replay times
+        hevm.expectRevert("Exceed maximum replay times");
+        l1CrossDomainMessenger.replayMessage{value: _fee}(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            defaultGasLimit,
+            refundAddress
+        );
 
         // test replay list
         // 1. send a message with nonce 2
@@ -405,6 +406,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
     }
 
     function testUpdateMaxReplayTimes(uint256 _maxReplayTimes) external {
+        hevm.assume(_maxReplayTimes > 0);
         // not owner, revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
