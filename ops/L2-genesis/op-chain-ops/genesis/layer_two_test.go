@@ -1,10 +1,10 @@
 package genesis
 
 import (
-	node "github.com/morph-l2/node/core"
 	"math/big"
 	"testing"
 
+	node "github.com/morph-l2/node/core"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
