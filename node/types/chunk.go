@@ -203,12 +203,28 @@ func (cks *Chunks) Encode() ([][]byte, error) {
 	return bytesArray, nil
 }
 
-func (cks *Chunks) SealTxPayloadForBlob() []byte {
-	var bz []byte
-	for _, ck := range cks.data {
-		bz = append(bz, ck.txsPayload...)
+func (cks *Chunks) ConstructBlobPayload() []byte {
+	// metadata consists of num_chunks (2 bytes) and chunki_size (4 bytes per chunk)
+	metadataLength := 2 + 15*4
+
+	// the raw (un-padded) blob payload
+	blobBytes := make([]byte, metadataLength)
+
+	// the number of chunks that contain at least one L2 transaction
+	numNonEmptyChunks := 0
+
+	for i, chunk := range cks.data {
+		chunkSize := len(chunk.txsPayload)
+		if chunkSize != 0 {
+			blobBytes = append(blobBytes, chunk.txsPayload...)
+			numNonEmptyChunks++
+		}
+		// blob metadata: chunki_size
+		binary.BigEndian.PutUint32(blobBytes[2+4*i:], uint32(chunkSize))
 	}
-	return bz
+	// blob metadata: num_chunks
+	binary.BigEndian.PutUint16(blobBytes[0:], uint16(numNonEmptyChunks))
+	return blobBytes
 }
 
 func (cks *Chunks) DataHash() common.Hash {

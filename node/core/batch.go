@@ -183,7 +183,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 	// num_chunks (2 bytes) and chunki_size (4 bytes per chunk) + l2TxRawBytes
 	blobSizeWithCurBlock := 2 + MaxNumChunks*4 + e.batchingCache.chunks.TxPayloadSize() +
 		len(e.batchingCache.currentTxsPayload)
-	if blobSizeWithCurBlock > types.MaxBlobTxPayloadSize {
+	if blobSizeWithCurBlock > types.MaxBlobBytesSize {
 		exceeded = true
 	}
 	e.logger.Info("CalculateCapWithProposalBlock response", "blobSizeWithCurBlock", blobSizeWithCurBlock, "exceeded", exceeded)
@@ -205,8 +205,8 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		copy(skippedL1MessageBitmapBytes[32*ii+padding:], bz)
 	}
 
-	txPayload := e.batchingCache.chunks.SealTxPayloadForBlob()
-	sidecar, err := types.MakeBlobTxSidecarWithTxPayload(txPayload)
+	blobBytes := e.batchingCache.chunks.ConstructBlobPayload()
+	sidecar, err := types.MakeBlobTxSidecar(blobBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -240,7 +240,7 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	for i, chunk := range chunksBytes {
 		e.logger.Info(fmt.Sprintf("===chunk%d: %x \n", i, chunk))
 	}
-	e.logger.Info(fmt.Sprintf("===txs: %x \n", txPayload))
+	e.logger.Info(fmt.Sprintf("===blobBytes: %x \n", blobBytes))
 	return batchHash[:], e.batchingCache.sealedBatchHeader.Encode(), nil
 }
 
