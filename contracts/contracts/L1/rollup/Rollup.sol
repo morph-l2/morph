@@ -639,7 +639,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         require(_aggrProof.length > 0, "Invalid aggregation proof");
 
         // Check validity of KZG data
-        require(_kzgDataProof.length == 128, "Invalid KZG data proof");
+        require(_kzgDataProof.length == 160, "Invalid KZG data proof");
 
         // Calls the point evaluation precompile and verifies the output
         {
