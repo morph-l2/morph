@@ -1,13 +1,14 @@
+use std::time::Duration;
+
 use axum::{routing::get, Router};
 use dotenv::dotenv;
 use env_logger::Env;
 use prometheus::{Encoder, TextEncoder};
-use shadow_proving::shadow_rollup::ShadowRollupAgent;
+use shadow_proving::metrics::{METRICS, REGISTRY};
+use shadow_proving::shadow_prove::ShadowProver;
+use shadow_proving::shadow_rollup::BatchSyncer;
 use shadow_proving::util::read_env_var;
-use shadow_proving::{
-    metrics::{METRICS, REGISTRY},
-    shadow_prove,
-};
+use tokio::time::sleep;
 use tower_http::trace::TraceLayer;
 
 #[tokio::main]
@@ -15,25 +16,29 @@ async fn main() {
     // Prepare environment.
     dotenv().ok();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    log::info!("Starting challenge handler...");
+    log::info!("Starting shadow proving...");
 
     // Start metric management.
     metric_mng().await;
 
-    let shadow_rollup_agent = ShadowRollupAgent::prepare().await;
+    let batch_syncer = BatchSyncer::prepare().await;
+    let shadow_prover = ShadowProver::prepare().await;
 
-    // Sync & Prove
-    let result = match shadow_rollup_agent.sync().await {
-        Ok(Some(batch)) => shadow_prove::prove(batch).await,
-        Ok(None) => Ok(()),
-        Err(e) => Err(e),
-    };
+    loop {
+        sleep(Duration::from_secs(12)).await;
+        // Sync & Prove
+        let result = match batch_syncer.sync().await {
+            Ok(Some(batch)) => shadow_prover.prove(batch).await,
+            Ok(None) => Ok(()),
+            Err(e) => Err(e),
+        };
 
-    // Handle result.
-    match result {
-        Ok(()) => (),
-        Err(e) => {
-            log::error!("shadow proving exec error: {:#?}", e);
+        // Handle result.
+        match result {
+            Ok(()) => (),
+            Err(e) => {
+                log::error!("shadow proving exec error: {:#?}", e);
+            }
         }
     }
 }

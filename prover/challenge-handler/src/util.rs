@@ -33,38 +33,6 @@ pub fn call_prover(param: String, function: &str) -> Option<String> {
 }
 
 
-pub fn call_sequencer(param: String, function: &str) -> Option<String> {
-    let prover_rpc = var("HANDLER_SEQUENCER_RPC").expect("Cannot detect HANDLER_SEQUENCER_RPC env var");
-
-    let client = reqwest::blocking::Client::new();
-    let url = prover_rpc.to_owned() + function;
-    let response = client
-        .post(url)
-        .header(
-            reqwest::header::CONTENT_TYPE,
-            reqwest::header::HeaderValue::from_static("application/json"),
-        )
-        .body(param.clone())
-        .send();
-    let rt: Result<String, reqwest::Error> = match response {
-        Ok(x) => x.text(),
-        Err(e) => {
-            log::error!("call sequencer error, param =  {:#?}, error = {:#?}", param, e);
-            return None;
-        }
-    };
-
-    let rt_text = match rt {
-        Ok(x) => x,
-        Err(e) => {
-            log::error!("fetch sequencer res_txt error, param =  {:#?}, error = {:#?}", param, e);
-            return None;
-        }
-    };
-
-    Some(rt_text)
-}
-
 pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
     std::env::var(var_name)
         .map(|s| s.parse::<T>().unwrap_or_else(|_| default.clone()))

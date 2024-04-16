@@ -1,3 +1,3 @@
 #!/bin/bash
 
-RUST_LOG=debug RUST_BACKTRACE=full nohup ./target/release/challenge-handler >>handler.log 2>&1 &
+RUST_LOG=debug RUST_BACKTRACE=full nohup ./target/release/shadow-proving >>shadow-proving.log 2>&1 &

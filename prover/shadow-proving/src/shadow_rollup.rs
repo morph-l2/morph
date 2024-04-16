@@ -10,20 +10,21 @@ use std::ops::Mul;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::time::sleep;
 
 #[derive(Clone, Debug)]
-pub struct ShadowRollupAgent {
+pub struct BatchSyncer {
     l1_provider: Provider<Http>,
     l1_rollup: RollupType,
     l1_shadow_rollup: ShadowRollupType,
 }
 
-impl ShadowRollupAgent {
+impl BatchSyncer {
     pub async fn prepare() -> Self {
-        let l1_rpc = var("CHALLENGER_L1_RPC").expect("Cannot detect L1_RPC env var");
-        let l1_rollup_address = var("CHALLENGER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
-        let l1_shadow_rollup_address = var("CHALLENGER_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
-        let private_key = var("CHALLENGER_PRIVATEKEY").expect("Cannot detect CHALLENGER_PRIVATEKEY env var");
+        let l1_rpc = var("SHADOW_PROVING_L1_RPC").expect("Cannot detect L1_RPC env var");
+        let l1_rollup_address = var("SHADOW_PROVING_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
+        let l1_shadow_rollup_address = var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
+        let private_key = var("SHADOW_PROVING_PRIVATE_KEY").expect("Cannot detect SHADOW_PROVING_PRIVATE_KEY env var");
 
         // Provider & Signer
         let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
@@ -43,16 +44,14 @@ impl ShadowRollupAgent {
         }
     }
     /**
-     * Automatically rollup the latest batch.
+     * Sync a latest batch to l1-shadow-rollup.
      */
     pub async fn sync(&self) -> Result<Option<BatchInfo>, Box<dyn Error>> {
-        // Prepare env.
-        log::info!("starting challenge...");
-
-        self.sync_batch_to_shadow().await
+        log::info!("starting sync_batch...");
+        self.sync_batch().await
     }
 
-    async fn sync_batch_to_shadow(&self) -> Result<Option<BatchInfo>, Box<dyn Error>> {
+    async fn sync_batch(&self) -> Result<Option<BatchInfo>, Box<dyn Error>> {
         let latest = match self.l1_provider.get_block_number().await {
             Ok(bn) => bn,
             Err(e) => {
@@ -64,16 +63,16 @@ impl ShadowRollupAgent {
         let batch_info: BatchInfo = match get_latest_batch(latest, &self.l1_rollup, &self.l1_provider).await {
             Ok(batch) => batch,
             Err(msg) => {
-                log::error!("prev challenge unknown: {:?}", msg);
+                log::error!("get_latest_batch error: {:?}", msg);
                 return Ok(None);
             }
         };
 
         if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(false) == false {
+            log::debug!("batch of {:?} already prove successful", batch_info.batch_index);
             return Ok(None);
         };
 
-        // Prepare shadow batch
         let batch_store = match self.l1_rollup.committed_batch_stores(U256::from(batch_info.batch_index)).await {
             Ok(value) => value,
             Err(msg) => {
@@ -82,6 +81,7 @@ impl ShadowRollupAgent {
             }
         };
 
+        // Prepare shadow batch
         let shadow_tx = self.l1_shadow_rollup.commit_batch(
             batch_info.batch_index,
             BatchStore {
@@ -118,7 +118,7 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
         Ok(logs) => logs,
         Err(e) => {
             log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
-            return Err("l1_rollup.commit_batch.get_logs error".to_string());
+            return Err("l1_rollup.commit_batch.get_logs provider error".to_string());
         }
     };
     if logs.is_empty() {
@@ -140,6 +140,10 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
         Some(batch) => batch,
         None => vec![],
     };
+
+    if batch_index == 0 || chunks.is_empty() {
+        return Err(String::from("batch_index == 0 or chunks.is_empty()"));
+    }
 
     let batch: BatchInfo = BatchInfo { batch_index, chunks };
 
@@ -234,7 +238,7 @@ async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: P
     };
 
     for _ in 1..5 {
-        std::thread::sleep(Duration::from_secs(12));
+        sleep(Duration::from_secs(12)).await;
         if check().await {
             break;
         };
@@ -273,6 +277,3 @@ async fn test_decode_chunks() {
     assert!(rt.len() == 11);
     assert!(rt.get(3).unwrap().len() == 2);
 }
-
-#[tokio::test]
-async fn test_challenger() {}

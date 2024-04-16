@@ -1,20 +1,20 @@
-use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
 use crate::abi::shadow_rollup_abi::ShadowRollup;
 use crate::metrics::METRICS;
-use crate::{util, BatchInfo};
+use crate::{util, BatchInfo, ShadowRollupType};
+use ethers::prelude::*;
 use ethers::providers::{Http, Provider};
 use ethers::signers::Wallet;
 use ethers::types::Address;
 use ethers::types::Bytes;
-use ethers::{abi::AbiDecode, prelude::*};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::env::var;
 use std::error::Error;
-use std::ops::Mul;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::time::sleep;
+
+const MAX_RETRY_TIMES: u8 = 2;
 
 #[derive(Serialize)]
 pub struct ProveRequest {
@@ -38,56 +38,76 @@ mod task_status {
     pub const PROVED: &str = "Proved";
 }
 
-type ShadowRollupType = ShadowRollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
-
-pub async fn prove(batch_info: BatchInfo) -> Result<(), Box<dyn Error>> {
-    // Prepare parameter.
-    let l1_rpc = var("HANDLER_L1_RPC").expect("Cannot detect L1_RPC env var");
-    let l1_shadow_rollup_address = var("HANDLER_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
-    let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
-    let private_key = var("CHALLENGE_HANDLER_PRIVATE_KEY").expect("Cannot detect L1_ROLLUP_PRIVATE_KEY env var");
-
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc)?;
-    let l1_signer = Arc::new(SignerMiddleware::new(
-        l1_provider.clone(),
-        Wallet::from_str(private_key.as_str())
-            .unwrap()
-            .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
-    ));
-    let wallet_address: Address = l1_signer.address();
-
-    let l1_shadow_rollup: ShadowRollupType = ShadowRollup::new(Address::from_str(l1_shadow_rollup_address.as_str())?, l1_signer.clone());
-
-    // Record wallet balance.
-    let balance = match l1_provider.get_balance(wallet_address, None).await {
-        Ok(b) => b,
-        Err(e) => {
-            log::error!("handler_wallet.get_balance error: {:#?}", e);
-            return Ok(());
-        }
-    };
-    METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
-
-    handle_with_prover(&batch_info, l1_shadow_rollup).await;
-
-    Ok(())
+#[derive(Clone, Debug)]
+pub struct ShadowProver {
+    l1_shadow_rollup: ShadowRollupType,
+    l1_provider: Provider<Http>,
+    wallet_address: Address,
 }
 
-async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: ShadowRollupType) {
+impl ShadowProver {
+    pub async fn prepare() -> Self {
+        let l1_rpc = var("SHADOW_PROVING_L1_RPC").expect("Cannot detect L1_RPC env var");
+        let l1_shadow_rollup_address = var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
+        let _ = var("SHADOW_PROVING_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
+        let private_key = var("SHADOW_PROVING_PRIVATE_KEY").expect("Cannot detect SHADOW_PROVING_PRIVATE_KEY env var");
+
+        let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
+        let l1_signer = Arc::new(SignerMiddleware::new(
+            l1_provider.clone(),
+            Wallet::from_str(private_key.as_str())
+                .unwrap()
+                .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
+        ));
+        let wallet_address: Address = l1_signer.address();
+        let l1_shadow_rollup = ShadowRollup::new(Address::from_str(l1_shadow_rollup_address.as_str()).unwrap(), l1_signer.clone());
+        Self {
+            l1_shadow_rollup,
+            l1_provider,
+            wallet_address,
+        }
+    }
+
+    pub async fn prove(&self, batch_info: BatchInfo) -> Result<(), Box<dyn Error>> {
+        // Record wallet balance.
+        let balance = match self.l1_provider.get_balance(self.wallet_address, None).await {
+            Ok(b) => b,
+            Err(e) => {
+                log::error!("handler_wallet.get_balance error: {:#?}", e);
+                return Ok(());
+            }
+        };
+        METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+
+        handle_with_prover(&batch_info, &self.l1_shadow_rollup).await;
+
+        Ok(())
+    }
+}
+
+async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRollupType) {
     let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
     let batch_index = batch_info.batch_index;
     let chunks = &batch_info.chunks;
     let chunks_len = chunks.len();
 
-    loop {
-        std::thread::sleep(Duration::from_secs(12));
+    METRICS.chunks_len.set(chunks_len as i64);
+    METRICS.detected_batch_index.set(batch_index as i64);
 
-        // Step2. detecte challenge event.
-        log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
-        METRICS.detected_batch_index.set(batch_index as i64);
+    for _ in 0..MAX_RETRY_TIMES {
+        sleep(Duration::from_secs(12)).await;
+
+        log::info!(
+            "Start prove batch of: {:?}, chunks.len = {:?}, chunks = {:#?}",
+            batch_index,
+            chunks_len,
+            chunks
+        );
+
+        // Query existing proof
         match query_proof(batch_index).await {
             Some(prove_result) => {
-                log::info!("query proof and prove state: {:#?}", batch_index);
+                log::info!("query proof and prove state: {:?}", batch_index);
                 if !prove_result.proof_data.is_empty() {
                     prove_state(batch_index, &l1_shadow_rollup).await;
                     continue;
@@ -96,12 +116,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: ShadowRoll
             None => (),
         }
 
-        // Step3. query challenged batch for the past 3 days(7200blocks*3 = 3 day).
-
-        log::info!("batch inspect: chunks.len =  {:#?}", chunks_len);
-        METRICS.chunks_len.set(chunks_len as i64);
-
-        // Step4. Make a call to the Prove server.
+        // Request the proverServer to prove.
         let request = ProveRequest {
             batch_index: batch_index,
             chunks: chunks.clone(),
@@ -134,8 +149,8 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: ShadowRoll
         // Step5. query proof and prove onchain state.
         let mut max_waiting_time: usize = 4800 * chunks_len + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
         while max_waiting_time > 300 {
-            std::thread::sleep(Duration::from_secs(300));
-            max_waiting_time -= 300;
+            sleep(Duration::from_secs(300)).await;
+            max_waiting_time -= 300; // Query results every 5 minutes.
             match query_proof(batch_index).await {
                 Some(prove_result) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
@@ -146,7 +161,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: ShadowRoll
                 }
                 None => {
                     log::error!("prover status unknown, resubmit task");
-                    break; // resubmit task
+                    break;
                 }
             }
         }
@@ -154,8 +169,8 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: ShadowRoll
 }
 
 async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
-    for _ in 0..2 {
-        std::thread::sleep(Duration::from_secs(30));
+    for _ in 0..MAX_RETRY_TIMES {
+        sleep(Duration::from_secs(12)).await;
         let prove_result = match query_proof(batch_index).await {
             Some(pr) => pr,
             None => continue,
@@ -179,12 +194,12 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
                 log::info!("tx of prove_state has been sent: {:#?}", pending_tx.tx_hash());
                 pending_tx
             }
-            Err(e) => {
-                log::error!("send tx of prove_state error: {:#?}", e);
+            Err(err) => {
+                log::error!("send tx of prove_state error: {:#?}", err);
                 METRICS.verify_result.set(2);
-                match e {
+                match err {
                     ContractError::Revert(data) => {
-                        let msg = String::decode_with_selector(&data).unwrap_or(String::from("decode contract revert error"));
+                        let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));
                         log::error!("send tx of prove_state error, msg: {:#?}", msg);
                     }
                     _ => (),
@@ -196,29 +211,19 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
             Ok(receipt) => {
                 match receipt {
                     Some(receipt) => {
-                        // Check the status of the transaction receipt
+                        // Check the status of the tx receipt
                         if receipt.status == Some(1.into()) {
-                            println!(
-                                "Transaction successfully included in the blockchain, transaction hash: {:?}",
-                                receipt.transaction_hash
-                            );
+                            log::error!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash);
                         } else {
-                            println!("Transaction failed, transaction hash: {:?}", receipt.transaction_hash);
+                            log::error!("tx of prove_state failed, tx hash: {:?}", receipt.transaction_hash);
                         }
                     }
                     None => {
-                        println!("No transaction receipt found, the transaction might still be in pending status or has been dropped by the network");
+                        log::error!("No tx receipt found, may still be in pending status or has been dropped");
                     }
                 }
             }
-            Err(error) => match error {
-                ProviderError::JsonRpcClientError(tx_error) => {
-                    println!("Transaction rpc error: {:?}", tx_error);
-                }
-                _ => {
-                    println!("Encountered an unknown error: {:?}", error);
-                }
-            },
+            Err(error) => log::error!("provider error: {:?}", error),
         }
     }
     return false;
@@ -250,52 +255,4 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
     };
 
     return Some(prove_result);
-}
-
-/**
- * Query the kzg commitment of batch.
- */
-async fn query_kzg_commitment(batch_index: u64) -> Option<Vec<u8>> {
-    // Make a call to the sequencer.
-    let rt = tokio::task::spawn_blocking(move || util::call_sequencer(batch_index.to_string(), "/morph_getRollupBatchByIndex"))
-        .await
-        .unwrap();
-    let rt_text = match rt {
-        Some(info) => info,
-        None => {
-            log::error!("query kzg commitment failed");
-            return None;
-        }
-    };
-
-    let rollup_batch = match serde_json::from_str::<Value>(&rt_text) {
-        Ok(parsed) => parsed,
-        Err(_) => {
-            log::error!("deserialize rollup_batch failed, batch index = {:#?}", batch_index);
-            return None;
-        }
-    };
-
-    let commitments = match rollup_batch["sidecar"]["commitments"].as_array() {
-        Some(c) => c,
-        None => {
-            log::error!("deserialize rollup_batch_commitments failed, batch index = {:#?}", batch_index);
-            return None;
-        }
-    };
-    if commitments.is_empty() {
-        log::error!("rollup batch has empty kzg commitments, batch index = {:#?}", batch_index);
-        return None;
-    }
-
-    // ComputeProof computes the KZG proof at the given point for the polynomial
-
-    let commitment_bytes: Vec<u8> = match hex::decode(commitments.first().unwrap().as_str().unwrap_or("0xf")) {
-        Ok(cb) => cb,
-        Err(_) => {
-            log::error!("deserialize commitment failed, batch index = {:#?}", batch_index);
-            return None;
-        }
-    };
-    return Some(commitment_bytes);
 }
