@@ -7,16 +7,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 
 import {IMorphToken} from "../system/IMorphToken.sol";
 import {IDistribute} from "./IDistribute.sol";
-
-interface IRecords {
-    // return epoch index start and end
-    function epochInfo(uint256 index) external returns (uint256, uint256);
-
-    function sequencerEpochRatio(
-        uint256 epochIndex,
-        address sequencer
-    ) external returns (uint256);
-}
+import {IRecord} from "./IRecord.sol";
 
 contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -129,7 +120,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         require(sequencer != address(0), "invalid sequencer address");
         require(account != address(0), "invalid account address");
 
-        (uint256 startNumber, uint256 endNumber) = IRecords(_record).epochInfo(
+        (uint256 startNumber, uint256 endNumber) = IRecord(_record).epochInfo(
             epochIndex
         );
 
@@ -254,7 +245,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                         (
                             uint256 epochIndexBeginNumber,
                             uint256 epochIndexEndNumber
-                        ) = IRecords(_record).epochInfo(k);
+                        ) = IRecord(_record).epochInfo(k);
 
                         if (epochIndexEndNumber <= beginBlockNumberOfOneDay) {
                             continue;
@@ -359,7 +350,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         // determine the epoch index of the end claim
         uint256 endClaimEpochIndex = _latestMintedEpochIndex;
 
-        (uint256 startNumber, uint256 endNumber) = IRecords(_record).epochInfo(
+        (uint256 startNumber, uint256 endNumber) = IRecord(_record).epochInfo(
             _latestMintedEpochIndex
         );
         // determine whether the epoch index starts in one day and ends in another
@@ -398,7 +389,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
         uint256 accountReward = 0;
         uint256 validEpochIndex = 0;
         for (uint256 i = beginClaimEpochIndex; i <= endClaimEpochIndex; i++) {
-            uint256 ratio = IRecords(_record).sequencerEpochRatio(i, sequencer);
+            uint256 ratio = IRecord(_record).sequencerEpochRatio(i, sequencer);
             uint256 epochTotalReward = _rewards[i];
             //uint256 sequencerReward = epochTotalReward * ratio / 100;
             if (_collect[sequencer][i].valid) {

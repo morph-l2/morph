@@ -43,4 +43,15 @@ interface IRecord {
         uint256 blocks;
         uint256 timestamp;
     }
+
+    // return epoch index start and end
+    function epochInfo(uint256 index) external returns (uint256, uint256);
+
+    // sequencer Indicates the proportion of the epoch index in this epoch index
+    // This scale is provisionally of the type uint256,
+    // which can be divided by 100 in subsequent operations
+    function sequencerEpochRatio(
+        uint256 epochIndex,
+        address sequencer
+    ) external returns (uint256);
 }
