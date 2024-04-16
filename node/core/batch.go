@@ -399,9 +399,9 @@ func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.
 }
 
 func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, totalL1MessagePoppedBefore uint64, skippedBitmapBefore []*big.Int) (txsPayload []byte, l1TxHashes []common.Hash, totalL1MessagePopped uint64, skippedBitmap []*big.Int, l2TxNum int, err error) {
-	// the first queue pointer that belongs to this batch
+	// the first queue index that belongs to this batch
 	baseIndex := totalL1MessagePoppedBeforeTheBatch
-	// the next queue pointer that we need to process
+	// the next queue index that we need to process
 	nextIndex := totalL1MessagePoppedBefore
 
 	skippedBitmap = make([]*big.Int, len(skippedBitmapBefore))
@@ -421,7 +421,7 @@ func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBeforeTheBatch, to
 			currentIndex := tx.L1MessageQueueIndex()
 
 			if currentIndex < nextIndex {
-				return nil, nil, 0, nil, 0, fmt.Errorf("unexpected batch payload, expected queue pointer: %d, got: %d. transaction hash: %v", nextIndex, currentIndex, tx.Hash())
+				return nil, nil, 0, nil, 0, fmt.Errorf("unexpected batch payload, expected queue index: %d, got: %d. transaction hash: %v", nextIndex, currentIndex, tx.Hash())
 			}
 
 			// mark skipped messages
