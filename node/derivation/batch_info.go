@@ -60,6 +60,7 @@ type BatchInfo struct {
 	firstBlockNumber uint64
 
 	root                   common.Hash
+	withdrawalRoot         common.Hash
 	skippedL1MessageBitmap *big.Int
 }
 
@@ -83,6 +84,7 @@ func (bi *BatchInfo) TxNum() uint64 {
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	//var rollupData BatchInfo
 	bi.root = batch.PostStateRoot
+	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.skippedL1MessageBitmap = new(big.Int).SetBytes(batch.SkippedL1MessageBitmap[:])
 	bi.version = uint64(batch.Version)
 	var txPayload []byte
