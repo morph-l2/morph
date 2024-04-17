@@ -69,7 +69,7 @@ impl BatchSyncer {
             }
         };
 
-        if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(false) == false {
+        if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(false) == true {
             log::debug!("batch of {:?} already prove successful", batch_info.batch_index);
             return Ok(None);
         };
