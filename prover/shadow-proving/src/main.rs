@@ -46,7 +46,7 @@ async fn main() {
 // Metric management
 async fn metric_mng() {
     register_metrics();
-    let metric_address = read_env_var("HANDLER_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
+    let metric_address = read_env_var("SHADOW_PROVING_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
     tokio::spawn(async move {
         let metrics = Router::new().route("/metrics", get(handle_metrics)).layer(TraceLayer::new_for_http());
         axum::Server::bind(&metric_address.parse().unwrap())

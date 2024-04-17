@@ -61,7 +61,8 @@ impl BatchSyncer {
         };
 
         let batch_info: BatchInfo = match get_latest_batch(latest, &self.l1_rollup, &self.l1_provider).await {
-            Ok(batch) => batch,
+            Ok(Some(batch)) => batch,
+            Ok(None) => return Ok(None),
             Err(msg) => {
                 log::error!("get_latest_batch error: {:?}", msg);
                 return Ok(None);
@@ -106,7 +107,7 @@ impl BatchSyncer {
     }
 }
 
-async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Result<BatchInfo, String> {
+async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Result<Option<BatchInfo>, String> {
     log::info!("latest blocknum = {:#?}", latest);
     let start = if latest > U64::from(200) {
         latest - U64::from(200)
@@ -122,7 +123,8 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
         }
     };
     if logs.is_empty() {
-        return Err("There have been no commit_batch logs for the last 200 blocks".to_string());
+        log::warn!("There have been no commit_batch logs for the last 200 blocks");
+        return Ok(None);
     }
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
     let (batch_index, tx_hash) = match logs.last() {
@@ -148,7 +150,7 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
     let batch: BatchInfo = BatchInfo { batch_index, chunks };
 
     log::info!("latest batch index = {:#?}", batch_index);
-    Ok(batch)
+    Ok(Some(batch))
 }
 
 async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec<Vec<u64>>> {

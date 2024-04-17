@@ -36,8 +36,9 @@ mod task_status {
 
 // Main async function to start prover service.
 // 1. Initializes environment.
-// 2. Spawns management server.
-// 3. Start the Prover on the main thread with shared queue.
+// 2. Spawns prover mng.
+// 3. Spawns metric mng.
+// 4. Start the Prover on the main thread with shared queue.
 // Server handles prove requests .
 // Prover consumes requests and generates proofs and save.
 #[tokio::main]
@@ -54,7 +55,11 @@ async fn main() {
     metric_mng().await;
 
     // Step4. start prover
-    prove_for_queue(Arc::clone(&queue)).await;
+    start_prover(Arc::clone(&queue)).await;
+}
+
+async fn start_prover(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
+    tokio::spawn(async { prove_for_queue(task_queue).await });
 }
 
 async fn prover_mng(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
@@ -153,8 +158,8 @@ async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>
         Err(_) => return String::from(task_status::PROVING),
     };
 
-    if queue_lock.len() > 0 {
-        return String::from(task_status::PROVING);
+    if queue_lock.len() > 2 {
+        return String::from("The task queue is full");
     }
     // Add request to queue
     log::info!("add pending req of batch: {:#?}", prove_request.batch_index);
