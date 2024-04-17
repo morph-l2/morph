@@ -173,6 +173,7 @@ contract Staking is IStaking, OwnableUpgradeable {
         limit = _limit;
         lock = _lock;
         _transferOwnership(_admin);
+        emit ParamsUpdated(sequencersSize, limit, lock);
     }
 
     /**
