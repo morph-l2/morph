@@ -1,7 +1,7 @@
 use std::{env::var, str::FromStr};
 
 pub fn call_prover(param: String, function: &str) -> Option<String> {
-    let prover_rpc = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
+    let prover_rpc = var("SHADOW_PROVING_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
 
     let client = reqwest::blocking::Client::new();
     let url = prover_rpc.to_owned() + function;

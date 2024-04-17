@@ -58,15 +58,15 @@ async fn metric_mng() {
 
 fn register_metrics() {
     // detected batch index.
-    REGISTRY.register(Box::new(METRICS.detected_batch_index.clone())).unwrap();
+    REGISTRY.register(Box::new(METRICS.shadow_batch_index.clone())).unwrap();
     // chunks len.
-    REGISTRY.register(Box::new(METRICS.chunks_len.clone())).unwrap();
+    REGISTRY.register(Box::new(METRICS.shadow_chunks_len.clone())).unwrap();
     // txn len.
-    REGISTRY.register(Box::new(METRICS.txn_len.clone())).unwrap();
+    REGISTRY.register(Box::new(METRICS.shadow_txn_len.clone())).unwrap();
     // prover status.
-    REGISTRY.register(Box::new(METRICS.verify_result.clone())).unwrap();
+    REGISTRY.register(Box::new(METRICS.shadow_verify_result.clone())).unwrap();
     // wallet balance.
-    REGISTRY.register(Box::new(METRICS.wallet_balance.clone())).unwrap();
+    REGISTRY.register(Box::new(METRICS.shadow_wallet_balance.clone())).unwrap();
 }
 
 async fn handle_metrics() -> String {

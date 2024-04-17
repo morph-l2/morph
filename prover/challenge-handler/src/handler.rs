@@ -184,8 +184,6 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType) -> bool {
             None => continue,
         };
 
-        l1_rollup.address();
-
         if prove_result.proof_data.is_empty() {
             log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
             continue;
@@ -195,7 +193,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType) -> bool {
         let aggr_proof = Bytes::from(prove_result.proof_data);
         let kzg_data = Bytes::from(prove_result.blob_kzg);
 
-        let call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data, 100000u32, U256::from(100));
+        let call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data, 10u32.pow(6));
         let rt = call.send().await;
         let pending_tx = match rt {
             Ok(pending_tx) => {

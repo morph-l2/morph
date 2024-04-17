@@ -46,19 +46,13 @@ impl BatchSyncer {
     /**
      * Sync a latest batch to l1-shadow-rollup.
      */
-    pub async fn sync(&self) -> Result<Option<BatchInfo>, Box<dyn Error>> {
-        log::info!("starting sync_batch...");
+    pub async fn sync(&self) -> Result<Option<BatchInfo>, anyhow::Error> {
+        log::info!("start sync_batch...");
         self.sync_batch().await
     }
 
-    async fn sync_batch(&self) -> Result<Option<BatchInfo>, Box<dyn Error>> {
-        let latest = match self.l1_provider.get_block_number().await {
-            Ok(bn) => bn,
-            Err(e) => {
-                log::error!("L1 provider.get_block_number error: {:#?}", e);
-                return Ok(None);
-            }
-        };
+    async fn sync_batch(&self) -> Result<Option<BatchInfo>, anyhow::Error> {
+        let latest = self.l1_provider.get_block_number().await?;
 
         let batch_info: BatchInfo = match get_latest_batch(latest, &self.l1_rollup, &self.l1_provider).await {
             Ok(Some(batch)) => batch,
@@ -69,7 +63,7 @@ impl BatchSyncer {
             }
         };
 
-        if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(false) == true {
+        if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(true) == true {
             log::debug!("batch of {:?} already prove successful", batch_info.batch_index);
             return Ok(None);
         };
@@ -86,11 +80,11 @@ impl BatchSyncer {
         let shadow_tx = self.l1_shadow_rollup.commit_batch(
             batch_info.batch_index,
             BatchStore {
-                prev_state_root: batch_store.3,
-                post_state_root: batch_store.4,
-                withdrawal_root: batch_store.5,
-                data_hash: batch_store.6,
-                blob_versioned_hash: batch_store.11,
+                prev_state_root: batch_store.4,
+                post_state_root: batch_store.5,
+                withdrawal_root: batch_store.6,
+                data_hash: batch_store.7,
+                blob_versioned_hash: batch_store.12,
             },
         );
         let rt = shadow_tx.send().await;
@@ -101,8 +95,10 @@ impl BatchSyncer {
                 return Ok(None);
             }
         };
-        check_receipt("shadow_commit_batch", &self.l1_provider, pending_tx).await;
-
+        if !check_receipt("shadow_commit_batch", &self.l1_provider, pending_tx).await {
+            return Ok(None);
+        }
+        log::info!(">sync shadow batch complete: {:#?}", batch_info.batch_index);
         Ok(Some(batch_info))
     }
 }
@@ -170,7 +166,6 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec
 
     //Step2. Parse transaction data
     let data = tx.input;
-    // log::debug!("batch inspect: tx.input =  {:#?}", data);
 
     if data.is_empty() {
         log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
@@ -212,14 +207,14 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
 
         chunk_with_blocks.push(chunk_bn);
     }
-    METRICS.txn_len.set(txn_in_batch.into());
+    METRICS.shadow_txn_len.set(txn_in_batch.into());
     log::debug!("decode_chunks_blocknum: {:#?}", chunk_with_blocks);
-    log::info!("max_l2txn_in_chunk: {:#?}", max_txn_in_chunk);
-    log::info!("total_l2txn_in_batch: {:#?}", txn_in_batch);
+    log::debug!("max_l2txn_in_chunk: {:#?}", max_txn_in_chunk);
+    log::debug!("total_l2txn_in_batch: {:#?}", txn_in_batch);
     return Some(chunk_with_blocks);
 }
 
-async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: PendingTransaction<'_, Http>) {
+async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: PendingTransaction<'_, Http>) -> bool {
     let check = || async {
         let receipt = l1_provider.get_transaction_receipt(pending_tx.tx_hash()).await.unwrap();
         match receipt {
@@ -242,9 +237,10 @@ async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: P
     for _ in 1..5 {
         sleep(Duration::from_secs(12)).await;
         if check().await {
-            break;
+            return true;
         };
     }
+    return false;
 }
 
 async fn is_prove_success(batch_index: u64, l1_rollup: &ShadowRollupType) -> Option<bool> {

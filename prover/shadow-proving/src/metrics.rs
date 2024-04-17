@@ -2,20 +2,21 @@ use lazy_static::lazy_static;
 use prometheus::{Gauge, IntGauge, Registry};
 
 pub struct Metrics {
-    pub detected_batch_index: IntGauge,
-    pub chunks_len: IntGauge,
-    pub txn_len: IntGauge,
-    pub verify_result: IntGauge,
-    pub wallet_balance: Gauge,
+    pub shadow_batch_index: IntGauge,
+    pub shadow_chunks_len: IntGauge,
+    pub shadow_txn_len: IntGauge,
+    pub shadow_verify_result: IntGauge,
+    pub shadow_wallet_balance: Gauge,
 }
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
     pub static ref METRICS: Metrics = Metrics {
-        detected_batch_index: IntGauge::new("detected_batch_index", "detected batch index").expect("detected metric can be created"),
-        chunks_len: IntGauge::new("chunks_len", "chunks len").expect("chunks_len metric can be created"),
-        txn_len: IntGauge::new("txn_len", "txn len").expect("txn_len metric can be created"),
-        verify_result: IntGauge::new("verify_result", "verify result").expect("verify metric can be created"),
-        wallet_balance: Gauge::new("handler_wallet_balance", "handler wallet balance").expect("wallet metric can be created"),
+        shadow_batch_index: IntGauge::new("shadow_batch_index", "shadow batch index").expect("shadow_batch_index metric can be created"),
+        shadow_chunks_len: IntGauge::new("shadow_chunks_len", "shadow chunks len").expect("shadow_chunks_len metric can be created"),
+        shadow_txn_len: IntGauge::new("shadow_txn_len", "shadow txn len").expect("shadow_txn_len metric can be created"),
+        shadow_verify_result: IntGauge::new("shadow_verify_result", "shadow verify result").expect("shadow_verify_result metric can be created"),
+        shadow_wallet_balance: Gauge::new("shadow_wallet_balance", "shadow wallet balance")
+            .expect("shadow_wallet_balance metric can be created"),
     };
 }

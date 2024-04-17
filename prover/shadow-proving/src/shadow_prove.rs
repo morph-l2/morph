@@ -68,16 +68,20 @@ impl ShadowProver {
         }
     }
 
-    pub async fn prove(&self, batch_info: BatchInfo) -> Result<(), Box<dyn Error>> {
+    pub async fn prove(&self, batch_info: BatchInfo) -> Result<(), anyhow::Error> {
+        log::info!(">Start shadow prove for batch: {:#?}", batch_info.batch_index);
+
         // Record wallet balance.
         let balance = match self.l1_provider.get_balance(self.wallet_address, None).await {
             Ok(b) => b,
             Err(e) => {
-                log::error!("handler_wallet.get_balance error: {:#?}", e);
+                log::error!("shadow_proving_wallet.get_balance error: {:#?}", e);
                 return Ok(());
             }
         };
-        METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+        METRICS
+            .shadow_wallet_balance
+            .set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
 
         handle_with_prover(&batch_info, &self.l1_shadow_rollup).await;
 
@@ -86,18 +90,18 @@ impl ShadowProver {
 }
 
 async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRollupType) {
-    let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
+    let l2_rpc = var("SHADOW_PROVING_L2_RPC").expect("Cannot detect L2_RPC env var");
     let batch_index = batch_info.batch_index;
     let chunks = &batch_info.chunks;
     let chunks_len = chunks.len();
 
-    METRICS.chunks_len.set(chunks_len as i64);
-    METRICS.detected_batch_index.set(batch_index as i64);
+    METRICS.shadow_chunks_len.set(chunks_len as i64);
+    METRICS.shadow_batch_index.set(batch_index as i64);
 
     for _ in 0..MAX_RETRY_TIMES {
         sleep(Duration::from_secs(12)).await;
 
-        log::info!(
+        log::debug!(
             "Start prove batch of: {:?}, chunks.len = {:?}, chunks = {:#?}",
             batch_index,
             chunks_len,
@@ -196,7 +200,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
             }
             Err(err) => {
                 log::error!("send tx of prove_state error: {:#?}", err);
-                METRICS.verify_result.set(2);
+                METRICS.shadow_verify_result.set(2);
                 match err {
                     ContractError::Revert(data) => {
                         let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));

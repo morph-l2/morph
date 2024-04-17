@@ -21,7 +21,7 @@ pub static GENERATE_EVM_VERIFIER: Lazy<bool> = Lazy::new(|| read_env_var("GENERA
 // metrics
 pub static REGISTRY: Lazy<Registry> = Lazy::new(|| Registry::new());
 pub static PROVE_RESULT: Lazy<IntGauge> =
-    Lazy::new(|| IntGauge::new("prove_result", "prove result").expect("prove metric can be created"));
+    Lazy::new(|| IntGauge::new("prove_result", "prove result").expect("prove metric can be created"));// 1 = Ok, 2 = Fail
 pub static PROVE_TIME: Lazy<IntGauge> =
     Lazy::new(|| IntGauge::new("prove_time", "prove time").expect("time metric can be created"));
 

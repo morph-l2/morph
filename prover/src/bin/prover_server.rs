@@ -58,11 +58,6 @@ async fn main() {
     start_prover(Arc::clone(&queue)).await;
 }
 
-async fn start_prover(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
-    let handle = tokio::spawn(async { prove_for_queue(task_queue).await });
-    handle.await.unwrap();
-}
-
 async fn prover_mng(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
     tokio::spawn(async {
         let service = Router::new()
@@ -95,6 +90,10 @@ async fn metric_mng() {
             .await
             .unwrap();
     });
+}
+
+async fn start_prover(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
+    prove_for_queue(task_queue).await;
 }
 
 async fn handle_metrics() -> String {
