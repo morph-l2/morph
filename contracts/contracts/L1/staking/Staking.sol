@@ -513,4 +513,12 @@ contract Staking is IStaking, OwnableUpgradeable {
     function stakersNumber() public view returns (uint256) {
         return stakers.length;
     }
+
+    function getStakers() public view returns (address[] memory) {
+        return stakers;
+    }
+
+    function getSequencersAddr() public view returns (address[] memory) {
+        return sequencersAddr;
+    }
 }

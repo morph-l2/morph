@@ -21,8 +21,6 @@ type Chunk struct {
 	accumulatedRc types.RowConsumption
 	blockNum      int
 	txsPayload    []byte // the raw txs payload
-	sealedPayload []byte
-	sealed        bool
 }
 
 func NewChunk(blockContext, txsPayload []byte, l1TxHashes []common.Hash, rc types.RowConsumption) *Chunk {
@@ -47,29 +45,6 @@ func (ck *Chunk) append(blockContext, txsPayload []byte, l1TxHashes []common.Has
 	for _, txHash := range l1TxHashes {
 		ck.l1TxHashes = append(ck.l1TxHashes, txHash.Bytes()...)
 	}
-}
-
-// Seal build the final txs payload that is ready to be put into the eip4844 blob.
-// 1. add first 4bytes in front of the payload to indicates the length of the raw txsPayload
-// 2. append zero bytes in the end of the payload to make the whole payload a multiple of 31
-func (ck *Chunk) Seal() {
-	if ck.sealed {
-		return
-	}
-
-	finalPayload := make([]byte, 4+len(ck.txsPayload))
-	binary.LittleEndian.PutUint32(finalPayload[:4], uint32(len(ck.txsPayload)))
-	copy(finalPayload[4:], ck.txsPayload)
-
-	if zeroNum := addedZeroNum(len(finalPayload)); zeroNum > 0 {
-		finalPayload = append(finalPayload, make([]byte, zeroNum)...)
-	}
-	ck.sealedPayload = finalPayload
-	ck.sealed = true
-}
-
-func (ck *Chunk) Sealed() bool {
-	return ck.sealed
 }
 
 func (ck *Chunk) accumulateRowUsages(rc types.RowConsumption) (accRc types.RowConsumption, max uint64) {
@@ -177,10 +152,11 @@ func (ck *Chunk) Hash() common.Hash {
 }
 
 type Chunks struct {
-	data     []*Chunk
-	blockNum int
+	data           []*Chunk
+	blockNum       int
+	sizeInCalldata int
+	txPayloadSize  int
 
-	size int
 	hash *common.Hash
 }
 
@@ -195,25 +171,24 @@ func (cks *Chunks) Append(blockContext, txsPayload []byte, l1TxHashes []common.H
 		return
 	}
 	defer func() {
-		cks.size += len(blockContext) + len(l1TxHashes)*common.HashLength
+		cks.sizeInCalldata += len(blockContext)
+		cks.txPayloadSize += len(txsPayload)
 		cks.blockNum++
 		cks.hash = nil // clear hash when data is updated
 	}()
 	if len(cks.data) == 0 {
 		cks.data = append(cks.data, NewChunk(blockContext, txsPayload, l1TxHashes, rc))
-		cks.size += 1
+		cks.sizeInCalldata += 1
 		return
 	}
 	lastChunk := cks.data[len(cks.data)-1]
 	accRc, maxRowUsages := lastChunk.accumulateRowUsages(rc)
 	if lastChunk.blockNum+1 > MaxBlocksPerChunk || maxRowUsages > NormalizedRowLimit { // add a new chunk
-		lastChunk.Seal()
 		cks.data = append(cks.data, NewChunk(blockContext, txsPayload, l1TxHashes, rc))
-		cks.size += 1
+		cks.sizeInCalldata += 1
 		return
 	}
 	lastChunk.append(blockContext, txsPayload, l1TxHashes, accRc)
-	return
 }
 
 func (cks *Chunks) Encode() ([][]byte, error) {
@@ -228,26 +203,28 @@ func (cks *Chunks) Encode() ([][]byte, error) {
 	return bytesArray, nil
 }
 
-func (cks *Chunks) TxPayload() []byte {
-	var bz []byte
-	for _, ck := range cks.data {
-		bz = append(bz, ck.txsPayload...)
-	}
-	return bz
-}
+func (cks *Chunks) ConstructBlobPayload() []byte {
+	// metadata consists of num_chunks (2 bytes) and chunki_size (4 bytes per chunk)
+	metadataLength := 2 + 15*4
 
-func (cks *Chunks) SealTxPayloadForBlob() []byte {
-	var bz []byte
-	for _, ck := range cks.data {
-		if !ck.Sealed() {
-			ck.Seal()
+	// the raw (un-padded) blob payload
+	blobBytes := make([]byte, metadataLength)
+
+	// the number of chunks that contain at least one L2 transaction
+	numNonEmptyChunks := 0
+
+	for i, chunk := range cks.data {
+		chunkSize := len(chunk.txsPayload)
+		if chunkSize != 0 {
+			blobBytes = append(blobBytes, chunk.txsPayload...)
+			numNonEmptyChunks++
 		}
-		bz = append(bz, ck.sealedPayload...)
+		// blob metadata: chunki_size
+		binary.BigEndian.PutUint32(blobBytes[2+4*i:], uint32(chunkSize))
 	}
-	if IsAllZero(bz) {
-		bz = nil
-	}
-	return bz
+	// blob metadata: num_chunks
+	binary.BigEndian.PutUint16(blobBytes[0:], uint16(numNonEmptyChunks))
+	return blobBytes
 }
 
 func (cks *Chunks) DataHash() common.Hash {
@@ -264,43 +241,23 @@ func (cks *Chunks) DataHash() common.Hash {
 	return hash
 }
 
-func (cks *Chunks) BlockNum() int { return cks.blockNum }
-func (cks *Chunks) ChunkNum() int { return len(cks.data) }
-func (cks *Chunks) Size() int     { return cks.size }
+func (cks *Chunks) BlockNum() int       { return cks.blockNum }
+func (cks *Chunks) ChunkNum() int       { return len(cks.data) }
+func (cks *Chunks) SizeInCalldata() int { return cks.sizeInCalldata }
 
-func (cks *Chunks) CurrentPayloadForBlobSize() int {
-	var size int
-	for _, ck := range cks.data {
-		if ck.Sealed() {
-			size += len(ck.sealedPayload)
-		} else {
-			size += len(ck.txsPayload) + 4
-		}
-	}
-	return size
+func (cks *Chunks) TxPayloadSize() int {
+	return cks.txPayloadSize
 }
 
 // IsChunksAppendedWithNewBlock check if a new chunk needs to be created with this new block being added.
-// If yes, return the number of the zero bytes which are supposed to be added in the last chunk.
-func (cks *Chunks) IsChunksAppendedWithNewBlock(blockRc types.RowConsumption) (appended bool, zeroNum int) {
+func (cks *Chunks) IsChunksAppendedWithNewBlock(blockRc types.RowConsumption) (appended bool) {
 	if len(cks.data) == 0 {
-		return true, 0
+		return true
 	}
 	lastChunk := cks.data[len(cks.data)-1]
 	if lastChunk.blockNum+1 > MaxBlocksPerChunk {
-		return true, addedZeroNum(len(lastChunk.txsPayload) + 4) // the extra 4 bytes to store the size of the txsPayload
+		return true
 	}
 	_, maxRowUsages := lastChunk.accumulateRowUsages(blockRc)
-	if maxRowUsages > NormalizedRowLimit {
-		return true, addedZeroNum(len(lastChunk.txsPayload) + 4)
-	}
-	return false, 0
-}
-
-func addedZeroNum(size int) int {
-	remainder := size % 31
-	if remainder == 0 {
-		return 0
-	}
-	return 31 - remainder
+	return maxRowUsages > NormalizedRowLimit
 }
