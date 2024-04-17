@@ -120,10 +120,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      */
     mapping(uint256 => BatchChallenge) public challenges;
 
-    /**
-     * @notice whether in challenge
-     */
+    /// @notice whether in challenge
     bool public inChallenge;
+
+    /// @notice The index of the revert request.
+    uint256 public revertReqIndex;
 
     /// @dev Structure to store information about a batch challenge.
     /// @param batchIndex The index of the challenged batch.
@@ -164,6 +165,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     modifier onlyChallenger() {
         require(isChallenger[_msgSender()], "caller not challenger");
+        _;
+    }
+
+    /// @notice Modifier to ensure that there is no pending revert request.
+    modifier nonReqRevert() {
+        require(revertReqIndex == 0, "need revert");
         _;
     }
 
@@ -521,7 +528,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         lastCommittedBatchIndex = _batchIndex - 1;
         while (_count > 0) {
             committedBatchStores[_batchIndex].batchHash = bytes32(0);
-
+            if (revertReqIndex > 0 && _batchIndex == revertReqIndex) {
+                delete challenges[_batchIndex];
+                revertReqIndex = 0;
+            }
             emit RevertBatch(_batchIndex, _batchHash);
 
             unchecked {
@@ -535,7 +545,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     // challengeState challenges a batch by submitting a deposit.
-    function challengeState(uint64 batchIndex) external payable onlyChallenger {
+    function challengeState(
+        uint64 batchIndex
+    ) external payable onlyChallenger nonReqRevert {
         require(!inChallenge, "already in challenge");
         require(
             lastFinalizedBatchIndex < batchIndex,
@@ -593,7 +605,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         bytes calldata _aggrProof,
         bytes calldata _kzgData,
         uint32 _minGasLimit
-    ) external {
+    ) external nonReqRevert{
         // Ensure challenge exists and is not finished
         require(
             challenges[_batchIndex].challenger != address(0),
@@ -728,7 +740,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @dev Finalizes a specific batch by verifying its state and updating contract state accordingly.
     /// @param _batchIndex The index of the batch to finalize.
-    function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
+    function finalizeBatch(uint256 _batchIndex) public nonReqRevert whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(!batchChallengedSuccess(_batchIndex), "batch should be revert");
@@ -940,6 +952,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         string memory _type,
         uint32 _minGasLimit
     ) internal {
+        revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         _transfer(challenger, challengeDeposit);
