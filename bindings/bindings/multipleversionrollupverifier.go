@@ -30,8 +30,8 @@ var (
 
 // MultipleVersionRollupVerifierMetaData contains all meta data concerning the MultipleVersionRollupVerifier contract.
 var MultipleVersionRollupVerifierMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_verifier\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"startBatchIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"verifier\",\"type\":\"address\"}],\"name\":\"UpdateVerifier\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_batchIndex\",\"type\":\"uint256\"}],\"name\":\"getVerifier\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_rollup\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestVerifier\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"startBatchIndex\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"verifier\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"legacyVerifiers\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"startBatchIndex\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"verifier\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"legacyVerifiersLength\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"rollup\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_startBatchIndex\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"_verifier\",\"type\":\"address\"}],\"name\":\"updateVerifier\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_batchIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_aggrProof\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"_publicInputHash\",\"type\":\"bytes32\"}],\"name\":\"verifyAggregateProof\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561000f575f80fd5b50604051610d4f380380610d4f83398101604081905261002e91610114565b610037336100c5565b6001600160a01b0381166100915760405162461bcd60e51b815260206004820152601560248201527f7a65726f20766572696669657220616464726573730000000000000000000000604482015260640160405180910390fd5b600280546001600160a01b039092166801000000000000000002600160401b600160e01b0319909216919091179055610141565b5f80546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b5f60208284031215610124575f80fd5b81516001600160a01b038116811461013a575f80fd5b9392505050565b610c018061014e5f395ff3fe608060405234801561000f575f80fd5b50600436106100c4575f3560e01c8063b57919e81161007d578063cc780aa111610058578063cc780aa1146101f0578063ef4b522714610203578063f2fde38b14610216575f80fd5b8063b57919e8146101ac578063c4d66de8146101bd578063cb23bcb5146101d0575f80fd5b80634cf536b3116100ad5780634cf536b31461014d578063715018a6146101855780638da5cb5b1461018f575f80fd5b80631a2c3cde146100c85780633561bc2714610115575b5f80fd5b6100db6100d6366004610a19565b610229565b6040805167ffffffffffffffff909316835273ffffffffffffffffffffffffffffffffffffffff9091166020830152015b60405180910390f35b610128610123366004610a19565b610275565b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200161010c565b6002546100db9067ffffffffffffffff81169068010000000000000000900473ffffffffffffffffffffffffffffffffffffffff1682565b61018d61036e565b005b5f5473ffffffffffffffffffffffffffffffffffffffff16610128565b60015460405190815260200161010c565b61018d6101cb366004610a58565b610381565b6003546101289073ffffffffffffffffffffffffffffffffffffffff1681565b61018d6101fe366004610a78565b610455565b61018d610211366004610af3565b6104eb565b61018d610224366004610a58565b61086e565b60018181548110610238575f80fd5b5f9182526020909120015467ffffffffffffffff8116915068010000000000000000900473ffffffffffffffffffffffffffffffffffffffff1682565b6040805180820190915260025467ffffffffffffffff81168083526801000000000000000090910473ffffffffffffffffffffffffffffffffffffffff1660208301525f919083101561036457600154805b8015610361576001808203815481106102e2576102e2610b32565b5f9182526020918290206040805180820190915291015467ffffffffffffffff81168083526801000000000000000090910473ffffffffffffffffffffffffffffffffffffffff16928201929092529350851015610361577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff016102c7565b50505b6020015192915050565b610376610925565b61037f5f6109a5565b565b610389610925565b60035473ffffffffffffffffffffffffffffffffffffffff161561040e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600b60248201527f696e697469616c697a656400000000000000000000000000000000000000000060448201526064015b60405180910390fd5b600380547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b5f61045f85610275565b6040517f6b40634100000000000000000000000000000000000000000000000000000000815290915073ffffffffffffffffffffffffffffffffffffffff821690636b406341906104b890879087908790600401610b5f565b5f6040518083038186803b1580156104ce575f80fd5b505afa1580156104e0573d5f803e3d5ffd5b505050505050505050565b6104f3610925565b60035f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663059def616040518163ffffffff1660e01b8152600401602060405180830381865afa15801561055d573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906105819190610bb4565b8267ffffffffffffffff16116105f3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601b60248201527f737461727420626174636820696e6465782066696e616c697a656400000000006044820152606401610405565b6040805180820190915260025467ffffffffffffffff8082168084526801000000000000000090920473ffffffffffffffffffffffffffffffffffffffff166020840152841610156106a1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601b60248201527f737461727420626174636820696e64657820746f6f20736d616c6c00000000006044820152606401610405565b73ffffffffffffffffffffffffffffffffffffffff821661071e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601560248201527f7a65726f207665726966696572206164647265737300000000000000000000006044820152606401610405565b805167ffffffffffffffff808516911610156107c9576001805480820182555f9190915281517fb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf69091018054602084015173ffffffffffffffffffffffffffffffffffffffff1668010000000000000000027fffffffff0000000000000000000000000000000000000000000000000000000090911667ffffffffffffffff93841617179055831681525b73ffffffffffffffffffffffffffffffffffffffff8216602082810182905282516002805467ffffffffffffffff9283167fffffffff0000000000000000000000000000000000000000000000000000000090911617680100000000000000008502179055604080519187168252918101929092527f1363b06925d4266686ad6ab546259321a7ed3cc0bcc55ada2c6431a754b3b4e2910160405180910390a1505050565b610876610925565b73ffffffffffffffffffffffffffffffffffffffff8116610919576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f64647265737300000000000000000000000000000000000000000000000000006064820152608401610405565b610922816109a5565b50565b5f5473ffffffffffffffffffffffffffffffffffffffff16331461037f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610405565b5f805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b5f60208284031215610a29575f80fd5b5035919050565b803573ffffffffffffffffffffffffffffffffffffffff81168114610a53575f80fd5b919050565b5f60208284031215610a68575f80fd5b610a7182610a30565b9392505050565b5f805f8060608587031215610a8b575f80fd5b84359350602085013567ffffffffffffffff80821115610aa9575f80fd5b818701915087601f830112610abc575f80fd5b813581811115610aca575f80fd5b886020828501011115610adb575f80fd5b95986020929092019750949560400135945092505050565b5f8060408385031215610b04575f80fd5b823567ffffffffffffffff81168114610b1b575f80fd5b9150610b2960208401610a30565b90509250929050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b60408152826040820152828460608301375f606084830101525f60607fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8601168301019050826020830152949350505050565b5f60208284031215610bc4575f80fd5b505191905056fea26469706673582212200bdf27dae001afbd50c5874c5f0c7ddf87e6e191b30940b4df7ad8251964aa5b64736f6c63430008180033",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256[]\",\"name\":\"_versions\",\"type\":\"uint256[]\"},{\"internalType\":\"address[]\",\"name\":\"_verifiers\",\"type\":\"address[]\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"ErrorStartBatchIndexFinalized\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ErrorStartBatchIndexTooSmall\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ErrorZeroAddress\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"version\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"startBatchIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"verifier\",\"type\":\"address\"}],\"name\":\"UpdateVerifier\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_version\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_batchIndex\",\"type\":\"uint256\"}],\"name\":\"getVerifier\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_rollup\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"latestVerifier\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"startBatchIndex\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"verifier\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"legacyVerifiers\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"startBatchIndex\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"verifier\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_version\",\"type\":\"uint256\"}],\"name\":\"legacyVerifiersLength\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"rollup\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_version\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"_startBatchIndex\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"_verifier\",\"type\":\"address\"}],\"name\":\"updateVerifier\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_version\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_batchIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_aggrProof\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"_publicInputHash\",\"type\":\"bytes32\"}],\"name\":\"verifyAggregateProof\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801562000010575f80fd5b5060405162001035380380620010358339810160408190526200003391620002ed565b6200003e33620001a9565b5f5b8251811015620001a0575f6001600160a01b0316828281518110620000695762000069620003ae565b60200260200101516001600160a01b031603620000995760405163a7f9319d60e01b815260040160405180910390fd5b818181518110620000ae57620000ae620003ae565b602002602001015160035f858481518110620000ce57620000ce620003ae565b602002602001015181526020019081526020015f205f0160086101000a8154816001600160a01b0302191690836001600160a01b031602179055507f7a98750a395b9ee50a2644ffda039e31f1d5d06de45510275f972bb20b229b308382815181106200013f576200013f620003ae565b60200260200101515f8484815181106200015d576200015d620003ae565b60200260200101516040516200018f9392919092835260208301919091526001600160a01b0316604082015260600190565b60405180910390a160010162000040565b505050620003c2565b5f80546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b634e487b7160e01b5f52604160045260245ffd5b604051601f8201601f191681016001600160401b0381118282101715620002375762000237620001f8565b604052919050565b5f6001600160401b038211156200025a576200025a620001f8565b5060051b60200190565b5f82601f83011262000274575f80fd5b815160206200028d62000287836200023f565b6200020c565b8083825260208201915060208460051b870101935086841115620002af575f80fd5b602086015b84811015620002e25780516001600160a01b0381168114620002d4575f80fd5b8352918301918301620002b4565b509695505050505050565b5f8060408385031215620002ff575f80fd5b82516001600160401b038082111562000316575f80fd5b818501915085601f8301126200032a575f80fd5b815160206200033d62000287836200023f565b82815260059290921b840181019181810190898411156200035c575f80fd5b948201945b838610156200037c5785518252948201949082019062000361565b9188015191965090935050508082111562000395575f80fd5b50620003a48582860162000264565b9150509250929050565b634e487b7160e01b5f52603260045260245ffd5b610c6580620003d05f395ff3fe608060405234801561000f575f80fd5b50600436106100c4575f3560e01c8063955123061161007d578063c7065b6a11610058578063c7065b6a146101da578063cb23bcb514610227578063f2fde38b14610247575f80fd5b8063955123061461016c578063bd98b2b01461017f578063c4d66de8146101c7575f80fd5b80635027ad2e116100ad5780635027ad2e1461011a578063715018a6146101475780638da5cb5b1461014f575f80fd5b806328aee03f146100c85780632c09a84814610105575b5f80fd5b6100db6100d6366004610a50565b61025a565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b610118610113366004610a70565b610397565b005b610139610128366004610af0565b5f9081526002602052604090205490565b6040519081526020016100fc565b61011861042f565b5f5473ffffffffffffffffffffffffffffffffffffffff166100db565b61011861017a366004610b2f565b610442565b61019261018d366004610a50565b610779565b6040805167ffffffffffffffff909316835273ffffffffffffffffffffffffffffffffffffffff9091166020830152016100fc565b6101186101d5366004610b76565b6107d1565b6101926101e8366004610af0565b60036020525f908152604090205467ffffffffffffffff81169068010000000000000000900473ffffffffffffffffffffffffffffffffffffffff1682565b6001546100db9073ffffffffffffffffffffffffffffffffffffffff1681565b610118610255366004610b76565b6108a5565b5f82815260036020908152604080832081518083019092525467ffffffffffffffff81168083526801000000000000000090910473ffffffffffffffffffffffffffffffffffffffff16928201929092529083101561038c575f84815260026020526040902054805b8015610389575f86815260026020526040902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff830190811061030a5761030a610b96565b5f9182526020918290206040805180820190915291015467ffffffffffffffff81168083526801000000000000000090910473ffffffffffffffffffffffffffffffffffffffff16928201929092529350851015610389577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff016102c3565b50505b602001519392505050565b5f6103a2868661025a565b6040517f6b40634100000000000000000000000000000000000000000000000000000000815290915073ffffffffffffffffffffffffffffffffffffffff821690636b406341906103fb90879087908790600401610bc3565b5f6040518083038186803b158015610411575f80fd5b505afa158015610423573d5f803e3d5ffd5b50505050505050505050565b61043761095c565b6104405f6109dc565b565b61044a61095c565b60015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663059def616040518163ffffffff1660e01b8152600401602060405180830381865afa1580156104b4573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906104d89190610c18565b8267ffffffffffffffff161161051a576040517f9a4ff10400000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b5f8381526003602090815260409182902082518084019093525467ffffffffffffffff8082168085526801000000000000000090920473ffffffffffffffffffffffffffffffffffffffff169284019290925290841610156105a8576040517fb0d8c70400000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b73ffffffffffffffffffffffffffffffffffffffff82166105f5576040517fa7f9319d00000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b805167ffffffffffffffff808516911610156106ba57602081015173ffffffffffffffffffffffffffffffffffffffff16156106ac575f84815260026020908152604082208054600181018255908352918190208351920180549184015173ffffffffffffffffffffffffffffffffffffffff1668010000000000000000027fffffffff0000000000000000000000000000000000000000000000000000000090921667ffffffffffffffff909316929092171790555b67ffffffffffffffff831681525b73ffffffffffffffffffffffffffffffffffffffff82811660208381018281525f8881526003835260409081902086518154935190961668010000000000000000027fffffffff0000000000000000000000000000000000000000000000000000000090931667ffffffffffffffff96871617929092179091558051888152938716918401919091528201527f7a98750a395b9ee50a2644ffda039e31f1d5d06de45510275f972bb20b229b309060600160405180910390a150505050565b6002602052815f5260405f208181548110610792575f80fd5b5f9182526020909120015467ffffffffffffffff8116925068010000000000000000900473ffffffffffffffffffffffffffffffffffffffff16905082565b6107d961095c565b60015473ffffffffffffffffffffffffffffffffffffffff161561085e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600b60248201527f696e697469616c697a656400000000000000000000000000000000000000000060448201526064015b60405180910390fd5b600180547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b6108ad61095c565b73ffffffffffffffffffffffffffffffffffffffff8116610950576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f64647265737300000000000000000000000000000000000000000000000000006064820152608401610855565b610959816109dc565b50565b5f5473ffffffffffffffffffffffffffffffffffffffff163314610440576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610855565b5f805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b5f8060408385031215610a61575f80fd5b50508035926020909101359150565b5f805f805f60808688031215610a84575f80fd5b8535945060208601359350604086013567ffffffffffffffff80821115610aa9575f80fd5b818801915088601f830112610abc575f80fd5b813581811115610aca575f80fd5b896020828501011115610adb575f80fd5b96999598505060200195606001359392505050565b5f60208284031215610b00575f80fd5b5035919050565b803573ffffffffffffffffffffffffffffffffffffffff81168114610b2a575f80fd5b919050565b5f805f60608486031215610b41575f80fd5b83359250602084013567ffffffffffffffff81168114610b5f575f80fd5b9150610b6d60408501610b07565b90509250925092565b5f60208284031215610b86575f80fd5b610b8f82610b07565b9392505050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b60408152826040820152828460608301375f606084830101525f60607fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8601168301019050826020830152949350505050565b5f60208284031215610c28575f80fd5b505191905056fea2646970667358221220af7c05d25f2563bb54a32c3fe852a6e127eb9fa988f4d2d6af339f3179fdca3564736f6c63430008180033",
 }
 
 // MultipleVersionRollupVerifierABI is the input ABI used to generate the binding from.
@@ -43,7 +43,7 @@ var MultipleVersionRollupVerifierABI = MultipleVersionRollupVerifierMetaData.ABI
 var MultipleVersionRollupVerifierBin = MultipleVersionRollupVerifierMetaData.Bin
 
 // DeployMultipleVersionRollupVerifier deploys a new Ethereum contract, binding an instance of MultipleVersionRollupVerifier to it.
-func DeployMultipleVersionRollupVerifier(auth *bind.TransactOpts, backend bind.ContractBackend, _verifier common.Address) (common.Address, *types.Transaction, *MultipleVersionRollupVerifier, error) {
+func DeployMultipleVersionRollupVerifier(auth *bind.TransactOpts, backend bind.ContractBackend, _versions []*big.Int, _verifiers []common.Address) (common.Address, *types.Transaction, *MultipleVersionRollupVerifier, error) {
 	parsed, err := MultipleVersionRollupVerifierMetaData.GetAbi()
 	if err != nil {
 		return common.Address{}, nil, nil, err
@@ -52,7 +52,7 @@ func DeployMultipleVersionRollupVerifier(auth *bind.TransactOpts, backend bind.C
 		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
 	}
 
-	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(MultipleVersionRollupVerifierBin), backend, _verifier)
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(MultipleVersionRollupVerifierBin), backend, _versions, _verifiers)
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
@@ -201,12 +201,12 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierTransactorRaw
 	return _MultipleVersionRollupVerifier.Contract.contract.Transact(opts, method, params...)
 }
 
-// GetVerifier is a free data retrieval call binding the contract method 0x3561bc27.
+// GetVerifier is a free data retrieval call binding the contract method 0x28aee03f.
 //
-// Solidity: function getVerifier(uint256 _batchIndex) view returns(address)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) GetVerifier(opts *bind.CallOpts, _batchIndex *big.Int) (common.Address, error) {
+// Solidity: function getVerifier(uint256 _version, uint256 _batchIndex) view returns(address)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) GetVerifier(opts *bind.CallOpts, _version *big.Int, _batchIndex *big.Int) (common.Address, error) {
 	var out []interface{}
-	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "getVerifier", _batchIndex)
+	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "getVerifier", _version, _batchIndex)
 
 	if err != nil {
 		return *new(common.Address), err
@@ -218,29 +218,29 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) GetVe
 
 }
 
-// GetVerifier is a free data retrieval call binding the contract method 0x3561bc27.
+// GetVerifier is a free data retrieval call binding the contract method 0x28aee03f.
 //
-// Solidity: function getVerifier(uint256 _batchIndex) view returns(address)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) GetVerifier(_batchIndex *big.Int) (common.Address, error) {
-	return _MultipleVersionRollupVerifier.Contract.GetVerifier(&_MultipleVersionRollupVerifier.CallOpts, _batchIndex)
+// Solidity: function getVerifier(uint256 _version, uint256 _batchIndex) view returns(address)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) GetVerifier(_version *big.Int, _batchIndex *big.Int) (common.Address, error) {
+	return _MultipleVersionRollupVerifier.Contract.GetVerifier(&_MultipleVersionRollupVerifier.CallOpts, _version, _batchIndex)
 }
 
-// GetVerifier is a free data retrieval call binding the contract method 0x3561bc27.
+// GetVerifier is a free data retrieval call binding the contract method 0x28aee03f.
 //
-// Solidity: function getVerifier(uint256 _batchIndex) view returns(address)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) GetVerifier(_batchIndex *big.Int) (common.Address, error) {
-	return _MultipleVersionRollupVerifier.Contract.GetVerifier(&_MultipleVersionRollupVerifier.CallOpts, _batchIndex)
+// Solidity: function getVerifier(uint256 _version, uint256 _batchIndex) view returns(address)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) GetVerifier(_version *big.Int, _batchIndex *big.Int) (common.Address, error) {
+	return _MultipleVersionRollupVerifier.Contract.GetVerifier(&_MultipleVersionRollupVerifier.CallOpts, _version, _batchIndex)
 }
 
-// LatestVerifier is a free data retrieval call binding the contract method 0x4cf536b3.
+// LatestVerifier is a free data retrieval call binding the contract method 0xc7065b6a.
 //
-// Solidity: function latestVerifier() view returns(uint64 startBatchIndex, address verifier)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) LatestVerifier(opts *bind.CallOpts) (struct {
+// Solidity: function latestVerifier(uint256 ) view returns(uint64 startBatchIndex, address verifier)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) LatestVerifier(opts *bind.CallOpts, arg0 *big.Int) (struct {
 	StartBatchIndex uint64
 	Verifier        common.Address
 }, error) {
 	var out []interface{}
-	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "latestVerifier")
+	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "latestVerifier", arg0)
 
 	outstruct := new(struct {
 		StartBatchIndex uint64
@@ -257,35 +257,35 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) Lates
 
 }
 
-// LatestVerifier is a free data retrieval call binding the contract method 0x4cf536b3.
+// LatestVerifier is a free data retrieval call binding the contract method 0xc7065b6a.
 //
-// Solidity: function latestVerifier() view returns(uint64 startBatchIndex, address verifier)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) LatestVerifier() (struct {
+// Solidity: function latestVerifier(uint256 ) view returns(uint64 startBatchIndex, address verifier)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) LatestVerifier(arg0 *big.Int) (struct {
 	StartBatchIndex uint64
 	Verifier        common.Address
 }, error) {
-	return _MultipleVersionRollupVerifier.Contract.LatestVerifier(&_MultipleVersionRollupVerifier.CallOpts)
+	return _MultipleVersionRollupVerifier.Contract.LatestVerifier(&_MultipleVersionRollupVerifier.CallOpts, arg0)
 }
 
-// LatestVerifier is a free data retrieval call binding the contract method 0x4cf536b3.
+// LatestVerifier is a free data retrieval call binding the contract method 0xc7065b6a.
 //
-// Solidity: function latestVerifier() view returns(uint64 startBatchIndex, address verifier)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) LatestVerifier() (struct {
+// Solidity: function latestVerifier(uint256 ) view returns(uint64 startBatchIndex, address verifier)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) LatestVerifier(arg0 *big.Int) (struct {
 	StartBatchIndex uint64
 	Verifier        common.Address
 }, error) {
-	return _MultipleVersionRollupVerifier.Contract.LatestVerifier(&_MultipleVersionRollupVerifier.CallOpts)
+	return _MultipleVersionRollupVerifier.Contract.LatestVerifier(&_MultipleVersionRollupVerifier.CallOpts, arg0)
 }
 
-// LegacyVerifiers is a free data retrieval call binding the contract method 0x1a2c3cde.
+// LegacyVerifiers is a free data retrieval call binding the contract method 0xbd98b2b0.
 //
-// Solidity: function legacyVerifiers(uint256 ) view returns(uint64 startBatchIndex, address verifier)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) LegacyVerifiers(opts *bind.CallOpts, arg0 *big.Int) (struct {
+// Solidity: function legacyVerifiers(uint256 , uint256 ) view returns(uint64 startBatchIndex, address verifier)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) LegacyVerifiers(opts *bind.CallOpts, arg0 *big.Int, arg1 *big.Int) (struct {
 	StartBatchIndex uint64
 	Verifier        common.Address
 }, error) {
 	var out []interface{}
-	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "legacyVerifiers", arg0)
+	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "legacyVerifiers", arg0, arg1)
 
 	outstruct := new(struct {
 		StartBatchIndex uint64
@@ -302,32 +302,32 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) Legac
 
 }
 
-// LegacyVerifiers is a free data retrieval call binding the contract method 0x1a2c3cde.
+// LegacyVerifiers is a free data retrieval call binding the contract method 0xbd98b2b0.
 //
-// Solidity: function legacyVerifiers(uint256 ) view returns(uint64 startBatchIndex, address verifier)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) LegacyVerifiers(arg0 *big.Int) (struct {
+// Solidity: function legacyVerifiers(uint256 , uint256 ) view returns(uint64 startBatchIndex, address verifier)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) LegacyVerifiers(arg0 *big.Int, arg1 *big.Int) (struct {
 	StartBatchIndex uint64
 	Verifier        common.Address
 }, error) {
-	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiers(&_MultipleVersionRollupVerifier.CallOpts, arg0)
+	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiers(&_MultipleVersionRollupVerifier.CallOpts, arg0, arg1)
 }
 
-// LegacyVerifiers is a free data retrieval call binding the contract method 0x1a2c3cde.
+// LegacyVerifiers is a free data retrieval call binding the contract method 0xbd98b2b0.
 //
-// Solidity: function legacyVerifiers(uint256 ) view returns(uint64 startBatchIndex, address verifier)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) LegacyVerifiers(arg0 *big.Int) (struct {
+// Solidity: function legacyVerifiers(uint256 , uint256 ) view returns(uint64 startBatchIndex, address verifier)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) LegacyVerifiers(arg0 *big.Int, arg1 *big.Int) (struct {
 	StartBatchIndex uint64
 	Verifier        common.Address
 }, error) {
-	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiers(&_MultipleVersionRollupVerifier.CallOpts, arg0)
+	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiers(&_MultipleVersionRollupVerifier.CallOpts, arg0, arg1)
 }
 
-// LegacyVerifiersLength is a free data retrieval call binding the contract method 0xb57919e8.
+// LegacyVerifiersLength is a free data retrieval call binding the contract method 0x5027ad2e.
 //
-// Solidity: function legacyVerifiersLength() view returns(uint256)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) LegacyVerifiersLength(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function legacyVerifiersLength(uint256 _version) view returns(uint256)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) LegacyVerifiersLength(opts *bind.CallOpts, _version *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "legacyVerifiersLength")
+	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "legacyVerifiersLength", _version)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -339,18 +339,18 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) Legac
 
 }
 
-// LegacyVerifiersLength is a free data retrieval call binding the contract method 0xb57919e8.
+// LegacyVerifiersLength is a free data retrieval call binding the contract method 0x5027ad2e.
 //
-// Solidity: function legacyVerifiersLength() view returns(uint256)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) LegacyVerifiersLength() (*big.Int, error) {
-	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiersLength(&_MultipleVersionRollupVerifier.CallOpts)
+// Solidity: function legacyVerifiersLength(uint256 _version) view returns(uint256)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) LegacyVerifiersLength(_version *big.Int) (*big.Int, error) {
+	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiersLength(&_MultipleVersionRollupVerifier.CallOpts, _version)
 }
 
-// LegacyVerifiersLength is a free data retrieval call binding the contract method 0xb57919e8.
+// LegacyVerifiersLength is a free data retrieval call binding the contract method 0x5027ad2e.
 //
-// Solidity: function legacyVerifiersLength() view returns(uint256)
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) LegacyVerifiersLength() (*big.Int, error) {
-	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiersLength(&_MultipleVersionRollupVerifier.CallOpts)
+// Solidity: function legacyVerifiersLength(uint256 _version) view returns(uint256)
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) LegacyVerifiersLength(_version *big.Int) (*big.Int, error) {
+	return _MultipleVersionRollupVerifier.Contract.LegacyVerifiersLength(&_MultipleVersionRollupVerifier.CallOpts, _version)
 }
 
 // Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
@@ -415,12 +415,12 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession
 	return _MultipleVersionRollupVerifier.Contract.Rollup(&_MultipleVersionRollupVerifier.CallOpts)
 }
 
-// VerifyAggregateProof is a free data retrieval call binding the contract method 0xcc780aa1.
+// VerifyAggregateProof is a free data retrieval call binding the contract method 0x2c09a848.
 //
-// Solidity: function verifyAggregateProof(uint256 _batchIndex, bytes _aggrProof, bytes32 _publicInputHash) view returns()
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) VerifyAggregateProof(opts *bind.CallOpts, _batchIndex *big.Int, _aggrProof []byte, _publicInputHash [32]byte) error {
+// Solidity: function verifyAggregateProof(uint256 _version, uint256 _batchIndex, bytes _aggrProof, bytes32 _publicInputHash) view returns()
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) VerifyAggregateProof(opts *bind.CallOpts, _version *big.Int, _batchIndex *big.Int, _aggrProof []byte, _publicInputHash [32]byte) error {
 	var out []interface{}
-	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "verifyAggregateProof", _batchIndex, _aggrProof, _publicInputHash)
+	err := _MultipleVersionRollupVerifier.contract.Call(opts, &out, "verifyAggregateProof", _version, _batchIndex, _aggrProof, _publicInputHash)
 
 	if err != nil {
 		return err
@@ -430,18 +430,18 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCaller) Verif
 
 }
 
-// VerifyAggregateProof is a free data retrieval call binding the contract method 0xcc780aa1.
+// VerifyAggregateProof is a free data retrieval call binding the contract method 0x2c09a848.
 //
-// Solidity: function verifyAggregateProof(uint256 _batchIndex, bytes _aggrProof, bytes32 _publicInputHash) view returns()
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) VerifyAggregateProof(_batchIndex *big.Int, _aggrProof []byte, _publicInputHash [32]byte) error {
-	return _MultipleVersionRollupVerifier.Contract.VerifyAggregateProof(&_MultipleVersionRollupVerifier.CallOpts, _batchIndex, _aggrProof, _publicInputHash)
+// Solidity: function verifyAggregateProof(uint256 _version, uint256 _batchIndex, bytes _aggrProof, bytes32 _publicInputHash) view returns()
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) VerifyAggregateProof(_version *big.Int, _batchIndex *big.Int, _aggrProof []byte, _publicInputHash [32]byte) error {
+	return _MultipleVersionRollupVerifier.Contract.VerifyAggregateProof(&_MultipleVersionRollupVerifier.CallOpts, _version, _batchIndex, _aggrProof, _publicInputHash)
 }
 
-// VerifyAggregateProof is a free data retrieval call binding the contract method 0xcc780aa1.
+// VerifyAggregateProof is a free data retrieval call binding the contract method 0x2c09a848.
 //
-// Solidity: function verifyAggregateProof(uint256 _batchIndex, bytes _aggrProof, bytes32 _publicInputHash) view returns()
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) VerifyAggregateProof(_batchIndex *big.Int, _aggrProof []byte, _publicInputHash [32]byte) error {
-	return _MultipleVersionRollupVerifier.Contract.VerifyAggregateProof(&_MultipleVersionRollupVerifier.CallOpts, _batchIndex, _aggrProof, _publicInputHash)
+// Solidity: function verifyAggregateProof(uint256 _version, uint256 _batchIndex, bytes _aggrProof, bytes32 _publicInputHash) view returns()
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierCallerSession) VerifyAggregateProof(_version *big.Int, _batchIndex *big.Int, _aggrProof []byte, _publicInputHash [32]byte) error {
+	return _MultipleVersionRollupVerifier.Contract.VerifyAggregateProof(&_MultipleVersionRollupVerifier.CallOpts, _version, _batchIndex, _aggrProof, _publicInputHash)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
@@ -507,25 +507,25 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierTransactorSes
 	return _MultipleVersionRollupVerifier.Contract.TransferOwnership(&_MultipleVersionRollupVerifier.TransactOpts, newOwner)
 }
 
-// UpdateVerifier is a paid mutator transaction binding the contract method 0xef4b5227.
+// UpdateVerifier is a paid mutator transaction binding the contract method 0x95512306.
 //
-// Solidity: function updateVerifier(uint64 _startBatchIndex, address _verifier) returns()
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierTransactor) UpdateVerifier(opts *bind.TransactOpts, _startBatchIndex uint64, _verifier common.Address) (*types.Transaction, error) {
-	return _MultipleVersionRollupVerifier.contract.Transact(opts, "updateVerifier", _startBatchIndex, _verifier)
+// Solidity: function updateVerifier(uint256 _version, uint64 _startBatchIndex, address _verifier) returns()
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierTransactor) UpdateVerifier(opts *bind.TransactOpts, _version *big.Int, _startBatchIndex uint64, _verifier common.Address) (*types.Transaction, error) {
+	return _MultipleVersionRollupVerifier.contract.Transact(opts, "updateVerifier", _version, _startBatchIndex, _verifier)
 }
 
-// UpdateVerifier is a paid mutator transaction binding the contract method 0xef4b5227.
+// UpdateVerifier is a paid mutator transaction binding the contract method 0x95512306.
 //
-// Solidity: function updateVerifier(uint64 _startBatchIndex, address _verifier) returns()
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) UpdateVerifier(_startBatchIndex uint64, _verifier common.Address) (*types.Transaction, error) {
-	return _MultipleVersionRollupVerifier.Contract.UpdateVerifier(&_MultipleVersionRollupVerifier.TransactOpts, _startBatchIndex, _verifier)
+// Solidity: function updateVerifier(uint256 _version, uint64 _startBatchIndex, address _verifier) returns()
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierSession) UpdateVerifier(_version *big.Int, _startBatchIndex uint64, _verifier common.Address) (*types.Transaction, error) {
+	return _MultipleVersionRollupVerifier.Contract.UpdateVerifier(&_MultipleVersionRollupVerifier.TransactOpts, _version, _startBatchIndex, _verifier)
 }
 
-// UpdateVerifier is a paid mutator transaction binding the contract method 0xef4b5227.
+// UpdateVerifier is a paid mutator transaction binding the contract method 0x95512306.
 //
-// Solidity: function updateVerifier(uint64 _startBatchIndex, address _verifier) returns()
-func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierTransactorSession) UpdateVerifier(_startBatchIndex uint64, _verifier common.Address) (*types.Transaction, error) {
-	return _MultipleVersionRollupVerifier.Contract.UpdateVerifier(&_MultipleVersionRollupVerifier.TransactOpts, _startBatchIndex, _verifier)
+// Solidity: function updateVerifier(uint256 _version, uint64 _startBatchIndex, address _verifier) returns()
+func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierTransactorSession) UpdateVerifier(_version *big.Int, _startBatchIndex uint64, _verifier common.Address) (*types.Transaction, error) {
+	return _MultipleVersionRollupVerifier.Contract.UpdateVerifier(&_MultipleVersionRollupVerifier.TransactOpts, _version, _startBatchIndex, _verifier)
 }
 
 // MultipleVersionRollupVerifierOwnershipTransferredIterator is returned from FilterOwnershipTransferred and is used to iterate over the raw logs and unpacked data for OwnershipTransferred events raised by the MultipleVersionRollupVerifier contract.
@@ -750,14 +750,15 @@ func (it *MultipleVersionRollupVerifierUpdateVerifierIterator) Close() error {
 
 // MultipleVersionRollupVerifierUpdateVerifier represents a UpdateVerifier event raised by the MultipleVersionRollupVerifier contract.
 type MultipleVersionRollupVerifierUpdateVerifier struct {
+	Version         *big.Int
 	StartBatchIndex *big.Int
 	Verifier        common.Address
 	Raw             types.Log // Blockchain specific contextual infos
 }
 
-// FilterUpdateVerifier is a free log retrieval operation binding the contract event 0x1363b06925d4266686ad6ab546259321a7ed3cc0bcc55ada2c6431a754b3b4e2.
+// FilterUpdateVerifier is a free log retrieval operation binding the contract event 0x7a98750a395b9ee50a2644ffda039e31f1d5d06de45510275f972bb20b229b30.
 //
-// Solidity: event UpdateVerifier(uint256 startBatchIndex, address verifier)
+// Solidity: event UpdateVerifier(uint256 version, uint256 startBatchIndex, address verifier)
 func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierFilterer) FilterUpdateVerifier(opts *bind.FilterOpts) (*MultipleVersionRollupVerifierUpdateVerifierIterator, error) {
 
 	logs, sub, err := _MultipleVersionRollupVerifier.contract.FilterLogs(opts, "UpdateVerifier")
@@ -767,9 +768,9 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierFilterer) Fil
 	return &MultipleVersionRollupVerifierUpdateVerifierIterator{contract: _MultipleVersionRollupVerifier.contract, event: "UpdateVerifier", logs: logs, sub: sub}, nil
 }
 
-// WatchUpdateVerifier is a free log subscription operation binding the contract event 0x1363b06925d4266686ad6ab546259321a7ed3cc0bcc55ada2c6431a754b3b4e2.
+// WatchUpdateVerifier is a free log subscription operation binding the contract event 0x7a98750a395b9ee50a2644ffda039e31f1d5d06de45510275f972bb20b229b30.
 //
-// Solidity: event UpdateVerifier(uint256 startBatchIndex, address verifier)
+// Solidity: event UpdateVerifier(uint256 version, uint256 startBatchIndex, address verifier)
 func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierFilterer) WatchUpdateVerifier(opts *bind.WatchOpts, sink chan<- *MultipleVersionRollupVerifierUpdateVerifier) (event.Subscription, error) {
 
 	logs, sub, err := _MultipleVersionRollupVerifier.contract.WatchLogs(opts, "UpdateVerifier")
@@ -804,9 +805,9 @@ func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierFilterer) Wat
 	}), nil
 }
 
-// ParseUpdateVerifier is a log parse operation binding the contract event 0x1363b06925d4266686ad6ab546259321a7ed3cc0bcc55ada2c6431a754b3b4e2.
+// ParseUpdateVerifier is a log parse operation binding the contract event 0x7a98750a395b9ee50a2644ffda039e31f1d5d06de45510275f972bb20b229b30.
 //
-// Solidity: event UpdateVerifier(uint256 startBatchIndex, address verifier)
+// Solidity: event UpdateVerifier(uint256 version, uint256 startBatchIndex, address verifier)
 func (_MultipleVersionRollupVerifier *MultipleVersionRollupVerifierFilterer) ParseUpdateVerifier(log types.Log) (*MultipleVersionRollupVerifierUpdateVerifier, error) {
 	event := new(MultipleVersionRollupVerifierUpdateVerifier)
 	if err := _MultipleVersionRollupVerifier.contract.UnpackLog(event, "UpdateVerifier", log); err != nil {
