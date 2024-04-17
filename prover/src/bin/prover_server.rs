@@ -59,7 +59,8 @@ async fn main() {
 }
 
 async fn start_prover(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
-    tokio::spawn(async { prove_for_queue(task_queue).await });
+    let handle = tokio::spawn(async { prove_for_queue(task_queue).await });
+    handle.await.unwrap();
 }
 
 async fn prover_mng(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
