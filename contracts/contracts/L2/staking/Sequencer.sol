@@ -23,8 +23,7 @@ contract Sequencer is Initializable, ISequencer {
     uint256 public blockHeight2;
     address[] public sequencerSet2;
 
-    // event of sequencer update
-    event SequencerSetUpdated(address[] sequencerSet, uint256 blockHeight);
+    /*********************** modifiers **************************/
 
     /**
      * @notice only L2Staking contract
@@ -34,6 +33,8 @@ contract Sequencer is Initializable, ISequencer {
         _;
     }
 
+    /*********************** Constructor **************************/
+
     /**
      * @notice constructor
      */
@@ -41,12 +42,20 @@ contract Sequencer is Initializable, ISequencer {
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
     }
 
+    /*********************** Init **************************/
+
+    /**
+     * @notice Initializer.
+     * @param sequencerSet  sequencer set
+     */
     function initialize(address[] memory sequencerSet) public initializer {
         require(sequencerSet.length > 0, "invalid sequencer set");
         sequencerSet0 = sequencerSet;
         sequencerSet1 = sequencerSet;
         sequencerSet2 = sequencerSet;
     }
+
+    /*********************** External Functions **************************/
 
     /**
      * @notice update sequencer set. If new sequencer set is nil, layer2 will stop producing blocks
@@ -84,6 +93,8 @@ contract Sequencer is Initializable, ISequencer {
 
         emit SequencerSetUpdated(newSequencerSet, block.number + 2);
     }
+
+    /*********************** External View Functions **************************/
 
     /**
      * @notice get current sequencer set
@@ -144,6 +155,8 @@ contract Sequencer is Initializable, ISequencer {
         }
         return _contains(sequencerSet0, addr);
     }
+
+    /*********************** Internal Functions **************************/
 
     /**
      * @notice whether the address is the address list

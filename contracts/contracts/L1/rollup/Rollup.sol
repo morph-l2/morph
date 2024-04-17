@@ -102,6 +102,7 @@ contract Rollup is
      * Function Modifiers *
      **********************/
 
+    /// @notice Only staker allowed.
     modifier OnlyStaker() {
         // @note In the decentralized mode, it should be only called by a list of validator.
         require(
@@ -111,11 +112,13 @@ contract Rollup is
         _;
     }
 
+    /// @notice Only prover allowed.
     modifier OnlyProver() {
         require(isProver[_msgSender()], "caller not prover");
         _;
     }
 
+    /// @notice Only challenger allowed.
     modifier onlyChallenger() {
         require(isChallenger[_msgSender()], "caller not challenger");
         _;

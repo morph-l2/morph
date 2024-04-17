@@ -4,6 +4,9 @@ pragma solidity =0.8.24;
 import "../../libraries/common/Types.sol";
 
 interface ISequencer {
+    // event of sequencer update
+    event SequencerSetUpdated(address[] sequencerSet, uint256 blockHeight);
+
     /**
      * @notice update sequencer set
      */

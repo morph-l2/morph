@@ -5,7 +5,7 @@ import {Types} from "../../libraries/common/Types.sol";
 
 interface IRecord {
     /**
-     * @notice BatchInfo representing a batch.
+     * @notice BatchSubmission representing a batch submission.
      *
      * @custom:field submitter      batch submitter
      * @custom:field startBlock     batch start block
@@ -13,7 +13,7 @@ interface IRecord {
      * @custom:field rollupTime     batch rollup time
      * @custom:field maxChunks      max chunks
      */
-    struct BatchInfo {
+    struct BatchSubmission {
         address submitter;
         uint256 startBlock;
         uint256 endBlock;
@@ -34,22 +34,19 @@ interface IRecord {
     }
 
     /**
-     * @notice RollupEpochHistory representing a rollup epoch change.
-     *
-     * @custom:field epoch      epoch blocks
-     * @custom:field timestamp  epoch change time
+     * @notice return epoch index start time and end time
+     * @param index     epoch index
      */
-    struct RollupEpochHistory {
-        uint256 blocks;
-        uint256 timestamp;
-    }
+    function epochInfo(
+        uint256 index
+    ) external returns (uint256 startTime, uint256 endTime);
 
-    // return epoch index start and end
-    function epochInfo(uint256 index) external returns (uint256, uint256);
-
-    // sequencer Indicates the proportion of the epoch index in this epoch index
-    // This scale is provisionally of the type uint256,
-    // which can be divided by 100 in subsequent operations
+    /**
+     * @notice sequencer indicates the proportion of the epoch index in this epoch index
+     *          This scale is provisionally of the type uint256, which can be divided by 100 in subsequent operations
+     * @param epochIndex    epoch index
+     * @param sequencer     sequencer address
+     */
     function sequencerEpochRatio(
         uint256 epochIndex,
         address sequencer

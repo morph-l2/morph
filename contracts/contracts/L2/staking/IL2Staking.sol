@@ -4,24 +4,6 @@ pragma solidity =0.8.24;
 import {Types} from "../../libraries/common/Types.sol";
 
 interface IL2Staking {
-    // Enum representing shipping status
-    enum Stage {
-        Initial,
-        IssueToken,
-        Reward
-    }
-
-    /**
-     * @notice Struct representing a staker status.
-     *
-     * @custom:field ranking    morph delegate staking ranking, start from 1
-     * @custom:field candidacy  wether is candidate
-     */
-    struct StakerStatus {
-        uint256 ranking;
-        bool candidacy;
-    }
-
     /**
      * @notice Undelegation representing a undelegation info.
      *
@@ -34,6 +16,59 @@ interface IL2Staking {
         uint256 amount;
         uint256 unlockEpoch;
     }
+
+    /**
+     * @notice stake info
+     */
+    event Delegated(
+        address indexed delegatee,
+        address indexed delegator,
+        uint256 amount
+    );
+
+    /**
+     * @notice unstake info
+     */
+    event Undelegated(
+        address indexed delegatee,
+        address indexed delegator,
+        uint256 amount,
+        uint256 ublockEpoch
+    );
+
+    /**
+     * @notice claim info
+     */
+    event Claimed(address indexed delegator, uint256 amount);
+
+    /**
+     * @notice withdrawal info
+     */
+    event withdrawn(
+        address indexed delegatee,
+        address indexed delegator,
+        uint256 amount
+    );
+
+    /**
+     * @notice staker added
+     */
+    event StakerAdded(address indexed addr, bytes32 tmKey, bytes blsKey);
+
+    /**
+     * @notice Staker removed
+     */
+    event StakerRemoved(address[] stakerAddrs);
+
+    /**
+     * @notice params updated
+     */
+    event ParamsUpdated(uint256 sequencersSize);
+
+    /**
+     * @notice reward start time updated
+     */
+    event RewardStartTimeUpdated(uint256 rewardStartTime);
 
     /**
      * @notice reward epoch
@@ -50,109 +85,10 @@ interface IL2Staking {
      */
     function SEQUENCER_MAX_SIZE() external view returns (uint256);
 
-    // /**
-    //  * @notice stakers information.
-    //  * @custom:field staker
-    //  * @return {addr, tmKey, blsKey, active}
-    //  */
-    // function stakers(
-    //     address staker
-    // ) external view returns (address, bytes32, bytes memory);
-
-    // /**
-    //  * @notice staker's status
-    //  * @param staker    staker
-    //  */
-    // function stakerStatus(address staker) external view returns (bool);
-
-    // /**
-    //  * @notice information staking by delegator to staker
-    //  * @param staker    delegatee
-    //  * @param delegator delegator
-    //  */
-    // function stakings(
-    //     address staker,
-    //     address delegator
-    // ) external view returns (uint256);
-
-    // /**
-    //  * @notice delegator's unstaking info
-    //  * @param staker    delegatee
-    //  * @param delegator delegator
-    //  */
-    // function unstakings(
-    //     address staker,
-    //     address delegator
-    // ) external view returns (uint256, uint256);
-
-    // /**
-    //  * @notice staker's all morph amount
-    //  * @param staker stake to whom
-    //  */
-    // function stakersAmount(address staker) external view returns (uint256);
-
-    // /**
-    //  * @notice get all stakers
-    //  */
-    // function getStakers() external view returns (address[] memory);
-
-    // /**
-    //  * @notice get stakers info
-    //  */
-    // function getStakesInfo(
-    //     address[] memory stakers
-    // ) external view returns (Types.StakerInfo[] memory);
-
-    // /**
-    //  * @notice Get all the delegators which staked to staker
-    //  * @param staker sequencers size
-    //  */
-    // function getDelegators(
-    //     address staker
-    // ) external view returns (address[] memory);
-
-    // /**
-    //  * @notice check if the delegator has staked to staker
-    //  * @param staker sequencers size
-    //  */
-    // function isStakingTo(address staker) external view returns (bool);
-
-    // /**
-    //  * @notice delegator withdrawal
-    //  * @param staker stake to whom
-    //  */
-    // function withdrawal(address staker) external;
-
-    // /**
-    //  * @notice delegator claim reward
-    //  * @param staker stake to whom
-    //  */
-    // function claim(address staker) external;
-
-    // /**
-    //  * @notice delegator claim all reward
-    //  */
-    // function claimAll() external;
-
-    // /**
-    //  * @notice delegator unstake morph to staker
-    //  * @param staker stake to whom
-    //  */
-    // function unDelegateStake(address staker) external;
-
-    // /**
-    //  * @notice delegator stake morph to staker
-    //  * @param staker stake to whom
-    //  * @param amount stake amount
-    //  */
-    // function delegateStake(address staker, uint256 amount) external;
-
-    // /**
-    //  * @notice update params
-    //  * @param _sequencersSize sequencers size
-    //  * @param _epoch epoch number
-    //  */
-    // function updateParams(uint256 _sequencersSize, uint256 _epoch) external;
+    /**
+     * @notice undelegate lock epochs
+     */
+    function UNDELEGATE_LOCK_EPOCHS() external view returns (uint256);
 
     /**
      * @notice add staker, sync from L1

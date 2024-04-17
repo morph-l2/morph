@@ -12,11 +12,6 @@ import {IL2Staking} from "./IL2Staking.sol";
 contract Gov is IGov, Initializable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
-    struct ProposalInfo {
-        uint256 endTime;
-        bool approved;
-    }
-
     // staking contract address
     address public immutable L2_STAKING_CONTRACT;
     // sequencer contract address
@@ -39,17 +34,6 @@ contract Gov is IGov, Initializable {
     mapping(uint256 => ProposalInfo) public override proposalInfos;
     // proposal voter info
     mapping(uint256 => EnumerableSetUpgradeable.AddressSet) internal votes;
-
-    /************************ events ***************************/
-
-    // event of proposal executed
-    event ProposalExecuted(
-        uint256 batchBlockInterval,
-        uint256 batchMaxBytes,
-        uint256 batchTimeout,
-        uint256 maxChunks,
-        uint256 rollupEpoch
-    );
 
     /*********************** modifiers **************************/
     /**

@@ -2,6 +2,11 @@
 pragma solidity =0.8.24;
 
 interface IGov {
+    struct ProposalInfo {
+        uint256 endTime;
+        bool approved;
+    }
+
     struct ProposalData {
         uint256 batchBlockInterval;
         uint256 batchMaxBytes;
@@ -9,6 +14,15 @@ interface IGov {
         uint256 maxChunks;
         uint256 rollupEpoch;
     }
+
+    // event of proposal executed
+    event ProposalExecuted(
+        uint256 batchBlockInterval,
+        uint256 batchMaxBytes,
+        uint256 batchTimeout,
+        uint256 maxChunks,
+        uint256 rollupEpoch
+    );
 
     /**
      * @notice batch block interval

@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 
 /**
  * @dev Interface of the Distribute.
@@ -47,25 +47,14 @@ interface IDistribute {
         uint256 indexed epochIndex,
         address indexed account,
         uint256 amount,
-        uint256 blockNumber);
+        uint256 blockNumber
+    );
 
     event NotifyUnDelegate(
         address indexed sequencer,
         address indexed account,
         uint256 deadlineClaimEpochIndex
     );
-
-    /**
-     * @dev Initialization parameter, which can only be called once.
-     * @param morphToken_ address
-     * @param record_ address
-     * @param stake_ address
-     */
-    function initialize(
-        address morphToken_,
-        address record_,
-        address stake_
-    ) external;
 
     function notify(uint256 blockTime, uint256 blockNumber) external;
 
@@ -95,24 +84,31 @@ interface IDistribute {
      * @param sequencer, the address of the sequencer to query.
      * @param account, the address of the delegator to query.
      */
-    function claimedEpochIndex(address sequencer, address account) external returns (uint256);
+    function claimedEpochIndex(
+        address sequencer,
+        address account
+    ) external returns (uint256);
 
     /**
      * @dev claimAll claim all user delegate to all sequencer rewards.
-     * @param account, claim account address.
-     * @param targetEpochIndex, the epoch index that the user wants to claim,
+     * @param delegator         delegator address
+     * @param targetEpochIndex  the epoch index that the user wants to claim
      * If zero, the latest mint epoch index is claimed,
      * otherwise it must be greater than the last claimed epoch index.
      */
-    function claimAll(address account, uint256 targetEpochIndex) external;
+    function claimAll(address delegator, uint256 targetEpochIndex) external;
 
     /**
      * @dev claim user delegate to sequencer rewards.
-     * @param sequencer, sequencer address.
-     * @param account, claim account address.
-     * @param targetEpochIndex, the epoch index that the user wants to claim,
+     * @param sequencer         sequencer address
+     * @param delegator         delegator address
+     * @param targetEpochIndex  the epoch index that the user wants to claim
      * If zero, the latest mint epoch index is claimed,
      * otherwise it must be greater than the last claimed epoch index.
      */
-    function claim(address sequencer, address account, uint256 targetEpochIndex) external;
+    function claim(
+        address sequencer,
+        address delegator,
+        uint256 targetEpochIndex
+    ) external;
 }
