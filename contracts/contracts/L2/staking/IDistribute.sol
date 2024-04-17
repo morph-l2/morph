@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 
 /**
  * @dev Interface of the Distribute.
@@ -13,8 +14,8 @@ interface IDistribute {
         mapping(address => uint256) value;
     }
 
-    struct Uint256Set {
-        EnumerableSet.UintSet index;
+    struct TimeOrderedSet {
+        DoubleEndedQueue.Bytes32Deque index;
         mapping(uint256 => uint256) value;
     }
 

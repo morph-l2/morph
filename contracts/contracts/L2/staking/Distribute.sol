@@ -4,6 +4,7 @@ pragma solidity =0.8.24;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 
 import {IMorphToken} from "../system/IMorphToken.sol";
 import {IDistribute} from "./IDistribute.sol";
@@ -11,7 +12,7 @@ import {IRecord} from "./IRecord.sol";
 
 contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
-    using EnumerableSet for EnumerableSet.UintSet;
+    using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
 
     // the maximum value of the epoch index recorded after mint execution.
     uint256 private _latestMintedEpochIndex;
@@ -31,8 +32,8 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) private _rewards;
 
     // The start time of each day and the corresponding block number
-    // block time => block number
-    Uint256Set private _blockInfo;
+    // block time => block number (incremental)
+    TimeOrderedSet private _blockInfo;
 
     /**
      * @notice Ensures that the caller message from record contract.
@@ -79,7 +80,7 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
             blockNumber <= block.number,
             "blockNumber must be smaller than or equal to the current block number"
         );
-        _blockInfo.index.add(blockTime);
+        _blockInfo.index.pushBack(bytes32(blockTime));
         _blockInfo.value[blockTime] = blockNumber;
     }
 
@@ -223,14 +224,19 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
 
             uint256 tm = mintBegin + (i * 86400);
 
+            uint256 usedIndex = 0;
+
             for (uint256 j = 0; j < _blockInfo.index.length(); j++) {
-                uint256 beginTimeOfOneDay = _blockInfo.index.at(j);
+                uint256 beginTimeOfOneDay = uint256(_blockInfo.index.at(j));
 
                 if (beginTimeOfOneDay >= tm && beginTimeOfOneDay < tm + 86400) {
+
+                    usedIndex = j;
+
                     uint256 rewardOfOneDay = IMorphToken(_morphToken).reward(
                         tm
                     );
-                    uint256 nextBeginTimeOfOneDay = _blockInfo.index.at(j + 1);
+                    uint256 nextBeginTimeOfOneDay = uint256(_blockInfo.index.at(j + 1));
                     uint256 beginBlockNumberOfOneDay = _blockInfo.value[
                                 beginTimeOfOneDay
                         ];
@@ -290,13 +296,11 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
                         }
                         break;
                     }
-
-                    for (uint256 m = j; m >= 0; m--) {
-                        uint256 timeIndex = _blockInfo.index.at(m);
-                        _blockInfo.index.remove(timeIndex);
-                        delete _blockInfo.value[timeIndex];
-                    }
                 }
+            }
+            for (uint256 m = 0; m <= usedIndex; m++) {
+                bytes32 value = _blockInfo.index.popFront();
+                delete _blockInfo.value[uint256(value)];
             }
         }
     }
@@ -379,11 +383,11 @@ contract Distribute is IDistribute, Initializable, OwnableUpgradeable {
 
         // determine the epoch index of the begin claim
         uint256 beginClaimEpochIndex = 0;
-        uint256 claimedEpochIndex = _epochRecord[sequencer][account].claimed;
-        if (claimedEpochIndex == 0) {
+        uint256 accountClaimedEpochIndex = _epochRecord[sequencer][account].claimed;
+        if (accountClaimedEpochIndex == 0) {
             beginClaimEpochIndex = _epochRecord[sequencer][account].begin;
         } else {
-            beginClaimEpochIndex = claimedEpochIndex + 1;
+            beginClaimEpochIndex = accountClaimedEpochIndex + 1;
         }
 
         uint256 accountReward = 0;
