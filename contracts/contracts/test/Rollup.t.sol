@@ -431,7 +431,7 @@ contract RollupTest is L1MessageBaseTest {
             sequencerBLSKeys.push(sequencerInfo.blsKey);
             sequencerInfos[i] = sequencerInfo;
         }
-        hevm.prank(address(staking));
+        hevm.startPrank(address(staking));
         l1Sequencer.updateAndSendSequencerSet(
             abi.encodeCall(
                 IL2Sequencer.updateSequencers,
