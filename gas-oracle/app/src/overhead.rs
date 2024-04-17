@@ -9,7 +9,6 @@ use ethers::{abi::AbiDecode, prelude::*};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::env::var;
-use std::io::{Cursor, Read};
 use std::ops::Mul;
 use std::str::FromStr;
 
@@ -374,19 +373,14 @@ impl OverHead {
 
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
 
-        let blob_data_gas = data_gas_cost(&tx_payload);
-        log::info!("tx_payload_in_blob gas: {}", blob_data_gas);
+        let tx_payload_gas = data_gas_cost(&tx_payload);
+        log::info!("tx_payload_in_blob gas: {}", tx_payload_gas);
 
-        let (txs, position) = decode_transactions_from_blob(&tx_payload, l2_txn);
-
-        let l2_data_gas = data_gas_cost(&tx_payload[0..position as usize]);
-        log::info!(
-            "decode transactions from blob, l2_data_gas: {:#?} , txs.len(): {:#?}",
-            l2_data_gas,
-            txs.len()
-        );
-
-        Ok(Some(l2_data_gas))
+        let txs = decode_transactions_from_blob(&tx_payload);
+        if l2_txn != txs.len() as u64 {
+            return Err(format!("decode_txs_len is not expected, l2_txn in calldata is {:?}, l2_txn in blob is {:?}", l2_txn, txs.len()).to_string());
+        }
+        Ok(Some(tx_payload_gas))
     }
 }
 
@@ -523,25 +517,29 @@ struct BlockInfo {
     num_txs: u64,
 }
 
-fn decode_transactions_from_blob(bs: &[u8], tx_num: u64) -> (Vec<TypedTransaction>, u64) {
-    let mut cursor = Cursor::new(bs);
-    let mut txs = Vec::new();
+fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {
+    let mut txs_decoded: Vec<TypedTransaction> = Vec::new();
 
-    for _ in 0..tx_num {
-        let mut tx_len_buf = [0u8; 4];
-        if cursor.read_exact(&mut tx_len_buf).is_err() {
+    let mut offset: usize = 0;
+    while offset < bs.len() {
+        let tx_len = *bs.get(offset + 1).unwrap() as usize;
+        if tx_len == 0 {
             break;
         }
+        let tx_bytes = bs[offset..offset + 2 + tx_len].to_vec();
+        let tx_decoded: TypedTransaction = match rlp::decode(&tx_bytes) {
+            Ok(tx) => tx,
+            Err(e) => {
+                log::error!("decode_transactions_from_blob error: {:?}", e);
+                return vec![];
+            }
+        };
 
-        let tx_len = u32::from_be_bytes(tx_len_buf);
-        let mut tx_bytes = vec![0u8; tx_len as usize];
-        cursor.read_exact(&mut tx_bytes).unwrap();
-
-        let tx: TypedTransaction = rlp::decode(&tx_bytes).unwrap();
-        txs.push(tx);
+        txs_decoded.push(tx_decoded);
+        offset += tx_len + 2
     }
 
-    (txs, cursor.position())
+    txs_decoded
 }
 
 #[derive(Debug, Clone)]
@@ -576,6 +574,52 @@ fn data_and_hashes_from_txs(txs: &[Value], target_tx: &Value) -> Vec<IndexedBlob
         }
     }
     hashes
+}
+
+#[tokio::test]
+async fn test_decode_transactions_from_blob() {
+    use ethers::prelude::*;
+    use ethers::types::transaction::eip2718::TypedTransaction;
+    use ethers::utils::to_checksum;
+
+    let wallet: LocalWallet = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        .parse()
+        .unwrap();
+
+    let addresses = vec![
+        "0x4e6bA705D14b2237374cF3a308ec466cAb24cA6a",
+        "0x0425266311AA5858625cD399EADBBfab183494f7",
+        "0x1f68c776FBe7285eBe02111F0A982D1640b0a483",
+    ];
+
+    let txs: Vec<TypedTransaction> = addresses
+        .iter()
+        .map(|to| {
+            let req = TransactionRequest::new()
+                .to(*to)
+                .value(1000000000000000000u64)
+                .gas(21000)
+                .chain_id(1u64);
+            TypedTransaction::Legacy(req)
+        })
+        .collect();
+
+    let mut txs_bytes: Vec<u8> = Vec::new();
+    for tx in txs {
+        let sig = wallet.sign_transaction(&tx).await.unwrap();
+        txs_bytes.extend_from_slice(&tx.rlp_signed(&sig));
+    }
+
+    let txs_decoded: Vec<crate::typed_tx::TypedTransaction> =
+        decode_transactions_from_blob(txs_bytes.as_slice());
+
+    for (tx, address_str) in txs_decoded.iter().zip(addresses) {
+        if let crate::typed_tx::TypedTransaction::Legacy(tr) = tx.clone() {
+            let address_to = tr.to.unwrap();
+            let to_tx = to_checksum(address_to.as_address().unwrap(), None);
+            assert_eq!(to_tx.as_str(), address_str);
+        };
+    }
 }
 
 #[tokio::test]

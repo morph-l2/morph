@@ -6,6 +6,7 @@ use ethers::prelude::*;
 use tokio::time::sleep;
 
 static DEFAULT_SCALAR: f64 = 1000000000.0;
+const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
 const MAX_SCALAR_RATIO: f64 = 100.0;
 
 pub struct BaseFee {
@@ -96,7 +97,9 @@ impl BaseFee {
             .set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
     }
 
-    async fn update_base_fee(&self, l1_base_fee: U256, base_fee_on_l2: U256) -> Result<(), ()> {
+    async fn update_base_fee(&self, mut l1_base_fee: U256, base_fee_on_l2: U256) -> Result<(), ()> {
+        l1_base_fee = l1_base_fee.min(U256::from(MAX_BASE_FEE));
+
         let actual_change = l1_base_fee.as_u128().abs_diff(base_fee_on_l2.as_u128());
         let expected_change = base_fee_on_l2.as_u128() * self.gas_threshold / 100;
         log::info!(
