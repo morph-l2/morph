@@ -16,9 +16,7 @@ contract L2GovTest is L2StakingBaseTest {
         // set to L2Sequencer
         hevm.mockCall(
             address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
 
@@ -122,9 +120,7 @@ contract L2GovVoteTest is L2StakingBaseTest {
         // set to L2Sequencer
         hevm.mockCall(
             address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
 

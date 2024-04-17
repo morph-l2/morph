@@ -26,11 +26,11 @@ contract L1SequencerTest is L1MessageBaseTest {
         }
 
         // test sequencer set initialized
-        hevm.prank(address(staking));
+        hevm.startPrank(address(staking));
         l1Sequencer.updateAndSendSequencerSet(
-            abi.encodeWithSelector(
-                IL2Sequencer.updateSequencers.selector,
-                sequencerInfos
+            abi.encodeCall(
+                IL2Sequencer.updateSequencers,
+                (l1Sequencer.newestVersion() + 1, sequencerInfos)
             ),
             sequencerAddrs,
             sequencerBLSKeys,
@@ -45,18 +45,18 @@ contract L1SequencerTest is L1MessageBaseTest {
                 bytes4(keccak256(bytes(sendMessage4))),
                 address(l2Sequencer),
                 0,
-                abi.encodeWithSelector(
-                    IL2Sequencer.updateSequencers.selector,
-                    sequencerInfos
+                abi.encodeCall(
+                    IL2Sequencer.updateSequencers,
+                    (l1Sequencer.newestVersion() + 1, sequencerInfos)
                 ),
                 defaultGasLimit
             )
         );
-        hevm.prank(address(staking));
+
         l1Sequencer.updateAndSendSequencerSet(
-            abi.encodeWithSelector(
-                IL2Sequencer.updateSequencers.selector,
-                sequencerInfos
+            abi.encodeCall(
+                IL2Sequencer.updateSequencers,
+                (l1Sequencer.newestVersion() + 1, sequencerInfos)
             ),
             sequencerAddrs,
             sequencerBLSKeys,
@@ -64,6 +64,7 @@ contract L1SequencerTest is L1MessageBaseTest {
         );
         version++;
         checkSequencers(version);
+        hevm.stopPrank();
     }
 
     function checkSequencers(uint256 version) internal {
@@ -97,12 +98,12 @@ contract L1SequencerVerifyTest is L1SequencerTest {
                 sequencerInfos[j] = sequencerInfo;
                 sequencersInfosStorage[version][j] = sequencerInfo;
             }
-            bytes memory data = abi.encodeWithSelector(
-                IL2Sequencer.updateSequencers.selector,
+            bytes memory data = abi.encodeCall(
+                IL2Sequencer.updateSequencers,
                 // Because this call will be executed on the remote chain, we reverse the order of
                 // the remote and local token addresses relative to their order in the
                 // updateSequencers function.
-                sequencerInfos
+                (l1Sequencer.newestVersion() + 1, sequencerInfos)
             );
             hevm.prank(address(staking));
             l1Sequencer.updateAndSendSequencerSet(

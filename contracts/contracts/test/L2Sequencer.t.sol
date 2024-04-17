@@ -14,9 +14,7 @@ contract L2SequencerTest is L2StakingBaseTest {
     function testUpdateSequencers() external {
         hevm.mockCall(
             address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
 

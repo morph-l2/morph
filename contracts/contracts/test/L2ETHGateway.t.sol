@@ -141,12 +141,9 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositETH.selector,
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositETH,
+                (sender, recipient, amount, dataToCall)
             )
         );
 
@@ -156,12 +153,9 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("msg.value mismatch");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositETH.selector,
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositETH,
+                (sender, recipient, amount, dataToCall)
             )
         );
     }
@@ -178,15 +172,11 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         gateway.withdrawETH{value: amount}(amount, 21000);
 
         // do finalize withdraw eth
-        bytes memory message = abi.encodeWithSelector(
-            IL2ETHGateway.finalizeDepositETH.selector,
-            sender,
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (sender, recipient, amount, dataToCall)
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             amount,
@@ -237,15 +227,11 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         gateway.withdrawETH{value: amount}(amount, 21000);
 
         // do finalize withdraw eth
-        bytes memory message = abi.encodeWithSelector(
-            IL2ETHGateway.finalizeDepositETH.selector,
-            sender,
-            address(recipient),
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (sender, address(recipient), amount, dataToCall)
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(counterpartGateway),
             address(gateway),
             amount,
@@ -308,15 +294,11 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ETHGateway.finalizeWithdrawETH.selector,
-            address(this),
-            address(this),
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL1ETHGateway.finalizeWithdrawETH,
+            (address(this), address(this), amount, new bytes(0))
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             amount,
@@ -397,15 +379,11 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ETHGateway.finalizeWithdrawETH.selector,
-            address(this),
-            recipient,
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL1ETHGateway.finalizeWithdrawETH,
+            (address(this), recipient, amount, new bytes(0))
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             amount,
@@ -489,15 +467,11 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ETHGateway.finalizeWithdrawETH.selector,
-            address(this),
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ETHGateway.finalizeWithdrawETH,
+            (address(this), recipient, amount, dataToCall)
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             amount,

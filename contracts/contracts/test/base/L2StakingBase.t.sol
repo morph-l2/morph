@@ -113,31 +113,26 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         ITransparentUpgradeableProxy(address(l2SequencerProxy))
             .upgradeToAndCall(
                 address(l2SequencerImpl),
-                abi.encodeWithSelector(
-                    L2Sequencer.initialize.selector,
-                    sequencerInfos
-                )
+                abi.encodeCall(L2Sequencer.initialize, (sequencerInfos))
             );
         ITransparentUpgradeableProxy(address(l2GovProxy)).upgradeToAndCall(
             address(govImpl),
-            abi.encodeWithSelector(
-                Gov.initialize.selector,
-                PROPOSAL_INTERVAL, // _proposalInterval
-                0, // _batchBlockInterval
-                0, // _batchMaxBytes
-                FINALIZATION_PERIOD_SECONDS, // _batchTimeout
-                ROLLUP_EPOCH, // rollupEpoch
-                MAX_CHUNKS // maxChunks
+            abi.encodeCall(
+                Gov.initialize,
+                (
+                    PROPOSAL_INTERVAL, // _proposalInterval
+                    0, // _batchBlockInterval
+                    0, // _batchMaxBytes
+                    FINALIZATION_PERIOD_SECONDS, // _batchTimeout
+                    ROLLUP_EPOCH, // rollupEpoch
+                    MAX_CHUNKS // maxChunks)
+                )
             )
         );
         ITransparentUpgradeableProxy(address(l2SubmitterProxy))
             .upgradeToAndCall(
                 address(submitterImpl),
-                abi.encodeWithSelector(
-                    Submitter.initialize.selector,
-                    sequencerAddrs,
-                    block.timestamp
-                )
+                abi.encodeCall(Submitter.initialize, ())
             );
 
         // set address
