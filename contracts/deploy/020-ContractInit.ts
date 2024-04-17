@@ -29,7 +29,7 @@ export const ContractInit = async (
         const baseFeeStr = (config.l2BaseFee).toString()
         let res = await GasPriceOracle.setL2BaseFee(ethers.utils.parseUnits(baseFeeStr, "gwei"))
         let rec = await res.wait()
-        console.log(`set base fee ${rec.status === 1 } setL2BaseFee(${await GasPriceOracle.l2BaseFee()}) gwei`)
+        console.log(`set base fee ${rec.status === 1} setL2BaseFee(${await GasPriceOracle.l2BaseFee()}) gwei`)
 
         const WhitelistImplAddress = getContractAddressByName(path, ImplStorageName.Whitelist)
         const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
@@ -53,7 +53,6 @@ export const ContractInit = async (
         const Rollup = await hre.ethers.getContractAt(ContractFactoryName.Rollup, RollupProxyAddress, deployer)
         // import genesis batch 
         const genesisStateRoot: string = config.rollupGenesisStateRoot
-        const withdrawRoot: string = config.withdrawRoot
         const batchHeader: string = config.batchHeader
         // submitter and challenger
         const submitter: string = config.rollupProposer
@@ -64,8 +63,8 @@ export const ContractInit = async (
             console.error('please check your address')
             return ''
         }
-        console.log('importGenesisBatch(%s, %s, %s)', batchHeader, genesisStateRoot, withdrawRoot)
-        await Rollup.importGenesisBatch(batchHeader, genesisStateRoot, withdrawRoot)
+        console.log('importGenesisBatch(%s, %s, %s)', batchHeader, genesisStateRoot)
+        await Rollup.importGenesisBatch(batchHeader, genesisStateRoot)
         // TODO to be removed later
         console.log('addProver(%s)', submitter)
         await Rollup.addProver(submitter)

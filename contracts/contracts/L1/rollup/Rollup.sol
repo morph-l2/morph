@@ -242,8 +242,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice Import layer 2 genesis block
     function importGenesisBatch(
         bytes calldata _batchHeader,
-        bytes32 _postStateRoot,
-        bytes32 _withdrawalRoot
+        bytes32 _postStateRoot
     ) external {
         // check genesis batch header length
         require(_postStateRoot != bytes32(0), "zero state root");
@@ -287,7 +286,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             block.timestamp,
             bytes32(0),
             _postStateRoot,
-            _withdrawalRoot,
+            bytes32(0),
             _l1DataHash,
             new address[](0),
             0,
