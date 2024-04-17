@@ -22,7 +22,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     address public immutable L2_STAKING_CONTRACT;
 
     // the maximum value of the epoch index recorded after mint execution.
-    uint256 public override latestMintedEpochIndex;
+    uint256 public latestMintedEpochIndex;
 
     // delegator => []sequencer
     mapping(address => EnumerableSet.AddressSet) private vestIn;
