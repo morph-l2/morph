@@ -435,7 +435,7 @@ contract RollupTest is L1MessageBaseTest {
         l1Sequencer.updateAndSendSequencerSet(
             abi.encodeCall(
                 IL2Sequencer.updateSequencers,
-                (l1Sequencer. ,sequencerInfos)
+                (l1Sequencer.newestVersion() + 1, sequencerInfos)
             ),
             sequencerAddrs,
             sequencerBLSKeys,
