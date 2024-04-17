@@ -63,13 +63,12 @@ export const ContractInit = async (
             console.error('please check your address')
             return ''
         }
-        console.log('importGenesisBatch(%s, %s, %s)', batchHeader, genesisStateRoot)
-        await Rollup.importGenesisBatch(batchHeader, genesisStateRoot)
-        // TODO to be removed later
-        console.log('addProver(%s)', submitter)
-        await Rollup.addProver(submitter)
-        console.log('addChallenger(%s)', challenger)
-        await Rollup.addChallenger(challenger)
+        let res = await Rollup.importGenesisBatch(batchHeader, genesisStateRoot)
+        let rec = await res.wait()
+        console.log(`importGenesisBatch(%s, %s) ${rec.status == 1 ? "success" : "failed"}`, batchHeader, genesisStateRoot)
+        res = await Rollup.addChallenger(challenger)
+        rec = await res.wait()
+        console.log(`addChallenger(%s) ${rec.status == 1 ? "success" : "failed"}`, challenger)
     }
 
     // ------------------ staking init -----------------

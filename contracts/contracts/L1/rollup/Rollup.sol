@@ -244,7 +244,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function importGenesisBatch(
         bytes calldata _batchHeader,
         bytes32 _postStateRoot
-    ) external {
+    ) external onlyOwner {
         // check genesis batch header length
         require(_postStateRoot != bytes32(0), "zero state root");
 
