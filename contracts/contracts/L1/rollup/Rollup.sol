@@ -1169,7 +1169,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @dev Public function to checks whether batch exists.
     /// @param batchIndex The index of the batch to be checked.
     function batchExist(uint256 batchIndex) public view returns (bool) {
-        return committedBatchStores[batchIndex].originTimestamp > 0;
+        return
+            committedBatchStores[batchIndex].originTimestamp > 0 &&
+            committedBatchStores[batchIndex].batchHash != bytes32(0);
     }
 
     /// @dev Public function to checks whether the batch is in challengeWindow.
