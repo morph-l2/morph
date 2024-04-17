@@ -470,8 +470,6 @@ github.com/morph-l2/go-ethereum v1.10.14-0.20240401031312-d068e9853254 h1:YZ4BSW
 github.com/morph-l2/go-ethereum v1.10.14-0.20240401031312-d068e9853254/go.mod h1:ogSuXMMniSGIzy2nHPIOUWS3MAqOJpLtw9A8ObKuv/Q=
 github.com/morph-l2/go-ethereum v1.10.14-0.20240409071811-f72db1529bfe h1:TmFOccpy84gHYnIvusWt5UZRMhNZNTR8WBg/j8fOYlw=
 github.com/morph-l2/go-ethereum v1.10.14-0.20240409071811-f72db1529bfe/go.mod h1:ADxZTWyo5ghkGXBoyFd0mQppIa3JaV3hlClPKNlMxz0=
-github.com/morph-l2/go-ethereum v1.10.14-0.20240412073703-cd22e09a65c6 h1:uPxIKrNoBqv6chYJq66j5pkWMQNtzDzEjecciZ3ypj8=
-github.com/morph-l2/go-ethereum v1.10.14-0.20240412073703-cd22e09a65c6/go.mod h1:ogSuXMMniSGIzy2nHPIOUWS3MAqOJpLtw9A8ObKuv/Q=
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240125053652-c7ba1597b86f/go.mod h1:zJcxhzs3kbX6xs90IBX1vIQy1KmSfm4MgNbv3Lt+Rns=
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240401034235-0403d532dbd3 h1:k622aE5OP4/8mJJMaIYfVwCnRgYPr7mR/5a294mwf+Q=
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240401034235-0403d532dbd3/go.mod h1:0d9/EvR8QheuLJBOq7mHPunn/7dPW22JGfeOaNEMxhA=
