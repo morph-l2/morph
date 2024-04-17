@@ -213,6 +213,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
 
+        emit UpdateProofWindow(0, PROOF_WINDOW);
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
     }
