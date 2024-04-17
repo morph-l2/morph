@@ -133,14 +133,16 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         gateway.updateTokenMapping(address(l1Token), address(l2Token));
 
         amount = bound(amount, 1, l1Token.balanceOf(address(this)));
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
+                dataToCall
+            )
         );
         gateway.depositERC20AndCall(
             address(l1Token),
@@ -189,17 +191,18 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         gateway.depositERC20(address(l1Token), amount, defaultGasLimit);
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                recipient,
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
@@ -264,17 +267,18 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         gateway.depositERC20(address(l1Token), amount, defaultGasLimit);
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            address(recipient),
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                address(recipient),
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(counterpartGateway),
             address(gateway),
             0,
@@ -356,17 +360,18 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            address(this),
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                address(this),
+                amount,
+                new bytes(0)
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -497,17 +502,18 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
+                new bytes(0)
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -643,17 +649,18 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,

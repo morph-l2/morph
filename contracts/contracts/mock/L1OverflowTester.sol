@@ -36,11 +36,7 @@ contract L1OverflowTester {
         MESSENGER.sendMessage(
             OTHERTESTER,
             0,
-            abi.encodeWithSelector(
-                L2OverflowTester.hash.selector,
-                _message,
-                count
-            ),
+            abi.encodeCall(L2OverflowTester.hash, (_message, count)),
             gas_limit
         );
     }

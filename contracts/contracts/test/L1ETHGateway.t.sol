@@ -104,12 +104,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         bytes memory dataToCall
     ) public {
         amount = bound(amount, 1, address(this).balance);
-        bytes memory message = abi.encodeWithSelector(
-            IL2ETHGateway.finalizeDepositETH.selector,
-            address(this),
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (address(this), recipient, amount, dataToCall)
         );
         l1ETHGateway.depositETHAndCall{value: amount}(
             recipient,
@@ -164,12 +161,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         l1ETHGateway.depositETH{value: amount}(amount, defaultGasLimit);
 
         // do finalize withdraw eth
-        bytes memory message = abi.encodeWithSelector(
-            IL1ETHGateway.finalizeWithdrawETH.selector,
-            sender,
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ETHGateway.finalizeWithdrawETH,
+            (sender, recipient, amount, dataToCall)
         );
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(
@@ -228,12 +222,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         l1ETHGateway.depositETH{value: amount}(amount, defaultGasLimit);
 
         // do finalize withdraw eth
-        bytes memory message = abi.encodeWithSelector(
-            IL1ETHGateway.finalizeWithdrawETH.selector,
-            sender,
-            recipient,
-            amount,
-            ""
+        bytes memory message = abi.encodeCall(
+            IL1ETHGateway.finalizeWithdrawETH,
+            (sender, recipient, amount, "")
         );
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(
@@ -301,12 +292,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ETHGateway.finalizeDepositETH.selector,
-            address(this),
-            address(this),
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (address(this), address(this), amount, new bytes(0))
         );
 
         bytes memory xDomainCalldata = _encodeXDomainCalldata(
@@ -411,12 +399,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ETHGateway.finalizeDepositETH.selector,
-            address(this),
-            recipient,
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (address(this), recipient, amount, new bytes(0))
         );
         bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(l1ETHGateway),
@@ -524,12 +509,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ETHGateway.finalizeDepositETH.selector,
-            address(this),
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (address(this), recipient, amount, dataToCall)
         );
         bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(l1ETHGateway),

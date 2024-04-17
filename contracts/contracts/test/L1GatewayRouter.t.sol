@@ -135,13 +135,9 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         reentrantToken.setReentrantCall(
             address(l1GatewayRouter),
             0,
-            abi.encodeWithSelector(
-                l1GatewayRouter.depositERC20AndCall.selector,
-                address(reentrantToken),
-                address(this),
-                0,
-                new bytes(0),
-                0
+            abi.encodeCall(
+                l1GatewayRouter.depositERC20AndCall,
+                (address(reentrantToken), address(this), 0, new bytes(0), 0)
             ),
             true
         );
@@ -151,13 +147,9 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         reentrantToken.setReentrantCall(
             address(l1GatewayRouter),
             0,
-            abi.encodeWithSelector(
-                l1GatewayRouter.depositERC20AndCall.selector,
-                address(reentrantToken),
-                address(this),
-                0,
-                new bytes(0),
-                0
+            abi.encodeCall(
+                l1GatewayRouter.depositERC20AndCall,
+                (address(reentrantToken), address(this), 0, new bytes(0), 0)
             ),
             false
         );
