@@ -65,8 +65,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         }
         rollup.importGenesisBatch(
             batchHeader0,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
         bytes32 batchHash0 = rollup.committedBatches(0);
 
@@ -473,8 +472,7 @@ contract RollupTest is L1MessageBaseTest {
         }
         rollup.importGenesisBatch(
             batchHeader0,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
         // caller not sequencer, revert
         hevm.startPrank(address(0));
@@ -807,8 +805,7 @@ contract RollupTest is L1MessageBaseTest {
         }
         rollup.importGenesisBatch(
             batchHeader0,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
         bytes32 batchHash0 = rollup.committedBatches(0);
 
@@ -1025,15 +1022,14 @@ contract RollupTest is L1MessageBaseTest {
         // zero state root, revert
         batchHeader = new bytes(89);
         hevm.expectRevert("zero state root");
-        rollup.importGenesisBatch(batchHeader, bytes32(0), getTreeRoot());
+        rollup.importGenesisBatch(batchHeader, bytes32(0));
 
         // batch header length too small, revert
         batchHeader = new bytes(120);
         hevm.expectRevert("batch header length too small");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         // wrong bitmap length, revert
@@ -1041,8 +1037,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("wrong bitmap length");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         // not all fields are zero, revert
@@ -1051,8 +1046,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("not all fields are zero");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         batchHeader = new bytes(121);
@@ -1060,8 +1054,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("not all fields are zero");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         batchHeader = new bytes(121 + 32);
@@ -1071,8 +1064,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("not all fields are zero");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         batchHeader = new bytes(121);
@@ -1080,8 +1072,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("not all fields are zero");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         // zero data hash, revert
@@ -1089,8 +1080,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("zero data hash");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         // nonzero parent batch hash, revert
@@ -1100,8 +1090,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("nonzero parent batch hash");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         // invalid versioned hash, revert
@@ -1110,8 +1099,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("invalid versioned hash");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
 
         // import correctly
@@ -1128,8 +1116,7 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.committedBatches(0), bytes32(0));
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
         assertEq(rollup.finalizedStateRoots(0), bytes32(uint256(1)));
         assertFalse(rollup.withdrawalRoots(0));
@@ -1139,8 +1126,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.expectRevert("genesis batch imported");
         rollup.importGenesisBatch(
             batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
+            bytes32(uint256(1))
         );
     }
 }
