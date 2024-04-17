@@ -90,7 +90,11 @@ contract L1CrossDomainMessenger is
         address _rollup,
         address _messageQueue
     ) public initializer {
-        if (_rollup == address(0) || _messageQueue == address(0)) {
+        if (
+            _rollup == address(0) ||
+            _messageQueue == address(0) ||
+            _feeVault == address(0)
+        ) {
             revert ErrZeroAddress();
         }
         CrossDomainMessenger.__Messenger_init(
@@ -233,7 +237,7 @@ contract L1CrossDomainMessenger is
 
         // compute and deduct the messaging fee to fee vault.
         uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_newGasLimit);
+            .estimateCrossDomainMessageFee(_from, _newGasLimit);
 
         // charge relayer fee
         require(msg.value >= _fee, "Insufficient msg.value for fee");
@@ -359,6 +363,7 @@ contract L1CrossDomainMessenger is
     function updateMaxReplayTimes(
         uint256 _newMaxReplayTimes
     ) external onlyOwner {
+        require(_newMaxReplayTimes > 0, "replay times must be greater than 0");
         uint256 _oldMaxReplayTimes = maxReplayTimes;
         maxReplayTimes = _newMaxReplayTimes;
 
@@ -392,7 +397,7 @@ contract L1CrossDomainMessenger is
 
         // compute and deduct the messaging fee to fee vault.
         uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_gasLimit);
+            .estimateCrossDomainMessageFee(_msgSender(), _gasLimit);
         require(msg.value >= _fee + _value, "Insufficient msg.value");
         if (_fee > 0) {
             (bool _success, ) = feeVault.call{value: _fee}("");

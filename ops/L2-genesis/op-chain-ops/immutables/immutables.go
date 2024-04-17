@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
-	"time"
 
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/bindings/predeploys"
@@ -152,30 +150,6 @@ func BuildL2(constructors []deployer.Constructor, config *Config) (DeploymentRes
 				return nil, nil, err
 			}
 			lastTx, err = l2Sequencer.Initialize(opts, infos)
-			if err != nil {
-				return nil, nil, err
-			}
-		case "Submitter":
-			if config == nil || len(config.L2SequencerAddresses) == 0 {
-				continue
-			}
-			if len(config.L2SequencerAddresses) != len(config.L2SequencerTmKeys) ||
-				len(config.L2SequencerAddresses) != len(config.L2SequencerBlsKeys) {
-				return nil, nil, fmt.Errorf("wrong L2Sequencer infos config: inconsistent number")
-			}
-			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
-			if err != nil {
-				return nil, nil, err
-			}
-			submitter, err := bindings.NewSubmitter(dep.Address, backend)
-			if err != nil {
-				return nil, nil, err
-			}
-			timestamp := config.L2GenesisBlockTimestamp
-			if timestamp == 0 {
-				timestamp = hexutil.Uint64(time.Now().Unix())
-			}
-			lastTx, err = submitter.Initialize(opts, config.L2SequencerAddresses, big.NewInt(int64(timestamp)))
 			if err != nil {
 				return nil, nil, err
 			}
