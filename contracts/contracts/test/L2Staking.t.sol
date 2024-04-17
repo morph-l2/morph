@@ -26,10 +26,14 @@ contract L2StakingTest is L2StakingBaseTest {
     function setUp() public virtual override {
         super.setUp();
 
+        firstStaker = address(uint160(beginSeq));
+
         hevm.startPrank(multisig);
         morphToken.transfer(bob, morphBalance);
         morphToken.transfer(alice, morphBalance);
         hevm.stopPrank();
+
+        hevm.warp(REWARD_START_TIME);
     }
 
     /**
@@ -50,103 +54,142 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice test add staker
      */
     function testAddStakers() public {
-        // hevm.mockCall(
-        //     address(l2Staking.messenger()),
-        //     abi.encodeWithSelector(
-        //         ICrossDomainMessenger.xDomainMessageSender.selector
-        //     ),
-        //     abi.encode(address(l2Staking.OTHER_STAKING()))
-        // );
-        // hevm.startPrank(address(l2CrossDomainMessenger));
-        // for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
-        //     address staker = address(uint160(beginSeq + i));
-        //     Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(
-        //         staker
-        //     );
-        //     l2Staking.addStaker(stakerInfo);
-        // }
-        // hevm.stopPrank();
-        // for (uint256 i = 0; i < SEQUENCER_SIZE * 2; i++) {
-        //     address user = address(uint160(beginSeq + i));
-        //     (address staker, , ) = l2Staking.stakers(user);
-        //     assertEq(user, staker);
-        //     uint256 ranking = l2Staking.stakerRankings(user);
-        //     assertEq(ranking, i + 1);
-        // }
+        hevm.mockCall(
+            address(l2Staking.messenger()),
+            abi.encodeWithSelector(
+                ICrossDomainMessenger.xDomainMessageSender.selector
+            ),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(
+                staker
+            );
+            l2Staking.addStaker(stakerInfo);
+        }
+        hevm.stopPrank();
+        for (uint256 i = 0; i < SEQUENCER_SIZE * 2; i++) {
+            address user = address(uint160(beginSeq + i));
+            (address staker, , ) = l2Staking.stakers(user);
+            assertEq(user, staker);
+            uint256 ranking = l2Staking.stakerRankings(user);
+            assertEq(ranking, i + 1);
+        }
     }
 
     /**
-     * @notice normal staking by delegator
+     * @notice test removed staker
      */
-    // function testDelegatorStaking() public {
-    //     address[] memory mStakers = l2Staking.getStakers();
-    //     assertEq(firstStaker, mStakers[0]);
+    function testRemoveStakers() public {
+        hevm.mockCall(
+            address(l2Staking.messenger()),
+            abi.encodeWithSelector(
+                ICrossDomainMessenger.xDomainMessageSender.selector
+            ),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
 
-    //     hevm.startPrank(bob);
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(
+                staker
+            );
+            l2Staking.addStaker(stakerInfo);
+        }
 
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
+        address[] memory removed = new address[](2);
+        removed[0] = address(uint160(beginSeq + 1));
+        removed[1] = address(uint160(beginSeq + 4));
 
-    //     uint256 amount = l2Staking.stakingInfo(firstStaker, bob);
-    //     assertEq(morphBalance, amount);
-    //     hevm.stopPrank();
-    // }
+        l2Staking.removeStakers(removed);
+        hevm.stopPrank();
 
-    // /**
-    //  * @notice failed staking, staker not exists
-    //  */
-    // function testDelegatorStakingToNotExistsStaker() public {
-    //     hevm.startPrank(bob);
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
+        for (uint256 i = 0; i < 4; i++) {
+            address user = l2Staking.stakerAddrs(i);
+            uint256 ranking = l2Staking.stakerRankings(user);
+            assertEq(ranking, i + 1);
+        }
 
-    //     hevm.expectRevert("staker not exist");
-    //     l2Staking.delegateStake(alice, morphBalance);
+        for (uint256 i = 0; i < removed.length; i++) {
+            address user = removed[i];
+            uint256 ranking = l2Staking.stakerRankings(user);
+            assertEq(ranking, 0);
+        }
+    }
 
-    //     hevm.stopPrank();
-    // }
+    /**
+     * @notice failed staking, staker not exists
+     */
+    function testStakeToNotStaker() public {
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
 
-    // /**
-    //  * @notice failed unstaking, when staking amount zero
-    //  */
-    // function testDelegatorUnstakingIfStakingAmountZero() public {
-    //     hevm.startPrank(bob);
+        hevm.expectRevert("not staker");
+        l2Staking.delegateStake(alice, morphBalance);
 
-    //     hevm.expectRevert("staking amount is zero");
-    //     l2Staking.unDelegateStake(firstStaker);
+        hevm.stopPrank();
+    }
 
-    //     hevm.stopPrank();
-    // }
+    /**
+     * @notice staking by delegator
+     * stag0
+     */
+    function testStakeWhenRewardNotStart() public {
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
 
-    // /**
-    //  * @notice normal unstaking
-    //  */
-    // function testDelegatorUnstaking() public {
-    //     hevm.startPrank(bob);
+        l2Staking.delegateStake(firstStaker, morphBalance);
 
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
+        uint256 amount = l2Staking.delegations(firstStaker, bob);
+        assertEq(morphBalance, amount);
+        hevm.stopPrank();
+    }
 
-    //     uint256 stakerAmount0 = l2Staking.stakersAmount(firstStaker);
+    /**
+     * @notice normal unstaking
+     */
+    function testUnstaking() public {
+        hevm.startPrank(bob);
 
-    //     uint256 amount0 = l2Staking.stakingInfo(firstStaker, bob);
-    //     l2Staking.unDelegateStake(firstStaker);
-    //     uint256 amount1 = l2Staking.stakingInfo(firstStaker, bob);
-    //     assertEq(amount1, 0);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
 
-    //     uint256 stakerAmount1 = l2Staking.stakersAmount(firstStaker);
+        uint256 stakerAmount0 = l2Staking.stakerDelegations(firstStaker);
 
-    //     assertEq(stakerAmount1, stakerAmount0 - amount0);
+        uint256 amount0 = l2Staking.delegations(firstStaker, bob);
+        l2Staking.undelegateStake(firstStaker);
+        uint256 amount1 = l2Staking.delegations(firstStaker, bob);
+        assertEq(amount1, 0);
 
-    //     hevm.stopPrank();
-    // }
+        uint256 stakerAmount1 = l2Staking.stakerDelegations(firstStaker);
 
-    // /**
-    //  * @notice failed claim, no record of unstaking
-    //  */
+        assertEq(stakerAmount1, stakerAmount0 - amount0);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice failed unstaking, when staking amount is zero
+     */
+    function testDelegatorUnstakingIfStakingAmountZero() public {
+        hevm.startPrank(bob);
+
+        hevm.expectRevert("staking amount is zero");
+        l2Staking.undelegateStake(firstStaker);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice failed claim, no record of unstaking
+     */
     // function testDelegatorInvalidclaim() public {
     //     hevm.startPrank(bob);
     //     hevm.expectRevert("no information on unstaking");
-    //     l2Staking.withdrawal(firstStaker);
+    //     l2Staking.claimUndelegation(firstStaker);
     //     hevm.stopPrank();
     // }
 
