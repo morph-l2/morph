@@ -9,6 +9,8 @@ import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEnde
  * @dev Interface of the Distribute.
  */
 interface IDistribute {
+    /*********************** Structs **************************/
+
     struct Set {
         EnumerableSet.AddressSet index;
         mapping(address => uint256) value;
@@ -20,7 +22,9 @@ interface IDistribute {
     }
 
     struct Distribution {
+        // total amount of all account
         uint256 totalAmount;
+        // record the number of users who do not claim
         uint256 remainNumber;
         // mapping(delegator => amount)
         Set amounts;
@@ -36,12 +40,15 @@ interface IDistribute {
         uint256 claimed;
     }
 
+    /*********************** Events **************************/
+
     // event of claimAll
     event ClaimAll(address indexed from, address indexed to, uint256 amount);
 
     // event of claim
     event Claim(address indexed from, address indexed to, uint256 amount);
 
+    // event of notifyDelegate
     event NotifyDelegate(
         address indexed sequencer,
         uint256 indexed epochIndex,
@@ -50,20 +57,44 @@ interface IDistribute {
         uint256 blockNumber
     );
 
+    // event of notifyUnDelegate
     event NotifyUnDelegate(
         address indexed sequencer,
         address indexed account,
         uint256 deadlineClaimEpochIndex
     );
 
+    /*********************** Functions **************************/
+
+    /**
+     * @dev notify the block push time corresponds to the block number message.
+     * @param blockTime time of the first block of the day
+     * @param blockNumber number of the first block of the day
+     */
     function notify(uint256 blockTime, uint256 blockNumber) external;
 
+    /**
+     * @dev notifyUnDelegate pushes the epoch index of
+     * the user's undelegate in the specified sequencer.
+     *
+     * @param sequencer the specified sequencer address.
+     * @param account user address.
+     * @param deadlineClaimEpochIndex the epoch index of the undelegate.
+     */
     function notifyUnDelegate(
         address sequencer,
         address account,
         uint256 deadlineClaimEpochIndex
     ) external;
 
+    /**
+     * @dev notifyDelegate pushes account delegate message.
+     * @param sequencer the specified sequencer address.
+     * @param epochIndex the epoch index corresponding to the delegate.
+     * @param account user address.
+     * @param amount corresponding to the delegate.
+     * @param blockNumber delegate Specifies the block number corresponding to the delegate.
+     */
     function notifyDelegate(
         address sequencer,
         uint256 epochIndex,
@@ -72,12 +103,13 @@ interface IDistribute {
         uint256 blockNumber
     ) external;
 
-    function mint() external;
-
     /**
-     * @dev latestMintedEpochIndex the maximum value of the epoch index after mint.
+     * @dev mint function
+     * record the amount of rewards for each epoch index.
+     *
+     * @notice only record contract can call.
      */
-    function latestMintedEpochIndex() external returns (uint256);
+    function mint() external;
 
     /**
      * @dev claimedEpochIndex query the latest claimed epoch index.

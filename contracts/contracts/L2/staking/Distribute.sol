@@ -24,7 +24,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     // the maximum value of the epoch index recorded after mint execution.
     uint256 public override latestMintedEpochIndex;
 
-    // delegator => [sequencer]
+    // delegator => []sequencer
     mapping(address => EnumerableSet.AddressSet) private vestIn;
     // mapping(sequencer => mapping(epochIndex => Distribution));
     mapping(address => mapping(uint256 => Distribution)) private collect;
