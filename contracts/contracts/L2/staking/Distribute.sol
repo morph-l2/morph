@@ -3,16 +3,15 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {IMorphToken} from "../system/IMorphToken.sol";
-import {IDistribute} from "./IDistribute.sol";
+import {IL2Staking} from "./IL2Staking.sol";
 import {IRecord} from "./IRecord.sol";
+import {IDistribute} from "./IDistribute.sol";
 
 contract Distribute is IDistribute, OwnableUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
-    using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
 
     // MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
@@ -20,488 +19,341 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     address public immutable RECORD_CONTRACT;
     // l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
+    // reward epoch, seconds of one day (3600 * 24)
+    uint256 public immutable REWARD_EPOCH = 86400;
 
-    // the maximum value of the epoch index recorded after mint execution.
-    uint256 public latestMintedEpochIndex;
+    // latest epoch minted inflation
+    uint256 private latestMintedEpoch;
 
-    // delegator => []sequencer
-    mapping(address => EnumerableSet.AddressSet) private vestIn;
-    // mapping(sequencer => mapping(epochIndex => Distribution));
-    mapping(address => mapping(uint256 => Distribution)) private collect;
+    // mapping(delegatee => mapping(epoch_index => Distribution)). delete after all claimed
+    mapping(address => mapping(uint256 => Distribution)) private distributions;
+    // mapping(delegatee => epoch_index)
+    mapping(address => uint256) public override unclaimedComission;
+    // mapping(delegator => unclaimed_info)
+    mapping(address => Unclaimed) private unclaimed;
 
-    // mapping(sequencer => mapping(delegator => DelegatorEpochRecord));
-    mapping(address => mapping(address => DelegatorEpochRecord))
-        private epochRecord;
+    /*********************** modifiers ***********************************/
 
-    // epoch index => reward
-    mapping(uint256 => uint256) private rewards;
-
-    // The start time of each day and the corresponding block number
-    // block time => block number (incremental)
-    TimeOrderedSet private blockInfo;
-
-    /*********************** modifiers **************************/
+    /**
+     * @notice Ensures that the caller message from l2 staking contract.
+     */
+    modifier onlyL2StakingContract() {
+        require(
+            msg.sender == L2_STAKING_CONTRACT,
+            "only l2 staking contract allowed"
+        );
+        _;
+    }
 
     /**
      * @notice Ensures that the caller message from record contract.
      */
     modifier onlyRecordContract() {
         require(msg.sender == RECORD_CONTRACT, "only record contract allowed");
+
         _;
     }
 
-    /**
-     * @notice Ensures that the caller message from staking contract.
-     */
-    modifier onlyStakingContract() {
-        require(
-            msg.sender == L2_STAKING_CONTRACT,
-            "only stake contract allowed"
-        );
-        _;
-    }
-
-    /*********************** Constructor **************************/
+    /*********************** Constructor *********************************/
 
     /**
      * @notice constructor
      */
     constructor() {
         MORPH_TOKEN_CONTRACT = Predeploys.MORPH_TOKEN;
-        RECORD_CONTRACT = Predeploys.RECORD;
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
+        RECORD_CONTRACT = Predeploys.RECORD;
     }
-
-    /*********************** Init ****************************************/
-
-    /**
-     * @dev See {IDistribute-initialize}.
-     */
-    function initialize() public initializer {}
 
     /*********************** External Functions **************************/
 
     /**
-     * @dev See {IDistribute-initialize}.
+     * @dev notify delegation
+     * @param delegatee         delegatee address
+     * @param delegator         delegator address
+     * @param effectiveEpoch    delegation effective epoch
+     * @param amount            delegator total amount, not increment
+     * @param totalAmount       delegatee total amount
+     * @param newDelegation     First delegate or additional delegate
      */
-    function notify(
-        uint256 blockTime,
-        uint256 blockNumber
-    ) public onlyRecordContract {
-        // todo blockTime
-        require(
-            blockTime <= block.timestamp,
-            "blockTime must be smaller than or equal to the current block time"
-        );
-        require(
-            blockNumber <= block.number,
-            "blockNumber must be smaller than or equal to the current block number"
-        );
-        blockInfo.index.pushBack(bytes32(blockTime));
-        blockInfo.value[blockTime] = blockNumber;
-    }
-
-    /**
-     * @dev See {IDistribute-notifyUnDelegate}.
-     */
-    function notifyUnDelegate(
-        address sequencer,
-        address account,
-        uint256 deadlineClaimEpochIndex
-    ) public onlyStakingContract {
-        require(sequencer != address(0), "invalid sequencer address");
-        require(account != address(0), "invalid account address");
-
-        if (
-            epochRecord[sequencer][account].claimed >= deadlineClaimEpochIndex
-        ) {
-            revert(
-                "deadline claim epoch index must be granter than claimed epoch index"
-            );
-        }
-
-        epochRecord[sequencer][account].deadline = deadlineClaimEpochIndex;
-
-        emit NotifyUnDelegate(sequencer, account, deadlineClaimEpochIndex);
-    }
-
-    /**
-     * @dev See {IDistribute-notifyDelegate}.
-     */
-    function notifyDelegate(
-        address sequencer,
-        uint256 epochIndex,
-        address account,
+    function notifyDelegation(
+        address delegatee,
+        address delegator,
+        uint256 effectiveEpoch,
         uint256 amount,
-        uint256 blockNumber
-    ) public onlyStakingContract {
-        require(sequencer != address(0), "invalid sequencer address");
-        require(account != address(0), "invalid account address");
+        uint256 totalAmount,
+        bool newDelegation
+    ) public onlyL2StakingContract {
+        // update distribution info
+        distributions[delegatee][effectiveEpoch].delegationAmount = totalAmount;
+        distributions[delegatee][effectiveEpoch].delegators.add(delegator);
+        distributions[delegatee][effectiveEpoch].amounts[delegator] = amount;
+        distributions[delegatee][effectiveEpoch].remainsNumber = distributions[
+            delegatee
+        ][effectiveEpoch].delegators.length();
 
-        (uint256 startNumber, uint256 endNumber) = IRecord(RECORD_CONTRACT)
-            .epochInfo(epochIndex);
-
-        if (blockNumber < startNumber || blockNumber > endNumber) {
-            revert("invalid args");
+        // update unclaimed info
+        if (newDelegation) {
+            unclaimed[delegator].delegatees.add(delegatee);
+            unclaimed[delegator].unclaimedStart[delegatee] = effectiveEpoch;
         }
+    }
 
-        // the epoch index that actually took effect.
-        epochIndex += 1;
-        epochRecord[sequencer][account].begin = epochIndex;
-        vestIn[account].add(sequencer);
+    /**
+     * @dev notify unDelegation
+     * @param delegatee         delegatee address
+     * @param delegator         delegator address
+     * @param effectiveEpoch    delegation effective epoch
+     * @param totalAmount       delegatee total amount
+     */
+    function notifyUndelegation(
+        address delegatee,
+        address delegator,
+        uint256 effectiveEpoch,
+        uint256 totalAmount
+    ) public onlyL2StakingContract {
+        // update distribution info
+        distributions[delegatee][effectiveEpoch].delegationAmount = totalAmount;
+        distributions[delegatee][effectiveEpoch].delegators.remove(delegator);
+        delete distributions[delegatee][effectiveEpoch].amounts[delegator];
+        distributions[delegatee][effectiveEpoch].remainsNumber--;
 
-        Distribution storage dt = collect[sequencer][epochIndex];
-
-        if (!collect[sequencer][epochIndex].valid) {
-            // Iterate over epoch index to find the nearest valid value
-            for (uint i = epochIndex - 1; i > 0; i--) {
-                if (collect[sequencer][i].valid) {
-                    dt.totalAmount = collect[sequencer][i].totalAmount + amount;
-                    for (
-                        uint256 j = 0;
-                        j < collect[sequencer][i].amounts.index.length();
-                        j++
-                    ) {
-                        address delegator = collect[sequencer][i]
-                            .amounts
-                            .index
-                            .at(j);
-                        uint256 delegateAmount = collect[sequencer][i]
-                            .amounts
-                            .value[delegator];
-
-                        dt.amounts.index.add(delegator);
-                        dt.amounts.value[delegator] = delegateAmount;
-                    }
-
-                    if (
-                        !collect[sequencer][i].amounts.index.contains(account)
-                    ) {
-                        // when it doesn't exist
-                        dt.remainNumber =
-                            collect[sequencer][i].amounts.index.length() +
-                            1;
-
-                        dt.amounts.index.add(account);
-                        dt.amounts.value[account] = amount;
-                    } else {
-                        // when it exist
-                        dt.remainNumber = collect[sequencer][i]
-                            .amounts
-                            .index
-                            .length();
-
-                        dt.amounts.value[account] += amount;
-                    }
-                    dt.valid = true;
-                }
-            }
-
-            if (!dt.valid) {
-                // When none existed
-                dt.totalAmount = amount;
-                dt.remainNumber = 1;
-                dt.amounts.index.add(account);
-                dt.amounts.value[account] = amount;
-                dt.valid = true;
-            }
-        } else {
-            dt.totalAmount += amount;
-
-            if (!dt.amounts.index.contains(account)) {
-                // when it doesn't exist
-                dt.remainNumber += 1;
-
-                dt.amounts.index.add(account);
-                dt.amounts.value[account] = amount;
-            } else {
-                // when it exist
-                dt.amounts.value[account] += amount;
-            }
+        // not start reward yet, or delegate and undelegation within the same epoch, remove unclaim info
+        if (
+            effectiveEpoch == 0 ||
+            unclaimed[delegator].unclaimedStart[delegatee] == effectiveEpoch
+        ) {
+            unclaimed[delegator].delegatees.remove(delegatee);
+            delete unclaimed[delegator].undelegated[delegatee];
+            delete unclaimed[delegator].unclaimedStart[delegatee];
+            delete unclaimed[delegator].unclaimedEnd[delegatee];
         }
+    }
 
-        emit NotifyDelegate(
-            sequencer,
-            epochIndex,
-            account,
-            amount,
-            blockNumber
+    /**
+     * @dev update epoch reward
+     * @param epochIndex        epoch index
+     * @param sequencers        sequencers
+     * @param delegatorRewards  sequencer's delegatorRewardAmount
+     * @param commissions       sequencers commission
+     *
+     */
+    function updateEpochReward(
+        uint256 epochIndex,
+        address[] memory sequencers,
+        uint256[] memory delegatorRewards,
+        uint256[] memory commissions
+    ) external onlyRecordContract {
+        latestMintedEpoch++;
+        require(latestMintedEpoch == epochIndex, "invalid epoch index");
+        require(
+            delegatorRewards.length == sequencers.length &&
+                commissions.length == sequencers.length,
+            "invalid data length"
         );
-    }
 
-    /**
-     * @dev See {IDistribute-mint}.
-     */
-    function mint() public onlyRecordContract {
-        (uint256 mintBegin, uint256 mintEnd) = IMorphToken(MORPH_TOKEN_CONTRACT)
-            .mint();
-
-        uint256 internalDays = (mintEnd - mintBegin) / 86400;
-
-        for (uint256 i = 0; i < internalDays; i++) {
-            if (blockInfo.index.length() <= internalDays) {
-                revert("mapping block time to block number data not enable");
-            }
-
-            uint256 tm = mintBegin + (i * 86400);
-
-            uint256 usedIndex = 0;
-
-            for (uint256 j = 0; j < blockInfo.index.length(); j++) {
-                uint256 beginTimeOfOneDay = uint256(blockInfo.index.at(j));
-
-                if (beginTimeOfOneDay >= tm && beginTimeOfOneDay < tm + 86400) {
-                    usedIndex = j;
-
-                    uint256 rewardOfOneDay = IMorphToken(MORPH_TOKEN_CONTRACT)
-                        .reward(tm);
-                    uint256 nextBeginTimeOfOneDay = uint256(
-                        blockInfo.index.at(j + 1)
-                    );
-                    uint256 beginBlockNumberOfOneDay = blockInfo.value[
-                        beginTimeOfOneDay
-                    ];
-                    uint256 endBlockNumberOfOneDay = blockInfo.value[
-                        nextBeginTimeOfOneDay
-                    ] - 1;
-
-                    uint256 totalBlockNumberOfOneDay = endBlockNumberOfOneDay -
-                        beginBlockNumberOfOneDay +
-                        1;
-                    for (uint256 k = latestMintedEpochIndex; ; k++) {
-                        (
-                            uint256 epochIndexBeginNumber,
-                            uint256 epochIndexEndNumber
-                        ) = IRecord(RECORD_CONTRACT).epochInfo(k);
-
-                        if (epochIndexEndNumber <= beginBlockNumberOfOneDay) {
-                            continue;
-                        }
-
-                        if (
-                            beginBlockNumberOfOneDay <= epochIndexBeginNumber &&
-                            epochIndexEndNumber <= endBlockNumberOfOneDay
-                        ) {
-                            rewards[k] =
-                                (rewardOfOneDay *
-                                    (epochIndexEndNumber -
-                                        epochIndexBeginNumber +
-                                        1)) /
-                                totalBlockNumberOfOneDay;
-                            latestMintedEpochIndex = k;
-                            continue;
-                        } else if (
-                            beginBlockNumberOfOneDay > epochIndexBeginNumber &&
-                            beginBlockNumberOfOneDay < epochIndexEndNumber
-                        ) {
-                            rewards[k] +=
-                                (rewardOfOneDay *
-                                    (epochIndexEndNumber -
-                                        beginBlockNumberOfOneDay +
-                                        1)) /
-                                totalBlockNumberOfOneDay;
-                            latestMintedEpochIndex = k;
-                            continue;
-                        } else if (
-                            epochIndexBeginNumber < endBlockNumberOfOneDay &&
-                            epochIndexEndNumber > endBlockNumberOfOneDay
-                        ) {
-                            rewards[k] +=
-                                (rewardOfOneDay *
-                                    (endBlockNumberOfOneDay -
-                                        epochIndexBeginNumber +
-                                        1)) /
-                                totalBlockNumberOfOneDay;
-                            latestMintedEpochIndex = k;
-                            continue;
-                        }
-                        break;
-                    }
-                }
-            }
-            for (uint256 m = 0; m <= usedIndex; m++) {
-                bytes32 value = blockInfo.index.popFront();
-                delete blockInfo.value[uint256(value)];
-            }
+        for (uint256 i = 0; i < sequencers.length; i++) {
+            distributions[sequencers[i]][epochIndex]
+                .delegatorRewardAmount = delegatorRewards[i];
+            distributions[sequencers[i]][epochIndex]
+                .commissionAmount = commissions[i];
         }
     }
 
     /**
-     * @dev See {IDistribute-claimAll}.
-     */
-    function claimAll(address account, uint256 targetEpochIndex) public {
-        uint256 accountTotalReward = 0;
-        for (uint256 i = 0; i < vestIn[account].length(); i++) {
-            accountTotalReward += _claim(
-                vestIn[account].at(i),
-                account,
-                targetEpochIndex
-            );
-        }
-        IMorphToken(MORPH_TOKEN_CONTRACT).transfer(account, accountTotalReward);
-
-        emit ClaimAll(address(this), account, accountTotalReward);
-    }
-
-    /**
-     * @dev See {IDistribute-claim}.
+     * @dev claim delegation reward of a delegatee.
+     * @param delegatee         delegatee address
+     * @param delegator         delegator address
+     * @param targetEpochIndex  the epoch index that the user wants to claim up to
+     *
+     * If targetEpochIndex is zero, claim up to latest mint epoch,
+     * otherwise it must be greater than the last claimed epoch index.
      */
     function claim(
-        address sequencer,
-        address account,
+        address delegatee,
+        address delegator,
         uint256 targetEpochIndex
-    ) public {
-        if (!vestIn[account].contains(sequencer)) {
-            revert("not delegate to the sequencer");
+    ) external onlyL2StakingContract {
+        uint256 endEpochIndex = targetEpochIndex;
+        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
+            endEpochIndex = latestMintedEpoch;
         }
+        uint256 reward = _claim(delegatee, delegator, endEpochIndex);
+        if (reward > 0) {
+            _transfer(delegator, reward);
+        }
+    }
 
-        uint256 accountReward = _claim(sequencer, account, targetEpochIndex);
-        IMorphToken(MORPH_TOKEN_CONTRACT).transfer(account, accountReward);
+    /**
+     * @dev claim delegation reward of all sequencers.
+     * @param delegator         delegator address
+     * @param targetEpochIndex  the epoch index that the user wants to claim up to
+     *
+     * If targetEpochIndex is zero, claim up to latest mint epoch,
+     * otherwise it must be greater than the last claimed epoch index.
+     */
+    function claimAll(
+        address delegator,
+        uint256 targetEpochIndex
+    ) external onlyL2StakingContract {
+        uint256 endEpochIndex = targetEpochIndex;
+        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
+            endEpochIndex = latestMintedEpoch;
+        }
+        uint256 reward;
+        for (uint256 i = 0; i < unclaimed[delegator].delegatees.length(); i++) {
+            address delegatee = unclaimed[delegator].delegatees.at(i);
+            if (
+                unclaimed[delegator].delegatees.contains(delegatee) &&
+                unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex
+            ) {
+                reward += _claim(delegatee, delegator, targetEpochIndex);
+            }
+        }
+        if (reward > 0) {
+            _transfer(delegator, reward);
+        }
+    }
 
-        emit Claim(address(this), account, accountReward);
+    /**
+     * @dev claim commission reward
+     * @param delegatee         delegatee address
+     * @param targetEpochIndex  the epoch index that the user wants to claim up to
+     */
+    function claimCommission(
+        address delegatee,
+        uint256 targetEpochIndex
+    ) external onlyL2StakingContract {
+        uint256 end = targetEpochIndex;
+        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
+            end = latestMintedEpoch;
+        }
+        require(unclaimedComission[delegatee] <= end, "all commission claimed");
+        uint256 commission;
+        for (uint256 i = 0; i <= end; i++) {
+            commission += distributions[delegatee][i].commissionAmount;
+        }
+        if (commission > 0) {
+            _transfer(delegatee, commission);
+        }
+        unclaimedComission[delegatee] = end + 1;
     }
 
     /*********************** External View Functions **************************/
 
     /**
-     * @dev See {IDistribute-claimedEpochIndex}.
+     * @notice query unclaimed morph reward on a delegatee
+     * @param delegatee     delegatee address
+     * @param delegator     delegatee address
      */
-    function claimedEpochIndex(
-        address sequencer,
-        address account
-    ) public view returns (uint256) {
-        return epochRecord[sequencer][account].claimed;
+    function queryUnclaimed(
+        address delegatee,
+        address delegator
+    ) external view returns (uint256 reward) {
+        uint256 totalAmount;
+        uint256 delegatorAmount;
+        uint start = unclaimed[delegator].unclaimedStart[delegatee];
+        for (uint256 i = start; i <= latestMintedEpoch; i++) {
+            if (distributions[delegatee][i].amounts[delegator] > 0) {
+                delegatorAmount = distributions[delegatee][i].amounts[
+                    delegator
+                ];
+            }
+            if (distributions[delegatee][i].delegationAmount > 0) {
+                totalAmount = distributions[delegatee][i].delegationAmount;
+            }
+            reward +=
+                (distributions[delegatee][i].delegatorRewardAmount *
+                    delegatorAmount) /
+                totalAmount;
+            if (
+                unclaimed[delegator].undelegated[delegatee] &&
+                unclaimed[delegator].unclaimedEnd[delegatee] == i
+            ) {
+                break;
+            }
+        }
     }
 
-    /*********************** Internal Functions **************************/
+    /*********************** Internal Functions *******************************/
 
+    /**
+     * @notice transfer morph token
+     */
+    function _transfer(address _to, uint256 _amount) internal {
+        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        IERC20(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
+        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        require(
+            _amount > 0 && balanceAfter - balanceBefore == _amount,
+            "morph token transfer failed"
+        );
+    }
+
+    /**
+     * @notice claim delegator morph reward
+     */
     function _claim(
-        address sequencer,
-        address account,
-        uint256 targetEpochIndex
-    ) internal returns (uint256) {
-        // determine the epoch index of the end claim
-        uint256 endClaimEpochIndex = latestMintedEpochIndex;
+        address delegatee,
+        address delegator,
+        uint256 endEpochIndex
+    ) internal returns (uint256 reward) {
+        require(
+            unclaimed[delegator].delegatees.contains(delegatee),
+            "no remaining reward"
+        );
+        require(
+            unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex,
+            "all reward claimed"
+        );
 
-        (uint256 startNumber, uint256 endNumber) = IRecord(RECORD_CONTRACT)
-            .epochInfo(latestMintedEpochIndex);
-        // determine whether the epoch index starts in one day and ends in another
-        if (startNumber / 86400 != endNumber / 86400) {
-            endClaimEpochIndex = latestMintedEpochIndex - 1;
-        }
-
-        uint256 accountDeadlineEpochIndex = epochRecord[sequencer][account]
-            .deadline;
-        if (
-            accountDeadlineEpochIndex != 0 &&
-            endClaimEpochIndex > accountDeadlineEpochIndex
+        for (
+            uint256 i = unclaimed[delegator].unclaimedStart[delegatee];
+            i <= endEpochIndex;
+            i++
         ) {
-            endClaimEpochIndex = accountDeadlineEpochIndex;
-        }
+            // compute reward
+            reward +=
+                (distributions[delegatee][i].delegatorRewardAmount *
+                    distributions[delegatee][i].amounts[delegator]) /
+                distributions[delegatee][i].delegationAmount;
 
-        if (targetEpochIndex != 0) {
+            // if undelegated, remove unclaimed info after claimed all
             if (
-                targetEpochIndex < epochRecord[sequencer][account].claimed + 1
+                unclaimed[delegator].undelegated[delegatee] &&
+                unclaimed[delegator].unclaimedEnd[delegatee] == i
             ) {
-                revert(
-                    "claim epoch index must be greater than claimed epoch index"
-                );
+                unclaimed[delegator].delegatees.remove(delegatee);
+                delete unclaimed[delegator].undelegated[delegatee];
+                delete unclaimed[delegator].unclaimedStart[delegatee];
+                delete unclaimed[delegator].unclaimedEnd[delegatee];
+                break;
             }
+            unclaimed[delegator].unclaimedStart[delegatee]++;
 
-            if (targetEpochIndex < endClaimEpochIndex) {
-                endClaimEpochIndex = targetEpochIndex;
-            }
-        }
+            // update next distribution info
+            if (
+                !distributions[delegatee][i + 1].delegators.contains(delegator)
+            ) {
+                distributions[delegatee][i + 1].delegators.add(delegator);
+                distributions[delegatee][i + 1].amounts[
+                    delegator
+                ] = distributions[delegatee][i].amounts[delegator];
 
-        // determine the epoch index of the begin claim
-        uint256 epochBegin = 0;
-        uint256 epochClaimed = epochRecord[sequencer][account].claimed;
-        if (epochClaimed == 0) {
-            epochBegin = epochRecord[sequencer][account].begin;
-        } else {
-            epochBegin = epochClaimed + 1;
-        }
-
-        uint256 accountReward = 0;
-        uint256 validEpochIndex = 0;
-        for (uint256 i = epochBegin; i <= endClaimEpochIndex; i++) {
-            uint256 ratio = IRecord(RECORD_CONTRACT).sequencerEpochRatio(
-                i,
-                sequencer
-            );
-            uint256 epochTotalReward = rewards[i];
-            //uint256 sequencerReward = epochTotalReward * ratio / 100;
-            if (collect[sequencer][i].valid) {
-                accountReward +=
-                    (epochTotalReward *
-                        ratio *
-                        collect[sequencer][i].amounts.value[account]) /
-                    (collect[sequencer][i].totalAmount * 100);
-                validEpochIndex = i;
-            } else {
-                for (uint j = i - 1; j > 0; j--) {
-                    if (collect[sequencer][j].valid) {
-                        accountReward +=
-                            (epochTotalReward *
-                                ratio *
-                                collect[sequencer][j].amounts.value[account]) /
-                            (collect[sequencer][j].totalAmount * 100);
-                        validEpochIndex = j;
-                    }
+                if (distributions[delegatee][i + 1].delegationAmount == 0) {
+                    distributions[delegatee][i + 1]
+                        .delegationAmount = distributions[delegatee][i]
+                        .delegationAmount;
                 }
             }
-        }
 
-        if (endClaimEpochIndex != validEpochIndex) {
-            // first copy
-            Distribution storage dt = collect[sequencer][endClaimEpochIndex];
-
-            dt.totalAmount = collect[sequencer][validEpochIndex].totalAmount;
-            dt.remainNumber = collect[sequencer][validEpochIndex]
-                .amounts
-                .index
-                .length();
-
-            for (
-                uint256 j = 0;
-                j < collect[sequencer][validEpochIndex].amounts.index.length();
-                j++
-            ) {
-                address delegator = collect[sequencer][validEpochIndex]
-                    .amounts
-                    .index
-                    .at(j);
-                uint256 delegateAmount = collect[sequencer][validEpochIndex]
-                    .amounts
-                    .value[delegator];
-
-                dt.amounts.index.add(delegator);
-                dt.amounts.value[delegator] = delegateAmount;
+            // update distribution info, delete if all claimed
+            distributions[delegatee][i].remainsNumber--;
+            if (distributions[delegatee][i].remainsNumber == 0) {
+                delete distributions[delegatee][i];
             }
-
-            dt.valid = true;
         }
 
-        collect[sequencer][endClaimEpochIndex].remainNumber -= 1;
-        epochRecord[sequencer][account].claimed = endClaimEpochIndex;
-
-        if (endClaimEpochIndex == epochRecord[sequencer][account].deadline) {
-            vestIn[account].remove(sequencer);
-
-            delete epochRecord[sequencer][account];
-
-            collect[sequencer][endClaimEpochIndex].totalAmount -= collect[
-                sequencer
-            ][endClaimEpochIndex].amounts.value[account];
-
-            collect[sequencer][endClaimEpochIndex].amounts.index.remove(
-                account
-            );
-            delete collect[sequencer][endClaimEpochIndex].amounts.value[
-                account
-            ];
-        }
-
-        return accountReward;
+        emit RewardClaimed(delegator, delegatee, endEpochIndex, reward);
     }
 }

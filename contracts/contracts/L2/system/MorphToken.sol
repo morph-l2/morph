@@ -5,29 +5,51 @@ pragma solidity ^0.8.0;
 import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+import {Predeploys} from "../../libraries/constants/Predeploys.sol";
+import {IL2Staking} from "../staking/IL2Staking.sol";
 import {IMorphToken} from "./IMorphToken.sol";
 
-contract MorphToken is OwnableUpgradeable, IMorphToken {
+contract MorphToken is IMorphToken, OwnableUpgradeable {
     using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
 
-    mapping(address => uint256) private _balances;
-    mapping(address => mapping(address => uint256)) private _allowances;
-    // begin time of each day => reward
-    mapping(uint256 => uint256) private _rewardRecord;
-    Rate private _rate;
-    uint256 private _totalSupply;
-    // Additional issuance time of the previous day.
-    uint256 private _preDayAdditionalTime;
+    // day seconds
+    uint256 private immutable DAY_SECONDS = 86400;
+
+    // l2 staking contract address
+    address public immutable L2_STAKING_CONTRACT;
+    // distribute contract address
+    address public immutable DISTRIBUTE_CONTRACT;
+    // record contract address
+    address public immutable RECORD_CONTRACT;
+
     string private _name;
     string private _symbol;
-    address public _distribute;
+    uint256 private _totalSupply;
+    mapping(address => uint256) private _balances;
+    mapping(address => mapping(address => uint256)) private _allowances;
+
+    // daily inflation rate
+    DailyInflationRate[] public dailyInflationRates; // TODO: precision confirm
+    // mapping(day_index => inflation_amount)
+    mapping(uint256 => uint256) public override inflations;
+    // inflation minted days
+    uint256 public inflationMintedDays;
 
     /**
-     * @notice Ensures that the caller message from distribute contract.
+     * @notice Ensures that the caller message from record contract.
      */
-    modifier onlyDistribute() {
-        require(msg.sender == _distribute, "only distribute contract can call");
+    modifier onlyRecordContract() {
+        require(msg.sender == RECORD_CONTRACT, "only record contract allowed");
         _;
+    }
+
+    /**
+     * @notice constructor
+     */
+    constructor() {
+        L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
+        DISTRIBUTE_CONTRACT = Predeploys.DISTRIBUTE;
+        RECORD_CONTRACT = Predeploys.RECORD;
     }
 
     /**
@@ -36,78 +58,38 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
     function initialize(
         string memory name_,
         string memory symbol_,
-        address distribute_,
         uint256 initialSupply_,
-        uint256 rate_,
-        uint256 beginTime_
+        uint256 dailyInflationRate_
     ) public initializer {
-        require(
-            distribute_ != address(0),
-            "invalid distribute contract address"
-        );
-        require(
-            beginTime_ % 86400 == 0,
-            "beginTime must be the start of the day"
-        );
-        require(
-            beginTime_ >= block.timestamp,
-            "beginTime is less than the current time"
-        );
-
         __Ownable_init();
 
         _name = name_;
         _symbol = symbol_;
-        _distribute = distribute_;
-        _preDayAdditionalTime = beginTime_;
         _mint(msg.sender, initialSupply_);
 
-        _rate.currentBeginTime = beginTime_;
-        _rate.currentRate = rate_;
+        dailyInflationRates.push(DailyInflationRate(dailyInflationRate_, 0));
 
-        emit SetRate(rate_, beginTime_);
+        emit UpdateDailyInflationRate(dailyInflationRate_, 0);
     }
 
     /**
      * @dev See {IMorphToken-setRate}.
      */
-    function setRate(uint256 rate, uint256 beginTime) public onlyOwner {
+    function updateRate(
+        uint256 newRate,
+        uint256 effectiveDaysAfterLatestUpdate
+    ) public onlyOwner {
         require(
-            beginTime > block.timestamp,
-            "beginTime must be more than the current time"
+            effectiveDaysAfterLatestUpdate > 0,
+            "effective days after must be greater than 0"
         );
 
-        // 1209600 = 14 * 24 * 60 * 60 (fortnight)
-        if (_rate.pending.index.empty()) {
-            require(
-                beginTime >= _rate.currentBeginTime + 1209600,
-                "beginTime must be two weeks after the current validity period"
-            );
-        } else {
-            require(
-                beginTime > uint256(_rate.pending.index.back()) + 1209600,
-                "beginTime must be more than two weeks after the last exchange rate takes effect"
-            );
-        }
+        uint256 effectiveDay = dailyInflationRates[
+            dailyInflationRates.length - 1
+        ].effectiveDayIndex + effectiveDaysAfterLatestUpdate;
+        dailyInflationRates.push(DailyInflationRate(newRate, effectiveDay));
 
-        // mint function is in days, when a new issue exchange rate effective time in a unit,
-        // then the effective exchange rate of this unit is the previous exchange rate value,
-        // and the effective exchange rate value can only be calculated until the next mint unit.
-        //
-        // In addition, since the start time of mint function is known,
-        // the start and end time of each unit can be calculated,
-        // and the specific effective time of rate can be calculated in advance.
-        if ((beginTime - _preDayAdditionalTime) % 86400 > 0) {
-            beginTime =
-                ((beginTime - _preDayAdditionalTime) / 86400 + 1) *
-                86400 +
-                _preDayAdditionalTime;
-        }
-
-        _rate.pending.index.pushBack(bytes32(beginTime));
-        _rate.pending.values[beginTime] = rate;
-
-        emit SetRate(rate, beginTime);
+        emit UpdateDailyInflationRate(newRate, effectiveDay);
     }
 
     /**
@@ -178,13 +160,6 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         address spender
     ) public view returns (uint256) {
         return _allowances[owner][spender];
-    }
-
-    /**
-     * @dev See {IMorphToken-reward}.
-     */
-    function reward(uint256 beginTimeOfOneDay) public view returns (uint256) {
-        return _rewardRecord[beginTimeOfOneDay];
     }
 
     /**
@@ -312,106 +287,46 @@ contract MorphToken is OwnableUpgradeable, IMorphToken {
         emit Transfer(from, to, amount);
     }
 
+    /**
+     * @dev mint inflations
+     * @param upToDayIndex mint up to which day
+     */
+    function mintInflations(uint256 upToDayIndex) external onlyRecordContract {
+        uint256 currentDayIndex = (block.timestamp -
+            IL2Staking(L2_STAKING_CONTRACT).REWARD_START_TIME()) /
+            DAY_SECONDS +
+            1;
+        require(
+            currentDayIndex > upToDayIndex,
+            "the specified time has not yet been reached"
+        );
+        require(currentDayIndex > inflationMintedDays, "all inflations minted");
+
+        for (uint256 i = inflationMintedDays; i < upToDayIndex; i++) {
+            uint256 rate = dailyInflationRates[0].rate;
+            // find inflation rate of the day
+            for (uint256 j = dailyInflationRates.length - 1; j > 0; j--) {
+                if (dailyInflationRates[j].effectiveDayIndex <= i) {
+                    rate = dailyInflationRates[j].rate;
+                }
+            }
+            inflations[i] = (_totalSupply * rate) / 1e16;
+            _mint(DISTRIBUTE_CONTRACT, inflations[i]);
+            inflationMintedDays++;
+        }
+    }
+
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
      * the total supply.
-     * Only mint once a day,
-     * but can unify the previous days of mint after several days
      *
      * Emits a {Transfer} event with `from` set to the zero address.
      *
      * Requirements:
      *
-     * - `account` Used if passed a non-zero address, otherwise the caller address.
+     * - `account` cannot be the zero address.
      */
-    function mint()
-        external
-        onlyDistribute
-        returns (uint256 begin, uint256 end)
-    {
-        require(
-            block.timestamp > _preDayAdditionalTime,
-            "the mint function is not enabled"
-        );
-        require(
-            (block.timestamp - _preDayAdditionalTime) / 86400 != 0,
-            "only mint once a day"
-        );
-
-        begin = _preDayAdditionalTime;
-
-        uint256 length = _rate.pending.index.length();
-        for (uint256 i = 0; i < length; i++) {
-            if (_rate.nextEffectiveTime == 0) {
-                _rate.nextEffectiveTime = uint256(_rate.pending.index.front());
-            }
-
-            if (_rate.nextEffectiveTime <= block.timestamp) {
-                // end time
-                _rate.outmoded.index.pushBack(bytes32(_rate.nextEffectiveTime));
-                _rate.outmoded.values[_rate.nextEffectiveTime] = _rate
-                    .currentRate;
-
-                _rate.currentBeginTime = _rate.nextEffectiveTime;
-                _rate.currentRate = _rate.pending.values[
-                    _rate.nextEffectiveTime
-                ];
-
-                bytes32 front = _rate.pending.index.popFront();
-                if (uint256(front) != _rate.nextEffectiveTime) {
-                    revert("internal error");
-                }
-                delete _rate.pending.values[uint256(front)];
-
-                if (!_rate.pending.index.empty()) {
-                    _rate.nextEffectiveTime = uint256(
-                        _rate.pending.index.front()
-                    );
-                } else {
-                    _rate.nextEffectiveTime = 0;
-                }
-            } else {
-                break;
-            }
-        }
-
-        uint256 outmodedLength = _rate.outmoded.index.length();
-        for (uint256 i = 0; i < outmodedLength; i++) {
-            uint256 validTime = uint256(_rate.outmoded.index.front());
-
-            if (validTime > _preDayAdditionalTime) {
-                // Current time Indicates the number of days since the last issue.
-                uint256 day = (validTime - _preDayAdditionalTime) / 86400;
-                for (uint256 k = 0; k < day; k++) {
-                    uint256 outmodedReward = (_totalSupply *
-                        _rate.outmoded.values[validTime]) / 1e16;
-                    _rewardRecord[_preDayAdditionalTime] = outmodedReward;
-                    _mint(msg.sender, outmodedReward);
-                    // 86400 = 24 * 60 * 60 (one day)
-                    _preDayAdditionalTime += 86400;
-                }
-            }
-
-            bytes32 popFront = _rate.outmoded.index.popFront();
-            if (uint256(popFront) != validTime) {
-                revert("internal error");
-            }
-            delete _rate.outmoded.values[validTime];
-        }
-
-        // use current rate
-        uint256 currentDays = (block.timestamp - _preDayAdditionalTime) / 86400;
-        for (uint256 i = 0; i < currentDays; i++) {
-            uint256 currentReward = (_totalSupply * _rate.currentRate) / 1e16;
-            _rewardRecord[_preDayAdditionalTime] = currentReward;
-            _mint(msg.sender, currentReward);
-            _preDayAdditionalTime += 86400;
-        }
-        end = _preDayAdditionalTime;
-    }
-
     function _mint(address account, uint256 amount) internal {
-        // require(account != address(0), "mint to the zero address");
-
+        require(account != address(0), "mint to the zero address");
         _totalSupply += amount;
         unchecked {
             // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.

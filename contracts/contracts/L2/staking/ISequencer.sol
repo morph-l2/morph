@@ -23,14 +23,34 @@ interface ISequencer {
     function getCurrentSeqeuncerSetSize() external view returns (uint256);
 
     /**
-     * @notice get latest sequencer set
+     * @notice get sequencer set 0
      */
-    function getLatestSeqeuncerSet() external view returns (address[] memory);
+    function getSeqeuncerSet0() external view returns (address[] memory);
 
     /**
-     * @notice get latest sequencer set size
+     * @notice get size of sequencer set 0
      */
-    function getLatestSeqeuncerSetSize() external view returns (uint256);
+    function getSeqeuncerSet0Size() external view returns (uint256);
+
+    /**
+     * @notice get sequencer set 1
+     */
+    function getSeqeuncerSet1() external view returns (address[] memory);
+
+    /**
+     * @notice get size of sequencer set 1
+     */
+    function getSeqeuncerSet1Size() external view returns (uint256);
+
+    /**
+     * @notice get sequencer set 2
+     */
+    function getSeqeuncerSet2() external view returns (address[] memory);
+
+    /**
+     * @notice get size of sequencer set 2
+     */
+    function getSeqeuncerSet2Size() external view returns (uint256);
 
     /**
      * @notice whether the address is a latest sequencer

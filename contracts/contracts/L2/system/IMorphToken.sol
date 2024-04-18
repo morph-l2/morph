@@ -9,68 +9,65 @@ import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/tok
  * @dev Interface of the MorphToken standard as defined in the EIP.
  */
 interface IMorphToken is IERC20MetadataUpgradeable {
-    struct OrderedSet {
-        // index store block.timestamp
-        DoubleEndedQueue.Bytes32Deque index;
-        // values store block.timestamp => rate
-        mapping(uint256 => uint256) values;
-    }
-
-    struct Rate {
-        uint256 currentBeginTime;
-        uint256 currentRate;
-        uint256 nextEffectiveTime;
-        // Deadline date => rate
-        OrderedSet outmoded;
-        // begin date => rate
-        OrderedSet pending;
+    /**
+     * @notice DailyInflationRate representing a daily inflation rate.
+     *
+     * @custom:field rate               daily inflation rate * 1e16
+     * @custom:field effectiveDayIndex  effective day index
+     */
+    struct DailyInflationRate {
+        uint256 rate;
+        uint256 effectiveDayIndex;
     }
 
     /**
      * @dev Emitted the owner sets the next valid exchange rate.
      */
-    event SetRate(uint256 indexed rate, uint256 indexed beginTime);
+    event UpdateDailyInflationRate(
+        uint256 indexed rate,
+        uint256 indexed effectiveDayIndex
+    );
 
     /**
      * @dev Initialization parameter, which can only be called once.
-     * @param name_ Assign the _name field to use.
-     * @param symbol_ Assign the _symbol field to use.
-     * @param distribute_ Assign the _distribute field to use.
-     * @param initialSupply_ Initialize amount.
-     * @param rate_ Annual increment parameter.
-     * @param beginTime_ Mint begin time.
+     * @param name_                 assign the _name field to use.
+     * @param symbol_               assign the _symbol field to use.
+     * @param initialSupply_        initialize amount.
+     * @param dailyInflationRate_   daily inflation rate.
      */
     function initialize(
         string memory name_,
         string memory symbol_,
-        address distribute_,
         uint256 initialSupply_,
-        uint256 rate_,
-        uint256 beginTime_
+        uint256 dailyInflationRate_
     ) external;
 
     /**
-     * @dev query reward
-     * @param beginTimeOfOneDay begin time of each day
+     * @dev query inflation
+     * @param dayIndex day index from start inflation
      */
-    function reward(uint256 beginTimeOfOneDay) external returns (uint256);
+    function inflations(
+        uint256 dayIndex
+    ) external returns (uint256 inflationAmount);
 
     /**
-     * @dev set rate
+     * @dev update rate
      * 1.0001596535874529 is the 365 square root of 1.06.
      * 1.0019008376772350 is the 365 square root of 2.
      *
-     * @param rate The value of rate must be a decimal place multiplied by 1e16.
+     * @param newRate The value of rate must be a decimal place multiplied by 1e16.
      * eg: When 6% is issued annually, the value of the rate is 1596535874529.
      * eg: When 100% is issued annually, the value of the rate is 19008376772350.
      * the exchange rate must be greater than or equal to zero and less than or equal to 19008376772350.
      * That is, there will be no additional issuance or the maximum annual increase will be doubled.
      *
-     * @param beginTime The effective time of the exchange rate is incremental,
-     * and the effective time interval of every two exchange rates must be more than two weeks.
+     * @param effectiveDaysAfterLatestUpdate effective days after latestUpdate
      *
      */
-    function setRate(uint256 rate, uint256 beginTime) external;
+    function updateRate(
+        uint256 newRate,
+        uint256 effectiveDaysAfterLatestUpdate
+    ) external;
 
     /**
      * @dev Atomically increases the allowance granted to `spender` by the caller.
@@ -104,14 +101,9 @@ interface IMorphToken is IERC20MetadataUpgradeable {
         uint256 subtractedValue
     ) external returns (bool);
 
-    /** @dev Creates `amount` tokens and assigns them to `account`, increasing
-     * the total supply.
-     * Only mint once a day,
-     * but can unify the previous days of mint after several days
-     *
-     * Requirements:
-     *
-     * - `account` Used if passed a non-zero address, otherwise the caller address.
+    /**
+     * @dev mint inflations
+     * @param upToDayIndex mint up to which day
      */
-    function mint() external returns (uint256, uint256);
+    function mintInflations(uint256 upToDayIndex) external;
 }

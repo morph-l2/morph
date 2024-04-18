@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -9,7 +9,7 @@ import {ISequencer} from "./ISequencer.sol";
 import {IGov} from "./IGov.sol";
 import {IL2Staking} from "./IL2Staking.sol";
 
-contract Gov is IGov, Initializable {
+contract Gov is IGov, OwnableUpgradeable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     // staking contract address
@@ -96,6 +96,14 @@ contract Gov is IGov, Initializable {
         batchTimeout = _batchTimeout;
         maxChunks = _maxChunks;
         rollupEpoch = _rollupEpoch;
+
+        emit ProposalExecuted(
+            batchBlockInterval,
+            batchMaxBytes,
+            batchTimeout,
+            maxChunks,
+            rollupEpoch
+        );
     }
 
     /*********************** External Functions **************************/
@@ -136,7 +144,7 @@ contract Gov is IGov, Initializable {
 
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
-            .getLatestSeqeuncerSet();
+            .getSeqeuncerSet2();
         for (uint i = 0; i < latestSequencerSet.length; i++) {
             if (!votes[_proposalID].contains(latestSequencerSet[i])) {
                 votes[_proposalID].remove(latestSequencerSet[i]);
@@ -160,6 +168,8 @@ contract Gov is IGov, Initializable {
             _executeProposal(_proposalID);
         }
     }
+
+    /*********************** External View Functions **************************/
 
     /**
      * @notice whether the proposal can be approved
@@ -219,7 +229,7 @@ contract Gov is IGov, Initializable {
     function _checkProposal(uint256 _proposalID) internal view returns (bool) {
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
-            .getLatestSeqeuncerSet();
+            .getSeqeuncerSet2();
         uint256 validVotes = 0;
         for (uint i = 0; i < latestSequencerSet.length; i++) {
             if (votes[_proposalID].contains(latestSequencerSet[i])) {

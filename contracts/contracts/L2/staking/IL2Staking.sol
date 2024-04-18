@@ -18,36 +18,49 @@ interface IL2Staking {
     }
 
     /**
-     * @notice stake info
+     * @notice delegated stake
+     *
+     * @custom:field delegatee          delegatee
+     * @custom:field delegator          unlock epoch index
+     * @custom:field amount             new delegation amount, not increment
+     * @custom:field effectiveEpoch     effective epoch
      */
     event Delegated(
         address indexed delegatee,
         address indexed delegator,
-        uint256 amount
+        uint256 amount,
+        uint256 effectiveEpoch
     );
 
     /**
-     * @notice unstake info
+     * @notice undelegated stake
+     *
+     * @custom:field delegatee          delegatee
+     * @custom:field delegator          unlock epoch index
+     * @custom:field amount             delegation amount
+     * @custom:field effectiveEpoch     effective epoch
+     * @custom:field ublockEpoch        effective epoch
      */
     event Undelegated(
         address indexed delegatee,
         address indexed delegator,
         uint256 amount,
+        uint256 effectiveEpoch,
         uint256 ublockEpoch
     );
 
     /**
      * @notice claim info
      */
-    event Claimed(address indexed delegator, uint256 amount);
+    event UndelegationClaimed(address indexed delegator, uint256 amount);
 
     /**
-     * @notice withdrawal info
+     * @notice commission updated
      */
-    event withdrawn(
-        address indexed delegatee,
-        address indexed delegator,
-        uint256 amount
+    event CommissionUpdated(
+        address indexed staker,
+        uint256 percentage,
+        uint256 epochEffective
     );
 
     /**
@@ -101,4 +114,9 @@ interface IL2Staking {
      * @param remove    staker to remove
      */
     function removeStakers(address[] memory remove) external;
+
+    /**
+     * @notice return current reward epoch index
+     */
+    function currentEpoch() external view returns (uint256);
 }

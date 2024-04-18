@@ -123,16 +123,44 @@ contract Sequencer is Initializable, ISequencer {
     }
 
     /**
-     * @notice get latest sequencer set
+     * @notice get sequencer set 0
      */
-    function getLatestSeqeuncerSet() external view returns (address[] memory) {
+    function getSeqeuncerSet0() external view returns (address[] memory) {
+        return sequencerSet0;
+    }
+
+    /**
+     * @notice get size of sequencer set 0
+     */
+    function getSeqeuncerSet0Size() external view returns (uint256) {
+        return sequencerSet0.length;
+    }
+
+    /**
+     * @notice get sequencer set 1
+     */
+    function getSeqeuncerSet1() external view returns (address[] memory) {
+        return sequencerSet1;
+    }
+
+    /**
+     * @notice get size of sequencer set 1
+     */
+    function getSeqeuncerSet1Size() external view returns (uint256) {
+        return sequencerSet1.length;
+    }
+
+    /**
+     * @notice get sequencer set 2
+     */
+    function getSeqeuncerSet2() external view returns (address[] memory) {
         return sequencerSet2;
     }
 
     /**
-     * @notice get latest sequencer set size
+     * @notice get size of sequencer set 2
      */
-    function getLatestSeqeuncerSetSize() external view returns (uint256) {
+    function getSeqeuncerSet2Size() external view returns (uint256) {
         return sequencerSet2.length;
     }
 
