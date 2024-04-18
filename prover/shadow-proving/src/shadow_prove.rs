@@ -8,7 +8,6 @@ use ethers::types::Address;
 use ethers::types::Bytes;
 use serde::{Deserialize, Serialize};
 use std::env::var;
-use std::error::Error;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;

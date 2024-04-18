@@ -5,7 +5,6 @@ use crate::{BatchInfo, RollupType, ShadowRollupType};
 use ethers::signers::Wallet;
 use ethers::{abi::AbiDecode, prelude::*};
 use std::env::var;
-use std::error::Error;
 use std::ops::Mul;
 use std::str::FromStr;
 use std::sync::Arc;

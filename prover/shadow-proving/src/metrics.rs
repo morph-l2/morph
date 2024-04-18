@@ -16,7 +16,6 @@ lazy_static! {
         shadow_chunks_len: IntGauge::new("shadow_chunks_len", "shadow chunks len").expect("shadow_chunks_len metric can be created"),
         shadow_txn_len: IntGauge::new("shadow_txn_len", "shadow txn len").expect("shadow_txn_len metric can be created"),
         shadow_verify_result: IntGauge::new("shadow_verify_result", "shadow verify result").expect("shadow_verify_result metric can be created"),
-        shadow_wallet_balance: Gauge::new("shadow_wallet_balance", "shadow wallet balance")
-            .expect("shadow_wallet_balance metric can be created"),
+        shadow_wallet_balance: Gauge::new("shadow_wallet_balance", "shadow wallet balance").expect("shadow_wallet_balance metric can be created"),
     };
 }

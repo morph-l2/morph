@@ -2,7 +2,6 @@ use axum::extract::Extension;
 use axum::routing::get;
 use axum::{routing::post, Router};
 use dotenv::dotenv;
-use env_logger::Env;
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -14,11 +13,12 @@ use tokio::time::timeout;
 use zkevm_prover::utils::{read_env_var, PROVE_RESULT, REGISTRY};
 use zkevm_prover::utils::{PROVER_PROOF_DIR, PROVE_TIME};
 
+use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
+use log::Record;
 use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use zkevm_prover::prover::{prove_for_queue, ProveRequest};
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProveResult {
     pub error_msg: String,
@@ -45,7 +45,9 @@ mod task_status {
 async fn main() {
     // Step1. prepare environment
     dotenv().ok();
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+
+    // Initialize logger.
+    setup_logging();
 
     // Step2. start prover management
     let queue: Arc<Mutex<Vec<ProveRequest>>> = Arc::new(Mutex::new(Vec::new()));
@@ -286,4 +288,46 @@ async fn query_status(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>
         0 => String::from("0"),
         _ => String::from("1"),
     }
+}
+
+// Constants for configuration
+const LOG_LEVEL: &str = "info";
+const LOG_FILE_BASENAME: &str = "prover";
+const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
+                                                     // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
+const LOG_FILES_TO_KEEP: usize = 3;
+fn setup_logging() {
+    //configure the logger
+    Logger::try_with_env_or_str(LOG_LEVEL)
+        .unwrap()
+        .log_to_file(
+            FileSpec::default()
+                .directory("/data/logs/morph-prover")
+                .basename(LOG_FILE_BASENAME),
+        )
+        .format(log_format)
+        .duplicate_to_stdout(Duplicate::All)
+        .rotate(
+            Criterion::Size(LOG_FILE_SIZE_LIMIT),     // Scroll when file size reaches 10MB
+            Naming::Timestamps,                       // Using timestamps as part of scrolling files
+            Cleanup::KeepLogFiles(LOG_FILES_TO_KEEP), // Keep the latest 3 scrolling files
+        )
+        .write_mode(WriteMode::BufferAndFlush)
+        .start()
+        .unwrap();
+}
+
+fn log_format(
+    w: &mut dyn std::io::Write,
+    now: &mut flexi_logger::DeferredNow,
+    record: &Record,
+) -> Result<(), std::io::Error> {
+    write!(
+        w,
+        "{} [{}] {} - {}",
+        now.now().format("%Y-%m-%d %H:%M:%S"), // Custom time format
+        record.level(),
+        record.target(),
+        record.args()
+    )
 }
