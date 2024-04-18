@@ -296,33 +296,19 @@ contract L2StakingTest is L2StakingBaseTest {
 
         uint256 firstRanking = l2Staking.stakerRankings(firstStaker);
         assertEq(firstRanking, 1 + 1);
+
+        address[] memory sequencerSet = sequencer.getLatestSeqeuncerSet();
+        assertEq(secondStaker, sequencerSet[0]);
+        assertEq(firstStaker, sequencerSet[1]);
     }
 
-    // /**
-    //  * @notice update sequencer set
-    //  */
-    // function testUpdateSequencerSet() public {
-    //     address[] memory mStakers = l2Staking.getStakers();
+    /**
+     * @notice update params
+     */
+    function testUpdateParams() public {
+        hevm.prank(multisig);
+        l2Staking.updateParams(2);
 
-    //     hevm.startPrank(bob);
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
-
-    //     l2Staking.delegateStake(mStakers[0], 2 ether);
-    //     address[] memory latestSequencerSet = sequencer.getLatestSeqeuncerSet();
-    //     assertEq(latestSequencerSet[0], mStakers[0]);
-    //     assertEq(latestSequencerSet[1], mStakers[1]);
-    //     assertEq(latestSequencerSet[2], mStakers[2]);
-
-    //     l2Staking.delegateStake(mStakers[1], 8 ether);
-    //     latestSequencerSet = sequencer.getLatestSeqeuncerSet();
-    //     assertEq(latestSequencerSet[0], mStakers[1]);
-    //     assertEq(latestSequencerSet[1], mStakers[0]);
-    //     assertEq(latestSequencerSet[2], mStakers[2]);
-
-    //     l2Staking.delegateStake(mStakers[2], 3 ether);
-    //     latestSequencerSet = sequencer.getLatestSeqeuncerSet();
-    //     assertEq(latestSequencerSet[0], mStakers[1]);
-    //     assertEq(latestSequencerSet[1], mStakers[2]);
-    //     assertEq(latestSequencerSet[2], mStakers[0]);
-    // }
+        assertEq(sequencer.getLatestSeqeuncerSetSize(), 2);
+    }
 }
