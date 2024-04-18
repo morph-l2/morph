@@ -22,11 +22,13 @@ contract L2StakingTest is L2StakingBaseTest {
     address[] stakers;
 
     address firstStaker;
+    address secondStaker;
 
     function setUp() public virtual override {
         super.setUp();
 
         firstStaker = address(uint160(beginSeq));
+        secondStaker = address(uint160(beginSeq + 1));
 
         hevm.startPrank(multisig);
         morphToken.transfer(bob, morphBalance);
@@ -257,6 +259,43 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(firstStaker, morphBalance);
 
         hevm.stopPrank();
+    }
+
+    /**
+     * @notice test ranking, reward_start = false
+     */
+    function testRankWhenNotRewardStart() public {
+        hevm.startPrank(bob);
+
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(secondStaker, morphBalance);
+        hevm.stopPrank();
+
+        uint256 secondRanking = l2Staking.stakerRankings(secondStaker);
+        assertEq(secondRanking, 1 + 1);
+
+        uint256 firstRanking = l2Staking.stakerRankings(firstStaker);
+        assertEq(firstRanking, 0 + 1);
+    }
+
+    /**
+     * @notice test ranking, reward_start = true
+     */
+    function testRankWhenRewardStart() public {
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(secondStaker, 10 ether);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        hevm.stopPrank();
+
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        uint256 secondRanking = l2Staking.stakerRankings(secondStaker);
+        assertEq(secondRanking, 0 + 1);
+
+        uint256 firstRanking = l2Staking.stakerRankings(firstStaker);
+        assertEq(firstRanking, 1 + 1);
     }
 
     // /**
