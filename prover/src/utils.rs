@@ -51,7 +51,7 @@ pub async fn get_block_traces_by_number(provider: &Provider<Http>, block_nums: &
     for block_num in block_nums {
         log::debug!("zkevm-prover: requesting trace of block {block_num}");
         let result = provider
-            .request("morph_getBlockTraceByNumberOrHash", [format!("{block_num:#x}")])
+            .request("scroll_getBlockTraceByNumberOrHash", [format!("{block_num:#x}")])
             .await;
 
         match result {
