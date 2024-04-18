@@ -184,89 +184,80 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice failed claim, no record of unstaking
+     * @notice failed claim, amount in lock period
      */
-    // function testDelegatorInvalidclaim() public {
-    //     hevm.startPrank(bob);
-    //     hevm.expectRevert("no information on unstaking");
-    //     l2Staking.claimUndelegation(firstStaker);
-    //     hevm.stopPrank();
-    // }
+    function testDelegatorclaimInLockPeriod() public {
+        hevm.startPrank(bob);
 
-    // /**
-    //  * @notice failed claim, amount in lock period
-    //  */
-    // function testDelegatorclaimInLockPeriod() public {
-    //     hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.undelegateStake(firstStaker);
 
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
-    //     l2Staking.unDelegateStake(firstStaker);
+        hevm.expectRevert(
+            "withdrawal cannot be made during the lock-up period"
+        );
+        l2Staking.claimUndelegation();
 
-    //     (uint256 amount, uint256 unlock) = l2Staking.unstakingInfo(
-    //         firstStaker,
-    //         bob
-    //     );
+        hevm.stopPrank();
+    }
 
-    //     hevm.expectRevert(
-    //         "withdrawal cannot be made during the lock-up period"
-    //     );
-    //     l2Staking.withdrawal(firstStaker);
+    /**
+     * @notice normal claim undelegation
+     */
+    function testDelegatorClaimUndelegation() public {
+        hevm.startPrank(bob);
 
-    //     hevm.stopPrank();
-    // }
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.undelegateStake(firstStaker);
 
-    // /**
-    //  * @notice normal claim
-    //  */
-    // function testDelegatorclaim() public {
-    //     hevm.startPrank(bob);
+        uint256 time = REWARD_START_TIME +
+            l2Staking.REWARD_EPOCH() *
+            (ROLLUP_EPOCH + 1);
 
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
-    //     l2Staking.unDelegateStake(firstStaker);
+        hevm.warp(time);
+        l2Staking.claimUndelegation();
 
-    //     hevm.roll(ROLLUP_EPOCH);
+        hevm.stopPrank();
+    }
 
-    //     l2Staking.withdrawal(firstStaker);
+    /**
+     * @notice failed restaking, pre claim in lock period
+     */
+    function testDelegatorRestakeInLockPeriod() public {
+        hevm.startPrank(bob);
 
-    //     hevm.stopPrank();
-    // }
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.undelegateStake(firstStaker);
+        hevm.expectRevert("undelegation unclaimed");
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        hevm.stopPrank();
+    }
 
-    // /**
-    //  * @notice failed restaking, pre claim in lock period
-    //  */
-    // function testDelegatorRestakeInLockPeriod() public {
-    //     hevm.startPrank(bob);
+    /**
+     * @notice normal restaking
+     */
+    function testDelegatorRestakeAfterLockPeriod() public {
+        hevm.startPrank(bob);
 
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
-    //     l2Staking.unDelegateStake(firstStaker);
-    //     hevm.expectRevert(
-    //         "re-staking cannot be made during the lock-up period"
-    //     );
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
-    //     hevm.stopPrank();
-    // }
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        l2Staking.undelegateStake(firstStaker);
 
-    // /**
-    //  * @notice normal restaking
-    //  */
-    // function testDelegatorRestakeAfterLockPeriod() public {
-    //     hevm.startPrank(bob);
+        hevm.roll(ROLLUP_EPOCH);
 
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
-    //     l2Staking.unDelegateStake(firstStaker);
+        uint256 time = REWARD_START_TIME +
+            l2Staking.REWARD_EPOCH() *
+            (ROLLUP_EPOCH + 1);
 
-    //     hevm.roll(ROLLUP_EPOCH);
+        hevm.warp(time);
+        l2Staking.claimUndelegation();
 
-    //     l2Staking.withdrawal(firstStaker);
+        l2Staking.delegateStake(firstStaker, morphBalance);
 
-    //     l2Staking.delegateStake(firstStaker, morphBalance);
-
-    //     hevm.stopPrank();
-    // }
+        hevm.stopPrank();
+    }
 
     // /**
     //  * @notice update sequencer set
@@ -294,20 +285,5 @@ contract L2StakingTest is L2StakingBaseTest {
     //     assertEq(latestSequencerSet[0], mStakers[1]);
     //     assertEq(latestSequencerSet[1], mStakers[2]);
     //     assertEq(latestSequencerSet[2], mStakers[0]);
-    // }
-
-    // /**
-    //  * @notice normal staking, staker own staking meet the limit amount
-    //  */
-    // function testStakerAmountEqualLimit() public {
-    //     hevm.startPrank(firstStaker);
-    //     morphToken.approve(address(l2Staking), type(uint256).max);
-
-    //     l2Staking.delegateStake(firstStaker, limit);
-
-    //     uint256 amount = l2Staking.stakingInfo(firstStaker, firstStaker);
-    //     assertEq(limit, amount);
-
-    //     hevm.stopPrank();
     // }
 }

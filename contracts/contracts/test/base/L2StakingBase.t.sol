@@ -116,7 +116,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         TransparentUpgradeableProxy sequencerProxy = TransparentUpgradeableProxy(
                 payable(Predeploys.SEQUENCER)
             );
-        TransparentUpgradeableProxy l2GovProxy = TransparentUpgradeableProxy(
+        TransparentUpgradeableProxy govProxy = TransparentUpgradeableProxy(
             payable(Predeploys.GOV)
         );
         TransparentUpgradeableProxy l2StakingProxy = TransparentUpgradeableProxy(
@@ -137,7 +137,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             bytes32(abi.encode(address(multisig)))
         );
         hevm.store(
-            address(l2GovProxy),
+            address(govProxy),
             bytes32(PROXY_OWNER_KEY),
             bytes32(abi.encode(address(multisig)))
         );
@@ -193,7 +193,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 sequencerAddrs
             )
         );
-        ITransparentUpgradeableProxy(address(l2GovProxy)).upgradeToAndCall(
+        ITransparentUpgradeableProxy(address(govProxy)).upgradeToAndCall(
             address(govImpl),
             abi.encodeWithSelector(
                 Gov.initialize.selector,
@@ -250,7 +250,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
         // set address
         sequencer = Sequencer(payable(address(sequencerProxy)));
-        gov = Gov(payable(address(l2GovProxy)));
+        gov = Gov(payable(address(govProxy)));
         l2Staking = L2Staking(payable(address(l2StakingProxy)));
         distribute = Distribute(payable(address(distributeProxy)));
         record = Record(payable(address(recordProxy)));
