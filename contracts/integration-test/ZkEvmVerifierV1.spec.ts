@@ -15,7 +15,7 @@ describe("ZkEvmVerifierV1", async () => {
   beforeEach(async () => {
     [deployer] = await ethers.getSigners();
 
-    const bytecode = hexlify(fs.readFileSync("./contracts/libraries/verifier/plonk-verifier/l1/plonk_verifier_0.5.1.bin"));
+    const bytecode = hexlify(fs.readFileSync("./contracts/libraries/verifier/plonk-verifier/l1/plonk_verifier_0.10.3.bin"));
     const tx = await deployer.sendTransaction({ data: bytecode });
     const receipt = await tx.wait();
 
@@ -25,8 +25,8 @@ describe("ZkEvmVerifierV1", async () => {
   });
 
   it("should succeed", async () => {
-    const proof = hexlify(fs.readFileSync("./integration-test/testdata/plonk_verifier_0.5.1_proof.data"));
-    const instances = fs.readFileSync("./integration-test/testdata/plonk_verifier_0.5.1_pi.data");
+    const proof = hexlify(fs.readFileSync("./integration-test/testdata/plonk_verifier_0.10.3_proof.data"));
+    const instances = fs.readFileSync("./integration-test/testdata/plonk_verifier_0.10.3_pi.data");
 
     const publicInputHash = new Uint8Array(32);
     for (let i = 0; i < 32; i++) {
@@ -64,8 +64,8 @@ describe("ZkEvmVerifierV1", async () => {
     // 1532cdb7732da0a4ca3044914c6959b7e2b7ba4e913a9f5f0b55051e467412d9 postStateRoot
     // 0000000000000000000000000000000000000000000000000000000000000000 withdrawRoot
     // ee64d77c2f2e0b2c4ac952a0f54fdba4a217c42eb26a07b28de9fbc7b009acae batchDataHash
-    // public input hash: 9ea439164727042e029464a40901e52800095c1ade301b63b4b7453880f5723e
-    expect(hexlify(publicInputHash)).to.eq("0x5b1125c25dc9e379e678d02ad2d149b9908275cd1027e4dca78941b5e2ef8cef");
+    // public input hash: -0x583db47c857a65d090d5df8fcd1ea73d16d0d9e24dd32cec57dcf419401bf0d6
+    expect(hexlify(publicInputHash)).to.eq("0x583db47c857a65d090d5df8fcd1ea73d16d0d9e24dd32cec57dcf419401bf0d6");
 
     // verify ok
     await zkEvmVerifier.verify(proof, publicInputHash);

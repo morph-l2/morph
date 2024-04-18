@@ -17,6 +17,7 @@ type IRollup interface {
 	FinalizeBatch(opts *bind.TransactOpts, _batchIndex *big.Int) (*types.Transaction, error)
 	FINALIZATIONPERIODSECONDS(opts *bind.CallOpts) (*big.Int, error)
 	CommittedBatchStores(opts *bind.CallOpts, arg0 *big.Int) (struct {
+		BatchVersion           *big.Int
 		BatchHash              [32]byte
 		OriginTimestamp        *big.Int
 		FinalizeTimestamp      *big.Int
