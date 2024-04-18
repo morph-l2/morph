@@ -5,10 +5,30 @@
         "internalType": "uint64",
         "name": "_chainId",
         "type": "uint64"
+      },
+      {
+        "internalType": "address payable",
+        "name": "_messenger",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "ErrZeroAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ErrorIncorrectChunkLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ErrorNoBlockInChunk",
+    "type": "error"
   },
   {
     "anonymous": false,
@@ -212,6 +232,25 @@
       {
         "indexed": false,
         "internalType": "uint256",
+        "name": "oldPeriod",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newPeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "UpdateFinalizationPeriodSeconds",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
         "name": "oldMaxNumTxInChunk",
         "type": "uint256"
       },
@@ -223,6 +262,25 @@
       }
     ],
     "name": "UpdateMaxNumTxInChunk",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldWindow",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "UpdateProofWindow",
     "type": "event"
   },
   {
@@ -242,25 +300,6 @@
       }
     ],
     "name": "UpdateProver",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "status",
-        "type": "bool"
-      }
-    ],
-    "name": "UpdateSequencer",
     "type": "event"
   },
   {
@@ -297,12 +336,12 @@
   },
   {
     "inputs": [],
-    "name": "MIN_DEPOSIT",
+    "name": "MESSENGER",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "address",
         "name": "",
-        "type": "uint256"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -350,22 +389,47 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_account",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "batchIndex",
+        "type": "uint256"
       }
     ],
-    "name": "addSequencer",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "name": "batchChallengedSuccess",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [
       {
-        "internalType": "uint64",
+        "internalType": "uint256",
         "name": "batchIndex",
-        "type": "uint64"
+        "type": "uint256"
+      }
+    ],
+    "name": "batchExist",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "batchIndex",
+        "type": "uint256"
       }
     ],
     "name": "batchInChallenge",
@@ -414,6 +478,25 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "challengerDeposits",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
@@ -440,6 +523,11 @@
         "internalType": "uint256",
         "name": "startTime",
         "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "challengeSuccess",
+        "type": "bool"
       },
       {
         "internalType": "bool",
@@ -488,16 +576,53 @@
             "internalType": "bytes32",
             "name": "withdrawalRoot",
             "type": "bytes32"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "version",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "signers",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct IRollup.BatchSignature",
+            "name": "signature",
+            "type": "tuple"
           }
         ],
         "internalType": "struct IRollup.BatchData",
         "name": "batchData",
         "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "version",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "sequencers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signature",
+        "type": "bytes"
       }
     ],
     "name": "commitBatch",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -511,6 +636,11 @@
     "name": "committedBatchStores",
     "outputs": [
       {
+        "internalType": "uint256",
+        "name": "batchVersion",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes32",
         "name": "batchHash",
         "type": "bytes32"
@@ -518,6 +648,11 @@
       {
         "internalType": "uint256",
         "name": "originTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "finalizeTimestamp",
         "type": "uint256"
       },
       {
@@ -537,13 +672,8 @@
       },
       {
         "internalType": "bytes32",
-        "name": "dataHash",
+        "name": "l1DataHash",
         "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "sequencer",
-        "type": "address"
       },
       {
         "internalType": "uint256",
@@ -559,6 +689,16 @@
         "internalType": "bytes",
         "name": "skippedL1MessageBitmap",
         "type": "bytes"
+      },
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "blobVersionedHash",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -586,25 +726,12 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "deposits",
-    "outputs": [
-      {
         "internalType": "uint256",
-        "name": "",
+        "name": "_batchIndex",
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "finalizeBatchs",
+    "name": "finalizeBatch",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -652,7 +779,30 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "inChallenge",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
+      {
+        "internalType": "address",
+        "name": "_l1SequencerContract",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_l1StakingContract",
+        "type": "address"
+      },
       {
         "internalType": "address",
         "name": "_messageQueue",
@@ -666,11 +816,6 @@
       {
         "internalType": "uint256",
         "name": "_maxNumTxInChunk",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_minDeposit",
         "type": "uint256"
       },
       {
@@ -747,19 +892,26 @@
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "l1SequencerContract",
+    "outputs": [
       {
         "internalType": "address",
         "name": "",
         "type": "address"
       }
     ],
-    "name": "isSequencer",
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l1StakingContract",
     "outputs": [
       {
-        "internalType": "bool",
+        "internalType": "address",
         "name": "",
-        "type": "bool"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -781,6 +933,19 @@
   {
     "inputs": [],
     "name": "lastFinalizedBatchIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "latestL2BlockNumber",
     "outputs": [
       {
         "internalType": "uint256",
@@ -867,6 +1032,16 @@
         "internalType": "bytes",
         "name": "_aggrProof",
         "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_kzgDataProof",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_minGasLimit",
+        "type": "uint32"
       }
     ],
     "name": "proveState",
@@ -896,19 +1071,6 @@
       }
     ],
     "name": "removeProver",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_account",
-        "type": "address"
-      }
-    ],
-    "name": "removeSequencer",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -952,13 +1114,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "stake",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -975,11 +1130,37 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "_newPeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateFinalizePeriodSeconds",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "_maxNumTxInChunk",
         "type": "uint256"
       }
     ],
     "name": "updateMaxNumTxInChunk",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_newWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateProofWindow",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1013,19 +1194,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "withdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
@@ -1034,9 +1202,9 @@
     "name": "withdrawalRoots",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bool",
         "name": "",
-        "type": "uint256"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",

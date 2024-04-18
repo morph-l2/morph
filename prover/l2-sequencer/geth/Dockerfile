@@ -1,4 +1,4 @@
-FROM  morph-geth:latest
+FROM  scroll-geth:latest
 
 RUN mkdir -p /l2geth/keystore
 

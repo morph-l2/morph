@@ -37,9 +37,7 @@ pub async fn call() -> Result<(), Box<dyn Error>> {
     let contract: TestZkEVM<SignerMiddleware<Provider<Http>, _>> =
         TestZkEVM::new(Address::from_str(CONTRACT_ADDRESS)?, signer);
 
-    let tx = contract
-        .transfer(Address::from_str("0x").unwrap(), 10.into())
-        .legacy();
+    let tx = contract.transfer(Address::from_str("0x").unwrap(), 10.into()).legacy();
     let pending_tx = tx.send().await.unwrap();
 
     let block_num = get_tx_blocknum(provider.clone(), pending_tx.tx_hash())

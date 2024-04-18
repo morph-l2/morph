@@ -1,12 +1,13 @@
 version: '3.4'
 
 volumes:
-  sequencer_geth_data_prover:
-  sequencer_node_data_prover:
+  morph_data_prover:
+  node_data_prover:
+
 
 services:
   sequencer_geth_prover:
-    image: morph/l2geth:latest
+    image: morph-geth:latest
     ports:
       - "6688:8545"
     healthcheck:
@@ -15,10 +16,12 @@ services:
       timeout: 5s
       retries: 3
     volumes:
-      - "sequencer_geth_data_prover:${GETH_DATA_DIR}"
-      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-      - "${PWD}/genesis_geth.json:${GENESIS_FILE_PATH}"
-    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "morph_data_prover:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/genesis_geth.json:/genesis.json"
+      - "${PWD}/nodekey0:/db/geth/nodekey"
+    entrypoint:
+      # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/bash"
       - "/entrypoint.sh"
 
@@ -39,9 +42,7 @@ services:
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000001
       ## - MORPH_NODE_SYNC_START_HEIGHT=88854536
     volumes:
-      - "sequencer_node_data_prover:${NODE_DATA_DIR}"
+      - "node_data_prover:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
-      morphnode
-      --dev-sequencer
-      --home $NODE_DATA_DIR
+      morphnode --dev-sequencer --home $NODE_DATA_DIR
