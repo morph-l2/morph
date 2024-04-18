@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storge, getContractAddressByName } from "../src/deploy-utils";
+import { assertContractVariable, storage, getContractAddressByName } from "../src/deploy-utils";
 import { predeploys } from '../src/constants'
 
 import {
@@ -26,6 +26,7 @@ export const deployContractImpls = async (
     const L1SequencerFactoryName = ContractFactoryName.L1Sequencer
     const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
     const RollupFactoryName = ContractFactoryName.Rollup
+    const WhitelistFactoryName = ContractFactoryName.Whitelist
 
     const L1GatewayRouterFactoryName = ContractFactoryName.L1GatewayRouter
     const L1ETHGatewayFactoryName = ContractFactoryName.L1ETHGateway
@@ -46,21 +47,35 @@ export const deployContractImpls = async (
     const L1WETHGatewayImplStorageName = ImplStorageName.L1WETHGatewayStorageName
     const L1ERC721GatewayImplStorageName = ImplStorageName.L1ERC721GatewayStorageName
     const L1ERC1155GatewayImplStorageName = ImplStorageName.L1ERC1155GatewayStorageName
+    const WhitelistImplStorageName = ImplStorageName.Whitelist
 
     // proxy contract address
     const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
     const EnforcedTxGatewayAddress = getContractAddressByName(path, ProxyStorageName.EnforcedTxGatewayProxyStorageName)
 
-    // ************************ messenger contracts deploy ************************
-    // L1CrossDomainMessenger deploy
-    let Factory = await hre.ethers.getContractFactory(L1CrossDomainMessengerFactoryName)
-    let contract = await Factory.deploy()
+    // ************************ system contracts deploy ************************
+    // whitelist deploy
+    let Factory = await hre.ethers.getContractFactory(WhitelistFactoryName)
+    let contract = await Factory.deploy(config.contractAdmin)
     await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+    console.log("%s=%s ; TX_HASH: %s", WhitelistImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     let blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storge(path, L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await storage(path, WhitelistImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
+    // ************************ messenger contracts deploy ************************
+    // L1CrossDomainMessenger deploy
+    Factory = await hre.ethers.getContractFactory(L1CrossDomainMessengerFactoryName)
+    contract = await Factory.deploy()
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storage(path, L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -71,7 +86,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -92,7 +107,7 @@ export const deployContractImpls = async (
     )
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, RollupImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, RollupImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -105,7 +120,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", L1GatewayRouterImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1GatewayRouterImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1GatewayRouterImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -117,7 +132,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", L1StandardERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1StandardERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1StandardERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -129,7 +144,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -141,7 +156,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", L1ERC721GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1ERC721GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1ERC721GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -153,7 +168,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -166,7 +181,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -179,7 +194,7 @@ export const deployContractImpls = async (
     console.log("%s=%s ; TX_HASH: %s", StakingImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -202,7 +217,7 @@ export const deployContractImpls = async (
     )
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storge(path, L1SequencerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, L1SequencerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

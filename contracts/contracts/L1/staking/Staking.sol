@@ -82,6 +82,21 @@ contract Staking is IStaking, OwnableUpgradeable {
     event Claimed(address addr, uint256 balance);
 
     /**
+     * @notice params updated
+     */
+    event ParamsUpdated(uint256 _sequencersSize, uint256 _limit, uint256 _lock);
+
+    /**
+     * @notice whitelist updated
+     */
+    event WhitelistUpdated(address[] add, address[] remove);
+
+    /**
+     * @notice staker staked
+     */
+    event EnableSlash(bool enable);
+
+    /**
      * @notice only sequencer contract
      */
     modifier onlySequencerContract() {
@@ -169,15 +184,14 @@ contract Staking is IStaking, OwnableUpgradeable {
     function register(
         bytes32 tmKey,
         bytes memory blsKey,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint32 _minGasLimit
     ) external payable inWhitelist noStaker noExit {
         require(sequencersSize > 0, "sequencersSize must greater than 0");
         require(tmKey != 0, "invalid tendermint pubkey");
         require(blsKey.length == 256, "invalid bls pubkey");
-        require(msg.value >= _gasFee + limit, "staking value is not enough");
+        require(limit > 0 && msg.value >= limit, "staking value is not enough");
 
-        uint256 stakingAmount = msg.value - _gasFee;
+        uint256 stakingAmount = msg.value;
 
         // check for duplicates
         for (uint256 index = 0; index < stakers.length; index++) {
@@ -219,7 +233,7 @@ contract Staking is IStaking, OwnableUpgradeable {
         // stakers size reached sequencersSize first time
         if (!initialized && stakers.length == sequencersSize) {
             initialized = true;
-            updateSequencers(_minGasLimit, _gasFee);
+            updateSequencers(_minGasLimit);
             return;
         }
 
@@ -227,7 +241,7 @@ contract Staking is IStaking, OwnableUpgradeable {
             initialized &&
             (stakers.length <= sequencersSize || i < sequencersSize)
         ) {
-            updateSequencers(_minGasLimit, _gasFee);
+            updateSequencers(_minGasLimit);
         }
     }
 
@@ -235,11 +249,12 @@ contract Staking is IStaking, OwnableUpgradeable {
      * @notice stake ETH
      */
     function stakeETH(
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint32 _minGasLimit
     ) external payable inWhitelist onlyStaker {
         require(
-            msg.value > 0 && stakings[msg.sender].balance + msg.value > limit,
+            limit > 0 &&
+                msg.value > 0 &&
+                stakings[msg.sender].balance + msg.value > limit,
             "staking value not enough"
         );
         stakings[msg.sender].balance += msg.value;
@@ -265,21 +280,7 @@ contract Staking is IStaking, OwnableUpgradeable {
             indexBeforeSort >= sequencersSize &&
             indexAfterSort < sequencersSize
         ) {
-            updateSequencers(_minGasLimit, _gasFee);
-        }
-    }
-
-    /**
-     * @notice update params
-     * @param _limit smallest staking value
-     * @param _lock withdraw lock time
-     */
-    function updateParams(uint256 _limit, uint256 _lock) external onlyOwner {
-        if (_limit > 0) {
-            limit = _limit;
-        }
-        if (_lock > 0) {
-            lock = _lock;
+            updateSequencers(_minGasLimit);
         }
     }
 
@@ -300,10 +301,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     /**
      * @notice withdraw ETH
      */
-    function withdrawETH(
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) external payable noExit {
+    function withdrawETH(uint32 _minGasLimit) external payable noExit {
         uint256 index = getStakerIndex(msg.sender);
 
         withdrawals[msg.sender] = Withdrawal(
@@ -320,12 +318,13 @@ contract Staking is IStaking, OwnableUpgradeable {
         delete stakings[msg.sender];
 
         if (stakers.length == 0) {
+            updateSequencers(_minGasLimit);
             IL1Sequencer(sequencerContract).pause();
             return;
         }
 
         if (index < sequencersSize) {
-            updateSequencers(_minGasLimit, _gasFee);
+            updateSequencers(_minGasLimit);
         }
     }
 
@@ -334,6 +333,11 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     function toggleSlash(bool enanble) external onlyOwner {
         enableSlash = enanble;
+        emit EnableSlash(enableSlash);
+    }
+
+    function unpauseSequencer() external onlyOwner {
+        IL1Sequencer(sequencerContract).unpause();
     }
 
     /**
@@ -341,10 +345,8 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     function slash(
         address[] memory sequencers,
-        uint256[] memory sequencerIndex,
         address challenger,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint32 _minGasLimit
     ) external onlySequencerContract {
         if (!enableSlash) {
             return;
@@ -352,17 +354,34 @@ contract Staking is IStaking, OwnableUpgradeable {
 
         // do slash & update sequencer set
         uint256 valueSum;
-        for (uint256 i = 0; i < sequencerIndex.length; i++) {
-            address sequencer = sequencers[sequencerIndex[i]];
-            valueSum += stakings[sequencer].balance;
-            uint256 index = getStakerIndex(sequencer);
-            for (uint256 j = index; j < stakers.length - 1; j++) {
-                stakers[j] = stakers[j + 1];
+        bool changed;
+        for (uint256 i = 0; i < sequencers.length; i++) {
+            address sequencer = sequencers[i];
+
+            if (withdrawals[sequencers[i]].exit) {
+                valueSum += withdrawals[sequencers[i]].balance;
+                delete withdrawals[sequencers[i]];
+            } else {
+                valueSum += stakings[sequencer].balance;
+                uint256 index = getStakerIndex(sequencer);
+                if (index <= sequencersSize) {
+                    changed = true;
+                }
+                for (uint256 j = index; j < stakers.length - 1; j++) {
+                    stakers[j] = stakers[j + 1];
+                }
+                stakers.pop();
+                delete stakings[sequencer];
             }
-            stakers.pop();
-            delete stakings[sequencer];
         }
-        updateSequencers(_minGasLimit, _gasFee);
+
+        if (changed) {
+            updateSequencers(_minGasLimit);
+            if (stakers.length == 0) {
+                IL1Sequencer(sequencerContract).pause();
+            }
+        }
+
         _transfer(challenger, valueSum);
     }
 
@@ -375,11 +394,16 @@ contract Staking is IStaking, OwnableUpgradeable {
 
     /**
      * @notice update params
+     * @param _limit smallest staking value
+     * @param _lock withdraw lock time
+     * @param _sequencersSize sequencers size
+     * @param _minGasLimit min gas limit
      */
     function updateParams(
         uint256 _sequencersSize,
-        uint32 _minGasLimit,
-        uint256 _gasFee
+        uint256 _limit,
+        uint256 _lock,
+        uint32 _minGasLimit
     ) external onlyOwner {
         require(
             _sequencersSize != sequencersSize &&
@@ -388,12 +412,21 @@ contract Staking is IStaking, OwnableUpgradeable {
             "invalid new sequencers size"
         );
 
+        if (_limit > 0) {
+            limit = _limit;
+        }
+        if (_lock > 0) {
+            lock = _lock;
+        }
+
         if (sequencersSize < stakers.length) {
             sequencersSize = _sequencersSize;
-            updateSequencers(_minGasLimit, _gasFee);
+            updateSequencers(_minGasLimit);
             return;
         }
         sequencersSize = _sequencersSize;
+
+        emit ParamsUpdated(sequencersSize, limit, lock);
     }
 
     /**
@@ -409,6 +442,8 @@ contract Staking is IStaking, OwnableUpgradeable {
         for (uint256 i = 0; i < remove.length; i++) {
             whitelist[remove[i]] = false;
         }
+
+        emit WhitelistUpdated(add, remove);
     }
 
     /**
@@ -421,15 +456,16 @@ contract Staking is IStaking, OwnableUpgradeable {
                 block.number > withdrawals[msg.sender].unlock,
             "invalid withdrawal"
         );
-        payable(msg.sender).transfer(withdrawals[msg.sender].balance);
-        emit Claimed(msg.sender, withdrawals[msg.sender].balance);
+        uint256 amount = withdrawals[msg.sender].balance;
         delete withdrawals[msg.sender];
+        _transfer(msg.sender, amount);
+        emit Claimed(msg.sender, amount);
     }
 
     /**
      * @notice update sequencer set
      */
-    function updateSequencers(uint32 _gasLimit, uint256 _gasFee) internal {
+    function updateSequencers(uint32 _gasLimit) internal {
         delete sequencersAddr;
         delete sequencersBLS;
 
@@ -460,12 +496,23 @@ contract Staking is IStaking, OwnableUpgradeable {
             IL1Sequencer(sequencerContract).newestVersion() + 1,
             sequencerInfos
         );
-        IL1Sequencer(sequencerContract).updateAndSendSequencerSet{
-            value: _gasFee
-        }(data, sequencersAddr, sequencersBLS, _gasLimit, _msgSender());
+        IL1Sequencer(sequencerContract).updateAndSendSequencerSet(
+            data,
+            sequencersAddr,
+            sequencersBLS,
+            _gasLimit
+        );
     }
 
     function stakersNumber() public view returns (uint256) {
         return stakers.length;
+    }
+
+    function getStakers() public view returns (address[] memory) {
+        return stakers;
+    }
+
+    function getSequencersAddr() public view returns (address[] memory) {
+        return sequencersAddr;
     }
 }

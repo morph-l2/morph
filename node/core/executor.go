@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/morph-l2/bindings/bindings"
@@ -57,25 +56,11 @@ type Executor struct {
 	metrics *Metrics
 }
 
-func getNextL1MsgIndex(client *ethclient.Client, logger tmlog.Logger) (uint64, error) {
+func getNextL1MsgIndex(client *types.RetryableClient, logger tmlog.Logger) (uint64, error) {
 	currentHeader, err := client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return 0, err
 	}
-	if err != nil {
-		var count = 0
-		for err != nil && strings.Contains(err.Error(), "connection refused") {
-			time.Sleep(5 * time.Second)
-			count++
-			logger.Error("connection refused, try again", "retryCount", count)
-			currentHeader, err = client.HeaderByNumber(context.Background(), nil)
-		}
-		if err != nil {
-			logger.Error("failed to get currentHeader", "error", err)
-			return 0, fmt.Errorf("failed to get currentHeader, err: %v", err)
-		}
-	}
-
 	return currentHeader.NextL1MsgIndex, nil
 }
 
@@ -91,10 +76,12 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	index, err := getNextL1MsgIndex(eClient, logger)
+	l2Client := types.NewRetryableClient(aClient, eClient, config.Logger)
+	index, err := getNextL1MsgIndex(l2Client, logger)
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("obtained next L1Message index when initilize executor", "index", index)
 
 	sequencer, err := bindings.NewL2Sequencer(config.L2SequencerAddress, eClient)
 	if err != nil {
@@ -114,7 +101,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		tmPubKeyBytes = tmPubKey.Bytes()
 	}
 	executor := &Executor{
-		l2Client:            types.NewRetryableClient(aClient, eClient, config.Logger),
+		l2Client:            l2Client,
 		bc:                  &Version1Converter{},
 		sequencerContract:   sequencer,
 		govContract:         gov,
@@ -253,7 +240,7 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 		Transactions: txs,
 	}
 	if err = e.validateL1Messages(l2Block, wrappedBlock.CollectedL1TxHashes); err != nil {
-		if err != types.ErrQueryL1Message { // only do not return error if it is not ErrQueryL1Message error
+		if !errors.Is(err, types.ErrQueryL1Message) { // hide error if it is not ErrQueryL1Message
 			err = nil
 		}
 		return false, err
@@ -420,12 +407,4 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 
 func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
-}
-
-func L1MessagesToTxs(l1Messages []types.L1Message) []eth.L1MessageTx {
-	txs := make([]eth.L1MessageTx, len(l1Messages))
-	for i, l1Message := range l1Messages {
-		txs[i] = l1Message.L1MessageTx
-	}
-	return txs
 }

@@ -27,33 +27,15 @@ contract L1CrossDomainMessenger is
      * Structs *
      ***********/
 
-    /**
-     * @notice Represents a proven withdrawal.
-     *
-     * @custom:field withdrawalRoot  Root of the L2 withdraw this was proven against.
-     * @custom:field timestamp     Timestamp at which the withdrawal was proven.
-     * @custom:field index         Index of the withdraw tx this was proven against.
-     */
-    struct ProvenWithdrawal {
-        bytes32 withdrawalRoot;
-        uint256 timestamp;
-        uint256 withdrawalIndex;
-    }
-
     struct ReplayState {
         // The number of replayed times.
         uint128 times;
-        // The queue index of lastest replayed one. If it is zero, it means the message has not been replayed.
+        // The queue index of latest replayed one. If it is zero, it means the message has not been replayed.
         uint128 lastIndex;
     }
     /*************
      * Variables *
      *************/
-
-    /**
-     * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
-     */
-    mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
 
     /**
      * @notice A list of withdrawal hashes which have been successfully finalized.
@@ -108,7 +90,11 @@ contract L1CrossDomainMessenger is
         address _rollup,
         address _messageQueue
     ) public initializer {
-        if (_rollup == address(0) || _messageQueue == address(0)) {
+        if (
+            _rollup == address(0) ||
+            _messageQueue == address(0) ||
+            _feeVault == address(0)
+        ) {
             revert ErrZeroAddress();
         }
         CrossDomainMessenger.__Messenger_init(
@@ -149,7 +135,7 @@ contract L1CrossDomainMessenger is
         _sendMessage(_to, _value, _message, _gasLimit, _refundAddress);
     }
 
-    function proveMessage(
+    function proveAndRelayMessage(
         address _from,
         address _to,
         uint256 _value,
@@ -171,112 +157,35 @@ contract L1CrossDomainMessenger is
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(_from, _to, _value, _nonce, _message)
         );
-        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[
-            _xDomainCalldataHash
-        ];
-        // We generally want to prevent users from proving the same withdrawal multiple times
-        // because each successive proof will update the timestamp. A malicious user can take
-        // advantage of this to prevent other users from finalizing their withdrawal. However,
-        // since withdrawals are proven before an output root is finalized, we need to allow users
-        // to re-prove their withdrawal only in the case that the output root for their specified
-        // output index has been updated.
-        require(
-            provenWithdrawal.timestamp == 0,
-            "Messenger: withdrawal hash has already been proven"
-        );
-        address _rollup = rollup;
-        // withdrawalRoot for withdraw proof verify
-        uint256 withdrawalBatchIndex = IRollup(_rollup).withdrawalRoots(
-            _withdrawalRoot
-        );
-        require(
-            (withdrawalBatchIndex > 0),
-            "Messenger: do not submit withdrawalRoot"
-        );
-        // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract
-        // on L2. If this is true, under the assumption that the Tree does not have
-        // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
-        // be relayed on L1.
-        require(
-            verifyMerkleProof(
-                _xDomainCalldataHash,
-                _withdrawalProof,
-                _nonce,
-                _withdrawalRoot
-            ),
-            "Messenger: invalid withdrawal inclusion proof"
-        );
 
-        // Designate the withdrawalHash as proven by storing the `withdrawalRoot`, `timestamp`, and
-        // `withdrawalIndex` in the `provenWithdrawals` mapping. A `withdrawalHash` can only be
-        // proven once unless it is submitted again with a different withdrawalRoot.
-        provenWithdrawals[_xDomainCalldataHash] = ProvenWithdrawal({
-            withdrawalRoot: _withdrawalRoot,
-            timestamp: block.timestamp,
-            withdrawalIndex: _nonce
-        });
-
-        // Emit a `WithdrawalProven` event.
-        emit WithdrawalProven(_xDomainCalldataHash, _from, _to);
-    }
-
-    function relayMessage(
-        address _from,
-        address _to,
-        uint256 _value,
-        uint256 _nonce,
-        bytes memory _message
-    ) external override whenNotPaused notInExecution {
-        bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(_from, _to, _value, _nonce, _message)
-        );
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(
             finalizedWithdrawals[_xDomainCalldataHash] == false,
             "Messenger: withdrawal has already been finalized"
         );
 
-        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[
-            _xDomainCalldataHash
-        ];
-
-        // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
-        // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
-        // a timestamp of zero.
-        require(
-            provenWithdrawal.timestamp != 0,
-            "Messenger: withdrawal has not been proven yet"
-        );
-
-        // A proven withdrawal must wait at least the finalization period before it can be
-        // finalized. This waiting period can elapse in parallel with the waiting period for the
-        // output the withdrawal was proven against. In effect, this means that the minimum
-        // withdrawal time is proposal submission time + finalization period.
-        require(
-            _isFinalizationPeriodElapsed(provenWithdrawal.timestamp),
-            "Messenger: proven withdrawal finalization period has not elapsed"
-        );
-
+        address _rollup = rollup;
+        // prove message
         {
-            address _rollup = rollup;
             // withdrawalRoot for withdraw proof verify
-            uint256 withdrawalBatchIndex = IRollup(_rollup).withdrawalRoots(
-                provenWithdrawal.withdrawalRoot
-            );
-            require(
-                (withdrawalBatchIndex > 0),
-                "Messenger: do not submit withdrawalRoot"
-            );
+            bool finalized = IRollup(_rollup).withdrawalRoots(_withdrawalRoot);
+            require(finalized, "Messenger: withdrawalRoot not finalized");
 
-            bytes32 finStateRoots = IRollup(_rollup).finalizedStateRoots(
-                withdrawalBatchIndex
-            );
+            // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract
+            // on L2. If this is true, under the assumption that the Tree does not have
+            // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
+            // be relayed on L1.
             require(
-                finStateRoots != bytes32(0),
-                "Messenger: batch not verified"
+                verifyMerkleProof(
+                    _xDomainCalldataHash,
+                    _withdrawalProof,
+                    _nonce,
+                    _withdrawalRoot
+                ),
+                "Messenger: invalid withdrawal inclusion proof"
             );
         }
-
+        // relay message
         xDomainMessageSender = _from;
         (bool success, ) = _to.call{value: _value}(_message);
         // reset value to refund gas.
@@ -328,7 +237,7 @@ contract L1CrossDomainMessenger is
 
         // compute and deduct the messaging fee to fee vault.
         uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_newGasLimit);
+            .estimateCrossDomainMessageFee(_from, _newGasLimit);
 
         // charge relayer fee
         require(msg.value >= _fee, "Insufficient msg.value for fee");
@@ -454,6 +363,7 @@ contract L1CrossDomainMessenger is
     function updateMaxReplayTimes(
         uint256 _newMaxReplayTimes
     ) external onlyOwner {
+        require(_newMaxReplayTimes > 0, "replay times must be greater than 0");
         uint256 _oldMaxReplayTimes = maxReplayTimes;
         maxReplayTimes = _newMaxReplayTimes;
 
@@ -487,7 +397,7 @@ contract L1CrossDomainMessenger is
 
         // compute and deduct the messaging fee to fee vault.
         uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_gasLimit);
+            .estimateCrossDomainMessageFee(_msgSender(), _gasLimit);
         require(msg.value >= _fee + _value, "Insufficient msg.value");
         if (_fee > 0) {
             (bool _success, ) = feeVault.call{value: _fee}("");
