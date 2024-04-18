@@ -74,6 +74,10 @@ def main():
 
 def devnet_l1(paths, result=None):
     log.info('Starting L1.')
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build', '--no-cache', 'l1'], check=False,
+                cwd=paths.ops_dir, env={
+            'PWD': paths.ops_dir
+        })
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], check=False,
                 cwd=paths.ops_dir, env={
             'PWD': paths.ops_dir
@@ -186,13 +190,12 @@ def devnet_deploy(paths, args):
     deploy_config['l2SequencerBlsKeys']
     for i in range(4):
         run_command(['cast', 'send', addresses['Proxy__Staking'],
-                     'register(bytes32,bytes memory,uint32,uint256)',
+                     'register(bytes32,bytes memory,uint32)',
                      deploy_config['l2SequencerTmKeys'][i],
                      deploy_config['l2SequencerBlsKeys'][i],
                      '5000000',
-                     '1000000000000000',
                      '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '3ether',
+                     '--value', '2ether',
                      '--private-key', deploy_config['l2SequencerPks'][i]
                      ])
 

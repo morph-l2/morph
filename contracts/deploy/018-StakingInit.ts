@@ -107,7 +107,7 @@ export const StakingInit = async (
                 admin,
                 L1SequencerProxyAddress,
                 sequencerSize,
-                limit,
+                hre.ethers.utils.parseEther(limit.toString()),
                 hre.ethers.utils.parseEther(lock.toString()),
             ])
         )
@@ -126,7 +126,7 @@ export const StakingInit = async (
             StakingFactory.interface,
             deployer,
         )
- 
+
         await assertContractVariable(
             contractTmp,
             'sequencerContract',
@@ -140,7 +140,7 @@ export const StakingInit = async (
         await assertContractVariable(
             contractTmp,
             'limit',
-            limit
+            hre.ethers.utils.parseEther(limit.toString()),
         )
         await assertContractVariable(
             contractTmp,

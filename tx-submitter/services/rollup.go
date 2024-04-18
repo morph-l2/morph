@@ -34,18 +34,17 @@ const (
 	txSlotSize     = 32 * 1024
 	txMaxSize      = 4 * txSlotSize // 128KB
 	minFinalizeNum = 2              // min finalize num from contract
-	minGasLimit    = 1000
 )
 
 type Rollup struct {
 	ctx     context.Context
 	metrics *metrics.Metrics
 
-	L1Client    iface.Client
-	L2Clients   []iface.L2Client
-	Rollup      iface.IRollup
-	L2Submitter iface.ISubmitter
-	L2Sequencer iface.L2Sequencer
+	L1Client     iface.Client
+	L2Clients    []iface.L2Client
+	Rollup       iface.IRollup
+	L2Submitters []iface.IL2Submitter
+	L2Sequencers []iface.IL2Sequencer
 
 	chainId    *big.Int
 	privKey    *ecdsa.PrivateKey
@@ -68,8 +67,8 @@ func NewRollup(
 	l1 iface.Client,
 	l2 []iface.L2Client,
 	rollup iface.IRollup,
-	l2Submitter iface.ISubmitter,
-	l2Sequencer iface.L2Sequencer,
+	l2Submitters []iface.IL2Submitter,
+	l2Sequencers []iface.IL2Sequencer,
 	chainId *big.Int,
 	priKey *ecdsa.PrivateKey,
 	rollupAddr common.Address,
@@ -81,11 +80,11 @@ func NewRollup(
 		ctx:     ctx,
 		metrics: metrics,
 
-		L1Client:    l1,
-		L2Clients:   l2,
-		Rollup:      rollup,
-		L2Submitter: l2Submitter,
-		L2Sequencer: l2Sequencer,
+		L1Client:     l1,
+		L2Clients:    l2,
+		Rollup:       rollup,
+		L2Submitters: l2Submitters,
+		L2Sequencers: l2Sequencers,
 
 		privKey:    priKey,
 		chainId:    chainId,
@@ -196,52 +195,29 @@ func (sr *Rollup) finalize() error {
 		return fmt.Errorf("get last committed error:%v", err)
 	}
 
-	// check if need to finalize
-	// get last
-	period, err := sr.Rollup.FINALIZATIONPERIODSECONDS(nil)
+	target := new(big.Int).Add(lastFinalized, big.NewInt(1))
+	if target.Cmp(lastCommited) > 0 {
+		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommited.Uint64())
+		return nil
+	}
+	// in challange window
+	inWindow, err := sr.Rollup.BatchInsideChallengeWindow(nil, target)
 	if err != nil {
-		return fmt.Errorf("get finalization period error:%v", err)
+		return fmt.Errorf("get batch inside challenge window error:%v", err)
 	}
-	periodU64 := period.Uint64()
-	var finalizeIndex uint64
-
-	for i := lastCommited.Uint64(); i > lastFinalized.Uint64(); i-- {
-		committedBatch, err := sr.Rollup.CommittedBatchStores(nil, big.NewInt(int64(i)))
-		if err != nil {
-			return fmt.Errorf("get committed batch error:%v", err)
-		}
-		// timestamp
-		timestamp := uint64(time.Now().Unix())
-		if committedBatch.OriginTimestamp.Uint64()+periodU64 < timestamp {
-			finalizeIndex = i
-			break
-		}
-	}
-
-	if finalizeIndex == 0 {
-		log.Info("no need to finalize")
+	if inWindow {
+		log.Info("batch inside challenge window, wait for the next turn")
 		return nil
 	}
-
-	finalizeCnt := finalizeIndex - lastFinalized.Uint64()
-	if finalizeCnt < minFinalizeNum {
-		log.Info(fmt.Sprintf("no need to finalize, finalize num < %d", minFinalizeNum))
-		return nil
-	}
-	// finalize up to 5 batch
-	if finalizeCnt > sr.MaxFinalizeNum {
-		finalizeCnt = sr.MaxFinalizeNum
-	}
-	// send tx
-	// update gas limit
+	// finalize
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
 	if err != nil {
 		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
 	}
 	opts.NoSend = true
-	tx, err := sr.Rollup.FinalizeBatchesByNum(opts, big.NewInt(int64(finalizeCnt)))
+	tx, err := sr.Rollup.FinalizeBatch(opts, target)
 	if err != nil {
-		return fmt.Errorf("craft FinalizeBatchesByNum tx failed:%v", err)
+		return fmt.Errorf("craft FinalizeBatch tx failed:%v", err)
 	}
 	if uint64(tx.Size()) > txMaxSize {
 		return core.ErrOversizedData
@@ -269,7 +245,7 @@ func (sr *Rollup) finalize() error {
 				log.Info("replace tx success")
 			}
 		} else if utils.ErrStringMatch(err, core.ErrGasLimit) { // ErrGasLimit
-			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "finalize_cnt", finalizeCnt)
+			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "finalize_index", target)
 			return fmt.Errorf("send tx error:%v", err.Error())
 		} else if utils.ErrStringMatch(err, core.ErrNonceTooLow) { //ErrNonceTooLow
 			return fmt.Errorf("send tx error:%v", err.Error())
@@ -279,7 +255,7 @@ func (sr *Rollup) finalize() error {
 	} else {
 		log.Info("tx sent",
 			// for business
-			"finalize_cnt", finalizeCnt,
+			"finalize_index", target,
 			// tx
 			"tx_hash", newSignedTx.Hash().String(),
 			"type", newSignedTx.Type(),
@@ -315,7 +291,7 @@ func (sr *Rollup) finalize() error {
 			//block info
 			"block_number", receipt.BlockNumber.Uint64(),
 			// for business
-			"finalize_cnt", finalizeCnt,
+			"finalize_index", target,
 			// receipt info
 			"gas_used", receipt.GasUsed,
 			// tx info
@@ -337,7 +313,7 @@ func (sr *Rollup) finalize() error {
 			//block info
 			"block_number", receipt.BlockNumber.Uint64(),
 			// for business
-			"finalize_cnt", finalizeCnt,
+			"finalize_index", target,
 			// receipt info
 			"gas_used", receipt.GasUsed,
 			// tx info
@@ -360,16 +336,16 @@ func (sr *Rollup) rollup() error {
 
 	if !sr.PriorityRollup {
 		// is the turn of the submitter
-		nextSubmitter, _, _, err := sr.L2Submitter.GetCurrentSubmitter(nil)
+		currentSubmitter, err := sr.getCurrentSubmitter()
 		if err != nil {
 			return fmt.Errorf("get next submitter error:%v", err)
 		}
-		log.Info("current rolluped submitter", "rolluped_submitter", nextSubmitter.Hex(), "submitter", sr.walletAddr())
+		log.Info("current rolluped submitter", "rolluped_submitter", currentSubmitter.Hex(), "submitter", sr.walletAddr())
 
-		if nextSubmitter.Hex() == sr.walletAddr() {
-			log.Info("submitter is me, start to submit")
+		if currentSubmitter.Hex() == sr.walletAddr() {
+			log.Info("start to rollup")
 		} else {
-			log.Info("submitter is not me, wait for the next turn")
+			log.Info("not my turn, wait for the next turn")
 			time.Sleep(3 * time.Second)
 			return nil
 		}
@@ -439,7 +415,7 @@ func (sr *Rollup) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
@@ -450,7 +426,7 @@ func (sr *Rollup) rollup() error {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), rollupBatch.Signature.Signers, signature.Signature)
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
@@ -727,13 +703,8 @@ func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*
 
 // Init is run before the submitter to check whether the submitter can be started
 func (sr *Rollup) Init() error {
-	isSequencer, _, err := sr.L2Sequencer.InSequencersSet(
-		&bind.CallOpts{
-			Pending: false,
-			Context: context.Background()},
-		false,
-		common.HexToAddress(sr.walletAddr()),
-	)
+
+	isSequencer, err := sr.inSequencersSet()
 	if err != nil {
 		return err
 	}
@@ -969,4 +940,36 @@ func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Trans
 
 	}
 	return nil, nil, errors.New("replace tx failed after try 10 times")
+}
+
+func (r *Rollup) getCurrentSubmitter() (*common.Address, error) {
+
+	for _, l2Submitter := range r.L2Submitters {
+		current, _, _, err := l2Submitter.GetCurrentSubmitter(nil)
+		if err != nil {
+			log.Warn("get current submitter error", "error", err)
+			continue
+		}
+		return &current, nil
+
+	}
+
+	return nil, errors.New("failed to get current submitter")
+}
+
+func (r *Rollup) inSequencersSet() (bool, error) {
+
+	for _, l2Sequencer := range r.L2Sequencers {
+		isSequencer, _, err := l2Sequencer.InSequencersSet(
+			nil,
+			false,
+			common.HexToAddress(r.walletAddr()),
+		)
+		if err != nil {
+			log.Warn("get in sequencer set error", "error", err)
+			continue
+		}
+		return isSequencer, nil
+	}
+	return false, errors.New("failed to get in sequencer set")
 }

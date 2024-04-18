@@ -2,7 +2,15 @@
 pragma solidity =0.8.24;
 
 interface IL1Sequencer {
+    /**
+     * @notice pause
+     */
     function pause() external;
+
+    /**
+     * @notice unpause
+     */
+    function unpause() external;
 
     /**
      * @notice newest sequencers version
@@ -17,24 +25,16 @@ interface IL1Sequencer {
     /**
      * @notice verify BLS signature
      * @param version sequencer set version
-     * @param indexs sequencer index
+     * @param sequencers sequencers signed
      * @param signature batch signature
+     * @param batchHash batch hash
      */
     function verifySignature(
         uint256 version,
-        uint256[] memory indexs,
-        bytes memory signature
+        address[] memory sequencers,
+        bytes memory signature,
+        bytes32 batchHash
     ) external returns (bool);
-
-    /**
-     * @notice challenger win, slash sequencers
-     */
-    function slash(
-        uint256[] memory sequencerIndex,
-        address challenger,
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) external;
 
     /**
      * @notice update sequencers version
@@ -46,9 +46,8 @@ interface IL1Sequencer {
         bytes memory _sequencerBytes,
         address[] memory _sequencerAddrs,
         bytes[] memory _sequencerBLSKeys,
-        uint32 gasLimit,
-        address _refundAddress
-    ) external payable;
+        uint32 gasLimit
+    ) external;
 
     /**
      * @notice sequencer addresses
@@ -59,10 +58,14 @@ interface IL1Sequencer {
     ) external view returns (address[] memory);
 
     /**
-     * @notice whether is current sequencer
+     * @notice whether is sequencer
      * @param addr address
+     * @param version sequencer version
      */
-    function isSequencer(address addr) external view returns (bool);
+    function isSequencer(
+        address addr,
+        uint256 version
+    ) external view returns (bool);
 
     /**
      * @notice sequencer BLS keys

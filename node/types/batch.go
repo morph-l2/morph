@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/scroll-tech/go-ethereum/common"
@@ -12,61 +11,6 @@ import (
 
 var EmptyVersionedHash = common.HexToHash("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
 
-type BatchHeaderWithBlobHashes struct {
-	BatchHeader
-	blobHashes []common.Hash
-}
-
-func NewBatchHeaderWithBlobHashes(batchHeader BatchHeader, blobHashes []common.Hash) *BatchHeaderWithBlobHashes {
-	return &BatchHeaderWithBlobHashes{
-		BatchHeader: batchHeader,
-		blobHashes:  blobHashes,
-	}
-}
-
-func (b *BatchHeaderWithBlobHashes) MarshalBinary() []byte {
-	var ret []byte
-	ret = append(ret, byte(len(b.blobHashes)))
-	for _, blobHash := range b.blobHashes {
-		ret = append(ret, blobHash.Bytes()...)
-	}
-	ret = append(ret, b.BatchHeader.Encode()...)
-	return ret
-}
-
-func (b *BatchHeaderWithBlobHashes) UnmarshalBinary(input []byte) (err error) {
-	if len(input) < 90 {
-		return errors.New("insufficient data for BatchHeaderWithBlobHashes")
-	}
-	var blobHashes []common.Hash
-	blobHashCount := input[0]
-	remaining := input[1:]
-	for i := 0; i < int(blobHashCount); i++ {
-		var hash common.Hash
-		copy(hash[:], remaining[:32])
-		blobHashes = append(blobHashes, hash)
-		remaining = remaining[32:]
-	}
-	b.BatchHeader, err = DecodeBatchHeader(remaining)
-	if err != nil {
-		return nil
-	}
-	b.blobHashes = blobHashes
-	return
-}
-
-func (b *BatchHeaderWithBlobHashes) BatchHash() common.Hash {
-	var blobHashBytes []byte
-	for _, bh := range b.blobHashes {
-		blobHashBytes = append(blobHashBytes, bh.Bytes()...)
-	}
-	if len(blobHashBytes) == 0 {
-		blobHashBytes = EmptyVersionedHash[:]
-	}
-	bytes := append(b.BatchHeader.Hash().Bytes(), blobHashBytes...)
-	return crypto.Keccak256Hash(bytes)
-}
-
 type BatchHeader struct {
 	// Encoded in BatchHeaderV0Codec
 	Version                uint8
@@ -74,6 +18,7 @@ type BatchHeader struct {
 	L1MessagePopped        uint64
 	TotalL1MessagePopped   uint64
 	DataHash               common.Hash
+	BlobVersionedHash      common.Hash
 	ParentBatchHash        common.Hash
 	SkippedL1MessageBitmap hexutil.Bytes
 
@@ -86,14 +31,15 @@ func (b *BatchHeader) Encode() []byte {
 	if len(b.EncodedBytes) > 0 {
 		return b.EncodedBytes
 	}
-	batchBytes := make([]byte, 89+len(b.SkippedL1MessageBitmap))
+	batchBytes := make([]byte, 121+len(b.SkippedL1MessageBitmap))
 	batchBytes[0] = b.Version
 	binary.BigEndian.PutUint64(batchBytes[1:], b.BatchIndex)
 	binary.BigEndian.PutUint64(batchBytes[9:], b.L1MessagePopped)
 	binary.BigEndian.PutUint64(batchBytes[17:], b.TotalL1MessagePopped)
 	copy(batchBytes[25:], b.DataHash[:])
-	copy(batchBytes[57:], b.ParentBatchHash[:])
-	copy(batchBytes[89:], b.SkippedL1MessageBitmap[:])
+	copy(batchBytes[57:], b.BlobVersionedHash[:])
+	copy(batchBytes[89:], b.ParentBatchHash[:])
+	copy(batchBytes[121:], b.SkippedL1MessageBitmap[:])
 	b.EncodedBytes = batchBytes
 	return batchBytes
 }
@@ -119,8 +65,9 @@ func DecodeBatchHeader(data []byte) (BatchHeader, error) {
 		L1MessagePopped:        binary.BigEndian.Uint64(data[9:17]),
 		TotalL1MessagePopped:   binary.BigEndian.Uint64(data[17:25]),
 		DataHash:               common.BytesToHash(data[25:57]),
-		ParentBatchHash:        common.BytesToHash(data[57:89]),
-		SkippedL1MessageBitmap: data[89:],
+		BlobVersionedHash:      common.BytesToHash(data[57:89]),
+		ParentBatchHash:        common.BytesToHash(data[89:121]),
+		SkippedL1MessageBitmap: data[121:],
 
 		EncodedBytes: data,
 	}

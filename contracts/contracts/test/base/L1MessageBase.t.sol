@@ -7,6 +7,7 @@ import {CommonTest} from "./CommonTest.t.sol";
 import {Staking} from "../../L1/staking/Staking.sol";
 import {L1Sequencer} from "../../L1/staking/L1Sequencer.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
+import {Whitelist} from "../../libraries/common/Whitelist.sol";
 import {L1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {Rollup} from "../../L1/rollup/Rollup.sol";
@@ -22,9 +23,9 @@ contract L1MessageBaseTest is CommonTest {
         uint256 balance
     );
     event SequencerUpdated(
+        uint256 indexed version,
         address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
+        bytes[] sequencersBLS
     );
     Staking staking;
     uint256 public beginSeq = 10;
@@ -56,7 +57,7 @@ contract L1MessageBaseTest is CommonTest {
     IRollup.BatchSignature public nilBatchSig;
     address sequencerAddr = address(uint160(beginSeq));
     uint256 public sequencerVersion;
-    uint256[] public sequencerIndex;
+    address[] public sequencerSigned;
     bytes public signature;
 
     event UpdateSequencer(address indexed account, bool status);
@@ -71,6 +72,9 @@ contract L1MessageBaseTest is CommonTest {
         uint256 oldMaxNumTxInChunk,
         uint256 newMaxNumTxInChunk
     );
+
+    // whitelist config
+    Whitelist whitelistChecker;
 
     // L1MessageQueueWithGasPriceOracle config
     event QueueTransaction(
@@ -107,6 +111,8 @@ contract L1MessageBaseTest is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         hevm.startPrank(multisig);
+        // deploy whitelist
+        whitelistChecker = new Whitelist(address(multisig));
 
         // deploy proxys
         TransparentUpgradeableProxy rollupProxy = new TransparentUpgradeableProxy(
@@ -172,7 +178,8 @@ contract L1MessageBaseTest is CommonTest {
                 address(l1MessageQueueWithGasPriceOracleImpl),
                 abi.encodeWithSelector(
                     L1MessageQueueWithGasPriceOracle.initialize.selector,
-                    l1MessageQueue_maxGasLimit // gasLimit
+                    l1MessageQueue_maxGasLimit, // gasLimit
+                    whitelistChecker // whitelistChecker
                 )
             );
         ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxy))
@@ -234,52 +241,29 @@ contract L1MessageBaseTest is CommonTest {
         hevm.stopPrank();
     }
 
-    function messageProve(
+    function messageProveAndRelayPrepare(
         address from,
         address to,
         uint256 value,
         uint256 nonce,
         bytes memory message
-    ) public {
+    ) public returns (bytes32[32] memory wdProof, bytes32 wdRoot) {
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(from, to, value, nonce, message)
         );
 
         // prove message
-        (, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
-            .getProveWithdrawalTransactionInputs(_xDomainCalldataHash);
+        (, wdProof, wdRoot) = ffi.getProveWithdrawalTransactionInputs(
+            _xDomainCalldataHash
+        );
 
-        uint256 withdrawalBatchIndex = 1;
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
             abi.encodeWithSelector(IRollup.withdrawalRoots.selector, wdRoot),
-            abi.encode(withdrawalBatchIndex)
-        );
-        l1CrossDomainMessenger.proveMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
+            abi.encode(true)
         );
 
-        // warp finalization period
-        (, uint256 provenTime, ) = l1CrossDomainMessenger.provenWithdrawals(
-            _xDomainCalldataHash
-        );
-        hevm.warp(provenTime + FINALIZATION_PERIOD_SECONDS + 1);
-
-        // finalize batch
-        hevm.mockCall(
-            address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.finalizedStateRoots.selector,
-                withdrawalBatchIndex
-            ),
-            abi.encode(bytes32(uint256(1)))
-        );
+        return (wdProof, wdRoot);
     }
 
     function upgradeStorage(

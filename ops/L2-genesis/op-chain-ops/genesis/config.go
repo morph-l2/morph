@@ -308,10 +308,9 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	}
 
 	imConfig := &immutables.Config{
-		L2SequencerAddresses:    config.L2SequencerAddresses,
-		L2SequencerTmKeys:       config.L2SequencerTmKeys,
-		L2SequencerBlsKeys:      blsKeys,
-		L2GenesisBlockTimestamp: config.L2GenesisBlockTimestamp,
+		L2SequencerAddresses: config.L2SequencerAddresses,
+		L2SequencerTmKeys:    config.L2SequencerTmKeys,
+		L2SequencerBlsKeys:   blsKeys,
 	}
 	return immutable, imConfig, nil
 }
@@ -403,6 +402,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["Submitter"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
 	}
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"messageRoot": common.HexToHash("0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757"),
