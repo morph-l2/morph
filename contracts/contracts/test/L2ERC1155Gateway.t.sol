@@ -295,14 +295,9 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC1155Gateway.finalizeDepositERC1155.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                0,
-                1
+            abi.encodeCall(
+                L2ERC1155Gateway.finalizeDepositERC1155,
+                (address(0), address(0), address(0), address(0), 0, 1)
             )
         );
 
@@ -311,14 +306,9 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC1155Gateway.finalizeDepositERC1155.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                0,
-                1
+            abi.encodeCall(
+                L2ERC1155Gateway.finalizeDepositERC1155,
+                (address(0), address(0), address(0), address(0), 0, 1)
             )
         );
     }
@@ -341,14 +331,9 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         messenger.setXDomainMessageSender(address(counterpart));
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC1155Gateway.finalizeDepositERC1155.selector,
-                address(token),
-                address(token),
-                from,
-                to,
-                tokenId,
-                amount
+            abi.encodeCall(
+                L2ERC1155Gateway.finalizeDepositERC1155,
+                (address(token), address(token), from, to, tokenId, amount)
             )
         );
         assertEq(token.balanceOf(to, tokenId), amount);
@@ -371,14 +356,16 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC1155Gateway.finalizeBatchDepositERC1155.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                new uint256[](0),
-                new uint256[](0)
+            abi.encodeCall(
+                L2ERC1155Gateway.finalizeBatchDepositERC1155,
+                (
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    new uint256[](0),
+                    new uint256[](0)
+                )
             )
         );
 
@@ -387,14 +374,16 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC1155Gateway.finalizeBatchDepositERC1155.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                new uint256[](0),
-                new uint256[](0)
+            abi.encodeCall(
+                L2ERC1155Gateway.finalizeBatchDepositERC1155,
+                (
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    new uint256[](0),
+                    new uint256[](0)
+                )
             )
         );
     }
@@ -418,18 +407,13 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
             _amounts[i] = amount;
         }
 
-        // finalzie batch deposit
+        // finalize batch deposit
         messenger.setXDomainMessageSender(address(counterpart));
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC1155Gateway.finalizeBatchDepositERC1155.selector,
-                address(token),
-                address(token),
-                from,
-                to,
-                _tokenIds,
-                _amounts
+            abi.encodeCall(
+                L2ERC1155Gateway.finalizeBatchDepositERC1155,
+                (address(token), address(token), from, to, _tokenIds, _amounts)
             )
         );
         for (uint256 i = 0; i < count; i++) {

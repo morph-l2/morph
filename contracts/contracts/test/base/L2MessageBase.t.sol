@@ -102,9 +102,9 @@ contract L2MessageBaseTest is CommonTest {
         ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxy))
             .upgradeToAndCall(
                 address(l2CrossDomainMessengerImpl),
-                abi.encodeWithSelector(
-                    L2CrossDomainMessenger.initialize.selector,
-                    NON_ZERO_ADDRESS
+                abi.encodeCall(
+                    L2CrossDomainMessenger.initialize,
+                    (NON_ZERO_ADDRESS)
                 )
             );
         l2CrossDomainMessenger = L2CrossDomainMessenger(

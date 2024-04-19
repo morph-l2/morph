@@ -21,9 +21,7 @@ contract SubmitterTest is L2SequencerTest {
 
         hevm.mockCall(
             address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
 

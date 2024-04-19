@@ -179,6 +179,7 @@ contract Staking is IStaking, OwnableUpgradeable {
         limit = _limit;
         lock = _lock;
         _transferOwnership(_admin);
+        emit ParamsUpdated(sequencersSize, limit, lock);
     }
 
     /**
@@ -493,13 +494,15 @@ contract Staking is IStaking, OwnableUpgradeable {
         }
 
         // abi encode updateSequencers data
-        bytes memory data = abi.encodeWithSelector(
-            IL2Sequencer.updateSequencers.selector,
+        bytes memory data = abi.encodeCall(
+            IL2Sequencer.updateSequencers,
             // Because this call will be executed on the remote chain, we reverse the order of
             // the remote and local token addresses relative to their order in the
             // updateSequencers function.
-            IL1Sequencer(sequencerContract).newestVersion() + 1,
-            sequencerInfos
+            (
+                IL1Sequencer(sequencerContract).newestVersion() + 1,
+                sequencerInfos
+            )
         );
         IL1Sequencer(sequencerContract).updateAndSendSequencerSet(
             data,
