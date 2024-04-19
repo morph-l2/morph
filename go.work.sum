@@ -475,6 +475,8 @@ github.com/morph-l2/go-ethereum v1.10.14-0.20240412073703-cd22e09a65c6/go.mod h1
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240125053652-c7ba1597b86f/go.mod h1:zJcxhzs3kbX6xs90IBX1vIQy1KmSfm4MgNbv3Lt+Rns=
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240401034235-0403d532dbd3 h1:k622aE5OP4/8mJJMaIYfVwCnRgYPr7mR/5a294mwf+Q=
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240401034235-0403d532dbd3/go.mod h1:0d9/EvR8QheuLJBOq7mHPunn/7dPW22JGfeOaNEMxhA=
+github.com/morph-l2/tendermint v0.1.0-beta.0.20240417065957-8ff3c98baa2f h1:xVTUs/fQqXzbyllmRk+gVdZw1m5w3/ldMKCgvOaacT0=
+github.com/morph-l2/tendermint v0.1.0-beta.0.20240417065957-8ff3c98baa2f/go.mod h1:0d9/EvR8QheuLJBOq7mHPunn/7dPW22JGfeOaNEMxhA=
 github.com/mrunalp/fileutils v0.5.1 h1:F+S7ZlNKnrwHfSwdlgNSkKo67ReVf8o9fel6C3dkm/Q=
 github.com/mrunalp/fileutils v0.5.1/go.mod h1:M1WthSahJixYnrXQl/DFQuteStB1weuxD2QJNHXfbSQ=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f h1:KUppIJq7/+SVif2QVs3tOP0zanoHgBEVAwHxUSIzRqU=
