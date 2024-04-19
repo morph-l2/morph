@@ -296,7 +296,7 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256 firstRanking = l2Staking.stakerRankings(firstStaker);
         assertEq(firstRanking, 1 + 1);
 
-        address[] memory sequencerSet = sequencer.getSeqeuncerSet2();
+        address[] memory sequencerSet = sequencer.getSequencerSet2();
         assertEq(secondStaker, sequencerSet[0]);
         assertEq(firstStaker, sequencerSet[1]);
     }
@@ -308,6 +308,6 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.prank(multisig);
         l2Staking.updateParams(2);
 
-        assertEq(sequencer.getSeqeuncerSet2Size(), 2);
+        assertEq(sequencer.getSequencerSet2Size(), 2);
     }
 }

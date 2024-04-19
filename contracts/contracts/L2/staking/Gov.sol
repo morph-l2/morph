@@ -144,7 +144,7 @@ contract Gov is IGov, OwnableUpgradeable {
 
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
-            .getSeqeuncerSet2();
+            .getSequencerSet2();
         for (uint i = 0; i < latestSequencerSet.length; i++) {
             if (!votes[_proposalID].contains(latestSequencerSet[i])) {
                 votes[_proposalID].remove(latestSequencerSet[i]);
@@ -229,7 +229,7 @@ contract Gov is IGov, OwnableUpgradeable {
     function _checkProposal(uint256 _proposalID) internal view returns (bool) {
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
-            .getSeqeuncerSet2();
+            .getSequencerSet2();
         uint256 validVotes = 0;
         for (uint i = 0; i < latestSequencerSet.length; i++) {
             if (votes[_proposalID].contains(latestSequencerSet[i])) {

@@ -158,7 +158,7 @@ contract L2Staking is
             if (REWARD_STARTED) {
                 if (
                     stakerRankings[remove[i]] <=
-                    ISequencer(SEQUENCER_CONTRACT).getSeqeuncerSet2Size()
+                    ISequencer(SEQUENCER_CONTRACT).getSequencerSet2Size()
                 ) {
                     updateSequencerSet = true;
                 }
@@ -259,7 +259,7 @@ contract L2Staking is
         _transferFrom(msg.sender, address(this), amount);
 
         uint256 sequencerSize = ISequencer(SEQUENCER_CONTRACT)
-            .getSeqeuncerSet2Size();
+            .getSequencerSet2Size();
         if (
             REWARD_STARTED &&
             beforeRanking > sequencerSize &&
@@ -352,7 +352,7 @@ contract L2Staking is
         );
 
         uint256 sequencerSize = ISequencer(SEQUENCER_CONTRACT)
-            .getSeqeuncerSet2Size();
+            .getSequencerSet2Size();
         if (
             !removed &&
             REWARD_STARTED &&
@@ -443,7 +443,7 @@ contract L2Staking is
 
         if (
             SEQUENCER_MAX_SIZE <
-            ISequencer(SEQUENCER_CONTRACT).getSeqeuncerSet2Size()
+            ISequencer(SEQUENCER_CONTRACT).getSequencerSet2Size()
         ) {
             // update sequencer set
             _updateSequencerSet();
