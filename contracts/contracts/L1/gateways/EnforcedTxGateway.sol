@@ -64,7 +64,7 @@ contract EnforcedTxGateway is
         address _queue,
         address _feeVault
     ) external initializer {
-        require(_feeVault != address(0), "fee vault cannot be address");
+        require(_feeVault != address(0), "fee vault cannot be address(0)");
         OwnableUpgradeable.__Ownable_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
         PausableUpgradeable.__Pausable_init();
