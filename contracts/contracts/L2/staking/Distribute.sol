@@ -78,7 +78,8 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * @param effectiveEpoch    delegation effective epoch
      * @param amount            delegator total amount, not increment
      * @param totalAmount       delegatee total amount
-     * @param newDelegation     First delegate or additional delegate
+     * @param remainsNumber     delegator number
+     * @param newDelegation     first delegate or additional delegate
      */
     function notifyDelegation(
         address delegatee,
@@ -86,15 +87,14 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         uint256 effectiveEpoch,
         uint256 amount,
         uint256 totalAmount,
+        uint256 remainsNumber,
         bool newDelegation
     ) public onlyL2StakingContract {
         // update distribution info
         distributions[delegatee][effectiveEpoch].delegationAmount = totalAmount;
+        distributions[delegatee][effectiveEpoch].remainsNumber = remainsNumber;
         distributions[delegatee][effectiveEpoch].delegators.add(delegator);
         distributions[delegatee][effectiveEpoch].amounts[delegator] = amount;
-        distributions[delegatee][effectiveEpoch].remainsNumber = distributions[
-            delegatee
-        ][effectiveEpoch].delegators.length();
 
         // update unclaimed info
         if (newDelegation) {
@@ -109,29 +109,41 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * @param delegator         delegator address
      * @param effectiveEpoch    delegation effective epoch
      * @param totalAmount       delegatee total amount
+     * @param remainsNumber     delegator number
      */
     function notifyUndelegation(
         address delegatee,
         address delegator,
         uint256 effectiveEpoch,
-        uint256 totalAmount
+        uint256 totalAmount,
+        uint256 remainsNumber
     ) public onlyL2StakingContract {
         // update distribution info
         distributions[delegatee][effectiveEpoch].delegationAmount = totalAmount;
-        distributions[delegatee][effectiveEpoch].delegators.remove(delegator);
-        delete distributions[delegatee][effectiveEpoch].amounts[delegator];
-        distributions[delegatee][effectiveEpoch].remainsNumber--;
+        distributions[delegatee][effectiveEpoch].remainsNumber = remainsNumber;
 
         // not start reward yet, or delegate and undelegation within the same epoch, remove unclaim info
         if (
             effectiveEpoch == 0 ||
             unclaimed[delegator].unclaimedStart[delegatee] == effectiveEpoch
         ) {
+            // update distribution info
+            distributions[delegatee][effectiveEpoch].delegators.remove(
+                delegator
+            );
+            delete distributions[delegatee][effectiveEpoch].amounts[delegator];
+
+            // update unclaimed info
             unclaimed[delegator].delegatees.remove(delegatee);
             delete unclaimed[delegator].undelegated[delegatee];
             delete unclaimed[delegator].unclaimedStart[delegatee];
             delete unclaimed[delegator].unclaimedEnd[delegatee];
+            return;
         }
+
+        // update unclaimed info
+        unclaimed[delegator].undelegated[delegatee] = true;
+        unclaimed[delegator].unclaimedEnd[delegatee] = effectiveEpoch - 1;
     }
 
     /**
@@ -322,7 +334,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                     distributions[delegatee][i].amounts[delegator]) /
                 distributions[delegatee][i].delegationAmount;
 
-            // if undelegated, remove unclaimed info after claimed all
+            // if undelegated, remove delegator unclaimed info after claimed all
             if (
                 unclaimed[delegator].undelegated[delegatee] &&
                 unclaimed[delegator].unclaimedEnd[delegatee] == i
@@ -335,7 +347,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             }
             unclaimed[delegator].unclaimedStart[delegatee]++;
 
-            // update next distribution info
+            // if distribution is empty, update next distribution info
             if (
                 !distributions[delegatee][i + 1].delegators.contains(delegator)
             ) {
@@ -344,10 +356,14 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                     delegator
                 ] = distributions[delegatee][i].amounts[delegator];
 
+                // if delegator info exist in next epoch, distribution must be updated
                 if (distributions[delegatee][i + 1].delegationAmount == 0) {
                     distributions[delegatee][i + 1]
                         .delegationAmount = distributions[delegatee][i]
                         .delegationAmount;
+                    distributions[delegatee][i + 1]
+                        .remainsNumber = distributions[delegatee][i]
+                        .remainsNumber;
                 }
             }
 

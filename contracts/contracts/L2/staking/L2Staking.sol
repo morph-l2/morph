@@ -39,6 +39,8 @@ contract L2Staking is
     // undelegate lock epochs
     uint256 public UNDELEGATE_LOCK_EPOCHS;
 
+    // latest sequencer set size
+    uint256 public latestSequencerSetSize;
     // sequencer candidate number
     uint256 public candidateNumber;
     // sync from l1 staking
@@ -95,7 +97,7 @@ contract L2Staking is
      * @param _sequencersMaxSize    max size of sequencer set
      * @param _undelegateLockEpochs undelegate lock epochs
      * @param _rewardStartTime      reward start time
-     * @param _stakers              stakers
+     * @param _stakers              initial stakers, must be same as initial sequencer set in sequencer contract
      **/
     function initialize(
         address _admin,
@@ -116,8 +118,9 @@ contract L2Staking is
 
         REWARD_START_TIME = _rewardStartTime;
 
-        require(_stakers.length > 0, "invalid initial stakers");
-        for (uint256 i = 0; i < _stakers.length; i++) {
+        latestSequencerSetSize = _stakers.length;
+        require(latestSequencerSetSize > 0, "invalid initial stakers");
+        for (uint256 i = 0; i < latestSequencerSetSize; i++) {
             stakers[_stakers[i].addr] = _stakers[i];
             stakerAddrs.push(_stakers[i].addr);
             stakerRankings[_stakers[i].addr] = i + 1;
@@ -156,10 +159,7 @@ contract L2Staking is
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
             if (REWARD_STARTED) {
-                if (
-                    stakerRankings[remove[i]] <=
-                    ISequencer(SEQUENCER_CONTRACT).getSequencerSet2Size()
-                ) {
+                if (stakerRankings[remove[i]] <= latestSequencerSetSize) {
                     updateSequencerSet = true;
                 }
             } else if (stakerRankings[remove[i]] <= SEQUENCER_MAX_SIZE) {
@@ -256,18 +256,6 @@ contract L2Staking is
             effectiveEpoch
         );
 
-        _transferFrom(msg.sender, address(this), amount);
-
-        uint256 sequencerSize = ISequencer(SEQUENCER_CONTRACT)
-            .getSequencerSet2Size();
-        if (
-            REWARD_STARTED &&
-            beforeRanking > sequencerSize &&
-            stakerRankings[staker] <= sequencerSize
-        ) {
-            _updateSequencerSet();
-        }
-
         // notify delegation to distribute contract
         IDistribute(DISTRIBUTE_CONTRACT).notifyDelegation(
             staker,
@@ -275,8 +263,20 @@ contract L2Staking is
             effectiveEpoch,
             delegations[staker][msg.sender],
             stakerDelegations[staker],
+            delegators[staker].length(),
             delegations[staker][msg.sender] == amount
         );
+
+        // transfer morph token from delegator to this
+        _transferFrom(msg.sender, address(this), amount);
+
+        if (
+            REWARD_STARTED &&
+            beforeRanking > latestSequencerSetSize &&
+            stakerRankings[staker] <= latestSequencerSetSize
+        ) {
+            _updateSequencerSet();
+        }
     }
 
     /**
@@ -343,6 +343,15 @@ contract L2Staking is
             }
         }
 
+        // notify undelegation to distribute contract
+        IDistribute(DISTRIBUTE_CONTRACT).notifyUndelegation(
+            delegatee,
+            msg.sender,
+            effectiveEpoch,
+            undelegation.amount,
+            delegators[delegatee].length()
+        );
+
         emit Undelegated(
             delegatee,
             msg.sender,
@@ -351,24 +360,14 @@ contract L2Staking is
             unlockEpoch
         );
 
-        uint256 sequencerSize = ISequencer(SEQUENCER_CONTRACT)
-            .getSequencerSet2Size();
         if (
             !removed &&
             REWARD_STARTED &&
-            beforeRanking <= sequencerSize &&
-            stakerRankings[delegatee] > sequencerSize
+            beforeRanking <= latestSequencerSetSize &&
+            stakerRankings[delegatee] > latestSequencerSetSize
         ) {
             _updateSequencerSet();
         }
-
-        // notify undelegation to distribute contract
-        IDistribute(DISTRIBUTE_CONTRACT).notifyUndelegation(
-            delegatee,
-            msg.sender,
-            effectiveEpoch,
-            undelegation.amount
-        );
     }
 
     /**
@@ -441,10 +440,7 @@ contract L2Staking is
         SEQUENCER_MAX_SIZE = _sequencersMaxSize;
         emit ParamsUpdated(SEQUENCER_MAX_SIZE);
 
-        if (
-            SEQUENCER_MAX_SIZE <
-            ISequencer(SEQUENCER_CONTRACT).getSequencerSet2Size()
-        ) {
+        if (SEQUENCER_MAX_SIZE < latestSequencerSetSize) {
             // update sequencer set
             _updateSequencerSet();
         }
@@ -607,6 +603,7 @@ contract L2Staking is
             sequencerSet[i] = stakerAddrs[i];
         }
         ISequencer(SEQUENCER_CONTRACT).updateSequencerSet(sequencerSet);
+        latestSequencerSetSize = sequencerSet.length;
     }
 
     /**

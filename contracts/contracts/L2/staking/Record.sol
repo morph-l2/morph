@@ -169,7 +169,7 @@ contract Record is IRecord, OwnableUpgradeable {
             );
 
             uint256 inflationAmount = IMorphToken(MORPH_TOKEN_CONTRACT)
-                .inflations(i);
+                .inflations(index);
             uint256 blockCount = 0;
             uint256 ratioSum = 0;
             uint256[] memory delegatorRewards = new uint256[](dataLen);

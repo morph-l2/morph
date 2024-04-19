@@ -75,7 +75,8 @@ interface IDistribute {
      * @param effectiveEpoch    delegation effective epoch
      * @param amount            delegator amount
      * @param totalAmount       delegatee total amount
-     * @param newDelegation     First delegate or additional delegate
+     * @param remainsNumber     delegator number
+     * @param newDelegation     first delegate or additional delegate
      */
     function notifyDelegation(
         address delegatee,
@@ -83,6 +84,7 @@ interface IDistribute {
         uint256 effectiveEpoch,
         uint256 amount,
         uint256 totalAmount,
+        uint256 remainsNumber,
         bool newDelegation
     ) external;
 
@@ -92,12 +94,14 @@ interface IDistribute {
      * @param delegator         delegator address
      * @param effectiveEpoch    delegation effective epoch
      * @param totalAmount       delegatee total amount
+     * @param remainsNumber     delegator number
      */
     function notifyUndelegation(
         address delegatee,
         address delegator,
         uint256 effectiveEpoch,
-        uint256 totalAmount
+        uint256 totalAmount,
+        uint256 remainsNumber
     ) external;
 
     /**
