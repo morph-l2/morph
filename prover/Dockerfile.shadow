@@ -1,0 +1,13 @@
+# Only used in test scene.
+
+FROM rust:1.70 as builder
+
+COPY ./shadow-proving /shadow-proving
+
+WORKDIR /shadow-proving
+RUN	cargo build --release
+
+FROM ubuntu:22.04 as app
+COPY --from=builder /shadow-proving/target/release/shadow-proving /
+
+CMD ["./shadow-proving"]

@@ -30,7 +30,6 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         .parse()
         .expect("Cannot parse TARGET_BATCH env var");
 
-
     let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc)?;
     let l1_signer = Arc::new(SignerMiddleware::new(
         l1_provider.clone(),

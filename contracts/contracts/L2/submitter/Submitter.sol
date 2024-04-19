@@ -21,8 +21,6 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     uint256 public override nextBatchStartBlock;
     // bathcIndex => batchInfo
     mapping(uint256 => Types.BatchInfo) public confirmedBatchs;
-    // epoch info
-    mapping(uint256 => Types.EpochInfo) public epochs;
 
     Types.EpochHistory[] public epochHistory;
 
@@ -192,14 +190,5 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
         uint256 batchIndex
     ) external view returns (Types.BatchInfo memory batchInfo) {
         return confirmedBatchs[batchIndex];
-    }
-
-    /**
-     * @notice get epoch info
-     */
-    function getEpoch(
-        uint256 epochIndex
-    ) external view returns (Types.EpochInfo memory epochInfo) {
-        return epochs[epochIndex];
     }
 }
