@@ -183,14 +183,11 @@ fn compute_and_save_kzg(
         };
         blocks.push(block);
     }
-    log::info!("===> blocks_len{:#?}", blocks.len());
-
     // Witness to chunkhash
     let mut chunk_hashes: Vec<ChunkHash> = blocks
         .iter()
         .map(|block| ChunkHash::from_witness_block(&block, false))
         .collect();
-    log::info!("===> chunk_hashes_len{:#?}", chunk_hashes.len());
 
     if chunk_hashes.is_empty() {
         return Err("chunk_hashes is empty".to_string());
