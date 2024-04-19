@@ -23,9 +23,9 @@ contract L1MessageBaseTest is CommonTest {
         uint256 balance
     );
     event SequencerUpdated(
+        uint256 indexed version,
         address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
+        bytes[] sequencersBLS
     );
     Staking staking;
     uint256 public beginSeq = 10;
@@ -198,6 +198,7 @@ contract L1MessageBaseTest is CommonTest {
                 Staking.initialize.selector,
                 address(alice),
                 address(l1SequencerProxy),
+                address(rollupProxy),
                 SEQUENCER_SIZE,
                 MIN_DEPOSIT,
                 LOCK
@@ -217,7 +218,7 @@ contract L1MessageBaseTest is CommonTest {
         l1CrossDomainMessenger = L1CrossDomainMessenger(
             payable(address(l1CrossDomainMessengerProxy))
         );
-        rollup = Rollup(address(rollupProxy));
+        rollup = Rollup(payable(address(rollupProxy)));
         l1MessageQueueWithGasPriceOracle = L1MessageQueueWithGasPriceOracle(
             address(l1MessageQueueWithGasPriceOracleProxy)
         );

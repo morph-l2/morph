@@ -136,7 +136,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
 
             hevm.expectEmit(true, true, true, true);
             version++;
-            emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
+            emit SequencerUpdated(version, sequencerAddrs, sequencerBLSKeys);
 
             hevm.prank(bob);
             staking.register{value: 3 * MIN_DEPOSIT}(
@@ -332,7 +332,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         version++;
         // expect emit events
         emit Withdrawed(user, balancesPre);
-        emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
+        emit SequencerUpdated(version, sequencerAddrs, sequencerBLSKeys);
         // withdraw
         hevm.prank(user);
         staking.withdrawETH(defaultGasLimit);

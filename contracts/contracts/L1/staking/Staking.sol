@@ -27,6 +27,8 @@ contract Staking is IStaking, OwnableUpgradeable {
 
     // sequencer contract
     address public sequencerContract;
+    // rollup Contract
+    address public rollupContract;
 
     // Staking limit
     uint256 public override limit;
@@ -97,10 +99,10 @@ contract Staking is IStaking, OwnableUpgradeable {
     event EnableSlash(bool enable);
 
     /**
-     * @notice only sequencer contract
+     * @notice only rollup contract
      */
-    modifier onlySequencerContract() {
-        require(msg.sender == sequencerContract, "only sequencer contract");
+    modifier onlyRollupContract() {
+        require(msg.sender == rollupContract, "only rollup contract");
         _;
     }
 
@@ -154,6 +156,7 @@ contract Staking is IStaking, OwnableUpgradeable {
      * @notice initializer
      * @param _admin params admin
      * @param _sequencerContract sequencer contract address
+     * @param _rollupContract rollup contract address
      * @param _sequencersSize size of sequencer set
      * @param _limit smallest staking value
      * @param _lock withdraw lock time
@@ -161,14 +164,17 @@ contract Staking is IStaking, OwnableUpgradeable {
     function initialize(
         address _admin,
         address _sequencerContract,
+        address _rollupContract,
         uint256 _sequencersSize,
         uint256 _limit,
         uint256 _lock
     ) public initializer {
+        require(_rollupContract != address(0), "invalid rollup contract");
         require(_sequencerContract != address(0), "invalid sequencer contract");
         require(_sequencersSize > 0, "sequencersSize must greater than 0");
         require(_limit > 0, "staking limit must greater than 0");
         sequencerContract = _sequencerContract;
+        rollupContract = _rollupContract;
         sequencersSize = _sequencersSize;
         limit = _limit;
         lock = _lock;
@@ -345,30 +351,43 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     function slash(
         address[] memory sequencers,
-        address challenger,
         uint32 _minGasLimit
-    ) external onlySequencerContract {
+    ) external onlyRollupContract returns (uint256) {
         if (!enableSlash) {
-            return;
+            return 0;
         }
 
         // do slash & update sequencer set
         uint256 valueSum;
+        bool changed;
         for (uint256 i = 0; i < sequencers.length; i++) {
             address sequencer = sequencers[i];
-            valueSum += stakings[sequencer].balance;
-            uint256 index = getStakerIndex(sequencer);
-            for (uint256 j = index; j < stakers.length - 1; j++) {
-                stakers[j] = stakers[j + 1];
+
+            if (withdrawals[sequencers[i]].exit) {
+                valueSum += withdrawals[sequencers[i]].balance;
+                delete withdrawals[sequencers[i]];
+            } else {
+                valueSum += stakings[sequencer].balance;
+                uint256 index = getStakerIndex(sequencer);
+                if (index <= sequencersSize) {
+                    changed = true;
+                }
+                for (uint256 j = index; j < stakers.length - 1; j++) {
+                    stakers[j] = stakers[j + 1];
+                }
+                stakers.pop();
+                delete stakings[sequencer];
             }
-            stakers.pop();
-            delete stakings[sequencer];
         }
-        updateSequencers(_minGasLimit);
-        if (stakers.length == 0) {
-            IL1Sequencer(sequencerContract).pause();
+
+        if (changed) {
+            updateSequencers(_minGasLimit);
+            if (stakers.length == 0) {
+                IL1Sequencer(sequencerContract).pause();
+            }
         }
-        _transfer(challenger, valueSum);
+        _transfer(rollupContract, valueSum);
+        return valueSum;
     }
 
     function _transfer(address _to, uint256 _amount) internal {
@@ -442,9 +461,10 @@ contract Staking is IStaking, OwnableUpgradeable {
                 block.number > withdrawals[msg.sender].unlock,
             "invalid withdrawal"
         );
-        payable(msg.sender).transfer(withdrawals[msg.sender].balance);
-        emit Claimed(msg.sender, withdrawals[msg.sender].balance);
+        uint256 amount = withdrawals[msg.sender].balance;
         delete withdrawals[msg.sender];
+        _transfer(msg.sender, amount);
+        emit Claimed(msg.sender, amount);
     }
 
     /**
@@ -491,5 +511,13 @@ contract Staking is IStaking, OwnableUpgradeable {
 
     function stakersNumber() public view returns (uint256) {
         return stakers.length;
+    }
+
+    function getStakers() public view returns (address[] memory) {
+        return stakers;
+    }
+
+    function getSequencersAddr() public view returns (address[] memory) {
+        return sequencersAddr;
     }
 }

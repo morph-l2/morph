@@ -9,17 +9,33 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[tokio::main]
+async fn main() {
+    // Prepare environment.
+    dotenv().ok();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    log::info!("Starting challenge handler...");
+
+    // Start challenger.
+    let result = challenge().await;
+
+    // Handle result.
+    match result {
+        Ok(()) => (),
+        Err(e) => {
+            log::error!("challenge handler exec error: {:#?}", e);
+        }
+    }
+}
+
 type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 
 /**
  * Automatically challenge the latest batch.
  */
-#[tokio::main]
-pub async fn main() -> Result<(), Box<dyn Error>> {
+pub async fn challenge() -> Result<(), Box<dyn Error>> {
     // Prepare env.
-    log::info!("starting auto-challenge...");
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    dotenv().ok();
+    log::info!("Starting shadow-challenge...");
     let l1_rpc = var("CHALLENGER_L1_RPC").expect("Cannot detect L1_RPC env var");
     let l1_rollup_address = var("CHALLENGER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
     let private_key = var("CHALLENGER_PRIVATEKEY").expect("Cannot detect CHALLENGER_PRIVATEKEY env var");
@@ -50,7 +66,9 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let proof_window = l1_rollup.proof_window().await?;
     log::info!("finalization_period: {:#?}  proof_window: {:#?}", finalization_period, proof_window);
 
-    let min_deposit: U256 = l1_rollup.min_deposit().await?;
+    // TODO IStaking
+    // let min_deposit: U256 = l1_rollup.min_deposit().await?;
+    let min_deposit: U256 = U256::from(10i32.pow(18));
     log::info!("min_deposit: {:#?}", min_deposit);
 
     loop {
@@ -219,7 +237,7 @@ async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Pr
         let is_batch_finalized: bool = l1_rollup.is_batch_finalized(U256::from(batch_index)).await.unwrap();
 
         if batch_in_challenge {
-            log::warn!("prev challenge not finalized, batch index = {:#?}", batch_index);
+            log::info!("prev challenge not finalized, batch index = {:#?}", batch_index);
             return Some(true);
         }
         log::info!("batch status not in challenge, batch index = {:#?}", batch_index);
@@ -232,6 +250,3 @@ async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Pr
 async fn verify_state_transition() {
     // Do nothing
 }
-
-#[tokio::test]
-async fn test_challenger() {}

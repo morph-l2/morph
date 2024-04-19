@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	node "github.com/morph-l2/node/core"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -52,6 +53,11 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 	}
 	curHeader := &types.Header{}
 	curHeader.BaseFee = new(big.Int).SetUint64(1)
-	_, _, err := BuildL2DeveloperGenesis(config, nil, curHeader)
+	l2Genesis, _, err := BuildL2DeveloperGenesis(config, nil, curHeader)
 	require.NoError(t, err)
+
+	l2GenesisBlock := l2Genesis.ToBlock(nil)
+	genesisBatchHeader, err := node.GenesisBatchHeader(l2GenesisBlock.Header())
+	require.NoError(t, err)
+	t.Logf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Encode())
 }
