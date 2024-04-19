@@ -8,7 +8,7 @@ import {CrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {IL1MessageQueue} from "./rollup/IL1MessageQueue.sol";
 import {IRollup} from "./rollup/IRollup.sol";
-import {Verify} from "../libraries/common/Tree.sol";
+import {Verify} from "../libraries/common/Verify.sol";
 import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
 
 /**
