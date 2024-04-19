@@ -47,6 +47,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Variables *
      *************/
 
+    /// @notice Batch challenge time.
+    uint256 public FINALIZATION_PERIOD_SECONDS;
+
+    /// @notice The time when zkProof was generated and executed.
+    uint256 public PROOF_WINDOW;
+
     /// @notice The maximum number of transactions allowed in each chunk.
     uint256 public maxNumTxInChunk;
 
@@ -79,12 +85,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice Store the withdrawalRoot.
     mapping(bytes32 => bool) public withdrawalRoots;
-
-    /// @notice Batch challenge time.
-    uint256 public FINALIZATION_PERIOD_SECONDS;
-
-    /// @notice The time when zkProof was generated and executed.
-    uint256 public PROOF_WINDOW;
 
     /// @notice Store Challenge Information. (batchIndex => BatchChallenge)
     mapping(uint256 => BatchChallenge) public challenges;
@@ -373,16 +373,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             _blobVersionedHash
         );
 
-        // compute batch hash
-        bytes32 _batchHash = BatchHeaderCodecV0.computeBatchHash(
-            _batchPtr,
-            BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
-                batchData.skippedL1MessageBitmap.length
-        );
-
         committedBatchStores[_batchIndex] = BatchStore(
             batchData.version,
-            _batchHash,
+            BatchHeaderCodecV0.computeBatchHash(
+                _batchPtr,
+                BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
+                    batchData.skippedL1MessageBitmap.length
+            ),
             block.timestamp,
             block.timestamp + FINALIZATION_PERIOD_SECONDS,
             batchData.prevStateRoot,
@@ -395,7 +392,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             latestL2BlockNumber,
             _blobVersionedHash,
             BatchSignature(
-                _getBLSMsgHash(batchData), // TODO
+                _getBLSMsgHash(batchData),
                 keccak256(batchData.signatureData.sequencerSets),
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
@@ -429,7 +426,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             "the signature verification failed"
         );
 
-        emit CommitBatch(_batchIndex, _batchHash);
+        emit CommitBatch(
+            _batchIndex,
+            committedBatchStores[_batchIndex].batchHash
+        );
     }
 
     /// @inheritdoc IRollup
