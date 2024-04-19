@@ -973,7 +973,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @param _amount The amount of ETH to transfer.
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
-            (bool success, ) = _to.call{value: _amount}(hex"");
+            (bool success, ) = _to.call{value: _amount}("0x");
             require(success, "Rollup: ETH transfer failed");
         }
     }
