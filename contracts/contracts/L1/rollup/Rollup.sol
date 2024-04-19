@@ -30,17 +30,15 @@ contract Rollup is
      *************/
 
     /// @notice The chain id of the corresponding layer 2 chain.
-    uint64 public immutable layer2ChainId;
+    uint64 public immutable LAYER_2_CHAIN_ID;
 
-    /**
-     * @notice Messenger contract on this domain.
-     */
+    /// @notice Messenger contract on this domain.
     address public immutable MESSENGER;
 
     /// @notice The zero versioned hash.
     bytes32 public ZERO_VERSIONED_HASH;
 
-    // l1 staking contract
+    /// l1 staking contract
     address public l1StakingContract;
 
     /*************
@@ -134,14 +132,24 @@ contract Rollup is
      * Constructor *
      ***************/
 
-    constructor(uint64 _chainId, address payable _messenger) {
-        layer2ChainId = _chainId;
+    /// @notice constructor
+    /// @param _chainID     The chain ID
+    /// @param _messenger   The messenger address
+    constructor(uint64 _chainID, address payable _messenger) {
+        LAYER_2_CHAIN_ID = _chainID;
         MESSENGER = _messenger;
     }
 
     /// @notice Allow the contract to receive ETH.
     receive() external payable {}
 
+    /// @notice initializer
+    /// @param _l1StakingContract         todo
+    /// @param _messageQueue              todo
+    /// @param _verifier                  todo
+    /// @param _maxNumTxInChunk           todo
+    /// @param _finalizationPeriodSeconds todo
+    /// @param _proofWindow               todo
     function initialize(
         address _l1StakingContract,
         address _messageQueue,
@@ -193,6 +201,30 @@ contract Rollup is
         uint256 batchIndex
     ) external view override returns (bytes32) {
         return committedBatchStores[batchIndex].batchHash;
+    }
+
+    /// @dev Public function to checks whether the batch is in challenge.
+    /// @param batchIndex The index of the batch to be checked.
+    function batchInChallenge(uint256 batchIndex) public view returns (bool) {
+        return
+            challenges[batchIndex].challenger != address(0) &&
+            !challenges[batchIndex].finished;
+    }
+
+    /// @dev Public function to checks whether batch exists.
+    /// @param batchIndex The index of the batch to be checked.
+    function batchExist(uint256 batchIndex) public view returns (bool) {
+        return committedBatchStores[batchIndex].originTimestamp > 0;
+    }
+
+    /// @dev Public function to checks whether the batch is in challengeWindow.
+    /// @param batchIndex The index of the batch to be checked.
+    function batchInsideChallengeWindow(
+        uint256 batchIndex
+    ) public view returns (bool) {
+        return
+            committedBatchStores[batchIndex].finalizeTimestamp >
+            block.timestamp;
     }
 
     /*****************************
@@ -445,48 +477,6 @@ contract Rollup is
         );
     }
 
-    function _getBLSMsgHash(
-        BatchData calldata batchData
-    ) internal pure returns (bytes32) {
-        // TODO compute bls message hash
-        batchData = batchData;
-        return bytes32(0);
-    }
-
-    function _checkSequencerSetVerifyHash(
-        BatchData calldata batchData,
-        bytes32 sequencerSetVerifyHash
-    ) internal pure returns (bool) {
-        // TODO check SEQUENCER_SET_VERIFY_HASH in batch
-        batchData = batchData;
-        sequencerSetVerifyHash = sequencerSetVerifyHash;
-        return true;
-    }
-
-    function _getValidSequencerSet(
-        bytes calldata sequencerSets,
-        uint256 blockHeight
-    ) internal pure returns (address[] memory) {
-        (
-            ,
-            address[] memory sequencerSet0,
-            uint256 blockHeight1,
-            address[] memory sequencerSet1,
-            uint256 blockHeight2,
-            address[] memory sequencerSet2
-        ) = abi.decode(
-                sequencerSets,
-                (uint256, address[], uint256, address[], uint256, address[])
-            );
-        if (blockHeight >= blockHeight2) {
-            return sequencerSet2;
-        }
-        if (blockHeight >= blockHeight1) {
-            return sequencerSet1;
-        }
-        return sequencerSet0;
-    }
-
     /// @inheritdoc IRollup
     /// @dev If the owner want to revert a sequence of batches by sending multiple transactions,
     ///      make sure to revert recent batches first.
@@ -549,7 +539,7 @@ contract Rollup is
         }
     }
 
-    // challengeState challenges a batch by submitting a deposit.
+    /// @dev challengeState challenges a batch by submitting a deposit.
     function challengeState(
         uint64 batchIndex
     ) external payable onlyChallenger nonReqRevert {
@@ -601,8 +591,8 @@ contract Rollup is
         inChallenge = true;
     }
 
-    // proveState proves a batch by submitting a proof.
-    // _kzgData: [y(32) | commitment(48) | proof(48)]
+    /// @dev proveState proves a batch by submitting a proof.
+    /// _kzgData: [y(32) | commitment(48) | proof(48)]
     function proveState(
         uint64 _batchIndex,
         bytes calldata _aggrProof,
@@ -667,42 +657,14 @@ contract Rollup is
             }
             require(ret, "verify 4844-proof failed");
 
-            verifyBatch(_batchIndex, _xBytes, _kzgData, _aggrProof);
+            _verifyBatch(_batchIndex, _xBytes, _kzgData, _aggrProof);
 
             // Record defender win
             _defenderWin(_batchIndex, _msgSender(), "Proof success");
         }
     }
 
-    function verifyBatch(
-        uint256 _batchIndex,
-        bytes memory _xBytes,
-        bytes calldata _kzgData,
-        bytes calldata _aggrProof
-    ) internal view {
-        // Verify batch
-        bytes32 _newPublicInputHash = keccak256(
-            abi.encodePacked(
-                keccak256(
-                    abi.encodePacked(
-                        layer2ChainId,
-                        committedBatchStores[_batchIndex].prevStateRoot,
-                        committedBatchStores[_batchIndex].postStateRoot,
-                        committedBatchStores[_batchIndex].withdrawalRoot,
-                        committedBatchStores[_batchIndex].dataHash
-                    )
-                ),
-                _xBytes,
-                _kzgData[0:32]
-            )
-        );
-        IRollupVerifier(verifier).verifyAggregateProof(
-            _batchIndex,
-            _aggrProof,
-            _newPublicInputHash
-        );
-    }
-
+    /// @dev todo
     function finalizeBatches() public whenNotPaused {
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
         for (
@@ -721,6 +683,7 @@ contract Rollup is
         }
     }
 
+    /// @dev todo
     function finalizeBatchesByNum(uint256 num) public whenNotPaused {
         require(num > 1, "finalize batch must bigger than 1");
         uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
@@ -740,6 +703,7 @@ contract Rollup is
         }
     }
 
+    /// @dev todo
     function finalizeBatch(
         uint256 _batchIndex
     ) public nonReqRevert whenNotPaused {
@@ -834,6 +798,15 @@ contract Rollup is
         );
     }
 
+    /// @notice Claim challenge reward
+    /// @param receiver The receiver address
+    function claimReward(address receiver) external nonReentrant {
+        uint256 amount = batchChallengeReward[msg.sender];
+        require(amount != 0, "invalid batchChallengeReward");
+        delete batchChallengeReward[msg.sender];
+        _transfer(receiver, amount);
+    }
+
     /************************
      * Restricted Functions *
      ************************/
@@ -926,6 +899,82 @@ contract Rollup is
      * Internal Functions *
      **********************/
 
+    /// @dev todo
+    function _verifyBatch(
+        uint256 _batchIndex,
+        bytes memory _xBytes,
+        bytes calldata _kzgData,
+        bytes calldata _aggrProof
+    ) internal view {
+        // Verify batch
+        bytes32 _newPublicInputHash = keccak256(
+            abi.encodePacked(
+                keccak256(
+                    abi.encodePacked(
+                        LAYER_2_CHAIN_ID,
+                        committedBatchStores[_batchIndex].prevStateRoot,
+                        committedBatchStores[_batchIndex].postStateRoot,
+                        committedBatchStores[_batchIndex].withdrawalRoot,
+                        committedBatchStores[_batchIndex].dataHash
+                    )
+                ),
+                _xBytes,
+                _kzgData[0:32]
+            )
+        );
+        IRollupVerifier(verifier).verifyAggregateProof(
+            _batchIndex,
+            _aggrProof,
+            _newPublicInputHash
+        );
+    }
+
+    /// @dev Internal function to compute BLS msg hash
+    function _getBLSMsgHash(
+        BatchData calldata batchData
+    ) internal pure returns (bytes32) {
+        // TODO compute bls message hash
+        batchData = batchData;
+        return bytes32(0);
+    }
+
+    /// @dev Internal function to compute BLS msg hash
+    function _checkSequencerSetVerifyHash(
+        BatchData calldata batchData,
+        bytes32 sequencerSetVerifyHash
+    ) internal pure returns (bool) {
+        // TODO check SEQUENCER_SET_VERIFY_HASH in batch
+        batchData = batchData;
+        sequencerSetVerifyHash = sequencerSetVerifyHash;
+        return true;
+    }
+
+    /// @dev todo
+    function _getValidSequencerSet(
+        bytes calldata sequencerSets,
+        uint256 blockHeight
+    ) internal pure returns (address[] memory) {
+        // TODO require submitter was in valid sequencer set after BLS was implementated
+        (
+            ,
+            address[] memory sequencerSet0,
+            uint256 blockHeight1,
+            address[] memory sequencerSet1,
+            uint256 blockHeight2,
+            address[] memory sequencerSet2
+        ) = abi.decode(
+                sequencerSets,
+                (uint256, address[], uint256, address[], uint256, address[])
+            );
+        if (blockHeight >= blockHeight2) {
+            return sequencerSet2;
+        }
+        if (blockHeight >= blockHeight1) {
+            return sequencerSet1;
+        }
+        return sequencerSet0;
+    }
+
     /// @dev Internal function executed when the defender wins.
     /// @param batchIndex   The index of the batch indicating where the challenge occurred.
     /// @param prover       The zkProof prover address.
@@ -956,15 +1005,6 @@ contract Rollup is
             batchIndex
         ].challengeDeposit + reward);
         emit ChallengeRes(batchIndex, challenger, _type);
-    }
-
-    /// @notice Claim challenge reward
-    /// @param receiver The receiver address
-    function claimReward(address receiver) external nonReentrant {
-        uint256 amount = batchChallengeReward[msg.sender];
-        require(amount != 0, "invalid batchChallengeReward");
-        delete batchChallengeReward[msg.sender];
-        _transfer(receiver, amount);
     }
 
     /// @dev Internal function to transfer ETH to a specified address.
@@ -1189,29 +1229,5 @@ contract Rollup is
         }
 
         return _ptr;
-    }
-
-    /// @dev Public function to checks whether the batch is in challenge.
-    /// @param batchIndex The index of the batch to be checked.
-    function batchInChallenge(uint256 batchIndex) public view returns (bool) {
-        return
-            challenges[batchIndex].challenger != address(0) &&
-            !challenges[batchIndex].finished;
-    }
-
-    /// @dev Public function to checks whether batch exists.
-    /// @param batchIndex The index of the batch to be checked.
-    function batchExist(uint256 batchIndex) public view returns (bool) {
-        return committedBatchStores[batchIndex].originTimestamp > 0;
-    }
-
-    /// @dev Public function to checks whether the batch is in challengeWindow.
-    /// @param batchIndex The index of the batch to be checked.
-    function batchInsideChallengeWindow(
-        uint256 batchIndex
-    ) public view returns (bool) {
-        return
-            committedBatchStores[batchIndex].finalizeTimestamp >
-            block.timestamp;
     }
 }
