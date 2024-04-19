@@ -19,6 +19,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
 	"github.com/scroll-tech/go-ethereum/rlp"
+	"github.com/tendermint/tendermint/blssignatures"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
@@ -37,11 +38,12 @@ type Executor struct {
 	newSyncerFunc NewSyncerFunc
 	syncer        *sync.Syncer
 
-	govContract       *bindings.Gov
-	sequencerContract *bindings.L2Sequencer
+	govContract *bindings.Gov
+	sequencer   *bindings.Sequencer
+	l2Staking   *bindings.L2Staking
 
-	currentSequencerSet  *SequencerSetInfo
-	previousSequencerSet []SequencerSetInfo
+	currentSeqHash *[32]byte
+	valBlsPubKeys  map[[tmKeySize]byte]blssignatures.PublicKey
 
 	nextValidators [][]byte
 	batchParams    tmproto.BatchParams
@@ -83,7 +85,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	}
 	logger.Info("obtained next L1Message index when initilize executor", "index", index)
 
-	sequencer, err := bindings.NewL2Sequencer(config.L2SequencerAddress, eClient)
+	sequencer, err := bindings.NewSequencer(config.SequencerAddress, eClient)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +105,8 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	executor := &Executor{
 		l2Client:            l2Client,
 		bc:                  &Version1Converter{},
-		sequencerContract:   sequencer,
 		govContract:         gov,
+		sequencer:           sequencer,
 		tmPubKey:            tmPubKeyBytes,
 		nextL1MsgIndex:      index,
 		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
@@ -126,7 +128,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return executor, nil
 	}
 
-	if _, err = executor.updateSequencerSet(nil); err != nil {
+	if _, err = executor.updateSequencerSet(); err != nil {
 		return nil, err
 	}
 
@@ -325,7 +327,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	var newValidatorSet = consensusData.ValidatorSet
 	var newBatchParams *tmproto.BatchParams
 	if !e.devSequencer {
-		if newValidatorSet, err = e.updateSequencerSet(&l2Block.Number); err != nil {
+		if newValidatorSet, err = e.updateSequencerSet(); err != nil {
 			return nil, nil, err
 		}
 		if newBatchParams, err = e.batchParamsUpdates(l2Block.Number); err != nil {
@@ -388,15 +390,19 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 		return nil, nil, err
 	}
 	// fetch current sequencerSet info at certain height
-	sequencersInfo, err := e.sequencerContract.GetSequencerInfos(callOpts, false)
-	if err != nil {
-		e.logger.Error("failed to call GetSequencerInfos", "previous", false, "height", height, "err", err)
-		return nil, nil, err
-	}
-	newValidators, _, err := e.convertSequencerSet(sequencersInfo)
+	addrs, err := e.sequencer.GetSequencerSet2(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
+	stakesInfo, err := e.l2Staking.GetStakesInfo(callOpts, addrs)
+	if err != nil {
+		return nil, nil, err
+	}
+	newValidators := make([][]byte, len(addrs))
+	for i := range stakesInfo {
+		newValidators[i] = stakesInfo[i].TmKey[:]
+	}
+
 	return &tmproto.BatchParams{
 		BlocksInterval: batchBlockInterval.Int64(),
 		MaxBytes:       batchMaxBytes.Int64(),
