@@ -24,11 +24,6 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     mapping(uint256 => bytes[]) public sequencerBLSKeys;
 
     /**
-     * @notice sequencer version confirmed
-     */
-    event SequencerConfirmed(address[] sequencers, uint256 version);
-
-    /**
      * @notice sequencer updated
      */
     event SequencerUpdated(

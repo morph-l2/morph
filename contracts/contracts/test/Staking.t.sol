@@ -153,9 +153,9 @@ contract StakingRegisterTest is L1MessageBaseTest {
 }
 
 contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
-    event Staked(address addr, uint256 balance);
-    event Withdrawed(address addr, uint256 balance);
-    event Claimed(address addr, uint256 balance);
+    event Staked(address indexed addr, uint256 balance);
+    event Withdrawed(address indexed addr, uint256 balance);
+    event Claimed(address indexed addr, uint256 balance);
 
     function setUp() public virtual override {
         super.setUp();
