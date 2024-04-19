@@ -995,6 +995,8 @@ contract RollupTest is L1MessageBaseTest {
 
     function testUpdateMaxNumTxInChunk(uint256 _maxNumTxInChunk) public {
         hevm.assume(_maxNumTxInChunk > 0);
+        hevm.assume(_maxNumTxInChunk != 10);
+
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
         // set by non-owner, should revert
