@@ -1,6 +1,6 @@
 {
   "config": {
-    "chainId": 53077,
+    "chainId": 2810,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -19,7 +19,7 @@
       "useZktrie": true,
       "maxTxPerBlock": 44,
       "maxTxPayloadBytesPerBlock": 122880,
-      "feeVaultAddress": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
+      "feeVaultAddress": "0x484426a2F7e0469d70a51cd07cCB7793d58e9008",
       "enableEIP2718": false,
       "enableEIP1559": false
     }
@@ -32,7 +32,7 @@
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x0000000000000000000000000000000000000000",
   "alloc": {
-    "03a1bba60b5aa37094cf16123add674c01589488": {
+    "f39Fd6e51aad88F6F4ce6aB8827279cffFb92266": {
       "balance": "0x000000000000000000000000000000000001000000000000000000000000000"
     },
     "1c5a77d9fa7ef466951b2f01f724bca3a5820b63": {
