@@ -58,7 +58,7 @@ contract Gov is Initializable, IGov {
             false,
             msg.sender
         );
-        require(_in, "only sequencer can propose");
+        require(_in, "sender not sequencer");
         _;
     }
 
