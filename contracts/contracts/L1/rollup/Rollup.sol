@@ -779,8 +779,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice Update PROOF_WINDOW.
     /// @param _newWindow New proof window.
     function updateProofWindow(uint256 _newWindow) external onlyOwner {
-        emit UpdateProofWindow(PROOF_WINDOW, _newWindow);
+        uint256 _oldProofWindow = PROOF_WINDOW;
         PROOF_WINDOW = _newWindow;
+        emit UpdateProofWindow(_oldProofWindow, PROOF_WINDOW);
     }
 
     /// @notice Update FINALIZATION_PERIOD_SECONDS.
@@ -788,11 +789,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function updateFinalizePeriodSeconds(
         uint256 _newPeriod
     ) external onlyOwner {
-        emit UpdateFinalizationPeriodSeconds(
-            FINALIZATION_PERIOD_SECONDS,
-            _newPeriod
-        );
+        uint256 _oldFinalizationPeriodSeconds = FINALIZATION_PERIOD_SECONDS;
         FINALIZATION_PERIOD_SECONDS = _newPeriod;
+        emit UpdateFinalizationPeriodSeconds(
+            _oldFinalizationPeriodSeconds,
+            FINALIZATION_PERIOD_SECONDS
+        );
     }
 
     /// @notice Add an account to the prover list.
@@ -801,6 +803,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         // @note Currently many external services rely on EOA prover to decode metadata directly from tx.calldata.
         // So we explicitly make sure the account is EOA.
         require(_account.code.length == 0, "not EOA");
+        require(!isProver[_account], "account is already a prover");
         isProver[_account] = true;
 
         emit UpdateProver(_account, true);
@@ -809,6 +812,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice Remove an account from the prover list.
     /// @param _account The address of account to remove.
     function removeProver(address _account) external onlyOwner {
+        require(isProver[_account], "account is not a prover");
         isProver[_account] = false;
 
         emit UpdateProver(_account, false);
@@ -817,6 +821,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice Add an account to the challenger list.
     /// @param _account The address of account to add.
     function addChallenger(address _account) external onlyOwner {
+        require(!isChallenger[_account], "account is already a challenger");
         isChallenger[_account] = true;
 
         emit UpdateChallenger(_account, true);
@@ -825,6 +830,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice Remove an account from the challenger list.
     /// @param _account The address of account to remove.
     function removeChallenger(address _account) external onlyOwner {
+        require(isChallenger[_account], "account is not a challenger");
         isChallenger[_account] = false;
 
         emit UpdateChallenger(_account, false);
@@ -833,6 +839,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice Update the address verifier contract.
     /// @param _newVerifier The address of new verifier contract.
     function updateVerifier(address _newVerifier) external onlyOwner {
+        require(_newVerifier != address(0), "verifier cannot be address(0)");
+        require(_newVerifier != verifier, "verifier has not changed");
+
         address _oldVerifier = verifier;
         verifier = _newVerifier;
 
@@ -844,6 +853,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     function updateMaxNumTxInChunk(
         uint256 _maxNumTxInChunk
     ) external onlyOwner {
+        require(_maxNumTxInChunk > 0, "maxNumTxInChunk must bigger than 0");
+        require(
+            _maxNumTxInChunk != maxNumTxInChunk,
+            "maxNumTxInChunk has not changed"
+        );
         uint256 _oldMaxNumTxInChunk = maxNumTxInChunk;
         maxNumTxInChunk = _maxNumTxInChunk;
 
