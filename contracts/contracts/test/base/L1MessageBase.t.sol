@@ -200,15 +200,14 @@ contract L1MessageBaseTest is CommonTest {
             );
         ITransparentUpgradeableProxy(address(stakingProxy)).upgradeToAndCall(
             address(stakingImpl),
-            abi.encodeCall(
-                Staking.initialize,
-                (
-                    address(alice),
-                    address(l1SequencerProxy),
-                    SEQUENCER_SIZE,
-                    MIN_DEPOSIT,
-                    LOCK
-                )
+            abi.encodeWithSelector(
+                Staking.initialize.selector,
+                address(alice),
+                address(l1SequencerProxy),
+                address(rollupProxy),
+                SEQUENCER_SIZE,
+                MIN_DEPOSIT,
+                LOCK
             )
         );
 
@@ -224,7 +223,7 @@ contract L1MessageBaseTest is CommonTest {
         l1CrossDomainMessenger = L1CrossDomainMessenger(
             payable(address(l1CrossDomainMessengerProxy))
         );
-        rollup = Rollup(address(rollupProxy));
+        rollup = Rollup(payable(address(rollupProxy)));
         l1MessageQueueWithGasPriceOracle = L1MessageQueueWithGasPriceOracle(
             address(l1MessageQueueWithGasPriceOracleProxy)
         );
