@@ -98,13 +98,12 @@ contract L1CrossDomainMessenger is
             revert ErrZeroAddress();
         }
         CrossDomainMessenger.__Messenger_init(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             _feeVault
         );
 
         rollup = _rollup;
         messageQueue = _messageQueue;
-        counterpart = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         maxReplayTimes = 3;
         emit UpdateMaxReplayTimes(0, 3);
