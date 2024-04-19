@@ -180,7 +180,7 @@ contract EnforcedTxGateway is
     /// @notice Update the address of fee vault.
     /// @param _newFeeVault The address to update.
     function updateFeeVault(address _newFeeVault) external onlyOwner {
-        require(_newFeeVault != address(0), "fee vault cannot be address");
+        require(_newFeeVault != address(0), "fee vault cannot be address(0)");
         address _oldFeeVault = feeVault;
         feeVault = _newFeeVault;
 
