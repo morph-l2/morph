@@ -120,14 +120,22 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     mapping(address => uint256) public challengerDeposits;
 
     /**
-     * @notice Store Challenge Information.(batchIndex => BatchChallenge)
+     * @notice Store Challenge information. (batchIndex => BatchChallenge)
      */
     mapping(uint256 => BatchChallenge) public challenges;
+
+    /**
+     * @notice Store Challenge reward information. (receiver => amount)
+     */
+    mapping(address => uint256) public batchChallengeReward;
 
     /**
      * @notice whether in challenge
      */
     bool public inChallenge;
+
+    /// @notice The index of the revert request.
+    uint256 public revertReqIndex;
 
     /// @dev Structure to store information about a batch challenge.
     /// @param batchIndex The index of the challenged batch.
@@ -139,10 +147,17 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     struct BatchChallenge {
         uint64 batchIndex;
         address challenger;
+        address challengerReceiveAddress;
+        address proverReceiveAddress;
         uint256 challengeDeposit;
         uint256 startTime;
         bool challengeSuccess;
         bool finished;
+    }
+
+    struct BatchChallengeReward {
+        address receiver;
+        uint256 amount;
     }
 
     /**********************
@@ -171,6 +186,12 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         _;
     }
 
+    /// @notice Modifier to ensure that there is no pending revert request.
+    modifier nonReqRevert() {
+        require(revertReqIndex == 0, "need revert");
+        _;
+    }
+
     /***************
      * Constructor *
      ***************/
@@ -179,6 +200,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         layer2ChainId = _chainId;
         MESSENGER = _messenger;
     }
+
+    /// @notice Allow the contract to receive ETH.
+    receive() external payable {}
 
     function initialize(
         address _l1SequencerContract,
@@ -524,7 +548,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         lastCommittedBatchIndex = _batchIndex - 1;
         while (_count > 0) {
             committedBatchStores[_batchIndex].batchHash = bytes32(0);
-
+            if (revertReqIndex > 0 && _batchIndex == revertReqIndex) {
+                delete challenges[_batchIndex];
+                revertReqIndex = 0;
+            }
             emit RevertBatch(_batchIndex, _batchHash);
 
             unchecked {
@@ -538,7 +565,10 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     // challengeState challenges a batch by submitting a deposit.
-    function challengeState(uint64 batchIndex) external payable onlyChallenger {
+    function challengeState(
+        uint64 batchIndex,
+        address challengerReceiver
+    ) external payable onlyChallenger nonReqRevert {
         require(!inChallenge, "already in challenge");
         require(
             lastFinalizedBatchIndex < batchIndex,
@@ -569,12 +599,19 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
+            challengerReceiver,
+            address(0),
             msg.value,
             block.timestamp,
             false,
             false
         );
-        emit ChallengeState(batchIndex, _msgSender(), msg.value);
+        emit ChallengeState(
+            batchIndex,
+            _msgSender(),
+            challengerReceiver,
+            msg.value
+        );
 
         for (
             uint256 i = lastFinalizedBatchIndex + 1;
@@ -593,10 +630,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     // _kzgDataProof: [ z(32) | y(32) | kzg_commitment(48) | kzg_proof(48)]
     function proveState(
         uint64 _batchIndex,
+        address _proverReceiveAddress,
         bytes calldata _aggrProof,
         bytes calldata _kzgDataProof,
         uint32 _minGasLimit
-    ) external {
+    ) external nonReqRevert {
         // Ensure challenge exists and is not finished
         require(
             challenges[_batchIndex].challenger != address(0),
@@ -609,6 +647,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
         // Mark challenge as finished
         challenges[_batchIndex].finished = true;
+        challenges[_batchIndex].proverReceiveAddress = _proverReceiveAddress;
         inChallenge = false;
 
         // Check for timeout
@@ -679,7 +718,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @dev Finalizes a specific batch by verifying its state and updating contract state accordingly.
     /// @param _batchIndex The index of the batch to finalize.
-    function finalizeBatch(uint256 _batchIndex) public whenNotPaused {
+    function finalizeBatch(
+        uint256 _batchIndex
+    ) public nonReqRevert whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(!batchChallengedSuccess(_batchIndex), "batch should be revert");
@@ -890,7 +931,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         challengerDeposits[challengerAddr] -= challengeDeposit;
-        _transfer(prover, challengeDeposit);
+        batchChallengeReward[
+            challenges[batchIndex].proverReceiveAddress
+        ] += challengeDeposit;
         emit ChallengeRes(batchIndex, prover, _type);
     }
 
@@ -905,11 +948,24 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         string memory _type,
         uint32 _minGasLimit
     ) internal {
+        revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
-        uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        _transfer(challenger, challengeDeposit);
-        IStaking(l1StakingContract).slash(sequencers, challenger, _minGasLimit);
+        uint256 reward = IStaking(l1StakingContract).slash(
+            sequencers,
+            _minGasLimit
+        );
+        batchChallengeReward[
+            challenges[batchIndex].challengerReceiveAddress
+        ] += (challenges[batchIndex].challengeDeposit + reward);
         emit ChallengeRes(batchIndex, challenger, _type);
+    }
+
+    /// @notice Claim challenge reward
+    function claimReward() external {
+        uint256 amount = batchChallengeReward[_msgSender()];
+        require(amount != 0, "invalid batchChallengeReward");
+        delete batchChallengeReward[_msgSender()];
+        _transfer(_msgSender(), amount);
     }
 
     /// @dev Internal function to transfer ETH to a specified address.
@@ -1135,7 +1191,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @dev Public function to checks whether batch exists.
     /// @param batchIndex The index of the batch to be checked.
     function batchExist(uint256 batchIndex) public view returns (bool) {
-        return committedBatchStores[batchIndex].originTimestamp > 0;
+        return
+            committedBatchStores[batchIndex].originTimestamp > 0 &&
+            committedBatchStores[batchIndex].batchHash != bytes32(0);
     }
 
     /// @dev Public function to checks whether the batch is in challengeWindow.

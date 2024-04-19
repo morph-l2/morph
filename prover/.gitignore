@@ -19,3 +19,7 @@ prove_params
 proof
 local_configs
 **/.DS_Store
+
+node_modules
+cache
+artifacts

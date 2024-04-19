@@ -2,7 +2,6 @@ use axum::extract::Extension;
 use axum::routing::get;
 use axum::{routing::post, Router};
 use dotenv::dotenv;
-use env_logger::Env;
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -11,20 +10,22 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
-use zkevm_prover::utils::{PROVER_PROOF_DIR, PROVE_TIME};
 use zkevm_prover::utils::{read_env_var, PROVE_RESULT, REGISTRY};
+use zkevm_prover::utils::{PROVER_PROOF_DIR, PROVE_TIME};
 
+use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
+use log::Record;
 use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use zkevm_prover::prover::{prove_for_queue, ProveRequest};
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProveResult {
     pub error_msg: String,
     pub error_code: String,
     pub proof_data: Vec<u8>,
     pub pi_data: Vec<u8>,
+    pub blob_kzg: Vec<u8>,
 }
 
 mod task_status {
@@ -35,19 +36,18 @@ mod task_status {
 
 // Main async function to start prover service.
 // 1. Initializes environment.
-// 2. Spawns management server.
-// 3. Start the Prover on the main thread with shared queue.
+// 2. Spawns prover mng.
+// 3. Spawns metric mng.
+// 4. Start the Prover on the main thread with shared queue.
 // Server handles prove requests .
 // Prover consumes requests and generates proofs and save.
 #[tokio::main]
 async fn main() {
     // Step1. prepare environment
     dotenv().ok();
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    log::info!(
-        "SCROLL_PROVER_ASSETS_DIR env: {:#?}",
-        zkevm_prover::utils::SCROLL_PROVER_ASSETS_DIR.as_str()
-    );
+
+    // Initialize logger.
+    setup_logging();
 
     // Step2. start prover management
     let queue: Arc<Mutex<Vec<ProveRequest>>> = Arc::new(Mutex::new(Vec::new()));
@@ -57,7 +57,7 @@ async fn main() {
     metric_mng().await;
 
     // Step4. start prover
-    prove_for_queue(Arc::clone(&queue)).await;
+    start_prover(Arc::clone(&queue)).await;
 }
 
 async fn prover_mng(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
@@ -92,6 +92,10 @@ async fn metric_mng() {
             .await
             .unwrap();
     });
+}
+
+async fn start_prover(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
+    prove_for_queue(task_queue).await;
 }
 
 async fn handle_metrics() -> String {
@@ -156,8 +160,8 @@ async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>
         Err(_) => return String::from(task_status::PROVING),
     };
 
-    if queue_lock.len() > 0 {
-        return String::from(task_status::PROVING);
+    if queue_lock.len() > 2 {
+        return String::from("The task queue is full");
     }
     // Add request to queue
     log::info!("add pending req of batch: {:#?}", prove_request.batch_index);
@@ -196,6 +200,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
         error_code: String::new(),
         proof_data: Vec::new(),
         pi_data: Vec::new(),
+        blob_kzg: Vec::new(),
     };
     log::info!("query proof of batch_index: {:#?}", batch_index);
 
@@ -224,9 +229,8 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 result.error_msg = String::from("No proof_batch_agg file");
                 return result;
             }
-            // let mut proof_data = String::new();
+            // Proof
             let mut proof_data = Vec::new();
-
             match fs::File::open(proof_path) {
                 Ok(mut file) => {
                     file.read_to_end(&mut proof_data).unwrap();
@@ -238,9 +242,9 @@ async fn query_proof(batch_index: String) -> ProveResult {
             }
             result.proof_data = proof_data;
 
+            // Public input
             let pi_path = path.join("pi_batch_agg.data");
             let mut pi_data = Vec::new();
-
             match fs::File::open(pi_path) {
                 Ok(mut file) => {
                     file.read_to_end(&mut pi_data).unwrap();
@@ -251,6 +255,20 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 }
             }
             result.pi_data = pi_data;
+
+            // Eip4844 kzg data
+            let blob_kzg_path = path.join("blob_kzg.data");
+            let mut blob_kzg = Vec::new();
+            match fs::File::open(blob_kzg_path) {
+                Ok(mut file) => {
+                    file.read_to_end(&mut blob_kzg).unwrap();
+                }
+                Err(e) => {
+                    log::error!("Failed to load blob_kzg: {:#?}", e);
+                    result.error_msg = String::from("Failed to load blob_kzg");
+                }
+            }
+            result.blob_kzg = blob_kzg;
             break;
         }
     }
@@ -272,3 +290,44 @@ async fn query_status(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>
     }
 }
 
+// Constants for configuration
+const LOG_LEVEL: &str = "info";
+const LOG_FILE_BASENAME: &str = "prover";
+const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
+                                                     // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
+const LOG_FILES_TO_KEEP: usize = 3;
+fn setup_logging() {
+    //configure the logger
+    Logger::try_with_env_or_str(LOG_LEVEL)
+        .unwrap()
+        .log_to_file(
+            FileSpec::default()
+                .directory("/data/logs/morph-prover")
+                .basename(LOG_FILE_BASENAME),
+        )
+        .format(log_format)
+        .duplicate_to_stdout(Duplicate::All)
+        .rotate(
+            Criterion::Size(LOG_FILE_SIZE_LIMIT),     // Scroll when file size reaches 10MB
+            Naming::Timestamps,                       // Using timestamps as part of scrolling files
+            Cleanup::KeepLogFiles(LOG_FILES_TO_KEEP), // Keep the latest 3 scrolling files
+        )
+        .write_mode(WriteMode::BufferAndFlush)
+        .start()
+        .unwrap();
+}
+
+fn log_format(
+    w: &mut dyn std::io::Write,
+    now: &mut flexi_logger::DeferredNow,
+    record: &Record,
+) -> Result<(), std::io::Error> {
+    write!(
+        w,
+        "{} [{}] {} - {}",
+        now.now().format("%Y-%m-%d %H:%M:%S"), // Custom time format
+        record.level(),
+        record.target(),
+        record.args()
+    )
+}
