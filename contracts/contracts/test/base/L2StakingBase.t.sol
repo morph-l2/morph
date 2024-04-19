@@ -232,12 +232,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             );
         ITransparentUpgradeableProxy(address(distributeProxy)).upgradeToAndCall(
                 address(distributeImpl),
-                abi.encodeWithSelector(
-                    Distribute.initialize.selector,
-                    address(morphTokenProxy),
-                    address(recordProxy),
-                    address(l2StakingProxy)
-                )
+                abi.encodeWithSelector(Distribute.initialize.selector)
             );
         ITransparentUpgradeableProxy(address(recordProxy)).upgradeToAndCall(
             address(recordImpl),

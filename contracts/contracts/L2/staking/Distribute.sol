@@ -65,6 +65,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         RECORD_CONTRACT = Predeploys.RECORD;
     }
 
+    function initialize() public initializer {
+        super.__Ownable_init_unchained();
+    }
+
     /*********************** External Functions **************************/
 
     /**
