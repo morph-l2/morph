@@ -90,36 +90,36 @@ contract L1Staking is
 
     /**
      * @notice initializer
-     * @param admin             params admin
-     * @param rollupContract    rollup contract address
-     * @param rewardPercentage  percentage awarded to challenger
-     * @param stakingValue      smallest staking value
-     * @param lockBlocks        withdraw lock blocks
-     * @param gasLimit          default crosschain gas limit
+     * @param _admin             params admin
+     * @param _rollupContract    rollup contract address
+     * @param _rewardPercentage  percentage awarded to challenger
+     * @param _stakingValue      smallest staking value
+     * @param _lockBlocks        withdraw lock blocks
+     * @param _gasLimit          default crosschain gas limit
      */
     function initialize(
-        address admin,
-        address rollupContract,
-        uint256 rewardPercentage,
-        uint256 stakingValue,
-        uint256 lockBlocks,
-        uint256 gasLimit
+        address _admin,
+        address _rollupContract,
+        uint256 _rewardPercentage,
+        uint256 _stakingValue,
+        uint256 _lockBlocks,
+        uint256 _gasLimit
     ) public initializer {
-        require(admin != address(0), "invalid admin");
-        require(rollupContract != address(0), "invalid rollup contract");
-        require(stakingValue > 0, "staking limit must greater than 0");
-        require(lockBlocks > 0, "staking limit must greater than 0"); // TODO TBD
-        require(gasLimit > 0, "gas limit must greater than 0");
+        require(_admin != address(0), "invalid admin");
+        require(_rollupContract != address(0), "invalid rollup contract");
+        require(_stakingValue > 0, "staking limit must greater than 0");
+        require(_lockBlocks > 0, "staking limit must greater than 0"); // TODO TBD
+        require(_gasLimit > 0, "gas limit must greater than 0");
         require(
-            rewardPercentage > 0 && rewardPercentage <= 100,
+            _rewardPercentage > 0 && _rewardPercentage <= 100,
             "invalid reward percentage"
         );
-        ROLLUP_CONTRACT = rollupContract;
-        REWARD_PERCENTAGE = rewardPercentage;
-        STAKING_VALUE = stakingValue;
-        WITHDRAWAL_LOCK_BLOCKS = lockBlocks;
-        DEFAULT_GAS_LIMIT = gasLimit;
-        _transferOwnership(admin);
+        ROLLUP_CONTRACT = _rollupContract;
+        REWARD_PERCENTAGE = _rewardPercentage;
+        STAKING_VALUE = _stakingValue;
+        WITHDRAWAL_LOCK_BLOCKS = _lockBlocks;
+        DEFAULT_GAS_LIMIT = _gasLimit;
+        _transferOwnership(_admin);
     }
 
     /**
@@ -216,7 +216,7 @@ contract L1Staking is
      */
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
-            (bool success, ) = _to.call{value: _amount}(hex"");
+            (bool success, ) = _to.call{value: _amount}("0x");
             require(success, "Rollup: ETH transfer failed");
         }
     }

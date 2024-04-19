@@ -3,12 +3,11 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import {ICrossDomainMessenger} from "../../libraries/ICrossDomainMessenger.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {BatchHeaderV0Codec} from "../../libraries/codec/BatchHeaderV0Codec.sol";
-import {ChunkCodec} from "../../libraries/codec/ChunkCodec.sol";
+import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
+import {ChunkCodecV0} from "../../libraries/codec/ChunkCodecV0.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -19,15 +18,21 @@ import {IL1Staking} from "../staking/IL1Staking.sol";
 
 /// @title Rollup
 /// @notice This contract maintains data for the Morph rollup.
-contract Rollup is
-    IRollup,
-    OwnableUpgradeable,
-    PausableUpgradeable,
-    ReentrancyGuardUpgradeable
-{
+contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /*************
      * Constants *
      *************/
+
+    /// @notice The zero versioned hash.
+    bytes32 internal constant ZERO_VERSIONED_HASH =
+        0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
+
+    /// @notice The BLS MODULUS
+    uint256 internal constant BLS_MODULUS =
+        52435875175126190479447740508185965837690552500527637822603658699938581184513;
+
+    /// @dev Address of the point evaluation precompile used for EIP-4844 blob verification.
+    address internal constant POINT_EVALUATION_PRECOMPILE_ADDR = address(0x0A);
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable LAYER_2_CHAIN_ID;
@@ -35,11 +40,8 @@ contract Rollup is
     /// @notice Messenger contract on this domain.
     address public immutable MESSENGER;
 
-    /// @notice The zero versioned hash.
-    bytes32 public ZERO_VERSIONED_HASH;
-
     /// l1 staking contract
-    address public l1StakingContract;
+    address public L1_STAKING_CONTRACT;
 
     /*************
      * Variables *
@@ -102,9 +104,8 @@ contract Rollup is
 
     /// @notice Only staker allowed.
     modifier OnlyStaker() {
-        // @note In the decentralized mode, it should be only called by a list of validator.
         require(
-            IL1Staking(l1StakingContract).isStaker(_msgSender()),
+            IL1Staking(L1_STAKING_CONTRACT).isStaker(_msgSender()),
             "caller not sequencer"
         );
         _;
@@ -168,63 +169,17 @@ contract Rollup is
             _l1StakingContract != address(0),
             "invalid l1 staking contract"
         );
-        l1StakingContract = _l1StakingContract;
+
+        L1_STAKING_CONTRACT = _l1StakingContract;
+        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
+        PROOF_WINDOW = _proofWindow;
 
         messageQueue = _messageQueue;
         verifier = _verifier;
         maxNumTxInChunk = _maxNumTxInChunk;
 
-        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        PROOF_WINDOW = _proofWindow;
-
-        ZERO_VERSIONED_HASH = bytes32(
-            hex"010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014"
-        );
-
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
-    }
-
-    /*************************
-     * Public View Functions *
-     *************************/
-
-    /// @inheritdoc IRollup
-    function isBatchFinalized(
-        uint256 _batchIndex
-    ) external view override returns (bool) {
-        return _batchIndex <= lastFinalizedBatchIndex;
-    }
-
-    /// @inheritdoc IRollup
-    function committedBatches(
-        uint256 batchIndex
-    ) external view override returns (bytes32) {
-        return committedBatchStores[batchIndex].batchHash;
-    }
-
-    /// @dev Public function to checks whether the batch is in challenge.
-    /// @param batchIndex The index of the batch to be checked.
-    function batchInChallenge(uint256 batchIndex) public view returns (bool) {
-        return
-            challenges[batchIndex].challenger != address(0) &&
-            !challenges[batchIndex].finished;
-    }
-
-    /// @dev Public function to checks whether batch exists.
-    /// @param batchIndex The index of the batch to be checked.
-    function batchExist(uint256 batchIndex) public view returns (bool) {
-        return committedBatchStores[batchIndex].originTimestamp > 0;
-    }
-
-    /// @dev Public function to checks whether the batch is in challengeWindow.
-    /// @param batchIndex The index of the batch to be checked.
-    function batchInsideChallengeWindow(
-        uint256 batchIndex
-    ) public view returns (bool) {
-        return
-            committedBatchStores[batchIndex].finalizeTimestamp >
-            block.timestamp;
     }
 
     /*****************************
@@ -244,37 +199,41 @@ contract Rollup is
         require(finalizedStateRoots[0] == bytes32(0), "genesis batch imported");
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
-        bytes32 _dataHash = BatchHeaderV0Codec.dataHash(memPtr);
+        bytes32 _l1DataHash = BatchHeaderCodecV0.getDataHash(memPtr);
+        uint256 _batchVersion = BatchHeaderCodecV0.getVersion(memPtr);
 
-        // check all fields except `dataHash` and `lastBlockHash` are zero
+        // check all fields except `l1DataHash` and `lastBlockHash` are zero
         unchecked {
-            uint256 sum = BatchHeaderV0Codec.version(memPtr) +
-                BatchHeaderV0Codec.batchIndex(memPtr) +
-                BatchHeaderV0Codec.l1MessagePopped(memPtr) +
-                BatchHeaderV0Codec.totalL1MessagePopped(memPtr);
+            uint256 sum = BatchHeaderCodecV0.getVersion(memPtr) +
+                BatchHeaderCodecV0.getBatchIndex(memPtr) +
+                BatchHeaderCodecV0.getL1MessagePopped(memPtr) +
+                BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr);
             require(sum == 0, "not all fields are zero");
         }
         require(
-            BatchHeaderV0Codec.dataHash(memPtr) != bytes32(0),
+            BatchHeaderCodecV0.getDataHash(memPtr) != bytes32(0),
             "zero data hash"
         );
         require(
-            BatchHeaderV0Codec.parentBatchHash(memPtr) == bytes32(0),
+            BatchHeaderCodecV0.getParentBatchHash(memPtr) == bytes32(0),
             "nonzero parent batch hash"
         );
 
-        _batchHash = keccak256(
-            abi.encodePacked(_batchHash, ZERO_VERSIONED_HASH)
+        require(
+            BatchHeaderCodecV0.getBlobVersionedHash(memPtr) ==
+                ZERO_VERSIONED_HASH,
+            "invalid versioned hash"
         );
 
         committedBatchStores[0] = BatchStore(
+            _batchVersion,
             _batchHash,
             block.timestamp,
-            block.timestamp + FINALIZATION_PERIOD_SECONDS,
+            block.timestamp,
             bytes32(0),
             _postStateRoot,
             _withdrawalRoot,
-            _dataHash,
+            _l1DataHash,
             0,
             0,
             "",
@@ -319,21 +278,11 @@ contract Rollup is
         // 3. The memory starting at `newBatchPtr` is used to store the new batch header and compute
         //    the batch hash.
         // the variable `batchPtr` will be reused later for the current batch
-        (uint256 batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(
+        (uint256 _batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(
             batchData.parentBatchHeader
         );
-        uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(batchPtr);
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr);
 
-        // re-compute batchHash using _blobVersionedHash
-        _parentBatchHash = keccak256(
-            abi.encodePacked(
-                _parentBatchHash,
-                committedBatchStores[_batchIndex].blobVersionedHash
-            )
-        );
-
-        uint256 _totalL1MessagesPoppedOverall = BatchHeaderV0Codec
-            .totalL1MessagePopped(batchPtr);
         require(
             committedBatchStores[_batchIndex].batchHash == _parentBatchHash,
             "incorrect parent batch hash"
@@ -351,6 +300,10 @@ contract Rollup is
                 batchData.prevStateRoot,
             "incorrect previous state root"
         );
+
+        uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0
+            .getTotalL1MessagePopped(_batchPtr);
+
         // load `dataPtr` and reserve the memory region for chunk data hashes
         uint256 dataPtr;
         assembly {
@@ -368,7 +321,7 @@ contract Rollup is
                 batchData.skippedL1MessageBitmap
             );
             if (i == _chunksLength - 1) {
-                setLatestL2BlockNumber(batchData.chunks[i]);
+                _setLatestL2BlockNumber(batchData.chunks[i]);
             }
             unchecked {
                 _totalL1MessagesPoppedInBatch += _totalNumL1MessagesInChunk;
@@ -385,28 +338,28 @@ contract Rollup is
             );
         }
         // compute the data hash for current batch
-        bytes32 _dataHash;
+        bytes32 _l1DataHash;
         assembly {
             let dataLen := mul(_chunksLength, 0x20)
-            _dataHash := keccak256(sub(dataPtr, dataLen), dataLen)
-            batchPtr := mload(0x40) // reset batchPtr
+            _l1DataHash := keccak256(sub(dataPtr, dataLen), dataLen)
+            _batchPtr := mload(0x40) // reset batchPtr
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
         // store entries, the order matters
-        BatchHeaderV0Codec.storeVersion(batchPtr, batchData.version);
-        BatchHeaderV0Codec.storeBatchIndex(batchPtr, _batchIndex);
-        BatchHeaderV0Codec.storeL1MessagePopped(
-            batchPtr,
+        BatchHeaderCodecV0.storeVersion(_batchPtr, batchData.version);
+        BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
+        BatchHeaderCodecV0.storeL1MessagePopped(
+            _batchPtr,
             _totalL1MessagesPoppedInBatch
         );
-        BatchHeaderV0Codec.storeTotalL1MessagePopped(
-            batchPtr,
+        BatchHeaderCodecV0.storeTotalL1MessagePopped(
+            _batchPtr,
             _totalL1MessagesPoppedOverall
         );
-        BatchHeaderV0Codec.storeDataHash(batchPtr, _dataHash);
-        BatchHeaderV0Codec.storeParentBatchHash(batchPtr, _parentBatchHash);
-        BatchHeaderV0Codec.storeSkippedBitmap(
-            batchPtr,
+        BatchHeaderCodecV0.storeDataHash(_batchPtr, _l1DataHash);
+        BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
+        BatchHeaderCodecV0.storeSkippedBitmap(
+            _batchPtr,
             batchData.skippedL1MessageBitmap
         );
 
@@ -415,22 +368,27 @@ contract Rollup is
             _blobVersionedHash = ZERO_VERSIONED_HASH;
         }
 
+        BatchHeaderCodecV0.storeBlobVersionedHash(
+            _batchPtr,
+            _blobVersionedHash
+        );
+
+        // compute batch hash
+        bytes32 _batchHash = BatchHeaderCodecV0.computeBatchHash(
+            _batchPtr,
+            BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
+                batchData.skippedL1MessageBitmap.length
+        );
+
         committedBatchStores[_batchIndex] = BatchStore(
-            keccak256(
-                abi.encodePacked(
-                    BatchHeaderV0Codec.computeBatchHash(
-                        batchPtr,
-                        89 + batchData.skippedL1MessageBitmap.length
-                    ),
-                    _blobVersionedHash
-                )
-            ),
+            batchData.version,
+            _batchHash,
             block.timestamp,
             block.timestamp + FINALIZATION_PERIOD_SECONDS,
             batchData.prevStateRoot,
             batchData.postStateRoot,
             batchData.withdrawalRoot,
-            _dataHash,
+            _l1DataHash,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
@@ -462,7 +420,7 @@ contract Rollup is
 
         // verify bls signature
         require(
-            IL1Staking(l1StakingContract).verifySignature(
+            IL1Staking(L1_STAKING_CONTRACT).verifySignature(
                 batchData.signatureData.signedSequencers,
                 _getValidSequencerSet(batchData.signatureData.sequencerSets, 0),
                 committedBatchStores[_batchIndex].signature.blsMsgHash,
@@ -471,10 +429,7 @@ contract Rollup is
             "the signature verification failed"
         );
 
-        emit CommitBatch(
-            _batchIndex,
-            committedBatchStores[_batchIndex].batchHash
-        );
+        emit CommitBatch(_batchIndex, _batchHash);
     }
 
     /// @inheritdoc IRollup
@@ -487,15 +442,9 @@ contract Rollup is
         require(_count > 0, "count must be nonzero");
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
-
         // check batch hash
-        uint256 _batchIndex = BatchHeaderV0Codec.batchIndex(memPtr);
-        _batchHash = keccak256(
-            abi.encodePacked(
-                _batchHash,
-                committedBatchStores[_batchIndex].blobVersionedHash
-            )
-        );
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+
         require(
             committedBatchStores[_batchIndex].batchHash == _batchHash,
             "incorrect batch hash"
@@ -505,7 +454,6 @@ contract Rollup is
             committedBatchStores[_batchIndex + _count].batchHash == bytes32(0),
             "reverting must start from the ending"
         );
-
         // check finalization
         require(
             _batchIndex > lastFinalizedBatchIndex,
@@ -517,10 +465,7 @@ contract Rollup is
             committedBatchStores[_batchIndex].batchHash = bytes32(0);
             if (revertReqIndex > 0 && _batchIndex == revertReqIndex) {
                 // if challenge exist and not finished yet, return challenge deposit to challenger
-                if (
-                    challenges[_batchIndex].challenger != address(0) &&
-                    !challenges[_batchIndex].finished
-                ) {
+                if (!challenges[_batchIndex].finished) {
                     batchChallengeReward[
                         challenges[_batchIndex].challenger
                     ] += challenges[_batchIndex].challengeDeposit;
@@ -566,7 +511,7 @@ contract Rollup is
 
         // check challenge amount
         require(
-            msg.value >= IL1Staking(l1StakingContract).STAKING_VALUE(),
+            msg.value >= IL1Staking(L1_STAKING_CONTRACT).STAKING_VALUE(),
             "insufficient value"
         );
         challenges[batchIndex] = BatchChallenge(
@@ -574,6 +519,7 @@ contract Rollup is
             _msgSender(),
             msg.value,
             block.timestamp,
+            false,
             false
         );
         emit ChallengeState(batchIndex, _msgSender(), msg.value);
@@ -596,8 +542,8 @@ contract Rollup is
     function proveState(
         uint64 _batchIndex,
         bytes calldata _aggrProof,
-        bytes calldata _kzgData
-    ) external nonReqRevert nonReentrant {
+        bytes calldata _kzgDataProof
+    ) external nonReqRevert {
         // Ensure challenge exists and is not finished
         require(
             challenges[_batchIndex].challenger != address(0),
@@ -616,90 +562,17 @@ contract Rollup is
         if (
             challenges[_batchIndex].startTime + PROOF_WINDOW <= block.timestamp
         ) {
+            // set status
+            challenges[_batchIndex].challengeSuccess = true;
             _challengerWin(
                 _batchIndex,
                 committedBatchStores[_batchIndex].signature.signedSequencers,
                 "Timeout"
             );
         } else {
-            // Check validity of proof
-            require(_aggrProof.length > 0, "Invalid proof");
-
-            // Check validity of KZG data
-            require(_kzgData.length == 128, "Invalid KZG data");
-
-            // Extract commitment
-            bytes memory _commitment = _kzgData[32:80];
-
-            // Compute xBytes
-            bytes memory _xBytes = abi.encode(
-                keccak256(
-                    abi.encodePacked(
-                        _commitment,
-                        committedBatchStores[_batchIndex].dataHash
-                    )
-                )
-            );
-            // make sure x < BLS_MODULUS
-            _xBytes[0] = 0x0;
-
-            // Create input for verification
-            bytes memory _input = abi.encode(
-                committedBatchStores[_batchIndex].blobVersionedHash,
-                _xBytes,
-                _kzgData
-            );
-
-            bool ret;
-            bytes memory _output;
-            assembly {
-                ret := staticcall(gas(), 0x0a, _input, 0xc0, _output, 0x40)
-            }
-            require(ret, "verify 4844-proof failed");
-
-            _verifyBatch(_batchIndex, _xBytes, _kzgData, _aggrProof);
-
+            _verifyProof(_batchIndex, _aggrProof, _kzgDataProof);
             // Record defender win
             _defenderWin(_batchIndex, _msgSender(), "Proof success");
-        }
-    }
-
-    /// @dev todo
-    function finalizeBatches() public whenNotPaused {
-        uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
-        for (
-            uint256 i = lastFinalizedBatchIndexCache + 1;
-            i <= lastCommittedBatchIndex;
-            i++
-        ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
-            finalizeBatch(i);
-        }
-    }
-
-    /// @dev todo
-    function finalizeBatchesByNum(uint256 num) public whenNotPaused {
-        require(num > 1, "finalize batch must bigger than 1");
-        uint256 lastFinalizedBatchIndexCache = lastFinalizedBatchIndex;
-        for (
-            uint256 i = lastFinalizedBatchIndexCache + 1;
-            i <= lastFinalizedBatchIndexCache + num;
-            i++
-        ) {
-            if (
-                batchInChallenge(i) ||
-                batchInsideChallengeWindow(i) ||
-                !batchExist(i)
-            ) {
-                break;
-            }
-            finalizeBatch(i);
         }
     }
 
@@ -709,6 +582,7 @@ contract Rollup is
     ) public nonReqRevert whenNotPaused {
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
+        require(!batchChallengedSuccess(_batchIndex), "batch should be revert");
         require(
             !batchInsideChallengeWindow(_batchIndex),
             "batch in challenge window"
@@ -800,10 +674,10 @@ contract Rollup is
 
     /// @notice Claim challenge reward
     /// @param receiver The receiver address
-    function claimReward(address receiver) external nonReentrant {
-        uint256 amount = batchChallengeReward[msg.sender];
+    function claimReward(address receiver) external {
+        uint256 amount = batchChallengeReward[_msgSender()];
         require(amount != 0, "invalid batchChallengeReward");
-        delete batchChallengeReward[msg.sender];
+        delete batchChallengeReward[_msgSender()];
         _transfer(receiver, amount);
     }
 
@@ -895,37 +769,107 @@ contract Rollup is
         }
     }
 
+    /*************************
+     * Public View Functions *
+     *************************/
+
+    /// @inheritdoc IRollup
+    function isBatchFinalized(
+        uint256 _batchIndex
+    ) external view override returns (bool) {
+        return _batchIndex <= lastFinalizedBatchIndex;
+    }
+
+    /// @inheritdoc IRollup
+    function committedBatches(
+        uint256 batchIndex
+    ) external view override returns (bytes32) {
+        return committedBatchStores[batchIndex].batchHash;
+    }
+
+    /// @dev Public function to checks whether the batch is in challenge.
+    /// @param batchIndex The index of the batch to be checked.
+    function batchInChallenge(uint256 batchIndex) public view returns (bool) {
+        return
+            challenges[batchIndex].challenger != address(0) &&
+            !challenges[batchIndex].finished;
+    }
+
+    /// @dev Retrieves the success status of a batch challenge.
+    /// @param batchIndex The index of the batch to check.
+    function batchChallengedSuccess(
+        uint256 batchIndex
+    ) public view returns (bool) {
+        return challenges[batchIndex].challengeSuccess;
+    }
+
+    /// @dev Public function to checks whether batch exists.
+    /// @param batchIndex The index of the batch to be checked.
+    function batchExist(uint256 batchIndex) public view returns (bool) {
+        return
+            committedBatchStores[batchIndex].originTimestamp > 0 &&
+            committedBatchStores[batchIndex].batchHash != bytes32(0);
+    }
+
+    /// @dev Public function to checks whether the batch is in challengeWindow.
+    /// @param batchIndex The index of the batch to be checked.
+    function batchInsideChallengeWindow(
+        uint256 batchIndex
+    ) public view returns (bool) {
+        return
+            committedBatchStores[batchIndex].finalizeTimestamp >
+            block.timestamp;
+    }
+
     /**********************
      * Internal Functions *
      **********************/
 
     /// @dev todo
-    function _verifyBatch(
-        uint256 _batchIndex,
-        bytes memory _xBytes,
-        bytes calldata _kzgData,
-        bytes calldata _aggrProof
-    ) internal view {
-        // Verify batch
-        bytes32 _newPublicInputHash = keccak256(
-            abi.encodePacked(
-                keccak256(
+    function _verifyProof(
+        uint64 _batchIndex,
+        bytes calldata _aggrProof,
+        bytes calldata _kzgDataProof
+    ) private view {
+        // Check validity of proof
+        require(_aggrProof.length > 0, "Invalid aggregation proof");
+
+        // Check validity of KZG data
+        require(_kzgDataProof.length == 160, "Invalid KZG data proof");
+
+        // Calls the point evaluation precompile and verifies the output
+        {
+            (bool success, bytes memory data) = POINT_EVALUATION_PRECOMPILE_ADDR
+                .staticcall(
                     abi.encodePacked(
-                        LAYER_2_CHAIN_ID,
-                        committedBatchStores[_batchIndex].prevStateRoot,
-                        committedBatchStores[_batchIndex].postStateRoot,
-                        committedBatchStores[_batchIndex].withdrawalRoot,
-                        committedBatchStores[_batchIndex].dataHash
+                        committedBatchStores[_batchIndex].blobVersionedHash,
+                        _kzgDataProof
                     )
-                ),
-                _xBytes,
-                _kzgData[0:32]
+                );
+            // We verify that the point evaluation precompile call was successful by testing the latter 32 bytes of the
+            // response is equal to BLS_MODULUS as defined in https://eips.ethereum.org/EIPS/eip-4844#point-evaluation-precompile
+            require(success, "failed to call point evaluation precompile");
+            (, uint256 result) = abi.decode(data, (uint256, uint256));
+            require(result == BLS_MODULUS, "precompile unexpected output");
+        }
+
+        bytes32 _publicInputHash = keccak256(
+            abi.encodePacked(
+                LAYER_2_CHAIN_ID,
+                committedBatchStores[_batchIndex].prevStateRoot,
+                committedBatchStores[_batchIndex].postStateRoot,
+                committedBatchStores[_batchIndex].withdrawalRoot,
+                committedBatchStores[_batchIndex].l1DataHash,
+                _kzgDataProof[0:64],
+                committedBatchStores[_batchIndex].blobVersionedHash
             )
         );
+
         IRollupVerifier(verifier).verifyAggregateProof(
+            committedBatchStores[_batchIndex].batchVersion,
             _batchIndex,
             _aggrProof,
-            _newPublicInputHash
+            _publicInputHash
         );
     }
 
@@ -1000,7 +944,7 @@ contract Rollup is
     ) internal {
         revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
-        uint256 reward = IL1Staking(l1StakingContract).slash(sequencers);
+        uint256 reward = IL1Staking(L1_STAKING_CONTRACT).slash(sequencers);
         batchChallengeReward[challenges[batchIndex].challenger] += (challenges[
             batchIndex
         ].challengeDeposit + reward);
@@ -1012,56 +956,56 @@ contract Rollup is
     /// @param _amount  The amount of ETH to transfer.
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
-            (bool success, ) = _to.call{value: _amount}(hex"");
+            (bool success, ) = _to.call{value: _amount}("0x");
             require(success, "Rollup: ETH transfer failed");
         }
     }
 
     /// @dev Internal function to load batch header from calldata to memory.
-    /// @param _batchHeader     The batch header in calldata.
-    /// @return memPtr The      start memory offset of loaded batch header.
-    /// @return _batchHash      The hash of the loaded batch header.
+    /// @param _batchHeader The batch header in calldata.
+    /// @return _memPtr     The start memory offset of loaded batch header.
+    /// @return _batchHash  The hash of the loaded batch header.
     function _loadBatchHeader(
         bytes calldata _batchHeader
-    ) internal pure returns (uint256 memPtr, bytes32 _batchHash) {
+    ) internal pure returns (uint256 _memPtr, bytes32 _batchHash) {
         // load to memory
         uint256 _length;
-        (memPtr, _length) = BatchHeaderV0Codec.loadAndValidate(_batchHeader);
+        (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
 
         // compute batch hash
-        _batchHash = BatchHeaderV0Codec.computeBatchHash(memPtr, _length);
+        _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
     }
 
     /// @dev Internal function to storage the latestL2BlockNumber.
     /// @param _chunk The batch chunk in memory.
-    function setLatestL2BlockNumber(bytes memory _chunk) internal {
+    function _setLatestL2BlockNumber(bytes memory _chunk) internal {
         uint256 blockPtr;
         uint256 chunkPtr;
         assembly {
             chunkPtr := add(_chunk, 0x20)
             blockPtr := add(chunkPtr, 1)
         }
-        uint256 _numBlocks = ChunkCodec.validateChunkLength(
+        uint256 _numBlocks = ChunkCodecV0.validateChunkLength(
             chunkPtr,
             _chunk.length
         );
         for (uint256 i = 0; i < _numBlocks - 1; i++) {
             unchecked {
-                blockPtr += ChunkCodec.BLOCK_CONTEXT_LENGTH;
+                blockPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
             }
         }
-        latestL2BlockNumber = ChunkCodec.blockNumber(blockPtr);
+        latestL2BlockNumber = ChunkCodecV0.getBlockNumber(blockPtr);
     }
 
     /// @dev Internal function to commit a chunk.
-    /// @param memPtr                           The start memory offset to store list of `dataHash`.
+    /// @param _memPtr                          The start memory offset to store list of `dataHash`.
     /// @param _chunk                           The encoded chunk to commit.
     /// @param _totalL1MessagesPoppedInBatch    The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall    The total number of L1 messages popped in all batches including current batch.
     /// @param _skippedL1MessageBitmap          The bitmap indicates whether each L1 message is skipped or not.
     /// @return _totalNumL1MessagesInChunk      The total number of L1 message popped in current chunk
     function _commitChunk(
-        uint256 memPtr,
+        uint256 _memPtr,
         bytes memory _chunk,
         uint256 _totalL1MessagesPoppedInBatch,
         uint256 _totalL1MessagesPoppedOverall,
@@ -1079,7 +1023,7 @@ contract Rollup is
             blockPtr := add(chunkPtr, 1) // skip numBlocks
         }
 
-        uint256 _numBlocks = ChunkCodec.validateChunkLength(
+        uint256 _numBlocks = ChunkCodecV0.validateChunkLength(
             chunkPtr,
             _chunk.length
         );
@@ -1088,13 +1032,12 @@ contract Rollup is
         {
             uint256 _totalTransactionsInChunk;
             for (uint256 i = 0; i < _numBlocks; i++) {
-                dataPtr = ChunkCodec.copyBlockContext(chunkPtr, dataPtr, i);
-                uint256 _numTransactionsInBlock = ChunkCodec.numTransactions(
-                    blockPtr
-                );
+                dataPtr = ChunkCodecV0.copyBlockContext(chunkPtr, dataPtr, i);
+                uint256 _numTransactionsInBlock = ChunkCodecV0
+                    .getNumTransactions(blockPtr);
                 unchecked {
                     _totalTransactionsInChunk += _numTransactionsInBlock;
-                    blockPtr += ChunkCodec.BLOCK_CONTEXT_LENGTH;
+                    blockPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
                 }
             }
             assembly {
@@ -1110,10 +1053,11 @@ contract Rollup is
         }
 
         // concatenate tx hashes
-        uint256 l2TxPtr = ChunkCodec.l2TxPtr(chunkPtr, _numBlocks);
         while (_numBlocks > 0) {
             // concatenate l1 message hashes
-            uint256 _numL1MessagesInBlock = ChunkCodec.numL1Messages(blockPtr);
+            uint256 _numL1MessagesInBlock = ChunkCodecV0.getNumL1Messages(
+                blockPtr
+            );
             dataPtr = _loadL1MessageHashes(
                 dataPtr,
                 _numL1MessagesInBlock,
@@ -1123,24 +1067,11 @@ contract Rollup is
             );
 
             // concatenate l2 transaction hashes
-            uint256 _numTransactionsInBlock = ChunkCodec.numTransactions(
-                blockPtr
-            );
             require(
-                _numTransactionsInBlock >= _numL1MessagesInBlock,
+                ChunkCodecV0.getNumTransactions(blockPtr) >=
+                    _numL1MessagesInBlock,
                 "num txs less than num L1 msgs"
             );
-            for (
-                uint256 j = _numL1MessagesInBlock;
-                j < _numTransactionsInBlock;
-                j++
-            ) {
-                assembly {
-                    mstore(dataPtr, mload(l2TxPtr))
-                    l2TxPtr := add(l2TxPtr, 0x20)
-                    dataPtr := add(dataPtr, 0x20)
-                }
-            }
 
             unchecked {
                 _totalNumL1MessagesInChunk += _numL1MessagesInBlock;
@@ -1148,7 +1079,7 @@ contract Rollup is
                 _totalL1MessagesPoppedOverall += _numL1MessagesInBlock;
 
                 _numBlocks -= 1;
-                blockPtr += ChunkCodec.BLOCK_CONTEXT_LENGTH;
+                blockPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
             }
         }
 
@@ -1158,16 +1089,10 @@ contract Rollup is
             "too many txs in one chunk"
         );
 
-        // check chunk has correct length
-        require(
-            l2TxPtr - chunkPtr == _chunk.length,
-            "incomplete l2 transaction data"
-        );
-
         // compute data hash and store to memory
         assembly {
             let dataHash := keccak256(startDataPtr, sub(dataPtr, startDataPtr))
-            mstore(memPtr, dataHash)
+            mstore(_memPtr, dataHash)
         }
 
         return _totalNumL1MessagesInChunk;
@@ -1187,10 +1112,7 @@ contract Rollup is
         uint256 _totalL1MessagesPoppedOverall,
         bytes calldata _skippedL1MessageBitmap
     ) internal view returns (uint256) {
-        if (_numL1Messages == 0) {
-            return _ptr;
-        }
-
+        if (_numL1Messages == 0) return _ptr;
         IL1MessageQueue _messageQueue = IL1MessageQueue(messageQueue);
 
         unchecked {

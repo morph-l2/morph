@@ -2,6 +2,97 @@
 pragma solidity =0.8.24;
 
 interface IRollup {
+    /// @param version                  The version of current batch.
+    /// @param parentBatchHeader        The header of parent batch, see the comments of `BatchHeaderV0Codec`.
+    /// @param chunks                   The list of encoded chunks, see the comments of `ChunkCodec`.
+    /// @param skippedL1MessageBitmap   The bitmap indicates whether each L1 message is skipped or not.
+    /// @param prevStateRoot            The state root of parent batch.
+    /// @param postStateRoot            The state root of current batch.
+    /// @param withdrawalRoot           The withdraw trie root of current batch.
+    /// @param signature                The withdraw trie root of current batch.
+    struct BatchData {
+        uint8 version;
+        bytes parentBatchHeader;
+        bytes[] chunks;
+        bytes skippedL1MessageBitmap;
+        bytes32 prevStateRoot;
+        bytes32 postStateRoot;
+        bytes32 withdrawalRoot;
+        BatchSignatureData signatureData;
+    }
+
+    /// @param signedSequencers The signed sequencers
+    /// @param sequencerSets    The latest 3 sequencer sets
+    /// @param signature        The BLS signature
+    struct BatchSignatureData {
+        address[] signedSequencers;
+        bytes sequencerSets;
+        bytes signature;
+    }
+
+    /// @param batchVersion
+    /// @param batchHash
+    /// @param originTimestamp
+    /// @param finalizeTimestamp
+    /// @param prevStateRoot
+    /// @param postStateRoot
+    /// @param withdrawalRoot
+    /// @param l1DataHash
+    /// @param l1MessagePopped
+    /// @param totalL1MessagePopped
+    /// @param skippedL1MessageBitmap
+    /// @param blockNumber
+    /// @param blobVersionedHash
+    /// @param signatureStore
+    struct BatchStore {
+        uint256 batchVersion;
+        bytes32 batchHash;
+        uint256 originTimestamp;
+        uint256 finalizeTimestamp;
+        bytes32 prevStateRoot;
+        bytes32 postStateRoot;
+        bytes32 withdrawalRoot;
+        bytes32 l1DataHash;
+        uint256 l1MessagePopped;
+        uint256 totalL1MessagePopped;
+        bytes skippedL1MessageBitmap;
+        uint256 blockNumber;
+        bytes32 blobVersionedHash;
+        BatchSignature signature;
+    }
+
+    /// @param blsMsgHash
+    /// @param sequencerSetVerifyHash
+    /// @param sequencers
+    struct BatchSignature {
+        bytes32 blsMsgHash;
+        bytes32 sequencerSetVerifyHash;
+        address[] signedSequencers;
+    }
+
+    /// @dev Structure to store information about a batch challenge.
+    /// @param batchIndex The index of the challenged batch.
+    /// @param challenger The address of the challenger.
+    /// @param challengeDeposit The amount of deposit put up by the challenger.
+    /// @param startTime The timestamp when the challenge started.
+    /// @param challengeSuccess Flag indicating whether the challenge was successful.
+    /// @param finished Flag indicating whether the challenge has been resolved.
+    struct BatchChallenge {
+        uint64 batchIndex;
+        address challenger;
+        uint256 challengeDeposit;
+        uint256 startTime;
+        bool challengeSuccess;
+        bool finished;
+    }
+
+    /// @param receiver
+    /// @param amount
+    struct BatchChallengeReward {
+        address receiver;
+        uint256 amount;
+    }
+
     /***********
      * Errors *
      ***********/
@@ -76,7 +167,7 @@ interface IRollup {
     /// @param challengeDeposit The deposit of challenger.
     event ChallengeState(
         uint64 indexed batchIndex,
-        address challenger,
+        address indexed challenger,
         uint256 challengeDeposit
     );
 
@@ -84,7 +175,11 @@ interface IRollup {
     /// @param batchIndex   The index of the batch.
     /// @param winner       The address of winner.
     /// @param res          The result of challenge.
-    event ChallengeRes(uint64 indexed batchIndex, address winner, string res);
+    event ChallengeRes(
+        uint64 indexed batchIndex,
+        address indexed winner,
+        string indexed res
+    );
 
     /*************************
      * Public View Functions *
@@ -139,90 +234,4 @@ interface IRollup {
     /// @notice Claim challenge reward
     /// @param receiver The receiver address
     function claimReward(address receiver) external;
-
-    /// @param version                  The version of current batch.
-    /// @param parentBatchHeader        The header of parent batch, see the comments of `BatchHeaderV0Codec`.
-    /// @param chunks                   The list of encoded chunks, see the comments of `ChunkCodec`.
-    /// @param skippedL1MessageBitmap   The bitmap indicates whether each L1 message is skipped or not.
-    /// @param prevStateRoot            The state root of parent batch.
-    /// @param postStateRoot            The state root of current batch.
-    /// @param withdrawalRoot           The withdraw trie root of current batch.
-    /// @param signature                The withdraw trie root of current batch.
-    struct BatchData {
-        uint8 version;
-        bytes parentBatchHeader;
-        bytes[] chunks;
-        bytes skippedL1MessageBitmap;
-        bytes32 prevStateRoot;
-        bytes32 postStateRoot;
-        bytes32 withdrawalRoot;
-        BatchSignatureData signatureData;
-    }
-
-    /// @param signedSequencers The signed sequencers
-    /// @param sequencerSets    The latest 3 sequencer sets
-    /// @param signature        The BLS signature
-    struct BatchSignatureData {
-        address[] signedSequencers;
-        bytes sequencerSets;
-        bytes signature;
-    }
-
-    /// @param batchHash
-    /// @param originTimestamp
-    /// @param finalizeTimestamp
-    /// @param prevStateRoot
-    /// @param postStateRoot
-    /// @param withdrawalRoot
-    /// @param dataHash
-    /// @param l1MessagePopped
-    /// @param totalL1MessagePopped
-    /// @param skippedL1MessageBitmap
-    /// @param blockNumber
-    /// @param blobVersionedHash
-    /// @param signatureStore
-    struct BatchStore {
-        bytes32 batchHash;
-        uint256 originTimestamp;
-        uint256 finalizeTimestamp;
-        bytes32 prevStateRoot;
-        bytes32 postStateRoot;
-        bytes32 withdrawalRoot;
-        bytes32 dataHash;
-        uint256 l1MessagePopped;
-        uint256 totalL1MessagePopped;
-        bytes skippedL1MessageBitmap;
-        uint256 blockNumber;
-        bytes32 blobVersionedHash;
-        BatchSignature signature;
-    }
-
-    /// @param blsMsgHash
-    /// @param sequencerSetVerifyHash
-    /// @param sequencers
-    struct BatchSignature {
-        bytes32 blsMsgHash;
-        bytes32 sequencerSetVerifyHash;
-        address[] signedSequencers;
-    }
-
-    /// @param batchIndex
-    /// @param challenger
-    /// @param challengeDeposit
-    /// @param startTime
-    /// @param finished
-    struct BatchChallenge {
-        uint64 batchIndex;
-        address challenger;
-        uint256 challengeDeposit;
-        uint256 startTime;
-        bool finished;
-    }
-
-    /// @param receiver
-    /// @param amount
-    struct BatchChallengeReward {
-        address receiver;
-        uint256 amount;
-    }
 }
