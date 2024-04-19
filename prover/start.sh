@@ -11,4 +11,4 @@ RUST_LOG=debug RUST_BACKTRACE=full nohup ./target/release/prover_server >>prover
 RUST_LOG=debug RUST_BACKTRACE=full nohup ./challenge-handler/target/release/challenge-handler >>handler.log 2>&1 &
 
 # Start shadow-proving
-RUST_LOG=debug RUST_BACKTRACE=full nohup ./shadow-proving/target/release/shadow-proving >>shadow-proving.log 2>&1 &
+RUST_LOG=debug RUST_BACKTRACE=full nohup ./shadow-proving/target/release/shadow-proving >>shadow_proving.log 2>&1 &

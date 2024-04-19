@@ -172,16 +172,26 @@ fn compute_and_save_kzg(
     proof_path: &String,
 ) -> Result<(), String> {
     // Sequencer trace to witness.
-    let blocks: Vec<Block<Fr>> = chunk_traces
-        .iter()
-        .filter_map(|chunk| chunk_trace_to_witness_block(chunk.to_vec()).ok())
-        .collect();
-
+    let mut blocks: Vec<Block<Fr>> = vec![];
+    for trace in chunk_traces {
+        let block = match chunk_trace_to_witness_block(trace.to_vec()) {
+            Ok(b) => b,
+            Err(e) => {
+                log::error!("batch_{:#?} chunk_trace_to_witness_block err: {:#?}", batch_index, e);
+                return Err("chunk trace to witness fail".to_string());
+            }
+        };
+        blocks.push(block);
+    }
     // Witness to chunkhash
     let mut chunk_hashes: Vec<ChunkHash> = blocks
         .iter()
         .map(|block| ChunkHash::from_witness_block(&block, false))
         .collect();
+
+    if chunk_hashes.is_empty() {
+        return Err("chunk_hashes is empty".to_string());
+    }
 
     // Padding
     let number_of_valid_chunks = chunk_hashes.len();

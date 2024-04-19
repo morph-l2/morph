@@ -1,4 +1,4 @@
-FROM  scroll-geth:latest
+FROM  prover-scroll-geth:v1.1
 
 RUN mkdir -p /l2geth/keystore
 
