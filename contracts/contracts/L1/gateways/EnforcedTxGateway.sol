@@ -64,6 +64,7 @@ contract EnforcedTxGateway is
         address _queue,
         address _feeVault
     ) external initializer {
+        require(_feeVault != address(0), "fee vault cannot be address");
         OwnableUpgradeable.__Ownable_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
         PausableUpgradeable.__Pausable_init();
@@ -71,6 +72,7 @@ contract EnforcedTxGateway is
 
         messageQueue = _queue;
         feeVault = _feeVault;
+        emit UpdateFeeVault(address(0), feeVault);
     }
 
     /*************************
@@ -178,6 +180,7 @@ contract EnforcedTxGateway is
     /// @notice Update the address of fee vault.
     /// @param _newFeeVault The address to update.
     function updateFeeVault(address _newFeeVault) external onlyOwner {
+        require(_newFeeVault != address(0), "fee vault cannot be address");
         address _oldFeeVault = feeVault;
         feeVault = _newFeeVault;
 
