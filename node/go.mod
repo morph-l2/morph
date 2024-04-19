@@ -14,6 +14,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
+	golang.org/x/exp v0.0.0-20230206171751-46f607a40771
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
