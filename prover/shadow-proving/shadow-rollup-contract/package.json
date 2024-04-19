@@ -1,0 +1,27 @@
+{
+  "name": "@morph-l2/shadow-proving",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "hardhat test",
+    "prettier": "prettier --write 'contracts/**/*.sol'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NomicFoundation/hardhat-boilerplate.git"
+  },
+  "author": "Nomic Foundation",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/NomicFoundation/hardhat-boilerplate/issues"
+  },
+  "homepage": "https://github.com/NomicFoundation/hardhat-boilerplate#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^2.0.0",
+    "@openzeppelin/contracts": "^4.4.0",
+    "hardhat": "^2.22.2"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "ethers": "^5.7.2"
+  }
+}

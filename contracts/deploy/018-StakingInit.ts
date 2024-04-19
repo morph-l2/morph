@@ -106,8 +106,9 @@ export const StakingInit = async (
             StakingFactory.interface.encodeFunctionData('initialize', [
                 admin,
                 L1SequencerProxyAddress,
+                RollupProxyAddress,
                 sequencerSize,
-                limit,
+                hre.ethers.utils.parseEther(limit.toString()),
                 hre.ethers.utils.parseEther(lock.toString()),
             ])
         )
@@ -126,11 +127,16 @@ export const StakingInit = async (
             StakingFactory.interface,
             deployer,
         )
- 
+
         await assertContractVariable(
             contractTmp,
             'sequencerContract',
             L1SequencerProxyAddress
+        )
+        await assertContractVariable(
+            contractTmp,
+            'rollupContract',
+            RollupProxyAddress
         )
         await assertContractVariable(
             contractTmp,
@@ -140,7 +146,7 @@ export const StakingInit = async (
         await assertContractVariable(
             contractTmp,
             'limit',
-            limit
+            hre.ethers.utils.parseEther(limit.toString()),
         )
         await assertContractVariable(
             contractTmp,

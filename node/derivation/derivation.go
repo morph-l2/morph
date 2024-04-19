@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/morph-l2/bindings/bindings"
+	"github.com/morph-l2/bindings/predeploys"
 	"github.com/morph-l2/node/sync"
 	"github.com/morph-l2/node/types"
 	"github.com/morph-l2/node/validator"
@@ -43,6 +44,7 @@ type Derivation struct {
 	rollup                *bindings.Rollup
 	metrics               *Metrics
 	l1BeaconClient        *L1BeaconClient
+	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
 	latestDerivation uint64
 	db               Database
@@ -73,6 +75,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		return nil, err
 	}
 	eClient, err := ethclient.Dial(cfg.L2.EthAddr)
+	if err != nil {
+		return nil, err
+	}
+	msgPasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, eClient)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +114,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logProgressInterval:   cfg.LogProgressInterval,
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
+		L2ToL1MessagePasser:   msgPasser,
 	}, nil
 }
 
@@ -201,7 +208,14 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		// only last block of batch
 		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
-		if !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes()) {
+		withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
+			BlockNumber: lastHeader.Number,
+		})
+		if err != nil {
+			d.logger.Error("get withdrawal root failed", "error", err)
+			return
+		}
+		if !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes()) || !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes()) {
 			d.metrics.SetBatchStatus(stateException)
 			// TODO The challenge switch is currently on and will be turned on in the future
 			if d.validator != nil && d.validator.ChallengeEnable() {
@@ -210,7 +224,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 					return
 				}
 			}
-			d.logger.Info("root hash is not equal", "originStateRootHash", batchInfo.root, "deriveStateRootHash", lastHeader.Root.Hex())
+			d.logger.Info("root hash or withdrawal hash is not equal",
+				"originStateRootHash", batchInfo.root,
+				"deriveStateRootHash", lastHeader.Root.Hex(),
+				"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
+				"deriveWithdrawalRoot", common.BytesToHash(withdrawalRoot[:]).Hex(),
+			)
 			return
 		} else {
 			d.metrics.SetBatchStatus(stateNormal)
@@ -318,7 +337,6 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
-	blobHashes := batch.Sidecar.BlobHashes()
 	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
 	if err != nil {
 		return nil, fmt.Errorf("decode batch header error:%v", err)
@@ -327,37 +345,26 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 	if err := batchInfo.ParseBatch(batch); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
-	if err := d.handleL1Message(batchInfo, &parentBatchHeader, blobHashes); err != nil {
+	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
 	batchInfo.batchIndex = parentBatchHeader.BatchIndex + 1
 	return batchInfo, nil
 }
 
-func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *types.BatchHeader, blobHashes []common.Hash) error {
-	batchHeader := types.BatchHeader{
-		Version:                uint8(rollupData.version),
-		BatchIndex:             parentBatchHeader.BatchIndex + 1,
-		DataHash:               rollupData.dataHash,
-		ParentBatchHash:        parentBatchHeader.ParentBatchHash,
-		SkippedL1MessageBitmap: rollupData.skippedL1MessageBitmap.Bytes(),
-	}
-	var l1MessagePopped, totalL1MessagePopped uint64
-	totalL1MessagePopped = parentBatchHeader.TotalL1MessagePopped
-	var chunkHashes []byte
+func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped uint64) error {
+	totalL1MessagePopped := parentTotalL1MessagePopped
 	for index, chunk := range rollupData.chunks {
-		var chunkTxHashes []byte
 		for bIndex, block := range chunk.blockContextes {
 			var l1Transactions []*eth.Transaction
 			l1Messages, err := d.getL1Message(totalL1MessagePopped, uint64(block.l1MsgNum))
 			if err != nil {
 				return fmt.Errorf("get l1 message error:%v", err)
 			}
-			l1MessagePopped += uint64(block.l1MsgNum)
 			totalL1MessagePopped += uint64(block.l1MsgNum)
 			if len(l1Messages) > 0 {
 				for _, l1Message := range l1Messages {
-					if rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentBatchHeader.TotalL1MessagePopped)) == 1 {
+					if rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentTotalL1MessagePopped)) == 1 {
 						continue
 					}
 					transaction := eth.NewTx(&l1Message.L1MessageTx)
@@ -367,19 +374,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentBatchHeader *t
 			rollupData.chunks[index].blockContextes[bIndex].SafeL2Data.Transactions = append(encodeTransactions(l1Transactions), chunk.blockContextes[bIndex].SafeL2Data.Transactions...)
 		}
 
-		for _, bc := range rollupData.chunks[index].blockContextes {
-			txs := decodeTransactions(bc.SafeL2Data.Transactions)
-			for _, tx := range txs {
-				chunkTxHashes = append(chunkTxHashes, tx.Hash().Bytes()...)
-			}
-		}
-		chunk.Raw.SetTxHashBytes(chunkTxHashes)
-		chunkHashes = append(chunkHashes, chunk.Raw.Hash().Bytes()...)
 	}
-	rollupData.dataHash = crypto.Keccak256Hash(chunkHashes)
-	batchHeader.TotalL1MessagePopped = totalL1MessagePopped
-	batchHeader.L1MessagePopped = l1MessagePopped
-	rollupData.batchHash = types.NewBatchHeaderWithBlobHashes(batchHeader, blobHashes).BatchHash()
 	return nil
 }
 
@@ -396,7 +391,6 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	var lastHeader *eth.Header
 	for _, chunk := range rollupData.chunks {
 		for _, blockData := range chunk.blockContextes {
-			blockData.SafeL2Data.BatchHash = &rollupData.batchHash
 			latestBlockNumber, err := d.l2Client.BlockNumber(context.Background())
 			if err != nil {
 				return nil, fmt.Errorf("get derivation geth block number error:%v", err)

@@ -1,11 +1,9 @@
 package derivation
 
 import (
-	"bytes"
 	"fmt"
 	"math/big"
 
-	node "github.com/morph-l2/node/core"
 	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
@@ -52,8 +50,6 @@ type BatchInfo struct {
 	blockNum         uint64
 	txNum            uint64
 	version          uint64
-	dataHash         common.Hash
-	batchHash        common.Hash
 	chunks           []*Chunk
 	l1BlockNumber    uint64
 	txHash           common.Hash
@@ -62,6 +58,7 @@ type BatchInfo struct {
 	firstBlockNumber uint64
 
 	root                   common.Hash
+	withdrawalRoot         common.Hash
 	skippedL1MessageBitmap *big.Int
 }
 
@@ -85,17 +82,18 @@ func (bi *BatchInfo) TxNum() uint64 {
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	//var rollupData BatchInfo
 	bi.root = batch.PostStateRoot
+	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.skippedL1MessageBitmap = new(big.Int).SetBytes(batch.SkippedL1MessageBitmap[:])
 	bi.version = uint64(batch.Version)
-	var txPayload []byte
+	tq := newTxQueue()
 	for _, blob := range batch.Sidecar.Blobs {
-		data, err := types.DecodeRawTxPayload(&blob)
+		blobCopy := blob
+		data, err := types.DecodeTxsFromBlob(&blobCopy)
 		if err != nil {
 			return err
 		}
-		txPayload = append(txPayload, data...)
+		tq.enqueue(data)
 	}
-	txReader := bytes.NewReader(txPayload)
 	for cbIndex, chunkByte := range batch.Chunks {
 		chunk := new(types.Chunk)
 		if err := chunk.Decode(chunkByte); err != nil {
@@ -127,8 +125,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			if block.txsNum < block.l1MsgNum {
 				return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
 			}
-
-			txs, err := node.DecodeTxsPayload(txReader, int(block.txsNum)-int(block.l1MsgNum))
+			txs, err := tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
 			if err != nil {
 				return fmt.Errorf("decode txsPayload error:%v", err)
 			}
@@ -164,4 +161,34 @@ func decodeTransactions(txsBytes [][]byte) []*eth.Transaction {
 		txs = append(txs, &tx)
 	}
 	return txs
+}
+
+type txQueue struct {
+	txs     eth.Transactions
+	pointer int
+}
+
+func newTxQueue() *txQueue {
+	var txs eth.Transactions
+	return &txQueue{
+		txs: txs,
+	}
+}
+
+func (q *txQueue) enqueue(txs eth.Transactions) {
+	q.txs = append(q.txs, txs...)
+}
+
+func (q *txQueue) dequeue(txNum int) (eth.Transactions, error) {
+	maxLen := q.txs.Len() - q.pointer
+	if maxLen < txNum {
+		return nil, fmt.Errorf("invalid txNum,must small than %v", maxLen)
+	}
+	txs := q.txs[q.pointer : q.pointer+txNum]
+	q.pointer += txNum
+	return txs, nil
+}
+
+func (q *txQueue) isEmpty() bool {
+	return q.pointer == q.txs.Len()
 }

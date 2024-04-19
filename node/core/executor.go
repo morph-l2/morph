@@ -242,7 +242,7 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 		Transactions: txs,
 	}
 	if err = e.validateL1Messages(l2Block, wrappedBlock.CollectedL1TxHashes); err != nil {
-		if err != types.ErrQueryL1Message { // only do not return error if it is not ErrQueryL1Message error
+		if !errors.Is(err, types.ErrQueryL1Message) { // hide error if it is not ErrQueryL1Message
 			err = nil
 		}
 		return false, err
@@ -413,12 +413,4 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 
 func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
-}
-
-func L1MessagesToTxs(l1Messages []types.L1Message) []eth.L1MessageTx {
-	txs := make([]eth.L1MessageTx, len(l1Messages))
-	for i, l1Message := range l1Messages {
-		txs[i] = l1Message.L1MessageTx
-	}
-	return txs
 }
