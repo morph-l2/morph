@@ -5,8 +5,6 @@ pkg := bindings
 all: version mkdir bindings more
 
 bindings: l1-staking-bindings \
-	l1-sequencer-bindings \
-    submitter-bindings \
 	l1-cross-domain-messenger-bindings \
 	l1-standard-erc20-gateway-bindings \
 	l1-eth-gateway-bindings \
@@ -17,12 +15,14 @@ bindings: l1-staking-bindings \
     morph-rollup-bindings \
     multiple-version-rollup-verifier-bindings \
 	l2-cross-domain-messenger-bindings \
-    l2-submitter-bindings \
     l2-gas-price-oracle-bindings \
     l2-to-l1-message-passer-bindings \
     l2-tx-fee-vault-bindings \
 	l2-gov-bindings \
 	l2-sequencer-bindings \
+	l2-staking-bindings \
+	l2-distribute-bindings \
+	l2-record-bindings \
 	l2-eth-gateway-bindings \
 	l2-standard-erc20-gateway-bindings \
 	l2-gateway-router-bindings \
@@ -50,13 +50,7 @@ compile-forge:
 ## L1
 # Staking
 l1-staking-bindings: compile
-	./gen_bindings.sh contracts/L1/staking/Staking.sol:Staking $(pkg)
-l1-sequencer-bindings: compile
-	./gen_bindings.sh contracts/L1/staking/L1Sequencer.sol:L1Sequencer $(pkg)
-
-# Submitter
-submitter-bindings: compile
-	./gen_bindings.sh contracts/L2/submitter/Submitter.sol:Submitter $(pkg)
+	./gen_bindings.sh contracts/L1/staking/L1Staking.sol:L1Staking $(pkg)
 
 # CrossDomainMessenger
 l1-cross-domain-messenger-bindings: compile
@@ -88,8 +82,6 @@ l2-cross-domain-messenger-bindings: compile
 	./gen_bindings.sh contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger $(pkg)
 
 # Submitter
-l2-submitter-bindings: compile
-	./gen_bindings.sh contracts/L2/submitter/Submitter.sol:Submitter $(pkg)
 l2-gas-price-oracle-bindings: compile
 	./gen_bindings.sh contracts/L2/system/GasPriceOracle.sol:GasPriceOracle $(pkg)
 l2-to-l1-message-passer-bindings: compile
@@ -101,7 +93,13 @@ l2-tx-fee-vault-bindings: compile
 l2-gov-bindings: compile
 	./gen_bindings.sh contracts/L2/staking/Gov.sol:Gov $(pkg)
 l2-sequencer-bindings: compile
-	./gen_bindings.sh contracts/L2/staking/L2Sequencer.sol:L2Sequencer $(pkg)
+	./gen_bindings.sh contracts/L2/staking/Sequencer.sol:Sequencer $(pkg)
+l2-staking-bindings: compile
+	./gen_bindings.sh contracts/L2/staking/L2Staking.sol:L2Staking $(pkg)
+l2-distribute-bindings: compile
+	./gen_bindings.sh contracts/L2/staking/Distribute.sol:Distribute $(pkg)
+l2-record-bindings: compile
+	./gen_bindings.sh contracts/L2/staking/Record.sol:Record $(pkg)
 
 # Gateways
 l2-eth-gateway-bindings: compile
@@ -140,7 +138,7 @@ more: compile-forge
 	go run ./gen/main.go \
 		-artifacts ../contracts/artifacts \
 		-out ./bindings \
-		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,Staking,L1Sequencer,L2Sequencer,Gov,Submitter,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,Submitter,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Gov,L2Sequencer,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther \
+		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther \
 		-package bindings
 
 mkdir:

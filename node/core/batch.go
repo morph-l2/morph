@@ -275,7 +275,7 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 
 	var batchSigs []eth.BatchSignature
 	if !e.devSequencer {
-		batchSigs, err = e.ConvertBlsDatas(blsDatas, curHeight)
+		batchSigs, err = e.ConvertBlsDatas(blsDatas)
 		if err != nil {
 			return err
 		}
@@ -323,7 +323,7 @@ func (e *Executor) AppendBlsData(height int64, batchHash []byte, data l2node.Bls
 	if len(batchHash) != 32 {
 		return fmt.Errorf("wrong batchHash length. expected: 32, actual: %d", len(batchHash))
 	}
-	blsSig, err := e.ConvertBlsData(data, uint64(height))
+	blsSig, err := e.ConvertBlsData(data)
 	if err != nil {
 		return err
 	}
@@ -513,9 +513,9 @@ func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {
 	}, nil
 }
 
-func (e *Executor) ConvertBlsDatas(blsDatas []l2node.BlsData, height uint64) (ret []eth.BatchSignature, err error) {
+func (e *Executor) ConvertBlsDatas(blsDatas []l2node.BlsData) (ret []eth.BatchSignature, err error) {
 	for _, blsData := range blsDatas {
-		bs, err := e.ConvertBlsData(blsData, height)
+		bs, err := e.ConvertBlsData(blsData)
 		if err != nil {
 			return nil, err
 		}
@@ -524,21 +524,14 @@ func (e *Executor) ConvertBlsDatas(blsDatas []l2node.BlsData, height uint64) (re
 	return
 }
 
-func (e *Executor) ConvertBlsData(blsData l2node.BlsData, height uint64) (*eth.BatchSignature, error) {
-	seqKey := e.getBlsPubKeyByTmKey(blsData.Signer, &height)
-	if seqKey == nil {
+func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, error) {
+	blsKey, found := e.getBlsPubKeyByTmKey(blsData.Signer)
+	if !found {
 		return nil, fmt.Errorf("found invalid validator: %x", blsData.Signer)
 	}
 
-	var curVersion uint64
-	if e.currentSequencerSet != nil {
-		curVersion = e.currentSequencerSet.version
-	}
-
 	bs := eth.BatchSignature{
-		Version:      curVersion,
-		Signer:       seqKey.index,
-		SignerPubKey: new(bls12381.G2).EncodePoint(seqKey.blsPubKey.Key),
+		SignerPubKey: new(bls12381.G2).EncodePoint(blsKey.Key),
 		Signature:    blsData.Signature,
 	}
 	return &bs, nil

@@ -1,12 +1,14 @@
 package node
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/scroll-tech/go-ethereum/common"
+	"golang.org/x/exp/slices"
 	"math/big"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/crypto/bls12381"
 	"github.com/tendermint/tendermint/blssignatures"
@@ -21,33 +23,11 @@ type sequencerKey struct {
 	blsPubKey blssignatures.PublicKey
 }
 
-func (e *Executor) getBlsPubKeyByTmKey(tmPubKey []byte, height *uint64) *sequencerKey {
-	var pk [tmKeySize]byte
-	copy(pk[:], tmPubKey)
-
-	if e.currentSequencerSet != nil && (height == nil || *height >= e.currentSequencerSet.startHeight) {
-		seqKey, ok := e.currentSequencerSet.sequencerSet[pk]
-		if ok {
-			return &seqKey
-		}
-	}
-	if e.currentSequencerSet.startHeight <= 1 { // means no previous sequencer set
-		return nil
-	}
-
-	nextEndHeight := e.currentSequencerSet.startHeight - 1
-	if len(e.previousSequencerSet) > 0 {
-		for i := len(e.previousSequencerSet) - 1; i >= 0; i-- {
-			if height == nil || (*height >= e.previousSequencerSet[i].startHeight && *height <= nextEndHeight) {
-				seqKey, ok := e.previousSequencerSet[i].sequencerSet[pk]
-				if ok {
-					return &seqKey
-				}
-				nextEndHeight = e.previousSequencerSet[i].startHeight - 1
-			}
-		}
-	}
-	return nil
+func (e *Executor) getBlsPubKeyByTmKey(tmPubKey []byte) (pk blssignatures.PublicKey, found bool) {
+	var tmKey [32]byte
+	copy(tmKey[:], tmPubKey)
+	pk, found = e.valBlsPubKeys[tmKey]
+	return
 }
 
 func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig []byte) (bool, error) {
@@ -55,12 +35,12 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 		e.logger.Info("we are in dev mode, do not verify the bls signature")
 		return true, nil
 	}
-	if e.currentSequencerSet == nil {
+	if len(e.valBlsPubKeys) == 0 {
 		return false, errors.New("no available sequencers found in layer2")
 	}
 
-	seqKey := e.getBlsPubKeyByTmKey(tmPubKey, nil)
-	if seqKey == nil {
+	blsKey, found := e.getBlsPubKeyByTmKey(tmPubKey)
+	if !found {
 		return false, errors.New("it is not a valid sequencer")
 	}
 
@@ -69,101 +49,66 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 		e.logger.Error("failed to recover bytes to signature", "error", err)
 		return false, fmt.Errorf("failed to recover bytes to signature, error: %v", err)
 	}
-	return blssignatures.VerifySignature(sig, messageHash, seqKey.blsPubKey)
+	return blssignatures.VerifySignature(sig, messageHash, blsKey)
 }
 
-func (e *Executor) sequencerSetUpdates(curHeight *uint64) ([][]byte, error) {
-	currentVersion, err := e.sequencerContract.CurrentVersion(nil)
+func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
+	seqHash, err := e.sequencer.SEQUENCERSETVERIFYHASH(nil)
 	if err != nil {
 		return nil, err
 	}
-	if e.currentSequencerSet != nil && e.currentSequencerSet.version == currentVersion.Uint64() {
+	if e.currentSeqHash != nil && bytes.Equal(e.currentSeqHash[:], seqHash[:]) {
 		return e.nextValidators, nil
 	}
 
-	// found new version sequencerSet
-	// move current sequencer set to previous sequencer set
-	if e.currentSequencerSet != nil && curHeight != nil {
-		e.previousSequencerSet = append(e.previousSequencerSet, *e.currentSequencerSet)
-		if len(e.previousSequencerSet) > 2 {
-			e.previousSequencerSet = e.previousSequencerSet[len(e.previousSequencerSet)-2:] // only reserves 2 elements
-		}
-	} else if currentVersion.Uint64() != 0 { // first time to fetch sequencer set, and it is not the first version
-		preSequencerInfo, err := e.sequencerContract.GetSequencerInfos(nil, true)
-		if err != nil {
-			e.logger.Error("failed to call GetSequencerInfos", "previous", true, "err", err)
-			return nil, err
-		}
-		_, preSequencerSet, err := e.convertSequencerSet(preSequencerInfo)
-		if err != nil {
-			return nil, err
-		}
-		preVersionHeight, err := e.sequencerContract.PreVersionHeight(nil)
-		if err != nil {
-			e.logger.Error("failed to call PreVersionHeight", "err", err)
-			return nil, err
-		}
-		var preStartHeight uint64
-		if preVersionHeight.Sign() > 0 {
-			preStartHeight = preVersionHeight.Uint64() + 2
-		}
-		e.previousSequencerSet = []SequencerSetInfo{{
-			version:      currentVersion.Uint64() - 1,
-			startHeight:  preStartHeight,
-			sequencerSet: preSequencerSet,
-		}}
-	}
-
-	// fetch current sequencerSet info
-	sequencersInfo, err := e.sequencerContract.GetSequencerInfos(nil, false)
-	if err != nil {
-		e.logger.Error("failed to call GetSequencerInfos", "previous", false, "err", err)
-		return nil, err
-	}
-	newValidators, newSequencerSet, err := e.convertSequencerSet(sequencersInfo)
+	sequencerSet0, err := e.sequencer.GetSequencerSet0(nil)
 	if err != nil {
 		return nil, err
 	}
-	var currentStartHeight uint64
-	curVersionHeight, err := e.sequencerContract.CurrentVersionHeight(nil)
+	sequencerSet1, err := e.sequencer.GetSequencerSet1(nil)
 	if err != nil {
-		e.logger.Error("failed to call CurrentVersionHeight", "err", err)
 		return nil, err
 	}
-	if curVersionHeight.Uint64() != 0 {
-		currentStartHeight = curVersionHeight.Uint64() + 2
+	sequencerSet2, err := e.sequencer.GetSequencerSet2(nil)
+	if err != nil {
+		return nil, err
 	}
-	e.currentSequencerSet = &SequencerSetInfo{
-		version:      currentVersion.Uint64(),
-		startHeight:  currentStartHeight,
-		sequencerSet: newSequencerSet,
-	}
-	e.nextValidators = newValidators
 
-	var before string
-	if len(e.previousSequencerSet) > 0 {
-		before = e.previousSequencerSet[len(e.previousSequencerSet)-1].String()
+	cache := make(map[common.Address]struct{})
+	requestAddrs := make([]common.Address, 0)
+	for _, addr := range append(append(sequencerSet0, sequencerSet1...), sequencerSet2...) {
+		_, ok := cache[addr]
+		if !ok {
+			cache[addr] = struct{}{}
+			requestAddrs = append(requestAddrs, addr)
+		}
 	}
-	e.logger.Info("sequencers updates, version changed", "before", before, "current", e.currentSequencerSet.String())
-	return newValidators, nil
-}
+	stakesInfo, err := e.l2Staking.GetStakesInfo(nil, requestAddrs)
+	if err != nil {
+		e.logger.Error("failed to GetStakesInfo", "error", err)
+		return nil, err
+	}
 
-func (e *Executor) convertSequencerSet(sequencersInfo []bindings.TypesSequencerInfo) ([][]byte, map[[32]byte]sequencerKey, error) {
-	newValidators := make([][]byte, 0)
-	newSequencerSet := make(map[[tmKeySize]byte]sequencerKey)
-	for i := range sequencersInfo {
-		blsPK, err := decodeBlsPubKey(sequencersInfo[i].BlsKey)
+	valBlsPubKeys := make(map[[tmKeySize]byte]blssignatures.PublicKey)
+	nextValidators := make([][]byte, 0)
+	for i := range stakesInfo {
+		blsPK, err := decodeBlsPubKey(stakesInfo[i].BlsKey)
 		if err != nil {
-			e.logger.Error("failed to decode bls key", "key bytes", hexutil.Encode(sequencersInfo[i].BlsKey), "error", err)
-			return nil, nil, err
+			e.logger.Error("failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
+			return nil, err
 		}
-		newSequencerSet[sequencersInfo[i].TmKey] = sequencerKey{
-			index:     uint64(i),
-			blsPubKey: blsPK,
+		// sequencerSet2 is the latest updated sequencer set which is considered as the next validator set for tendermint
+		if slices.Contains(sequencerSet2, stakesInfo[i].Addr) {
+			nextValidators = append(nextValidators, stakesInfo[i].TmKey[:])
 		}
-		newValidators = append(newValidators, sequencersInfo[i].TmKey[:])
+		valBlsPubKeys[stakesInfo[i].TmKey] = blsPK
 	}
-	return newValidators, newSequencerSet, nil
+
+	e.logger.Info("sequencers updates, sequencer verified hash changed")
+	e.valBlsPubKeys = valBlsPubKeys
+	e.nextValidators = nextValidators
+	e.currentSeqHash = &seqHash
+	return nextValidators, nil
 }
 
 func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, error) {
@@ -203,15 +148,16 @@ func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, erro
 	return nil, nil
 }
 
-func (e *Executor) updateSequencerSet(curHeight *uint64) ([][]byte, error) {
-	validatorUpdates, err := e.sequencerSetUpdates(curHeight)
+func (e *Executor) updateSequencerSet() ([][]byte, error) {
+	validatorUpdates, err := e.sequencerSetUpdates()
 	if err != nil {
 		e.logger.Error("failed to get sequencer set from geth", "err", err)
 		return nil, err
 	}
 	var tmPKBz [tmKeySize]byte
 	copy(tmPKBz[:], e.tmPubKey)
-	_, isSequencer := e.currentSequencerSet.sequencerSet[tmPKBz]
+
+	_, isSequencer := e.valBlsPubKeys[tmPKBz]
 	if !e.isSequencer && isSequencer {
 		e.logger.Info("I am a sequencer, start to launch syncer")
 		if e.syncer == nil {
