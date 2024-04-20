@@ -13,7 +13,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	ethtypes "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/log"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 )
 
@@ -67,21 +66,21 @@ func (v *Validator) ChallengeState(batchIndex uint64) error {
 	}
 	opts.GasPrice = gasPrice
 	opts.NoSend = true
-	tx, err := v.contract.ChallengeState(opts, batchIndex)
-	if err != nil {
-		return err
-	}
-	log.Info("send ChallengeState transaction ", "txHash", tx.Hash().Hex())
-	if err := v.cli.SendTransaction(context.Background(), tx); err != nil {
-		return err
-	}
-	// Wait for the receipt
-	receipt, err := waitForReceipt(v.cli, tx)
-	if err != nil {
-		return err
-	}
-	log.Info("Validator has already started the challenge", "hash", tx.Hash().Hex(),
-		"gas-used", receipt.GasUsed, "blocknumber", receipt.BlockNumber)
+	// tx, err := v.contract.ChallengeState(opts, batchIndex)
+	// if err != nil {
+	// 	return err
+	// }
+	// log.Info("send ChallengeState transaction ", "txHash", tx.Hash().Hex())
+	// if err := v.cli.SendTransaction(context.Background(), tx); err != nil {
+	// 	return err
+	// }
+	// // Wait for the receipt
+	// receipt, err := waitForReceipt(v.cli, tx)
+	// if err != nil {
+	// 	return err
+	// }
+	// log.Info("Validator has already started the challenge", "hash", tx.Hash().Hex(),
+	// 	"gas-used", receipt.GasUsed, "blocknumber", receipt.BlockNumber)
 	return nil
 }
 
