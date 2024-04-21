@@ -10,11 +10,6 @@ import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract L2StakingTest is L2StakingBaseTest {
-    // ERC20PresetFixedSupplyUpgradeable morphToken;
-    // uint256 totalSupply = 100000000000000000000 ether;
-
-    address morphOwner = address(999);
-
     uint256 limit = 1000 ether;
 
     uint256 morphBalance = 20 ether;
@@ -139,7 +134,7 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice staking by delegator
      * stag0
      */
-    function testStakeWhenRewardNotStart() public {
+    function testStakeWhenRewardNotStarting() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
 
@@ -189,17 +184,19 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice failed claim, amount in lock period
      */
     function testDelegatorclaimInLockPeriod() public {
-        // hevm.startPrank(bob);
-        // morphToken.approve(address(l2Staking), type(uint256).max);
-        // l2Staking.delegateStake(firstStaker, morphBalance);
-        // hevm.stopPrank();
-        // hevm.prank(multisig);
-        // l2Staking.startReward();
-        // hevm.startPrank(bob);
-        // l2Staking.undelegateStake(firstStaker);
-        // hevm.expectRevert("no Morph token to claim");
-        // l2Staking.claimUndelegation();
-        // hevm.stopPrank();
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        hevm.stopPrank();
+
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        hevm.startPrank(bob);
+        l2Staking.undelegateStake(firstStaker);
+        hevm.expectRevert("no Morph token to claim");
+        l2Staking.claimUndelegation();
+        hevm.stopPrank();
     }
 
     /**
@@ -263,7 +260,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test ranking, reward_start = false
      */
-    function testRankWhenNotRewardStart() public {
+    function testRankWhenRewardNotStarting() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -280,7 +277,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test ranking, reward_start = true
      */
-    function testRankWhenRewardStart() public {
+    function testRankWhenRewardStarting() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(secondStaker, 10 ether);
