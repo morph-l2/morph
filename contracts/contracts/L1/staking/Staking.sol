@@ -71,17 +71,17 @@ contract Staking is IStaking, OwnableUpgradeable {
     /**
      * @notice staker staked
      */
-    event Staked(address addr, uint256 balance);
+    event Staked(address indexed addr, uint256 balance);
 
     /**
      * @notice withdrawed
      */
-    event Withdrawed(address addr, uint256 balance);
+    event Withdrawed(address indexed addr, uint256 balance);
 
     /**
      * @notice staker claimed
      */
-    event Claimed(address addr, uint256 balance);
+    event Claimed(address indexed addr, uint256 balance);
 
     /**
      * @notice params updated
@@ -376,6 +376,14 @@ contract Staking is IStaking, OwnableUpgradeable {
         _transfer(rollupContract, valueSum);
         return valueSum;
     }
+
+    function _transfer(address _to, uint256 _amount) internal {
+        if (_amount > 0) {
+            (bool success, ) = _to.call{value: _amount}("0x");
+            require(success, "Rollup: ETH transfer failed");
+        }
+    }
+
 
     /**
      * @notice update params

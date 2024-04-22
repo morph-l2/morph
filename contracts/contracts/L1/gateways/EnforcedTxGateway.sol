@@ -25,7 +25,7 @@ contract EnforcedTxGateway is
     /// @notice Emitted when owner updates fee vault contract.
     /// @param _oldFeeVault The address of old fee vault contract.
     /// @param _newFeeVault The address of new fee vault contract.
-    event UpdateFeeVault(address _oldFeeVault, address _newFeeVault);
+    event UpdateFeeVault(address indexed _oldFeeVault, address indexed _newFeeVault);
 
     /*************
      * Constants *

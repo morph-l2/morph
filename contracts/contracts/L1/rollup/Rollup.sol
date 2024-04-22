@@ -115,11 +115,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     uint256 public PROOF_WINDOW;
 
     /**
-     * @notice User pledge record.
-     */
-    mapping(address => uint256) public challengerDeposits;
-
-    /**
      * @notice Store Challenge information. (batchIndex => BatchChallenge)
      */
     mapping(uint256 => BatchChallenge) public challenges;
@@ -595,7 +590,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             msg.value >= IStaking(l1StakingContract).limit(),
             "insufficient value"
         );
-        challengerDeposits[_msgSender()] += msg.value;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
@@ -930,7 +924,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     ) internal {
         address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        challengerDeposits[challengerAddr] -= challengeDeposit;
         batchChallengeReward[
             challenges[batchIndex].proverReceiveAddress
         ] += challengeDeposit;
@@ -973,7 +966,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @param _amount The amount of ETH to transfer.
     function _transfer(address _to, uint256 _amount) internal {
         if (_amount > 0) {
-            (bool success, ) = _to.call{value: _amount}(hex"");
+            (bool success, ) = _to.call{value: _amount}("0x");
             require(success, "Rollup: ETH transfer failed");
         }
     }

@@ -68,6 +68,7 @@ contract Gov is Initializable, IGov {
     constructor() {
         L2_SEQUENCER_CONTRACT = Predeploys.L2_SEQUENCER;
         L2_SUBMITTER_CONTRACT = Predeploys.L2_SUBMITTER;
+        _disableInitializers();
     }
 
     /**

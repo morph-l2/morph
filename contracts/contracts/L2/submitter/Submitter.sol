@@ -28,8 +28,8 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
      * @notice ack rollup
      */
     event ACKRollup(
-        uint256 batchIndex,
-        address submitter,
+        uint256 indexed batchIndex,
+        address indexed submitter,
         uint256 batchStartBlock,
         uint256 batchEndBlock,
         uint256 rollupTime

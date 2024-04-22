@@ -24,11 +24,6 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     mapping(uint256 => bytes[]) public sequencerBLSKeys;
 
     /**
-     * @notice sequencer version confirmed
-     */
-    event SequencerConfirmed(address[] sequencers, uint256 version);
-
-    /**
      * @notice sequencer updated
      */
     event SequencerUpdated(
@@ -59,7 +54,7 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     constructor(
         address payable _messenger
     ) Pausable() Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER)) {
-        _pause();
+        _disableInitializers();
     }
 
     /**
