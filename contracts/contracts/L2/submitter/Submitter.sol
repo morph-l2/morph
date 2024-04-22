@@ -73,7 +73,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     /**
      * @notice epoch updated
      */
-    function epochUpdated(uint256 epoch) public {
+    function epochUpdated(uint256 epoch) external {
         require(msg.sender == L2_GOV_CONTRACT, "only gov contract");
         epochHistory.push(Types.EpochHistory(epoch, block.timestamp));
     }

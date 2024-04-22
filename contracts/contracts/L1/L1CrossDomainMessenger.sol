@@ -159,7 +159,7 @@ contract L1CrossDomainMessenger is
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(
-            finalizedWithdrawals[_xDomainCalldataHash] == false,
+            !finalizedWithdrawals[_xDomainCalldataHash],
             "Messenger: withdrawal has already been finalized"
         );
 

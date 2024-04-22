@@ -46,7 +46,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     mapping(address => Withdrawal) public withdrawals;
 
     // stakers size reached sequencersSize first time
-    bool initialized = false;
+    bool public initialized = false;
     // total number of sequencers
     uint256 public sequencersSize = 0;
 
@@ -56,7 +56,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     bytes[] public sequencersBLS;
 
     // enable slash
-    bool enableSlash;
+    bool public enableSlash;
 
     /**
      * @notice staker registered
