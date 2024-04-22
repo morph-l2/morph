@@ -46,6 +46,9 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     // Record
     Record public record;
 
+    //Oracle address
+    address oracleAddress = address(1000);
+
     uint256 public PROPOSAL_INTERVAL = 1000;
     uint256 public ROLLUP_EPOCH = 1000;
     uint256 public MAX_CHUNKS = 1000000000;
@@ -224,10 +227,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                     MorphToken.initialize.selector,
                     "Morph",
                     "MPH",
-                    address(distributeProxy),
                     1000000000 ether,
-                    1596535874529,
-                    REWARD_START_TIME
+                    1596535874529
                 )
             );
         ITransparentUpgradeableProxy(address(distributeProxy)).upgradeToAndCall(
@@ -239,7 +240,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             abi.encodeWithSelector(
                 Record.initialize.selector,
                 multisig,
-                address(1)
+                oracleAddress
             )
         );
 

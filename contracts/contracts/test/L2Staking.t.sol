@@ -4,6 +4,7 @@ pragma solidity =0.8.24;
 import "forge-std/console2.sol";
 import {ERC20PresetFixedSupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetFixedSupplyUpgradeable.sol";
 import {L2Staking} from "../L2/staking/L2Staking.sol";
+import {IRecord} from "../L2/staking/IRecord.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
@@ -306,5 +307,68 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.updateParams(2);
 
         assertEq(sequencer.getSequencerSet2Size(), 2);
+    }
+
+    /**
+     * @notice update params
+     */
+    function testDelegatorClaimRewardWhenRewardNotStarting() public {
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        hevm.stopPrank();
+
+        uint256 time = l2Staking.REWARD_EPOCH() * 2;
+        hevm.warp(time);
+
+        uint256 epochIndex = 0;
+        uint256 blockCount = 86400 / 3; // 1 block per 3s
+        address[] memory sequencers = sequencer.getSequencerSet2();
+        uint256 sequencerSize = sequencer.getSequencerSet2Size();
+        uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
+        uint256[] memory sequencerRatios = new uint256[](sequencerSize);
+        uint256[] memory sequencerComissions = new uint256[](sequencerSize);
+        for (uint i = 0; i < sequencerSize; i++) {
+            // same blocks
+            sequencerBlocks[i] = blockCount / sequencerSize;
+            sequencerRatios[i] = 10000 / sequencerSize;
+            sequencerComissions[i] = 1;
+        }
+
+        IRecord.RewardEpochInfo memory rewardEpochInfo = IRecord
+            .RewardEpochInfo(
+                epochIndex,
+                blockCount,
+                sequencers,
+                sequencerBlocks,
+                sequencerRatios,
+                sequencerComissions
+            );
+        IRecord.RewardEpochInfo[]
+            memory rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
+        rewardEpochInfos[0] = rewardEpochInfo;
+
+        uint256 totalSupply = morphToken.totalSupply();
+        hevm.prank(oracleAddress);
+        record.recordRewardEpochs(rewardEpochInfos);
+
+        uint256 totalInflations = (totalSupply * 1596535874529) / 1e16;
+        uint256 distributeBalance = morphToken.balanceOf(address(distribute));
+        assertEq(totalInflations, distributeBalance);
+
+        /**
+         * 1. reward = 0 no remaining reward
+         * 2. reward > 0
+         */
+        hevm.startPrank(bob);
+        uint256 balanceBefore = morphToken.balanceOf(bob);
+        l2Staking.claimReward(firstStaker, epochIndex);
+        uint256 balanceAfter = morphToken.balanceOf(bob);
+
+        uint256 reward = (((totalInflations * (10000 / sequencerSize)) /
+            10000) * 99) / 100;
+
+        assertEq(balanceAfter, balanceBefore + reward);
+        hevm.stopPrank();
     }
 }
