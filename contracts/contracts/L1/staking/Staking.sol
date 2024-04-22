@@ -71,17 +71,17 @@ contract Staking is IStaking, OwnableUpgradeable {
     /**
      * @notice staker staked
      */
-    event Staked(address addr, uint256 balance);
+    event Staked(address indexed addr, uint256 balance);
 
     /**
      * @notice withdrawed
      */
-    event Withdrawed(address addr, uint256 balance);
+    event Withdrawed(address indexed addr, uint256 balance);
 
     /**
      * @notice staker claimed
      */
-    event Claimed(address addr, uint256 balance);
+    event Claimed(address indexed addr, uint256 balance);
 
     /**
      * @notice params updated
