@@ -8,7 +8,7 @@ import {CrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {IL1MessageQueue} from "./rollup/IL1MessageQueue.sol";
 import {IRollup} from "./rollup/IRollup.sol";
-import {Verify} from "../libraries/common/Tree.sol";
+import {Verify} from "../libraries/common/Verify.sol";
 import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
 
 /**
@@ -98,13 +98,12 @@ contract L1CrossDomainMessenger is
             revert ErrZeroAddress();
         }
         CrossDomainMessenger.__Messenger_init(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             _feeVault
         );
 
         rollup = _rollup;
         messageQueue = _messageQueue;
-        counterpart = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         maxReplayTimes = 3;
         emit UpdateMaxReplayTimes(0, 3);

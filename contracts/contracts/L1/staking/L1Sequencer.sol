@@ -59,7 +59,7 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     constructor(
         address payable _messenger
     ) Pausable() Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER)) {
-        _pause();
+        _disableInitializers();
     }
 
     /**
