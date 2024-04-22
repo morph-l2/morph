@@ -103,28 +103,12 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
         bytes memory signature,
         bytes32 batchHash
     ) external onlyRollupContract whenNotPaused returns (bool) {
-        confirmVersion(version);
+        _confirmVersion(version);
         // TODO: verify BLS signature
         sequencers = sequencers;
         signature = signature;
         batchHash = batchHash;
         return true;
-    }
-
-    /**
-     * @notice confirm sequencer ser version
-     * @param version sequencer set version
-     */
-    function confirmVersion(uint256 version) internal {
-        require(
-            version >= currentVersion && version <= newestVersion,
-            "invalid sequencer version"
-        );
-        for (uint256 i = currentVersion; i < version; i++) {
-            delete sequencerAddrs[i];
-            delete sequencerBLSKeys[i];
-        }
-        currentVersion = version;
     }
 
     function updateAndSendSequencerSet(
@@ -155,6 +139,22 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
             _sequencerAddrs,
             _sequencerBLSKeys
         );
+    }
+
+    /**
+     * @notice confirm sequencer ser version
+     * @param version sequencer set version
+     */
+    function _confirmVersion(uint256 version) internal {
+        require(
+            version >= currentVersion && version <= newestVersion,
+            "invalid sequencer version"
+        );
+        for (uint256 i = currentVersion; i < version; i++) {
+            delete sequencerAddrs[i];
+            delete sequencerBLSKeys[i];
+        }
+        currentVersion = version;
     }
 
     function sequencerNum(uint256 version) external view returns (uint256) {

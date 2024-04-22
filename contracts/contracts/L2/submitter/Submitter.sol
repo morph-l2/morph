@@ -19,8 +19,8 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     uint256 public override nextBatchIndex;
     // next batch start block
     uint256 public override nextBatchStartBlock;
-    // bathcIndex => batchInfo
-    mapping(uint256 => Types.BatchInfo) public confirmedBatchs;
+    // batchIndex => batchInfo
+    mapping(uint256 => Types.BatchInfo) public confirmedBatches;
 
     Types.EpochHistory[] public epochHistory;
 
@@ -63,7 +63,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
             "invalid batchStartBlock"
         );
 
-        confirmedBatchs[batchIndex] = Types.BatchInfo(
+        confirmedBatches[batchIndex] = Types.BatchInfo(
             submitter,
             batchStartBlock,
             batchEndBlock,
@@ -189,6 +189,6 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     function getConfirmedBatch(
         uint256 batchIndex
     ) external view returns (Types.BatchInfo memory batchInfo) {
-        return confirmedBatchs[batchIndex];
+        return confirmedBatches[batchIndex];
     }
 }
