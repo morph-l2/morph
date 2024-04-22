@@ -155,7 +155,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      **********************/
 
     modifier onlySequencer(uint256 version) {
-        // @note In the decentralized mode, it should be only called by a list of validator.
+        // @note In the decentralized mode, it should be only called by a list of validators.
         require(
             IL1Sequencer(l1SequencerContract).isSequencer(
                 _msgSender(),
@@ -501,7 +501,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     }
 
     /// @inheritdoc IRollup
-    /// @dev If the owner want to revert a sequence of batches by sending multiple transactions,
+    /// @dev If the owner wants to revert a sequence of batches by sending multiple transactions,
     ///      make sure to revert recent batches first.
     function revertBatch(
         bytes calldata _batchHeader,
