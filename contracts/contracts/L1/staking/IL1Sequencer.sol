@@ -2,6 +2,19 @@
 pragma solidity =0.8.24;
 
 interface IL1Sequencer {
+    /**********
+     * Events *
+     **********/
+
+    /**
+     * @notice sequencer updated
+     */
+    event SequencerUpdated(
+        uint256 indexed version,
+        address[] sequencersAddr,
+        bytes[] sequencersBLS
+    );
+
     /**
      * @notice pause
      */
@@ -38,22 +51,23 @@ interface IL1Sequencer {
 
     /**
      * @notice update sequencers version
-     * @param _sequencerAddrs sequencer addresses
+     * @param _sequencerAddresses sequencer addresses
      * @param _sequencerBytes sequencer information bytes
      * @param _sequencerBLSKeys sequencer BLS keys
+     * @param _gasLimit the gas limit for the update message executed in L2.
      */
     function updateAndSendSequencerSet(
         bytes memory _sequencerBytes,
-        address[] memory _sequencerAddrs,
+        address[] memory _sequencerAddresses,
         bytes[] memory _sequencerBLSKeys,
-        uint32 gasLimit
+        uint32 _gasLimit
     ) external;
 
     /**
      * @notice sequencer addresses
      * @param version version
      */
-    function getSequencerAddrs(
+    function getSequencerAddresses(
         uint256 version
     ) external view returns (address[] memory);
 

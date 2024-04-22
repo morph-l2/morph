@@ -2,7 +2,6 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {IL2Sequencer} from "../staking/IL2Sequencer.sol";
@@ -19,21 +18,10 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     uint256 public override nextBatchIndex;
     // next batch start block
     uint256 public override nextBatchStartBlock;
-    // bathcIndex => batchInfo
-    mapping(uint256 => Types.BatchInfo) public confirmedBatchs;
+    // batchIndex => batchInfo
+    mapping(uint256 => Types.BatchInfo) public confirmedBatches;
 
     Types.EpochHistory[] public epochHistory;
-
-    /**
-     * @notice ack rollup
-     */
-    event ACKRollup(
-        uint256 batchIndex,
-        address submitter,
-        uint256 batchStartBlock,
-        uint256 batchEndBlock,
-        uint256 rollupTime
-    );
 
     /**
      * @notice constructor
@@ -63,7 +51,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
             "invalid batchStartBlock"
         );
 
-        confirmedBatchs[batchIndex] = Types.BatchInfo(
+        confirmedBatches[batchIndex] = Types.BatchInfo(
             submitter,
             batchStartBlock,
             batchEndBlock,
@@ -85,7 +73,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     /**
      * @notice epoch updated
      */
-    function epochUpdated(uint256 epoch) public {
+    function epochUpdated(uint256 epoch) external {
         require(msg.sender == L2_GOV_CONTRACT, "only gov contract");
         epochHistory.push(Types.EpochHistory(epoch, block.timestamp));
     }
@@ -188,7 +176,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
      */
     function getConfirmedBatch(
         uint256 batchIndex
-    ) external view returns (Types.BatchInfo memory batchInfo) {
-        return confirmedBatchs[batchIndex];
+    ) external view returns (Types.BatchInfo memory) {
+        return confirmedBatches[batchIndex];
     }
 }

@@ -29,9 +29,6 @@ contract L2CrossDomainMessenger is
     /// @notice Mapping from L1 message hash to a boolean value indicating if the message has been successfully executed.
     mapping(bytes32 => bool) public isL1MessageExecuted;
 
-    /// @dev The storage slots used by previous versions of this contract.
-    uint256[2] private __used;
-
     /***************
      * Constructor *
      ***************/

@@ -44,12 +44,7 @@ interface IRollup {
     /// @param newPeriod The new FINALIZATION_PERIOD_SECONDS.
     event UpdateFinalizationPeriodSeconds(uint256 oldPeriod, uint256 newPeriod);
 
-    /// @notice Emitted when owner updates the status of prover.
-    /// @param account The address of account updated.
-    /// @param status The status of the account updated.
-    event UpdateProver(address indexed account, bool status);
-
-    /// @notice Emitted when owner updates the status of prover.
+    /// @notice Emitted when owner updates the status of challenger.
     /// @param account The address of account updated.
     /// @param status The status of the account updated.
     event UpdateChallenger(address indexed account, bool status);
@@ -77,7 +72,7 @@ interface IRollup {
     /// @param challengeDeposit The deposit of challenger.
     event ChallengeState(
         uint64 indexed batchIndex,
-        address challenger,
+        address indexed challenger,
         address challengerReceiveAddress,
         uint256 challengeDeposit
     );
@@ -86,7 +81,11 @@ interface IRollup {
     /// @param batchIndex The index of the batch.
     /// @param winner  The address of winner.
     /// @param res The result of challenge.
-    event ChallengeRes(uint64 indexed batchIndex, address winner, string res);
+    event ChallengeRes(
+        uint64 indexed batchIndex,
+        address indexed winner,
+        string indexed res
+    );
 
     /*************************
      * Public View Functions *

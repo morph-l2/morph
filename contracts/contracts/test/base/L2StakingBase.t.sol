@@ -14,7 +14,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     uint256 public beginSeq = 10;
     uint256 public version = 0;
     bytes[] public sequencerBLSKeys;
-    address[] public sequencerAddrs;
+    address[] public sequencerAddresses;
 
     // L2Sequencer config
     L2Sequencer public l2Sequencer;
@@ -108,36 +108,31 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 user
             );
             sequencerInfos[i] = sequencerInfo;
-            sequencerAddrs.push(sequencerInfo.addr);
+            sequencerAddresses.push(sequencerInfo.addr);
         }
         ITransparentUpgradeableProxy(address(l2SequencerProxy))
             .upgradeToAndCall(
                 address(l2SequencerImpl),
-                abi.encodeWithSelector(
-                    L2Sequencer.initialize.selector,
-                    sequencerInfos
-                )
+                abi.encodeCall(L2Sequencer.initialize, (sequencerInfos))
             );
         ITransparentUpgradeableProxy(address(l2GovProxy)).upgradeToAndCall(
             address(govImpl),
-            abi.encodeWithSelector(
-                Gov.initialize.selector,
-                PROPOSAL_INTERVAL, // _proposalInterval
-                0, // _batchBlockInterval
-                0, // _batchMaxBytes
-                FINALIZATION_PERIOD_SECONDS, // _batchTimeout
-                ROLLUP_EPOCH, // rollupEpoch
-                MAX_CHUNKS // maxChunks
+            abi.encodeCall(
+                Gov.initialize,
+                (
+                    PROPOSAL_INTERVAL, // _proposalInterval
+                    0, // _batchBlockInterval
+                    0, // _batchMaxBytes
+                    FINALIZATION_PERIOD_SECONDS, // _batchTimeout
+                    ROLLUP_EPOCH, // rollupEpoch
+                    MAX_CHUNKS // maxChunks)
+                )
             )
         );
         ITransparentUpgradeableProxy(address(l2SubmitterProxy))
             .upgradeToAndCall(
                 address(submitterImpl),
-                abi.encodeWithSelector(
-                    Submitter.initialize.selector,
-                    sequencerAddrs,
-                    block.timestamp
-                )
+                abi.encodeCall(Submitter.initialize, ())
             );
 
         // set address

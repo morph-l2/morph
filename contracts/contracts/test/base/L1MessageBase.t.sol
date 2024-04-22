@@ -30,7 +30,7 @@ contract L1MessageBaseTest is CommonTest {
     Staking staking;
     uint256 public beginSeq = 10;
     uint256 public version = 0;
-    address[] public sequencerAddrs;
+    address[] public sequencerAddresses;
     bytes[] public sequencerBLSKeys;
     uint256 public constant SEQUENCER_SIZE = 3;
     uint256 public LOCK = 3;
@@ -114,7 +114,7 @@ contract L1MessageBaseTest is CommonTest {
         // deploy whitelist
         whitelistChecker = new Whitelist(address(multisig));
 
-        // deploy proxys
+        // deploy proxy
         TransparentUpgradeableProxy rollupProxy = new TransparentUpgradeableProxy(
                 address(emptyContract),
                 address(multisig),
@@ -144,11 +144,8 @@ contract L1MessageBaseTest is CommonTest {
         // deploy mock verifier
         verifier = new MockZkEvmVerifier();
 
-        // deploy impls
-        rollupImpl = new Rollup(
-            layer2ChainId,
-            payable(address(l1CrossDomainMessengerProxy))
-        );
+        // deploy impl
+        rollupImpl = new Rollup(layer2ChainId);
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
                 payable(address(l1CrossDomainMessengerProxy)),
                 address(rollupProxy),
@@ -161,35 +158,41 @@ contract L1MessageBaseTest is CommonTest {
         // upgrade and initialize
         ITransparentUpgradeableProxy(address(rollupProxy)).upgradeToAndCall(
             address(rollupImpl),
-            abi.encodeWithSelector(
-                Rollup.initialize.selector,
-                address(l1SequencerProxy),
-                address(stakingProxy),
-                address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
-                address(verifier), // _verifier
-                maxNumTxInChunk, // _maxNumTxInChunk
-                FINALIZATION_PERIOD_SECONDS, // _finalizationPeriodSeconds
-                PROOF_WINDOW // _proofWindow
+            abi.encodeCall(
+                Rollup.initialize,
+                (
+                    address(l1SequencerProxy),
+                    address(stakingProxy),
+                    address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
+                    address(verifier), // _verifier
+                    maxNumTxInChunk, // _maxNumTxInChunk
+                    FINALIZATION_PERIOD_SECONDS, // _finalizationPeriodSeconds
+                    PROOF_WINDOW // _proofWindow
+                )
             )
         );
         ITransparentUpgradeableProxy(
             address(l1MessageQueueWithGasPriceOracleProxy)
         ).upgradeToAndCall(
                 address(l1MessageQueueWithGasPriceOracleImpl),
-                abi.encodeWithSelector(
-                    L1MessageQueueWithGasPriceOracle.initialize.selector,
-                    l1MessageQueue_maxGasLimit, // gasLimit
-                    whitelistChecker // whitelistChecker
+                abi.encodeCall(
+                    L1MessageQueueWithGasPriceOracle.initialize,
+                    (
+                        l1MessageQueue_maxGasLimit, // gasLimit
+                        address(whitelistChecker) // whitelistChecker
+                    )
                 )
             );
         ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxy))
             .upgradeToAndCall(
                 address(l1CrossDomainMessengerImpl),
-                abi.encodeWithSelector(
-                    L1CrossDomainMessenger.initialize.selector,
-                    l1FeeVault, // feeVault
-                    address(rollupProxy), // rollup
-                    address(l1MessageQueueWithGasPriceOracleProxy) // messageQueue
+                abi.encodeCall(
+                    L1CrossDomainMessenger.initialize,
+                    (
+                        l1FeeVault, // feeVault
+                        address(rollupProxy), // rollup
+                        address(l1MessageQueueWithGasPriceOracleProxy) // messageQueue
+                    )
                 )
             );
         ITransparentUpgradeableProxy(address(stakingProxy)).upgradeToAndCall(
@@ -208,10 +211,9 @@ contract L1MessageBaseTest is CommonTest {
         ITransparentUpgradeableProxy(address(l1SequencerProxy))
             .upgradeToAndCall(
                 address(l1SequencerImpl),
-                abi.encodeWithSelector(
-                    L1Sequencer.initialize.selector,
-                    address(stakingProxy),
-                    address(rollupProxy)
+                abi.encodeCall(
+                    L1Sequencer.initialize,
+                    (address(stakingProxy), address(rollupProxy))
                 )
             );
 
@@ -236,8 +238,6 @@ contract L1MessageBaseTest is CommonTest {
             l1MessageQueueWithGasPriceOracle.messenger()
         );
 
-        rollup.addProver(alice);
-        rollup.addProver(bob);
         rollup.addChallenger(bob);
         hevm.stopPrank();
     }
@@ -260,7 +260,7 @@ contract L1MessageBaseTest is CommonTest {
 
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(IRollup.withdrawalRoots.selector, wdRoot),
+            abi.encodeCall(IRollup.withdrawalRoots, (wdRoot)),
             abi.encode(true)
         );
 

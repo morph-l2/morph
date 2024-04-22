@@ -248,21 +248,23 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         bytes memory dataToCall
     ) public {
         amount = bound(amount, 1, l1Token.balanceOf(address(this)) / 2);
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            abi.encode(
-                true,
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
                 abi.encode(
-                    dataToCall,
+                    true,
                     abi.encode(
-                        l1Token.symbol(),
-                        l1Token.name(),
-                        l1Token.decimals()
+                        dataToCall,
+                        abi.encode(
+                            l1Token.symbol(),
+                            l1Token.name(),
+                            l1Token.decimals()
+                        )
                     )
                 )
             )
@@ -322,14 +324,16 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            _from,
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                _from,
+                recipient,
+                amount,
+                dataToCall
+            )
         );
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(
@@ -402,14 +406,16 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            address(recipient),
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                address(recipient),
+                amount,
+                dataToCall
+            )
         );
         bytes32 _xDomainCalldataHash = keccak256(
             _encodeXDomainCalldata(
@@ -496,27 +502,28 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            address(this),
-            amount,
-            abi.encode(
-                true,
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                address(this),
+                amount,
                 abi.encode(
-                    new bytes(0),
+                    true,
                     abi.encode(
-                        l1Token.symbol(),
-                        l1Token.name(),
-                        l1Token.decimals()
+                        new bytes(0),
+                        abi.encode(
+                            l1Token.symbol(),
+                            l1Token.name(),
+                            l1Token.decimals()
+                        )
                     )
                 )
             )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(l1StandardERC20Gateway),
             address(counterpartGateway),
             0,
@@ -629,27 +636,28 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            abi.encode(
-                true,
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
                 abi.encode(
-                    new bytes(0),
+                    true,
                     abi.encode(
-                        l1Token.symbol(),
-                        l1Token.name(),
-                        l1Token.decimals()
+                        new bytes(0),
+                        abi.encode(
+                            l1Token.symbol(),
+                            l1Token.name(),
+                            l1Token.decimals()
+                        )
                     )
                 )
             )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(l1StandardERC20Gateway),
             address(counterpartGateway),
             0,
@@ -765,27 +773,28 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            abi.encode(
-                true,
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
                 abi.encode(
-                    dataToCall,
+                    true,
                     abi.encode(
-                        l1Token.symbol(),
-                        l1Token.name(),
-                        l1Token.decimals()
+                        dataToCall,
+                        abi.encode(
+                            l1Token.symbol(),
+                            l1Token.name(),
+                            l1Token.decimals()
+                        )
                     )
                 )
             )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(l1StandardERC20Gateway),
             address(counterpartGateway),
             0,

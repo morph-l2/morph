@@ -58,7 +58,7 @@ contract Gov is Initializable, IGov {
             false,
             msg.sender
         );
-        require(_in, "only sequencer can propose");
+        require(_in, "sender not sequencer");
         _;
     }
 
@@ -68,6 +68,7 @@ contract Gov is Initializable, IGov {
     constructor() {
         L2_SEQUENCER_CONTRACT = Predeploys.L2_SEQUENCER;
         L2_SUBMITTER_CONTRACT = Predeploys.L2_SUBMITTER;
+        _disableInitializers();
     }
 
     /**
@@ -133,7 +134,7 @@ contract Gov is Initializable, IGov {
     }
 
     /**
-     * @notice vote a propsal
+     * @notice vote a proposal
      */
     function vote(uint256 propID) external onlySequencer {
         require(proposalInfos[propID].active, "proposal inactive");

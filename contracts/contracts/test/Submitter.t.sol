@@ -9,8 +9,8 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract SubmitterTest is L2SequencerTest {
     event ACKRollup(
-        uint256 batchIndex,
-        address submitter,
+        uint256 indexed batchIndex,
+        address indexed submitter,
         uint256 batchStartBlock,
         uint256 batchEndBlock,
         uint256 rollupTime
@@ -21,9 +21,7 @@ contract SubmitterTest is L2SequencerTest {
 
         hevm.mockCall(
             address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
 

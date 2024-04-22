@@ -49,7 +49,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         // mock call rollup withdrawal root submitted success
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(IRollup.withdrawalRoots.selector, wdRoot),
+            abi.encodeCall(IRollup.withdrawalRoots, (wdRoot)),
             abi.encode(true)
         );
         uint256 balanceBefore = address(bob).balance;
@@ -187,8 +187,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             refundAddress
         );
         bytes32 hash = keccak256(
-            abi.encodeWithSignature(
-                "relayMessage(address,address,uint256,uint256,bytes)",
+            _encodeXDomainCalldata(
                 address(this),
                 address(0),
                 100,
@@ -242,10 +241,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         // mock call withdrawalRoots
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.withdrawalRoots.selector,
-                withdrawalRoot
-            ),
+            abi.encodeCall(IRollup.withdrawalRoots, (withdrawalRoot)),
             abi.encode(withdrawalBatchIndex)
         );
 
@@ -278,10 +274,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         // mock call withdrawalRoots
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.withdrawalRoots.selector,
-                withdrawalRoot
-            ),
+            abi.encodeCall(IRollup.withdrawalRoots, (withdrawalRoot)),
             abi.encode(withdrawalBatchIndex)
         );
 
@@ -322,13 +315,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
 
         hevm.expectCall(
             address(l1MessageQueueWithGasPriceOracle),
-            abi.encodeWithSelector(
-                l1MessageQueueWithGasPriceOracle
-                    .appendCrossDomainMessage
-                    .selector,
-                Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-                gas,
-                _xDomainCalldata
+            abi.encodeCall(
+                l1MessageQueueWithGasPriceOracle.appendCrossDomainMessage,
+                (Predeploys.L2_CROSS_DOMAIN_MESSENGER, gas, _xDomainCalldata)
             )
         );
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
