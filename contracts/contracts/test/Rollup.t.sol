@@ -18,7 +18,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         nilBatchSig = IRollup.BatchSignature({
             version: 0,
             signers: new uint256[](0),
-            signature: hex"123456"
+            signature: "0x123456"
         });
     }
 
@@ -413,7 +413,7 @@ contract RollupTest is L1MessageBaseTest {
         nilBatchSig = IRollup.BatchSignature({
             version: 0,
             signers: new uint256[](0),
-            signature: hex"123456"
+            signature: "0x123456"
         });
 
         Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](
