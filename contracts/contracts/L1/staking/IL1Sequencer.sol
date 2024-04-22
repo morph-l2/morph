@@ -51,13 +51,13 @@ interface IL1Sequencer {
 
     /**
      * @notice update sequencers version
-     * @param _sequencerAddrs sequencer addresses
+     * @param _sequencerAddresses sequencer addresses
      * @param _sequencerBytes sequencer information bytes
      * @param _sequencerBLSKeys sequencer BLS keys
      */
     function updateAndSendSequencerSet(
         bytes memory _sequencerBytes,
-        address[] memory _sequencerAddrs,
+        address[] memory _sequencerAddresses,
         bytes[] memory _sequencerBLSKeys,
         uint32 gasLimit
     ) external;
@@ -66,7 +66,7 @@ interface IL1Sequencer {
      * @notice sequencer addresses
      * @param version version
      */
-    function getSequencerAddrs(
+    function getSequencerAddresses(
         uint256 version
     ) external view returns (address[] memory);
 

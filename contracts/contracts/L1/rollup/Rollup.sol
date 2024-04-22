@@ -891,7 +891,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address prover,
         string memory _type
     ) internal {
-        address challengerAddr = challenges[batchIndex].challenger;
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
         batchChallengeReward[
             challenges[batchIndex].proverReceiveAddress
@@ -959,7 +958,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @param _chunk The batch chunk in memory.
     function _loadL2BlockNumber(
         bytes memory _chunk
-    ) internal returns (uint256) {
+    ) internal pure returns (uint256) {
         uint256 blockPtr;
         uint256 chunkPtr;
         assembly {

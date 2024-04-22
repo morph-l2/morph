@@ -424,7 +424,7 @@ contract RollupTest is L1MessageBaseTest {
             Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
                 user
             );
-            sequencerAddrs.push(sequencerInfo.addr);
+            sequencerAddresses.push(sequencerInfo.addr);
             sequencerBLSKeys.push(sequencerInfo.blsKey);
             sequencerInfos[i] = sequencerInfo;
         }
@@ -434,7 +434,7 @@ contract RollupTest is L1MessageBaseTest {
                 IL2Sequencer.updateSequencers,
                 (l1Sequencer.newestVersion() + 1, sequencerInfos)
             ),
-            sequencerAddrs,
+            sequencerAddresses,
             sequencerBLSKeys,
             defaultGasLimit
         );
@@ -442,7 +442,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
         assertEq(l1Sequencer.currentVersion(), sequencerVersion);
         assertEq(
-            l1Sequencer.getSequencerAddrs(l1Sequencer.currentVersion()).length,
+            l1Sequencer.getSequencerAddresses(l1Sequencer.currentVersion()).length,
             SEQUENCER_SIZE
         );
     }

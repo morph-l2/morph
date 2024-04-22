@@ -30,7 +30,7 @@ contract L1MessageBaseTest is CommonTest {
     Staking staking;
     uint256 public beginSeq = 10;
     uint256 public version = 0;
-    address[] public sequencerAddrs;
+    address[] public sequencerAddresses;
     bytes[] public sequencerBLSKeys;
     uint256 public constant SEQUENCER_SIZE = 3;
     uint256 public LOCK = 3;

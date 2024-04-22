@@ -2,7 +2,6 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {IL2Sequencer} from "../staking/IL2Sequencer.sol";
@@ -23,17 +22,6 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
     mapping(uint256 => Types.BatchInfo) public confirmedBatches;
 
     Types.EpochHistory[] public epochHistory;
-
-    /**
-     * @notice ack rollup
-     */
-    event ACKRollup(
-        uint256 indexed batchIndex,
-        address indexed submitter,
-        uint256 batchStartBlock,
-        uint256 batchEndBlock,
-        uint256 rollupTime
-    );
 
     /**
      * @notice constructor
