@@ -82,11 +82,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
 
-    /**
-     * @notice Messenger contract on this domain.
-     */
-    address public immutable MESSENGER;
-
     // l1 sequencer contract
     address public l1SequencerContract;
 
@@ -186,9 +181,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
      * Constructor *
      ***************/
 
-    constructor(uint64 _chainId, address payable _messenger) {
+    constructor(uint64 _chainId) {
         layer2ChainId = _chainId;
-        MESSENGER = _messenger;
     }
 
     /// @notice Allow the contract to receive ETH.
