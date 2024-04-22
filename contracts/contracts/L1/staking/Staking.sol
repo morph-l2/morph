@@ -46,7 +46,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     mapping(address => Withdrawal) public withdrawals;
 
     // stakers size reached sequencersSize first time
-    bool initialized = false;
+    bool public initialized = false;
     // total number of sequencers
     uint256 public sequencersSize = 0;
 
@@ -56,7 +56,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     bytes[] public sequencersBLS;
 
     // enable slash
-    bool enableSlash;
+    bool public enableSlash;
 
     /**
      * @notice staker registered
@@ -74,9 +74,9 @@ contract Staking is IStaking, OwnableUpgradeable {
     event Staked(address indexed addr, uint256 balance);
 
     /**
-     * @notice withdrawed
+     * @notice withdrawn
      */
-    event Withdrawed(address indexed addr, uint256 balance);
+    event Withdrawn(address indexed addr, uint256 balance);
 
     /**
      * @notice staker claimed
@@ -184,8 +184,8 @@ contract Staking is IStaking, OwnableUpgradeable {
 
     /**
      * @notice register staker
-     * @param tmKey tendermint pubkey
-     * @param blsKey bls pubkey
+     * @param tmKey tendermint pubKey
+     * @param blsKey bls pubKey
      * @param _minGasLimit Minimum amount of gas that the bridge can be relayed with.
      */
     function register(
@@ -194,8 +194,8 @@ contract Staking is IStaking, OwnableUpgradeable {
         uint32 _minGasLimit
     ) external payable inWhitelist noStaker noExit {
         require(sequencersSize > 0, "sequencersSize must greater than 0");
-        require(tmKey != 0, "invalid tendermint pubkey");
-        require(blsKey.length == 256, "invalid bls pubkey");
+        require(tmKey != 0, "invalid tendermint pubKey");
+        require(blsKey.length == 256, "invalid bls pubKey");
         require(limit > 0 && msg.value >= limit, "staking value is not enough");
 
         uint256 stakingAmount = msg.value;
@@ -302,7 +302,7 @@ contract Staking is IStaking, OwnableUpgradeable {
             block.number + lock,
             true
         );
-        emit Withdrawed(msg.sender, withdrawals[msg.sender].balance);
+        emit Withdrawn(msg.sender, withdrawals[msg.sender].balance);
 
         for (uint256 i = index; i < stakers.length - 1; i++) {
             stakers[i] = stakers[i + 1];
@@ -459,7 +459,7 @@ contract Staking is IStaking, OwnableUpgradeable {
      */
     function _getStakerIndex(
         address staker
-    ) internal view returns (uint256 index) {
+    ) internal view returns (uint256) {
         for (uint256 i = 0; i < stakers.length; i++) {
             if (stakers[i] == staker) {
                 return i;

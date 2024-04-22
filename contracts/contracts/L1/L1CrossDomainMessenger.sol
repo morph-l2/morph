@@ -159,7 +159,7 @@ contract L1CrossDomainMessenger is
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(
-            finalizedWithdrawals[_xDomainCalldataHash] == false,
+            !finalizedWithdrawals[_xDomainCalldataHash],
             "Messenger: withdrawal has already been finalized"
         );
 
@@ -437,21 +437,6 @@ contract L1CrossDomainMessenger is
                 require(_success, "Failed to refund the fee");
             }
         }
-    }
-
-    /**
-     * @notice Determines whether the finalization period has elapsed w/r/t a given timestamp.
-     *
-     * @param _timestamp Timestamp to check.
-     *
-     * @return Whether or not the finalization period has elapsed.
-     */
-    function _isFinalizationPeriodElapsed(
-        uint256 _timestamp
-    ) internal view returns (bool) {
-        return
-            block.timestamp >
-            _timestamp + IRollup(rollup).FINALIZATION_PERIOD_SECONDS();
     }
 
     function messageNonce()

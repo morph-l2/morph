@@ -60,7 +60,7 @@ contract L1Sequencer is
     function initialize(
         address _stakingContract,
         address _rollupContract
-    ) public initializer {
+    ) external initializer {
         require(_stakingContract != address(0), "invalid staking contract");
         require(_rollupContract != address(0), "invalid rollup contract");
         stakingContract = _stakingContract;
