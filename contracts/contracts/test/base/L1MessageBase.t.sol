@@ -114,7 +114,7 @@ contract L1MessageBaseTest is CommonTest {
         // deploy whitelist
         whitelistChecker = new Whitelist(address(multisig));
 
-        // deploy proxys
+        // deploy proxy
         TransparentUpgradeableProxy rollupProxy = new TransparentUpgradeableProxy(
                 address(emptyContract),
                 address(multisig),
@@ -144,11 +144,8 @@ contract L1MessageBaseTest is CommonTest {
         // deploy mock verifier
         verifier = new MockZkEvmVerifier();
 
-        // deploy impls
-        rollupImpl = new Rollup(
-            layer2ChainId,
-            payable(address(l1CrossDomainMessengerProxy))
-        );
+        // deploy impl
+        rollupImpl = new Rollup(layer2ChainId);
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
                 payable(address(l1CrossDomainMessengerProxy)),
                 address(rollupProxy),

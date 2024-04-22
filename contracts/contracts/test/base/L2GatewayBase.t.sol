@@ -140,7 +140,7 @@ contract L2GatewayBaseTest is L2MessageBaseTest {
             bytes32(abi.encode(address(multisig)))
         );
 
-        // deploy impls
+        // deploy impl
         hevm.startPrank(multisig);
         L2GatewayRouter l2GatewayRouterImpl = new L2GatewayRouter();
         L2ETHGateway l2ETHGatewayImpl = new L2ETHGateway();

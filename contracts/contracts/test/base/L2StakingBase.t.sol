@@ -14,7 +14,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     uint256 public beginSeq = 10;
     uint256 public version = 0;
     bytes[] public sequencerBLSKeys;
-    address[] public sequencerAddrs;
+    address[] public sequencerAddress;
 
     // L2Sequencer config
     L2Sequencer public l2Sequencer;
@@ -108,7 +108,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 user
             );
             sequencerInfos[i] = sequencerInfo;
-            sequencerAddrs.push(sequencerInfo.addr);
+            sequencerAddress.push(sequencerInfo.addr);
         }
         ITransparentUpgradeableProxy(address(l2SequencerProxy))
             .upgradeToAndCall(
