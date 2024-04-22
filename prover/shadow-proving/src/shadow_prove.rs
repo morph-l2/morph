@@ -186,7 +186,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
             continue;
         }
 
-        log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
+        log::info!(">Starting prove state onchain, batch index = {:#?}", batch_index);
         let aggr_proof = Bytes::from(prove_result.proof_data);
         let kzg_data = Bytes::from(prove_result.blob_kzg);
 
