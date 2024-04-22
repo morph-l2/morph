@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/morph-l2/bindings/bindings"
+	"github.com/rs/zerolog/log"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	ethtypes "github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 )
@@ -66,21 +68,28 @@ func (v *Validator) ChallengeState(batchIndex uint64) error {
 	}
 	opts.GasPrice = gasPrice
 	opts.NoSend = true
-	// tx, err := v.contract.ChallengeState(opts, batchIndex)
-	// if err != nil {
-	// 	return err
-	// }
-	// log.Info("send ChallengeState transaction ", "txHash", tx.Hash().Hex())
-	// if err := v.cli.SendTransaction(context.Background(), tx); err != nil {
-	// 	return err
-	// }
-	// // Wait for the receipt
-	// receipt, err := waitForReceipt(v.cli, tx)
-	// if err != nil {
-	// 	return err
-	// }
-	// log.Info("Validator has already started the challenge", "hash", tx.Hash().Hex(),
-	// 	"gas-used", receipt.GasUsed, "blocknumber", receipt.BlockNumber)
+	publicKey := v.privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Error("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+	}
+
+	receiver := crypto.PubkeyToAddress(*publicKeyECDSA)
+	tx, err := v.contract.ChallengeState(opts, batchIndex, receiver)
+	if err != nil {
+		return err
+	}
+	log.Info("send ChallengeState transaction ", "txHash", tx.Hash().Hex())
+	if err := v.cli.SendTransaction(context.Background(), tx); err != nil {
+		return err
+	}
+	// Wait for the receipt
+	receipt, err := waitForReceipt(v.cli, tx)
+	if err != nil {
+		return err
+	}
+	log.Info("Validator has already started the challenge", "hash", tx.Hash().Hex(),
+		"gas-used", receipt.GasUsed, "blocknumber", receipt.BlockNumber)
 	return nil
 }
 
