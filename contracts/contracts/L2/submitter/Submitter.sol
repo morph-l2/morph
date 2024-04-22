@@ -176,7 +176,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable {
      */
     function getConfirmedBatch(
         uint256 batchIndex
-    ) external view returns (Types.BatchInfo memory batchInfo) {
+    ) external view returns (Types.BatchInfo memory) {
         return confirmedBatches[batchIndex];
     }
 }

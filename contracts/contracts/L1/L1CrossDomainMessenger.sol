@@ -439,21 +439,6 @@ contract L1CrossDomainMessenger is
         }
     }
 
-    /**
-     * @notice Determines whether the finalization period has elapsed w/r/t a given timestamp.
-     *
-     * @param _timestamp Timestamp to check.
-     *
-     * @return Whether or not the finalization period has elapsed.
-     */
-    function _isFinalizationPeriodElapsed(
-        uint256 _timestamp
-    ) internal view returns (bool) {
-        return
-            block.timestamp >
-            _timestamp + IRollup(rollup).FINALIZATION_PERIOD_SECONDS();
-    }
-
     function messageNonce()
         external
         view

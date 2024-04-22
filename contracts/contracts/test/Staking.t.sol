@@ -154,7 +154,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
 
 contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
     event Staked(address indexed addr, uint256 balance);
-    event Withdrawed(address indexed addr, uint256 balance);
+    event Withdrawn(address indexed addr, uint256 balance);
     event Claimed(address indexed addr, uint256 balance);
 
     function setUp() public virtual override {
@@ -202,7 +202,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
             }
         }
         version++;
-        checkSeuqnsers();
+        checkSequencers();
     }
 
     function test_stakeETH_sequencer_stake_more() external {
@@ -219,7 +219,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         hevm.prank(user);
         emit Staked(user, balancesPre + MIN_DEPOSIT);
         staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
-        checkSeuqnsers();
+        checkSequencers();
         assertEq(user, staking.stakers(0));
     }
 
@@ -251,7 +251,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
         sequencerAddr = staking.sequencersAddr(0);
         sequencerBLS = staking.sequencersBLS(0);
-        checkSeuqnsers();
+        checkSequencers();
         assertEq(addrCheck, sequencerAddr);
         assertBytesEq(blsKeyCheck, sequencerBLS);
 
@@ -272,7 +272,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         staking.stakeETH{value: MIN_DEPOSIT}(defaultGasLimit);
         sequencerAddr = staking.sequencersAddr(1);
         sequencerBLS = staking.sequencersBLS(1);
-        checkSeuqnsers();
+        checkSequencers();
         assertEq(addrCheck, sequencerAddr);
         assertBytesEq(blsKeyCheck, sequencerBLS);
     }
@@ -284,7 +284,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         address user = address(uint160(beginSeq + SEQUENCER_SIZE));
         (, , , uint256 balancesPre) = staking.stakings(user);
         hevm.expectEmit(true, true, true, true);
-        emit Withdrawed(user, balancesPre);
+        emit Withdrawn(user, balancesPre);
         hevm.prank(user);
         staking.withdrawETH(defaultGasLimit);
         (, , , uint256 balancesStaking) = staking.stakings(user);
@@ -331,7 +331,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         sequencerBLSKeys.push(inBlsKey);
         version++;
         // expect emit events
-        emit Withdrawed(user, balancesPre);
+        emit Withdrawn(user, balancesPre);
         emit SequencerUpdated(version, sequencerAddresses, sequencerBLSKeys);
         // withdraw
         hevm.prank(user);
@@ -342,7 +342,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         (uint256 lockBalances, uint256 lockToNum, bool exit) = staking
             .withdrawals(user);
         address checkAddress = staking.stakers(SEQUENCER_SIZE - 1);
-        checkSeuqnsers();
+        checkSequencers();
         assertEq(inUser, checkAddress);
         assertEq(balancesStaking, 0);
         assertEq(stakerNum, preStakerNum - 1);
@@ -364,7 +364,7 @@ contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
         assertFalse(exit);
     }
 
-    function checkSeuqnsers() internal {
+    function checkSequencers() internal {
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address sequencerAddr = staking.sequencersAddr(i);
             bytes memory sequencerBlsKey = staking.sequencersBLS(i);
