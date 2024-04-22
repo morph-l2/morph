@@ -211,19 +211,16 @@ func (cks *Chunks) ConstructBlobPayload() []byte {
 	blobBytes := make([]byte, metadataLength)
 
 	// the number of chunks that contain at least one L2 transaction
-	numNonEmptyChunks := 0
-
 	for i, chunk := range cks.data {
 		chunkSize := len(chunk.txsPayload)
 		if chunkSize != 0 {
 			blobBytes = append(blobBytes, chunk.txsPayload...)
-			numNonEmptyChunks++
 		}
 		// blob metadata: chunki_size
 		binary.BigEndian.PutUint32(blobBytes[2+4*i:], uint32(chunkSize))
 	}
 	// blob metadata: num_chunks
-	binary.BigEndian.PutUint16(blobBytes[0:], uint16(numNonEmptyChunks))
+	binary.BigEndian.PutUint16(blobBytes[0:], uint16(len(cks.data)))
 	return blobBytes
 }
 
