@@ -241,8 +241,6 @@ contract L1MessageBaseTest is CommonTest {
             l1MessageQueueWithGasPriceOracle.messenger()
         );
 
-        rollup.addProver(alice);
-        rollup.addProver(bob);
         rollup.addChallenger(bob);
         hevm.stopPrank();
     }

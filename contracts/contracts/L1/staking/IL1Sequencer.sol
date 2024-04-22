@@ -2,6 +2,19 @@
 pragma solidity =0.8.24;
 
 interface IL1Sequencer {
+    /**********
+     * Events *
+     **********/
+
+    /**
+     * @notice sequencer updated
+     */
+    event SequencerUpdated(
+        uint256 indexed version,
+        address[] sequencersAddr,
+        bytes[] sequencersBLS
+    );
+
     /**
      * @notice pause
      */

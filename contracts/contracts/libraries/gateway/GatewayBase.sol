@@ -30,9 +30,6 @@ abstract contract GatewayBase is
     /// @inheritdoc IGateway
     address public override messenger;
 
-    /// @dev The storage slot used as token rate limiter contract, which is deprecated now.
-    address private __rateLimiter;
-
     /// @dev The storage slots for future usage.
     uint256[46] private __gap;
 

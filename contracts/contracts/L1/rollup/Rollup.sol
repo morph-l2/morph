@@ -21,6 +21,49 @@ import {IStaking} from "../staking/IStaking.sol";
 /// @title Rollup
 /// @notice This contract maintains data for the Morph rollup.
 contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
+    /***********
+     * Structs *
+     ***********/
+    struct BatchStore {
+        uint256 batchVersion;
+        bytes32 batchHash;
+        uint256 originTimestamp;
+        uint256 finalizeTimestamp;
+        bytes32 prevStateRoot;
+        bytes32 postStateRoot;
+        bytes32 withdrawalRoot;
+        bytes32 l1DataHash;
+        address[] sequencers;
+        uint256 l1MessagePopped;
+        uint256 totalL1MessagePopped;
+        bytes skippedL1MessageBitmap;
+        uint256 blockNumber;
+        bytes32 blobVersionedHash;
+    }
+
+    /// @dev Structure to store information about a batch challenge.
+    /// @param batchIndex The index of the challenged batch.
+    /// @param challenger The address of the challenger.
+    /// @param challengeDeposit The amount of deposit put up by the challenger.
+    /// @param startTime The timestamp when the challenge started.
+    /// @param challengeSuccess Flag indicating whether the challenge was successful.
+    /// @param finished Flag indicating whether the challenge has been resolved.
+    struct BatchChallenge {
+        uint64 batchIndex;
+        address challenger;
+        address challengerReceiveAddress;
+        address proverReceiveAddress;
+        uint256 challengeDeposit;
+        uint256 startTime;
+        bool challengeSuccess;
+        bool finished;
+    }
+
+    struct BatchChallengeReward {
+        address receiver;
+        uint256 amount;
+    }
+
     /*************
      * Constants *
      *************/
@@ -63,9 +106,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice The address of RollupVerifier.
     address public verifier;
 
-    /// @notice Whether an account is a prover.
-    mapping(address => bool) public isProver;
-
     /// @notice Whether an account is a challenger.
     mapping(address => bool) public isChallenger;
 
@@ -76,23 +116,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     uint256 public override lastCommittedBatchIndex;
 
     uint256 public latestL2BlockNumber;
-
-    struct BatchStore {
-        uint256 batchVersion;
-        bytes32 batchHash;
-        uint256 originTimestamp;
-        uint256 finalizeTimestamp;
-        bytes32 prevStateRoot;
-        bytes32 postStateRoot;
-        bytes32 withdrawalRoot;
-        bytes32 l1DataHash;
-        address[] sequencers;
-        uint256 l1MessagePopped;
-        uint256 totalL1MessagePopped;
-        bytes skippedL1MessageBitmap;
-        uint256 blockNumber;
-        bytes32 blobVersionedHash;
-    }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
 
@@ -132,34 +155,11 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @notice The index of the revert request.
     uint256 public revertReqIndex;
 
-    /// @dev Structure to store information about a batch challenge.
-    /// @param batchIndex The index of the challenged batch.
-    /// @param challenger The address of the challenger.
-    /// @param challengeDeposit The amount of deposit put up by the challenger.
-    /// @param startTime The timestamp when the challenge started.
-    /// @param challengeSuccess Flag indicating whether the challenge was successful.
-    /// @param finished Flag indicating whether the challenge has been resolved.
-    struct BatchChallenge {
-        uint64 batchIndex;
-        address challenger;
-        address challengerReceiveAddress;
-        address proverReceiveAddress;
-        uint256 challengeDeposit;
-        uint256 startTime;
-        bool challengeSuccess;
-        bool finished;
-    }
-
-    struct BatchChallengeReward {
-        address receiver;
-        uint256 amount;
-    }
-
     /**********************
      * Function Modifiers *
      **********************/
 
-    modifier OnlySequencer(uint256 version) {
+    modifier onlySequencer(uint256 version) {
         // @note In the decentralized mode, it should be only called by a list of validator.
         require(
             IL1Sequencer(l1SequencerContract).isSequencer(
@@ -168,11 +168,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             ),
             "caller not sequencer"
         );
-        _;
-    }
-
-    modifier OnlyProver() {
-        require(isProver[_msgSender()], "caller not prover");
         _;
     }
 
@@ -327,7 +322,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         uint256 version,
         address[] memory sequencers,
         bytes memory signature
-    ) external payable override OnlySequencer(version) whenNotPaused {
+    ) external payable override onlySequencer(version) whenNotPaused {
         require(batchData.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchData.chunks.length;
@@ -410,6 +405,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         address[] memory sequencers,
         BatchData calldata batchData
     ) internal {
+        uint256 _l2BlockNumber = 0;
         uint256 _chunksLength = batchData.chunks.length;
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0
             .getTotalL1MessagePopped(_batchPtr);
@@ -431,7 +427,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 batchData.skippedL1MessageBitmap
             );
             if (i == _chunksLength - 1) {
-                _setLatestL2BlockNumber(batchData.chunks[i]);
+                _l2BlockNumber = _loadL2BlockNumber(batchData.chunks[i]);
             }
             unchecked {
                 _totalL1MessagesPoppedInBatch += _totalNumL1MessagesInChunk;
@@ -503,7 +499,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
             batchData.skippedL1MessageBitmap,
-            latestL2BlockNumber,
+            _l2BlockNumber,
             _blobVersionedHash
         );
         lastCommittedBatchIndex = _batchIndex;
@@ -832,27 +828,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         );
     }
 
-    /// @notice Add an account to the prover list.
-    /// @param _account The address of account to add.
-    function addProver(address _account) external onlyOwner {
-        // @note Currently many external services rely on EOA prover to decode metadata directly from tx.calldata.
-        // So we explicitly make sure the account is EOA.
-        require(_account.code.length == 0, "not EOA");
-        require(!isProver[_account], "account is already a prover");
-        isProver[_account] = true;
-
-        emit UpdateProver(_account, true);
-    }
-
-    /// @notice Remove an account from the prover list.
-    /// @param _account The address of account to remove.
-    function removeProver(address _account) external onlyOwner {
-        require(isProver[_account], "account is not a prover");
-        isProver[_account] = false;
-
-        emit UpdateProver(_account, false);
-    }
-
     /// @notice Add an account to the challenger list.
     /// @param _account The address of account to add.
     function addChallenger(address _account) external onlyOwner {
@@ -988,7 +963,9 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @dev Internal function to storage the latestL2BlockNumber.
     /// @param _chunk The batch chunk in memory.
-    function _setLatestL2BlockNumber(bytes memory _chunk) internal {
+    function _loadL2BlockNumber(
+        bytes memory _chunk
+    ) internal returns (uint256) {
         uint256 blockPtr;
         uint256 chunkPtr;
         assembly {
@@ -1004,7 +981,8 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 blockPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
             }
         }
-        latestL2BlockNumber = ChunkCodecV0.getBlockNumber(blockPtr);
+        uint256 l2BlockNumber = ChunkCodecV0.getBlockNumber(blockPtr);
+        return l2BlockNumber;
     }
 
     /// @dev Internal function to commit a chunk.

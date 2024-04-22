@@ -53,9 +53,6 @@ abstract contract CrossDomainMessenger is
     /// @notice The address of fee vault, collecting cross domain messaging fee.
     address public feeVault;
 
-    /// @dev The storage slot used as ETH rate limiter contract, which is deprecated now.
-    address private __rateLimiter;
-
     /// @dev The storage slots for future usage.
     uint256[46] private __gap;
 
