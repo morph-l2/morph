@@ -224,10 +224,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                     MorphToken.initialize.selector,
                     "Morph",
                     "MPH",
-                    address(distributeProxy),
                     1000000000 ether,
-                    1596535874529,
-                    REWARD_START_TIME
+                    1596535874529
                 )
             );
         ITransparentUpgradeableProxy(address(distributeProxy)).upgradeToAndCall(
