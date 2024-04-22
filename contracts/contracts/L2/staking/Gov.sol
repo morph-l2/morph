@@ -133,7 +133,7 @@ contract Gov is Initializable, IGov {
     }
 
     /**
-     * @notice vote a propsal
+     * @notice vote a proposal
      */
     function vote(uint256 propID) external onlySequencer {
         require(proposalInfos[propID].active, "proposal inactive");

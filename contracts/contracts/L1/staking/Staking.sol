@@ -42,7 +42,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     address[] public stakers;
     // all staker infos
     mapping(address => StakingInfo) public stakings;
-    // withdrawl infos
+    // withdraw infos
     mapping(address => Withdrawal) public withdrawals;
 
     // stakers size reached sequencersSize first time
@@ -55,7 +55,7 @@ contract Staking is IStaking, OwnableUpgradeable {
     // current sequencer bls keys, without sort
     bytes[] public sequencersBLS;
 
-    // enanble slash
+    // enable slash
     bool enableSlash;
 
     /**
@@ -240,7 +240,7 @@ contract Staking is IStaking, OwnableUpgradeable {
         // stakers size reached sequencersSize first time
         if (!initialized && stakers.length == sequencersSize) {
             initialized = true;
-            updateSequencers(_minGasLimit);
+            _updateSequencers(_minGasLimit);
             return;
         }
 
@@ -248,7 +248,7 @@ contract Staking is IStaking, OwnableUpgradeable {
             initialized &&
             (stakers.length <= sequencersSize || i < sequencersSize)
         ) {
-            updateSequencers(_minGasLimit);
+            _updateSequencers(_minGasLimit);
         }
     }
 
@@ -268,7 +268,7 @@ contract Staking is IStaking, OwnableUpgradeable {
 
         emit Staked(msg.sender, stakings[msg.sender].balance);
 
-        uint256 indexBeforeSort = getStakerIndex(msg.sender);
+        uint256 indexBeforeSort = _getStakerIndex(msg.sender);
 
         for (uint256 i = stakers.length - 1; i > 0; i--) {
             if (
@@ -280,36 +280,22 @@ contract Staking is IStaking, OwnableUpgradeable {
             }
         }
 
-        uint256 indexAfterSort = getStakerIndex(msg.sender);
+        uint256 indexAfterSort = _getStakerIndex(msg.sender);
 
         if (
             initialized &&
             indexBeforeSort >= sequencersSize &&
             indexAfterSort < sequencersSize
         ) {
-            updateSequencers(_minGasLimit);
+            _updateSequencers(_minGasLimit);
         }
-    }
-
-    /**
-     * @notice get staker index
-     */
-    function getStakerIndex(
-        address staker
-    ) internal view returns (uint256 index) {
-        for (uint256 i = 0; i < stakers.length; i++) {
-            if (stakers[i] == staker) {
-                return i;
-            }
-        }
-        revert("staker not exist");
     }
 
     /**
      * @notice withdraw ETH
      */
     function withdrawETH(uint32 _minGasLimit) external payable noExit {
-        uint256 index = getStakerIndex(msg.sender);
+        uint256 index = _getStakerIndex(msg.sender);
 
         withdrawals[msg.sender] = Withdrawal(
             stakings[msg.sender].balance,
@@ -325,21 +311,21 @@ contract Staking is IStaking, OwnableUpgradeable {
         delete stakings[msg.sender];
 
         if (stakers.length == 0) {
-            updateSequencers(_minGasLimit);
+            _updateSequencers(_minGasLimit);
             IL1Sequencer(sequencerContract).pause();
             return;
         }
 
         if (index < sequencersSize) {
-            updateSequencers(_minGasLimit);
+            _updateSequencers(_minGasLimit);
         }
     }
 
     /**
      * @notice challenger win, slash sequencers
      */
-    function toggleSlash(bool enanble) external onlyOwner {
-        enableSlash = enanble;
+    function toggleSlash(bool enable) external onlyOwner {
+        enableSlash = enable;
         emit EnableSlash(enableSlash);
     }
 
@@ -369,7 +355,7 @@ contract Staking is IStaking, OwnableUpgradeable {
                 delete withdrawals[sequencers[i]];
             } else {
                 valueSum += stakings[sequencer].balance;
-                uint256 index = getStakerIndex(sequencer);
+                uint256 index = _getStakerIndex(sequencer);
                 if (index <= sequencersSize) {
                     changed = true;
                 }
@@ -382,20 +368,13 @@ contract Staking is IStaking, OwnableUpgradeable {
         }
 
         if (changed) {
-            updateSequencers(_minGasLimit);
+            _updateSequencers(_minGasLimit);
             if (stakers.length == 0) {
                 IL1Sequencer(sequencerContract).pause();
             }
         }
         _transfer(rollupContract, valueSum);
         return valueSum;
-    }
-
-    function _transfer(address _to, uint256 _amount) internal {
-        if (_amount > 0) {
-            (bool success, ) = _to.call{value: _amount}(hex"");
-            require(success, "Rollup: ETH transfer failed");
-        }
     }
 
     /**
@@ -427,7 +406,7 @@ contract Staking is IStaking, OwnableUpgradeable {
 
         if (sequencersSize < stakers.length) {
             sequencersSize = _sequencersSize;
-            updateSequencers(_minGasLimit);
+            _updateSequencers(_minGasLimit);
             return;
         }
         sequencersSize = _sequencersSize;
@@ -468,10 +447,31 @@ contract Staking is IStaking, OwnableUpgradeable {
         emit Claimed(msg.sender, amount);
     }
 
+    function _transfer(address _to, uint256 _amount) internal {
+        if (_amount > 0) {
+            (bool success, ) = _to.call{value: _amount}(hex"");
+            require(success, "Rollup: ETH transfer failed");
+        }
+    }
+
+    /**
+     * @notice get staker index
+     */
+    function _getStakerIndex(
+        address staker
+    ) internal view returns (uint256 index) {
+        for (uint256 i = 0; i < stakers.length; i++) {
+            if (stakers[i] == staker) {
+                return i;
+            }
+        }
+        revert("staker not exist");
+    }
+
     /**
      * @notice update sequencer set
      */
-    function updateSequencers(uint32 _gasLimit) internal {
+    function _updateSequencers(uint32 _gasLimit) internal {
         delete sequencersAddr;
         delete sequencersBLS;
 

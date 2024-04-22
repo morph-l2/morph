@@ -436,7 +436,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
                 batchData.skippedL1MessageBitmap
             );
             if (i == _chunksLength - 1) {
-                setLatestL2BlockNumber(batchData.chunks[i]);
+                _setLatestL2BlockNumber(batchData.chunks[i]);
             }
             unchecked {
                 _totalL1MessagesPoppedInBatch += _totalNumL1MessagesInChunk;
@@ -995,7 +995,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
 
     /// @dev Internal function to storage the latestL2BlockNumber.
     /// @param _chunk The batch chunk in memory.
-    function setLatestL2BlockNumber(bytes memory _chunk) internal {
+    function _setLatestL2BlockNumber(bytes memory _chunk) internal {
         uint256 blockPtr;
         uint256 chunkPtr;
         assembly {

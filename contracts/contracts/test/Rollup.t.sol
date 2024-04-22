@@ -447,7 +447,7 @@ contract RollupTest is L1MessageBaseTest {
         );
     }
 
-    function testCommitBatchs() external {
+    function testCommitBatches() external {
         bytes memory batchHeader0 = new bytes(121);
 
         // import 10 L1 messages
