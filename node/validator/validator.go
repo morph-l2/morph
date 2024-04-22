@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/scroll-tech/go-ethereum/crypto"
 	"math/big"
 	"time"
 
@@ -67,7 +68,14 @@ func (v *Validator) ChallengeState(batchIndex uint64) error {
 	}
 	opts.GasPrice = gasPrice
 	opts.NoSend = true
-	tx, err := v.contract.ChallengeState(opts, batchIndex)
+	publicKey := v.privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Error("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+	}
+
+	receiver := crypto.PubkeyToAddress(*publicKeyECDSA)
+	tx, err := v.contract.ChallengeState(opts, batchIndex, receiver)
 	if err != nil {
 		return err
 	}
