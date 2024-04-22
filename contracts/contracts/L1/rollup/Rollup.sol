@@ -4,7 +4,6 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import {ICrossDomainMessenger} from "../../libraries/ICrossDomainMessenger.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {ChunkCodecV0} from "../../libraries/codec/ChunkCodecV0.sol";
@@ -36,9 +35,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable LAYER_2_CHAIN_ID;
-
-    /// @notice Messenger contract on this domain.
-    address public immutable MESSENGER;
 
     /// l1 staking contract
     address public L1_STAKING_CONTRACT;
@@ -135,10 +131,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice constructor
     /// @param _chainID     The chain ID
-    /// @param _messenger   The messenger address
-    constructor(uint64 _chainID, address payable _messenger) {
+    constructor(uint64 _chainID) {
         LAYER_2_CHAIN_ID = _chainID;
-        MESSENGER = _messenger;
     }
 
     /// @notice Allow the contract to receive ETH.
