@@ -43,14 +43,6 @@ interface IMorphToken is IERC20MetadataUpgradeable {
     ) external;
 
     /**
-     * @dev query inflation
-     * @param dayIndex day index from start inflation
-     */
-    function inflations(
-        uint256 dayIndex
-    ) external returns (uint256 inflationAmount);
-
-    /**
      * @dev update rate
      * 1.0001596535874529 is the 365 square root of 1.06.
      * 1.0019008376772350 is the 365 square root of 2.
@@ -68,6 +60,31 @@ interface IMorphToken is IERC20MetadataUpgradeable {
         uint256 newRate,
         uint256 effectiveDaysAfterLatestUpdate
     ) external;
+
+    /**
+     * @dev inflationRatesCount returns the total rate for all Settings.
+     */
+    function inflationRatesCount() external view returns (uint256);
+
+    /**
+     * @dev query daily inflation rates.
+     * @param index in array
+     */
+    function dailyInflationRates(uint256 index) external view returns (DailyInflationRate memory);
+
+    /**
+     * @dev inflation returns amount of daily issues.
+     * @param dayIndex day index from start inflation.
+     * greater than or equal to zero,
+     * and less than or equal to the return value of inflationMintedDays.
+     */
+    function inflation(uint256 dayIndex) external view returns (uint256);
+
+    /**
+     * @dev inflationMintedDays
+     * returns the maximum number of days that have been mint recently.
+     */
+    function inflationMintedDays() external view returns (uint256);
 
     /**
      * @dev Atomically increases the allowance granted to `spender` by the caller.
