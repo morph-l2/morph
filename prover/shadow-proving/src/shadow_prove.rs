@@ -136,7 +136,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
                 task_status::PROVED => {
                     log::info!("proof already generated");
                     prove_state(batch_index, &l1_shadow_rollup).await;
-                    continue;
+                    break;
                 }
                 _ => {
                     log::error!("submit prove task failed: {:#?}", info);
@@ -159,7 +159,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
                         prove_state(batch_index, &l1_shadow_rollup).await;
-                        break;
+                        return;
                     }
                 }
                 None => {
@@ -216,7 +216,8 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
                     Some(receipt) => {
                         // Check the status of the tx receipt
                         if receipt.status == Some(1.into()) {
-                            log::error!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash);
+                            log::info!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash);
+                            return true;
                         } else {
                             log::error!("tx of prove_state failed, tx hash: {:?}", receipt.transaction_hash);
                         }
