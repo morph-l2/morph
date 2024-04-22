@@ -54,12 +54,13 @@ interface IL1Sequencer {
      * @param _sequencerAddresses sequencer addresses
      * @param _sequencerBytes sequencer information bytes
      * @param _sequencerBLSKeys sequencer BLS keys
+     * @param _gasLimit the gas limit for the update message executed in L2.
      */
     function updateAndSendSequencerSet(
         bytes memory _sequencerBytes,
         address[] memory _sequencerAddresses,
         bytes[] memory _sequencerBLSKeys,
-        uint32 gasLimit
+        uint32 _gasLimit
     ) external;
 
     /**
