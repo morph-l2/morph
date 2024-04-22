@@ -902,39 +902,9 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testAddAndRemoveProver(address _prover) public {
-        // set by non-owner, should revert
-        hevm.startPrank(address(1));
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.addProver(_prover);
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.removeProver(_prover);
-        hevm.stopPrank();
-
-        hevm.startPrank(multisig);
-        hevm.expectRevert("not EOA");
-        rollup.addProver(address(this));
-        hevm.assume(_prover.code.length == 0);
-
-        // change to random EOA operator
-        hevm.expectEmit(true, false, false, true);
-        emit UpdateProver(_prover, true);
-        assertBoolEq(rollup.isProver(_prover), false);
-        rollup.addProver(_prover);
-        assertBoolEq(rollup.isProver(_prover), true);
-
-        hevm.expectEmit(true, false, false, true);
-        emit UpdateProver(_prover, false);
-        rollup.removeProver(_prover);
-        assertBoolEq(rollup.isProver(_prover), false);
-        hevm.stopPrank();
-    }
-
     function testSetPause() external {
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
-        // rollup.addSequencer(address(0));
-        rollup.addProver(address(0));
 
         // not owner, revert
         hevm.startPrank(address(1));

@@ -377,14 +377,6 @@ contract Staking is IStaking, OwnableUpgradeable {
         return valueSum;
     }
 
-    function _transfer(address _to, uint256 _amount) internal {
-        if (_amount > 0) {
-            (bool success, ) = _to.call{value: _amount}("0x");
-            require(success, "Rollup: ETH transfer failed");
-        }
-    }
-
-
     /**
      * @notice update params
      * @param _limit smallest staking value
