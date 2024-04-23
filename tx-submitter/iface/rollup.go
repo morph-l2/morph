@@ -10,7 +10,6 @@ import (
 )
 
 type IRollup interface {
-	LatestL2BlockNumber(opts *bind.CallOpts) (*big.Int, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData, version *big.Int, sequencers []common.Address, signature []byte) (*types.Transaction, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)

@@ -81,14 +81,6 @@ func (m *Metrics) SetLastCommittedBatchIndex(lastCommitted uint64) {
 	m.LastCommittedBatchIndex.Set(float64(lastCommitted))
 }
 
-func (m *Metrics) SetL2BlockNumber(l2BlockNumber uint64) {
-	m.L2BlockNumber.Set(float64(l2BlockNumber))
-}
-
-func (m *Metrics) SetLastL2BlockNumberRolluped(l2BlockNumberRolluped uint64) {
-	m.L2BlockNumberRolluped.Set(float64(l2BlockNumberRolluped))
-}
-
 func (m *Metrics) SetWalletBalance(balance float64) {
 	m.WalletBalance.Set(balance)
 }
