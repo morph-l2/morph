@@ -12,25 +12,10 @@ import (
 type IRollup interface {
 	LatestL2BlockNumber(opts *bind.CallOpts) (*big.Int, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
-	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData, version *big.Int, sequencers []common.Address, signature []byte) (*types.Transaction, error)
+	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData) (*types.Transaction, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	FinalizeBatch(opts *bind.TransactOpts, _batchIndex *big.Int) (*types.Transaction, error)
 	FINALIZATIONPERIODSECONDS(opts *bind.CallOpts) (*big.Int, error)
-	CommittedBatchStores(opts *bind.CallOpts, arg0 *big.Int) (struct {
-		BatchVersion           *big.Int
-		BatchHash              [32]byte
-		OriginTimestamp        *big.Int
-		FinalizeTimestamp      *big.Int
-		PrevStateRoot          [32]byte
-		PostStateRoot          [32]byte
-		WithdrawalRoot         [32]byte
-		L1DataHash             [32]byte
-		L1MessagePopped        *big.Int
-		TotalL1MessagePopped   *big.Int
-		SkippedL1MessageBitmap []byte
-		BlockNumber            *big.Int
-		BlobVersionedHash      [32]byte
-	}, error)
 	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 }
 
