@@ -188,14 +188,16 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositERC20.selector,
-                address(l1weth),
-                address(l2weth),
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositERC20,
+                (
+                    address(l1weth),
+                    address(l2weth),
+                    sender,
+                    recipient,
+                    amount,
+                    dataToCall
+                )
             )
         );
 
@@ -205,14 +207,16 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("l1 token not WETH");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositERC20.selector,
-                address(l2weth),
-                address(l2weth),
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositERC20,
+                (
+                    address(l2weth),
+                    address(l2weth),
+                    sender,
+                    recipient,
+                    amount,
+                    dataToCall
+                )
             )
         );
 
@@ -220,14 +224,16 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("l2 token not WETH");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositERC20.selector,
-                address(l1weth),
-                address(l1weth),
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositERC20,
+                (
+                    address(l1weth),
+                    address(l1weth),
+                    sender,
+                    recipient,
+                    amount,
+                    dataToCall
+                )
             )
         );
 
@@ -235,14 +241,16 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("msg.value mismatch");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositERC20.selector,
-                address(l1weth),
-                address(l2weth),
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositERC20,
+                (
+                    address(l1weth),
+                    address(l2weth),
+                    sender,
+                    recipient,
+                    amount,
+                    dataToCall
+                )
             )
         );
     }
@@ -263,17 +271,18 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         gateway.withdrawERC20(address(l2weth), amount, 21000);
 
         // do finalize withdraw eth
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1weth),
-            address(l2weth),
-            sender,
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1weth),
+                address(l2weth),
+                sender,
+                recipient,
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             amount,
@@ -324,17 +333,18 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         gateway.withdrawERC20(address(l2weth), amount, 21000);
 
         // do finalize withdraw weth
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1weth),
-            address(l2weth),
-            sender,
-            address(recipient),
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1weth),
+                address(l2weth),
+                sender,
+                address(recipient),
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(counterpartGateway),
             address(gateway),
             amount,
@@ -402,17 +412,18 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1weth),
-            address(l2weth),
-            address(this),
-            address(this),
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1weth),
+                address(l2weth),
+                address(this),
+                address(this),
+                amount,
+                new bytes(0)
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             amount,
@@ -515,17 +526,18 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1weth),
-            address(l2weth),
-            address(this),
-            recipient,
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1weth),
+                address(l2weth),
+                address(this),
+                recipient,
+                amount,
+                new bytes(0)
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             amount,
@@ -633,17 +645,18 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1weth),
-            address(l2weth),
-            address(this),
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1weth),
+                address(l2weth),
+                address(this),
+                recipient,
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             amount,

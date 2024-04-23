@@ -5,6 +5,17 @@ import {Types} from "../../libraries/common/Types.sol";
 
 interface ISubmitter {
     /**
+     * @notice ack rollup
+     */
+    event ACKRollup(
+        uint256 indexed batchIndex,
+        address indexed submitter,
+        uint256 batchStartBlock,
+        uint256 batchEndBlock,
+        uint256 rollupTime
+    );
+
+    /**
      * @notice next batch index
      */
     function nextBatchIndex() external view returns (uint256);

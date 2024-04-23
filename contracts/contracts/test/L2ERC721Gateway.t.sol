@@ -219,13 +219,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.finalizeDepositERC721.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                0
+            abi.encodeCall(
+                L2ERC721Gateway.finalizeDepositERC721,
+                (address(0), address(0), address(0), address(0), 0)
             )
         );
 
@@ -234,13 +230,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.finalizeDepositERC721.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                0
+            abi.encodeCall(
+                L2ERC721Gateway.finalizeDepositERC721,
+                (address(0), address(0), address(0), address(0), 0)
             )
         );
     }
@@ -261,13 +253,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         messenger.setXDomainMessageSender(address(counterpart));
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.finalizeDepositERC721.selector,
-                address(token),
-                address(token),
-                from,
-                to,
-                tokenId
+            abi.encodeCall(
+                L2ERC721Gateway.finalizeDepositERC721,
+                (address(token), address(token), from, to, tokenId)
             )
         );
         assertEq(token.balanceOf(to), 1);
@@ -290,13 +278,15 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.finalizeBatchDepositERC721.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                new uint256[](0)
+            abi.encodeCall(
+                L2ERC721Gateway.finalizeBatchDepositERC721,
+                (
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    new uint256[](0)
+                )
             )
         );
 
@@ -305,13 +295,15 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.finalizeBatchDepositERC721.selector,
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                new uint256[](0)
+            abi.encodeCall(
+                L2ERC721Gateway.finalizeBatchDepositERC721,
+                (
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    new uint256[](0)
+                )
             )
         );
     }
@@ -339,13 +331,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         messenger.setXDomainMessageSender(address(counterpart));
         messenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                L2ERC721Gateway.finalizeBatchDepositERC721.selector,
-                address(token),
-                address(token),
-                from,
-                to,
-                _tokenIds
+            abi.encodeCall(
+                L2ERC721Gateway.finalizeBatchDepositERC721,
+                (address(token), address(token), from, to, _tokenIds)
             )
         );
         assertEq(token.balanceOf(to), count);

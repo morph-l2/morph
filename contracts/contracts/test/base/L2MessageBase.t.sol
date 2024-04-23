@@ -16,7 +16,7 @@ contract L2MessageBaseTest is CommonTest {
     L2ToL1MessagePasser l2ToL1MessagePasserImpl;
 
     bytes32 l2ToL1MessagePasser_leafNodesCount = bytes32(uint256(32));
-    event AppendMessage(uint256 index, bytes32 messageHash, bytes32 rootHash);
+    event AppendMessage(uint256 indexed index, bytes32 indexed messageHash, bytes32 indexed rootHash);
     event SentMessage(
         address indexed sender,
         address indexed target,
@@ -102,9 +102,9 @@ contract L2MessageBaseTest is CommonTest {
         ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxy))
             .upgradeToAndCall(
                 address(l2CrossDomainMessengerImpl),
-                abi.encodeWithSelector(
-                    L2CrossDomainMessenger.initialize.selector,
-                    NON_ZERO_ADDRESS
+                abi.encodeCall(
+                    L2CrossDomainMessenger.initialize,
+                    (NON_ZERO_ADDRESS)
                 )
             );
         l2CrossDomainMessenger = L2CrossDomainMessenger(

@@ -31,7 +31,7 @@ abstract contract CrossDomainMessenger is
     /// @notice Emitted when owner updates fee vault contract.
     /// @param _oldFeeVault The address of old fee vault contract.
     /// @param _newFeeVault The address of new fee vault contract.
-    event UpdateFeeVault(address _oldFeeVault, address _newFeeVault);
+    event UpdateFeeVault(address indexed _oldFeeVault, address indexed _newFeeVault);
 
     /*************
      * Variables *
@@ -52,9 +52,6 @@ abstract contract CrossDomainMessenger is
 
     /// @notice The address of fee vault, collecting cross domain messaging fee.
     address public feeVault;
-
-    /// @dev The storage slot used as ETH rate limiter contract, which is deprecated now.
-    address private __rateLimiter;
 
     /// @dev The storage slots for future usage.
     uint256[46] private __gap;
