@@ -110,8 +110,6 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
     /// @inheritdoc IRollup
     uint256 public override lastCommittedBatchIndex;
 
-    uint256 public latestL2BlockNumber;
-
     mapping(uint256 => BatchStore) public committedBatchStores;
 
     /// @inheritdoc IRollup
@@ -946,7 +944,7 @@ contract Rollup is OwnableUpgradeable, PausableUpgradeable, IRollup {
         _batchHash = BatchHeaderCodecV0.computeBatchHash(memPtr, _length);
     }
 
-    /// @dev Internal function to storage the latestL2BlockNumber.
+    /// @dev Internal function to load the latestL2BlockNumber.
     /// @param _chunk The batch chunk in memory.
     function _loadL2BlockNumber(
         bytes memory _chunk
