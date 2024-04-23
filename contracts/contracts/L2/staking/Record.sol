@@ -200,10 +200,10 @@ contract Record is IRecord, OwnableUpgradeable {
                 // compute rewards per sequencer
                 uint256 reward = (inflationAmount *
                     _rewardEpochs[i].sequencerRatios[j]) / RATIO_PRECISION;
-                commissions[i] =
+                commissions[j] =
                     (reward * _rewardEpochs[i].sequencerCommissions[j]) /
                     100;
-                delegatorRewards[i] = reward - commissions[i];
+                delegatorRewards[j] = reward - commissions[j];
             }
             require(
                 blockCount == _rewardEpochs[i].blockCount,
