@@ -41,31 +41,49 @@ type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 
 const MAX_RETRY_TIMES: u8 = 2;
 
-pub async fn handle_challenge() -> Result<(), Box<dyn Error>> {
-    // Prepare parameter.
-    let l1_rpc = var("HANDLER_L1_RPC").expect("Cannot detect L1_RPC env var");
-    let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
-    let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
-    let private_key = var("CHALLENGE_HANDLER_PRIVATE_KEY").expect("Cannot detect L1_ROLLUP_PRIVATE_KEY env var");
-
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc)?;
-    let l1_signer = Arc::new(SignerMiddleware::new(
-        l1_provider.clone(),
-        Wallet::from_str(private_key.as_str())
-            .unwrap()
-            .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
-    ));
-    let wallet_address: Address = l1_signer.address();
-
-    let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str())?, l1_signer);
-    handle_with_prover(wallet_address, l1_provider, l1_rollup).await;
-
-    Ok(())
+#[derive(Clone, Debug)]
+pub struct ChallengeHandler {
+    l1_rollup: RollupType,
+    l1_provider: Provider<Http>,
+    wallet_address: Address,
+    l2_rpc: String,
 }
 
-async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>, l1_rollup: RollupType) {
-    let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
+impl ChallengeHandler {
+    pub async fn prepare() -> Self {
+        // Prepare parameter.
+        let l1_rpc = var("HANDLER_L1_RPC").expect("Cannot detect L1_RPC env var");
+        let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
+        let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
+        let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
 
+        let private_key = var("CHALLENGE_HANDLER_PRIVATE_KEY").expect("Cannot detect L1_ROLLUP_PRIVATE_KEY env var");
+
+        let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
+        let l1_signer = Arc::new(SignerMiddleware::new(
+            l1_provider.clone(),
+            Wallet::from_str(private_key.as_str())
+                .unwrap()
+                .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
+        ));
+        let wallet_address: Address = l1_signer.address();
+        let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str()).unwrap(), l1_signer);
+
+        Self {
+            l1_rollup,
+            l1_provider,
+            wallet_address,
+            l2_rpc,
+        }
+    }
+
+    pub async fn handle_challenge(&self) -> Result<(), Box<dyn Error>> {
+        handle_with_prover(self.wallet_address, self.l2_rpc.clone(), &self.l1_provider, &self.l1_rollup).await;
+        Ok(())
+    }
+}
+
+async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
     loop {
         sleep(Duration::from_secs(12)).await;
 
@@ -100,7 +118,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
             Some(prove_result) => {
                 log::info!("query proof and prove state: {:#?}", batch_index);
                 if !prove_result.proof_data.is_empty() {
-                    prove_state(batch_index, &l1_rollup).await;
+                    prove_state(wallet_address, batch_index, &l1_rollup).await;
                     continue;
                 }
             }
@@ -140,7 +158,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
                 task_status::PROVING => log::info!("waiting for prev proof to be generated"),
                 task_status::PROVED => {
                     log::info!("proof already generated");
-                    prove_state(batch_index, &l1_rollup).await;
+                    prove_state(wallet_address, batch_index, &l1_rollup).await;
                     continue;
                 }
                 _ => {
@@ -163,7 +181,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
                 Some(prove_result) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
-                        prove_state(batch_index, &l1_rollup).await;
+                        prove_state(wallet_address, batch_index, &l1_rollup).await;
                         break;
                     }
                 }
@@ -176,7 +194,7 @@ async fn handle_with_prover(wallet_address: Address, l1_provider: Provider<Http>
     }
 }
 
-async fn prove_state(batch_index: u64, l1_rollup: &RollupType) -> bool {
+async fn prove_state(wallet_address: Address, batch_index: u64, l1_rollup: &RollupType) -> bool {
     for _ in 0..MAX_RETRY_TIMES {
         sleep(Duration::from_secs(12)).await;
         let prove_result = match query_proof(batch_index).await {
@@ -193,7 +211,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType) -> bool {
         let aggr_proof = Bytes::from(prove_result.proof_data);
         let kzg_data = Bytes::from(prove_result.blob_kzg);
 
-        let call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data, 10u32.pow(6));
+        let call = l1_rollup.prove_state(batch_index, wallet_address, aggr_proof, kzg_data, 10u32.pow(6));
         let rt = call.send().await;
         let pending_tx = match rt {
             Ok(pending_tx) => {
