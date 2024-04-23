@@ -59,7 +59,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
-    function test_allowanc() public {
+    function test_allowance() public {
         hevm.prank(multisig);
         bool success = morphToken.transfer(alice, 100 ether);
         assert(success);
