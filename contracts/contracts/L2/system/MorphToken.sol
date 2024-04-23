@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.0;
 
-import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -10,8 +9,6 @@ import {IL2Staking} from "../staking/IL2Staking.sol";
 import {IMorphToken} from "./IMorphToken.sol";
 
 contract MorphToken is IMorphToken, OwnableUpgradeable {
-    using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
-
     // day seconds
     uint256 private immutable DAY_SECONDS = 86400;
 
@@ -148,7 +145,9 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /**
      * @dev See {IMorphToken-dailyInflationRates}.
      */
-    function dailyInflationRates(uint256 index) public view returns (DailyInflationRate memory) {
+    function dailyInflationRates(
+        uint256 index
+    ) public view returns (DailyInflationRate memory) {
         return _dailyInflationRates[index];
     }
 
@@ -328,7 +327,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             currentDayIndex > upToDayIndex,
             "the specified time has not yet been reached"
         );
-        require(currentDayIndex > _inflationMintedDays, "all inflations minted");
+        require(
+            currentDayIndex > _inflationMintedDays,
+            "all inflations minted"
+        );
 
         for (uint256 i = _inflationMintedDays; i <= upToDayIndex; i++) {
             uint256 rate = _dailyInflationRates[0].rate;

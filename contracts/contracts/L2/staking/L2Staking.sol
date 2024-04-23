@@ -4,7 +4,7 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -552,9 +552,11 @@ contract L2Staking is
      * @notice transfer morph token
      */
     function _transfer(address _to, uint256 _amount) internal {
-        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IERC20(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
-        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        uint256 balanceBefore = IERC20Upgradeable(MORPH_TOKEN_CONTRACT)
+            .balanceOf(_to);
+        IERC20Upgradeable(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
+        uint256 balanceAfter = IERC20Upgradeable(MORPH_TOKEN_CONTRACT)
+            .balanceOf(_to);
         require(
             _amount > 0 && balanceAfter - balanceBefore == _amount,
             "morph token transfer failed"
@@ -569,9 +571,15 @@ contract L2Staking is
         address _to,
         uint256 _amount
     ) internal {
-        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IERC20(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount);
-        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        uint256 balanceBefore = IERC20Upgradeable(MORPH_TOKEN_CONTRACT)
+            .balanceOf(_to);
+        IERC20Upgradeable(MORPH_TOKEN_CONTRACT).transferFrom(
+            _from,
+            _to,
+            _amount
+        );
+        uint256 balanceAfter = IERC20Upgradeable(MORPH_TOKEN_CONTRACT)
+            .balanceOf(_to);
         require(
             _amount > 0 && balanceAfter - balanceBefore == _amount,
             "morph token transfer failed"

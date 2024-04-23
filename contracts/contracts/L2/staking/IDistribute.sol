@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 /**
  * @dev Interface of the Distribute.
@@ -23,7 +23,7 @@ interface IDistribute {
         uint256 commissionAmount;
         uint256 delegationAmount;
         uint256 remainsNumber;
-        EnumerableSet.AddressSet delegators;
+        EnumerableSetUpgradeable.AddressSet delegators;
         mapping(address => uint256) amounts;
     }
 
@@ -36,7 +36,7 @@ interface IDistribute {
      * @custom:field unclaimedEnd       unclaimed end epoch index, set 0 if undelegated is false or all claimed
      */
     struct Unclaimed {
-        EnumerableSet.AddressSet delegatees;
+        EnumerableSetUpgradeable.AddressSet delegatees;
         mapping(address => bool) undelegated;
         mapping(address => uint256) unclaimedStart;
         mapping(address => uint256) unclaimedEnd;
