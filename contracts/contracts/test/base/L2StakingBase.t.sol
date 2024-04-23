@@ -204,8 +204,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 0, // _batchBlockInterval
                 0, // _batchMaxBytes
                 FINALIZATION_PERIOD_SECONDS, // _batchTimeout
-                ROLLUP_EPOCH, // rollupEpoch
-                MAX_CHUNKS // maxChunks
+                MAX_CHUNKS, // maxChunks
+                ROLLUP_EPOCH // rollupEpoch
             )
         );
 
