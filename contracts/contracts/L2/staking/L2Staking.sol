@@ -158,13 +158,9 @@ contract L2Staking is
     function removeStakers(address[] memory remove) external onlyOtherStaking {
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
-            if (REWARD_STARTED) {
-                if (stakerRankings[remove[i]] <= latestSequencerSetSize) {
-                    updateSequencerSet = true;
-                }
-            } else if (stakerRankings[remove[i]] <= SEQUENCER_MAX_SIZE) {
-                updateSequencerSet = true;
-            }
+            updateSequencerSet = REWARD_STARTED
+                ? stakerRankings[remove[i]] <= latestSequencerSetSize
+                : stakerRankings[remove[i]] <= SEQUENCER_MAX_SIZE;
 
             if (stakerRankings[remove[i]] > 0) {
                 // update stakerRankings
@@ -244,11 +240,8 @@ contract L2Staking is
                 }
             }
         }
+        uint256 effectiveEpoch = REWARD_STARTED ? currentEpoch() + 1 : 0;
 
-        uint256 effectiveEpoch = 0;
-        if (REWARD_STARTED) {
-            effectiveEpoch = currentEpoch() + 1;
-        }
         emit Delegated(
             staker,
             msg.sender,
@@ -291,14 +284,14 @@ contract L2Staking is
         // staker has been removed, unlock next epoch
         bool removed = stakerRankings[delegatee] == 0;
 
-        uint256 unlockEpoch = 0;
-        uint256 effectiveEpoch = 0;
+        uint256 effectiveEpoch;
+        uint256 unlockEpoch;
+
         if (REWARD_STARTED) {
-            unlockEpoch = currentEpoch() + UNDELEGATE_LOCK_EPOCHS + 1;
             effectiveEpoch = currentEpoch() + 1;
-        }
-        if (removed) {
-            unlockEpoch = effectiveEpoch;
+            unlockEpoch = removed
+                ? effectiveEpoch
+                : effectiveEpoch + UNDELEGATE_LOCK_EPOCHS;
         }
 
         Undelegation memory undelegation = Undelegation(
@@ -503,10 +496,10 @@ contract L2Staking is
      * @notice return current reward epoch index
      */
     function currentEpoch() public view returns (uint256) {
-        if (block.timestamp <= REWARD_START_TIME) {
-            return 0;
-        }
-        return (block.timestamp - REWARD_START_TIME) / REWARD_EPOCH;
+        return
+            block.timestamp > REWARD_START_TIME
+                ? (block.timestamp - REWARD_START_TIME) / REWARD_EPOCH
+                : 0;
     }
 
     /**

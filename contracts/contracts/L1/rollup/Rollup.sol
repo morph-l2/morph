@@ -127,12 +127,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     receive() external payable {}
 
     /// @notice initializer
-    /// @param _l1StakingContract         todo
-    /// @param _messageQueue              todo
-    /// @param _verifier                  todo
-    /// @param _maxNumTxInChunk           todo
-    /// @param _finalizationPeriodSeconds todo
-    /// @param _proofWindow               todo
+    /// @param _l1StakingContract         l1 staking contract
+    /// @param _messageQueue              message queue
+    /// @param _verifier                  verifier
+    /// @param _maxNumTxInChunk           max num tx in chunk
+    /// @param _finalizationPeriodSeconds finalization period seconds
+    /// @param _proofWindow               proof window
     function initialize(
         address _l1StakingContract,
         address _messageQueue,
