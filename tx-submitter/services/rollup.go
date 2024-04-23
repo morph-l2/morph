@@ -128,22 +128,6 @@ func (sr *Rollup) Start() {
 				sr.metrics.SetLastFinalizedBatchIndex(lastFinalized.Uint64())
 				sr.metrics.SetLastCommittedBatchIndex(lastCommited.Uint64())
 
-				// get last rolluped l2 block
-				l2LatestBlockNumberRolluped, err := sr.Rollup.LatestL2BlockNumber(nil)
-				if err != nil {
-					log.Error("get last l2 block number error", "error", err)
-					continue
-				}
-				sr.metrics.SetLastL2BlockNumberRolluped(l2LatestBlockNumberRolluped.Uint64())
-				// get last l2 block
-				// todo: get the largest block number from all l2 clients
-				l2BlockNumber, err := sr.L2Clients[0].BlockNumber(context.Background())
-				if err != nil {
-					log.Error("get l2 block number error", "error", err)
-					continue
-				}
-				sr.metrics.SetL2BlockNumber(l2BlockNumber)
-
 				// get balacnce of wallet
 				balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
 				if err != nil {
