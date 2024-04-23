@@ -946,6 +946,7 @@ contract RollupTest is L1MessageBaseTest {
 
     function testUpdateVerifier(address _newVerifier) public {
         hevm.assume(_newVerifier != address(0));
+        hevm.assume(_newVerifier!= rollup.verifier());
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
         // set by non-owner, should revert
