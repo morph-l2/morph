@@ -282,7 +282,7 @@ contract L1Staking is
         MESSENGER.sendMessage{value: msg.value}(
             address(OTHER_STAKING),
             0,
-            abi.encodeWithSelector(IL2Staking.addStaker.selector, add),
+            abi.encodeCall(IL2Staking.addStaker, (add)),
             DEFAULT_GAS_LIMIT
         );
     }
@@ -295,7 +295,7 @@ contract L1Staking is
         MESSENGER.sendMessage{value: msg.value}(
             address(OTHER_STAKING),
             0,
-            abi.encodeWithSelector(IL2Staking.removeStakers.selector, remove),
+            abi.encodeCall(IL2Staking.removeStakers, (remove)),
             DEFAULT_GAS_LIMIT
         );
     }
