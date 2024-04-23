@@ -29,7 +29,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     // mapping(delegatee => mapping(epoch_index => Distribution)). delete after all claimed
     mapping(address => mapping(uint256 => Distribution)) private distributions;
     // mapping(delegatee => epoch_index)
-    mapping(address => uint256) public override unclaimedComission;
+    mapping(address => uint256) public override unclaimedCommission;
     // mapping(delegator => unclaimed_info)
     mapping(address => Unclaimed) private unclaimed;
 
@@ -249,7 +249,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
             end = mintedEpochCount - 1;
         }
-        require(unclaimedComission[delegatee] <= end, "all commission claimed");
+        require(
+            unclaimedCommission[delegatee] <= end,
+            "all commission claimed"
+        );
         uint256 commission;
         for (uint256 i = 0; i <= end; i++) {
             commission += distributions[delegatee][i].commissionAmount;
@@ -257,7 +260,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         if (commission > 0) {
             _transfer(delegatee, commission);
         }
-        unclaimedComission[delegatee] = end + 1;
+        unclaimedCommission[delegatee] = end + 1;
     }
 
     /*********************** External View Functions **************************/
@@ -302,7 +305,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * @notice transfer morph token
      */
     function _transfer(address _to, uint256 _amount) internal {
-        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(
+            _to
+        );
         IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         require(

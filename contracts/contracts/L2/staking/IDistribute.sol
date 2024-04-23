@@ -64,7 +64,7 @@ interface IDistribute {
     /**
      * @dev return delegatee unclaimed epoch index
      */
-    function unclaimedComission(
+    function unclaimedCommission(
         address delegatee
     ) external view returns (uint256);
 

@@ -44,7 +44,7 @@ interface IRecord {
      * @custom:field sequencers             sequencers have produced blocks
      * @custom:field sequencerBlocks        number of blocks produced by sequencer
      * @custom:field sequencerRatios        sequencers reward ratio, ten thousandths (ratio/10000)
-     * @custom:field sequencerComissions    sequencers comission percentage
+     * @custom:field sequencerCommissions    sequencers commission percentage
      *
      * If no blocks were produced in this epoch, no sequencer will receive the reward
      */
@@ -54,7 +54,7 @@ interface IRecord {
         address[] sequencers;
         uint256[] sequencerBlocks;
         uint256[] sequencerRatios;
-        uint256[] sequencerComissions;
+        uint256[] sequencerCommissions;
     }
 
     /**
@@ -71,6 +71,11 @@ interface IRecord {
      * @notice return next reward epoch index
      */
     function nextRewardEpochIndex() external returns (uint256);
+
+    /**
+     * @notice return latest reward epoch block
+     */
+    function latestRewardEpochBlock() external returns (uint256);
 
     /**
      * @notice getBatchSubmissions

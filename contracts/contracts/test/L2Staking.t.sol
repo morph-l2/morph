@@ -327,12 +327,12 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256 sequencerSize = sequencer.getSequencerSet2Size();
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
-        uint256[] memory sequencerComissions = new uint256[](sequencerSize);
+        uint256[] memory sequencerCommissions = new uint256[](sequencerSize);
         for (uint i = 0; i < sequencerSize; i++) {
             // same blocks
             sequencerBlocks[i] = blockCount / sequencerSize;
             sequencerRatios[i] = 10000 / sequencerSize;
-            sequencerComissions[i] = 1;
+            sequencerCommissions[i] = 1;
         }
 
         IRecord.RewardEpochInfo memory rewardEpochInfo = IRecord
@@ -342,7 +342,7 @@ contract L2StakingTest is L2StakingBaseTest {
                 sequencers,
                 sequencerBlocks,
                 sequencerRatios,
-                sequencerComissions
+                sequencerCommissions
             );
         IRecord.RewardEpochInfo[]
             memory rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
