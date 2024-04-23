@@ -99,7 +99,7 @@ contract Record is IRecord, OwnableUpgradeable {
     function setLatestRewardEpochBlock(
         uint256 _latestBlock
     ) external onlyOracle {
-        require(latestRewardEpochBlock > 0, "invalid latest block");
+        require(_latestBlock > 0, "invalid latest block");
         latestRewardEpochBlock = _latestBlock;
     }
 

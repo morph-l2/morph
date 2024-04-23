@@ -349,8 +349,10 @@ contract L2StakingTest is L2StakingBaseTest {
         rewardEpochInfos[0] = rewardEpochInfo;
 
         uint256 totalSupply = morphToken.totalSupply();
-        hevm.prank(oracleAddress);
+        hevm.startPrank(oracleAddress);
+        record.setLatestRewardEpochBlock(86400);
         record.recordRewardEpochs(rewardEpochInfos);
+        hevm.stopPrank();
 
         uint256 totalInflations = (totalSupply * 1596535874529) / 1e16;
         uint256 distributeBalance = morphToken.balanceOf(address(distribute));
