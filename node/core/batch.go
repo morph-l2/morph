@@ -259,6 +259,11 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		}
 	}
 
+	sequencerBytes, err := e.sequencer.GetSequencerSetBytes(nil)
+	if err != nil {
+		return err
+	}
+
 	chunksBytes, err := e.batchingCache.chunks.Encode()
 	if err != nil {
 		return err
@@ -278,16 +283,17 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	}
 
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
-		Version:                0,
-		Index:                  e.batchingCache.parentBatchHeader.BatchIndex + 1,
-		Hash:                   e.batchingCache.sealedBatchHeader.Hash(),
-		ParentBatchHeader:      e.batchingCache.parentBatchHeader.Encode(),
-		Chunks:                 chunksBytes,
-		SkippedL1MessageBitmap: e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
-		PrevStateRoot:          e.batchingCache.prevStateRoot,
-		PostStateRoot:          e.batchingCache.postStateRoot,
-		WithdrawRoot:           e.batchingCache.withdrawRoot,
-		Sidecar:                e.batchingCache.sealedSidecar,
+		Version:                  0,
+		Index:                    e.batchingCache.parentBatchHeader.BatchIndex + 1,
+		Hash:                     e.batchingCache.sealedBatchHeader.Hash(),
+		ParentBatchHeader:        e.batchingCache.parentBatchHeader.Encode(),
+		CurrentSequencerSetBytes: sequencerBytes,
+		Chunks:                   chunksBytes,
+		SkippedL1MessageBitmap:   e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
+		PrevStateRoot:            e.batchingCache.prevStateRoot,
+		PostStateRoot:            e.batchingCache.postStateRoot,
+		WithdrawRoot:             e.batchingCache.withdrawRoot,
+		Sidecar:                  e.batchingCache.sealedSidecar,
 	}, batchSigs); err != nil {
 		return err
 	}
@@ -492,13 +498,14 @@ func (e *Executor) ConvertBlsDatas(blsDatas []l2node.BlsData) (ret []eth.BatchSi
 }
 
 func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, error) {
-	blsKey, found := e.getBlsPubKeyByTmKey(blsData.Signer)
+	val, found := e.valsByTmKey[[32]byte(blsData.Signer)]
 	if !found {
 		return nil, fmt.Errorf("found invalid validator: %x", blsData.Signer)
 	}
 
 	bs := eth.BatchSignature{
-		SignerPubKey: new(bls12381.G2).EncodePoint(blsKey.Key),
+		Signer:       val.address,
+		SignerPubKey: new(bls12381.G2).EncodePoint(val.blsPubKey.Key),
 		Signature:    blsData.Signature,
 	}
 	return &bs, nil

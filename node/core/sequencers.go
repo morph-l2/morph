@@ -4,30 +4,33 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/scroll-tech/go-ethereum/common"
-	"golang.org/x/exp/slices"
 	"math/big"
 	"time"
 
+	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/crypto/bls12381"
 	"github.com/tendermint/tendermint/blssignatures"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
+	"golang.org/x/exp/slices"
 )
 
 const tmKeySize = ed25519.PubKeySize
 
-type sequencerKey struct {
-	index     uint64
+type validatorInfo struct {
+	address   common.Address
 	blsPubKey blssignatures.PublicKey
 }
 
-func (e *Executor) getBlsPubKeyByTmKey(tmPubKey []byte) (pk blssignatures.PublicKey, found bool) {
+func (e *Executor) getBlsPubKeyByTmKey(tmPubKey []byte) (blssignatures.PublicKey, bool) {
 	var tmKey [32]byte
 	copy(tmKey[:], tmPubKey)
-	pk, found = e.valBlsPubKeys[tmKey]
-	return
+	val, found := e.valsByTmKey[tmKey]
+	if !found {
+		return blssignatures.PublicKey{}, false
+	}
+	return val.blsPubKey, true
 }
 
 func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig []byte) (bool, error) {
@@ -35,7 +38,7 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 		e.logger.Info("we are in dev mode, do not verify the bls signature")
 		return true, nil
 	}
-	if len(e.valBlsPubKeys) == 0 {
+	if len(e.valsByTmKey) == 0 {
 		return false, errors.New("no available sequencers found in layer2")
 	}
 
@@ -89,7 +92,7 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 		return nil, err
 	}
 
-	valBlsPubKeys := make(map[[tmKeySize]byte]blssignatures.PublicKey)
+	valsByTmKey := make(map[[tmKeySize]byte]validatorInfo)
 	nextValidators := make([][]byte, 0)
 	for i := range stakesInfo {
 		blsPK, err := decodeBlsPubKey(stakesInfo[i].BlsKey)
@@ -101,11 +104,14 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 		if slices.Contains(sequencerSet2, stakesInfo[i].Addr) {
 			nextValidators = append(nextValidators, stakesInfo[i].TmKey[:])
 		}
-		valBlsPubKeys[stakesInfo[i].TmKey] = blsPK
+		valsByTmKey[stakesInfo[i].TmKey] = validatorInfo{
+			address:   stakesInfo[i].Addr,
+			blsPubKey: blsPK,
+		}
 	}
 
 	e.logger.Info("sequencers updates, sequencer verified hash changed")
-	e.valBlsPubKeys = valBlsPubKeys
+	e.valsByTmKey = valsByTmKey
 	e.nextValidators = nextValidators
 	e.currentSeqHash = &seqHash
 	return nextValidators, nil
@@ -157,7 +163,7 @@ func (e *Executor) updateSequencerSet() ([][]byte, error) {
 	var tmPKBz [tmKeySize]byte
 	copy(tmPKBz[:], e.tmPubKey)
 
-	_, isSequencer := e.valBlsPubKeys[tmPKBz]
+	_, isSequencer := e.valsByTmKey[tmPKBz]
 	if !e.isSequencer && isSequencer {
 		e.logger.Info("I am a sequencer, start to launch syncer")
 		if e.syncer == nil {

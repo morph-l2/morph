@@ -19,7 +19,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
 	"github.com/scroll-tech/go-ethereum/rlp"
-	"github.com/tendermint/tendermint/blssignatures"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
@@ -43,7 +42,7 @@ type Executor struct {
 	l2Staking   *bindings.L2Staking
 
 	currentSeqHash *[32]byte
-	valBlsPubKeys  map[[tmKeySize]byte]blssignatures.PublicKey
+	valsByTmKey    map[[tmKeySize]byte]validatorInfo
 
 	nextValidators [][]byte
 	batchParams    tmproto.BatchParams

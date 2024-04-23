@@ -184,6 +184,20 @@ contract Sequencer is Initializable, ISequencer {
         return _contains(sequencerSet0, addr);
     }
 
+    /**
+     * @notice get the encoded sequencer set bytes
+     */
+    function getSequencerSetBytes() external view returns (bytes memory) {
+        return abi.encodePacked(
+                blockHeight0,
+                sequencerSet0,
+                blockHeight1,
+                sequencerSet1,
+                blockHeight2,
+                sequencerSet2
+            );
+    }
+
     /*********************** Internal Functions **************************/
 
     /**
