@@ -194,7 +194,7 @@ contract Record is IRecord, OwnableUpgradeable {
                 blockCount == _rewardEpochs[i].blockCount,
                 "invalid sequencers blocks"
             );
-            require(ratioSum <= 100, "invalid sequencers ratios");
+            require(ratioSum <= RATIO_PRECISION, "invalid sequencers ratios");
 
             // update sequecers reward data
             IDistribute(DISTRIBUTE_CONTRACT).updateEpochReward(
