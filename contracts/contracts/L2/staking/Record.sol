@@ -84,23 +84,23 @@ contract Record is IRecord, OwnableUpgradeable {
     /*********************** External Functions **************************/
 
     /**
-     * @notice set latest block
-     * @param _latestBlock   latest block
-     */
-    function setLatestRewardEpochBlock(
-        uint256 _latestBlock
-    ) external onlyOwner {
-        require(latestRewardEpochBlock > 0, "");
-        latestRewardEpochBlock = _latestBlock;
-    }
-
-    /**
      * @notice set oracle address
      * @param _oracle     oracle address
      */
     function setOracleAddress(address _oracle) external onlyOwner {
         require(_oracle != address(0), "invalid oracle address");
         ORACLE = _oracle;
+    }
+
+    /**
+     * @notice set latest block
+     * @param _latestBlock   latest block
+     */
+    function setLatestRewardEpochBlock(
+        uint256 _latestBlock
+    ) external onlyOracle {
+        require(latestRewardEpochBlock > 0, "invalid latest block");
+        latestRewardEpochBlock = _latestBlock;
     }
 
     /**
