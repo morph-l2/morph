@@ -492,13 +492,14 @@ func (e *Executor) ConvertBlsDatas(blsDatas []l2node.BlsData) (ret []eth.BatchSi
 }
 
 func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, error) {
-	blsKey, found := e.getBlsPubKeyByTmKey(blsData.Signer)
+	val, found := e.valsByTmKey[[32]byte(blsData.Signer)]
 	if !found {
 		return nil, fmt.Errorf("found invalid validator: %x", blsData.Signer)
 	}
 
 	bs := eth.BatchSignature{
-		SignerPubKey: new(bls12381.G2).EncodePoint(blsKey.Key),
+		Signer:       val.address,
+		SignerPubKey: new(bls12381.G2).EncodePoint(val.blsPubKey.Key),
 		Signature:    blsData.Signature,
 	}
 	return &bs, nil
