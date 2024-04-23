@@ -385,7 +385,7 @@ func (sr *Rollup) rollup() error {
 	for _, chunk := range batch.Chunks {
 		chunks = append(chunks, chunk)
 	}
-	signature, err := sr.aggregateSignatures(batch.Signatures)
+	signature, err := sr.aggregateSignatures(batch)
 	if err != nil {
 		return err
 	}
@@ -397,7 +397,7 @@ func (sr *Rollup) rollup() error {
 		PrevStateRoot:          batch.PrevStateRoot,
 		PostStateRoot:          batch.PostStateRoot,
 		WithdrawalRoot:         batch.WithdrawRoot,
-		Signature:              *signature,
+		SignatureData:          *signature,
 	}
 
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
@@ -596,11 +596,12 @@ func (sr *Rollup) rollup() error {
 	return nil
 }
 
-func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindings.IRollupBatchSignature, error) {
+func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureData, error) {
+	blsSignatures := batch.Signatures
 	if len(blsSignatures) == 0 {
 		return nil, fmt.Errorf("invalid batch signature")
 	}
-	signers := make([]*big.Int, len(blsSignatures))
+	signers := make([]common.Address, len(blsSignatures))
 	sigs := make([]blssignatures.Signature, 0)
 	for i, bz := range blsSignatures {
 		if len(bz.Signature) > 0 {
@@ -609,17 +610,17 @@ func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*b
 				return nil, err
 			}
 			sigs = append(sigs, sig)
-			signers[i] = big.NewInt(int64(bz.Signer))
+			signers[i] = bz.Signer
 		}
 	}
 	aggregatedSig := blssignatures.AggregateSignatures(sigs)
 	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
-	rollupBatchSignature := bindings.IRollupBatchSignature{
-		Version:   big.NewInt(int64(blsSignatures[0].Version)),
-		Signers:   signers,
-		Signature: blsSignature,
+	sigData := bindings.IRollupBatchSignatureData{
+		SignedSequencers: signers,
+		SequencerSets:    batch.CurrentSequencerSetBytes,
+		Signature:        blsSignature,
 	}
-	return &rollupBatchSignature, nil
+	return &sigData, nil
 }
 
 func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
