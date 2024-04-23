@@ -9,6 +9,7 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {IL2Staking} from "./IL2Staking.sol";
 import {IRecord} from "./IRecord.sol";
 import {IDistribute} from "./IDistribute.sol";
+import {IMorphToken} from "../system/IMorphToken.sol";
 
 contract Distribute is IDistribute, OwnableUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -22,8 +23,8 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     // reward epoch, seconds of one day (3600 * 24)
     uint256 public immutable REWARD_EPOCH = 86400;
 
-    // latest epoch minted inflation
-    uint256 private latestMintedEpoch;
+    // total minted epoch
+    uint256 private mintedEpochCount;
 
     // mapping(delegatee => mapping(epoch_index => Distribution)). delete after all claimed
     mapping(address => mapping(uint256 => Distribution)) private distributions;
@@ -160,8 +161,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         uint256[] memory delegatorRewards,
         uint256[] memory commissions
     ) external onlyRecordContract {
-        latestMintedEpoch++;
-        require(latestMintedEpoch == epochIndex, "invalid epoch index");
+        mintedEpochCount++;
+        require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
+
         require(
             delegatorRewards.length == sequencers.length &&
                 commissions.length == sequencers.length,
@@ -190,9 +192,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegator,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not mint yet");
         uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
-            endEpochIndex = latestMintedEpoch;
+        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+            endEpochIndex = mintedEpochCount - 1;
         }
         uint256 reward = _claim(delegatee, delegator, endEpochIndex);
         if (reward > 0) {
@@ -212,9 +215,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegator,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not mint yet");
         uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
-            endEpochIndex = latestMintedEpoch;
+        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+            endEpochIndex = mintedEpochCount - 1;
         }
         uint256 reward;
         for (uint256 i = 0; i < unclaimed[delegator].delegatees.length(); i++) {
@@ -240,9 +244,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegatee,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not mint yet");
         uint256 end = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
-            end = latestMintedEpoch;
+        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+            end = mintedEpochCount - 1;
         }
         require(unclaimedComission[delegatee] <= end, "all commission claimed");
         uint256 commission;
@@ -269,7 +274,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         uint256 totalAmount;
         uint256 delegatorAmount;
         uint start = unclaimed[delegator].unclaimedStart[delegatee];
-        for (uint256 i = start; i <= latestMintedEpoch; i++) {
+        for (uint256 i = start; i < mintedEpochCount; i++) {
             if (distributions[delegatee][i].amounts[delegator] > 0) {
                 delegatorAmount = distributions[delegatee][i].amounts[
                     delegator
@@ -297,9 +302,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * @notice transfer morph token
      */
     function _transfer(address _to, uint256 _amount) internal {
-        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IERC20(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
-        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
+        uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         require(
             _amount > 0 && balanceAfter - balanceBefore == _amount,
             "morph token transfer failed"

@@ -330,7 +330,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         );
         require(currentDayIndex > _inflationMintedDays, "all inflations minted");
 
-        for (uint256 i = _inflationMintedDays; i < upToDayIndex; i++) {
+        for (uint256 i = _inflationMintedDays; i <= upToDayIndex; i++) {
             uint256 rate = _dailyInflationRates[0].rate;
             // find inflation rate of the day
             for (uint256 j = _dailyInflationRates.length - 1; j > 0; j--) {
