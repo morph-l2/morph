@@ -5,11 +5,6 @@
         "internalType": "uint64",
         "name": "_chainId",
         "type": "uint64"
-      },
-      {
-        "internalType": "address payable",
-        "name": "_messenger",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -40,13 +35,13 @@
         "type": "uint64"
       },
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "address",
         "name": "winner",
         "type": "address"
       },
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "string",
         "name": "res",
         "type": "string"
@@ -65,9 +60,15 @@
         "type": "uint64"
       },
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "address",
         "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "challengerReceiveAddress",
         "type": "address"
       },
       {
@@ -289,25 +290,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "status",
-        "type": "bool"
-      }
-    ],
-    "name": "UpdateProver",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "oldVerifier",
         "type": "address"
       },
@@ -329,19 +311,6 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MESSENGER",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -377,13 +346,19 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_account",
+        "name": "",
         "type": "address"
       }
     ],
-    "name": "addProver",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "name": "batchChallengeReward",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -468,30 +443,16 @@
         "internalType": "uint64",
         "name": "batchIndex",
         "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "challengerReceiver",
+        "type": "address"
       }
     ],
     "name": "challengeState",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "challengerDeposits",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -512,6 +473,16 @@
       {
         "internalType": "address",
         "name": "challenger",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "challengerReceiveAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "proverReceiveAddress",
         "type": "address"
       },
       {
@@ -536,6 +507,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "claimReward",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -766,11 +744,6 @@
         "internalType": "bytes32",
         "name": "_postStateRoot",
         "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_withdrawalRoot",
-        "type": "bytes32"
       }
     ],
     "name": "importGenesisBatch",
@@ -862,25 +835,6 @@
       }
     ],
     "name": "isChallenger",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "isProver",
     "outputs": [
       {
         "internalType": "bool",
@@ -1029,6 +983,11 @@
         "type": "uint64"
       },
       {
+        "internalType": "address",
+        "name": "_proverReceiveAddress",
+        "type": "address"
+      },
+      {
         "internalType": "bytes",
         "name": "_aggrProof",
         "type": "bytes"
@@ -1063,19 +1022,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_account",
-        "type": "address"
-      }
-    ],
-    "name": "removeProver",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
@@ -1098,6 +1044,19 @@
     "name": "revertBatch",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "revertReqIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1209,5 +1168,9 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
   }
 ]
