@@ -1,6 +1,6 @@
 {
   "config": {
-    "chainId": 2810,
+    "chainId": 53077,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -19,7 +19,7 @@
       "useZktrie": true,
       "maxTxPerBlock": 44,
       "maxTxPayloadBytesPerBlock": 122880,
-      "feeVaultAddress": "0x484426a2F7e0469d70a51cd07cCB7793d58e9008",
+      "feeVaultAddress": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
       "enableEIP2718": false,
       "enableEIP1559": false
     }
