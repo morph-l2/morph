@@ -415,7 +415,7 @@ func (sr *Rollup) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
@@ -426,7 +426,7 @@ func (sr *Rollup) rollup() error {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
