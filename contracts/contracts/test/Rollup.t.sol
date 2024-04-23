@@ -18,7 +18,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         nilBatchSig = IRollup.BatchSignature({
             version: 0,
             signers: new uint256[](0),
-            signature: hex"123456"
+            signature: "0x123456"
         });
     }
 
@@ -63,11 +63,8 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
                 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014
             )
         }
-        rollup.importGenesisBatch(
-            batchHeader0,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader0, bytes32(uint256(1)));
         bytes32 batchHash0 = rollup.committedBatches(0);
 
         bytes memory bitmap;
@@ -416,7 +413,7 @@ contract RollupTest is L1MessageBaseTest {
         nilBatchSig = IRollup.BatchSignature({
             version: 0,
             signers: new uint256[](0),
-            signature: hex"123456"
+            signature: "0x123456"
         });
 
         Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](
@@ -427,17 +424,17 @@ contract RollupTest is L1MessageBaseTest {
             Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
                 user
             );
-            sequencerAddrs.push(sequencerInfo.addr);
+            sequencerAddresses.push(sequencerInfo.addr);
             sequencerBLSKeys.push(sequencerInfo.blsKey);
             sequencerInfos[i] = sequencerInfo;
         }
-        hevm.prank(address(staking));
+        hevm.startPrank(address(staking));
         l1Sequencer.updateAndSendSequencerSet(
-            abi.encodeWithSelector(
-                IL2Sequencer.updateSequencers.selector,
-                sequencerInfos
+            abi.encodeCall(
+                IL2Sequencer.updateSequencers,
+                (l1Sequencer.newestVersion() + 1, sequencerInfos)
             ),
-            sequencerAddrs,
+            sequencerAddresses,
             sequencerBLSKeys,
             defaultGasLimit
         );
@@ -445,12 +442,12 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
         assertEq(l1Sequencer.currentVersion(), sequencerVersion);
         assertEq(
-            l1Sequencer.getSequencerAddrs(l1Sequencer.currentVersion()).length,
+            l1Sequencer.getSequencerAddresses(l1Sequencer.currentVersion()).length,
             SEQUENCER_SIZE
         );
     }
 
-    function testCommitBatchs() external {
+    function testCommitBatches() external {
         bytes memory batchHeader0 = new bytes(121);
 
         // import 10 L1 messages
@@ -471,11 +468,8 @@ contract RollupTest is L1MessageBaseTest {
                 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014
             )
         }
-        rollup.importGenesisBatch(
-            batchHeader0,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader0, bytes32(uint256(1)));
         // caller not sequencer, revert
         hevm.startPrank(address(0));
         hevm.expectRevert("caller not sequencer");
@@ -805,11 +799,8 @@ contract RollupTest is L1MessageBaseTest {
                 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014
             )
         }
-        rollup.importGenesisBatch(
-            batchHeader0,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader0, bytes32(uint256(1)));
         bytes32 batchHash0 = rollup.committedBatches(0);
 
         bytes[] memory chunks = new bytes[](1);
@@ -911,39 +902,9 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testAddAndRemoveProver(address _prover) public {
-        // set by non-owner, should revert
-        hevm.startPrank(address(1));
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.addProver(_prover);
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.removeProver(_prover);
-        hevm.stopPrank();
-
-        hevm.startPrank(multisig);
-        hevm.expectRevert("not EOA");
-        rollup.addProver(address(this));
-        hevm.assume(_prover.code.length == 0);
-
-        // change to random EOA operator
-        hevm.expectEmit(true, false, false, true);
-        emit UpdateProver(_prover, true);
-        assertBoolEq(rollup.isProver(_prover), false);
-        rollup.addProver(_prover);
-        assertBoolEq(rollup.isProver(_prover), true);
-
-        hevm.expectEmit(true, false, false, true);
-        emit UpdateProver(_prover, false);
-        rollup.removeProver(_prover);
-        assertBoolEq(rollup.isProver(_prover), false);
-        hevm.stopPrank();
-    }
-
     function testSetPause() external {
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
-        // rollup.addSequencer(address(0));
-        rollup.addProver(address(0));
 
         // not owner, revert
         hevm.startPrank(address(1));
@@ -984,6 +945,8 @@ contract RollupTest is L1MessageBaseTest {
     }
 
     function testUpdateVerifier(address _newVerifier) public {
+        hevm.assume(_newVerifier != address(0));
+        hevm.assume(_newVerifier!= rollup.verifier());
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
         // set by non-owner, should revert
@@ -1002,6 +965,9 @@ contract RollupTest is L1MessageBaseTest {
     }
 
     function testUpdateMaxNumTxInChunk(uint256 _maxNumTxInChunk) public {
+        hevm.assume(_maxNumTxInChunk > 0);
+        hevm.assume(_maxNumTxInChunk != 10);
+
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
         // set by non-owner, should revert
@@ -1025,94 +991,68 @@ contract RollupTest is L1MessageBaseTest {
         // zero state root, revert
         batchHeader = new bytes(89);
         hevm.expectRevert("zero state root");
-        rollup.importGenesisBatch(batchHeader, bytes32(0), getTreeRoot());
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(0));
 
         // batch header length too small, revert
         batchHeader = new bytes(120);
         hevm.expectRevert("batch header length too small");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         // wrong bitmap length, revert
         batchHeader = new bytes(122);
         hevm.expectRevert("wrong bitmap length");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         // not all fields are zero, revert
         batchHeader = new bytes(121);
         batchHeader[0] = bytes1(uint8(1)); // version not zero
         hevm.expectRevert("not all fields are zero");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         batchHeader = new bytes(121);
         batchHeader[1] = bytes1(uint8(1)); // batchIndex not zero
         hevm.expectRevert("not all fields are zero");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         batchHeader = new bytes(121 + 32);
         assembly {
             mstore(add(batchHeader, add(0x20, 9)), shl(192, 1)) // l1MessagePopped not zero
         }
         hevm.expectRevert("not all fields are zero");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         batchHeader = new bytes(121);
         batchHeader[17] = bytes1(uint8(1)); // totalL1MessagePopped not zero
         hevm.expectRevert("not all fields are zero");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         // zero data hash, revert
         batchHeader = new bytes(121);
         hevm.expectRevert("zero data hash");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         // nonzero parent batch hash, revert
         batchHeader = new bytes(121);
         batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
         batchHeader[89] = bytes1(uint8(1)); // parentBatchHash not zero
         hevm.expectRevert("nonzero parent batch hash");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         // invalid versioned hash, revert
         batchHeader = new bytes(121);
         batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
         hevm.expectRevert("invalid versioned hash");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
 
         // import correctly
         batchHeader = new bytes(121);
@@ -1126,21 +1066,15 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.finalizedStateRoots(0), bytes32(0));
         assertFalse(rollup.withdrawalRoots(0));
         assertEq(rollup.committedBatches(0), bytes32(0));
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
         assertEq(rollup.finalizedStateRoots(0), bytes32(uint256(1)));
         assertFalse(rollup.withdrawalRoots(0));
         assertGt(uint256(rollup.committedBatches(0)), 0);
 
         // Genesis batch imported, revert
         hevm.expectRevert("genesis batch imported");
-        rollup.importGenesisBatch(
-            batchHeader,
-            bytes32(uint256(1)),
-            getTreeRoot()
-        );
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader, bytes32(uint256(1)));
     }
 }

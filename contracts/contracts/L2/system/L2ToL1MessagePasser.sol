@@ -20,7 +20,7 @@ contract L2ToL1MessagePasser is Tree {
     /// @param index The index of the corresponding message.
     /// @param messageHash The hash of the corresponding message.
     /// @param rootHash The hash of the tree root after append the message.
-    event AppendMessage(uint256 index, bytes32 messageHash, bytes32 rootHash);
+    event AppendMessage(uint256 indexed index, bytes32 indexed messageHash, bytes32 indexed rootHash);
 
     /*************
      * Variables *

@@ -95,16 +95,11 @@ export const deployContractImpls = async (
     // Rollup deploy
     const l2ChainID: string = config.l2ChainID
     Factory = await hre.ethers.getContractFactory(RollupFactoryName)
-    contract = await Factory.deploy(l2ChainID, L1CrossDomainMessengerProxyAddress)
+    contract = await Factory.deploy(l2ChainID)
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", RollupImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     // check params
     await assertContractVariable(contract, 'layer2ChainId', l2ChainID)
-    await assertContractVariable(
-        contract,
-        'MESSENGER',
-        L1CrossDomainMessengerProxyAddress
-    )
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storage(path, RollupImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
