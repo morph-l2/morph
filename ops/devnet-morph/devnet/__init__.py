@@ -194,7 +194,7 @@ def devnet_deploy(paths, args):
                      deploy_config['l2StakingTmKeys'][i],
                      deploy_config['l2StakingBlsKeys'][i],
                      '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '2ether',
+                     '--value', '1ether',
                      '--private-key', deploy_config['l2StakingPks'][i]
                      ])
 
