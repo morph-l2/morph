@@ -138,11 +138,11 @@ async fn auto_challenge(
     log::info!("latest batch index = {:#?}", batch_index);
 
     // Challenge state.
-    let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
-    if is_batch_finalized {
-        log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
-        return Ok(());
-    }
+    // let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
+    // if is_batch_finalized {
+    //     log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
+    //     return Ok(());
+    // }
 
     let challenges = match l1_rollup.challenges(U256::from(batch_index)).await {
         Ok(x) => x,
