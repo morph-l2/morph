@@ -16,7 +16,7 @@ const ContractFactoryName = {
     ZkEvmVerifierV1: 'ZkEvmVerifierV1',
     MultipleVersionRollupVerifier: 'MultipleVersionRollupVerifier',
     // staking
-    Staking: 'Staking',
+    L1Staking: 'L1Staking',
     L1Sequencer: 'L1Sequencer',
     // gateway
     L1GatewayRouter: 'L1GatewayRouter',
@@ -35,7 +35,7 @@ const ProxyStorageName = {
     // rollup
     RollupProxyStorageName: 'Proxy__Rollup',
     // staking
-    StakingProxyStorageName: 'Proxy__Staking',
+    L1StakingProxyStorageName: 'Proxy__L1Staking',
     L1SequencerProxyStorageName: 'Proxy__L1Sequencer',
     // gateway
     L1GatewayRouterProxyStorageName: 'Proxy__L1GatewayRouter',
@@ -63,7 +63,7 @@ const ImplStorageName = {
     ZkEvmVerifierV1StorageName: 'Impl__ZkEvmVerifierV1',
     MultipleVersionRollupVerifierStorageName: 'Impl__MultipleVersionRollupVerifier',
     // staking
-    StakingStorageName: 'Impl__Staking',
+    L1StakingStorageName: 'Impl__L1Staking',
     L1SequencerStorageName: 'Impl__L1Sequencer',
     // gateway
     L1GatewayRouterStorageName: 'Impl__L1GatewayRouter',

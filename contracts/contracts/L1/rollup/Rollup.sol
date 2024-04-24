@@ -36,12 +36,18 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable LAYER_2_CHAIN_ID;
 
-    /// l1 staking contract
-    address public L1_STAKING_CONTRACT;
-
     /*************
      * Variables *
      *************/
+
+    /// @notice L1 Staking contract
+    address public l1StakingContract;
+
+    /// @notice The address of L1MessageQueue.
+    address public messageQueue;
+
+    /// @notice The address of RollupVerifier.
+    address public verifier;
 
     /// @notice Batch challenge time.
     uint256 public FINALIZATION_PERIOD_SECONDS;
@@ -52,11 +58,20 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The maximum number of transactions allowed in each chunk.
     uint256 public maxNumTxInChunk;
 
-    /// @notice The address of L1MessageQueue.
-    address public messageQueue;
+    /// @inheritdoc IRollup
+    uint256 public override lastFinalizedBatchIndex;
 
-    /// @notice The address of RollupVerifier.
-    address public verifier;
+    /// @inheritdoc IRollup
+    uint256 public override lastCommittedBatchIndex;
+
+    /// @notice Store latest layer 2 block number.
+    uint256 public latestL2BlockNumber;
+
+    /// @notice The index of the revert request.
+    uint256 public revertReqIndex;
+
+    /// @notice whether in challenge
+    bool public inChallenge;
 
     /// @notice Whether an account is a prover.
     mapping(address => bool) public isProver;
@@ -65,16 +80,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     mapping(address => bool) public isChallenger;
 
     /// @inheritdoc IRollup
-    uint256 public override lastFinalizedBatchIndex;
-
-    /// @inheritdoc IRollup
-    uint256 public override lastCommittedBatchIndex;
-
-    /// @inheritdoc IRollup
     mapping(uint256 => bytes32) public override finalizedStateRoots;
-
-    /// @notice Store latest layer 2 block number.
-    uint256 public latestL2BlockNumber;
 
     /// @notice Store committed batch.
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -88,12 +94,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Store Challenge reward information. (receiver => amount)
     mapping(address => uint256) public batchChallengeReward;
 
-    /// @notice whether in challenge
-    bool public inChallenge;
-
-    /// @notice The index of the revert request.
-    uint256 public revertReqIndex;
-
     /**********************
      * Function Modifiers *
      **********************/
@@ -101,7 +101,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Only staker allowed.
     modifier OnlyStaker() {
         require(
-            IL1Staking(L1_STAKING_CONTRACT).isStaker(_msgSender()),
+            IL1Staking(l1StakingContract).isStaker(_msgSender()),
             "caller not sequencer"
         );
         _;
@@ -164,7 +164,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             "invalid l1 staking contract"
         );
 
-        L1_STAKING_CONTRACT = _l1StakingContract;
+        l1StakingContract = _l1StakingContract;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         PROOF_WINDOW = _proofWindow;
 
@@ -395,8 +395,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         );
 
         committedBatchStores[_batchIndex].signature.signedSequencers[
-                0
-            ] = _msgSender();
+            0
+        ] = _msgSender();
         lastCommittedBatchIndex = _batchIndex;
 
         require(
@@ -411,7 +411,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         // verify bls signature
         require(
-            IL1Staking(L1_STAKING_CONTRACT).verifySignature(
+            IL1Staking(l1StakingContract).verifySignature(
                 batchData.signatureData.signedSequencers,
                 _getValidSequencerSet(batchData.signatureData.sequencerSets, 0),
                 committedBatchStores[_batchIndex].signature.blsMsgHash,
@@ -505,7 +505,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         // check challenge amount
         require(
-            msg.value >= IL1Staking(L1_STAKING_CONTRACT).STAKING_VALUE(),
+            msg.value >= IL1Staking(l1StakingContract).STAKING_VALUE(),
             "insufficient value"
         );
         challenges[batchIndex] = BatchChallenge(
@@ -938,7 +938,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     ) internal {
         revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
-        uint256 reward = IL1Staking(L1_STAKING_CONTRACT).slash(sequencers);
+        uint256 reward = IL1Staking(l1StakingContract).slash(sequencers);
         batchChallengeReward[challenges[batchIndex].challenger] += (challenges[
             batchIndex
         ].challengeDeposit + reward);

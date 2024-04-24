@@ -22,7 +22,7 @@ export const deployContractImpls = async (
 ): Promise<string> => {
     // factory name
     const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
-    const StakingFactoryName = ContractFactoryName.Staking
+    const L1StakingFactoryName = ContractFactoryName.L1Staking
     const L1SequencerFactoryName = ContractFactoryName.L1Sequencer
     const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
     const RollupFactoryName = ContractFactoryName.Rollup
@@ -37,7 +37,7 @@ export const deployContractImpls = async (
 
     // implement storage name
     const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
-    const StakingImplStorageName = ImplStorageName.StakingStorageName
+    const StakingImplStorageName = ImplStorageName.L1StakingStorageName
     const L1SequencerImplStorageName = ImplStorageName.L1SequencerStorageName
     const L1MessageQueueWithGasPriceOracleImplStorageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
     const RollupImplStorageName = ImplStorageName.RollupStorageName
@@ -95,16 +95,11 @@ export const deployContractImpls = async (
     // Rollup deploy
     const l2ChainID: string = config.l2ChainID
     Factory = await hre.ethers.getContractFactory(RollupFactoryName)
-    contract = await Factory.deploy(l2ChainID, L1CrossDomainMessengerProxyAddress)
+    contract = await Factory.deploy(l2ChainID)
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", RollupImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     // check params
-    await assertContractVariable(contract, 'layer2ChainId', l2ChainID)
-    await assertContractVariable(
-        contract,
-        'MESSENGER',
-        L1CrossDomainMessengerProxyAddress
-    )
+    await assertContractVariable(contract, 'LAYER_2_CHAIN_ID', l2ChainID)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storage(path, RollupImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
@@ -188,7 +183,7 @@ export const deployContractImpls = async (
 
     // ************************ staking contracts deploy ************************
     // Staking deploy 
-    Factory = await hre.ethers.getContractFactory(StakingFactoryName)
+    Factory = await hre.ethers.getContractFactory(L1StakingFactoryName)
     contract = await Factory.deploy()
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", StakingImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
