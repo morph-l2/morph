@@ -44,7 +44,7 @@ interface IRecord {
      * @custom:field sequencers             sequencers have produced blocks
      * @custom:field sequencerBlocks        number of blocks produced by sequencer
      * @custom:field sequencerRatios        sequencers reward ratio, ten thousandths (ratio/10000)
-     * @custom:field sequencerComissions    sequencers comission percentage
+     * @custom:field sequencerCommissions    sequencers commission percentage
      *
      * If no blocks were produced in this epoch, no sequencer will receive the reward
      */
@@ -54,7 +54,7 @@ interface IRecord {
         address[] sequencers;
         uint256[] sequencerBlocks;
         uint256[] sequencerRatios;
-        uint256[] sequencerComissions;
+        uint256[] sequencerCommissions;
     }
 
     /**
@@ -71,6 +71,51 @@ interface IRecord {
      * @notice return next reward epoch index
      */
     function nextRewardEpochIndex() external returns (uint256);
+
+    /**
+     * @notice return latest reward epoch block
+     */
+    function latestRewardEpochBlock() external returns (uint256);
+
+    /**
+     * @notice Initializer.
+     * @param _admin    params admin
+     * @param _oracle   oracle address
+     */
+    function initialize(address _admin, address _oracle) external;
+
+    /**
+     * @notice set oracle address
+     * @param _oracle   oracle address
+     */
+    function setOracleAddress(address _oracle) external;
+
+    /**
+     * @notice set latest block
+     * @param _latestBlock   latest block
+     */
+    function setLatestRewardEpochBlock(uint256 _latestBlock) external;
+
+    /**
+     * @notice record batch submissions
+     */
+    function recordFinalizedBatchSubmissions(
+        BatchSubmission[] memory _batchSubmissions
+    ) external;
+
+    /**
+     * @notice record epochs
+     */
+    function recordRollupEpochs(
+        RollupEpochInfo[] memory _rollupEpochs
+    ) external;
+
+    /**
+     * @notice record epochs
+     */
+    function recordRewardEpochs(
+        RewardEpochInfo[] memory _rewardEpochs
+    ) external;
 
     /**
      * @notice getBatchSubmissions

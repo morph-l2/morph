@@ -77,7 +77,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
 
     function testCalculateIntrinsicGasFee() external {
         hevm.startPrank(multisig);
-        bytes memory _calldata = hex"00";
+        bytes memory _calldata = "0x00";
         uint256 intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(
             _calldata
         );
@@ -87,7 +87,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
                 _calldata.length *
                 APPROPRIATE_INTRINSIC_GAS_PER_BYTE
         );
-        _calldata = hex"001122";
+        _calldata = "0x001122";
         intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(_calldata);
         assertEq(
             intrinsicGasFee,
@@ -96,7 +96,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
                 APPROPRIATE_INTRINSIC_GAS_PER_BYTE
         );
 
-        _calldata = hex"0011220033";
+        _calldata = "0x0011220033";
         intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(_calldata);
         assertEq(
             intrinsicGasFee,

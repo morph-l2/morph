@@ -35,13 +35,15 @@ contract Record is IRecord, OwnableUpgradeable {
     // mapping(rollup_epoch_index => rollup_epoch_info)
     mapping(uint256 => RollupEpochInfo) public rollupEpochs;
     // mapping(reward_epoch_index => reward_epoch_info)
-    mapping(uint256 => RewardEpochInfo) public rewardpEpochs;
+    mapping(uint256 => RewardEpochInfo) public rewardEpochs;
     // next batch submission index
     uint256 public override nextBatchSubmissionIndex;
     // next rollup epoch index
     uint256 public override nextRollupEpochIndex;
     // next reward epoch index
     uint256 public override nextRewardEpochIndex;
+    // latest reward epoch block
+    uint256 public override latestRewardEpochBlock;
 
     /*********************** modifiers **************************/
 
@@ -91,10 +93,21 @@ contract Record is IRecord, OwnableUpgradeable {
     }
 
     /**
+     * @notice set latest block
+     * @param _latestBlock   latest block
+     */
+    function setLatestRewardEpochBlock(
+        uint256 _latestBlock
+    ) external onlyOracle {
+        require(_latestBlock > 0, "invalid latest block");
+        latestRewardEpochBlock = _latestBlock;
+    }
+
+    /**
      * @notice record batch submissions
      */
     function recordFinalizedBatchSubmissions(
-        BatchSubmission[] calldata _batchSubmissions
+        BatchSubmission[] memory _batchSubmissions
     ) external onlyOracle {
         for (uint256 i = 0; i < _batchSubmissions.length; i++) {
             require(
@@ -116,7 +129,7 @@ contract Record is IRecord, OwnableUpgradeable {
      * @notice record epochs
      */
     function recordRollupEpochs(
-        RollupEpochInfo[] calldata _rollupEpochs
+        RollupEpochInfo[] memory _rollupEpochs
     ) external onlyOracle {
         for (uint256 i = 0; i < _rollupEpochs.length; i++) {
             require(
@@ -137,8 +150,9 @@ contract Record is IRecord, OwnableUpgradeable {
      * @notice record epochs
      */
     function recordRewardEpochs(
-        RewardEpochInfo[] calldata _rewardEpochs
+        RewardEpochInfo[] memory _rewardEpochs
     ) external onlyOracle {
+        require(latestRewardEpochBlock > 0, "start block should be set");
         require(
             nextRewardEpochIndex + _rewardEpochs.length - 1 <
                 IL2Staking(L2_STAKING_CONTRACT).currentEpoch(),
@@ -148,6 +162,7 @@ contract Record is IRecord, OwnableUpgradeable {
             nextRewardEpochIndex + _rewardEpochs.length - 1
         );
 
+        uint256 latestRewardEpochBlockSubstitute = latestRewardEpochBlock;
         for (uint256 i = 0; i < _rewardEpochs.length; i++) {
             uint256 dataLen = _rewardEpochs[i].sequencers.length;
             uint256 index = _rewardEpochs[i].index;
@@ -155,29 +170,30 @@ contract Record is IRecord, OwnableUpgradeable {
             require(
                 _rewardEpochs[i].sequencerBlocks.length == dataLen &&
                     _rewardEpochs[i].sequencerRatios.length == dataLen &&
-                    _rewardEpochs[i].sequencerComissions.length == dataLen,
+                    _rewardEpochs[i].sequencerCommissions.length == dataLen,
                 "invalid data length"
             );
 
-            rewardpEpochs[index] = RewardEpochInfo(
+            latestRewardEpochBlockSubstitute += _rewardEpochs[i].blockCount;
+            rewardEpochs[index] = RewardEpochInfo(
                 index,
                 _rewardEpochs[i].blockCount,
-                new address[](dataLen),
-                new uint256[](dataLen),
-                new uint256[](dataLen),
-                new uint256[](dataLen)
+                _rewardEpochs[i].sequencers,
+                _rewardEpochs[i].sequencerBlocks,
+                _rewardEpochs[i].sequencerRatios,
+                _rewardEpochs[i].sequencerCommissions
             );
 
             uint256 inflationAmount = IMorphToken(MORPH_TOKEN_CONTRACT)
-                .inflations(index);
+                .inflation(index);
             uint256 blockCount = 0;
             uint256 ratioSum = 0;
             uint256[] memory delegatorRewards = new uint256[](dataLen);
             uint256[] memory commissions = new uint256[](dataLen);
             for (uint256 j = 0; j < dataLen; j++) {
                 require(
-                    _rewardEpochs[i].sequencerComissions[j] <= 20,
-                    "invalid sequencers comission"
+                    _rewardEpochs[i].sequencerCommissions[j] <= 20,
+                    "invalid sequencers commission"
                 );
                 ratioSum += _rewardEpochs[i].sequencerRatios[j];
                 blockCount += _rewardEpochs[i].sequencerBlocks[j];
@@ -185,18 +201,18 @@ contract Record is IRecord, OwnableUpgradeable {
                 // compute rewards per sequencer
                 uint256 reward = (inflationAmount *
                     _rewardEpochs[i].sequencerRatios[j]) / RATIO_PRECISION;
-                commissions[i] =
-                    (reward * _rewardEpochs[i].sequencerComissions[j]) /
+                commissions[j] =
+                    (reward * _rewardEpochs[i].sequencerCommissions[j]) /
                     100;
-                delegatorRewards[i] = reward - commissions[i];
+                delegatorRewards[j] = reward - commissions[j];
             }
             require(
                 blockCount == _rewardEpochs[i].blockCount,
                 "invalid sequencers blocks"
             );
-            require(ratioSum <= 100, "invalid sequencers ratios");
+            require(ratioSum <= RATIO_PRECISION, "invalid sequencers ratios");
 
-            // update sequecers reward data
+            // update sequencers reward data
             IDistribute(DISTRIBUTE_CONTRACT).updateEpochReward(
                 index,
                 _rewardEpochs[i].sequencers,
@@ -204,6 +220,8 @@ contract Record is IRecord, OwnableUpgradeable {
                 commissions
             );
         }
+
+        latestRewardEpochBlock = latestRewardEpochBlockSubstitute;
 
         nextRewardEpochIndex += _rewardEpochs.length;
     }
@@ -254,7 +272,7 @@ contract Record is IRecord, OwnableUpgradeable {
         require(end >= start, "invalid index");
         res = new RewardEpochInfo[](end - start + 1);
         for (uint256 i = start; i <= end; i++) {
-            res[i] = rewardpEpochs[i];
+            res[i] = rewardEpochs[i];
         }
     }
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
+	"github.com/scroll-tech/go-ethereum/rlp"
 	"github.com/tendermint/tendermint/blssignatures"
 )
 
@@ -127,22 +128,6 @@ func (sr *Rollup) Start() {
 				}
 				sr.metrics.SetLastFinalizedBatchIndex(lastFinalized.Uint64())
 				sr.metrics.SetLastCommittedBatchIndex(lastCommited.Uint64())
-
-				// get last rolluped l2 block
-				l2LatestBlockNumberRolluped, err := sr.Rollup.LatestL2BlockNumber(nil)
-				if err != nil {
-					log.Error("get last l2 block number error", "error", err)
-					continue
-				}
-				sr.metrics.SetLastL2BlockNumberRolluped(l2LatestBlockNumberRolluped.Uint64())
-				// get last l2 block
-				// todo: get the largest block number from all l2 clients
-				l2BlockNumber, err := sr.L2Clients[0].BlockNumber(context.Background())
-				if err != nil {
-					log.Error("get l2 block number error", "error", err)
-					continue
-				}
-				sr.metrics.SetL2BlockNumber(l2BlockNumber)
 
 				// get balacnce of wallet
 				balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
@@ -385,11 +370,11 @@ func (sr *Rollup) rollup() error {
 	for _, chunk := range batch.Chunks {
 		chunks = append(chunks, chunk)
 	}
-	signature, err := sr.aggregateSignatures(batch.Signatures)
+	signature, err := sr.aggregateSignatures(batch)
 	if err != nil {
 		return err
 	}
-	rollupBatch := bindings.IRollupBatchData{
+	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:                uint8(batch.Version),
 		ParentBatchHeader:      batch.ParentBatchHeader,
 		Chunks:                 chunks,
@@ -397,7 +382,6 @@ func (sr *Rollup) rollup() error {
 		PrevStateRoot:          batch.PrevStateRoot,
 		PostStateRoot:          batch.PostStateRoot,
 		WithdrawalRoot:         batch.WithdrawRoot,
-		Signature:              *signature,
 	}
 
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
@@ -415,7 +399,7 @@ func (sr *Rollup) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, *signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
@@ -426,7 +410,7 @@ func (sr *Rollup) rollup() error {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, *signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
@@ -596,11 +580,12 @@ func (sr *Rollup) rollup() error {
 	return nil
 }
 
-func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindings.IRollupBatchSignature, error) {
+func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
+	blsSignatures := batch.Signatures
 	if len(blsSignatures) == 0 {
 		return nil, fmt.Errorf("invalid batch signature")
 	}
-	signers := make([]*big.Int, len(blsSignatures))
+	signers := make([]common.Address, len(blsSignatures))
 	sigs := make([]blssignatures.Signature, 0)
 	for i, bz := range blsSignatures {
 		if len(bz.Signature) > 0 {
@@ -609,17 +594,21 @@ func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*b
 				return nil, err
 			}
 			sigs = append(sigs, sig)
-			signers[i] = big.NewInt(int64(bz.Signer))
+			signers[i] = bz.Signer
 		}
 	}
 	aggregatedSig := blssignatures.AggregateSignatures(sigs)
 	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
-	rollupBatchSignature := bindings.IRollupBatchSignature{
-		Version:   big.NewInt(int64(blsSignatures[0].Version)),
-		Signers:   signers,
-		Signature: blsSignature,
+	bsSigner, err := rlp.EncodeToBytes(signers)
+	if err != nil {
+		return nil, fmt.Errorf("encode signers error:%v", err)
 	}
-	return &rollupBatchSignature, nil
+	sigData := bindings.IRollupBatchSignatureInput{
+		SignedSequencers: bsSigner,
+		SequencerSets:    batch.CurrentSequencerSetBytes,
+		Signature:        blsSignature,
+	}
+	return &sigData, nil
 }
 
 func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {

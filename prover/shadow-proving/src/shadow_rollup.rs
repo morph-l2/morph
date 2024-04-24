@@ -97,7 +97,7 @@ impl BatchSyncer {
         if !check_receipt("shadow_commit_batch", &self.l1_provider, pending_tx).await {
             return Ok(None);
         }
-        log::info!(">sync shadow batch complete: {:#?}", batch_info.batch_index);
+        log::info!(">Sync shadow batch complete: {:#?}", batch_info.batch_index);
         Ok(Some(batch_info))
     }
 }

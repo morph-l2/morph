@@ -2,16 +2,16 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {IL2Staking} from "./IL2Staking.sol";
 import {IRecord} from "./IRecord.sol";
 import {IDistribute} from "./IDistribute.sol";
+import {IMorphToken} from "../system/IMorphToken.sol";
 
 contract Distribute is IDistribute, OwnableUpgradeable {
-    using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     // MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
@@ -22,13 +22,13 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     // reward epoch, seconds of one day (3600 * 24)
     uint256 public immutable REWARD_EPOCH = 86400;
 
-    // latest epoch minted inflation
-    uint256 private latestMintedEpoch;
+    // total minted epoch
+    uint256 private mintedEpochCount;
 
     // mapping(delegatee => mapping(epoch_index => Distribution)). delete after all claimed
     mapping(address => mapping(uint256 => Distribution)) private distributions;
     // mapping(delegatee => epoch_index)
-    mapping(address => uint256) public override unclaimedComission;
+    mapping(address => uint256) public override unclaimedCommission;
     // mapping(delegator => unclaimed_info)
     mapping(address => Unclaimed) private unclaimed;
 
@@ -160,8 +160,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         uint256[] memory delegatorRewards,
         uint256[] memory commissions
     ) external onlyRecordContract {
-        latestMintedEpoch++;
-        require(latestMintedEpoch == epochIndex, "invalid epoch index");
+        mintedEpochCount++;
+        require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
+
         require(
             delegatorRewards.length == sequencers.length &&
                 commissions.length == sequencers.length,
@@ -190,9 +191,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegator,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not mint yet");
         uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
-            endEpochIndex = latestMintedEpoch;
+        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+            endEpochIndex = mintedEpochCount - 1;
         }
         uint256 reward = _claim(delegatee, delegator, endEpochIndex);
         if (reward > 0) {
@@ -212,9 +214,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegator,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not mint yet");
         uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
-            endEpochIndex = latestMintedEpoch;
+        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+            endEpochIndex = mintedEpochCount - 1;
         }
         uint256 reward;
         for (uint256 i = 0; i < unclaimed[delegator].delegatees.length(); i++) {
@@ -240,11 +243,15 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegatee,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not mint yet");
         uint256 end = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > latestMintedEpoch) {
-            end = latestMintedEpoch;
+        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+            end = mintedEpochCount - 1;
         }
-        require(unclaimedComission[delegatee] <= end, "all commission claimed");
+        require(
+            unclaimedCommission[delegatee] <= end,
+            "all commission claimed"
+        );
         uint256 commission;
         for (uint256 i = 0; i <= end; i++) {
             commission += distributions[delegatee][i].commissionAmount;
@@ -252,7 +259,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         if (commission > 0) {
             _transfer(delegatee, commission);
         }
-        unclaimedComission[delegatee] = end + 1;
+        unclaimedCommission[delegatee] = end + 1;
     }
 
     /*********************** External View Functions **************************/
@@ -269,7 +276,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         uint256 totalAmount;
         uint256 delegatorAmount;
         uint start = unclaimed[delegator].unclaimedStart[delegatee];
-        for (uint256 i = start; i <= latestMintedEpoch; i++) {
+        for (uint256 i = start; i < mintedEpochCount; i++) {
             if (distributions[delegatee][i].amounts[delegator] > 0) {
                 delegatorAmount = distributions[delegatee][i].amounts[
                     delegator
@@ -297,9 +304,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * @notice transfer morph token
      */
     function _transfer(address _to, uint256 _amount) internal {
-        uint256 balanceBefore = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IERC20(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
-        uint256 balanceAfter = IERC20(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(
+            _to
+        );
+        IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
+        uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         require(
             _amount > 0 && balanceAfter - balanceBefore == _amount,
             "morph token transfer failed"
@@ -334,19 +343,6 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                     distributions[delegatee][i].amounts[delegator]) /
                 distributions[delegatee][i].delegationAmount;
 
-            // if undelegated, remove delegator unclaimed info after claimed all
-            if (
-                unclaimed[delegator].undelegated[delegatee] &&
-                unclaimed[delegator].unclaimedEnd[delegatee] == i
-            ) {
-                unclaimed[delegator].delegatees.remove(delegatee);
-                delete unclaimed[delegator].undelegated[delegatee];
-                delete unclaimed[delegator].unclaimedStart[delegatee];
-                delete unclaimed[delegator].unclaimedEnd[delegatee];
-                break;
-            }
-            unclaimed[delegator].unclaimedStart[delegatee]++;
-
             // if distribution is empty, update next distribution info
             if (
                 !distributions[delegatee][i + 1].delegators.contains(delegator)
@@ -372,6 +368,19 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             if (distributions[delegatee][i].remainsNumber == 0) {
                 delete distributions[delegatee][i];
             }
+
+            // if undelegated, remove delegator unclaimed info after claimed all
+            if (
+                unclaimed[delegator].undelegated[delegatee] &&
+                unclaimed[delegator].unclaimedEnd[delegatee] == i
+            ) {
+                unclaimed[delegator].delegatees.remove(delegatee);
+                delete unclaimed[delegator].undelegated[delegatee];
+                delete unclaimed[delegator].unclaimedStart[delegatee];
+                delete unclaimed[delegator].unclaimedEnd[delegatee];
+                break;
+            }
+            unclaimed[delegator].unclaimedStart[delegatee]++;
         }
 
         emit RewardClaimed(delegator, delegatee, endEpochIndex, reward);

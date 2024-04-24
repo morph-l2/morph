@@ -25,7 +25,7 @@ contract EnforcedTxGateway is
     /// @notice Emitted when owner updates fee vault contract.
     /// @param _oldFeeVault The address of old fee vault contract.
     /// @param _newFeeVault The address of new fee vault contract.
-    event UpdateFeeVault(address _oldFeeVault, address _newFeeVault);
+    event UpdateFeeVault(address indexed _oldFeeVault, address indexed _newFeeVault);
 
     /*************
      * Constants *
@@ -64,6 +64,7 @@ contract EnforcedTxGateway is
         address _queue,
         address _feeVault
     ) external initializer {
+        require(_feeVault != address(0), "fee vault cannot be address(0)");
         OwnableUpgradeable.__Ownable_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
         PausableUpgradeable.__Pausable_init();
@@ -71,6 +72,7 @@ contract EnforcedTxGateway is
 
         messageQueue = _queue;
         feeVault = _feeVault;
+        emit UpdateFeeVault(address(0), feeVault);
     }
 
     /*************************
@@ -178,6 +180,7 @@ contract EnforcedTxGateway is
     /// @notice Update the address of fee vault.
     /// @param _newFeeVault The address to update.
     function updateFeeVault(address _newFeeVault) external onlyOwner {
+        require(_newFeeVault != address(0), "fee vault cannot be address(0)");
         address _oldFeeVault = feeVault;
         feeVault = _newFeeVault;
 

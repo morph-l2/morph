@@ -14,7 +14,7 @@ pragma solidity =0.8.24;
 //     uint256 public beginSeq = 10;
 //     uint256 public version = 0;
 //     bytes[] public sequencerBLSKeys;
-//     address[] public sequencerAddrs;
+//     address[] public sequencerAddresses;
 
 //     // Sequencer config
 //     Sequencer public sequencer;
@@ -108,7 +108,7 @@ pragma solidity =0.8.24;
 //                 user
 //             );
 //             sequencerInfos[i] = sequencerInfo;
-//             sequencerAddrs.push(sequencerInfo.addr);
+//             sequencerAddresses.push(sequencerInfo.addr);
 //         }
 //         ITransparentUpgradeableProxy(address(sequencerProxy))
 //             .upgradeToAndCall(
@@ -135,7 +135,7 @@ pragma solidity =0.8.24;
 //                 address(submitterImpl),
 //                 abi.encodeWithSelector(
 //                     Submitter.initialize.selector,
-//                     sequencerAddrs,
+//                     sequencerAddresses,
 //                     block.timestamp
 //                 )
 //             );

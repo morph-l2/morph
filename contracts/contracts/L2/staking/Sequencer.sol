@@ -48,7 +48,7 @@ contract Sequencer is Initializable, ISequencer {
      * @notice Initializer.
      * @param _sequencerSet  initial sequencer set, must be same as initial staker set in l2 staking contract
      */
-    function initialize(address[] memory _sequencerSet) public initializer {
+    function initialize(address[] calldata _sequencerSet) public initializer {
         require(_sequencerSet.length > 0, "invalid sequencer set");
         sequencerSet0 = _sequencerSet;
         sequencerSet1 = _sequencerSet;
@@ -182,6 +182,20 @@ contract Sequencer is Initializable, ISequencer {
             return _contains(sequencerSet1, addr);
         }
         return _contains(sequencerSet0, addr);
+    }
+
+    /**
+     * @notice get the encoded sequencer set bytes
+     */
+    function getSequencerSetBytes() external view returns (bytes memory) {
+        return abi.encodePacked(
+                blockHeight0,
+                sequencerSet0,
+                blockHeight1,
+                sequencerSet1,
+                blockHeight2,
+                sequencerSet2
+            );
     }
 
     /*********************** Internal Functions **************************/

@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.0;
 
-import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -10,8 +9,6 @@ import {IL2Staking} from "../staking/IL2Staking.sol";
 import {IMorphToken} from "./IMorphToken.sol";
 
 contract MorphToken is IMorphToken, OwnableUpgradeable {
-    using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
-
     // day seconds
     uint256 private immutable DAY_SECONDS = 86400;
 
@@ -29,11 +26,11 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     mapping(address => mapping(address => uint256)) private _allowances;
 
     // daily inflation rate
-    DailyInflationRate[] public dailyInflationRates; // TODO: precision confirm
+    DailyInflationRate[] private _dailyInflationRates; // TODO: precision confirm
     // mapping(day_index => inflation_amount)
-    mapping(uint256 => uint256) public override inflations;
+    mapping(uint256 => uint256) private _inflations;
     // inflation minted days
-    uint256 public inflationMintedDays;
+    uint256 private _inflationMintedDays;
 
     /**
      * @notice Ensures that the caller message from record contract.
@@ -67,7 +64,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         _symbol = symbol_;
         _mint(msg.sender, initialSupply_);
 
-        dailyInflationRates.push(DailyInflationRate(dailyInflationRate_, 0));
+        _dailyInflationRates.push(DailyInflationRate(dailyInflationRate_, 0));
 
         emit UpdateDailyInflationRate(dailyInflationRate_, 0);
     }
@@ -84,10 +81,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             "effective days after must be greater than 0"
         );
 
-        uint256 effectiveDay = dailyInflationRates[
-            dailyInflationRates.length - 1
+        uint256 effectiveDay = _dailyInflationRates[
+            _dailyInflationRates.length - 1
         ].effectiveDayIndex + effectiveDaysAfterLatestUpdate;
-        dailyInflationRates.push(DailyInflationRate(newRate, effectiveDay));
+        _dailyInflationRates.push(DailyInflationRate(newRate, effectiveDay));
 
         emit UpdateDailyInflationRate(newRate, effectiveDay);
     }
@@ -136,6 +133,36 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
      */
     function balanceOf(address account) public view returns (uint256) {
         return _balances[account];
+    }
+
+    /**
+     * @dev See {IMorphToken-inflationRatesCount}.
+     */
+    function inflationRatesCount() public view returns (uint256) {
+        return _dailyInflationRates.length;
+    }
+
+    /**
+     * @dev See {IMorphToken-dailyInflationRates}.
+     */
+    function dailyInflationRates(
+        uint256 index
+    ) public view returns (DailyInflationRate memory) {
+        return _dailyInflationRates[index];
+    }
+
+    /**
+     * @dev See {IMorphToken-inflation}.
+     */
+    function inflation(uint256 dayIndex) public view returns (uint256) {
+        return _inflations[dayIndex];
+    }
+
+    /**
+     * @dev See {IMorphToken-inflationMintedDays}.
+     */
+    function inflationMintedDays() public view returns (uint256) {
+        return _inflationMintedDays;
     }
 
     /**
@@ -300,20 +327,25 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             currentDayIndex > upToDayIndex,
             "the specified time has not yet been reached"
         );
-        require(currentDayIndex > inflationMintedDays, "all inflations minted");
+        require(
+            currentDayIndex > _inflationMintedDays,
+            "all inflations minted"
+        );
 
-        for (uint256 i = inflationMintedDays; i < upToDayIndex; i++) {
-            uint256 rate = dailyInflationRates[0].rate;
+        uint256 _inflationMintedDaysSubstitute = _inflationMintedDays;
+        for (uint256 i = _inflationMintedDays; i <= upToDayIndex; i++) {
+            uint256 rate = _dailyInflationRates[0].rate;
             // find inflation rate of the day
-            for (uint256 j = dailyInflationRates.length - 1; j > 0; j--) {
-                if (dailyInflationRates[j].effectiveDayIndex <= i) {
-                    rate = dailyInflationRates[j].rate;
+            for (uint256 j = _dailyInflationRates.length - 1; j > 0; j--) {
+                if (_dailyInflationRates[j].effectiveDayIndex <= i) {
+                    rate = _dailyInflationRates[j].rate;
                 }
             }
-            inflations[i] = (_totalSupply * rate) / 1e16;
-            _mint(DISTRIBUTE_CONTRACT, inflations[i]);
-            inflationMintedDays++;
+            _inflations[i] = (_totalSupply * rate) / 1e16;
+            _mint(DISTRIBUTE_CONTRACT, _inflations[i]);
+            _inflationMintedDaysSubstitute++;
         }
+        _inflationMintedDays = _inflationMintedDaysSubstitute;
     }
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing

@@ -125,9 +125,13 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			if block.txsNum < block.l1MsgNum {
 				return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
 			}
-			txs, err := tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
-			if err != nil {
-				return fmt.Errorf("decode txsPayload error:%v", err)
+			var txs []*eth.Transaction
+			var err error
+			if len(batch.Sidecar.Blobs) != 0 {
+				txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
+				if err != nil {
+					return fmt.Errorf("decode txsPayload error:%v", err)
+				}
 			}
 			txsNum += uint64(block.txsNum)
 			l1MsgNum += uint64(block.l1MsgNum)
