@@ -162,6 +162,7 @@ contract Record is IRecord, OwnableUpgradeable {
             nextRewardEpochIndex + _rewardEpochs.length - 1
         );
 
+        uint256 latestRewardEpochBlockSubstitute = latestRewardEpochBlock;
         for (uint256 i = 0; i < _rewardEpochs.length; i++) {
             uint256 dataLen = _rewardEpochs[i].sequencers.length;
             uint256 index = _rewardEpochs[i].index;
@@ -173,7 +174,7 @@ contract Record is IRecord, OwnableUpgradeable {
                 "invalid data length"
             );
 
-            latestRewardEpochBlock += _rewardEpochs[i].blockCount;
+            latestRewardEpochBlockSubstitute += _rewardEpochs[i].blockCount;
             rewardEpochs[index] = RewardEpochInfo(
                 index,
                 _rewardEpochs[i].blockCount,
@@ -211,7 +212,7 @@ contract Record is IRecord, OwnableUpgradeable {
             );
             require(ratioSum <= RATIO_PRECISION, "invalid sequencers ratios");
 
-            // update sequecers reward data
+            // update sequencers reward data
             IDistribute(DISTRIBUTE_CONTRACT).updateEpochReward(
                 index,
                 _rewardEpochs[i].sequencers,
@@ -219,6 +220,8 @@ contract Record is IRecord, OwnableUpgradeable {
                 commissions
             );
         }
+
+        latestRewardEpochBlock = latestRewardEpochBlockSubstitute;
 
         nextRewardEpochIndex += _rewardEpochs.length;
     }

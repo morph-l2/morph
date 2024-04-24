@@ -60,7 +60,7 @@ interface IGov {
     function propose(ProposalData memory proposal) external;
 
     /**
-     * @notice vote a propsal
+     * @notice vote a proposal
      */
     function vote(uint256 _proposalID) external;
 
