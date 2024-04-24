@@ -11,7 +11,7 @@ import (
 
 type IRollup interface {
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
-	CommitBatch(opts *bind.TransactOpts, batchData bindings.IRollupBatchData) (*types.Transaction, error)
+	CommitBatch(opts *bind.TransactOpts, batchDataInput bindings.IRollupBatchDataInput, batchSignatureInput bindings.IRollupBatchSignatureInput) (*types.Transaction, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	FinalizeBatch(opts *bind.TransactOpts, _batchIndex *big.Int) (*types.Transaction, error)
 	FINALIZATIONPERIODSECONDS(opts *bind.CallOpts) (*big.Int, error)
