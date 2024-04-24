@@ -184,10 +184,10 @@ def devnet_deploy(paths, args):
     log.info('Passing L1 contracts address:', addresses)
 
     log.info('Do Staking Sequencer...')
-    deploy_config['l2SequencerAddresses']
-    deploy_config['l2SequencerPks']
-    deploy_config['l2SequencerTmKeys']
-    deploy_config['l2SequencerBlsKeys']
+    deploy_config['l2StakingAddresses']
+    deploy_config['l2StakingPks']
+    deploy_config['l2StakingTmKeys']
+    deploy_config['l2StakingBlsKeys']
     for i in range(4):
         run_command(['cast', 'send', addresses['Proxy__Staking'],
                      'register(bytes32,bytes memory,uint32)',
