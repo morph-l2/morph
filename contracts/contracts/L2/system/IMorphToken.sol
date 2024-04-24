@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.0;
 
-import {DoubleEndedQueue} from "@openzeppelin/contracts/utils/structs/DoubleEndedQueue.sol";
 import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
 
 /**
@@ -70,7 +69,9 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      * @dev query daily inflation rates.
      * @param index in array
      */
-    function dailyInflationRates(uint256 index) external view returns (DailyInflationRate memory);
+    function dailyInflationRates(
+        uint256 index
+    ) external view returns (DailyInflationRate memory);
 
     /**
      * @dev inflation returns amount of daily issues.

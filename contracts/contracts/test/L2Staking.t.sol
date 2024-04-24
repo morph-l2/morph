@@ -108,7 +108,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         for (uint256 i = 0; i < 4; i++) {
-            address user = l2Staking.stakerAddrs(i);
+            address user = l2Staking.stakerAddresses(i);
             uint256 ranking = l2Staking.stakerRankings(user);
             assertEq(ranking, i + 1);
         }

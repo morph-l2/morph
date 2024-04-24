@@ -70,7 +70,7 @@ pragma solidity =0.8.24;
 //                 user
 //             );
 //             if (i < SEQUENCER_SIZE) {
-//                 sequencerAddrs.push(sequencerInfo.addr);
+//                 sequencerAddresses.push(sequencerInfo.addr);
 //                 sequencerBLSKeys.push(sequencerInfo.blsKey);
 //             }
 
@@ -113,7 +113,7 @@ pragma solidity =0.8.24;
 //                 .stakings(user);
 //             assertEq(sequencerAddr, addrCheck);
 //             assertBytesEq(sequencerBLS, blsKeyCheck);
-//             assertEq(sequencerAddr, sequencerAddrs[i]);
+//             assertEq(sequencerAddr, sequencerAddresses[i]);
 //             assertBytesEq(sequencerBLS, sequencerBLSKeys[i]);
 //         }
 
@@ -124,10 +124,10 @@ pragma solidity =0.8.24;
 //                 bob
 //             );
 //             for (uint256 i = SEQUENCER_SIZE - 1; i > 0; i--) {
-//                 sequencerAddrs[i] = sequencerAddrs[i - 1];
+//                 sequencerAddresses[i] = sequencerAddresses[i - 1];
 //                 sequencerBLSKeys[i] = sequencerBLSKeys[i - 1];
 //             }
-//             sequencerAddrs[0] = sequencerInfo.addr;
+//             sequencerAddresses[0] = sequencerInfo.addr;
 //             sequencerBLSKeys[0] = sequencerInfo.blsKey;
 
 //             address[] memory add = new address[](1);
@@ -138,7 +138,7 @@ pragma solidity =0.8.24;
 
 //             hevm.expectEmit(true, true, true, true);
 //             version++;
-//             emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
+//             emit SequencerUpdated(sequencerAddresses, sequencerBLSKeys, version);
 
 //             hevm.prank(bob);
 //             staking.register{value: 3 * MIN_DEPOSIT}(
@@ -201,7 +201,7 @@ pragma solidity =0.8.24;
 //             assertBytesEq(blsKeyCheck, sequencerInfo.blsKey);
 //             assertEq(balanceCheck, 2 * MIN_DEPOSIT);
 //             if (i < SEQUENCER_SIZE) {
-//                 sequencerAddrs.push(sequencerInfo.addr);
+//                 sequencerAddresses.push(sequencerInfo.addr);
 //                 sequencerBLSKeys.push(sequencerInfo.blsKey);
 //             }
 //         }
@@ -243,10 +243,10 @@ pragma solidity =0.8.24;
 //         hevm.deal(user, 3 * MIN_DEPOSIT);
 //         (addrCheck, , blsKeyCheck, balancesPre) = staking.stakings(user);
 //         for (uint256 i = SEQUENCER_SIZE - 1; i > 0; i--) {
-//             sequencerAddrs[i] = sequencerAddrs[i - 1];
+//             sequencerAddresses[i] = sequencerAddresses[i - 1];
 //             sequencerBLSKeys[i] = sequencerBLSKeys[i - 1];
 //         }
-//         sequencerAddrs[0] = addrCheck;
+//         sequencerAddresses[0] = addrCheck;
 //         sequencerBLSKeys[0] = blsKeyCheck;
 //         version++;
 //         hevm.prank(user);
@@ -264,10 +264,10 @@ pragma solidity =0.8.24;
 //         hevm.deal(user, 3 * MIN_DEPOSIT);
 //         (addrCheck, , blsKeyCheck, balancesPre) = staking.stakings(user);
 //         for (uint256 i = SEQUENCER_SIZE - 1; i > 1; i--) {
-//             sequencerAddrs[i] = sequencerAddrs[i - 1];
+//             sequencerAddresses[i] = sequencerAddresses[i - 1];
 //             sequencerBLSKeys[i] = sequencerBLSKeys[i - 1];
 //         }
-//         sequencerAddrs[1] = addrCheck;
+//         sequencerAddresses[1] = addrCheck;
 //         sequencerBLSKeys[1] = blsKeyCheck;
 //         version++;
 //         hevm.prank(user);
@@ -326,17 +326,17 @@ pragma solidity =0.8.24;
 //         (, , , uint256 balancesPre) = staking.stakings(user);
 //         // update sequencers array
 //         for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
-//             sequencerAddrs[i] = sequencerAddrs[i + 1];
+//             sequencerAddresses[i] = sequencerAddresses[i + 1];
 //             sequencerBLSKeys[i] = sequencerBLSKeys[i + 1];
 //         }
-//         sequencerAddrs.pop();
-//         sequencerAddrs.push(inAddr);
+//         sequencerAddresses.pop();
+//         sequencerAddresses.push(inAddr);
 //         sequencerBLSKeys.pop();
 //         sequencerBLSKeys.push(inBlsKey);
 //         version++;
 //         // expect emit events
 //         emit Withdrawed(user, balancesPre);
-//         emit SequencerUpdated(sequencerAddrs, sequencerBLSKeys, version);
+//         emit SequencerUpdated(sequencerAddresses, sequencerBLSKeys, version);
 //         // withdraw
 //         hevm.prank(user);
 //         staking.withdrawETH(defaultGasLimit, 0);
@@ -372,7 +372,7 @@ pragma solidity =0.8.24;
 //         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
 //             address sequencerAddr = staking.sequencersAddr(i);
 //             bytes memory sequencerBlsKey = staking.sequencersBLS(i);
-//             assertEq(sequencerAddrs[i], sequencerAddr);
+//             assertEq(sequencerAddresses[i], sequencerAddr);
 //             assertBytesEq(sequencerBLSKeys[i], sequencerBlsKey);
 //         }
 //     }

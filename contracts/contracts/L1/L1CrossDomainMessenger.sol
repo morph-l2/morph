@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
+import {IMessageDropCallback} from "../libraries/callbacks/IMessageDropCallback.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {Constants} from "../libraries/constants/Constants.sol";
 import {CrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
-import {IMessageDropCallback} from "../libraries/callbacks/IMessageDropCallback.sol";
 import {IL1MessageQueue} from "./rollup/IL1MessageQueue.sol";
 import {IRollup} from "./rollup/IRollup.sol";
-import {Verify} from "../libraries/common/Tree.sol";
+import {Verify} from "../libraries/common/Verify.sol";
+import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
 
 /**
  * @custom:proxied
@@ -98,13 +98,12 @@ contract L1CrossDomainMessenger is
             revert ErrZeroAddress();
         }
         CrossDomainMessenger.__Messenger_init(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             _feeVault
         );
 
         rollup = _rollup;
         messageQueue = _messageQueue;
-        counterpart = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         maxReplayTimes = 3;
         emit UpdateMaxReplayTimes(0, 3);
@@ -160,7 +159,7 @@ contract L1CrossDomainMessenger is
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(
-            finalizedWithdrawals[_xDomainCalldataHash] == false,
+            !finalizedWithdrawals[_xDomainCalldataHash],
             "Messenger: withdrawal has already been finalized"
         );
 
@@ -438,21 +437,6 @@ contract L1CrossDomainMessenger is
                 require(_success, "Failed to refund the fee");
             }
         }
-    }
-
-    /**
-     * @notice Determines whether the finalization period has elapsed w/r/t a given timestamp.
-     *
-     * @param _timestamp Timestamp to check.
-     *
-     * @return Whether or not the finalization period has elapsed.
-     */
-    function _isFinalizationPeriodElapsed(
-        uint256 _timestamp
-    ) internal view returns (bool) {
-        return
-            block.timestamp >
-            _timestamp + IRollup(rollup).FINALIZATION_PERIOD_SECONDS();
     }
 
     function messageNonce()

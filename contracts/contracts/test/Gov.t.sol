@@ -47,8 +47,8 @@ contract govTest is L2StakingBaseTest {
             0, // batchBlockInterval
             0, // batchMaxBytes
             FINALIZATION_PERIOD_SECONDS, // batchTimeout
-            ROLLUP_EPOCH, // rollupEpoch
-            MAX_CHUNKS // maxChunks
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
         );
 
         address user = address(uint160(beginSeq));
@@ -60,8 +60,8 @@ contract govTest is L2StakingBaseTest {
             uint256 batchBlockInterval_,
             uint256 batchMaxBytes_,
             uint256 batchTimeout_,
-            uint256 rollupEpoch_,
-            uint256 maxChunks_
+            uint256 maxChunks_,
+            uint256 rollupEpoch_
         ) = gov.proposalData(nextproposalID);
         assertEq(batchBlockInterval_, proposal.batchBlockInterval);
         assertEq(batchMaxBytes_, proposal.batchMaxBytes);
@@ -79,8 +79,8 @@ contract govTest is L2StakingBaseTest {
             0, // batchBlockInterval
             0, // batchMaxBytes
             FINALIZATION_PERIOD_SECONDS, // batchTimeout
-            ROLLUP_EPOCH, // rollupEpoch
-            MAX_CHUNKS // maxChunks
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
         );
 
         // proposal
@@ -106,8 +106,8 @@ contract govTest is L2StakingBaseTest {
             0, // batchBlockInterval
             0, // batchMaxBytes
             FINALIZATION_PERIOD_SECONDS, // batchTimeout
-            ROLLUP_EPOCH, // rollupEpoch
-            MAX_CHUNKS // maxChunks
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
         );
 
         // proposal
@@ -152,8 +152,8 @@ contract govTest is L2StakingBaseTest {
             0, // batchBlockInterval
             0, // batchMaxBytes
             FINALIZATION_PERIOD_SECONDS, // batchTimeout
-            ROLLUP_EPOCH, // rollupEpoch
-            MAX_CHUNKS // maxChunks
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
         );
 
         // proposal

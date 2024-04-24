@@ -2,7 +2,7 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {IL2Staking} from "./IL2Staking.sol";
@@ -11,7 +11,7 @@ import {IDistribute} from "./IDistribute.sol";
 import {IMorphToken} from "../system/IMorphToken.sol";
 
 contract Distribute is IDistribute, OwnableUpgradeable {
-    using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     // MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
