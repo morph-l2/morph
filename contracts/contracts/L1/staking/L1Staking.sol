@@ -49,9 +49,9 @@ contract L1Staking is
     event Registered(address addr, bytes32 tmKey, bytes blsKey);
 
     /**
-     * @notice withdrawed
+     * @notice Withdrawn
      */
-    event Withdrawed(address addr, uint256 unlockTime);
+    event Withdrawn(address addr, uint256 unlockTime);
 
     /**
      * @notice staker claimed
@@ -175,7 +175,7 @@ contract L1Staking is
         withdrawals[msg.sender] = block.number + WITHDRAWAL_LOCK_BLOCKS;
         stakerList[index] = stakerList[stakerList.length - 1];
         stakerList.pop();
-        emit Withdrawed(msg.sender, withdrawals[msg.sender]);
+        emit Withdrawn(msg.sender, withdrawals[msg.sender]);
 
         // send message to remove staker on l2
         address[] memory remove = new address[](1);

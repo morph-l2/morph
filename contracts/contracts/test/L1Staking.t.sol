@@ -157,7 +157,7 @@ pragma solidity =0.8.24;
 
 // contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
 //     event Staked(address addr, uint256 balance);
-//     event Withdrawed(address addr, uint256 balance);
+//     event Withdrawn(address addr, uint256 balance);
 //     event Claimed(address addr, uint256 balance);
 
 //     function setUp() public virtual override {
@@ -288,7 +288,7 @@ pragma solidity =0.8.24;
 //         address user = address(uint160(beginSeq + SEQUENCER_SIZE));
 //         (, , , uint256 balancesPre) = staking.stakings(user);
 //         hevm.expectEmit(true, true, true, true);
-//         emit Withdrawed(user, balancesPre);
+//         emit Withdrawn(user, balancesPre);
 //         hevm.prank(user);
 //         staking.withdrawETH(defaultGasLimit, 0);
 //         (, , , uint256 balancesStaking) = staking.stakings(user);
@@ -335,7 +335,7 @@ pragma solidity =0.8.24;
 //         sequencerBLSKeys.push(inBlsKey);
 //         version++;
 //         // expect emit events
-//         emit Withdrawed(user, balancesPre);
+//         emit Withdrawn(user, balancesPre);
 //         emit SequencerUpdated(sequencerAddresses, sequencerBLSKeys, version);
 //         // withdraw
 //         hevm.prank(user);
