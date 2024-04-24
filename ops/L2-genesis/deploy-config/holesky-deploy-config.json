@@ -5,9 +5,9 @@
   "finalSystemOwner": "0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d",
   "proxyAdminOwner": "0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d",
 
-  "l1FeeVaultRecipient": "0x484426a2F7e0469d70a51cd07cCB7793d58e9008",
-  "sequencerFeeVaultRecipient": "0x484426a2F7e0469d70a51cd07cCB7793d58e9008",
-  "l2BridgeFeeVaultRecipient": "0x484426a2F7e0469d70a51cd07cCB7793d58e9008",
+  "l1FeeVaultRecipient": "0x48442Aa154897eeF141dF231cC1517fC8c1d170f",
+  "sequencerFeeVaultRecipient": "0x48442Aa154897eeF141dF231cC1517fC8c1d170f",
+  "l2BridgeFeeVaultRecipient": "0x48442Aa154897eeF141dF231cC1517fC8c1d170f",
   "fundDevAccounts": false,
 
   "l1StartingBlockTag": "earliest",
