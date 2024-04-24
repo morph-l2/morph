@@ -8,6 +8,11 @@ interface ISequencer {
     event SequencerSetUpdated(address[] sequencerSet, uint256 blockHeight);
 
     /**
+     * @notice init contract
+     */
+    function initialize(address[] memory _sequencerSet) external;
+
+    /**
      * @notice update sequencer set
      */
     function updateSequencerSet(address[] memory newSequencerSet) external;
@@ -61,4 +66,9 @@ interface ISequencer {
      * @notice whether the address is a current sequencer
      */
     function isCurrentSequencer(address addr) external view returns (bool);
+
+    /**
+     * @notice get the encoded sequencer set bytes
+     */
+    function getSequencerSetBytes() external view returns (bytes memory);
 }

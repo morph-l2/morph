@@ -8,7 +8,7 @@ interface IL2Staking {
      * @notice Undelegation representing a undelegation info.
      *
      * @custom:field delegatee  delegatee
-     * @custom:field amount     staking amuont
+     * @custom:field amount     staking amount
      * @custom:field unlock     unlock epoch index
      */
     struct Undelegation {
