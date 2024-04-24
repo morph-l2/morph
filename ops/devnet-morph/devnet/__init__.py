@@ -189,14 +189,13 @@ def devnet_deploy(paths, args):
     deploy_config['l2StakingTmKeys']
     deploy_config['l2StakingBlsKeys']
     for i in range(4):
-        run_command(['cast', 'send', addresses['Proxy__Staking'],
-                     'register(bytes32,bytes memory,uint32)',
-                     deploy_config['l2SequencerTmKeys'][i],
-                     deploy_config['l2SequencerBlsKeys'][i],
-                     '5000000',
+        run_command(['cast', 'send', addresses['Proxy__L1Staking'],
+                     'register(bytes32,bytes memory)',
+                     deploy_config['l2StakingTmKeys'][i],
+                     deploy_config['l2StakingBlsKeys'][i],
                      '--rpc-url', 'http://127.0.0.1:9545',
                      '--value', '2ether',
-                     '--private-key', deploy_config['l2SequencerPks'][i]
+                     '--private-key', deploy_config['l2StakingPks'][i]
                      ])
 
     build_geth_target = 'l2-geth'
