@@ -10,7 +10,7 @@ interface ISequencer {
     /**
      * @notice init contract
      */
-    function initialize(address[] memory _sequencerSet) external;
+    function initialize(address[] calldata _sequencerSet) external;
 
     /**
      * @notice update sequencer set
