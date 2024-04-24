@@ -110,8 +110,13 @@ type DeployConfig struct {
 	L2StakingTmKeys                []common.Hash    `json:"l2StakingTmKeys"`
 	L2StakingBlsKeys               []hexutil.Bytes  `json:"l2StakingBlsKeys"`
 
-	// L2Sequencer configs
-	L2SequencerAddresses []common.Address `json:"l2SequencerAddresses"`
+	// Record configs
+	RecordOracleAddress common.Address `json:"recordOracleAddress"`
+	// MorphToken configs
+	MorphTokenName               string `json:"morphTokenName"`
+	MorphTokenSymbol             string `json:"morphTokenSymbol"`
+	MorphTokenInitialSupply      uint64 `json:"morphTokenInitialSupply"`
+	MorphTokenDailyInflationRate uint64 `json:"morphTokenDailyInflationRate"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
@@ -202,17 +207,6 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	}
 	return nil
 }
-
-//func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
-//	if d.L2GenesisRegolithTimeOffset == nil {
-//		return nil
-//	}
-//	v := uint64(0)
-//	if offset := *d.L2GenesisRegolithTimeOffset; offset > 0 {
-//		v = genesisTime + uint64(offset)
-//	}
-//	return &v
-//}
 
 // RollupConfig converts a DeployConfig to a rollup.Config
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64, l2GenesisStateRoot common.Hash, withdrawRoot common.Hash, genesisBatchHeader []byte) (*rollup.Config, error) {
@@ -307,6 +301,12 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	}
 
 	imConfig := &immutables.InitConfig{
+		// MorphToken
+		MorphTokenName:               config.MorphTokenName,
+		MorphTokenSymbol:             config.MorphTokenSymbol,
+		MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
+		MorphTokenDailyInflationRate: config.MorphTokenDailyInflationRate,
+		// L2Staking
 		L2StakingAdmin:                config.FinalSystemOwner,
 		L2StakingSequencersMaxSize:    config.L2StakingSequencerMaxSize,
 		L2StakingRewardStartTime:      config.L2StakingRewardStartTime,
@@ -359,6 +359,30 @@ func (d *DeployConfig) Check() error {
 	if d.GasPriceOracleScalar <= 0 {
 		return fmt.Errorf("GasPriceOracleScalar must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
+	if d.RecordOracleAddress == (common.Address{}) {
+		return fmt.Errorf("RecordOracleAddress cannot be address(0): %w", ErrInvalidDeployConfig)
+	}
+	if d.L2StakingSequencerMaxSize <= 0 {
+		return fmt.Errorf("L2StakingSequencerMaxSize must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.L2StakingRewardStartTime <= 0 {
+		return fmt.Errorf("L2StakingRewardStartTime must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.L2StakingUnDelegatedLockEpochs <= 0 {
+		return fmt.Errorf("L2StakingUnDelegatedLockEpochs must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.MorphTokenName == "" {
+		return fmt.Errorf("MorphTokenName canot be nil: %w", ErrInvalidDeployConfig)
+	}
+	if d.MorphTokenSymbol == "" {
+		return fmt.Errorf("MorphTokenSymbol canot be nil: %w", ErrInvalidDeployConfig)
+	}
+	if d.MorphTokenDailyInflationRate <= 0 {
+		return fmt.Errorf("MorphTokenDailyInflationRate must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.MorphTokenInitialSupply <= 0 {
+		return fmt.Errorf("MorphTokenInitialSupply must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
 	return nil
 }
 
@@ -386,6 +410,21 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"xDomainMessageSender": "0x000000000000000000000000000000000000dEaD",
 		"counterpart":          config.L1CrossDomainMessengerProxy,
 		"feeVault":             config.L2BridgeFeeVaultRecipient,
+	}
+	storage["MorphToken"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+	}
+	storage["Record"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"ORACLE":        config.RecordOracleAddress,
+	}
+	storage["Distribute"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
 	}
 	storage["L2Staking"] = state.StorageValues{
 		"_initialized":  1,

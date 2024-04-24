@@ -64,12 +64,12 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 		{
 			Name: "Gov",
 		},
-		//{
-		//	Name: "Distribute",
-		//},
-		//{
-		//	Name: "Record",
-		//},
+		{
+			Name: "Distribute",
+		},
+		{
+			Name: "Record",
+		},
 		{
 			Name: "L2Staking",
 			Args: []interface{}{
@@ -90,6 +90,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 		},
 		{
 			Name: "L2ERC1155Gateway",
+		},
+		{
+			Name: "MorphToken",
 		},
 		{
 			Name: "MorphStandardERC20",
@@ -186,6 +189,28 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
+		case "MorphToken":
+			if config == nil || config.MorphTokenName == "" {
+				continue
+			}
+			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
+			if err != nil {
+				return nil, nil, err
+			}
+			morphToken, err := bindings.NewMorphToken(dep.Address, backend)
+			if err != nil {
+				return nil, nil, err
+			}
+			lastTx, err = morphToken.Initialize(
+				opts,
+				config.MorphTokenName,
+				config.MorphTokenSymbol,
+				new(big.Int).SetUint64(config.MorphTokenInitialSupply),
+				new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
+			)
+			if err != nil {
+				return nil, nil, err
+			}
 		default:
 		}
 	}
@@ -234,6 +259,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeploySequencer(opts, backend)
 	case "Gov":
 		_, tx, _, err = bindings.DeployGov(opts, backend)
+	case "Distribute":
+		_, tx, _, err = bindings.DeployDistribute(opts, backend)
+	case "Record":
+		_, tx, _, err = bindings.DeployRecord(opts, backend)
 	case "L2Staking":
 		l1StakingAddr, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -241,10 +270,11 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		}
 		_, tx, _, err = bindings.DeployL2Staking(opts, backend, l1StakingAddr)
 	case "L2ToL1MessagePasser":
-		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "L2TxFeeVault":
 		_, tx, _, err = bindings.DeployL2TxFeeVault(opts, backend, common.BigToAddress(common.Big1), common.BigToAddress(common.Big1), common.Big0)
+	case "MorphToken":
+		_, tx, _, err = bindings.DeployMorphToken(opts, backend)
 	case "MorphStandardERC20":
 		_, tx, _, err = bindings.DeployMorphStandardERC20(opts, backend)
 	case "MorphStandardERC20Factory":
