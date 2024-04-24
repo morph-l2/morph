@@ -92,7 +92,7 @@ def devnet_l1(paths, result=None):
 
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
     deploy_config = read_json(devnet_cfg_orig)
-    for sequencer in deploy_config['l2SequencerAddresses']:
+    for sequencer in deploy_config['l2StakingAddresses']:
         result = run_command_capture_output(
             ['cast', 'balance', sequencer, '--rpc-url', 'http://127.0.0.1:9545'])
         log.info(f"Account {sequencer}, Balance: {result.stdout}", )
