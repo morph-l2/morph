@@ -23,17 +23,17 @@ export const StakingRegister = async (
     tmKey: string,
     blsKey: string
 ): Promise<string> => {
-    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
-    const StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.Staking)
+    const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
+    const L1StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Staking)
 
     const StakingProxyWithSigner = new ethers.Contract(
-        StakingProxyAddress,
-        StakingFactory.interface,
+        L1StakingProxyAddress,
+        L1StakingFactory.interface,
         signer,
     )
 
     // just for devnet register value may set params to config
-    const response = await StakingProxyWithSigner.register(tmKey, blsKey, 5000000, {
+    const response = await StakingProxyWithSigner.register(signer.address, tmKey, blsKey, {
         gasLimit: 10000000,
         value: eth
     })
@@ -43,7 +43,7 @@ export const StakingRegister = async (
 
     await awaitCondition(
         async () => {
-            const sequencerInfo = (await StakingProxyWithSigner.stakings(signer.address))
+            const sequencerInfo = (await StakingProxyWithSigner.stakers(signer.address))
             if (sequencerInfo && sequencerInfo.tmKey === tmKey) {
                 return true
             }

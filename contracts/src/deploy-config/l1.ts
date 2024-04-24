@@ -27,10 +27,14 @@ const config = {
   batchHeader: '0x000000000000000000000000000000000000000000000000008cbda99363848bdf6a8595319b92bbcbeb8df248608f109a119fc1dd9d76ff52010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c4440140000000000000000000000000000000000000000000000000000000000000000',
 
   // staking config
+  // staking Cross-Chain config
+  stakingCrossChainGaslimit: 100000,
+  
   // staking initialize config
   stakingSequencerSize: 4,
   stakingLockNumber: 3,
   stakingMinDeposit: 1, // limit
+  stakingChallengerRewardPercentage: 100,
   // register sequencers
   l2SequencerAddresses: [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",

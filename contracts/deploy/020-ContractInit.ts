@@ -32,9 +32,9 @@ export const ContractInit = async (
         console.log(`set base fee ${rec.status === 1} setL2BaseFee(${await GasPriceOracle.l2BaseFee()}) gwei`)
 
         const WhitelistImplAddress = getContractAddressByName(path, ImplStorageName.Whitelist)
-        const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
+        const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
         const WhitelistCheckerImpl = await hre.ethers.getContractAt(ContractFactoryName.Whitelist, WhitelistImplAddress, deployer)
-        let addList = [L1SequencerProxyAddress]
+        let addList = [L1StakingProxyAddress]
         res = await WhitelistCheckerImpl.updateWhitelistStatus(addList, true)
         rec = await res.wait()
         for (let i = 0; i < addList.length; i++) {
@@ -73,17 +73,17 @@ export const ContractInit = async (
 
     // ------------------ staking init -----------------
     {
-        const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
-        const Staking = await hre.ethers.getContractAt(ContractFactoryName.Staking, StakingProxyAddress, deployer)
+        const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
+        const L1Staking = await hre.ethers.getContractAt(ContractFactoryName.L1Staking, L1StakingProxyAddress, deployer)
         const whiteListAdd = config.l2SequencerAddresses
         // set sequencer to white list
-        await Staking.updateWhitelist(whiteListAdd, [])
+        await L1Staking.updateWhitelist(whiteListAdd, [])
         for (let i = 0; i < config.l2SequencerAddresses.length; i++) {
             // Wait for the transaction to execute properly.
             await awaitCondition(
                 async () => {
                     return (
-                        await Staking.whitelist(config.l2SequencerAddresses[i]) === true
+                        await L1Staking.whitelist(config.l2SequencerAddresses[i]) === true
                     )
                 },
                 3000,
