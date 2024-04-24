@@ -44,7 +44,7 @@ contract L2Staking is
     // sequencer candidate number
     uint256 public candidateNumber;
     // sync from l1 staking
-    address[] public stakerAddrs;
+    address[] public stakerAddresses;
     // mapping(staker => staker_ranking)
     mapping(address => uint256) public stakerRankings;
     // mapping(staker => staker_info)
@@ -122,7 +122,7 @@ contract L2Staking is
         require(latestSequencerSetSize > 0, "invalid initial stakers");
         for (uint256 i = 0; i < latestSequencerSetSize; i++) {
             stakers[_stakers[i].addr] = _stakers[i];
-            stakerAddrs.push(_stakers[i].addr);
+            stakerAddresses.push(_stakers[i].addr);
             stakerRankings[_stakers[i].addr] = i + 1;
         }
 
@@ -140,13 +140,13 @@ contract L2Staking is
      */
     function addStaker(Types.StakerInfo memory add) external onlyOtherStaking {
         if (stakerRankings[add.addr] == 0) {
-            stakerAddrs.push(add.addr);
-            stakerRankings[add.addr] = stakerAddrs.length;
+            stakerAddresses.push(add.addr);
+            stakerRankings[add.addr] = stakerAddresses.length;
         }
         stakers[add.addr] = add;
         emit StakerAdded(add.addr, add.tmKey, add.blsKey);
 
-        if (!REWARD_STARTED && stakerAddrs.length <= SEQUENCER_MAX_SIZE) {
+        if (!REWARD_STARTED && stakerAddresses.length <= SEQUENCER_MAX_SIZE) {
             _updateSequencerSet();
         }
     }
@@ -166,13 +166,13 @@ contract L2Staking is
                 // update stakerRankings
                 for (
                     uint256 j = stakerRankings[remove[i]] - 1;
-                    j < stakerAddrs.length - 1;
+                    j < stakerAddresses.length - 1;
                     j++
                 ) {
-                    stakerAddrs[j] = stakerAddrs[j + 1];
-                    stakerRankings[stakerAddrs[j]] -= 1;
+                    stakerAddresses[j] = stakerAddresses[j + 1];
+                    stakerRankings[stakerAddresses[j]] -= 1;
                 }
-                stakerAddrs.pop();
+                stakerAddresses.pop();
                 delete stakerRankings[remove[i]];
 
                 // update candidateNumber
@@ -228,15 +228,15 @@ contract L2Staking is
             // update stakers and rankings
             for (uint256 i = beforeRanking - 1; i > 0; i--) {
                 if (
-                    stakerDelegations[stakerAddrs[i]] >
-                    stakerDelegations[stakerAddrs[i - 1]]
+                    stakerDelegations[stakerAddresses[i]] >
+                    stakerDelegations[stakerAddresses[i - 1]]
                 ) {
-                    address tmp = stakerAddrs[i - 1];
-                    stakerAddrs[i - 1] = stakerAddrs[i];
-                    stakerAddrs[i] = tmp;
+                    address tmp = stakerAddresses[i - 1];
+                    stakerAddresses[i - 1] = stakerAddresses[i];
+                    stakerAddresses[i] = tmp;
 
-                    stakerRankings[stakerAddrs[i - 1]] = i;
-                    stakerRankings[stakerAddrs[i]] = i + 1;
+                    stakerRankings[stakerAddresses[i - 1]] = i;
+                    stakerRankings[stakerAddresses[i]] = i + 1;
                 }
             }
         }
@@ -323,15 +323,15 @@ contract L2Staking is
                 i++
             ) {
                 if (
-                    stakerDelegations[stakerAddrs[i + 1]] >
-                    stakerDelegations[stakerAddrs[i]]
+                    stakerDelegations[stakerAddresses[i + 1]] >
+                    stakerDelegations[stakerAddresses[i]]
                 ) {
-                    address tmp = stakerAddrs[i];
-                    stakerAddrs[i] = stakerAddrs[i + 1];
-                    stakerAddrs[i + 1] = tmp;
+                    address tmp = stakerAddresses[i];
+                    stakerAddresses[i] = stakerAddresses[i + 1];
+                    stakerAddresses[i + 1] = tmp;
 
-                    stakerRankings[stakerAddrs[i]] = i + 1;
-                    stakerRankings[stakerAddrs[i + 1]] = i + 2;
+                    stakerRankings[stakerAddresses[i]] = i + 1;
+                    stakerRankings[stakerAddresses[i + 1]] = i + 2;
                 }
             }
         }
@@ -469,21 +469,21 @@ contract L2Staking is
         REWARD_STARTED = true;
 
         // sort stakers by insertion sort
-        for (uint256 i = 1; i < stakerAddrs.length; i++) {
+        for (uint256 i = 1; i < stakerAddresses.length; i++) {
             for (uint256 j = 0; j < i; j++) {
                 if (
-                    stakerDelegations[stakerAddrs[i]] >
-                    stakerDelegations[stakerAddrs[j]]
+                    stakerDelegations[stakerAddresses[i]] >
+                    stakerDelegations[stakerAddresses[j]]
                 ) {
-                    address tmp = stakerAddrs[j];
-                    stakerAddrs[j] = stakerAddrs[i];
-                    stakerAddrs[i] = tmp;
+                    address tmp = stakerAddresses[j];
+                    stakerAddresses[j] = stakerAddresses[i];
+                    stakerAddresses[i] = tmp;
                 }
             }
         }
         // update rankings
-        for (uint256 i = 0; i < stakerAddrs.length; i++) {
-            stakerRankings[stakerAddrs[i]] = i + 1;
+        for (uint256 i = 0; i < stakerAddresses.length; i++) {
+            stakerRankings[stakerAddresses[i]] = i + 1;
         }
 
         // update sequencer set
@@ -524,16 +524,16 @@ contract L2Staking is
      * @notice get stakers info
      */
     function getStakesInfo(
-        address[] memory _stakerAddrs
+        address[] memory _stakerAddresses
     ) external view returns (Types.StakerInfo[] memory) {
         Types.StakerInfo[] memory _stakers = new Types.StakerInfo[](
-            _stakerAddrs.length
+            _stakerAddresses.length
         );
-        for (uint256 i = 0; i < _stakerAddrs.length; i++) {
+        for (uint256 i = 0; i < _stakerAddresses.length; i++) {
             _stakers[i] = Types.StakerInfo(
-                stakers[_stakerAddrs[i]].addr,
-                stakers[_stakerAddrs[i]].tmKey,
-                stakers[_stakerAddrs[i]].blsKey
+                stakers[_stakerAddresses[i]].addr,
+                stakers[_stakerAddresses[i]].tmKey,
+                stakers[_stakerAddresses[i]].blsKey
             );
         }
         return _stakers;
@@ -596,12 +596,12 @@ contract L2Staking is
             if (candidateNumber < SEQUENCER_MAX_SIZE) {
                 sequencerSize = candidateNumber;
             }
-        } else if (stakerAddrs.length < SEQUENCER_MAX_SIZE) {
-            sequencerSize = stakerAddrs.length;
+        } else if (stakerAddresses.length < SEQUENCER_MAX_SIZE) {
+            sequencerSize = stakerAddresses.length;
         }
         address[] memory sequencerSet = new address[](sequencerSize);
         for (uint256 i = 0; i < sequencerSize; i++) {
-            sequencerSet[i] = stakerAddrs[i];
+            sequencerSet[i] = stakerAddresses[i];
         }
         ISequencer(SEQUENCER_CONTRACT).updateSequencerSet(sequencerSet);
         latestSequencerSetSize = sequencerSet.length;

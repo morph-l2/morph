@@ -22,11 +22,17 @@ contract SequencerTest is L2StakingBaseTest {
         sequencer.updateSequencerSet(newSequencers);
 
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(sequencer.getCurrentSequencerSet()[i], sequencerAddrs[i]);
+            assertEq(
+                sequencer.getCurrentSequencerSet()[i],
+                sequencerAddresses[i]
+            );
         }
         hevm.roll(2);
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(sequencer.getCurrentSequencerSet()[i], sequencerAddrs[i]);
+            assertEq(
+                sequencer.getCurrentSequencerSet()[i],
+                sequencerAddresses[i]
+            );
         }
 
         hevm.roll(3);

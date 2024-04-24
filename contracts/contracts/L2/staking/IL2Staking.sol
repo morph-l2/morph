@@ -71,7 +71,7 @@ interface IL2Staking {
     /**
      * @notice Staker removed
      */
-    event StakerRemoved(address[] stakerAddrs);
+    event StakerRemoved(address[] stakerAddresses);
 
     /**
      * @notice params updated
