@@ -48,7 +48,8 @@ library ChunkCodecV0 {
         if (_numBlocks == 0) revert ErrorNoBlockInChunk();
 
         // should contain the number of the blocks and block contexts
-        if (_length != 1 + _numBlocks * BLOCK_CONTEXT_LENGTH) revert ErrorIncorrectChunkLength();
+        if (_length != 1 + _numBlocks * BLOCK_CONTEXT_LENGTH)
+            revert ErrorIncorrectChunkLength();
     }
 
     /// @notice Return the number of blocks in current chunk.

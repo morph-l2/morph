@@ -429,6 +429,7 @@ contract L1MessageQueueWithGasPriceOracle is
         emit UpdateWhitelistChecker(whitelistChecker, _newWhitelistChecker);
         whitelistChecker = _newWhitelistChecker;
     }
+
     /**********************
      * Internal Functions *
      **********************/

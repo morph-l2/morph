@@ -2,8 +2,8 @@ package immutables
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/bindings/predeploys"
@@ -29,9 +29,6 @@ type ImmutableConfig map[string]ImmutableValues
 // Check does a sanity check that the specific values that
 // Morph uses are set inside of the ImmutableConfig.
 func (i ImmutableConfig) Check() error {
-	if _, ok := i["L2Sequencer"]["otherSequencer"]; !ok {
-		return errors.New("L2Sequencer otherSequencer not set")
-	}
 	return nil
 }
 
@@ -43,7 +40,7 @@ type SlotResults map[string]map[common.Hash]common.Hash
 
 // BuildMorph will deploy the L2 predeploys so that their immutables are set
 // correctly.
-func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, SlotResults, error) {
+func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResults, SlotResults, error) {
 	if err := immutable.Check(); err != nil {
 		return DeploymentResults{}, nil, err
 	}
@@ -62,16 +59,22 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 			Name: "L2TxFeeVault",
 		},
 		{
-			Name: "L2Sequencer",
-			Args: []interface{}{
-				immutable["L2Sequencer"]["otherSequencer"],
-			},
+			Name: "Sequencer",
 		},
 		{
 			Name: "Gov",
 		},
 		{
-			Name: "Submitter",
+			Name: "Distribute",
+		},
+		{
+			Name: "Record",
+		},
+		{
+			Name: "L2Staking",
+			Args: []interface{}{
+				immutable["L2Staking"]["OTHER_STAKING"],
+			},
 		},
 		{
 			Name: "L2GatewayRouter",
@@ -87,6 +90,9 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 		},
 		{
 			Name: "L2ERC1155Gateway",
+		},
+		{
+			Name: "MorphToken",
 		},
 		{
 			Name: "MorphStandardERC20",
@@ -113,7 +119,7 @@ func BuildMorph(immutable ImmutableConfig, config *Config) (DeploymentResults, S
 // BuildL2 will deploy contracts to a simulated backend so that their immutables
 // can be properly set. The bytecode returned in the results is suitable to be
 // inserted into the state via state surgery.
-func BuildL2(constructors []deployer.Constructor, config *Config) (DeploymentResults, SlotResults, error) {
+func BuildL2(constructors []deployer.Constructor, config *InitConfig) (DeploymentResults, SlotResults, error) {
 	backend := deployer.NewBackend()
 	deployments, err := deployer.Deploy(backend, constructors, l2Deployer)
 	if err != nil {
@@ -123,33 +129,85 @@ func BuildL2(constructors []deployer.Constructor, config *Config) (DeploymentRes
 	var lastTx *types.Transaction
 	for _, dep := range deployments {
 		results[dep.Name] = dep.Bytecode
-
 		switch dep.Name {
-		case "L2Sequencer":
-			if config == nil || len(config.L2SequencerAddresses) == 0 {
+		case "Sequencer":
+			if config == nil || len(config.L2StakingAddresses) == 0 {
 				continue
 			}
-			if len(config.L2SequencerAddresses) != len(config.L2SequencerTmKeys) ||
-				len(config.L2SequencerAddresses) != len(config.L2SequencerBlsKeys) {
+			if len(config.L2StakingAddresses) != len(config.L2StakingBlsKeys) ||
+				len(config.L2StakingAddresses) != len(config.L2StakingTmKeys) {
 				return nil, nil, fmt.Errorf("wrong L2Sequencer infos config: inconsistent number")
 			}
-			infos := make([]bindings.TypesSequencerInfo, len(config.L2SequencerAddresses))
-			for i, addr := range config.L2SequencerAddresses {
-				infos[i] = bindings.TypesSequencerInfo{
+			addresses := make([]common.Address, len(config.L2StakingAddresses))
+			for i, addr := range config.L2StakingAddresses {
+				addresses[i] = addr
+			}
+			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
+			if err != nil {
+				return nil, nil, err
+			}
+			l2Sequencer, err := bindings.NewSequencer(dep.Address, backend)
+			if err != nil {
+				return nil, nil, err
+			}
+			lastTx, err = l2Sequencer.Initialize(opts, addresses)
+			if err != nil {
+				return nil, nil, err
+			}
+		case "L2Staking":
+			if config == nil || len(config.L2StakingAddresses) == 0 {
+				continue
+			}
+			if len(config.L2StakingAddresses) != len(config.L2StakingBlsKeys) ||
+				len(config.L2StakingAddresses) != len(config.L2StakingTmKeys) {
+				return nil, nil, fmt.Errorf("wrong L2Sequencer infos config: inconsistent number")
+			}
+			infos := make([]bindings.TypesStakerInfo, len(config.L2StakingAddresses))
+			for i, addr := range config.L2StakingAddresses {
+				infos[i] = bindings.TypesStakerInfo{
 					Addr:   addr,
-					TmKey:  config.L2SequencerTmKeys[i],
-					BlsKey: config.L2SequencerBlsKeys[i],
+					BlsKey: config.L2StakingBlsKeys[i],
+					TmKey:  config.L2StakingTmKeys[i],
 				}
 			}
 			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
 			if err != nil {
 				return nil, nil, err
 			}
-			l2Sequencer, err := bindings.NewL2Sequencer(dep.Address, backend)
+			l2Staking, err := bindings.NewL2Staking(dep.Address, backend)
 			if err != nil {
 				return nil, nil, err
 			}
-			lastTx, err = l2Sequencer.Initialize(opts, infos)
+			lastTx, err = l2Staking.Initialize(
+				opts,
+				config.L2StakingAdmin,
+				new(big.Int).SetUint64(config.L2StakingSequencersMaxSize),
+				new(big.Int).SetUint64(config.L2StakingUnDelegateLockEpochs),
+				new(big.Int).SetUint64(config.L2StakingRewardStartTime),
+				infos,
+			)
+			if err != nil {
+				return nil, nil, err
+			}
+		case "MorphToken":
+			if config == nil || config.MorphTokenName == "" {
+				continue
+			}
+			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
+			if err != nil {
+				return nil, nil, err
+			}
+			morphToken, err := bindings.NewMorphToken(dep.Address, backend)
+			if err != nil {
+				return nil, nil, err
+			}
+			lastTx, err = morphToken.Initialize(
+				opts,
+				config.MorphTokenName,
+				config.MorphTokenSymbol,
+				new(big.Int).SetUint64(config.MorphTokenInitialSupply),
+				new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
+			)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -197,21 +255,26 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend, common.BigToAddress(common.Big1))
 	case "L2CrossDomainMessenger":
 		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend)
-	case "L2Sequencer":
-		otherSequencer, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for otherSequencer")
-		}
-		_, tx, _, err = bindings.DeployL2Sequencer(opts, backend, otherSequencer)
+	case "Sequencer":
+		_, tx, _, err = bindings.DeploySequencer(opts, backend)
 	case "Gov":
 		_, tx, _, err = bindings.DeployGov(opts, backend)
-	case "Submitter":
-		_, tx, _, err = bindings.DeploySubmitter(opts, backend)
+	case "Distribute":
+		_, tx, _, err = bindings.DeployDistribute(opts, backend)
+	case "Record":
+		_, tx, _, err = bindings.DeployRecord(opts, backend)
+	case "L2Staking":
+		l1StakingAddr, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l1StakingAddr")
+		}
+		_, tx, _, err = bindings.DeployL2Staking(opts, backend, l1StakingAddr)
 	case "L2ToL1MessagePasser":
-		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "L2TxFeeVault":
 		_, tx, _, err = bindings.DeployL2TxFeeVault(opts, backend, common.BigToAddress(common.Big1), common.BigToAddress(common.Big1), common.Big0)
+	case "MorphToken":
+		_, tx, _, err = bindings.DeployMorphToken(opts, backend)
 	case "MorphStandardERC20":
 		_, tx, _, err = bindings.DeployMorphStandardERC20(opts, backend)
 	case "MorphStandardERC20Factory":

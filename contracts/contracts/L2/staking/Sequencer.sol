@@ -188,7 +188,8 @@ contract Sequencer is Initializable, ISequencer {
      * @notice get the encoded sequencer set bytes
      */
     function getSequencerSetBytes() external view returns (bytes memory) {
-        return abi.encodePacked(
+        return
+            abi.encodePacked(
                 blockHeight0,
                 sequencerSet0,
                 blockHeight1,
