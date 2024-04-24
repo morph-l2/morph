@@ -16,9 +16,7 @@ contract L2GovTest is L2StakingBaseTest {
         // set to L2Sequencer
         hevm.mockCall(
             address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
 
@@ -40,7 +38,10 @@ contract L2GovTest is L2StakingBaseTest {
         l2Sequencer.updateSequencers(version, sequencerInfos);
         assertEq(l2Sequencer.currentVersion(), version);
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(l2Sequencer.sequencerAddresses(i), sequencerInfos[i].addr);
+            assertEq(
+                l2Sequencer.getSequencerAddresses(false)[i],
+                sequencerInfos[i].addr
+            );
 
             (address user, bytes32 tmKey, bytes memory blsKey) = l2Sequencer
                 .sequencerInfos(i);
@@ -119,9 +120,7 @@ contract L2GovVoteTest is L2StakingBaseTest {
         // set to L2Sequencer
         hevm.mockCall(
             address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
         );
 
@@ -143,7 +142,10 @@ contract L2GovVoteTest is L2StakingBaseTest {
         l2Sequencer.updateSequencers(version, sequencerInfos);
         assertEq(l2Sequencer.currentVersion(), version);
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(l2Sequencer.sequencerAddresses(i), sequencerInfos[i].addr);
+            assertEq(
+                l2Sequencer.getSequencerAddresses(false)[i],
+                sequencerInfos[i].addr
+            );
 
             (address user, bytes32 tmKey, bytes memory blsKey) = l2Sequencer
                 .sequencerInfos(i);

@@ -31,7 +31,7 @@ abstract contract CrossDomainMessenger is
     /// @notice Emitted when owner updates fee vault contract.
     /// @param _oldFeeVault The address of old fee vault contract.
     /// @param _newFeeVault The address of new fee vault contract.
-    event UpdateFeeVault(address _oldFeeVault, address _newFeeVault);
+    event UpdateFeeVault(address indexed _oldFeeVault, address indexed _newFeeVault);
 
     /*************
      * Variables *
@@ -52,9 +52,6 @@ abstract contract CrossDomainMessenger is
 
     /// @notice The address of fee vault, collecting cross domain messaging fee.
     address public feeVault;
-
-    /// @dev The storage slot used as ETH rate limiter contract, which is deprecated now.
-    address private __rateLimiter;
 
     /// @dev The storage slots for future usage.
     uint256[46] private __gap;
@@ -93,7 +90,7 @@ abstract contract CrossDomainMessenger is
     }
 
     // make sure only owner can send ether to messenger to avoid possible user fund loss.
-    receive() external payable {}
+    receive() external payable onlyOwner {}
 
     /************************
      * Restricted Functions *
@@ -103,6 +100,7 @@ abstract contract CrossDomainMessenger is
     /// @dev This function can only called by contract owner.
     /// @param _newFeeVault The address of new fee vault contract.
     function updateFeeVault(address _newFeeVault) external onlyOwner {
+        require(_newFeeVault != address(0), "feeVault cannot be address(0)");
         address _oldFeeVault = feeVault;
 
         feeVault = _newFeeVault;

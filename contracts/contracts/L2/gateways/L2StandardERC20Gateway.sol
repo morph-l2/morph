@@ -165,6 +165,7 @@ contract L2StandardERC20Gateway is L2ERC20Gateway {
             (_l1Token, _token, _from, _to, _amount, _data)
         );
 
+        uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
         // 4. send message to L2MorphMessenger
         IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
             counterpart,
@@ -173,7 +174,7 @@ contract L2StandardERC20Gateway is L2ERC20Gateway {
             _gasLimit
         );
 
-        emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data);
+        emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data, nonce);
     }
 
     function _deployL2Token(

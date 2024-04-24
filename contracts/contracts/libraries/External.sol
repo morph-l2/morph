@@ -6,3 +6,4 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {MinimalForwarder} from "@openzeppelin/contracts/metatx/MinimalForwarder.sol";
+import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";

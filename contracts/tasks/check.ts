@@ -16,7 +16,10 @@ task("check-l2")
         });
         const ProxyFactoryName = 'ITransparentUpgradeableProxy'
         for (let i = 0; i < ContractAddresss.length; i++) {
-            if (ContractAddresss[i] === predeploys.MorphStandardERC20) {
+            if (
+                ContractAddresss[i].toLocaleLowerCase() === predeploys.MorphStandardERC20.toLocaleLowerCase()
+                || ContractAddresss[i].toLocaleLowerCase() === predeploys.L2WETH.toLocaleLowerCase()
+            ) {
                 continue
             }
             const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
@@ -75,6 +78,13 @@ task("check-l2-status")
         let messenger = await ethgwContract.messenger()
         let counterpart = await ethgwContract.counterpart()
         console.log(`L2ETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
+
+        const wethgwFactory = await hre.ethers.getContractFactory('L2WETHGateway')
+        const wethgwContract = wethgwFactory.attach(predeploys.L2WETHGateway)
+        router = await wethgwContract.router()
+        messenger = await wethgwContract.messenger()
+        counterpart = await wethgwContract.counterpart()
+        console.log(`L2WETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const cdmFactory = await hre.ethers.getContractFactory('L2CrossDomainMessenger')
         const cdmContract = cdmFactory.attach(predeploys.L2CrossDomainMessenger)
@@ -170,13 +180,13 @@ task("deposit-l1-gateway-eth")
         console.log(`Deposit status ${recipet.status == 1}`)
     });
 
-task("deploy-l1-token")
+task("deploy-token")
     .setAction(async (taskArgs, hre) => {
-        console.log("Deploy L1 ERC20 tokken")
+        console.log("Deploy ERC20 token")
         const Factory = await hre.ethers.getContractFactory('MockERC20')
-        const token = await Factory.deploy("L1 Token", "l1token", 18)
+        const token = await Factory.deploy("Test Token", "test", 18)
         const rec = await token.deployed()
-        console.log(`Token deployed at L1 ${token.address}, deploy txHash: ${rec.deployTransaction.hash}`)
+        console.log(`Token deployed at address ${token.address}, deploy txHash: ${rec.deployTransaction.hash}`)
     });
 
 task("deposit-erc20-token")
@@ -289,6 +299,27 @@ task("getCurrentSubmitter")
         console.log(`res : ${res}`)
     });
 
+task("l2withdrawLock-deploy")
+    .addParam('l1Gateway')
+    .setAction(async (taskArgs, hre) => {
+        const factoryF = await hre.ethers.getContractFactory('L2WithdrawLockERC20Gateway')
+        const fc = await factoryF.deploy(predeploys.MorphStandardERC20)
+        await fc.deployed()
+        const signers = await hre.ethers.getSigners()
+        const ProxyFactoryF = await hre.ethers.getContractFactory('TransparentUpgradeableProxy')
+        const proxy = await ProxyFactoryF.deploy(
+            fc.address,
+            signers,
+            factoryF.interface.encodeFunctionData('initialize', [
+                taskArgs.l1Gateway,
+                '0x5300000000000000000000000000000000000002',
+                '0x5300000000000000000000000000000000000007'
+            ])
+        )
+        await proxy.deployed()
+
+        console.log(`L2WithdrawLockERC20Gateway deployed at ${fc.address}`)
+    });
 
 task("l2factory-deploy")
     .setAction(async (taskArgs, hre) => {

@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storge } from "../src/deploy-utils";
+import { assertContractVariable, storage } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
@@ -18,17 +18,18 @@ export const deployProxyAdmin = async (
     deployer: any,
 ): Promise<string> => {
     const ProxyAdminContractFactoryName = ContractFactoryName.ProxyAdmin
-    const ImplStroageName = ImplStorageName.ProxyAdmin
+    // @ts-ignore
+    const ProxyAdminImplStorageName = ImplStorageName.ProxyAdmin
 
     const Factory = await hre.ethers.getContractFactory(ProxyAdminContractFactoryName)
     const contract = await Factory.deploy()
     await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", ImplStroageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+    console.log("%s=%s ; TX_HASH: %s", ProxyAdminImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     // check params then storge
     await assertContractVariable(contract, 'owner', await deployer.getAddress())
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storge(path, ImplStroageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await storage(path, ProxyAdminImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

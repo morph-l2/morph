@@ -93,44 +93,44 @@ contract L1GatewayBaseTest is L1MessageBaseTest {
         ITransparentUpgradeableProxy(address(l1GatewayRouterProxy))
             .upgradeToAndCall(
                 address(l1GatewayRouterImpl),
-                abi.encodeWithSelector(
-                    L1GatewayRouter.initialize.selector,
+                abi.encodeCall(
+                    L1GatewayRouter.initialize,(
                     address(l1ETHGatewayProxy),
                     address(l1StandardERC20GatewayProxy)
-                )
+                ))
             );
 
         ITransparentUpgradeableProxy(address(l1ETHGatewayProxy))
             .upgradeToAndCall(
                 address(l1ETHGatewayImpl),
-                abi.encodeWithSelector(
-                    L1ETHGateway.initialize.selector,
+                abi.encodeCall(
+                    L1ETHGateway.initialize,(
                     address(NON_ZERO_ADDRESS), // _counterpart
                     address(l1GatewayRouterProxy), // _router
                     address(l1CrossDomainMessenger) // _messenger
-                )
+                ))
             );
         ITransparentUpgradeableProxy(address(l1StandardERC20GatewayProxy))
             .upgradeToAndCall(
                 address(l1StandardERC20GatewayImpl),
-                abi.encodeWithSelector(
-                    L1StandardERC20Gateway.initialize.selector,
+                abi.encodeCall(
+                    L1StandardERC20Gateway.initialize,(
                     address(NON_ZERO_ADDRESS), // _counterpart
                     address(l1GatewayRouterProxy), // _router
                     address(l1CrossDomainMessenger), // _messenger
                     address(template), // _l2TokenImplementation
                     address(factory) // _l2TokenFactory
-                )
+                ))
             );
         ITransparentUpgradeableProxy(address(l1CustomERC20GatewayProxy))
             .upgradeToAndCall(
                 address(l1CustomERC20GatewayImpl),
-                abi.encodeWithSelector(
-                    L1CustomERC20Gateway.initialize.selector,
+                abi.encodeCall(
+                    L1CustomERC20Gateway.initialize,(
                     address(NON_ZERO_ADDRESS), // _counterpart
                     address(l1GatewayRouterProxy), // _router
                     address(l1CrossDomainMessenger) // _messenger
-                )
+                ))
             );
 
         l1GatewayRouter = L1GatewayRouter(address(l1GatewayRouterProxy));
@@ -159,11 +159,11 @@ contract L1GatewayBaseTest is L1MessageBaseTest {
         ITransparentUpgradeableProxy(address(l1ERC721GatewayProxy))
             .upgradeToAndCall(
                 address(l1ERC721GatewayImpl),
-                abi.encodeWithSelector(
-                    L1ERC721Gateway.initialize.selector,
+                abi.encodeCall(
+                    L1ERC721Gateway.initialize,(
                     address(NON_ZERO_ADDRESS), // _counterpart
                     address(l1CrossDomainMessenger) // _messenger
-                )
+                ))
             );
         l1ERC721Gateway = L1ERC721Gateway(address(l1ERC721GatewayProxy));
         _changeAdmin(address(l1ERC721Gateway));
@@ -182,11 +182,11 @@ contract L1GatewayBaseTest is L1MessageBaseTest {
         ITransparentUpgradeableProxy(address(l1ERC1155GatewayProxy))
             .upgradeToAndCall(
                 address(l1ERC1155GatewayImpl),
-                abi.encodeWithSelector(
-                    L1ERC1155Gateway.initialize.selector,
+                abi.encodeCall(
+                    L1ERC1155Gateway.initialize,(
                     address(NON_ZERO_ADDRESS), // _counterpart
                     address(l1CrossDomainMessenger) // _messenger
-                )
+                ))
             );
 
         l1ERC1155Gateway = L1ERC1155Gateway(address(l1ERC1155GatewayProxy));
@@ -209,12 +209,12 @@ contract L1GatewayBaseTest is L1MessageBaseTest {
         ITransparentUpgradeableProxy(address(l1WETHGatewayProxy))
             .upgradeToAndCall(
                 address(l1WETHGatewayImpl),
-                abi.encodeWithSelector(
-                    L1WETHGateway.initialize.selector,
+                abi.encodeCall(
+                    L1WETHGateway.initialize,(
                     address(l2WETHGateway), // _counterpart
                     address(l1GatewayRouter), // _router
                     address(l1CrossDomainMessenger) // _messenger
-                )
+                ))
             );
         l1WETHGateway = L1WETHGateway(payable(address(l1WETHGatewayProxy)));
         _changeAdmin(address(l1WETHGateway));

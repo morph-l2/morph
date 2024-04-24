@@ -35,8 +35,8 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         assertEq(getTreeRoot(), wdRoot);
 
         // prove without rollup
-        hevm.expectRevert("Messenger: do not submit withdrawalRoot");
-        l1CrossDomainMessenger.proveMessage(
+        hevm.expectRevert("Messenger: withdrawalRoot not finalized");
+        l1CrossDomainMessenger.proveAndRelayMessage(
             from,
             to,
             value,
@@ -47,60 +47,34 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         // mock call rollup withdrawal root submitted success
-        uint256 withdrawalBatchIndex = 1;
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(IRollup.withdrawalRoots.selector, wdRoot),
-            abi.encode(withdrawalBatchIndex)
-        );
-        l1CrossDomainMessenger.proveMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
-
-        // prove again
-        hevm.expectRevert("Messenger: withdrawal hash has already been proven");
-        l1CrossDomainMessenger.proveMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
-
-        hevm.expectRevert(
-            "Messenger: proven withdrawal finalization period has not elapsed"
-        );
-        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
-
-        // warp finalization period
-        (, uint256 provenTime, ) = l1CrossDomainMessenger.provenWithdrawals(
-            _xDomainCalldataHash
-        );
-        hevm.warp(provenTime + FINALIZATION_PERIOD_SECONDS + 1);
-
-        hevm.expectRevert("Messenger: batch not verified");
-        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
-
-        // finalize batch
-        hevm.mockCall(
-            address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.finalizedStateRoots.selector,
-                withdrawalBatchIndex
-            ),
-            abi.encode(bytes32(uint256(1)))
+            abi.encodeCall(IRollup.withdrawalRoots, (wdRoot)),
+            abi.encode(true)
         );
         uint256 balanceBefore = address(bob).balance;
-        l1CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
+        l1CrossDomainMessenger.proveAndRelayMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            wdProof,
+            wdRoot
+        );
         assertEq(balanceBefore + value, address(bob).balance);
+
+        // prove again
+        hevm.expectRevert("Messenger: withdrawal has already been finalized");
+        l1CrossDomainMessenger.proveAndRelayMessage(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            wdProof,
+            wdRoot
+        );
     }
 
     function testReplayMessage(uint256 exceedValue) external {
@@ -125,6 +99,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
 
         // updateMaxReplayTimes to 0
+        hevm.expectRevert("replay times must be greater than 0");
         hevm.prank(multisig);
         l1CrossDomainMessenger.updateMaxReplayTimes(0);
 
@@ -167,18 +142,6 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         uint256 _fee = l1MessageQueueWithGasPriceOracle.l2BaseFee() *
             defaultGasLimit;
 
-        // Exceed maximum replay times
-        hevm.expectRevert("Exceed maximum replay times");
-        l1CrossDomainMessenger.replayMessage{value: _fee}(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            defaultGasLimit,
-            refundAddress
-        );
-
         hevm.prank(multisig);
         l1CrossDomainMessenger.updateMaxReplayTimes(1);
 
@@ -197,6 +160,18 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         assertEq(balanceBefore + exceedValue, refundAddress.balance);
         assertEq(feeVaultBefore + _fee, l1FeeVault.balance);
 
+        // Exceed maximum replay times
+        hevm.expectRevert("Exceed maximum replay times");
+        l1CrossDomainMessenger.replayMessage{value: _fee}(
+            from,
+            to,
+            value,
+            nonce,
+            message,
+            defaultGasLimit,
+            refundAddress
+        );
+
         // test replay list
         // 1. send a message with nonce 2
         // 2. replay 3 times
@@ -212,8 +187,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             refundAddress
         );
         bytes32 hash = keccak256(
-            abi.encodeWithSignature(
-                "relayMessage(address,address,uint256,uint256,bytes)",
+            _encodeXDomainCalldata(
                 address(this),
                 address(0),
                 100,
@@ -267,15 +241,12 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         // mock call withdrawalRoots
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.withdrawalRoots.selector,
-                withdrawalRoot
-            ),
+            abi.encodeCall(IRollup.withdrawalRoots, (withdrawalRoot)),
             abi.encode(withdrawalBatchIndex)
         );
 
         hevm.expectRevert("Messenger: Forbid to call message queue");
-        l1CrossDomainMessenger.proveMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             from,
             to,
             value,
@@ -303,15 +274,12 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         // mock call withdrawalRoots
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
-            abi.encodeWithSelector(
-                IRollup.withdrawalRoots.selector,
-                withdrawalRoot
-            ),
+            abi.encodeCall(IRollup.withdrawalRoots, (withdrawalRoot)),
             abi.encode(withdrawalBatchIndex)
         );
 
         hevm.expectRevert("Messenger: Forbid to call self");
-        l1CrossDomainMessenger.proveMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             from,
             to,
             value,
@@ -347,13 +315,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
 
         hevm.expectCall(
             address(l1MessageQueueWithGasPriceOracle),
-            abi.encodeWithSelector(
-                l1MessageQueueWithGasPriceOracle
-                    .appendCrossDomainMessage
-                    .selector,
-                Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-                gas,
-                _xDomainCalldata
+            abi.encodeCall(
+                l1MessageQueueWithGasPriceOracle.appendCrossDomainMessage,
+                (Predeploys.L2_CROSS_DOMAIN_MESSENGER, gas, _xDomainCalldata)
             )
         );
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
@@ -405,9 +369,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             data,
             gas
         );
-        // give enought value
+        // give enough value
         uint256 fee = l1MessageQueueWithGasPriceOracle
-            .estimateCrossDomainMessageFee(gas);
+            .estimateCrossDomainMessageFee(sender, gas);
         l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(
             to,
             value,
@@ -417,6 +381,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
 
         // send more value with refund address
         fee = l1MessageQueueWithGasPriceOracle.estimateCrossDomainMessageFee(
+            sender,
             gas
         );
         l1CrossDomainMessenger.sendMessage{value: 1 ether + fee * 2}(
@@ -430,6 +395,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
     }
 
     function testUpdateMaxReplayTimes(uint256 _maxReplayTimes) external {
+        hevm.assume(_maxReplayTimes > 0);
         // not owner, revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -476,7 +442,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         (, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
             .getProveWithdrawalTransactionInputs(bytes32(uint256(1)));
         hevm.expectRevert("Pausable: paused");
-        l1CrossDomainMessenger.proveMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(0),
             address(0),
             0,
@@ -484,14 +450,6 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             new bytes(0),
             wdProof,
             wdRoot
-        );
-        hevm.expectRevert("Pausable: paused");
-        l1CrossDomainMessenger.relayMessage(
-            address(0),
-            address(0),
-            0,
-            0,
-            new bytes(0)
         );
         hevm.expectRevert("Pausable: paused");
         l1CrossDomainMessenger.replayMessage(

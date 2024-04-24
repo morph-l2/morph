@@ -26,12 +26,12 @@ export const MessengerInit = async (
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
     // L1MessageQueueWithGasPriceOracle config
-    const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStroageName)
+    const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName)
     const L1MessageQueueWithGasPriceOracleImplAddress = getContractAddressByName(path, ImplStorageName.L1MessageQueueWithGasPriceOracle)
     const L1MessageQueueWithGasPriceOracleFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1MessageQueueWithGasPriceOracle)
 
     // L1CrossDomainMessenge config
-    const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStroageName)
+    const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
     const L1CrossDomainMessengerImplAddress = getContractAddressByName(path, ImplStorageName.L1CrossDomainMessengerStorageName)
     const L1CrossDomainMessengerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1CrossDomainMessenger)
 
@@ -113,9 +113,11 @@ export const MessengerInit = async (
         (await IL1MessageQueueWithGasPriceOracleProxy.implementation()).toLocaleLowerCase() !== L1MessageQueueWithGasPriceOracleImplAddress.toLocaleLowerCase()
     ) {
         const maxGasLimit: number = configTmp.l1MessageQueueMaxGasLimit
-
+        const whitelistAddress = getContractAddressByName(path, ImplStorageName.Whitelist)
         console.log('Upgrading the L1MessageQueueWithGasPriceOracle proxy...')
-        if (maxGasLimit == 0) {
+        if (
+            maxGasLimit == 0 || !ethers.utils.isAddress(whitelistAddress)
+        ) {
             console.error('upgrade L1MessageQueueWithGasPriceOracle failed !!! please check your params')
             return ''
         }
@@ -123,7 +125,8 @@ export const MessengerInit = async (
         await IL1MessageQueueWithGasPriceOracleProxy.upgradeToAndCall(
             L1MessageQueueWithGasPriceOracleImplAddress,
             L1MessageQueueWithGasPriceOracleFactory.interface.encodeFunctionData('initialize', [
-                maxGasLimit
+                maxGasLimit,
+                whitelistAddress
             ])
         )
 

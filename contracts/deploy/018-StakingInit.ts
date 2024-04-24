@@ -25,12 +25,12 @@ export const StakingInit = async (
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
     // Sequencer config
-    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStroageName)
+    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
     const L1SequencerImplAddress = getContractAddressByName(path, ImplStorageName.L1SequencerStorageName)
     const L1SequencerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Sequencer)
 
     // Staking config
-    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStroageName)
+    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
     const StakingImplAddress = getContractAddressByName(path, ImplStorageName.StakingStorageName)
     const StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.Staking)
 
@@ -106,8 +106,9 @@ export const StakingInit = async (
             StakingFactory.interface.encodeFunctionData('initialize', [
                 admin,
                 L1SequencerProxyAddress,
+                RollupProxyAddress,
                 sequencerSize,
-                limit,
+                hre.ethers.utils.parseEther(limit.toString()),
                 hre.ethers.utils.parseEther(lock.toString()),
             ])
         )
@@ -126,11 +127,16 @@ export const StakingInit = async (
             StakingFactory.interface,
             deployer,
         )
- 
+
         await assertContractVariable(
             contractTmp,
             'sequencerContract',
             L1SequencerProxyAddress
+        )
+        await assertContractVariable(
+            contractTmp,
+            'rollupContract',
+            RollupProxyAddress
         )
         await assertContractVariable(
             contractTmp,
@@ -140,7 +146,7 @@ export const StakingInit = async (
         await assertContractVariable(
             contractTmp,
             'limit',
-            limit
+            hre.ethers.utils.parseEther(limit.toString()),
         )
         await assertContractVariable(
             contractTmp,

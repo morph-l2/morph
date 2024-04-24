@@ -1,6 +1,6 @@
 {
   "name": "@morph-l2/contracts",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "main": "dist/index",
   "types": "dist/index",
   "license": "MIT",
@@ -24,15 +24,21 @@
     "clean": "yarn clean:build && yarn clean:compile && yarn clean:tsc",
     "clean:build": "rm -rf ./dist ./cache ./cache-hardhat ./node_modules ./logs",
     "clean:compile": "rm -rf ./idea ./forge_artifacts ./abi ./artifacts ./typechain-types ./forge-artifacts",
-    "clean:tsc": " rm -rf ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts",
+    "clean:tsc": "rm -rf ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts",
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
     "deploy:devnetL1": "rm -f devnetL1.json && hardhat deploy --network l1 --storagepath devnetL1.json",
     "initialize:devnetL1": "hardhat initialize --network l1 --storagepath devnetL1.json",
     "register:devnetL1": "hardhat register --network l1 --storagepath devnetL1.json",
-    "deploy:sepolia": "hardhat deploy --network sepolia --storagepath sepolia.json",
+
+    "deploy:sepolia": "rm -f sepolia.json && hardhat deploy --network sepolia --storagepath sepolia.json",
     "initialize:sepolia": "hardhat initialize --network sepolia --storagepath sepolia.json",
     "register:sepolia": "hardhat register --network sepolia --storagepath sepolia.json",
-    "deploy:qanetL1": "hardhat deploy --network qanetl1 --storagepath qanetL1.json",
+
+    "deploy:holesky": "rm -f holesky.json && hardhat deploy --network holesky --storagepath holesky.json",
+    "initialize:holesky": "hardhat initialize --network holesky --storagepath holesky.json",
+    "register:holesky": "hardhat register --network holesky --storagepath holesky.json",
+
+    "deploy:qanetL1": "rm -f qanetL1.json && hardhat deploy --network qanetl1 --storagepath qanetL1.json",
     "initialize:qanetL1": "hardhat initialize --network qanetl1 --storagepath qanetL1.json",
     "register:qanetL1": "hardhat register --network qanetl1 --storagepath qanetL1.json"
   },

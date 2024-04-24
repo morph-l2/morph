@@ -5,6 +5,17 @@ import {Types} from "../../libraries/common/Types.sol";
 
 interface ISubmitter {
     /**
+     * @notice ack rollup
+     */
+    event ACKRollup(
+        uint256 indexed batchIndex,
+        address indexed submitter,
+        uint256 batchStartBlock,
+        uint256 batchEndBlock,
+        uint256 rollupTime
+    );
+
+    /**
      * @notice next batch index
      */
     function nextBatchIndex() external view returns (uint256);
@@ -20,13 +31,6 @@ interface ISubmitter {
     function getConfirmedBatch(
         uint256 batchIndex
     ) external view returns (Types.BatchInfo memory batchInfo);
-
-    /**
-     * @notice get epoch info
-     */
-    function getEpoch(
-        uint256 epochIndex
-    ) external view returns (Types.EpochInfo memory epochInfo);
 
     /**
      * @notice get the current sequencer's turn
@@ -60,9 +64,4 @@ interface ISubmitter {
      * @notice notify epoch updated
      */
     function epochUpdated(uint256 epoch) external;
-
-    /**
-     * @notice notify sequencers updated
-     */
-    function sequencersUpdated(address[] memory sequencers) external;
 }

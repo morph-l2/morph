@@ -141,14 +141,16 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         amount = bound(amount, 1, MAX_TOKEN_BALANCE);
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC1155Gateway.finalizeDepositERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            address(this),
-            tokenId,
-            amount
+        bytes memory message = abi.encodeCall(
+            IL2ERC1155Gateway.finalizeDepositERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                address(this),
+                tokenId,
+                amount
+            )
         );
         gateway.depositERC1155(
             address(l1Token),
@@ -190,14 +192,16 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             _amounts[i] = amount;
         }
 
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC1155Gateway.finalizeBatchDepositERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            address(this),
-            _tokenIds,
-            _amounts
+        bytes memory message = abi.encodeCall(
+            IL2ERC1155Gateway.finalizeBatchDepositERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                address(this),
+                _tokenIds,
+                _amounts
+            )
         );
         gateway.batchDepositERC1155(
             address(l1Token),
@@ -259,32 +263,34 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC1155Gateway.finalizeWithdrawERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            recipient,
-            tokenId,
-            amount
+        bytes memory message = abi.encodeCall(
+            IL1ERC1155Gateway.finalizeWithdrawERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                recipient,
+                tokenId,
+                amount
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
             0,
             message
         );
-
-        messageProve(
-            address(uint160(address(counterpartGateway)) + 1),
-            address(gateway),
-            0,
-            0,
-            message
-        );
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(uint160(address(counterpartGateway)) + 1),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
@@ -298,12 +304,15 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         assertEq(gatewayBalance, l1Token.balanceOf(address(gateway), tokenId));
         assertEq(recipientBalance, l1Token.balanceOf(recipient, tokenId));
@@ -340,32 +349,34 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC1155Gateway.finalizeWithdrawERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            recipient,
-            tokenId,
-            amount
+        bytes memory message = abi.encodeCall(
+            IL1ERC1155Gateway.finalizeWithdrawERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                recipient,
+                tokenId,
+                amount
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(counterpartGateway),
             address(gateway),
             0,
             0,
             message
         );
-
-        messageProve(
-            address(counterpartGateway),
-            address(gateway),
-            0,
-            0,
-            message
-        );
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(counterpartGateway),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // emit FinalizeWithdrawERC1155 from L1ERC1155Gateway
         {
             hevm.expectEmit(true, true, true, true);
@@ -393,12 +404,15 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(counterpartGateway),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         assertEq(
             gatewayBalance - amount,
@@ -441,32 +455,34 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC1155Gateway.finalizeBatchWithdrawERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            recipient,
-            _tokenIds,
-            _amounts
+        bytes memory message = abi.encodeCall(
+            IL1ERC1155Gateway.finalizeBatchWithdrawERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                recipient,
+                _tokenIds,
+                _amounts
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
             0,
             message
         );
-
-        messageProve(
-            address(uint160(address(counterpartGateway)) + 1),
-            address(gateway),
-            0,
-            0,
-            message
-        );
-
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(uint160(address(counterpartGateway)) + 1),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
@@ -484,12 +500,15 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(
@@ -537,32 +556,54 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC1155Gateway.finalizeBatchWithdrawERC1155.selector,
-            address(l1Token),
-            address(l2Token),
+        bytes memory message = abi.encodeCall(
+            IL1ERC1155Gateway.finalizeBatchWithdrawERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                recipient,
+                _tokenIds,
+                _amounts
+            )
+        );
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
+            address(counterpartGateway),
+            address(gateway),
+            0,
+            0,
+            message
+        );
+        _msgRelay(
+            xDomainCalldata,
+            message,
             sender,
             recipient,
             _tokenIds,
-            _amounts
+            _amounts,
+            tokenCount
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
-            address(counterpartGateway),
-            address(gateway),
-            0,
-            0,
-            message
-        );
+    }
 
-        messageProve(
-            address(counterpartGateway),
-            address(gateway),
-            0,
-            0,
-            message
-        );
-
+    function _msgRelay(
+        bytes memory xDomainCalldata,
+        bytes memory message,
+        address sender,
+        address recipient,
+        uint256[] memory _tokenIds,
+        uint256[] memory _amounts,
+        uint256 tokenCount
+    ) internal {
+        (
+            bytes32[32] memory wdProof,
+            bytes32 wdRoot
+        ) = messageProveAndRelayPrepare(
+                address(counterpartGateway),
+                address(gateway),
+                0,
+                0,
+                message
+            );
         // emit FinalizeBatchWithdrawERC1155 from L1ERC1155Gateway
         {
             hevm.expectEmit(true, true, true, true);
@@ -594,14 +635,38 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 keccak256(xDomainCalldata)
             )
         );
-        l1CrossDomainMessenger.relayMessage(
+        l1CrossDomainMessenger.proveAndRelayMessage(
             address(counterpartGateway),
             address(gateway),
             0,
             0,
-            message
+            message,
+            wdProof,
+            wdRoot
         );
 
+        assertBoolEq(
+            true,
+            l1CrossDomainMessenger.finalizedWithdrawals(
+                keccak256(xDomainCalldata)
+            )
+        );
+        _tokenCheck(
+            tokenCount,
+            gatewayBalances,
+            recipientBalances,
+            _amounts,
+            recipient
+        );
+    }
+
+    function _tokenCheck(
+        uint256 tokenCount,
+        uint256[] memory gatewayBalances,
+        uint256[] memory recipientBalances,
+        uint256[] memory _amounts,
+        address recipient
+    ) internal {
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(
                 gatewayBalances[i] - _amounts[i],
@@ -612,12 +677,6 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 l1Token.balanceOf(recipient, i)
             );
         }
-        assertBoolEq(
-            true,
-            l1CrossDomainMessenger.finalizedWithdrawals(
-                keccak256(xDomainCalldata)
-            )
-        );
     }
 
     function _testDepositERC1155(
@@ -635,17 +694,18 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
         uint256 feeToPay = feePerGas * gasLimit;
 
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC1155Gateway.finalizeDepositERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            address(this),
-            tokenId,
-            amount
+        bytes memory message = abi.encodeCall(
+            IL2ERC1155Gateway.finalizeDepositERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                address(this),
+                tokenId,
+                amount
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -753,17 +813,18 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(feePerGas);
         uint256 feeToPay = feePerGas * gasLimit;
 
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC1155Gateway.finalizeDepositERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            tokenId,
-            amount
+        bytes memory message = abi.encodeCall(
+            IL2ERC1155Gateway.finalizeDepositERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                tokenId,
+                amount
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -911,17 +972,18 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             gasLimit
         );
 
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC1155Gateway.finalizeBatchDepositERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            address(this),
-            _tokenIds,
-            _amounts
+        bytes memory message = abi.encodeCall(
+            IL2ERC1155Gateway.finalizeBatchDepositERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                address(this),
+                _tokenIds,
+                _amounts
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -1062,17 +1124,18 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             gasLimit
         );
 
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC1155Gateway.finalizeBatchDepositERC1155.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            _tokenIds,
-            _amounts
+        bytes memory message = abi.encodeCall(
+            IL2ERC1155Gateway.finalizeBatchDepositERC1155,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                _tokenIds,
+                _amounts
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,

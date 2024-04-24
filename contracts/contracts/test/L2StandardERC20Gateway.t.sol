@@ -22,7 +22,8 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _data,
+        uint256 nonce
     );
     event FinalizeDepositERC20(
         address indexed _l1Token,
@@ -71,16 +72,18 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
             address(gateway),
             0,
             0,
-            abi.encodeWithSelector(
-                L2StandardERC20Gateway.finalizeDepositERC20.selector,
-                address(l1Token),
-                address(l2Token),
-                address(this),
-                address(this),
-                type(uint128).max,
-                abi.encode(
-                    true,
-                    abi.encode("", abi.encode("symbol", "name", 18))
+            abi.encodeCall(
+                L2StandardERC20Gateway.finalizeDepositERC20,
+                (
+                    address(l1Token),
+                    address(l2Token),
+                    address(this),
+                    address(this),
+                    type(uint128).max,
+                    abi.encode(
+                        true,
+                        abi.encode("", abi.encode("symbol", "name", 18))
+                    )
                 )
             )
         );
@@ -205,14 +208,16 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositERC20.selector,
-                address(l1Token),
-                address(l2Token),
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositERC20,
+                (
+                    address(l1Token),
+                    address(l2Token),
+                    sender,
+                    recipient,
+                    amount,
+                    dataToCall
+                )
             )
         );
 
@@ -222,14 +227,16 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("nonzero msg.value");
         mockMessenger.callTarget{value: 1}(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositERC20.selector,
-                address(l1Token),
-                address(l2Token),
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositERC20,
+                (
+                    address(l1Token),
+                    address(l2Token),
+                    sender,
+                    recipient,
+                    amount,
+                    dataToCall
+                )
             )
         );
 
@@ -237,14 +244,16 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("l2 token mismatch");
         mockMessenger.callTarget(
             address(gateway),
-            abi.encodeWithSelector(
-                gateway.finalizeDepositERC20.selector,
-                address(l2Token),
-                address(l2Token),
-                sender,
-                recipient,
-                amount,
-                dataToCall
+            abi.encodeCall(
+                gateway.finalizeDepositERC20,
+                (
+                    address(l2Token),
+                    address(l2Token),
+                    sender,
+                    recipient,
+                    amount,
+                    dataToCall
+                )
             )
         );
     }
@@ -261,17 +270,18 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         amount = bound(amount, 1, l2Token.balanceOf(address(this)));
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                recipient,
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
             0,
@@ -318,17 +328,18 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         amount = bound(amount, 1, l2Token.balanceOf(address(this)));
 
         // do finalize withdraw token
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC20Gateway.finalizeDepositERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            sender,
-            address(recipient),
-            amount,
-            abi.encode(false, dataToCall)
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                sender,
+                address(recipient),
+                amount,
+                abi.encode(false, dataToCall)
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(counterpartGateway),
             address(gateway),
             0,
@@ -396,17 +407,18 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            address(this),
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                address(this),
+                amount,
+                new bytes(0)
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -445,10 +457,12 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
 
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L2CrossDomainMessenger
@@ -472,7 +486,8 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 address(this),
                 address(this),
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));
@@ -517,17 +532,18 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            new bytes(0)
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
+                new bytes(0)
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -570,10 +586,12 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
 
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -597,7 +615,8 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                new bytes(0)
+                new bytes(0),
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));
@@ -645,17 +664,18 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         setL1BaseFee(feePerGas);
 
         uint256 feeToPay = feePerGas * gasLimit;
-        bytes memory message = abi.encodeWithSelector(
-            IL1ERC20Gateway.finalizeWithdrawERC20.selector,
-            address(l1Token),
-            address(l2Token),
-            address(this),
-            recipient,
-            amount,
-            dataToCall
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (
+                address(l1Token),
+                address(l2Token),
+                address(this),
+                recipient,
+                amount,
+                dataToCall
+            )
         );
-        bytes memory xDomainCalldata = abi.encodeWithSignature(
-            "relayMessage(address,address,uint256,uint256,bytes)",
+        bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(gateway),
             address(counterpartGateway),
             0,
@@ -702,10 +722,12 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 );
             }
 
+            _appendMessageHash(keccak256(xDomainCalldata));
+            bytes32 rootHash = getTreeRoot();
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata));
+                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -729,7 +751,8 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
                 address(this),
                 recipient,
                 amount,
-                dataToCall
+                dataToCall,
+                0
             );
 
             uint256 gatewayBalance = l2Token.balanceOf(address(gateway));

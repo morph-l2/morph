@@ -34,12 +34,17 @@ interface IRollup {
         bytes32 withdrawRoot
     );
 
-    /// @notice Emitted when owner updates the status of prover.
-    /// @param account The address of account updated.
-    /// @param status The status of the account updated.
-    event UpdateProver(address indexed account, bool status);
+    /// @notice Emitted when owner updates the PROOF_WINDOW parameter.
+    /// @param oldWindow The old PROOF_WINDOW.
+    /// @param newWindow The new PROOF_WINDOW.
+    event UpdateProofWindow(uint256 oldWindow, uint256 newWindow);
 
-    /// @notice Emitted when owner updates the status of prover.
+    /// @notice Emitted when owner updates the FINALIZATION_PERIOD_SECONDS parameter.
+    /// @param oldPeriod The old FINALIZATION_PERIOD_SECONDS.
+    /// @param newPeriod The new FINALIZATION_PERIOD_SECONDS.
+    event UpdateFinalizationPeriodSeconds(uint256 oldPeriod, uint256 newPeriod);
+
+    /// @notice Emitted when owner updates the status of challenger.
     /// @param account The address of account updated.
     /// @param status The status of the account updated.
     event UpdateChallenger(address indexed account, bool status);
@@ -60,21 +65,27 @@ interface IRollup {
         uint256 newMaxNumTxInChunk
     );
 
-    /// @notice Emitted when the state of Chanllenge is updated.
+    /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex The index of the batch.
     /// @param challenger The address of challenger.
+    /// @param challengerReceiveAddress The receive address of challenger.
     /// @param challengeDeposit The deposit of challenger.
     event ChallengeState(
         uint64 indexed batchIndex,
-        address challenger,
+        address indexed challenger,
+        address challengerReceiveAddress,
         uint256 challengeDeposit
     );
 
-    /// @notice Emitted when the result of Chanllenge is updated.
+    /// @notice Emitted when the result of Challenge is updated.
     /// @param batchIndex The index of the batch.
     /// @param winner  The address of winner.
     /// @param res The result of challenge.
-    event ChallengeRes(uint64 indexed batchIndex, address winner, string res);
+    event ChallengeRes(
+        uint64 indexed batchIndex,
+        address indexed winner,
+        string indexed res
+    );
 
     /*************************
      * Public View Functions *
@@ -102,7 +113,7 @@ interface IRollup {
     /// @param withdrawalRoot The withdrawal root.
     function withdrawalRoots(
         bytes32 withdrawalRoot
-    ) external view returns (uint256);
+    ) external view returns (bool);
 
     /// @notice Return whether the batch is finalized by batch index.
     /// @param batchIndex The index of the batch.
@@ -119,12 +130,12 @@ interface IRollup {
     ///
     /// @param batchData The BatchData struct
     /// @param version The sequencer version
-    /// @param sequencerIndex The sequencers index
+    /// @param sequencers The signed sequencers
     /// @param signature The BLS signature
     function commitBatch(
         BatchData calldata batchData,
         uint256 version,
-        uint256[] memory sequencerIndex,
+        address[] memory sequencers,
         bytes memory signature
     ) external payable;
 
@@ -133,6 +144,9 @@ interface IRollup {
     /// @param batchHeader The header of current batch, see the encoding in comments of `commitBatch`.
     /// @param count The number of subsequent batches to revert, including current batch.
     function revertBatch(bytes calldata batchHeader, uint256 count) external;
+
+    /// @notice Claim challenge reward
+    function claimReward() external;
 
     /// @param version The version of current batch.
     /// @param parentBatchHeader The header of parent batch, see the comments of `BatchHeaderV0Codec`.

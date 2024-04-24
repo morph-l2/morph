@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Sequencer} from "../../libraries/sequencer/Sequencer.sol";
-import {IStaking} from "../staking/IStaking.sol";
 import {IL1Sequencer} from "./IL1Sequencer.sol";
 
-contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
+contract L1Sequencer is
+    Initializable,
+    IL1Sequencer,
+    Sequencer,
+    PausableUpgradeable
+{
     // staking contract
     address public stakingContract;
     // rollup Contract
@@ -18,24 +22,10 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     uint256 public override currentVersion = 0;
     // newest sequencers version
     uint256 public override newestVersion = 0;
-    // map(version => sequencerAddress)
-    mapping(uint256 => address[]) public sequencerAddrs;
-    // map(version => sequencerBLSkeys)
+    // map(version => sequencerAddresses)
+    mapping(uint256 => address[]) public sequencerAddresses;
+    // map(version => sequencerBLSKeys)
     mapping(uint256 => bytes[]) public sequencerBLSKeys;
-
-    /**
-     * @notice sequencer version confirmed
-     */
-    event SequencerConfirmed(address[] sequencers, uint256 version);
-
-    /**
-     * @notice sequencer updated
-     */
-    event SequencerUpdated(
-        address[] sequencersAddr,
-        bytes[] sequencersBLS,
-        uint256 version
-    );
 
     /**
      * @notice only staking contract
@@ -58,15 +48,8 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
      */
     constructor(
         address payable _messenger
-    ) Pausable() Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER)) {
-        _pause();
-    }
-
-    /**
-     * @notice do not receive ETH
-     */
-    receive() external payable {
-        require(false);
+    ) Sequencer(_messenger, payable(Predeploys.L2_SEQUENCER)) {
+        _disableInitializers();
     }
 
     /**
@@ -77,7 +60,7 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     function initialize(
         address _stakingContract,
         address _rollupContract
-    ) public initializer {
+    ) external initializer {
         require(_stakingContract != address(0), "invalid staking contract");
         require(_rollupContract != address(0), "invalid rollup contract");
         stakingContract = _stakingContract;
@@ -85,50 +68,71 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
         _pause();
     }
 
-    function pause() external override onlyStakingContract whenNotPaused {
+    function pause() external override onlyStakingContract {
         _pause();
     }
 
+    function unpause() external override onlyStakingContract {
+        _unpause();
+    }
+
     function updateSequencersVersion(
-        address[] memory _sequencerAddrs,
+        address[] memory _sequencerAddresses,
         bytes[] memory _sequencerBLSKeys
     ) internal {
         newestVersion++;
-        sequencerAddrs[newestVersion] = _sequencerAddrs;
+        sequencerAddresses[newestVersion] = _sequencerAddresses;
         sequencerBLSKeys[newestVersion] = _sequencerBLSKeys;
     }
 
     /**
      * @notice verify BLS signature
      * @param version sequencer set version
-     * @param indexs sequencer index
+     * @param sequencers sequencers signed
      * @param signature batch signature
+     * @param batchHash batch hash
      */
     function verifySignature(
         uint256 version,
-        uint256[] memory indexs,
-        bytes memory signature
+        address[] memory sequencers,
+        bytes memory signature,
+        bytes32 batchHash
     ) external onlyRollupContract whenNotPaused returns (bool) {
-        confirmVersion(version);
+        _confirmVersion(version);
         // TODO: verify BLS signature
+        sequencers = sequencers;
+        signature = signature;
+        batchHash = batchHash;
         return true;
     }
 
-    /**
-     * @notice challenger win, slash sequencers
-     */
-    function slash(
-        uint256[] memory sequencerIndex,
-        address challenger,
-        uint32 _minGasLimit,
-        uint256 _gasFee
-    ) external onlyRollupContract {
-        IStaking(stakingContract).slash(
-            sequencerAddrs[currentVersion],
-            sequencerIndex,
-            challenger,
-            _minGasLimit,
-            _gasFee
+    function updateAndSendSequencerSet(
+        bytes memory _sequencerBytes,
+        address[] memory _sequencerAddresses,
+        bytes[] memory _sequencerBLSKeys,
+        uint32 _gasLimit
+    ) external override onlyStakingContract {
+        if (newestVersion == 0 && sequencerAddresses[0].length == 0) {
+            // init sequencers
+            sequencerAddresses[0] = _sequencerAddresses;
+            sequencerBLSKeys[0] = _sequencerBLSKeys;
+            _unpause();
+        } else {
+            require(!paused(), "send message when unpaused");
+            updateSequencersVersion(_sequencerAddresses, _sequencerBLSKeys);
+
+            MESSENGER.sendMessage(
+                address(OTHER_SEQUENCER),
+                0,
+                _sequencerBytes,
+                _gasLimit
+            );
+        }
+
+        emit SequencerUpdated(
+            newestVersion,
+            _sequencerAddresses,
+            _sequencerBLSKeys
         );
     }
 
@@ -136,48 +140,16 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
      * @notice confirm sequencer ser version
      * @param version sequencer set version
      */
-    function confirmVersion(uint256 version) internal {
+    function _confirmVersion(uint256 version) internal {
         require(
             version >= currentVersion && version <= newestVersion,
             "invalid sequencer version"
         );
         for (uint256 i = currentVersion; i < version; i++) {
-            delete sequencerAddrs[i];
+            delete sequencerAddresses[i];
             delete sequencerBLSKeys[i];
         }
         currentVersion = version;
-    }
-
-    function updateAndSendSequencerSet(
-        bytes memory _sequencerBytes,
-        address[] memory _sequencerAddrs,
-        bytes[] memory _sequencerBLSKeys,
-        uint32 _gasLimit,
-        address _refundAddress
-    ) external payable override onlyStakingContract {
-        if (newestVersion == 0 && sequencerAddrs[0].length == 0) {
-            // init sequencers
-            sequencerAddrs[0] = _sequencerAddrs;
-            sequencerBLSKeys[0] = _sequencerBLSKeys;
-            _unpause();
-            return;
-        }
-        require(!paused(), "send message when unpaused");
-        updateSequencersVersion(_sequencerAddrs, _sequencerBLSKeys);
-
-        emit SequencerUpdated(
-            _sequencerAddrs,
-            _sequencerBLSKeys,
-            newestVersion
-        );
-
-        MESSENGER.sendMessage{value: msg.value}(
-            address(OTHER_SEQUENCER),
-            0,
-            _sequencerBytes,
-            _gasLimit,
-            _refundAddress
-        );
     }
 
     function sequencerNum(uint256 version) external view returns (uint256) {
@@ -187,10 +159,18 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
     /**
      * @notice whether is current sequencer
      * @param addr address
+     * @param version sequencer version
      */
-    function isSequencer(address addr) external view returns (bool) {
-        for (uint256 i = 0; i < sequencerAddrs[currentVersion].length; i++) {
-            if (sequencerAddrs[currentVersion][i] == addr) {
+    function isSequencer(
+        address addr,
+        uint256 version
+    ) external view returns (bool) {
+        require(
+            version >= currentVersion && version <= newestVersion,
+            "invalid version"
+        );
+        for (uint256 i = 0; i < sequencerAddresses[version].length; i++) {
+            if (sequencerAddresses[currentVersion][i] == addr) {
                 return true;
             }
         }
@@ -201,10 +181,10 @@ contract L1Sequencer is Initializable, IL1Sequencer, Sequencer, Pausable {
      * @notice sequencer addresses
      * @param version version
      */
-    function getSequencerAddrs(
+    function getSequencerAddresses(
         uint256 version
     ) external view returns (address[] memory) {
-        return sequencerAddrs[version];
+        return sequencerAddresses[version];
     }
 
     /**

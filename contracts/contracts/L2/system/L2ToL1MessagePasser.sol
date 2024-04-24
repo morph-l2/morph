@@ -19,7 +19,8 @@ contract L2ToL1MessagePasser is Tree {
     /// @notice Emitted when a new message is added to the merkle tree.
     /// @param index The index of the corresponding message.
     /// @param messageHash The hash of the corresponding message.
-    event AppendMessage(uint256 index, bytes32 messageHash);
+    /// @param rootHash The hash of the tree root after append the message.
+    event AppendMessage(uint256 indexed index, bytes32 indexed messageHash, bytes32 indexed rootHash);
 
     /*************
      * Variables *
@@ -47,12 +48,11 @@ contract L2ToL1MessagePasser is Tree {
             msg.sender == Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             "only messenger"
         );
-        // We can use the event to compute the merkle tree locally.
-        emit AppendMessage(leafNodesCount, _messageHash);
 
         _appendMessageHash(_messageHash);
         messageRoot = getTreeRoot();
-
+        // We can use the event to compute the merkle tree locally.
+        emit AppendMessage(leafNodesCount - 1, _messageHash, messageRoot);
         return messageRoot;
     }
 }
