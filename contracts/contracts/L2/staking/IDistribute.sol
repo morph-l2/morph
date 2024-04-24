@@ -69,6 +69,11 @@ interface IDistribute {
     ) external view returns (uint256);
 
     /**
+     * @dev init contract
+     */
+    function initialize() external;
+
+    /**
      * @dev notify delegation
      * @param delegatee         delegatee address
      * @param delegator         delegator address
@@ -153,4 +158,14 @@ interface IDistribute {
         address delegatee,
         uint256 targetEpochIndex
     ) external;
+
+    /**
+     * @notice query unclaimed morph reward on a delegatee
+     * @param delegatee     delegatee address
+     * @param delegator     delegatee address
+     */
+    function queryUnclaimed(
+        address delegatee,
+        address delegator
+    ) external view returns (uint256);
 }
