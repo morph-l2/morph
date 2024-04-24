@@ -107,7 +107,7 @@ contract Record is IRecord, OwnableUpgradeable {
      * @notice record batch submissions
      */
     function recordFinalizedBatchSubmissions(
-        BatchSubmission[] calldata _batchSubmissions
+        BatchSubmission[] memory _batchSubmissions
     ) external onlyOracle {
         for (uint256 i = 0; i < _batchSubmissions.length; i++) {
             require(
@@ -129,7 +129,7 @@ contract Record is IRecord, OwnableUpgradeable {
      * @notice record epochs
      */
     function recordRollupEpochs(
-        RollupEpochInfo[] calldata _rollupEpochs
+        RollupEpochInfo[] memory _rollupEpochs
     ) external onlyOracle {
         for (uint256 i = 0; i < _rollupEpochs.length; i++) {
             require(
@@ -150,7 +150,7 @@ contract Record is IRecord, OwnableUpgradeable {
      * @notice record epochs
      */
     function recordRewardEpochs(
-        RewardEpochInfo[] calldata _rewardEpochs
+        RewardEpochInfo[] memory _rewardEpochs
     ) external onlyOracle {
         require(latestRewardEpochBlock > 0, "start block should be set");
         require(

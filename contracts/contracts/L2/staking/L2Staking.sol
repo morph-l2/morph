@@ -524,7 +524,7 @@ contract L2Staking is
      * @notice get stakers info
      */
     function getStakesInfo(
-        address[] memory _stakerAddresses
+        address[] calldata _stakerAddresses
     ) external view returns (Types.StakerInfo[] memory) {
         Types.StakerInfo[] memory _stakers = new Types.StakerInfo[](
             _stakerAddresses.length
