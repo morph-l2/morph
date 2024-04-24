@@ -332,6 +332,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             "all inflations minted"
         );
 
+        uint256 _inflationMintedDaysSubstitute = _inflationMintedDays;
         for (uint256 i = _inflationMintedDays; i <= upToDayIndex; i++) {
             uint256 rate = _dailyInflationRates[0].rate;
             // find inflation rate of the day
@@ -342,8 +343,9 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             }
             _inflations[i] = (_totalSupply * rate) / 1e16;
             _mint(DISTRIBUTE_CONTRACT, _inflations[i]);
-            _inflationMintedDays++;
+            _inflationMintedDaysSubstitute++;
         }
+        _inflationMintedDays = _inflationMintedDaysSubstitute;
     }
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing

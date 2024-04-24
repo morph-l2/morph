@@ -48,7 +48,7 @@ contract Sequencer is Initializable, ISequencer {
      * @notice Initializer.
      * @param _sequencerSet  initial sequencer set, must be same as initial staker set in l2 staking contract
      */
-    function initialize(address[] memory _sequencerSet) public initializer {
+    function initialize(address[] calldata _sequencerSet) public initializer {
         require(_sequencerSet.length > 0, "invalid sequencer set");
         sequencerSet0 = _sequencerSet;
         sequencerSet1 = _sequencerSet;

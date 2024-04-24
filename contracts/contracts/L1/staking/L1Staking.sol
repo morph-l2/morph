@@ -4,7 +4,6 @@ pragma solidity =0.8.24;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Types} from "../../libraries/common/Types.sol";
@@ -37,6 +36,10 @@ contract L1Staking is
     address[] public stakerList;
     // all stakers info
     mapping(address => Types.StakerInfo) public stakers;
+    // bls key map
+    mapping(bytes => bool) private blsKeys;
+    // tendermint key map
+    mapping(bytes32 => bool) private tmKeys;
     // withdraw unlock time
     mapping(address => uint256) public withdrawals;
 
@@ -139,40 +142,26 @@ contract L1Staking is
 
     /**
      * @notice register staker
-     * @param addr      staker address
      * @param tmKey     tendermint pubkey
      * @param blsKey    bls pubkey
      */
     function register(
-        address addr,
         bytes32 tmKey,
         bytes memory blsKey
-    ) external payable inWhitelist(addr) {
-        require(addr != address(0), "invalid address");
-        require(stakers[addr].addr == address(0), "already registered");
-        require(tmKey != 0, "invalid tendermint pubkey");
-        require(blsKey.length == 256, "invalid bls pubkey");
+    ) external payable inWhitelist(_msgSender()) {
+        require(stakers[_msgSender()].addr == address(0), "already registered");
+        require(tmKey != 0 && !tmKeys[tmKey], "invalid tendermint pubkey");
+        require(blsKey.length == 256 && !blsKeys[blsKey], "invalid bls pubkey");
         require(msg.value == STAKING_VALUE, "invalid staking value");
 
-        // check for duplicates
-        for (uint256 index = 0; index < stakerList.length; index++) {
-            require(
-                stakers[stakerList[index]].tmKey != tmKey,
-                "tmKey already registered"
-            );
-            require(
-                keccak256(stakers[stakerList[index]].blsKey) !=
-                    keccak256(blsKey),
-                "blsKey already registered"
-            );
-        }
-
-        stakers[addr] = Types.StakerInfo(addr, tmKey, blsKey);
-        stakerList.push(addr);
-        emit Registered(addr, tmKey, blsKey);
+        stakers[_msgSender()] = Types.StakerInfo(_msgSender(), tmKey, blsKey);
+        stakerList.push(_msgSender());
+        blsKeys[blsKey] = true;
+        tmKeys[tmKey] = true;
+        emit Registered(_msgSender(), tmKey, blsKey);
 
         // send message to add staker on l2
-        _addStaker(stakers[addr]);
+        _addStaker(stakers[_msgSender()]);
     }
 
     /**

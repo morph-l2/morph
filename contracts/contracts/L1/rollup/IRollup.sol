@@ -9,8 +9,7 @@ interface IRollup {
     /// @param prevStateRoot            The state root of parent batch.
     /// @param postStateRoot            The state root of current batch.
     /// @param withdrawalRoot           The withdraw trie root of current batch.
-    /// @param signature                The withdraw trie root of current batch.
-    struct BatchData {
+    struct BatchDataInput {
         uint8 version;
         bytes parentBatchHeader;
         bytes[] chunks;
@@ -18,47 +17,47 @@ interface IRollup {
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
-        BatchSignatureData signatureData;
     }
 
     /// @param signedSequencers The signed sequencers
     /// @param sequencerSets    The latest 3 sequencer sets
     /// @param signature        The BLS signature
-    struct BatchSignatureData {
-        address[] signedSequencers;
+    struct BatchSignatureInput {
+        bytes signedSequencers;
         bytes sequencerSets;
         bytes signature;
     }
 
-    /// @param batchVersion
     /// @param batchHash
+    /// @param batchVersion
     /// @param originTimestamp
     /// @param finalizeTimestamp
+    /// @param blockNumber
+    struct BatchBase {
+        bytes32 batchHash;
+        uint256 batchVersion;
+        uint256 originTimestamp;
+        uint256 finalizeTimestamp;
+        uint256 blockNumber;
+    }
+
+    /// @param blobVersionedHash
+    /// @param l1DataHash
     /// @param prevStateRoot
     /// @param postStateRoot
     /// @param withdrawalRoot
-    /// @param l1DataHash
     /// @param l1MessagePopped
     /// @param totalL1MessagePopped
     /// @param skippedL1MessageBitmap
-    /// @param blockNumber
-    /// @param blobVersionedHash
-    /// @param signatureStore
-    struct BatchStore {
-        uint256 batchVersion;
-        bytes32 batchHash;
-        uint256 originTimestamp;
-        uint256 finalizeTimestamp;
+    struct BatchData {
+        bytes32 blobVersionedHash;
+        bytes32 l1DataHash;
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
-        bytes32 l1DataHash;
         uint256 l1MessagePopped;
         uint256 totalL1MessagePopped;
         bytes skippedL1MessageBitmap;
-        uint256 blockNumber;
-        bytes32 blobVersionedHash;
-        BatchSignature signature;
     }
 
     /// @param blsMsgHash
@@ -67,7 +66,7 @@ interface IRollup {
     struct BatchSignature {
         bytes32 blsMsgHash;
         bytes32 sequencerSetVerifyHash;
-        address[] signedSequencers;
+        bytes signedSequencers;
     }
 
     /// @dev Structure to store information about a batch challenge.
@@ -217,8 +216,12 @@ interface IRollup {
 
     /// @notice Commit a batch of transactions on layer 1.
     ///
-    /// @param batchData        The BatchData struct
-    function commitBatch(BatchData calldata batchData) external payable;
+    /// @param batchDataInput       The BatchDataInput struct
+    /// @param batchSignatureInput  The BatchSignatureInput struct
+    function commitBatch(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput
+    ) external payable;
 
     /// @notice Revert a pending batch.
     /// @dev one can only revert unfinalized batches.
