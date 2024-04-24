@@ -20,9 +20,9 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		BatchInboxAddress:  address1,
 		BatchSenderAddress: address1,
 
+		L1StakingProxy:              address1,
 		ProxyAdminOwner:             address1,
 		FinalSystemOwner:            address1,
-		L1SequencerProxy:            address1,
 		L1CrossDomainMessengerProxy: address1,
 		RollupProxy:                 address1,
 		L1GatewayRouterProxy:        address1,

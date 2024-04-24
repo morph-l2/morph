@@ -71,7 +71,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 // SetImplementations will set the implementations of the contracts in the state
 // and configure the proxies to point to the implementations. It also sets
 // the appropriate storage values for each contract at the proxy address.
-func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable immutables.ImmutableConfig, imuConfig *immutables.Config) error {
+func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable immutables.ImmutableConfig, imuConfig *immutables.InitConfig) error {
 	deployResults, slotResults, err := immutables.BuildMorph(immutable, imuConfig)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func SetTouchable(db vm.StateDB, name string, address common.Address, storage st
 	}
 	code := db.GetCode(codeAddr)
 	if len(code) == 0 {
-		return fmt.Errorf("Untouchable predeploys code not set for %s", name)
+		return fmt.Errorf("untouchable predeploys code not set for %s", name)
 	}
 	return nil
 }
@@ -171,7 +171,7 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 	}
 
-	if name == "L2Sequencer" {
+	if name == "Sequencer" {
 		// set slots directly
 		if slots, ok := slotResults[name]; ok {
 			for slotK, slotV := range slots {
