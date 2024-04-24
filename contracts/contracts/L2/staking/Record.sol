@@ -211,7 +211,7 @@ contract Record is IRecord, OwnableUpgradeable {
             );
             require(ratioSum <= RATIO_PRECISION, "invalid sequencers ratios");
 
-            // update sequecers reward data
+            // update sequencers reward data
             IDistribute(DISTRIBUTE_CONTRACT).updateEpochReward(
                 index,
                 _rewardEpochs[i].sequencers,
