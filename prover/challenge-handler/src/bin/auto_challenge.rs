@@ -68,7 +68,7 @@ pub async fn challenge() -> Result<(), Box<dyn Error>> {
 
     // TODO IStaking
     // let min_deposit: U256 = l1_rollup.min_deposit().await?;
-    let min_deposit: U256 = U256::from(1i32.pow(18));
+    let min_deposit: U256 = U256::from(10i32.pow(18));
     log::info!("min_deposit: {:#?}", min_deposit);
 
     loop {
