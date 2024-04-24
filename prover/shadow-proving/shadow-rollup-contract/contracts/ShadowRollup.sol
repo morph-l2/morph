@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
-import {IRollup} from "./IRollup.sol";
 import {IZkEvmVerifier} from "./libs/IZkEvmVerifier.sol";
 
 /// @title ShadowRollup
