@@ -27,6 +27,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
+	"github.com/scroll-tech/go-ethereum/rlp"
 	"github.com/tendermint/tendermint/blssignatures"
 )
 
@@ -373,7 +374,7 @@ func (sr *Rollup) rollup() error {
 	if err != nil {
 		return err
 	}
-	rollupBatch := bindings.IRollupBatchData{
+	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:                uint8(batch.Version),
 		ParentBatchHeader:      batch.ParentBatchHeader,
 		Chunks:                 chunks,
@@ -381,7 +382,6 @@ func (sr *Rollup) rollup() error {
 		PrevStateRoot:          batch.PrevStateRoot,
 		PostStateRoot:          batch.PostStateRoot,
 		WithdrawalRoot:         batch.WithdrawRoot,
-		SignatureData:          *signature,
 	}
 
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
@@ -399,7 +399,7 @@ func (sr *Rollup) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch)
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, *signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
@@ -410,7 +410,7 @@ func (sr *Rollup) rollup() error {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch)
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, *signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
@@ -580,7 +580,7 @@ func (sr *Rollup) rollup() error {
 	return nil
 }
 
-func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureData, error) {
+func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
 	blsSignatures := batch.Signatures
 	if len(blsSignatures) == 0 {
 		return nil, fmt.Errorf("invalid batch signature")
@@ -599,8 +599,12 @@ func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRol
 	}
 	aggregatedSig := blssignatures.AggregateSignatures(sigs)
 	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
-	sigData := bindings.IRollupBatchSignatureData{
-		SignedSequencers: signers,
+	bsSigner, err := rlp.EncodeToBytes(signers)
+	if err != nil {
+		return nil, fmt.Errorf("encode signers error:%v", err)
+	}
+	sigData := bindings.IRollupBatchSignatureInput{
+		SignedSequencers: bsSigner,
 		SequencerSets:    batch.CurrentSequencerSetBytes,
 		Signature:        blsSignature,
 	}
