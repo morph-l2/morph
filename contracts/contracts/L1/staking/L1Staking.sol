@@ -150,14 +150,14 @@ contract L1Staking is
         bytes memory blsKey
     ) external payable inWhitelist(_msgSender()) {
         require(stakers[_msgSender()].addr == address(0), "already registered");
-        require(tmKey != 0, "invalid tendermint pubkey");
-        require(blsKey.length == 256, "invalid bls pubkey");
+        require(tmKey != 0 && !tmKeys[tmKey], "invalid tendermint pubkey");
+        require(blsKey.length == 256 && !blsKeys[blsKey], "invalid bls pubkey");
         require(msg.value == STAKING_VALUE, "invalid staking value");
-        require(!blsKeys[blsKey], "blsKey already registered");
-        require(!tmKeys[tmKey], "tmKey already registered");
 
         stakers[_msgSender()] = Types.StakerInfo(_msgSender(), tmKey, blsKey);
         stakerList.push(_msgSender());
+        blsKeys[blsKey] = true;
+        tmKeys[tmKey] = true;
         emit Registered(_msgSender(), tmKey, blsKey);
 
         // send message to add staker on l2
