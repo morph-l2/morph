@@ -88,8 +88,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Store Challenge reward information. (receiver => amount)
     mapping(address => uint256) public batchChallengeReward;
 
-    /// @notice whether in challenge
+    /// @notice Whether in challenge
     bool public inChallenge;
+
+    /// @notice The batch being challenged
+    uint256 public batchChallenged;
 
     /// @notice The index of the revert request.
     uint256 public revertReqIndex;
@@ -472,7 +475,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev challengeState challenges a batch by submitting a deposit.
     function challengeState(
         uint64 batchIndex
-    ) external payable onlyChallenger nonReqRevert {
+    ) external payable onlyChallenger nonReqRevert whenNotPaused {
         require(!inChallenge, "already in challenge");
         require(
             lastFinalizedBatchIndex < batchIndex,
@@ -495,6 +498,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             msg.value >= IL1Staking(L1_STAKING_CONTRACT).STAKING_VALUE(),
             "insufficient value"
         );
+        batchChallenged = batchIndex;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
             _msgSender(),
@@ -524,7 +528,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint64 _batchIndex,
         bytes calldata _aggrProof,
         bytes calldata _kzgDataProof
-    ) external nonReqRevert {
+    ) external nonReqRevert whenNotPaused {
         // Ensure challenge exists and is not finished
         require(batchInChallenge(_batchIndex), "batch in challenge");
 
@@ -550,7 +554,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
     }
 
-    /// @dev todo
+    /// @dev finalize batch
     function finalizeBatch(
         uint256 _batchIndex
     ) public nonReqRevert whenNotPaused {
@@ -719,6 +723,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function setPause(bool _status) external onlyOwner {
         if (_status) {
             _pause();
+            // if challenge exist and not finished yet, return challenge deposit to challenger
+            if (inChallenge && !challenges[batchChallenged].finished) {
+                batchChallengeReward[
+                    challenges[batchChallenged].challenger
+                ] += challenges[batchChallenged].challengeDeposit;
+            }
+            delete challenges[batchChallenged];
         } else {
             _unpause();
         }
