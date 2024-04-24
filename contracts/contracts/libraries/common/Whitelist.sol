@@ -26,7 +26,10 @@ contract Whitelist is OwnableBase, IWhitelist {
     /// @notice Update the whitelist status
     /// @param _accounts The list of addresses to update.
     /// @param _status The whitelist status to update.
-    function updateWhitelistStatus(address[] memory _accounts, bool _status) external onlyOwner {
+    function updateWhitelistStatus(
+        address[] memory _accounts,
+        bool _status
+    ) external onlyOwner {
         for (uint256 i = 0; i < _accounts.length; i++) {
             isWhitelisted[_accounts[i]] = _status;
             emit WhitelistStatusChanged(_accounts[i], _status);

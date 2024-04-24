@@ -24,11 +24,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice The zero versioned hash.
     bytes32 internal constant ZERO_VERSIONED_HASH =
-    0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
+        0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
 
     /// @notice The BLS MODULUS
     uint256 internal constant BLS_MODULUS =
-    52435875175126190479447740508185965837690552500527637822603658699938581184513;
+        52435875175126190479447740508185965837690552500527637822603658699938581184513;
 
     /// @dev Address of the point evaluation precompile used for EIP-4844 blob verification.
     address internal constant POINT_EVALUATION_PRECOMPILE_ADDR = address(0x0A);
@@ -196,9 +196,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // check all fields except `l1DataHash` and `lastBlockHash` are zero
         unchecked {
             uint256 sum = BatchHeaderCodecV0.getVersion(memPtr) +
-                                BatchHeaderCodecV0.getBatchIndex(memPtr) +
-                                BatchHeaderCodecV0.getL1MessagePopped(memPtr) +
-                                BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr);
+                BatchHeaderCodecV0.getBatchIndex(memPtr) +
+                BatchHeaderCodecV0.getL1MessagePopped(memPtr) +
+                BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr);
             require(sum == 0, "not all fields are zero");
         }
         require(
@@ -212,7 +212,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         require(
             BatchHeaderCodecV0.getBlobVersionedHash(memPtr) ==
-            ZERO_VERSIONED_HASH,
+                ZERO_VERSIONED_HASH,
             "invalid versioned hash"
         );
 
@@ -291,7 +291,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         );
         require(
             batchDataStore[_batchIndex].postStateRoot ==
-            batchDataInput.prevStateRoot,
+                batchDataInput.prevStateRoot,
             "incorrect previous state root"
         );
 
@@ -324,7 +324,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         unchecked {
             require(
                 ((_totalL1MessagesPoppedInBatch + 255) / 256) * 32 ==
-                batchDataInput.skippedL1MessageBitmap.length,
+                    batchDataInput.skippedL1MessageBitmap.length,
                 "wrong bitmap length"
             );
         }
@@ -367,7 +367,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.computeBatchHash(
                 _batchPtr,
                 BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
-                batchDataInput.skippedL1MessageBitmap.length
+                    batchDataInput.skippedL1MessageBitmap.length
             ),
             batchDataInput.version,
             block.timestamp,
@@ -453,7 +453,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 // if challenge exist and not finished yet, return challenge deposit to challenger
                 if (!challenges[_batchIndex].finished) {
                     batchChallengeReward[
-                    challenges[_batchIndex].challenger
+                        challenges[_batchIndex].challenger
                     ] += challenges[_batchIndex].challengeDeposit;
                 }
                 delete challenges[_batchIndex];
@@ -568,7 +568,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // verify previous state root.
         require(
             finalizedStateRoots[_batchIndex - 1] ==
-            batchDataStore[_batchIndex].prevStateRoot,
+                batchDataStore[_batchIndex].prevStateRoot,
             "incorrect previous state root"
         );
         // avoid duplicated verification
@@ -599,7 +599,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             assembly {
                 bitmapPtr := add(
                     _skippedL1MessageBitmap,
-                /*BYTES_HEADER_SIZE*/ 32
+                    /*BYTES_HEADER_SIZE*/ 32
                 )
             }
 
@@ -726,7 +726,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             // if challenge exist and not finished yet, return challenge deposit to challenger
             if (inChallenge && !challenges[batchChallenged].finished) {
                 batchChallengeReward[
-                challenges[batchChallenged].challenger
+                    challenges[batchChallenged].challenger
                 ] += challenges[batchChallenged].challengeDeposit;
             }
             delete challenges[batchChallenged];
@@ -805,11 +805,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         {
             (bool success, bytes memory data) = POINT_EVALUATION_PRECOMPILE_ADDR
                 .staticcall(
-                abi.encodePacked(
-                    batchDataStore[_batchIndex].blobVersionedHash,
-                    _kzgDataProof
-                )
-            );
+                    abi.encodePacked(
+                        batchDataStore[_batchIndex].blobVersionedHash,
+                        _kzgDataProof
+                    )
+                );
             // We verify that the point evaluation precompile call was successful by testing the latter 32 bytes of the
             // response is equal to BLS_MODULUS as defined in https://eips.ethereum.org/EIPS/eip-4844#point-evaluation-precompile
             require(success, "failed to call point evaluation precompile");
@@ -871,9 +871,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             uint256 blockHeight2,
             address[] memory sequencerSet2
         ) = abi.decode(
-            sequencerSets,
-            (uint256, address[], uint256, address[], uint256, address[])
-        );
+                sequencerSets,
+                (uint256, address[], uint256, address[], uint256, address[])
+            );
         if (blockHeight >= blockHeight2) {
             return sequencerSet2;
         }
@@ -912,7 +912,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             abi.decode(sequencers, (address[]))
         );
         batchChallengeReward[challenges[batchIndex].challenger] += (challenges[
-        batchIndex
+            batchIndex
         ].challengeDeposit + reward);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
@@ -1038,7 +1038,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             // concatenate l2 transaction hashes
             require(
                 ChunkCodecV0.getNumTransactions(blockPtr) >=
-                _numL1MessagesInBlock,
+                    _numL1MessagesInBlock,
                 "num txs less than num L1 msgs"
             );
 
@@ -1114,7 +1114,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 _totalL1MessagesPoppedOverall += 1;
             }
 
-        // check last L1 message is not skipped, _totalL1MessagesPoppedInBatch must > 0
+            // check last L1 message is not skipped, _totalL1MessagesPoppedInBatch must > 0
             rem = (_totalL1MessagesPoppedInBatch - 1) & 0xff;
             require(((_bitmap >> rem) & 1) == 0, "cannot skip last L1 message");
         }
