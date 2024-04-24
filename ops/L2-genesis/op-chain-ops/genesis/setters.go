@@ -171,7 +171,7 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 	}
 
-	if name == "Sequencer" {
+	if name == "Sequencer" || name == "MorphToken" || name == "L2Staking" {
 		// set slots directly
 		if slots, ok := slotResults[name]; ok {
 			for slotK, slotV := range slots {
