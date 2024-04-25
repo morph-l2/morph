@@ -120,15 +120,6 @@ func Main() func(ctx *cli.Context) error {
 				return err
 			}
 			l2Sequencers = append(l2Sequencers, l2Sequencer)
-
-			l2Submitter, err := bindings.NewSubmitter(
-				common.HexToAddress(cfg.SubmitterAddress),
-				l2Client,
-			)
-			if err != nil {
-				return err
-			}
-			l2Submitters = append(l2Submitters, l2Submitter)
 		}
 
 		sr := services.NewRollup(

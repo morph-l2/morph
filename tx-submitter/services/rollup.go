@@ -319,23 +319,6 @@ func (sr *Rollup) finalize() error {
 
 func (sr *Rollup) rollup() error {
 
-	if !sr.PriorityRollup {
-		// is the turn of the submitter
-		currentSubmitter, err := sr.getCurrentSubmitter()
-		if err != nil {
-			return fmt.Errorf("get next submitter error:%v", err)
-		}
-		log.Info("current rolluped submitter", "rolluped_submitter", currentSubmitter.Hex(), "submitter", sr.walletAddr())
-
-		if currentSubmitter.Hex() == sr.walletAddr() {
-			log.Info("start to rollup")
-		} else {
-			log.Info("not my turn, wait for the next turn")
-			time.Sleep(3 * time.Second)
-			return nil
-		}
-	}
-
 	nonce, err := sr.L1Client.NonceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
 	if err != nil {
 		return fmt.Errorf("query layer1 nonce error:%v", err.Error())
@@ -929,21 +912,6 @@ func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Trans
 
 	}
 	return nil, nil, errors.New("replace tx failed after try 10 times")
-}
-
-func (r *Rollup) getCurrentSubmitter() (*common.Address, error) {
-
-	for _, l2Submitter := range r.L2Submitters {
-		current, _, _, err := l2Submitter.GetCurrentSubmitter(nil)
-		if err != nil {
-			log.Warn("get current submitter error", "error", err)
-			continue
-		}
-		return &current, nil
-
-	}
-
-	return nil, errors.New("failed to get current submitter")
 }
 
 func (r *Rollup) inSequencersSet() (bool, error) {
