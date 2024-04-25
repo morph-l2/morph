@@ -173,6 +173,7 @@ contract L1MessageBaseTest is CommonTest {
                     20,
                     stakingValue,
                     LOCK,
+                    defaultGasLimit,
                     defaultGasLimit
                 )
             )

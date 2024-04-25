@@ -35,8 +35,11 @@ contract L1Staking is
     /// @notice percentage awarded to challenger
     uint256 public rewardPercentage;
 
-    /// @notice default cross-chain gas limit
-    uint256 public defaultGasLimit;
+    /// @notice cross-chain gas limit add staker
+    uint256 public gasLimitAddStaker;
+
+    /// @notice cross-chain gas limit remove stakers
+    uint256 public gasLimitRemoveStakers;
 
     /// @notice slash remaining
     uint256 public slashRemaining;
@@ -94,20 +97,23 @@ contract L1Staking is
     /// @param _rewardPercentage  percentage awarded to challenger
     /// @param _stakingValue      smallest staking value
     /// @param _lockBlocks        withdraw lock blocks
-    /// @param _gasLimit          default cross-chain gas limit
+    /// @param _gasLimitAdd       cross-chain gas limit add staker
+    /// @param _gasLimitRemove    cross-chain gas limit remove stakers
     function initialize(
         address _admin,
         address _rollupContract,
         uint256 _rewardPercentage,
         uint256 _stakingValue,
         uint256 _lockBlocks,
-        uint256 _gasLimit
+        uint256 _gasLimitAdd,
+        uint256 _gasLimitRemove
     ) public initializer {
         require(_admin != address(0), "invalid admin");
         require(_rollupContract != address(0), "invalid rollup contract");
         require(_stakingValue > 0, "staking limit must greater than 0");
         require(_lockBlocks > 0, "staking limit must greater than 0");
-        require(_gasLimit > 0, "gas limit must greater than 0");
+        require(_gasLimitAdd > 0, "gas limit must greater than 0");
+        require(_gasLimitRemove > 0, "gas limit must greater than 0");
         require(
             _rewardPercentage > 0 && _rewardPercentage <= 100,
             "invalid reward percentage"
@@ -120,9 +126,12 @@ contract L1Staking is
         rewardPercentage = _rewardPercentage;
         stakingValue = _stakingValue;
         withdrawalLockBlocks = _lockBlocks;
-        defaultGasLimit = _gasLimit;
+        gasLimitAddStaker = _gasLimitAdd;
+        gasLimitRemoveStakers = _gasLimitRemove;
 
-        // TODO event
+        emit GasLimitUpdated(_gasLimitAdd, _gasLimitRemove);
+
+        // TODO events
     }
 
     /************************
@@ -222,11 +231,17 @@ contract L1Staking is
     }
 
     /// @notice claim slash remaining
-    /// @param gasLimit  gas limit
-    function updateParams(uint256 gasLimit) external onlyOwner {
-        require(gasLimit > 0, "gas limit must greater than 0");
-        defaultGasLimit = gasLimit;
-        emit ParamsUpdated(gasLimit);
+    /// @param _gasLimitAdd       cross-chain gas limit add staker
+    /// @param _gasLimitRemove    cross-chain gas limit remove stakers
+    function updateParams(
+        uint256 _gasLimitAdd,
+        uint256 _gasLimitRemove
+    ) external onlyOwner {
+        require(_gasLimitAdd > 0, "gas limit must greater than 0");
+        require(_gasLimitRemove > 0, "gas limit must greater than 0");
+        gasLimitAddStaker = _gasLimitAdd;
+        gasLimitRemoveStakers = _gasLimitRemove;
+        emit GasLimitUpdated(_gasLimitAdd, _gasLimitRemove);
     }
 
     /*****************************
@@ -302,7 +317,7 @@ contract L1Staking is
             address(OTHER_STAKING),
             0,
             abi.encodeCall(IL2Staking.addStaker, (add)),
-            defaultGasLimit
+            gasLimitAddStaker
         );
     }
 
@@ -313,7 +328,7 @@ contract L1Staking is
             address(OTHER_STAKING),
             0,
             abi.encodeCall(IL2Staking.removeStakers, (remove)),
-            defaultGasLimit
+            gasLimitRemoveStakers
         );
     }
 }

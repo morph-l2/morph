@@ -27,8 +27,12 @@ interface IL1Staking {
     event Slashed(address[] stakers);
 
     /// @notice params updated
-    /// @param gasLimit     new gas limit
-    event ParamsUpdated(uint256 gasLimit);
+    /// @param gasLimitAddStaker        cross-chain gas limit add staker
+    /// @param gasLimitRemoveStakers    cross-chain gas limit remove stakers
+    event GasLimitUpdated(
+        uint256 gasLimitAddStaker,
+        uint256 gasLimitRemoveStakers
+    );
 
     /*************************
      * Public View Functions *
