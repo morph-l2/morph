@@ -174,9 +174,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         finalizationPeriodSeconds = _finalizationPeriodSeconds;
         proofWindow = _proofWindow;
 
-        emit UpdateProofWindow(0, proofWindow);
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
+        emit UpdateFinalizationPeriodSeconds(0, _finalizationPeriodSeconds);
+        emit UpdateProofWindow(0, _proofWindow);
     }
 
     /************************
@@ -489,20 +490,19 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(batchBaseStore[batchIndex].batchHash != 0, "batch not exist");
         require(
             challenges[batchIndex].challenger == address(0),
-            "already challenged"
+            "batch already challenged"
         );
-
         // check challenge window
         require(
             batchInsideChallengeWindow(batchIndex),
             "cannot challenge batch outside the challenge window"
         );
-
         // check challenge amount
         require(
             msg.value >= IL1Staking(l1StakingContract).stakingValue(),
             "insufficient value"
         );
+
         batchChallenged = batchIndex;
         challenges[batchIndex] = BatchChallenge(
             batchIndex,
@@ -530,6 +530,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Update proofWindow.
     /// @param _newWindow New proof window.
     function updateProofWindow(uint256 _newWindow) external onlyOwner {
+        require(
+            _newWindow > 0 && _newWindow != proofWindow,
+            "invalid new proof window"
+        );
         uint256 _oldProofWindow = proofWindow;
         proofWindow = _newWindow;
         emit UpdateProofWindow(_oldProofWindow, proofWindow);
@@ -540,6 +544,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function updateFinalizePeriodSeconds(
         uint256 _newPeriod
     ) external onlyOwner {
+        require(
+            _newPeriod > 0 && _newPeriod != finalizationPeriodSeconds,
+            "invalid new finalize period"
+        );
         uint256 _oldFinalizationPeriodSeconds = finalizationPeriodSeconds;
         finalizationPeriodSeconds = _newPeriod;
         emit UpdateFinalizationPeriodSeconds(
@@ -567,9 +575,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Update the address verifier contract.
     /// @param _newVerifier The address of new verifier contract.
     function updateVerifier(address _newVerifier) external onlyOwner {
-        require(_newVerifier != address(0), "verifier cannot be address(0)");
-        require(_newVerifier != verifier, "verifier has not changed");
-
+        require(
+            _newVerifier != address(0) && _newVerifier != verifier,
+            "invalid new verifier"
+        );
         address _oldVerifier = verifier;
         verifier = _newVerifier;
         emit UpdateVerifier(_oldVerifier, _newVerifier);
@@ -580,12 +589,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function updateMaxNumTxInChunk(
         uint256 _maxNumTxInChunk
     ) external onlyOwner {
-        require(_maxNumTxInChunk > 0, "maxNumTxInChunk must bigger than 0");
         require(
-            _maxNumTxInChunk != maxNumTxInChunk,
-            "maxNumTxInChunk has not changed"
+            _maxNumTxInChunk > 0 && _maxNumTxInChunk != maxNumTxInChunk,
+            "invalid new maxNumTxInChunk"
         );
-
         uint256 _oldMaxNumTxInChunk = maxNumTxInChunk;
         maxNumTxInChunk = _maxNumTxInChunk;
         emit UpdateMaxNumTxInChunk(_oldMaxNumTxInChunk, _maxNumTxInChunk);

@@ -23,7 +23,7 @@ interface IL2Staking {
      * Events *
      **********/
 
-    /// @notice delegated stake
+    /// @notice Emitted delegated stake
     /// @param delegatee          delegatee
     /// @param delegator          unlock epoch index
     /// @param amount             new delegation amount, not increment
@@ -35,7 +35,7 @@ interface IL2Staking {
         uint256 effectiveEpoch
     );
 
-    /// @notice undelegated stake
+    /// @notice Emitted undelegated stake
     /// @param delegatee          delegatee
     /// @param delegator          unlock epoch index
     /// @param amount             delegation amount
@@ -49,27 +49,40 @@ interface IL2Staking {
         uint256 ublockEpoch
     );
 
-    /// @notice claim info
+    /// @notice Emitted claim info
+    /// @param delegator    delegator
+    /// @param amount       amount
     event UndelegationClaimed(address indexed delegator, uint256 amount);
 
-    /// @notice commission updated
+    /// @notice Emitted commission updated
+    /// @param staker           staker address
+    /// @param percentage       commission percentage
+    /// @param epochEffective   epoch effective
     event CommissionUpdated(
         address indexed staker,
         uint256 percentage,
         uint256 epochEffective
     );
 
-    /// @notice staker added
+    /// @notice Emitted staker added
+    /// @param addr     staker address
+    /// @param tmKey    staker tendermint pubkey
+    /// @param blsKey   staker BLS pubkey
     event StakerAdded(address indexed addr, bytes32 tmKey, bytes blsKey);
 
-    /// @notice Staker removed
+    /// @notice Emitted stakers removed
+    /// @param stakerAddresses  stakers removed
     event StakerRemoved(address[] stakerAddresses);
 
-    /// @notice params updated
-    event ParamsUpdated(uint256 sequencersSize);
+    /// @notice Emitted reward start time updated
+    /// @param oldTime    The old reward start time
+    /// @param newTime    The new reward start time
+    event RewardStartTimeUpdated(uint256 oldTime, uint256 newTime);
 
-    /// @notice reward start time updated
-    event RewardStartTimeUpdated(uint256 rewardStartTime);
+    /// @notice Emitted sequencer set max size updated
+    /// @param oldSize    The old sequencer set max size
+    /// @param newSize    The new sequencer set max size
+    event SequencerSetMaxSizeUpdated(uint256 oldSize, uint256 newSize);
 
     /*************************
      * Public View Functions *
@@ -114,11 +127,11 @@ interface IL2Staking {
 
     /// @notice add staker, sync from L1
     /// @param add       staker to add. {addr, tmKey, blsKey}
-    function addStaker(Types.StakerInfo memory add) external;
+    function addStaker(Types.StakerInfo calldata add) external;
 
     /// @notice remove stakers, sync from L1
     /// @param remove    staker to remove
-    function removeStakers(address[] memory remove) external;
+    function removeStakers(address[] calldata remove) external;
 
     /// @notice setCommissionRate set delegate commission percentage
     /// @param commission    commission percentage
@@ -144,12 +157,4 @@ interface IL2Staking {
     /// @notice claimCommission claim commission reward
     /// @param targetEpochIndex   up to the epoch index that the staker wants to claim
     function claimCommission(uint256 targetEpochIndex) external;
-
-    /// @notice update params
-    /// @param sequencersMaxSize   max size of sequencer set
-    function updateParams(uint256 sequencersMaxSize) external;
-
-    /// @notice advance layer2 stage
-    /// @param rewardStartTime   reward start time
-    function updateRewardStartTime(uint256 rewardStartTime) external;
 }

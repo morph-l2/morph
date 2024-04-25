@@ -69,7 +69,7 @@ contract Record is IRecord, OwnableUpgradeable {
 
     /// @notice Only prover allowed.
     modifier onlyOracle() {
-        require(msg.sender == oracle, "only oracle allowed");
+        require(_msgSender() == oracle, "only oracle allowed");
         _;
     }
 
@@ -94,9 +94,7 @@ contract Record is IRecord, OwnableUpgradeable {
     /// @param _oracle   oracle address
     function initialize(address _oracle) public initializer {
         require(_oracle != address(0), "invalid oracle address");
-
         __Ownable_init();
-
         oracle = _oracle;
     }
 
@@ -123,8 +121,9 @@ contract Record is IRecord, OwnableUpgradeable {
 
     /// @notice record batch submissions
     function recordFinalizedBatchSubmissions(
-        BatchSubmission[] memory _batchSubmissions
+        BatchSubmission[] calldata _batchSubmissions
     ) external onlyOracle {
+        require(_batchSubmissions.length > 0, "empty batch submissions");
         for (uint256 i = 0; i < _batchSubmissions.length; i++) {
             require(
                 _batchSubmissions[i].index == nextBatchSubmissionIndex + i,
@@ -139,12 +138,18 @@ contract Record is IRecord, OwnableUpgradeable {
                 _batchSubmissions[i].rollupTime
             );
         }
+        emit BatchSubmissionsUploaded(
+            nextBatchSubmissionIndex,
+            _batchSubmissions.length
+        );
+        nextBatchSubmissionIndex += _batchSubmissions.length;
     }
 
     /// @notice record epochs
     function recordRollupEpochs(
-        RollupEpochInfo[] memory _rollupEpochs
+        RollupEpochInfo[] calldata _rollupEpochs
     ) external onlyOracle {
+        require(_rollupEpochs.length > 0, "empty rollup epochs");
         for (uint256 i = 0; i < _rollupEpochs.length; i++) {
             require(
                 _rollupEpochs[i].index == nextRollupEpochIndex + i,
@@ -158,12 +163,15 @@ contract Record is IRecord, OwnableUpgradeable {
                 _rollupEpochs[i].endTime
             );
         }
+        emit RollupEpochsUploaded(nextRollupEpochIndex, _rollupEpochs.length);
+        nextRollupEpochIndex += _rollupEpochs.length;
     }
 
     /// @notice record epochs
     function recordRewardEpochs(
-        RewardEpochInfo[] memory _rewardEpochs
+        RewardEpochInfo[] calldata _rewardEpochs
     ) external onlyOracle {
+        require(_rewardEpochs.length > 0, "empty reward epochs");
         require(latestRewardEpochBlock > 0, "start block should be set");
         require(
             nextRewardEpochIndex + _rewardEpochs.length - 1 <
@@ -174,7 +182,7 @@ contract Record is IRecord, OwnableUpgradeable {
             nextRewardEpochIndex + _rewardEpochs.length - 1
         );
 
-        uint256 latestRewardEpochBlockSubstitute = latestRewardEpochBlock;
+        uint256 totalBlocks;
         for (uint256 i = 0; i < _rewardEpochs.length; i++) {
             uint256 dataLen = _rewardEpochs[i].sequencers.length;
             uint256 index = _rewardEpochs[i].index;
@@ -186,7 +194,7 @@ contract Record is IRecord, OwnableUpgradeable {
                 "invalid data length"
             );
 
-            latestRewardEpochBlockSubstitute += _rewardEpochs[i].blockCount;
+            totalBlocks += _rewardEpochs[i].blockCount;
             rewardEpochs[index] = RewardEpochInfo(
                 index,
                 _rewardEpochs[i].blockCount,
@@ -198,8 +206,8 @@ contract Record is IRecord, OwnableUpgradeable {
 
             uint256 inflationAmount = IMorphToken(MORPH_TOKEN_CONTRACT)
                 .inflation(index);
-            uint256 blockCount = 0;
-            uint256 ratioSum = 0;
+            uint256 blockCount;
+            uint256 ratioSum;
             uint256[] memory delegatorRewards = new uint256[](dataLen);
             uint256[] memory commissions = new uint256[](dataLen);
             for (uint256 j = 0; j < dataLen; j++) {
@@ -233,8 +241,8 @@ contract Record is IRecord, OwnableUpgradeable {
             );
         }
 
-        latestRewardEpochBlock = latestRewardEpochBlockSubstitute;
-
+        emit RewardEpochsUploaded(nextRewardEpochIndex, _rewardEpochs.length);
+        latestRewardEpochBlock += totalBlocks;
         nextRewardEpochIndex += _rewardEpochs.length;
     }
 

@@ -305,7 +305,7 @@ contract L2StakingTest is L2StakingBaseTest {
      */
     function testUpdateParams() public {
         hevm.prank(multisig);
-        l2Staking.updateParams(2);
+        l2Staking.updateSequencerSetMaxSize(2);
 
         assertEq(sequencer.getSequencerSet2Size(), 2);
     }

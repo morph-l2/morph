@@ -59,6 +59,24 @@ interface IRecord {
      * Events *
      **********/
 
+    /// @notice Emitted batch submissions uploaded
+    /// @param startIndex   The data start index
+    /// @param dataLength   The data length
+    event BatchSubmissionsUploaded(
+        uint256 indexed startIndex,
+        uint256 dataLength
+    );
+
+    /// @notice Emitted rollup epochs uploaded
+    /// @param startIndex   The data start index
+    /// @param dataLength   The data length
+    event RollupEpochsUploaded(uint256 indexed startIndex, uint256 dataLength);
+
+    /// @notice Emitted reward epochs uploaded
+    /// @param startIndex   The data start index
+    /// @param dataLength   The data length
+    event RewardEpochsUploaded(uint256 indexed startIndex, uint256 dataLength);
+
     /*************************
      * Public View Functions *
      *************************/
@@ -113,16 +131,16 @@ interface IRecord {
 
     /// @notice record batch submissions
     function recordFinalizedBatchSubmissions(
-        BatchSubmission[] memory _batchSubmissions
+        BatchSubmission[] calldata _batchSubmissions
     ) external;
 
     /// @notice record epochs
     function recordRollupEpochs(
-        RollupEpochInfo[] memory _rollupEpochs
+        RollupEpochInfo[] calldata _rollupEpochs
     ) external;
 
     /// @notice record epochs
     function recordRewardEpochs(
-        RewardEpochInfo[] memory _rewardEpochs
+        RewardEpochInfo[] calldata _rewardEpochs
     ) external;
 }

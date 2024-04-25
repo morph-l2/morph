@@ -55,7 +55,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @notice Ensures that the caller message from l2 staking contract.
     modifier onlyL2StakingContract() {
         require(
-            msg.sender == L2_STAKING_CONTRACT,
+            _msgSender() == L2_STAKING_CONTRACT,
             "only l2 staking contract allowed"
         );
         _;
@@ -63,7 +63,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
     /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
-        require(msg.sender == RECORD_CONTRACT, "only record contract allowed");
+        require(
+            _msgSender() == RECORD_CONTRACT,
+            "only record contract allowed"
+        );
 
         _;
     }
