@@ -26,7 +26,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
     uint256 public NEXT_EPOCH_START = 1700000000;
 
-    uint256 public REWARD_START_TIME = 86400;
+    uint256 public rewardStartTime = 86400;
 
     // Sequencer config
     Sequencer public sequencer;
@@ -191,57 +191,45 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         }
         ITransparentUpgradeableProxy(address(sequencerProxy)).upgradeToAndCall(
             address(sequencerImpl),
-            abi.encodeWithSelector(
-                Sequencer.initialize.selector,
-                sequencerAddresses
-            )
+            abi.encodeCall(Sequencer.initialize, (sequencerAddresses))
         );
         ITransparentUpgradeableProxy(address(govProxy)).upgradeToAndCall(
             address(govImpl),
-            abi.encodeWithSelector(
-                Gov.initialize.selector,
-                PROPOSAL_INTERVAL, // _proposalInterval
-                0, // _batchBlockInterval
-                0, // _batchMaxBytes
-                FINALIZATION_PERIOD_SECONDS, // _batchTimeout
-                MAX_CHUNKS, // maxChunks
-                ROLLUP_EPOCH // rollupEpoch
+            abi.encodeCall(
+                Gov.initialize,
+                (
+                    PROPOSAL_INTERVAL, // _proposalInterval
+                    0, // _batchBlockInterval
+                    0, // _batchMaxBytes
+                    finalizationPeriodSeconds, // _batchTimeout
+                    MAX_CHUNKS, // maxChunks
+                    ROLLUP_EPOCH // rollupEpoch
+                )
             )
         );
 
         ITransparentUpgradeableProxy(address(l2StakingProxy)).upgradeToAndCall(
             address(l2StakingImpl),
-            abi.encodeWithSelector(
-                L2Staking.initialize.selector,
-                multisig,
-                SEQUENCER_SIZE * 2,
-                ROLLUP_EPOCH,
-                REWARD_START_TIME,
-                stakerInfos
+            abi.encodeCall(
+                L2Staking.initialize,
+                (SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos)
             )
         );
 
         ITransparentUpgradeableProxy(address(morphTokenProxy)).upgradeToAndCall(
                 address(morphTokenImpl),
-                abi.encodeWithSelector(
-                    MorphToken.initialize.selector,
-                    "Morph",
-                    "MPH",
-                    1000000000 ether,
-                    1596535874529
+                abi.encodeCall(
+                    MorphToken.initialize,
+                    ("Morph", "MPH", 1000000000 ether, 1596535874529)
                 )
             );
         ITransparentUpgradeableProxy(address(distributeProxy)).upgradeToAndCall(
                 address(distributeImpl),
-                abi.encodeWithSelector(Distribute.initialize.selector)
+                abi.encodeCall(Distribute.initialize, ())
             );
         ITransparentUpgradeableProxy(address(recordProxy)).upgradeToAndCall(
             address(recordImpl),
-            abi.encodeWithSelector(
-                Record.initialize.selector,
-                multisig,
-                oracleAddress
-            )
+            abi.encodeCall(Record.initialize, (oracleAddress))
         );
 
         // set address

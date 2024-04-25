@@ -23,7 +23,8 @@ async fn main() {
     metric_mng().await;
 
     // Start challenge handler.
-    let result = handler::handle_challenge().await;
+    let challenge_handler = handler::ChallengeHandler::prepare().await;
+    let result = challenge_handler.handle_challenge().await;
 
     // Handle result.
     match result {
