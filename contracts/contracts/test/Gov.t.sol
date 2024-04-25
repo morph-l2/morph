@@ -54,8 +54,8 @@ contract govTest is L2StakingBaseTest {
         address user = address(uint160(beginSeq));
         hevm.startPrank(address(user));
 
-        uint256 nextproposalID = gov.proposalID() + 1;
-        gov.propose(proposal);
+        uint256 nextproposalID = gov.currentProposalID() + 1;
+        gov.createProposal(proposal);
         (
             uint256 batchBlockInterval_,
             uint256 batchMaxBytes_,
@@ -87,9 +87,9 @@ contract govTest is L2StakingBaseTest {
         address user = address(uint160(beginSeq));
 
         hevm.prank(address(user));
-        gov.propose(proposal);
+        gov.createProposal(proposal);
 
-        uint256 currentproposalID = gov.proposalID();
+        uint256 currentproposalID = gov.currentProposalID();
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             user = address(uint160(beginSeq + i));
             hevm.prank(address(user));
@@ -114,9 +114,9 @@ contract govTest is L2StakingBaseTest {
         address user = address(uint160(beginSeq));
 
         hevm.prank(address(user));
-        gov.propose(proposal);
+        gov.createProposal(proposal);
 
-        uint256 currentproposalID = gov.proposalID();
+        uint256 currentproposalID = gov.currentProposalID();
         for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
             user = address(uint160(beginSeq + i));
             hevm.prank(address(user));
@@ -160,9 +160,9 @@ contract govTest is L2StakingBaseTest {
         address user = address(uint160(beginSeq));
 
         hevm.prank(address(user));
-        gov.propose(proposal);
+        gov.createProposal(proposal);
 
-        uint256 currentproposalID = gov.proposalID();
+        uint256 currentproposalID = gov.currentProposalID();
 
         hevm.prank(address(user));
         gov.vote(currentproposalID);

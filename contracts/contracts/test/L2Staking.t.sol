@@ -10,6 +10,10 @@ import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract L2StakingTest is L2StakingBaseTest {
+    uint256 DAY_SECONDS = 86400;
+    uint256 SEQUENCER_RATIO_PRECISION = 1e8;
+    uint256 INFLATION_RATIO_PRECISION = 1e16;
+
     uint256 limit = 1000 ether;
 
     uint256 morphBalance = 20 ether;
@@ -312,7 +316,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
     function _updateDistribute(uint256 epochIndex) internal returns (uint256) {
         uint256 sequencerSize = sequencer.getSequencerSet2Size();
-        uint256 blockCount = 86400 / 3; // 1 block per 3s
+        uint256 blockCount = DAY_SECONDS / 3; // 1 block per 3s
         address[] memory sequencers = sequencer.getSequencerSet2();
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
@@ -320,29 +324,29 @@ contract L2StakingTest is L2StakingBaseTest {
         for (uint i = 0; i < sequencerSize; i++) {
             // same blocks
             sequencerBlocks[i] = blockCount / sequencerSize;
-            sequencerRatios[i] = 10000 / sequencerSize;
+            sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize;
             sequencerCommissions[i] = l2Staking.commissions(sequencers[i]);
         }
 
-        IRecord.RewardEpochInfo memory rewardEpochInfo = IRecord
-            .RewardEpochInfo(
-                epochIndex,
-                blockCount,
-                sequencers,
-                sequencerBlocks,
-                sequencerRatios,
-                sequencerCommissions
-            );
         IRecord.RewardEpochInfo[]
             memory rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
-        rewardEpochInfos[0] = rewardEpochInfo;
+
+        rewardEpochInfos[0] = IRecord.RewardEpochInfo(
+            epochIndex,
+            blockCount,
+            sequencers,
+            sequencerBlocks,
+            sequencerRatios,
+            sequencerCommissions
+        );
 
         uint256 totalSupply = morphToken.totalSupply();
         hevm.startPrank(oracleAddress);
         record.recordRewardEpochs(rewardEpochInfos);
         hevm.stopPrank();
 
-        uint256 totalInflations = (totalSupply * 1596535874529) / 1e16;
+        uint256 totalInflations = (totalSupply * 1596535874529) /
+            INFLATION_RATIO_PRECISION;
         uint256 inflationAmount = morphToken.inflation(epochIndex);
         assertEq(totalInflations, inflationAmount);
 
@@ -384,7 +388,7 @@ contract L2StakingTest is L2StakingBaseTest {
         time = l2Staking.REWARD_EPOCH() * 2;
         hevm.warp(time);
 
-        uint256 blocksCountOfDay = 86400;
+        uint256 blocksCountOfDay = DAY_SECONDS;
         hevm.roll(blocksCountOfDay * 2);
         hevm.prank(oracleAddress);
         record.setLatestRewardEpochBlock(blocksCountOfDay);
@@ -431,9 +435,10 @@ contract L2StakingTest is L2StakingBaseTest {
 
         uint256 commissionRate = l2Staking.commissions(secondStaker);
         uint256 sequencerEpochReward = ((totalInflations *
-            (10000 / sequencerSize)) / 10000);
-        uint256 commissions = (sequencerEpochReward * commissionRate) / 100;
-        uint256 delegatorReward = sequencerEpochReward - commissions;
+            (SEQUENCER_RATIO_PRECISION / sequencerSize)) /
+            SEQUENCER_RATIO_PRECISION);
+        uint256 commission = (sequencerEpochReward * commissionRate) / 100;
+        uint256 delegatorReward = sequencerEpochReward - commission;
 
         uint256 bobReward = (delegatorReward * 15 ether) / (20 ether);
 

@@ -138,7 +138,7 @@ contract L2Staking is
                 _rewardStartTime % REWARD_EPOCH == 0,
             "invalid reward start time"
         );
-        require(latestSequencerSetSize > 0, "invalid initial stakers");
+        require(_stakers.length > 0, "invalid initial stakers");
 
         __Ownable_init();
         __ReentrancyGuard_init();
@@ -146,7 +146,6 @@ contract L2Staking is
         sequencerSetMaxSize = _sequencersMaxSize;
         undelegateLockEpochs = _undelegateLockEpochs;
         rewardStartTime = _rewardStartTime;
-
         latestSequencerSetSize = _stakers.length;
         for (uint256 i = 0; i < latestSequencerSetSize; i++) {
             stakers[_stakers[i].addr] = _stakers[i];

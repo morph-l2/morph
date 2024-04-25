@@ -213,7 +213,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             address(l2StakingImpl),
             abi.encodeWithSelector(
                 L2Staking.initialize.selector,
-                multisig,
                 SEQUENCER_SIZE * 2,
                 ROLLUP_EPOCH,
                 rewardStartTime,
@@ -237,11 +236,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             );
         ITransparentUpgradeableProxy(address(recordProxy)).upgradeToAndCall(
             address(recordImpl),
-            abi.encodeWithSelector(
-                Record.initialize.selector,
-                multisig,
-                oracleAddress
-            )
+            abi.encodeWithSelector(Record.initialize.selector, oracleAddress)
         );
 
         // set address
