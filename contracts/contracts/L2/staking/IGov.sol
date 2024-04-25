@@ -32,12 +32,52 @@ interface IGov {
 
     /// @notice event of proposal executed
     event ProposalExecuted(
+        uint256 indexed proposalID,
         uint256 batchBlockInterval,
         uint256 batchMaxBytes,
         uint256 batchTimeout,
         uint256 maxChunks,
         uint256 rollupEpoch
     );
+
+    /// @notice proposal interval updated
+    /// @param oldProposalInterval    old proposal interval
+    /// @param newProposalInterval    new proposal interval
+    event ProposalIntervalUpdated(
+        uint256 oldProposalInterval,
+        uint256 newProposalInterval
+    );
+
+    /// @notice batch block interval updated
+    /// @param oldBatchBlockInterval    old batch block interval
+    /// @param newBatchBlockInterval    new batch block interval
+    event BatchBlockIntervalUpdated(
+        uint256 oldBatchBlockInterval,
+        uint256 newBatchBlockInterval
+    );
+
+    /// @notice batch max bytes updated
+    /// @param oldBatchMaxBytes     old batch max bytes
+    /// @param newBatchMaxBytes     new batch max bytes
+    event BatchMaxBytesUpdated(
+        uint256 oldBatchMaxBytes,
+        uint256 newBatchMaxBytes
+    );
+
+    /// @notice batch timeout updated
+    /// @param oldBatchTimeout  old batch timeout
+    /// @param newBatchTimeout  new batch timeout
+    event BatchTimeoutUpdated(uint256 oldBatchTimeout, uint256 newBatchTimeout);
+
+    /// @notice max chunks updated
+    /// @param oldMaxChunks     old max chunks
+    /// @param newMaxChunks     new max chunks
+    event MaxChunksUpdated(uint256 oldMaxChunks, uint256 newMaxChunks);
+
+    /// @notice rollup epoch updated
+    /// @param odlRollupEpoch   old rollup epoch
+    /// @param newRollupEpoch   new rollup epoch
+    event RollupEpochUpdated(uint256 odlRollupEpoch, uint256 newRollupEpoch);
 
     /*************************
      * Public View Functions *
@@ -85,7 +125,7 @@ interface IGov {
      *****************************/
 
     /// @notice create a proposal
-    function createProposal(ProposalData memory proposal) external;
+    function createProposal(ProposalData calldata proposal) external;
 
     /// @notice vote a proposal
     function vote(uint256 proposalID) external;

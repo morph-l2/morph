@@ -74,7 +74,7 @@ contract L1Staking is
 
     /// @notice only rollup contract
     modifier onlyRollupContract() {
-        require(msg.sender == rollupContract, "only rollup contract");
+        require(_msgSender() == rollupContract, "only rollup contract");
         _;
     }
 
@@ -92,23 +92,20 @@ contract L1Staking is
      ***************/
 
     /// @notice initializer
-    /// @param _admin             params admin
     /// @param _rollupContract    rollup contract address
-    /// @param _rewardPercentage  percentage awarded to challenger
     /// @param _stakingValue      smallest staking value
     /// @param _lockBlocks        withdraw lock blocks
+    /// @param _rewardPercentage  percentage awarded to challenger
     /// @param _gasLimitAdd       cross-chain gas limit add staker
     /// @param _gasLimitRemove    cross-chain gas limit remove stakers
     function initialize(
-        address _admin,
         address _rollupContract,
-        uint256 _rewardPercentage,
         uint256 _stakingValue,
         uint256 _lockBlocks,
+        uint256 _rewardPercentage,
         uint256 _gasLimitAdd,
         uint256 _gasLimitRemove
     ) public initializer {
-        require(_admin != address(0), "invalid admin");
         require(_rollupContract != address(0), "invalid rollup contract");
         require(_stakingValue > 0, "staking limit must greater than 0");
         require(_lockBlocks > 0, "staking limit must greater than 0");
@@ -129,9 +126,9 @@ contract L1Staking is
         gasLimitAddStaker = _gasLimitAdd;
         gasLimitRemoveStakers = _gasLimitRemove;
 
-        emit GasLimitUpdated(_gasLimitAdd, _gasLimitRemove);
-
-        // TODO events
+        emit GasLimitAddStakerUpdated(0, _gasLimitAdd);
+        emit GasLimitRemoveStakersUpdated(0, _gasLimitRemove);
+        emit RewardPercentageUpdated(0, _rewardPercentage);
     }
 
     /************************
@@ -149,6 +146,7 @@ contract L1Staking is
         for (uint256 i = 0; i < remove.length; i++) {
             whitelist[remove[i]] = false;
         }
+        emit WhitelistUpdated(add, remove);
     }
 
     /// @notice register staker
@@ -175,16 +173,18 @@ contract L1Staking is
 
     /// @notice withdraw staking
     function withdraw() external {
-        require(stakerSet.contains(msg.sender), "only staker");
-        require(withdrawals[msg.sender] == 0, "withdrawing");
+        require(stakerSet.contains(_msgSender()), "only staker");
+        require(withdrawals[_msgSender()] == 0, "withdrawing");
 
-        withdrawals[msg.sender] = block.number + withdrawalLockBlocks;
-        stakerSet.remove(msg.sender);
-        emit Withdrawn(msg.sender, withdrawals[msg.sender]);
+        withdrawals[_msgSender()] = block.number + withdrawalLockBlocks;
+        stakerSet.remove(_msgSender());
+        emit Withdrawn(_msgSender(), withdrawals[_msgSender()]);
 
         // send message to remove staker on l2
         address[] memory remove = new address[](1);
-        remove[0] = msg.sender;
+        remove[0] = _msgSender();
+        emit StakersRemoved(remove);
+
         _removeStakers(remove);
     }
 
@@ -214,6 +214,7 @@ contract L1Staking is
         _transfer(rollupContract, reward);
 
         emit Slashed(sequencers);
+        emit StakersRemoved(sequencers);
 
         // send message to remove stakers on l2
         _removeStakers(sequencers);
@@ -226,22 +227,51 @@ contract L1Staking is
     function claimSlashRemaining(
         address receiver
     ) external onlyOwner nonReentrant {
+        uint256 _slashRemaining = slashRemaining;
         _transfer(receiver, slashRemaining);
         slashRemaining = 0;
+        emit SlashRemainingClaimed(receiver, _slashRemaining);
     }
 
-    /// @notice claim slash remaining
+    /// @notice update gas limit of add staker
     /// @param _gasLimitAdd       cross-chain gas limit add staker
+    function updateGasLimitAddStaker(uint256 _gasLimitAdd) external onlyOwner {
+        require(
+            _gasLimitAdd > 0 && _gasLimitAdd != gasLimitAddStaker,
+            "invalid new gas limit"
+        );
+        uint256 _oldGasLimitAddStaker = gasLimitAddStaker;
+        gasLimitAddStaker = _gasLimitAdd;
+        emit GasLimitAddStakerUpdated(_oldGasLimitAddStaker, _gasLimitAdd);
+    }
+
+    /// @notice update gas limit of remove stakers
     /// @param _gasLimitRemove    cross-chain gas limit remove stakers
-    function updateParams(
-        uint256 _gasLimitAdd,
+    function updateGasLimitRemoveStakers(
         uint256 _gasLimitRemove
     ) external onlyOwner {
-        require(_gasLimitAdd > 0, "gas limit must greater than 0");
-        require(_gasLimitRemove > 0, "gas limit must greater than 0");
-        gasLimitAddStaker = _gasLimitAdd;
+        require(
+            _gasLimitRemove > 0 && _gasLimitRemove != gasLimitRemoveStakers,
+            "invalid new gas limit"
+        );
+        uint256 _oldGasLimitRemove = gasLimitRemoveStakers;
         gasLimitRemoveStakers = _gasLimitRemove;
-        emit GasLimitUpdated(_gasLimitAdd, _gasLimitRemove);
+        emit GasLimitRemoveStakersUpdated(_oldGasLimitRemove, _gasLimitRemove);
+    }
+
+    /// @notice update reward percentage
+    /// @param _rewardPercentage       percentage awarded to challenger
+    function updateRewardPercentage(
+        uint256 _rewardPercentage
+    ) external onlyOwner {
+        require(
+            _rewardPercentage > 0 &&
+                _rewardPercentage <= 100 &&
+                _rewardPercentage != rewardPercentage,
+            "invalid reward percentage"
+        );
+        uint256 _oldRewardPercentage = rewardPercentage;
+        emit RewardPercentageUpdated(_oldRewardPercentage, _rewardPercentage);
     }
 
     /*****************************
@@ -251,12 +281,12 @@ contract L1Staking is
     /// @notice claim withdrawal
     /// @param receiver  receiver address
     function claimWithdrawal(address receiver) external nonReentrant {
-        require(withdrawals[msg.sender] > 0, "withdrawal not exist");
-        require(withdrawals[msg.sender] < block.number, "withdrawal locked");
+        require(withdrawals[_msgSender()] > 0, "withdrawal not exist");
+        require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
 
-        delete stakers[msg.sender];
-        delete withdrawals[msg.sender];
-        emit Claimed(msg.sender, receiver);
+        delete stakers[_msgSender()];
+        delete withdrawals[_msgSender()];
+        emit Claimed(_msgSender(), receiver);
 
         _transfer(receiver, stakingValue);
     }
@@ -271,10 +301,10 @@ contract L1Staking is
     /// @param msgHash           bls message hash
     /// @param signature         batch signature
     function verifySignature(
-        address[] memory signedSequencers,
-        address[] memory sequencerSet,
+        address[] calldata signedSequencers,
+        address[] calldata sequencerSet,
         bytes32 msgHash,
-        bytes memory signature
+        bytes calldata signature
     ) external pure returns (bool) {
         // TODO verify BLS signature
         signedSequencers = signedSequencers;

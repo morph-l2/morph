@@ -132,7 +132,7 @@ contract govTest is L2StakingBaseTest {
 
         hevm.prank(address(multisig));
         // decrease sequencer size
-        l2Staking.updateParams(SEQUENCER_SIZE - 1);
+        l2Staking.updateSequencerSetMaxSize(SEQUENCER_SIZE - 1);
 
         canBeApproved = gov.isProposalCanBeApproved(currentproposalID);
         assertTrue(canBeApproved);

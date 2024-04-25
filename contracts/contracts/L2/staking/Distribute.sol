@@ -55,7 +55,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @notice Ensures that the caller message from l2 staking contract.
     modifier onlyL2StakingContract() {
         require(
-            msg.sender == L2_STAKING_CONTRACT,
+            _msgSender() == L2_STAKING_CONTRACT,
             "only l2 staking contract allowed"
         );
         _;
@@ -63,7 +63,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
     /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
-        require(msg.sender == RECORD_CONTRACT, "only record contract allowed");
+        require(
+            _msgSender() == RECORD_CONTRACT,
+            "only record contract allowed"
+        );
 
         _;
     }
@@ -170,9 +173,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @param commissions       sequencers commission
     function updateEpochReward(
         uint256 epochIndex,
-        address[] memory sequencers,
-        uint256[] memory delegatorRewards,
-        uint256[] memory commissions
+        address[] calldata sequencers,
+        uint256[] calldata delegatorRewards,
+        uint256[] calldata commissions
     ) external onlyRecordContract {
         mintedEpochCount++;
         require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
@@ -261,13 +264,15 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             "all commission claimed"
         );
         uint256 commission;
-        for (uint256 i = 0; i <= end; i++) {
+        for (uint256 i = unclaimedCommission[delegatee]; i <= end; i++) {
             commission += distributions[delegatee][i].commissionAmount;
         }
         if (commission > 0) {
             _transfer(delegatee, commission);
         }
         unclaimedCommission[delegatee] = end + 1;
+
+        emit CommissionClaimed(delegatee, end, commission);
     }
 
     /*************************

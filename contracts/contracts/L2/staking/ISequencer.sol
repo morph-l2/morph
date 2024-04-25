@@ -53,5 +53,5 @@ interface ISequencer {
      *****************************/
 
     /// @notice update sequencer set
-    function updateSequencerSet(address[] memory newSequencerSet) external;
+    function updateSequencerSet(address[] calldata newSequencerSet) external;
 }
