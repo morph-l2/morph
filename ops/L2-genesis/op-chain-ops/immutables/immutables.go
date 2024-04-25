@@ -123,7 +123,6 @@ func BuildL2(constructors []deployer.Constructor, config *Config) (DeploymentRes
 	var lastTx *types.Transaction
 	for _, dep := range deployments {
 		results[dep.Name] = dep.Bytecode
-
 		switch dep.Name {
 		case "L2Sequencer":
 			if config == nil || len(config.L2SequencerAddresses) == 0 {
