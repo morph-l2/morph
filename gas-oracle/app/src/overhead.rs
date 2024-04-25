@@ -13,7 +13,7 @@ use std::ops::Mul;
 use std::str::FromStr;
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
-const MAX_OVERHEAD: usize = 30000000 / 32; // 937,500
+const MAX_OVERHEAD: usize = 10000; // 937,500
 
 pub struct OverHead {
     l1_provider: Provider<Http>,
