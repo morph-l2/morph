@@ -222,6 +222,7 @@ def devnet_deploy(paths, args):
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
         env_data['BUILD_GETH'] = build_geth_target
         env_data['RUST_LOG'] = rust_log_level
+        env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
         envfile.seek(0)
         for key, value in env_data.items():
             envfile.write(f'{key}={value}\n')
@@ -235,6 +236,7 @@ def devnet_deploy(paths, args):
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
+                    'MORPH_L1STAKING': addresses['Proxy__L1Staking'],
                     'PWD': paths.ops_dir,
                     'NODE_DATA_DIR': '/data',
                     'GETH_DATA_DIR': '/db',

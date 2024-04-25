@@ -25,6 +25,8 @@ type Config struct {
 
 	// RollupAddress is the Rollup contract address.
 	RollupAddress string
+	// StakingAddress
+	StakingAddress string
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -72,20 +74,19 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:      ctx.GlobalString(flags.BuildEnvFlag.Name),
-		L1EthRpc:      ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpcs:     ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
-		RollupAddress: ctx.GlobalString(flags.RollupAddressFlag.Name),
-		PollInterval:  ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		LogLevel:      ctx.GlobalString(flags.LogLevelFlag.Name),
-		PrivateKey:    ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		TxTimeout:     ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
+		BuildEnv:     ctx.GlobalString(flags.BuildEnvFlag.Name),
+		L1EthRpc:     ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpcs:    ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
+		PollInterval: ctx.GlobalDuration(flags.PollIntervalFlag.Name),
+		LogLevel:     ctx.GlobalString(flags.LogLevelFlag.Name),
+		PrivateKey:   ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		TxTimeout:    ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
 		// finalize
 		Finalize:       ctx.GlobalBool(flags.FinalizeFlag.Name),
 		MaxFinalizeNum: ctx.GlobalUint64(flags.MaxFinalizeNumFlag.Name),
-		// L2 contract
-		SubmitterAddress: ctx.GlobalString(flags.SubmitterAddressFlag.Name),
-		SequencerAddress: ctx.GlobalString(flags.L2SequencerAddressFlag.Name),
+		// L1 contract
+		StakingAddress: ctx.GlobalString(flags.StakingAddressFlag.Name),
+		RollupAddress:  ctx.GlobalString(flags.RollupAddressFlag.Name),
 		// metrics
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
