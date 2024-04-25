@@ -237,9 +237,19 @@ async fn prove_state(wallet_address: Address, batch_index: u64, l1_rollup: &Roll
                     Some(receipt) => {
                         // Check the status of the tx receipt
                         if receipt.status == Some(1.into()) {
-                            log::error!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash);
+                            log::info!(
+                                "tx of prove_state success, batch_index: {:?}, gasUsed: {:?}, txHash: {:?}",
+                                batch_index,
+                                receipt.gas_used,
+                                receipt.transaction_hash
+                            );
+                            return true;
                         } else {
-                            log::error!("tx of prove_state failed, tx hash: {:?}", receipt.transaction_hash);
+                            log::error!(
+                                "tx of prove_state failed, batch_index: {:?}, txHash: {:?}",
+                                batch_index,
+                                receipt.transaction_hash
+                            );
                         }
                     }
                     None => {

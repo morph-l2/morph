@@ -178,30 +178,32 @@ async fn auto_challenge(
         }
     };
 
-    let check_receipt = || async {
-        let receipt = l1_provider.get_transaction_receipt(pending_tx.tx_hash()).await.unwrap();
-        match receipt {
-            Some(tr) => {
-                // Either 1 (success) or 0 (failure).
-                match tr.status.unwrap_or_default().as_u64() {
-                    1 => log::info!("challenge_state receipt success: {:#?}", pending_tx.tx_hash()),
-                    _ => log::error!("challenge_state receipt fail: {:#?}", tr),
-                };
-                return true;
-            }
-            // Maybe still pending.
-            None => {
-                log::info!("challenge_state receipt pending");
-                return false;
+    match pending_tx.await {
+        Ok(receipt) => {
+            match receipt {
+                Some(receipt) => {
+                    // Check the status of the tx receipt
+                    if receipt.status == Some(1.into()) {
+                        log::info!(
+                            "tx of challenge_state success, batch_index: {:?}, gasUsed: {:?}, txHash: {:?}",
+                            batch_index,
+                            receipt.gas_used,
+                            receipt.transaction_hash
+                        );
+                    } else {
+                        log::error!(
+                            "tx of challenge_state failed, batch_index: {:?}, txHash: {:?}",
+                            batch_index,
+                            receipt.transaction_hash
+                        );
+                    }
+                }
+                None => {
+                    log::error!("No challenge_state tx receipt found, may still be in pending status or has been dropped");
+                }
             }
         }
-    };
-
-    for _ in 1..5 {
-        std::thread::sleep(Duration::from_secs(12));
-        if check_receipt().await {
-            break;
-        };
+        Err(error) => log::error!("provider error: {:?}", error),
     }
 
     Ok(())
