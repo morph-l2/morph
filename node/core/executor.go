@@ -88,7 +88,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	if err != nil {
 		return nil, err
 	}
-	gov, err := bindings.NewGov(config.L2GovAddress, eClient)
+	gov, err := bindings.NewGov(config.GovAddress, eClient)
 	if err != nil {
 		return nil, err
 	}

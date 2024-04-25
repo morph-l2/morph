@@ -22,8 +22,7 @@ export const deployContractImpls = async (
 ): Promise<string> => {
     // factory name
     const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
-    const StakingFactoryName = ContractFactoryName.Staking
-    const L1SequencerFactoryName = ContractFactoryName.L1Sequencer
+    const L1StakingFactoryName = ContractFactoryName.L1Staking
     const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
     const RollupFactoryName = ContractFactoryName.Rollup
     const WhitelistFactoryName = ContractFactoryName.Whitelist
@@ -37,8 +36,7 @@ export const deployContractImpls = async (
 
     // implement storage name
     const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
-    const StakingImplStorageName = ImplStorageName.StakingStorageName
-    const L1SequencerImplStorageName = ImplStorageName.L1SequencerStorageName
+    const StakingImplStorageName = ImplStorageName.L1StakingStorageName
     const L1MessageQueueWithGasPriceOracleImplStorageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
     const RollupImplStorageName = ImplStorageName.RollupStorageName
     const L1GatewayRouterImplStorageName = ImplStorageName.L1GatewayRouterStorageName
@@ -99,7 +97,7 @@ export const deployContractImpls = async (
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", RollupImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
     // check params
-    await assertContractVariable(contract, 'layer2ChainId', l2ChainID)
+    await assertContractVariable(contract, 'LAYER_2_CHAIN_ID', l2ChainID)
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storage(path, RollupImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
@@ -183,23 +181,10 @@ export const deployContractImpls = async (
 
     // ************************ staking contracts deploy ************************
     // Staking deploy 
-    Factory = await hre.ethers.getContractFactory(StakingFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", StakingImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
-    }
-
-    // L1Sequencer deploy 
-    Factory = await hre.ethers.getContractFactory(L1SequencerFactoryName)
+    Factory = await hre.ethers.getContractFactory(L1StakingFactoryName)
     contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress)
     await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1SequencerImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-    // check params
+    console.log("%s=%s ; TX_HASH: %s", StakingImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     await assertContractVariable(
         contract,
         'MESSENGER',
@@ -207,12 +192,12 @@ export const deployContractImpls = async (
     )
     await assertContractVariable(
         contract,
-        'OTHER_SEQUENCER',
-        predeploys.L2Sequencer
+        'OTHER_STAKING',
+        predeploys.L2Staking.toLowerCase()
     )
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1SequencerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

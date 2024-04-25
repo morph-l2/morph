@@ -92,7 +92,7 @@ def devnet_l1(paths, result=None):
 
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
     deploy_config = read_json(devnet_cfg_orig)
-    for sequencer in deploy_config['l2SequencerAddresses']:
+    for sequencer in deploy_config['l2StakingAddresses']:
         result = run_command_capture_output(
             ['cast', 'balance', sequencer, '--rpc-url', 'http://127.0.0.1:9545'])
         log.info(f"Account {sequencer}, Balance: {result.stdout}", )
@@ -184,19 +184,18 @@ def devnet_deploy(paths, args):
     log.info('Passing L1 contracts address:', addresses)
 
     log.info('Do Staking Sequencer...')
-    deploy_config['l2SequencerAddresses']
-    deploy_config['l2SequencerPks']
-    deploy_config['l2SequencerTmKeys']
-    deploy_config['l2SequencerBlsKeys']
+    deploy_config['l2StakingAddresses']
+    deploy_config['l2StakingPks']
+    deploy_config['l2StakingTmKeys']
+    deploy_config['l2StakingBlsKeys']
     for i in range(4):
-        run_command(['cast', 'send', addresses['Proxy__Staking'],
-                     'register(bytes32,bytes memory,uint32)',
-                     deploy_config['l2SequencerTmKeys'][i],
-                     deploy_config['l2SequencerBlsKeys'][i],
-                     '5000000',
+        run_command(['cast', 'send', addresses['Proxy__L1Staking'],
+                     'register(bytes32,bytes memory)',
+                     deploy_config['l2StakingTmKeys'][i],
+                     deploy_config['l2StakingBlsKeys'][i],
                      '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '2ether',
-                     '--private-key', deploy_config['l2SequencerPks'][i]
+                     '--value', '1ether',
+                     '--private-key', deploy_config['l2StakingPks'][i]
                      ])
 
     build_geth_target = 'l2-geth'

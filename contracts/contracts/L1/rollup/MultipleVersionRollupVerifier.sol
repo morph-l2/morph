@@ -148,10 +148,8 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
         uint64 _startBatchIndex,
         address _verifier
     ) external onlyOwner {
-        if (
-            _startBatchIndex <=
-            IRollup(rollup).lastFinalizedBatchIndex()
-        ) revert ErrorStartBatchIndexFinalized();
+        if (_startBatchIndex <= IRollup(rollup).lastFinalizedBatchIndex())
+            revert ErrorStartBatchIndexFinalized();
 
         Verifier memory _latestVerifier = latestVerifier[_version];
         if (_startBatchIndex < _latestVerifier.startBatchIndex)

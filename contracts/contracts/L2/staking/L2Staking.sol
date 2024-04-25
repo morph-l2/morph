@@ -538,6 +538,23 @@ contract L2Staking is
         }
         return _stakers;
     }
+    /**
+     * @notice get stakers
+     */
+    function getStakers(
+    ) external view returns (Types.StakerInfo[] memory) {
+        Types.StakerInfo[] memory _stakers = new Types.StakerInfo[](
+            stakerAddresses.length
+        );
+        for (uint256 i = 0; i < stakerAddresses.length; i++) {
+            _stakers[i] = Types.StakerInfo(
+                stakers[stakerAddresses[i]].addr,
+                stakers[stakerAddresses[i]].tmKey,
+                stakers[stakerAddresses[i]].blsKey
+            );
+        }
+        return _stakers;
+    }
 
     /*********************** Internal Functions **************************/
 

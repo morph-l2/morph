@@ -25,7 +25,7 @@ contract L1Staking is
     uint256 public WITHDRAWAL_LOCK_BLOCKS;
     // percentage awarded to challenger
     uint256 public REWARD_PERCENTAGE;
-    // default crosschain gas limit
+    // default cross-chain gas limit
     uint256 public DEFAULT_GAS_LIMIT; // TODO add calculation logic
 
     // slash remaining
@@ -40,7 +40,7 @@ contract L1Staking is
     mapping(bytes => bool) private blsKeys;
     // tendermint key map
     mapping(bytes32 => bool) private tmKeys;
-    // withdrawl unlock time
+    // withdraw unlock time
     mapping(address => uint256) public withdrawals;
 
     /**
@@ -98,7 +98,7 @@ contract L1Staking is
      * @param _rewardPercentage  percentage awarded to challenger
      * @param _stakingValue      smallest staking value
      * @param _lockBlocks        withdraw lock blocks
-     * @param _gasLimit          default crosschain gas limit
+     * @param _gasLimit          default cross-chain gas limit
      */
     function initialize(
         address _admin,
@@ -268,7 +268,7 @@ contract L1Staking is
      * @param add       staker to add
      */
     function _addStaker(Types.StakerInfo memory add) internal {
-        MESSENGER.sendMessage{value: msg.value}(
+        MESSENGER.sendMessage(
             address(OTHER_STAKING),
             0,
             abi.encodeCall(IL2Staking.addStaker, (add)),
@@ -281,7 +281,7 @@ contract L1Staking is
      * @param remove    stakers to remove
      */
     function _removeStakers(address[] memory remove) internal {
-        MESSENGER.sendMessage{value: msg.value}(
+        MESSENGER.sendMessage(
             address(OTHER_STAKING),
             0,
             abi.encodeCall(IL2Staking.removeStakers, (remove)),

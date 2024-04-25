@@ -59,8 +59,7 @@ export const AdminTransfer = async (
     const L1MessageQueueWithGasPriceOracleProxyStorageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
 
     const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
-    const StakingProxyStorageName = ProxyStorageName.StakingProxyStorageName
-    const L1SequencerProxyStorageName = ProxyStorageName.L1SequencerProxyStorageName
+    const L1StakingProxyStorageName = ProxyStorageName.L1StakingProxyStorageName
 
     const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
@@ -85,13 +84,7 @@ export const AdminTransfer = async (
 
     // ************************ staking contracts admin change ************************
     // StakingProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, StakingProxyStorageName)
-    if (err != '') {
-        return err
-    }
-
-    // L1SequencerProxy admin change
-    err = await adminTransferByProxyStorageName(hre, path, deployer, L1SequencerProxyStorageName)
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1StakingProxyStorageName)
     if (err != '') {
         return err
     }
