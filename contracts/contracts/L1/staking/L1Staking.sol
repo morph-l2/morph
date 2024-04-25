@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -17,6 +17,8 @@ contract L1Staking is
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+
     /*************
      * Variables *
      *************/
@@ -43,19 +45,19 @@ contract L1Staking is
     mapping(address => bool) public whitelist;
 
     /// @notice all stakers
-    address[] public stakerList;
+    EnumerableSetUpgradeable.AddressSet internal stakerSet;
 
     /// @notice all stakers info
     mapping(address => Types.StakerInfo) public stakers;
 
     /// @notice bls key map
-    mapping(bytes => bool) public blsKeys;
+    mapping(bytes blsPubkey => bool) public blsKeys;
 
     /// @notice tendermint key map
-    mapping(bytes32 => bool) public tmKeys;
+    mapping(bytes32 tmPubkey => bool) public tmKeys;
 
     /// @notice withdraw unlock block height
-    mapping(address => uint256) public withdrawals;
+    mapping(address staker => uint256) public withdrawals;
 
     /**********************
      * Function Modifiers *
@@ -153,7 +155,7 @@ contract L1Staking is
         require(msg.value == stakingValue, "invalid staking value");
 
         stakers[_msgSender()] = Types.StakerInfo(_msgSender(), tmKey, blsKey);
-        stakerList.push(_msgSender());
+        stakerSet.add(_msgSender());
         blsKeys[blsKey] = true;
         tmKeys[tmKey] = true;
         emit Registered(_msgSender(), tmKey, blsKey);
@@ -164,13 +166,11 @@ contract L1Staking is
 
     /// @notice withdraw staking
     function withdraw() external {
-        (bool exist, uint256 index) = _getStakerIndex(msg.sender);
-        require(exist, "only staker");
+        require(stakerSet.contains(msg.sender), "only staker");
         require(withdrawals[msg.sender] == 0, "withdrawing");
 
         withdrawals[msg.sender] = block.number + withdrawalLockBlocks;
-        stakerList[index] = stakerList[stakerList.length - 1];
-        stakerList.pop();
+        stakerSet.remove(msg.sender);
         emit Withdrawn(msg.sender, withdrawals[msg.sender]);
 
         // send message to remove staker on l2
@@ -190,14 +190,11 @@ contract L1Staking is
                 delete stakers[sequencers[i]];
                 valueSum += stakingValue;
             } else {
-                (bool exist, uint256 index) = _getStakerIndex(sequencers[i]);
-                if (exist) {
-                    stakerList[index] = stakerList[stakerList.length - 1];
-                    stakerList.pop();
-                    delete stakers[sequencers[i]];
+                if (stakerSet.contains(sequencers[i])) {
                     valueSum += stakingValue;
                 }
-                // TBD: handle the case "exist == false"
+                stakerSet.remove(sequencers[i]);
+                delete stakers[sequencers[i]];
             }
             // remove from whitelist
             delete whitelist[sequencers[i]];
@@ -273,15 +270,15 @@ contract L1Staking is
         return true;
     }
 
+    /// @notice staking value
+    function getStakers() external view returns (address[] memory) {
+        return stakerSet.values();
+    }
+
     /// @notice whether address is staker
     /// @param addr  address to check
     function isStaker(address addr) external view returns (bool) {
-        for (uint256 i = 0; i < stakerList.length; i++) {
-            if (addr == stakerList[i]) {
-                return true;
-            }
-        }
-        return false;
+        return stakerSet.contains(addr);
     }
 
     /**********************
@@ -296,19 +293,6 @@ contract L1Staking is
             (bool success, ) = _to.call{value: _amount}("0x");
             require(success, "Rollup: ETH transfer failed");
         }
-    }
-
-    /// @notice get staker index
-    /// @param staker    staker address
-    function _getStakerIndex(
-        address staker
-    ) internal view returns (bool exist, uint256 index) {
-        for (uint256 i = 0; i < stakerList.length; i++) {
-            if (stakerList[i] == staker) {
-                return (true, i);
-            }
-        }
-        return (false, 0);
     }
 
     /// @notice add staker

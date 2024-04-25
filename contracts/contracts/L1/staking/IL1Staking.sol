@@ -35,6 +35,9 @@ interface IL1Staking {
      *************************/
 
     /// @notice staking value
+    function getStakers() external view returns (address[] memory);
+
+    /// @notice staking value
     function stakingValue() external view returns (uint256);
 
     /// @notice whether address is staker
