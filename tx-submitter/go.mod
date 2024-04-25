@@ -67,6 +67,7 @@ require (
 )
 
 require (
+	github.com/btcsuite/btcd v0.22.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect

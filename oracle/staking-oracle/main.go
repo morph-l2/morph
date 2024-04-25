@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
+	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"io"
 	"math/big"
 	"os"
@@ -12,7 +12,6 @@ import (
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/morph/oracle/backoff"
 	"github.com/morph-l2/node/derivation"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethclient"
@@ -32,6 +31,7 @@ type Config struct {
 	TendermintRpc string
 	WsEndpoint    string
 	MaxSize       uint64
+	StartBlock    uint64
 
 	LogFilename    string
 	LogFileMaxSize int
@@ -43,7 +43,7 @@ type Config struct {
 
 type Oracle struct {
 	ctx                 context.Context
-	l1Client            DeployContractBackend
+	l1Client            *ethclient.Client
 	l2Client            *ethclient.Client
 	l2Staking           *bindings.L2Staking
 	rollup              *bindings.Rollup
@@ -56,13 +56,7 @@ type Oracle struct {
 	logProgressInterval time.Duration
 	stop                chan struct{}
 	cfg                 *Config
-}
-
-type DeployContractBackend interface {
-	bind.DeployBackend
-	bind.ContractBackend
-	ethereum.ChainReader
-	ethereum.TransactionReader
+	sequencerMap        map[string]common.Address
 }
 
 func NewOracle(cfg *Config) (*Oracle, error) {
@@ -160,9 +154,12 @@ func (o *Oracle) syncRewardEpochs() error {
 	if err != nil {
 		return err
 	}
-	syncedBlockTime := o.getSyncedBlockTime()
+	syncedBlockTime, err := o.getSyncedBlockTime()
+	if err != nil {
+		return err
+	}
 	if finalizedBlockTime > syncedBlockTime {
-		epochNum := int64(finalizedBlockTime) - int64(syncedBlockTime)/o.rewardEpoch.Nanoseconds()
+		epochNum := int64(finalizedBlockTime) - syncedBlockTime.Int64()/o.rewardEpoch.Nanoseconds()
 		for i := 0; i < int(epochNum); i++ {
 			o.syncRewardEpoch()
 		}
@@ -170,9 +167,8 @@ func (o *Oracle) syncRewardEpochs() error {
 	return nil
 }
 
-func (o *Oracle) getSyncedBlockTime() uint64 {
-	// TODO
-	return 0
+func (o *Oracle) getSyncedBlockTime() (*big.Int, error) {
+	return o.record.LatestRewardEpochBlock(nil)
 }
 
 func (o *Oracle) getFinalizedBlockTime() (uint64, error) {
@@ -200,19 +196,18 @@ func (o *Oracle) getFinalizedBlockTime() (uint64, error) {
 	return header.Time, nil
 }
 
-func (o *Oracle) syncRewardEpoch() {
-
+func (o *Oracle) syncRewardEpoch() error {
 	recordRewardEpochInfo, err := o.getRewardEpochs()
 	if err != nil {
-		return
+		return err
 	}
 	tx, err := o.record.RecordRewardEpochs(nil, []bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
 	receipt, err := o.l2Client.TransactionReceipt(context.Background(), tx.Hash())
 	if err != nil {
-
+		return err
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
-
+		return fmt.Errorf("record reward epochs not success")
 	}
 }
 
@@ -223,7 +218,7 @@ func (o *Oracle) getRewardEpochs() (*bindings.IRecordRewardEpochInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	startHeight := o.getNextHeight()
+	startHeight, err := o.getNextHeight()
 	nextTime, err := o.getNextTime(nextRewardEpochIndex)
 	if err != nil {
 		return nil, err
@@ -231,7 +226,7 @@ func (o *Oracle) getRewardEpochs() (*bindings.IRecordRewardEpochInfo, error) {
 	height := startHeight
 	sequencersBlockCount := make(map[common.Address]int64)
 	for {
-		tmHeader, err := o.L2HeaderByNumberWithRetry(height)
+		tmHeader, err := o.L2HeaderByNumberWithRetry(height.Int64())
 		if err != nil {
 			return nil, err
 		}
@@ -242,21 +237,50 @@ func (o *Oracle) getRewardEpochs() (*bindings.IRecordRewardEpochInfo, error) {
 		sequencersBlockCount[sequencer] += 1
 	}
 	var sequencers []common.Address
-	var blockCounts []*big.Int
+	var seqBlockCounts, sequencerRatios, sequencerCommissions []*big.Int
 	for seq, count := range sequencersBlockCount {
 		sequencers = append(sequencers, seq)
-		blockCounts = append(blockCounts, big.NewInt(count))
+		seqBlockCounts = append(seqBlockCounts, big.NewInt(count))
 	}
+	blockCount := height.Add(height.Sub(height, startHeight), big.NewInt(1))
+	precision := big.NewInt(10000)
+	residue := big.NewInt(10000)
+	maxRatio := big.NewInt(0)
+	var maxRatioIndex int
+	for i := 0; i < len(sequencers); i++ {
+		ratio := new(big.Int).Div(new(big.Int).Mul(seqBlockCounts[i], precision), blockCount)
+		sequencerRatios = append(sequencerRatios, ratio)
+		residue = new(big.Int).Sub(residue, ratio)
+		if ratio.Cmp(maxRatio) > 0 {
+			maxRatio = ratio
+			maxRatioIndex = i
+		}
+		commission, err := o.getSequencerCommission(new(big.Int).Sub(startHeight, big.NewInt(1)), sequencers[i])
+		if err != nil {
+			return nil, err
+		}
+		sequencerCommissions = append(sequencerCommissions, commission)
+	}
+	sequencerRatios[maxRatioIndex] = new(big.Int).Add(sequencerRatios[maxRatioIndex], residue)
 	rewardEpochInfo := bindings.IRecordRewardEpochInfo{
-		Index:           nextRewardEpochIndex,
-		BlockCount:      big.NewInt(height - startHeight + 1),
-		Sequencers:      sequencers,
-		SequencerBlocks: blockCounts,
-		// TODO
-		SequencerRatios:      nil,
-		SequencerCommissions: nil,
+		Index:                nextRewardEpochIndex,
+		BlockCount:           height.Add(height.Sub(height, startHeight), big.NewInt(1)),
+		Sequencers:           sequencers,
+		SequencerBlocks:      seqBlockCounts,
+		SequencerRatios:      sequencerRatios,
+		SequencerCommissions: sequencerCommissions,
 	}
+
 	return &rewardEpochInfo, nil
+}
+
+func (o *Oracle) getSequencerCommission(blockNumber *big.Int, address common.Address) (*big.Int, error) {
+	if blockNumber.Uint64() < o.cfg.StartBlock {
+		return big.NewInt(0), nil
+	}
+	return o.l2Staking.Commissions(&bind.CallOpts{
+		BlockNumber: blockNumber,
+	}, address)
 }
 
 func (o *Oracle) getHeader(height int64) (*tmtypes.Header, error) {
@@ -282,14 +306,17 @@ func (o *Oracle) L2HeaderByNumberWithRetry(height int64) (*tmtypes.Header, error
 	return res, err
 }
 
-func (o *Oracle) getSequencer(proposerAddress tmtypes.Address) common.Address {
+func (o *Oracle) syncSequencers() {
 	// TODO
-	return common.Address{}
+
 }
 
-func (o *Oracle) getNextHeight() int64 {
-	// TODO
-	return 0
+func (o *Oracle) getSequencer(proposerAddress tmtypes.Address) common.Address {
+	return o.sequencerMap[proposerAddress.String()]
+}
+
+func (o *Oracle) getNextHeight() (*big.Int, error) {
+	return o.record.LatestRewardEpochBlock(nil)
 }
 
 func (o *Oracle) getNextTime(nextRewardEpochIndex *big.Int) (*big.Int, error) {

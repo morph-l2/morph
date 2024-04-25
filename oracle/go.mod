@@ -1,8 +1,9 @@
 module github.com/morph-l2/morph/oracle
 
-go 1.21.3
+go 1.20
 
 require (
+	github.com/ethereum/go-ethereum v1.10.26
 	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
 	github.com/stretchr/testify v1.8.4
 	github.com/tendermint/tendermint v0.35.9
@@ -12,10 +13,12 @@ require (
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
+	github.com/btcsuite/btcd/btcec/v2 v2.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/dgraph-io/badger/v2 v2.2007.4 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/fjl/memsize v0.0.2 // indirect
