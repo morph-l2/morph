@@ -25,8 +25,8 @@ contract L1MessageBaseTest is CommonTest {
     Rollup rollupImpl;
     MockZkEvmVerifier verifier;
 
-    uint256 public PROOF_WINDOW = 100;
-    uint256 public STAKING_VALUE = 1000000000000000000; // 1 eth
+    uint256 public proofWindow = 100;
+    uint256 public stakingValue = 1000000000000000000; // 1 eth
     uint256 public maxNumTxInChunk = 10;
     uint64 public layer2ChainId = 53077;
     uint32 public minGasLimit = 10000;
@@ -134,8 +134,8 @@ contract L1MessageBaseTest is CommonTest {
                     address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
                     address(verifier), // _verifier
                     maxNumTxInChunk, // _maxNumTxInChunk
-                    FINALIZATION_PERIOD_SECONDS, // _finalizationPeriodSeconds
-                    PROOF_WINDOW // _proofWindow
+                    finalizationPeriodSeconds, // _finalizationPeriodSeconds
+                    proofWindow // _proofWindow
                 )
             )
         );
@@ -165,14 +165,16 @@ contract L1MessageBaseTest is CommonTest {
             );
         ITransparentUpgradeableProxy(address(l1StakingProxy)).upgradeToAndCall(
             address(l1StakingImpl),
-            abi.encodeWithSelector(
-                L1Staking.initialize.selector,
-                address(alice),
-                address(rollupProxy),
-                20,
-                STAKING_VALUE,
-                LOCK,
-                defaultGasLimit
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(alice),
+                    address(rollupProxy),
+                    20,
+                    stakingValue,
+                    LOCK,
+                    defaultGasLimit
+                )
             )
         );
 
