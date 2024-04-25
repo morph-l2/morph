@@ -59,9 +59,7 @@ contract L2StakingTest is L2StakingBaseTest {
     function testAddStakers() public {
         hevm.mockCall(
             address(l2Staking.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
         hevm.startPrank(address(l2CrossDomainMessenger));
@@ -88,9 +86,7 @@ contract L2StakingTest is L2StakingBaseTest {
     function testRemoveStakers() public {
         hevm.mockCall(
             address(l2Staking.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
         hevm.startPrank(address(l2CrossDomainMessenger));

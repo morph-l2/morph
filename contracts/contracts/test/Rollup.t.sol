@@ -23,7 +23,7 @@ pragma solidity =0.8.24;
 //     function testCommitAndFinalizeWithL1Messages() public {
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeWithSelector(IL1Sequencer.verifySignature.selector),
+//             abi.encodeCall(IL1Sequencer.verifySignature, ()),
 //             abi.encode(true)
 //         );
 //         upgradeStorage(address(caller), address(rollup), address(alice));
@@ -120,7 +120,7 @@ pragma solidity =0.8.24;
 //         bitmap = new bytes(32);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeWithSelector(IL1Sequencer.isSequencer.selector),
+//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));
@@ -270,7 +270,7 @@ pragma solidity =0.8.24;
 //         rollup.updateMaxNumTxInChunk(2);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeWithSelector(IL1Sequencer.isSequencer.selector),
+//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));
@@ -297,7 +297,7 @@ pragma solidity =0.8.24;
 //         rollup.updateMaxNumTxInChunk(10);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeWithSelector(IL1Sequencer.isSequencer.selector),
+//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));
@@ -324,7 +324,7 @@ pragma solidity =0.8.24;
 //         rollup.updateMaxNumTxInChunk(186);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeWithSelector(IL1Sequencer.isSequencer.selector),
+//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));

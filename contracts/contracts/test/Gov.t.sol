@@ -31,8 +31,8 @@ contract govTest is L2StakingBaseTest {
 
         // hevm.mockCall(
         //     address(l2Staking.messenger()),
-        //     abi.encodeWithSelector(
-        //         ICrossDomainMessenger.xDomainMessageSender.selector
+        //     abi.encodeCall(
+        //         ICrossDomainMessenger.xDomainMessageSender, ()
         //     ),
         //     abi.encode(address(l2Staking.OTHER_STAKING()))
         // );

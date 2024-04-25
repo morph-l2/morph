@@ -113,32 +113,36 @@ pragma solidity =0.8.24;
 //         ITransparentUpgradeableProxy(address(sequencerProxy))
 //             .upgradeToAndCall(
 //                 address(sequencerImpl),
-//                 abi.encodeWithSelector(
-//                     Sequencer.initialize.selector,
-//                     sequencerInfos
+//                 abi.encodeCall(
+//                     Sequencer.initialize,
+//                     (sequencerInfos)
 //                 )
 //             );
 //         ITransparentUpgradeableProxy(address(l2GovProxy)).upgradeToAndCall(
 //             address(govImpl),
-//             abi.encodeWithSelector(
-//                 Gov.initialize.selector,
-//                 PROPOSAL_INTERVAL, // _proposalInterval
-//                 0, // _batchBlockInterval
-//                 0, // _batchMaxBytes
-//                 finalizationPeriodSeconds, // _batchTimeout
-//                 ROLLUP_EPOCH, // rollupEpoch
-//                 MAX_CHUNKS // maxChunks
+//             abi.encodeCall(
+//                 Gov.initialize,
+//                 (
+//                      PROPOSAL_INTERVAL, // _proposalInterval
+//                      0, // _batchBlockInterval
+//                      0, // _batchMaxBytes
+//                      finalizationPeriodSeconds, // _batchTimeout
+//                      ROLLUP_EPOCH, // rollupEpoch
+//                      MAX_CHUNKS // maxChunks
+//                  )
 //             )
 //         );
-//         ITransparentUpgradeableProxy(address(l2SubmitterProxy))
-//             .upgradeToAndCall(
-//                 address(submitterImpl),
-//                 abi.encodeWithSelector(
-//                     Submitter.initialize.selector,
-//                     sequencerAddresses,
-//                     block.timestamp
-//                 )
-//             );
+//        ITransparentUpgradeableProxy(address(l2SubmitterProxy))
+//            .upgradeToAndCall(
+//                address(submitterImpl),
+//                abi.encodeCall(
+//                    Submitter.initialize,
+//                    (
+//                        sequencerAddresses,
+//                        block.timestamp
+//                    )
+//                )
+//            );
 
 //         // set address
 //         sequencer = Sequencer(payable(address(sequencerProxy)));

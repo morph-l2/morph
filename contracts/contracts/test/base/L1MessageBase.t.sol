@@ -165,14 +165,16 @@ contract L1MessageBaseTest is CommonTest {
             );
         ITransparentUpgradeableProxy(address(l1StakingProxy)).upgradeToAndCall(
             address(l1StakingImpl),
-            abi.encodeWithSelector(
-                L1Staking.initialize.selector,
-                address(alice),
-                address(rollupProxy),
-                20,
-                stakingValue,
-                LOCK,
-                defaultGasLimit
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(alice),
+                    address(rollupProxy),
+                    20,
+                    stakingValue,
+                    LOCK,
+                    defaultGasLimit
+                )
             )
         );
 
