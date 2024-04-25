@@ -18,12 +18,7 @@ type IRollup interface {
 	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 }
 
-// IL2Submitter is the interface for the submitter on L2
-type IL2Submitter interface {
-	GetCurrentSubmitter(opts *bind.CallOpts) (common.Address, *big.Int, *big.Int, error)
-}
-
 // IL2Sequencer is the interface for the sequencer on L2
-type IL2Sequencer interface {
-	InSequencersSet(opts *bind.CallOpts, previous bool, checkAddr common.Address) (bool, *big.Int, error)
+type IL1Staking interface {
+	IsStaker(opts *bind.CallOpts, addr common.Address) (bool, error)
 }

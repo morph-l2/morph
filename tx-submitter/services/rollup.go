@@ -41,11 +41,11 @@ type Rollup struct {
 	ctx     context.Context
 	metrics *metrics.Metrics
 
-	L1Client     iface.Client
-	L2Clients    []iface.L2Client
-	Rollup       iface.IRollup
-	L2Submitters []iface.IL2Submitter
-	L2Sequencers []iface.IL2Sequencer
+	L1Client  iface.Client
+	L2Clients []iface.L2Client
+	Rollup    iface.IRollup
+
+	Staking iface.IL1Staking
 
 	chainId    *big.Int
 	privKey    *ecdsa.PrivateKey
@@ -66,10 +66,8 @@ func NewRollup(
 	ctx context.Context,
 	metrics *metrics.Metrics,
 	l1 iface.Client,
-	l2 []iface.L2Client,
 	rollup iface.IRollup,
-	l2Submitters []iface.IL2Submitter,
-	l2Sequencers []iface.IL2Sequencer,
+	staking iface.IL1Staking,
 	chainId *big.Int,
 	priKey *ecdsa.PrivateKey,
 	rollupAddr common.Address,
@@ -81,11 +79,9 @@ func NewRollup(
 		ctx:     ctx,
 		metrics: metrics,
 
-		L1Client:     l1,
-		L2Clients:    l2,
-		Rollup:       rollup,
-		L2Submitters: l2Submitters,
-		L2Sequencers: l2Sequencers,
+		L1Client: l1,
+		Rollup:   rollup,
+		Staking:  staking,
 
 		privKey:    priKey,
 		chainId:    chainId,
@@ -676,13 +672,13 @@ func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*
 // Init is run before the submitter to check whether the submitter can be started
 func (sr *Rollup) Init() error {
 
-	isSequencer, err := sr.inSequencersSet()
+	isStaker, err := sr.IsStaker()
 	if err != nil {
-		return err
+		return fmt.Errorf("check if this account is sequencer error:%v", err)
 	}
 
-	if !isSequencer {
-		return fmt.Errorf("this account is not sequencer")
+	if !isStaker {
+		return fmt.Errorf("this account is not staker, can not rollup")
 	}
 
 	return nil
@@ -914,19 +910,11 @@ func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Trans
 	return nil, nil, errors.New("replace tx failed after try 10 times")
 }
 
-func (r *Rollup) inSequencersSet() (bool, error) {
+func (r *Rollup) IsStaker() (bool, error) {
 
-	for _, l2Sequencer := range r.L2Sequencers {
-		isSequencer, _, err := l2Sequencer.InSequencersSet(
-			nil,
-			false,
-			common.HexToAddress(r.walletAddr()),
-		)
-		if err != nil {
-			log.Warn("get in sequencer set error", "error", err)
-			continue
-		}
-		return isSequencer, nil
+	isStaker, err := r.Staking.IsStaker(nil, common.HexToAddress(r.walletAddr()))
+	if err != nil {
+		return false, fmt.Errorf("failed to get staker info:%v", err)
 	}
-	return false, errors.New("failed to get in sequencer set")
+	return isStaker, nil
 }
