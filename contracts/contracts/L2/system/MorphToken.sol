@@ -10,7 +10,9 @@ import {IMorphToken} from "./IMorphToken.sol";
 
 contract MorphToken is IMorphToken, OwnableUpgradeable {
     // day seconds
-    uint256 private immutable DAY_SECONDS = 86400;
+    uint256 private constant DAY_SECONDS = 86400;
+    // daily inflation ratio precision
+    uint256 private constant PRECISION = 1e16;
 
     // l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
@@ -341,7 +343,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
                     rate = _dailyInflationRates[j].rate;
                 }
             }
-            _inflations[i] = (_totalSupply * rate) / 1e16;
+            _inflations[i] = (_totalSupply * rate) / PRECISION;
             _mint(DISTRIBUTE_CONTRACT, _inflations[i]);
             _inflationMintedDaysSubstitute++;
         }

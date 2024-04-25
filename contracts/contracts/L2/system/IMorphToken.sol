@@ -11,7 +11,7 @@ interface IMorphToken is IERC20MetadataUpgradeable {
     /**
      * @notice DailyInflationRate representing a daily inflation rate.
      *
-     * @custom:field rate               daily inflation rate * 1e16
+     * @custom:field rate               daily inflation ratio, precision is 1e16
      * @custom:field effectiveDayIndex  effective day index
      */
     struct DailyInflationRate {

@@ -43,8 +43,8 @@ interface IRecord {
      * @custom:field blockCount             the number of blocks included in epoch
      * @custom:field sequencers             sequencers have produced blocks
      * @custom:field sequencerBlocks        number of blocks produced by sequencer
-     * @custom:field sequencerRatios        sequencers reward ratio, ten thousandths (ratio/10000)
-     * @custom:field sequencerCommissions    sequencers commission percentage
+     * @custom:field sequencerRatios        sequencers reward ratio, precision is 1e8
+     * @custom:field sequencerCommissions   sequencers commission percentage
      *
      * If no blocks were produced in this epoch, no sequencer will receive the reward
      */

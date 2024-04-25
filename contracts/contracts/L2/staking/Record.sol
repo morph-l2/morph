@@ -13,6 +13,9 @@ import {IGov} from "./IGov.sol";
 import {IRecord} from "./IRecord.sol";
 
 contract Record is IRecord, OwnableUpgradeable {
+    // inflation rate precision
+    uint256 private constant PRECISION = 1e8;
+
     // MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
     // l2 staking contract address
@@ -23,11 +26,9 @@ contract Record is IRecord, OwnableUpgradeable {
     address public immutable DISTRIBUTE_CONTRACT;
     // gov contract address
     address public immutable GOV_CONTRACT;
+
     // oracle address
     address public ORACLE;
-
-    // sequencers reward ratio precision
-    uint256 private immutable RATIO_PRECISION = 10000;
 
     // If the sequencer set or rollup epoch changed, reset the submitter round
     // mapping(batch_index => batch_submission)
@@ -200,7 +201,7 @@ contract Record is IRecord, OwnableUpgradeable {
 
                 // compute rewards per sequencer
                 uint256 reward = (inflationAmount *
-                    _rewardEpochs[i].sequencerRatios[j]) / RATIO_PRECISION;
+                    _rewardEpochs[i].sequencerRatios[j]) / PRECISION;
                 commissions[j] =
                     (reward * _rewardEpochs[i].sequencerCommissions[j]) /
                     100;
@@ -210,7 +211,7 @@ contract Record is IRecord, OwnableUpgradeable {
                 blockCount == _rewardEpochs[i].blockCount,
                 "invalid sequencers blocks"
             );
-            require(ratioSum <= RATIO_PRECISION, "invalid sequencers ratios");
+            require(ratioSum <= PRECISION, "invalid sequencers ratios");
 
             // update sequencers reward data
             IDistribute(DISTRIBUTE_CONTRACT).updateEpochReward(
