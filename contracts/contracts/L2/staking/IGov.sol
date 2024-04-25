@@ -2,11 +2,22 @@
 pragma solidity =0.8.24;
 
 interface IGov {
+    /***********
+     * Structs *
+     ***********/
+
+    /// @custom:field endTime
+    /// @custom:field approved
     struct ProposalInfo {
         uint256 endTime;
         bool approved;
     }
 
+    /// @custom:field batchBlockInterval
+    /// @custom:field batchMaxBytes
+    /// @custom:field batchTimeout
+    /// @custom:field maxChunks
+    /// @custom:field rollupEpoch
     struct ProposalData {
         uint256 batchBlockInterval;
         uint256 batchMaxBytes;
@@ -15,7 +26,11 @@ interface IGov {
         uint256 rollupEpoch;
     }
 
-    // event of proposal executed
+    /**********
+     * Events *
+     **********/
+
+    /// @notice event of proposal executed
     event ProposalExecuted(
         uint256 batchBlockInterval,
         uint256 batchMaxBytes,
@@ -24,74 +39,57 @@ interface IGov {
         uint256 rollupEpoch
     );
 
-    /**
-     * @notice batch block interval
-     */
+    /*************************
+     * Public View Functions *
+     *************************/
+
+    /// @notice batch block interval
     function batchBlockInterval() external view returns (uint256);
 
-    /**
-     * @notice batch max bytes
-     */
+    /// @notice batch max bytes
     function batchMaxBytes() external view returns (uint256);
 
-    /**
-     * @notice batch timeout
-     */
+    /// @notice batch timeout
     function batchTimeout() external view returns (uint256);
 
-    /**
-     * @notice rollup epoch
-     */
+    /// @notice rollup epoch
     function rollupEpoch() external view returns (uint256);
 
-    /**
-     * @notice max chunks
-     */
+    /// @notice max chunks
     function maxChunks() external view returns (uint256);
 
-    /**
-     * @notice current proposal ID number
-     */
-    function proposalID() external view returns (uint256);
+    /// @notice current proposal ID number
+    function currentProposalID() external view returns (uint256);
 
-    /**
-     * @notice create a proposal
-     */
-    function propose(ProposalData memory proposal) external;
-
-    /**
-     * @notice vote a proposal
-     */
-    function vote(uint256 _proposalID) external;
-
-    /**
-     * @notice execute an approved proposal
-     */
-    function executeProposal(uint256 _proposalID) external;
-
-    /**
-     * @notice whether the proposal can be approved
-     */
+    /// @notice whether the proposal can be approved
     function isProposalCanBeApproved(
-        uint256 _proposalID
+        uint256 proposalID
     ) external view returns (bool);
 
-    /**
-     * @notice proposal information.
-     * @custom:field _proposalID
-     * @return {approved, end timestamp}
-     */
+    /// @notice proposal information.
+    /// @param proposalID  proposal ID
     function proposalInfos(
-        uint256 _proposalID
-    ) external view returns (uint256, bool);
+        uint256 proposalID
+    ) external view returns (uint256 endTimestamp, bool approved);
 
-    /**
-     * @custom:field _proposalID
-     * @custom:field _voter
-     * @return {bool}, check if an account has been voted
-     */
+    /// @notice return is voted
+    /// @param proposalID  proposal ID
+    /// @param voter       voter
     function isVoted(
-        uint256 _proposalID,
-        address _voter
-    ) external view returns (bool);
+        uint256 proposalID,
+        address voter
+    ) external view returns (bool voted);
+
+    /*****************************
+     * Public Mutating Functions *
+     *****************************/
+
+    /// @notice create a proposal
+    function createProposal(ProposalData memory proposal) external;
+
+    /// @notice vote a proposal
+    function vote(uint256 proposalID) external;
+
+    /// @notice execute an approved proposal
+    function executeProposal(uint256 proposalID) external;
 }

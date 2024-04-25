@@ -125,7 +125,7 @@ pragma solidity =0.8.24;
 //                 PROPOSAL_INTERVAL, // _proposalInterval
 //                 0, // _batchBlockInterval
 //                 0, // _batchMaxBytes
-//                 FINALIZATION_PERIOD_SECONDS, // _batchTimeout
+//                 finalizationPeriodSeconds, // _batchTimeout
 //                 ROLLUP_EPOCH, // rollupEpoch
 //                 MAX_CHUNKS // maxChunks
 //             )

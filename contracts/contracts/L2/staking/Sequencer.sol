@@ -1,21 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {ISequencer} from "./ISequencer.sol";
 
-contract Sequencer is Initializable, ISequencer {
-    // l2 staking contract address
+contract Sequencer is ISequencer, OwnableUpgradeable {
+    /*************
+     * Constants *
+     *************/
+
+    /// @notice l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
 
-    /// The hash of latest three sequencer set.
-    bytes32 public SEQUENCER_SET_VERIFY_HASH;
+    /*************
+     * Variables *
+     *************/
 
-    // The latest three sequencerSet changes and effective height
-    // multiple changes within a block only record the final state
+    /// @notice The hash of latest three sequencer set.
+    bytes32 public sequencerSetVerifyHash;
+
+    /// @notice The latest three sequencerSet changes and effective height
+    /// multiple changes within a block only record the final state
     uint256 public blockHeight0;
     address[] public sequencerSet0;
     uint256 public blockHeight1;
@@ -23,43 +31,48 @@ contract Sequencer is Initializable, ISequencer {
     uint256 public blockHeight2;
     address[] public sequencerSet2;
 
-    /*********************** modifiers **************************/
+    /**********************
+     * Function Modifiers *
+     **********************/
 
-    /**
-     * @notice only L2Staking contract
-     */
+    /// @notice only L2Staking contract
     modifier onlyL2StakingContract() {
         require(msg.sender == L2_STAKING_CONTRACT, "only L2Staking contract");
         _;
     }
 
-    /*********************** Constructor **************************/
+    /***************
+     * Constructor *
+     ***************/
 
-    /**
-     * @notice constructor
-     */
+    /// @notice constructor
     constructor() {
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
     }
 
-    /*********************** Init **************************/
+    /***************
+     * Initializer *
+     ***************/
 
-    /**
-     * @notice Initializer.
-     * @param _sequencerSet  initial sequencer set, must be same as initial staker set in l2 staking contract
-     */
+    /// @notice Initializer.
+    /// @param _sequencerSet  initial sequencer set, must be same as initial staker set in l2 staking contract
     function initialize(address[] calldata _sequencerSet) public initializer {
         require(_sequencerSet.length > 0, "invalid sequencer set");
+
+        __Ownable_init();
+
         sequencerSet0 = _sequencerSet;
         sequencerSet1 = _sequencerSet;
         sequencerSet2 = _sequencerSet;
+
+        // TODO event
     }
 
-    /*********************** External Functions **************************/
+    /************************
+     * Restricted Functions *
+     ************************/
 
-    /**
-     * @notice update sequencer set. If new sequencer set is nil, layer2 will stop producing blocks
-     */
+    /// @notice update sequencer set. If new sequencer set is nil, layer2 will stop producing blocks
     function updateSequencerSet(
         address[] memory newSequencerSet
     ) public onlyL2StakingContract {
@@ -80,7 +93,7 @@ contract Sequencer is Initializable, ISequencer {
         // ************************************************
         // update SEQUENCER_VERIFY_HASH
         // ************************************************
-        SEQUENCER_SET_VERIFY_HASH = keccak256(
+        sequencerSetVerifyHash = keccak256(
             abi.encodePacked(
                 blockHeight0,
                 sequencerSet0,
@@ -94,11 +107,11 @@ contract Sequencer is Initializable, ISequencer {
         emit SequencerSetUpdated(newSequencerSet, block.number + 2);
     }
 
-    /*********************** External View Functions **************************/
+    /*************************
+     * Public View Functions *
+     *************************/
 
-    /**
-     * @notice get current sequencer set
-     */
+    /// @notice get current sequencer set
     function getCurrentSequencerSet() external view returns (address[] memory) {
         if (block.number >= blockHeight2) {
             return sequencerSet2;
@@ -109,9 +122,7 @@ contract Sequencer is Initializable, ISequencer {
         return sequencerSet0;
     }
 
-    /**
-     * @notice get current sequencer set size
-     */
+    /// @notice get current sequencer set size
     function getCurrentSequencerSetSize() external view returns (uint256) {
         if (block.number >= blockHeight2) {
             return sequencerSet2.length;
@@ -122,58 +133,42 @@ contract Sequencer is Initializable, ISequencer {
         return sequencerSet0.length;
     }
 
-    /**
-     * @notice get sequencer set 0
-     */
+    /// @notice get sequencer set 0
     function getSequencerSet0() external view returns (address[] memory) {
         return sequencerSet0;
     }
 
-    /**
-     * @notice get size of sequencer set 0
-     */
+    /// @notice get size of sequencer set 0
     function getSequencerSet0Size() external view returns (uint256) {
         return sequencerSet0.length;
     }
 
-    /**
-     * @notice get sequencer set 1
-     */
+    /// @notice get sequencer set 1
     function getSequencerSet1() external view returns (address[] memory) {
         return sequencerSet1;
     }
 
-    /**
-     * @notice get size of sequencer set 1
-     */
+    /// @notice get size of sequencer set 1
     function getSequencerSet1Size() external view returns (uint256) {
         return sequencerSet1.length;
     }
 
-    /**
-     * @notice get sequencer set 2
-     */
+    /// @notice get sequencer set 2
     function getSequencerSet2() external view returns (address[] memory) {
         return sequencerSet2;
     }
 
-    /**
-     * @notice get size of sequencer set 2
-     */
+    /// @notice get size of sequencer set 2
     function getSequencerSet2Size() external view returns (uint256) {
         return sequencerSet2.length;
     }
 
-    /**
-     * @notice whether the address is a sequencer
-     */
+    /// @notice whether the address is a sequencer
     function isSequencer(address addr) external view returns (bool) {
         return _contains(sequencerSet2, addr);
     }
 
-    /**
-     * @notice whether the address is a current sequencer
-     */
+    /// @notice whether the address is a current sequencer
     function isCurrentSequencer(address addr) external view returns (bool) {
         if (block.number >= blockHeight2) {
             return _contains(sequencerSet2, addr);
@@ -184,9 +179,7 @@ contract Sequencer is Initializable, ISequencer {
         return _contains(sequencerSet0, addr);
     }
 
-    /**
-     * @notice get the encoded sequencer set bytes
-     */
+    /// @notice get the encoded sequencer set bytes
     function getSequencerSetBytes() external view returns (bytes memory) {
         return
             abi.encodePacked(
@@ -199,11 +192,11 @@ contract Sequencer is Initializable, ISequencer {
             );
     }
 
-    /*********************** Internal Functions **************************/
+    /**********************
+     * Internal Functions *
+     **********************/
 
-    /**
-     * @notice whether the address is the address list
-     */
+    /// @notice whether the address is the address list
     function _contains(
         address[] memory addressList,
         address addr

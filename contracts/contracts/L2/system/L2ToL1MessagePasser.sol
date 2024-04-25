@@ -42,11 +42,8 @@ contract L2ToL1MessagePasser is Tree {
         messageRoot = getTreeRoot();
     }
 
-    /**
-     * @notice Sends a message from L2 to L1.
-     *
-     * @param _messageHash  the message hash to append in tree.
-     */
+    /// @notice Sends a message from L2 to L1.
+    /// @param _messageHash  the message hash to append in tree.
     function appendMessage(bytes32 _messageHash) external returns (bytes32) {
         require(
             msg.sender == Predeploys.L2_CROSS_DOMAIN_MESSENGER,

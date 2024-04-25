@@ -32,7 +32,7 @@ contract L2StakingTest is L2StakingBaseTest {
         morphToken.transfer(alice, morphBalance);
         hevm.stopPrank();
 
-        hevm.warp(REWARD_START_TIME);
+        hevm.warp(rewardStartTime);
     }
 
     /**
@@ -211,7 +211,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(firstStaker, morphBalance);
         l2Staking.undelegateStake(firstStaker);
 
-        uint256 time = REWARD_START_TIME +
+        uint256 time = rewardStartTime +
             l2Staking.REWARD_EPOCH() *
             (ROLLUP_EPOCH + 1);
 
@@ -247,7 +247,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         hevm.roll(ROLLUP_EPOCH);
 
-        uint256 time = REWARD_START_TIME +
+        uint256 time = rewardStartTime +
             l2Staking.REWARD_EPOCH() *
             (ROLLUP_EPOCH + 1);
 
@@ -366,8 +366,8 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.warp(time);
 
         // reward starting
-        // REWARD_START_TIME = 86400
-        // block.timeStamp >= REWARD_START_TIME
+        // rewardStartTime = 86400
+        // block.timeStamp >= rewardStartTime
         // candidateNumber > 0
         hevm.prank(multisig);
         l2Staking.startReward();

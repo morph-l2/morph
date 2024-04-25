@@ -159,7 +159,7 @@ pragma solidity =0.8.24;
 //         );
 
 //         // finalize batch1
-//         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS() + 1);
+//         hevm.warp(block.timestamp + rollup.finalizationPeriodSeconds() + 1);
 //         rollup.finalizeBatch(1);
 //         assertTrue(rollup.isBatchFinalized(1));
 //         assertEq(rollup.finalizedStateRoots(1), stateRoot);
@@ -365,7 +365,7 @@ pragma solidity =0.8.24;
 
 //         // verify committed batch correctly
 //         hevm.startPrank(address(0));
-//         hevm.warp(block.timestamp + rollup.FINALIZATION_PERIOD_SECONDS());
+//         hevm.warp(block.timestamp + rollup.finalizationPeriodSeconds());
 //         rollup.finalizeBatch(2);
 //         hevm.stopPrank();
 

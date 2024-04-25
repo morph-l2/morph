@@ -40,14 +40,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Variables *
      *************/
 
-    /// l1 staking contract
-    address public L1_STAKING_CONTRACT;
+    /// @notice L1 staking contract
+    address public l1StakingContract;
 
     /// @notice Batch challenge time.
-    uint256 public FINALIZATION_PERIOD_SECONDS;
+    uint256 public finalizationPeriodSeconds;
 
     /// @notice The time when zkProof was generated and executed.
-    uint256 public PROOF_WINDOW;
+    uint256 public proofWindow;
 
     /// @notice The maximum number of transactions allowed in each chunk.
     uint256 public maxNumTxInChunk;
@@ -58,35 +58,37 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The address of RollupVerifier.
     address public verifier;
 
-    /// @notice Whether an account is a challenger.
-    mapping(address => bool) public isChallenger;
-
     /// @inheritdoc IRollup
     uint256 public override lastFinalizedBatchIndex;
 
     /// @inheritdoc IRollup
     uint256 public override lastCommittedBatchIndex;
 
+    /// @notice Whether an account is a challenger.
+    mapping(address challengerAddress => bool isChallenger) public isChallenger;
+
     /// @inheritdoc IRollup
-    mapping(uint256 => bytes32) public override finalizedStateRoots;
+    mapping(uint256 batchIndex => bytes32 stateRoot)
+        public
+        override finalizedStateRoots;
 
     /// @notice Store committed batch base.
-    mapping(uint256 index => BatchBase) public batchBaseStore;
+    mapping(uint256 batchIndex => BatchBase) public batchBaseStore;
 
     /// @notice Store committed batch data.
-    mapping(uint256 index => BatchData) public batchDataStore;
+    mapping(uint256 batchIndex => BatchData) public batchDataStore;
 
     /// @notice Store committed batch signature.
-    mapping(uint256 index => BatchSignature) public batchSignatureStore;
+    mapping(uint256 batchIndex => BatchSignature) public batchSignatureStore;
 
     /// @notice Store the withdrawalRoot.
-    mapping(bytes32 => bool) public withdrawalRoots;
+    mapping(bytes32 withdrawalRoot => bool exist) public withdrawalRoots;
 
-    /// @notice Store Challenge Information. (batchIndex => BatchChallenge)
-    mapping(uint256 => BatchChallenge) public challenges;
+    /// @notice Store Challenge Information.
+    mapping(uint256 batchIndex => BatchChallenge) public challenges;
 
-    /// @notice Store Challenge reward information. (receiver => amount)
-    mapping(address => uint256) public batchChallengeReward;
+    /// @notice Store Challenge reward information.
+    mapping(address owner => uint256 amount) public batchChallengeReward;
 
     /// @notice Whether in challenge
     bool public inChallenge;
@@ -104,7 +106,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Only staker allowed.
     modifier OnlyStaker() {
         require(
-            IL1Staking(L1_STAKING_CONTRACT).isStaker(_msgSender()),
+            IL1Staking(l1StakingContract).isStaker(_msgSender()),
             "caller not sequencer"
         );
         _;
@@ -135,6 +137,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Allow the contract to receive ETH.
     receive() external payable {}
 
+    /***************
+     * Initializer *
+     ***************/
+
     /// @notice initializer
     /// @param _l1StakingContract         l1 staking contract
     /// @param _messageQueue              message queue
@@ -153,30 +159,29 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (_messageQueue == address(0) || _verifier == address(0)) {
             revert ErrZeroAddress();
         }
-        __Pausable_init();
-        __Ownable_init();
-
         require(
             _l1StakingContract != address(0),
             "invalid l1 staking contract"
         );
 
-        L1_STAKING_CONTRACT = _l1StakingContract;
-        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        PROOF_WINDOW = _proofWindow;
+        __Pausable_init();
+        __Ownable_init();
 
+        l1StakingContract = _l1StakingContract;
         messageQueue = _messageQueue;
         verifier = _verifier;
         maxNumTxInChunk = _maxNumTxInChunk;
+        finalizationPeriodSeconds = _finalizationPeriodSeconds;
+        proofWindow = _proofWindow;
 
-        emit UpdateProofWindow(0, PROOF_WINDOW);
+        emit UpdateProofWindow(0, proofWindow);
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
     }
 
-    /*****************************
-     * Public Mutating Functions *
-     *****************************/
+    /************************
+     * Restricted Functions *
+     ************************/
 
     /// @notice Import layer 2 genesis block
     function importGenesisBatch(
@@ -371,7 +376,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             ),
             batchDataInput.version,
             block.timestamp,
-            block.timestamp + FINALIZATION_PERIOD_SECONDS,
+            block.timestamp + finalizationPeriodSeconds,
             _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1])
         );
         batchDataStore[_batchIndex] = BatchData(
@@ -406,7 +411,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         // verify bls signature
         require(
-            IL1Staking(L1_STAKING_CONTRACT).verifySignature(
+            IL1Staking(l1StakingContract).verifySignature(
                 abi.decode(batchSignatureInput.signedSequencers, (address[])),
                 _getValidSequencerSet(batchSignatureInput.sequencerSets, 0),
                 batchSignatureStore[_batchIndex].blsMsgHash,
@@ -495,7 +500,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         // check challenge amount
         require(
-            msg.value >= IL1Staking(L1_STAKING_CONTRACT).STAKING_VALUE(),
+            msg.value >= IL1Staking(l1StakingContract).stakingValue(),
             "insufficient value"
         );
         batchChallenged = batchIndex;
@@ -515,12 +520,97 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             i++
         ) {
             if (i != batchIndex) {
-                batchBaseStore[i].finalizeTimestamp += PROOF_WINDOW;
+                batchBaseStore[i].finalizeTimestamp += proofWindow;
             }
         }
 
         inChallenge = true;
     }
+
+    /// @notice Update proofWindow.
+    /// @param _newWindow New proof window.
+    function updateProofWindow(uint256 _newWindow) external onlyOwner {
+        uint256 _oldProofWindow = proofWindow;
+        proofWindow = _newWindow;
+        emit UpdateProofWindow(_oldProofWindow, proofWindow);
+    }
+
+    /// @notice Update finalizationPeriodSeconds.
+    /// @param _newPeriod New finalize period seconds.
+    function updateFinalizePeriodSeconds(
+        uint256 _newPeriod
+    ) external onlyOwner {
+        uint256 _oldFinalizationPeriodSeconds = finalizationPeriodSeconds;
+        finalizationPeriodSeconds = _newPeriod;
+        emit UpdateFinalizationPeriodSeconds(
+            _oldFinalizationPeriodSeconds,
+            finalizationPeriodSeconds
+        );
+    }
+
+    /// @notice Add an account to the challenger list.
+    /// @param _account The address of account to add.
+    function addChallenger(address _account) external onlyOwner {
+        require(!isChallenger[_account], "account is already a challenger");
+        isChallenger[_account] = true;
+        emit UpdateChallenger(_account, true);
+    }
+
+    /// @notice Remove an account from the challenger list.
+    /// @param _account The address of account to remove.
+    function removeChallenger(address _account) external onlyOwner {
+        require(isChallenger[_account], "account is not a challenger");
+        isChallenger[_account] = false;
+        emit UpdateChallenger(_account, false);
+    }
+
+    /// @notice Update the address verifier contract.
+    /// @param _newVerifier The address of new verifier contract.
+    function updateVerifier(address _newVerifier) external onlyOwner {
+        require(_newVerifier != address(0), "verifier cannot be address(0)");
+        require(_newVerifier != verifier, "verifier has not changed");
+
+        address _oldVerifier = verifier;
+        verifier = _newVerifier;
+        emit UpdateVerifier(_oldVerifier, _newVerifier);
+    }
+
+    /// @notice Update the value of `maxNumTxInChunk`.
+    /// @param _maxNumTxInChunk The new value of `maxNumTxInChunk`.
+    function updateMaxNumTxInChunk(
+        uint256 _maxNumTxInChunk
+    ) external onlyOwner {
+        require(_maxNumTxInChunk > 0, "maxNumTxInChunk must bigger than 0");
+        require(
+            _maxNumTxInChunk != maxNumTxInChunk,
+            "maxNumTxInChunk has not changed"
+        );
+
+        uint256 _oldMaxNumTxInChunk = maxNumTxInChunk;
+        maxNumTxInChunk = _maxNumTxInChunk;
+        emit UpdateMaxNumTxInChunk(_oldMaxNumTxInChunk, _maxNumTxInChunk);
+    }
+
+    /// @notice Pause the contract
+    /// @param _status The pause status to update.
+    function setPause(bool _status) external onlyOwner {
+        if (_status) {
+            _pause();
+            // if challenge exist and not finished yet, return challenge deposit to challenger
+            if (inChallenge && !challenges[batchChallenged].finished) {
+                batchChallengeReward[
+                    challenges[batchChallenged].challenger
+                ] += challenges[batchChallenged].challengeDeposit;
+            }
+            delete challenges[batchChallenged];
+        } else {
+            _unpause();
+        }
+    }
+
+    /*****************************
+     * Public Mutating Functions *
+     *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
     /// _kzgData: [y(32) | commitment(48) | proof(48)]
@@ -538,7 +628,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         // Check for timeout
         if (
-            challenges[_batchIndex].startTime + PROOF_WINDOW <= block.timestamp
+            challenges[_batchIndex].startTime + proofWindow <= block.timestamp
         ) {
             // set status
             challenges[_batchIndex].challengeSuccess = true;
@@ -648,91 +738,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(amount != 0, "invalid batchChallengeReward");
         delete batchChallengeReward[_msgSender()];
         _transfer(receiver, amount);
-    }
-
-    /************************
-     * Restricted Functions *
-     ************************/
-
-    /// @notice Update PROOF_WINDOW.
-    /// @param _newWindow New proof window.
-    function updateProofWindow(uint256 _newWindow) external onlyOwner {
-        uint256 _oldProofWindow = PROOF_WINDOW;
-        PROOF_WINDOW = _newWindow;
-        emit UpdateProofWindow(_oldProofWindow, PROOF_WINDOW);
-    }
-
-    /// @notice Update FINALIZATION_PERIOD_SECONDS.
-    /// @param _newPeriod New finalize period seconds.
-    function updateFinalizePeriodSeconds(
-        uint256 _newPeriod
-    ) external onlyOwner {
-        uint256 _oldFinalizationPeriodSeconds = FINALIZATION_PERIOD_SECONDS;
-        FINALIZATION_PERIOD_SECONDS = _newPeriod;
-        emit UpdateFinalizationPeriodSeconds(
-            _oldFinalizationPeriodSeconds,
-            FINALIZATION_PERIOD_SECONDS
-        );
-    }
-
-    /// @notice Add an account to the challenger list.
-    /// @param _account The address of account to add.
-    function addChallenger(address _account) external onlyOwner {
-        require(!isChallenger[_account], "account is already a challenger");
-        isChallenger[_account] = true;
-        emit UpdateChallenger(_account, true);
-    }
-
-    /// @notice Remove an account from the challenger list.
-    /// @param _account The address of account to remove.
-    function removeChallenger(address _account) external onlyOwner {
-        require(isChallenger[_account], "account is not a challenger");
-        isChallenger[_account] = false;
-        emit UpdateChallenger(_account, false);
-    }
-
-    /// @notice Update the address verifier contract.
-    /// @param _newVerifier The address of new verifier contract.
-    function updateVerifier(address _newVerifier) external onlyOwner {
-        require(_newVerifier != address(0), "verifier cannot be address(0)");
-        require(_newVerifier != verifier, "verifier has not changed");
-
-        address _oldVerifier = verifier;
-        verifier = _newVerifier;
-        emit UpdateVerifier(_oldVerifier, _newVerifier);
-    }
-
-    /// @notice Update the value of `maxNumTxInChunk`.
-    /// @param _maxNumTxInChunk The new value of `maxNumTxInChunk`.
-    function updateMaxNumTxInChunk(
-        uint256 _maxNumTxInChunk
-    ) external onlyOwner {
-        require(_maxNumTxInChunk > 0, "maxNumTxInChunk must bigger than 0");
-        require(
-            _maxNumTxInChunk != maxNumTxInChunk,
-            "maxNumTxInChunk has not changed"
-        );
-
-        uint256 _oldMaxNumTxInChunk = maxNumTxInChunk;
-        maxNumTxInChunk = _maxNumTxInChunk;
-        emit UpdateMaxNumTxInChunk(_oldMaxNumTxInChunk, _maxNumTxInChunk);
-    }
-
-    /// @notice Pause the contract
-    /// @param _status The pause status to update.
-    function setPause(bool _status) external onlyOwner {
-        if (_status) {
-            _pause();
-            // if challenge exist and not finished yet, return challenge deposit to challenger
-            if (inChallenge && !challenges[batchChallenged].finished) {
-                batchChallengeReward[
-                    challenges[batchChallenged].challenger
-                ] += challenges[batchChallenged].challengeDeposit;
-            }
-            delete challenges[batchChallenged];
-        } else {
-            _unpause();
-        }
     }
 
     /*************************
@@ -851,7 +856,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         bytes32 sequencerSetVerifyHash
     ) internal pure returns (bool) {
-        // TODO check SEQUENCER_SET_VERIFY_HASH in batch
+        // TODO check sequencerSetVerifyHash in batch
         batchDataInput = batchDataInput;
         sequencerSetVerifyHash = sequencerSetVerifyHash;
         return true;
@@ -908,7 +913,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     ) internal {
         revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
-        uint256 reward = IL1Staking(L1_STAKING_CONTRACT).slash(
+        uint256 reward = IL1Staking(l1StakingContract).slash(
             abi.decode(sequencers, (address[]))
         );
         batchChallengeReward[challenges[batchIndex].challenger] += (challenges[
@@ -1081,7 +1086,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 _totalL1MessagesPoppedOverall,
         bytes calldata _skippedL1MessageBitmap
     ) internal view returns (uint256) {
-        if (_numL1Messages == 0) return _ptr;
+        if (_numL1Messages == 0) {
+            return _ptr;
+        }
         IL1MessageQueue _messageQueue = IL1MessageQueue(messageQueue);
 
         unchecked {

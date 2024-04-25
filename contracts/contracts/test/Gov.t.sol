@@ -46,7 +46,7 @@ contract govTest is L2StakingBaseTest {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
-            FINALIZATION_PERIOD_SECONDS, // batchTimeout
+            finalizationPeriodSeconds, // batchTimeout
             MAX_CHUNKS, // maxChunks
             ROLLUP_EPOCH // rollupEpoch
         );
@@ -78,7 +78,7 @@ contract govTest is L2StakingBaseTest {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
-            FINALIZATION_PERIOD_SECONDS, // batchTimeout
+            finalizationPeriodSeconds, // batchTimeout
             MAX_CHUNKS, // maxChunks
             ROLLUP_EPOCH // rollupEpoch
         );
@@ -105,7 +105,7 @@ contract govTest is L2StakingBaseTest {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
-            FINALIZATION_PERIOD_SECONDS, // batchTimeout
+            finalizationPeriodSeconds, // batchTimeout
             MAX_CHUNKS, // maxChunks
             ROLLUP_EPOCH // rollupEpoch
         );
@@ -151,7 +151,7 @@ contract govTest is L2StakingBaseTest {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
-            FINALIZATION_PERIOD_SECONDS, // batchTimeout
+            finalizationPeriodSeconds, // batchTimeout
             MAX_CHUNKS, // maxChunks
             ROLLUP_EPOCH // rollupEpoch
         );

@@ -26,7 +26,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
     uint256 public NEXT_EPOCH_START = 1700000000;
 
-    uint256 public REWARD_START_TIME = 86400;
+    uint256 public rewardStartTime = 86400;
 
     // Sequencer config
     Sequencer public sequencer;
@@ -203,7 +203,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 PROPOSAL_INTERVAL, // _proposalInterval
                 0, // _batchBlockInterval
                 0, // _batchMaxBytes
-                FINALIZATION_PERIOD_SECONDS, // _batchTimeout
+                finalizationPeriodSeconds, // _batchTimeout
                 MAX_CHUNKS, // maxChunks
                 ROLLUP_EPOCH // rollupEpoch
             )
@@ -216,7 +216,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                 multisig,
                 SEQUENCER_SIZE * 2,
                 ROLLUP_EPOCH,
-                REWARD_START_TIME,
+                rewardStartTime,
                 stakerInfos
             )
         );

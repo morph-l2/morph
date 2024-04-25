@@ -2,6 +2,10 @@
 pragma solidity =0.8.24;
 
 interface IRollup {
+    /***********
+     * Structs *
+     ***********/
+
     /// @param version                  The version of current batch.
     /// @param parentBatchHeader        The header of parent batch, see the comments of `BatchHeaderV0Codec`.
     /// @param chunks                   The list of encoded chunks, see the comments of `ChunkCodec`.
@@ -96,6 +100,7 @@ interface IRollup {
      * Errors *
      ***********/
 
+    /// @notice error zero address
     error ErrZeroAddress();
 
     /**********
@@ -124,14 +129,14 @@ interface IRollup {
         bytes32 withdrawRoot
     );
 
-    /// @notice Emitted when owner updates the PROOF_WINDOW parameter.
-    /// @param oldWindow    The old PROOF_WINDOW.
-    /// @param newWindow    The new PROOF_WINDOW.
+    /// @notice Emitted when owner updates the proofWindow parameter.
+    /// @param oldWindow    The old proofWindow.
+    /// @param newWindow    The new proofWindow.
     event UpdateProofWindow(uint256 oldWindow, uint256 newWindow);
 
-    /// @notice Emitted when owner updates the FINALIZATION_PERIOD_SECONDS parameter.
-    /// @param oldPeriod    The old FINALIZATION_PERIOD_SECONDS.
-    /// @param newPeriod    The new FINALIZATION_PERIOD_SECONDS.
+    /// @notice Emitted when owner updates the finalizationPeriodSeconds parameter.
+    /// @param oldPeriod    The old finalizationPeriodSeconds.
+    /// @param newPeriod    The new finalizationPeriodSeconds.
     event UpdateFinalizationPeriodSeconds(uint256 oldPeriod, uint256 newPeriod);
 
     /// @notice Emitted when owner updates the status of challenger.
@@ -207,8 +212,8 @@ interface IRollup {
     /// @param batchIndex The index of the batch.
     function isBatchFinalized(uint256 batchIndex) external view returns (bool);
 
-    /// @notice Return the rollup config of FINALIZATION_PERIOD_SECONDS.
-    function FINALIZATION_PERIOD_SECONDS() external view returns (uint256);
+    /// @notice Return the rollup config of finalizationPeriodSeconds.
+    function finalizationPeriodSeconds() external view returns (uint256);
 
     /*****************************
      * Public Mutating Functions *
