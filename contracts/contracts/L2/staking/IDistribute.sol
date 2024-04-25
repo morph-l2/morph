@@ -129,9 +129,9 @@ interface IDistribute {
     /// @param commissions       sequencers commission
     function updateEpochReward(
         uint256 epochIndex,
-        address[] memory sequencers,
-        uint256[] memory delegatorRewards,
-        uint256[] memory commissions
+        address[] calldata sequencers,
+        uint256[] calldata delegatorRewards,
+        uint256[] calldata commissions
     ) external;
 
     /// @dev claim delegation reward of all sequencers.
