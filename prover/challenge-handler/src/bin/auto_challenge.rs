@@ -68,16 +68,21 @@ pub async fn challenge() -> Result<(), Box<dyn Error>> {
 
     // TODO IStaking
     // let min_deposit: U256 = l1_rollup.min_deposit().await?;
-    let min_deposit: U256 = U256::from(10i32.pow(18));
+    let min_deposit: U256 = U256::from(4 * 10u128.pow(18));
     log::info!("min_deposit: {:#?}", min_deposit);
 
     loop {
         std::thread::sleep(Duration::from_secs(12));
-        let _ = auto_challenge(&l1_provider, &l1_rollup, min_deposit).await;
+        let _ = auto_challenge(&l1_provider, &l1_rollup, min_deposit, challenger_address).await;
     }
 }
 
-async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, min_deposit: U256) -> Result<(), Box<dyn Error>> {
+async fn auto_challenge(
+    l1_provider: &Provider<Http>,
+    l1_rollup: &RollupType,
+    min_deposit: U256,
+    challenger_address: Address,
+) -> Result<(), Box<dyn Error>> {
     // Search for the latest batch.
     let latest = match l1_provider.get_block_number().await {
         Ok(bn) => bn,
@@ -133,11 +138,11 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     log::info!("latest batch index = {:#?}", batch_index);
 
     // Challenge state.
-    let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
-    if is_batch_finalized {
-        log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
-        return Ok(());
-    }
+    // let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
+    // if is_batch_finalized {
+    //     log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
+    //     return Ok(());
+    // }
 
     let challenges = match l1_rollup.challenges(U256::from(batch_index)).await {
         Ok(x) => x,
@@ -153,7 +158,7 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     }
 
     // l1_rollup.connect()
-    let tx: FunctionCall<_, _, _> = l1_rollup.challenge_state(batch_index).value(min_deposit);
+    let tx: FunctionCall<_, _, _> = l1_rollup.challenge_state(batch_index, challenger_address).value(min_deposit);
     let rt = tx.send().await;
     let pending_tx = match rt {
         Ok(pending_tx) => {
