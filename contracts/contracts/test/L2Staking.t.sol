@@ -2,7 +2,6 @@
 pragma solidity =0.8.24;
 
 import "forge-std/console2.sol";
-import {ERC20PresetFixedSupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetFixedSupplyUpgradeable.sol";
 import {L2Staking} from "../L2/staking/L2Staking.sol";
 import {IRecord} from "../L2/staking/IRecord.sol";
 import {Types} from "../libraries/common/Types.sol";
@@ -322,7 +321,7 @@ contract L2StakingTest is L2StakingBaseTest {
             // same blocks
             sequencerBlocks[i] = blockCount / sequencerSize;
             sequencerRatios[i] = 10000 / sequencerSize;
-            sequencerCommissions[i] = 1;
+            sequencerCommissions[i] = l2Staking.commissions(sequencers[i]);
         }
 
         IRecord.RewardEpochInfo memory rewardEpochInfo = IRecord
@@ -373,6 +372,14 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.prank(multisig);
         l2Staking.startReward();
 
+        // staker set commission
+        hevm.prank(firstStaker);
+        l2Staking.setCommissionRate(1);
+        hevm.prank(secondStaker);
+        l2Staking.setCommissionRate(1);
+        hevm.prank(thirdStaker);
+        l2Staking.setCommissionRate(1);
+
         // *************** epoch = 1 ******************** //
         time = l2Staking.REWARD_EPOCH() * 2;
         hevm.warp(time);
@@ -394,14 +401,12 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(secondRanking, 0 + 1);
 
         // *************** epoch = 2 ******************** //
-        // epoch = 2
         time = l2Staking.REWARD_EPOCH() * 3;
         hevm.roll(blocksCountOfDay * 3);
         hevm.warp(time);
         _updateDistribute(1);
 
         // *************** epoch = 3 ******************** //
-        // epoch = 2
         time = l2Staking.REWARD_EPOCH() * 4;
         hevm.roll(blocksCountOfDay * 4);
         hevm.warp(time);
@@ -423,9 +428,11 @@ contract L2StakingTest is L2StakingBaseTest {
         // bob delefate 15 ether morph token
         // total delegate amount = (5 + 15) ether
         // check the reward
+
+        uint256 commissionRate = l2Staking.commissions(secondStaker);
         uint256 sequencerEpochReward = ((totalInflations *
             (10000 / sequencerSize)) / 10000);
-        uint256 commissions = (sequencerEpochReward * 1) / 100;
+        uint256 commissions = (sequencerEpochReward * commissionRate) / 100;
         uint256 delegatorReward = sequencerEpochReward - commissions;
 
         uint256 bobReward = (delegatorReward * 15 ether) / (20 ether);
