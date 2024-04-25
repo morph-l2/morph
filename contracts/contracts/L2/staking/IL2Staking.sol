@@ -210,4 +210,10 @@ interface IL2Staking {
     function getStakesInfo(
         address[] calldata _stakerAddresses
     ) external view returns (Types.StakerInfo[] memory);
+
+    /**
+     * @notice get stakers
+     */
+    function getStakers(
+    ) external view returns (Types.StakerInfo[] memory);
 }
