@@ -20,5 +20,3 @@ jobs:
           branch: release/0.1.x
           labels: |
             cherry-pick
-          reviewers: |
-            aReviewerUser
