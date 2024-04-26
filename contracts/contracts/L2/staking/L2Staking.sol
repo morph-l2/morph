@@ -375,7 +375,7 @@ contract L2Staking is
         if (
             rewardStart &&
             beforeRanking > latestSequencerSetSize &&
-            stakerRankings[staker] <= latestSequencerSetSize
+            stakerRankings[staker] <= sequencerSetMaxSize
         ) {
             _updateSequencerSet();
         }
@@ -460,7 +460,8 @@ contract L2Staking is
             !removed &&
             rewardStart &&
             beforeRanking <= latestSequencerSetSize &&
-            stakerRankings[delegatee] > latestSequencerSetSize
+            (stakerRankings[delegatee] > latestSequencerSetSize ||
+                stakerRankings[delegatee] > candidateNumber)
         ) {
             _updateSequencerSet();
         }

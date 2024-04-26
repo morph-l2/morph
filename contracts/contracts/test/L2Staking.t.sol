@@ -309,9 +309,9 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     function _updateDistribute(uint256 epochIndex) internal returns (uint256) {
-        uint256 sequencerSize = sequencer.getSequencerSet2Size();
+        uint256 sequencerSize = SEQUENCER_SIZE;
         uint256 blockCount = DAY_SECONDS / 3; // 1 block per 3s
-        address[] memory sequencers = sequencer.getSequencerSet2();
+        address[] memory sequencers = sequencerAddresses;
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
         uint256[] memory sequencerCommissions = new uint256[](sequencerSize);
@@ -444,8 +444,6 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice  staking -> distribute -> claim
      */
     function testDelegatorUndelefateWhenRewardStarting() public {
-        uint256 sequencerSize = sequencer.getSequencerSet2Size();
-
         hevm.startPrank(alice);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
@@ -544,7 +542,7 @@ contract L2StakingTest is L2StakingBaseTest {
         for (uint256 i = 0; i < validEpoch; i++) {
             uint256 commissionRate = l2Staking.commissions(secondStaker);
             uint256 sequencerEpochReward = ((rewardInflations[i] *
-                (SEQUENCER_RATIO_PRECISION / sequencerSize)) /
+                (SEQUENCER_RATIO_PRECISION / SEQUENCER_SIZE)) /
                 SEQUENCER_RATIO_PRECISION);
             uint256 commission = (sequencerEpochReward * commissionRate) / 100;
             uint256 delegatorReward = sequencerEpochReward - commission;
