@@ -486,8 +486,17 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.undelegateStake(firstStaker);
         hevm.stopPrank();
 
-        // ranking changed by undelegate action
+        // candidateNumber decrease
         assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 1);
+        // ranking changed by undelegate action
+        assertEq(l2Staking.stakerRankings(secondStaker), 0 + 1);
+        assertEq(l2Staking.stakerRankings(thirdStaker), 0 + 2);
+        assertEq(l2Staking.stakerRankings(firstStaker), 0 + 3);
+
+        hevm.startPrank(alice);
+        hevm.expectRevert("no Morph token to claim");
+        l2Staking.claimUndelegation();
+        hevm.stopPrank();
 
         // *************** epoch = 2 ******************** //
         time = l2Staking.REWARD_EPOCH() * 3 + 1;
@@ -501,21 +510,31 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.warp(time);
         _updateDistribute(2);
 
+        // *************** at unlock epoch ******************** //
+        time = rewardStartTime + l2Staking.REWARD_EPOCH() * (ROLLUP_EPOCH + 2);
+        hevm.warp(time);
+        hevm.prank(alice);
+        l2Staking.claimUndelegation();
+
         /**
          * 1. reward = 0 no remaining reward
          * 2. reward > 0
          */
         hevm.startPrank(alice);
         uint256 balanceBefore = morphToken.balanceOf(alice);
+        // total 20 ether
+        // stake 5 ether to second staker
+        // stake 5 ether to third staker
+        // undelegate 5 ether
+        assertEq(balanceBefore, 10 ether);
         l2Staking.claimReward(firstStaker, 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
 
         // sequncer size = 3
         // proposal same blocks in every epoch
         // commission = 1
-        // alice delegate 5 ether morph token in epoch 0 - 1, undeletegate at epoch 1. valide reward epoch is 0, 1
+        // alice delegate 5 ether morph token in epoch 0 - 1, undeletegate at epoch 1. valid reward epoch is 0, 1
         // check the reward
-
         uint256 validEpoch = 2;
         uint256[] memory rewardInflations = new uint256[](validEpoch);
         rewardInflations[0] = totalInflations0;
