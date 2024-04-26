@@ -14,7 +14,8 @@ type IRollup interface {
 	CommitBatch(opts *bind.TransactOpts, batchDataInput bindings.IRollupBatchDataInput, batchSignatureInput bindings.IRollupBatchSignatureInput) (*types.Transaction, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	FinalizeBatch(opts *bind.TransactOpts, _batchIndex *big.Int) (*types.Transaction, error)
-	FINALIZATIONPERIODSECONDS(opts *bind.CallOpts) (*big.Int, error)
+	// will be used in next version
+	//FinalizationPeriodSeconds(opts *bind.CallOpts) (*big.Int, error)
 	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 }
 
