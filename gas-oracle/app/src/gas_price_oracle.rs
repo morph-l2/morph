@@ -96,8 +96,15 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
         l2_oracle.clone(),
         l1_rollup,
         config.overhead_threshold,
-        var("GAS_ORACLE_L1_RPC")?,
-        var("GAS_ORACLE_L1_BEACON_RPC")?,
+        var("GAS_ORACLE_L1_RPC")
+            .expect("Cannot detect GAS_ORACLE_L1_RPC env var")
+            .parse()
+            .expect("Cannot parse GAS_ORACLE_L1_RPC env var"),
+        var("GAS_ORACLE_L1_BEACON_RPC")
+            .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env var")
+            .parse()
+            .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var"),
+        read_env_var("OVERHEAD_SWITCH", false),
     );
 
     // Register metrics.
@@ -194,6 +201,12 @@ async fn handle_metrics() -> String {
             return String::from("");
         }
     }
+}
+
+pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
+    std::env::var(var_name)
+        .map(|s| s.parse::<T>().unwrap_or_else(|_| default.clone()))
+        .unwrap_or(default)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

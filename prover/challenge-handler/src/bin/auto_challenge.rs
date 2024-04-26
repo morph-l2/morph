@@ -241,13 +241,13 @@ async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Pr
                 return None;
             }
         };
-        let is_batch_finalized: bool = l1_rollup.is_batch_finalized(U256::from(batch_index)).await.unwrap();
+        let _is_batch_finalized: bool = l1_rollup.is_batch_finalized(U256::from(batch_index)).await.unwrap();
 
         if batch_in_challenge {
             log::info!("prev challenge not finalized, batch index = {:#?}", batch_index);
             return Some(true);
         }
-        log::info!("batch status not in challenge, batch index = {:#?}", batch_index);
+        log::debug!("batch status not in challenge, batch index = {:#?}", batch_index);
     }
     log::info!("all batch's status not in challenge now");
     Some(false)
