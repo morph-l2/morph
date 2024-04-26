@@ -1,10 +1,10 @@
-package indexer
+package config
 
 import (
 	"fmt"
+	"github.com/morph-l2/morph/oracle/flags"
 	"time"
 
-	"github.com/morph-l2/morph/oracle/staking-oracle/flags"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/urfave/cli"
@@ -60,6 +60,11 @@ type Config struct {
 	RollupAddress common.Address
 
 	StakingAddress common.Address
+
+	RollupAddr    common.Address
+	L2StakingAddr common.Address
+	MaxSize       uint64
+	StartBlock    uint64
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -128,6 +133,5 @@ func ValidateConfig(cfg *Config) error {
 			cfg.StakingAddress.String(),
 		)
 	}
-
 	return nil
 }
