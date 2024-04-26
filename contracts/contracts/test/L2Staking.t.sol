@@ -14,8 +14,6 @@ contract L2StakingTest is L2StakingBaseTest {
     uint256 SEQUENCER_RATIO_PRECISION = 1e8;
     uint256 INFLATION_RATIO_PRECISION = 1e16;
 
-    uint256 limit = 1000 ether;
-
     uint256 morphBalance = 20 ether;
 
     address[] stakers;
@@ -439,6 +437,103 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256 bobReward = (delegatorReward * 15 ether) / (20 ether);
 
         assertEq(balanceAfter, balanceBefore + bobReward);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice  staking -> distribute -> claim
+     */
+    function testDelegatorUndelefateWhenRewardStarting() public {
+        uint256 sequencerSize = sequencer.getSequencerSet2Size();
+
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        uint256 time = l2Staking.REWARD_EPOCH();
+        hevm.warp(time);
+
+        // reward starting
+        // rewardStartTime = 86400
+        // block.timeStamp >= rewardStartTime
+        // candidateNumber > 0
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        // staker set commission
+        hevm.prank(firstStaker);
+        l2Staking.setCommissionRate(1);
+        hevm.prank(secondStaker);
+        l2Staking.setCommissionRate(1);
+        hevm.prank(thirdStaker);
+        l2Staking.setCommissionRate(1);
+
+        // *************** epoch = 1 ******************** //
+        time = l2Staking.REWARD_EPOCH() * 2;
+        hevm.warp(time);
+
+        uint256 blocksCountOfDay = DAY_SECONDS / 3;
+        hevm.roll(blocksCountOfDay * 2);
+        hevm.prank(oracleAddress);
+        record.setLatestRewardEpochBlock(blocksCountOfDay);
+        uint256 totalInflations0 = _updateDistribute(0);
+
+        // effectiveEpoch = 2
+        hevm.startPrank(alice);
+        l2Staking.undelegateStake(firstStaker);
+        hevm.stopPrank();
+
+        // ranking changed by undelegate action
+        assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 1);
+
+        // *************** epoch = 2 ******************** //
+        time = l2Staking.REWARD_EPOCH() * 3 + 1;
+        hevm.roll(blocksCountOfDay * 3);
+        hevm.warp(time);
+        uint256 totalInflations1 = _updateDistribute(1);
+
+        // *************** epoch = 3 ******************** //
+        time = l2Staking.REWARD_EPOCH() * 4;
+        hevm.roll(blocksCountOfDay * 4);
+        hevm.warp(time);
+        _updateDistribute(2);
+
+        /**
+         * 1. reward = 0 no remaining reward
+         * 2. reward > 0
+         */
+        hevm.startPrank(alice);
+        uint256 balanceBefore = morphToken.balanceOf(alice);
+        l2Staking.claimReward(firstStaker, 0);
+        uint256 balanceAfter = morphToken.balanceOf(alice);
+
+        // sequncer size = 3
+        // proposal same blocks in every epoch
+        // commission = 1
+        // alice delegate 5 ether morph token in epoch 0 - 1, undeletegate at epoch 1. valide reward epoch is 0, 1
+        // check the reward
+
+        uint256 validEpoch = 2;
+        uint256[] memory rewardInflations = new uint256[](validEpoch);
+        rewardInflations[0] = totalInflations0;
+        rewardInflations[1] = totalInflations1;
+
+        uint256 totalReward = 0;
+        for (uint256 i = 0; i < validEpoch; i++) {
+            uint256 commissionRate = l2Staking.commissions(secondStaker);
+            uint256 sequencerEpochReward = ((rewardInflations[i] *
+                (SEQUENCER_RATIO_PRECISION / sequencerSize)) /
+                SEQUENCER_RATIO_PRECISION);
+            uint256 commission = (sequencerEpochReward * commissionRate) / 100;
+            uint256 delegatorReward = sequencerEpochReward - commission;
+
+            totalReward += (delegatorReward * 5 ether) / (5 ether);
+        }
+
+        assertEq(balanceAfter, balanceBefore + totalReward);
         hevm.stopPrank();
     }
 }

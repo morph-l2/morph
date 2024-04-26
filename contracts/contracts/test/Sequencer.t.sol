@@ -40,4 +40,16 @@ contract SequencerTest is L2StakingBaseTest {
             assertEq(sequencer.getCurrentSequencerSet()[i], newSequencers[i]);
         }
     }
+
+    function testSequencerSetAfterRemove() external {
+        hevm.prank(address(multisig));
+        l2Staking.updateSequencerSetMaxSize(SEQUENCER_SIZE - 1);
+
+        hevm.roll(1);
+        assertEq(sequencer.getCurrentSequencerSetSize(), SEQUENCER_SIZE);
+        hevm.roll(2);
+        assertEq(sequencer.getCurrentSequencerSetSize(), SEQUENCER_SIZE);
+        hevm.roll(3);
+        assertEq(sequencer.getCurrentSequencerSetSize(), SEQUENCER_SIZE - 1);
+    }
 }
