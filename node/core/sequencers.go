@@ -56,7 +56,7 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 }
 
 func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
-	seqHash, err := e.sequencer.SEQUENCERSETVERIFYHASH(nil)
+	seqHash, err := e.sequencer.SequencerSetVerifyHash(nil)
 	if err != nil {
 		return nil, err
 	}

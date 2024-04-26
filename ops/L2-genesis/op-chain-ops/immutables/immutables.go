@@ -180,7 +180,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			}
 			lastTx, err = l2Staking.Initialize(
 				opts,
-				config.L2StakingAdmin,
 				new(big.Int).SetUint64(config.L2StakingSequencersMaxSize),
 				new(big.Int).SetUint64(config.L2StakingUnDelegateLockEpochs),
 				new(big.Int).SetUint64(config.L2StakingRewardStartTime),

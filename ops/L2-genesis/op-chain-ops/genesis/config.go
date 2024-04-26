@@ -419,7 +419,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_initialized":  1,
 		"_initializing": false,
 		"_owner":        config.FinalSystemOwner,
-		"ORACLE":        config.RecordOracleAddress,
+		"oracle":        config.RecordOracleAddress,
 	}
 	storage["Distribute"] = state.StorageValues{
 		"_initialized":  1,

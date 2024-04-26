@@ -28,8 +28,9 @@ const config = {
 
   // staking config
   // staking Cross-Chain config
-  stakingCrossChainGaslimit: 100000,
-
+  stakingCrossChainGaslimitAdd: 100000,
+  stakingCrossChainGaslimitRemove: 1000000,
+  
   // staking initialize config
   stakingLockNumber: 3,
   stakingMinDeposit: 1, // limit
