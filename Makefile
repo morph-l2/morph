@@ -78,3 +78,7 @@ start-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
 		docker compose -f ./ops/docker-compose-4nodes.yml start $$submitter; \
 	done
+
+# build geth
+nccc_geth: submodules
+	cd go-ethereum && env GO111MODULE=on GOWORK=off go run build/ci.go install ./cmd/geth

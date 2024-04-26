@@ -26,13 +26,12 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
-	_ = abi.ConvertType
 )
 
 // SequencerMetaData contains all meta data concerning the Sequencer contract.
 var SequencerMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"sequencerSet\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"blockHeight\",\"type\":\"uint256\"}],\"name\":\"SequencerSetUpdated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"L2_STAKING_CONTRACT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SEQUENCER_SET_VERIFY_HASH\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"blockHeight0\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"blockHeight1\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"blockHeight2\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCurrentSequencerSet\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCurrentSequencerSetSize\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet0\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet0Size\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet1\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet1Size\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet2\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet2Size\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSetBytes\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_sequencerSet\",\"type\":\"address[]\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"addr\",\"type\":\"address\"}],\"name\":\"isCurrentSequencer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"addr\",\"type\":\"address\"}],\"name\":\"isSequencer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"sequencerSet0\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"sequencerSet1\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"sequencerSet2\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"newSequencerSet\",\"type\":\"address[]\"}],\"name\":\"updateSequencerSet\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
-	Bin: "0x60a060405234801561000f575f80fd5b5073530000000000000000000000000000000000001260805260805161117e6100475f395f8181610262015261062c015261117e5ff3fe608060405234801561000f575f80fd5b506004361061016e575f3560e01c80636d7f64db116100d25780639b8201a411610088578063a384c12e11610063578063a384c12e146102d2578063b1bdeab3146102da578063eae5b1e3146102e2575f80fd5b80639b8201a414610297578063a224cee7146102ac578063a2e53a94146102bf575f80fd5b80637d99e8ac116100b85780637d99e8ac1461024a578063807de4431461025d57806389609d7414610284575f80fd5b80636d7f64db1461023a57806377d7dffb14610242575f80fd5b806338871fac11610127578063646f7da01161010d578063646f7da01461020557806365fd0f8d1461020e5780636d46e98714610217575f80fd5b806338871fac146101e8578063480265c9146101f0575f80fd5b806328d1357a1161015757806328d1357a1461019e57806329025fcb146101a75780632aae60bd146101b0575f80fd5b80630e06ede81461017257806317f24c2d14610189575b5f80fd5b6007545b6040519081526020015b60405180910390f35b6101916102ea565b6040516101809190610dee565b61017660065481565b61017660045481565b6101c36101be366004610e07565b61043b565b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610180565b600354610176565b6101f8610470565b6040516101809190610e1e565b61017660015481565b61017660025481565b61022a610225366004610eb0565b6104aa565b6040519015158152602001610180565b610191610520565b61019161058b565b6101c3610258366004610e07565b6105f6565b6101c37f000000000000000000000000000000000000000000000000000000000000000081565b6101c3610292366004610e07565b610605565b6102aa6102a5366004610ef6565b610614565b005b6102aa6102ba366004610fd4565b6107dc565b61022a6102cd366004610eb0565b6109f0565b610176610b4a565b600554610176565b610191610b72565b6060600654431061036057600780548060200260200160405190810160405280929190818152602001828054801561035657602002820191905f5260205f20905b815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161032b575b5050505050905090565b60045443106103d257600580548060200260200160405190810160405280929190818152602001828054801561035657602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161032b575050505050905090565b600380548060200260200160405190810160405280929190818152602001828054801561035657602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161032b575050505050905090565b6003818154811061044a575f80fd5b5f9182526020909120015473ffffffffffffffffffffffffffffffffffffffff16905081565b606060025460036004546005600654600760405160200161049696959493929190611082565b604051602081830303815290604052905090565b5f61051a600780548060200260200160405190810160405280929190818152602001828054801561050f57602002820191905f5260205f20905b815473ffffffffffffffffffffffffffffffffffffffff1681526001909101906020018083116104e4575b505050505083610bdd565b92915050565b6060600380548060200260200160405190810160405280929190818152602001828054801561035657602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161032b575050505050905090565b6060600780548060200260200160405190810160405280929190818152602001828054801561035657602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161032b575050505050905090565b6007818154811061044a575f80fd5b6005818154811061044a575f80fd5b3373ffffffffffffffffffffffffffffffffffffffff7f000000000000000000000000000000000000000000000000000000000000000016146106b8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601760248201527f6f6e6c79204c325374616b696e6720636f6e747261637400000000000000000060448201526064015b60405180910390fd5b6006546106c64360026110c2565b1115610724576004805460029081556006549091556106e69043906110c2565b600655600580546106f991600391610c50565b506007805461070a91600591610c50565b50805161071e906007906020840190610c9c565b50610739565b8051610737906007906020840190610c9c565b505b60025460036004546005600654600760405160200161075d96959493929190611082565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe081840301815291905280516020909101206001557f7083eed0a633eebfb4ad275c34bdd165d2df2c83d7415e880220b116fb46bc62816107c34360026110c2565b6040516107d19291906110fa565b60405180910390a150565b5f54610100900460ff16158080156107fa57505f54600160ff909116105b806108135750303b15801561081357505f5460ff166001145b61089f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016106af565b5f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905580156108fb575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b81610962576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601560248201527f696e76616c69642073657175656e63657220736574000000000000000000000060448201526064016106af565b61096e60038484610d14565b5061097b60058484610d14565b5061098860078484610d14565b5080156109eb575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b505050565b5f6006544310610a675761051a600780548060200260200160405190810160405280929190818152602001828054801561050f57602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff1681526001909101906020018083116104e457505050505083610bdd565b6004544310610add5761051a600580548060200260200160405190810160405280929190818152602001828054801561050f57602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff1681526001909101906020018083116104e457505050505083610bdd565b61051a600380548060200260200160405190810160405280929190818152602001828054801561050f57602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff1681526001909101906020018083116104e457505050505083610bdd565b5f6006544310610b5b575060075490565b6004544310610b6b575060055490565b5060035490565b6060600580548060200260200160405190810160405280929190818152602001828054801561035657602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161032b575050505050905090565b5f805b8351811015610c4757838181518110610bfb57610bfb61111b565b602002602001015173ffffffffffffffffffffffffffffffffffffffff168373ffffffffffffffffffffffffffffffffffffffff1603610c3f57600191505061051a565b600101610be0565b505f9392505050565b828054828255905f5260205f20908101928215610c8c575f5260205f209182015b82811115610c8c578254825591600101919060010190610c71565b50610c98929150610d8a565b5090565b828054828255905f5260205f20908101928215610c8c579160200282015b82811115610c8c57825182547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff909116178255602090920191600190910190610cba565b828054828255905f5260205f20908101928215610c8c579160200282015b82811115610c8c5781547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff843516178255602090920191600190910190610d32565b5b80821115610c98575f8155600101610d8b565b5f815180845260208085019450602084015f5b83811015610de357815173ffffffffffffffffffffffffffffffffffffffff1687529582019590820190600101610db1565b509495945050505050565b602081525f610e006020830184610d9e565b9392505050565b5f60208284031215610e17575f80fd5b5035919050565b5f602080835283518060208501525f5b81811015610e4a57858101830151858201604001528201610e2e565b505f6040828601015260407fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8301168501019250505092915050565b803573ffffffffffffffffffffffffffffffffffffffff81168114610eab575f80fd5b919050565b5f60208284031215610ec0575f80fd5b610e0082610e88565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f6020808385031215610f07575f80fd5b823567ffffffffffffffff80821115610f1e575f80fd5b818501915085601f830112610f31575f80fd5b813581811115610f4357610f43610ec9565b8060051b6040517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0603f83011681018181108582111715610f8657610f86610ec9565b604052918252848201925083810185019188831115610fa3575f80fd5b938501935b82851015610fc857610fb985610e88565b84529385019392850192610fa8565b98975050505050505050565b5f8060208385031215610fe5575f80fd5b823567ffffffffffffffff80821115610ffc575f80fd5b818501915085601f83011261100f575f80fd5b81358181111561101d575f80fd5b8660208260051b8501011115611031575f80fd5b60209290920196919550909350505050565b5f8154825f526020805f205f5b83811015610de357815473ffffffffffffffffffffffffffffffffffffffff1687529582019560019182019101611050565b8681525f6110936020830188611043565b8681526110a36020820187611043565b90508481526110b56020820185611043565b9998505050505050505050565b8082018082111561051a577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b604081525f61110c6040830185610d9e565b90508260208301529392505050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffdfea26469706673582212200f6fef72f983ba8b8ad254c8c8f9381e66150a1569836955e3428c785b125ab864736f6c63430008180033",
+	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"sequencerSet\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"blockHeight\",\"type\":\"uint256\"}],\"name\":\"SequencerSetUpdated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"L2_STAKING_CONTRACT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"blockHeight0\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"blockHeight1\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"blockHeight2\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCurrentSequencerSet\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCurrentSequencerSetSize\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet0\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet0Size\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet1\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet1Size\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet2\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSet2Size\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerSetBytes\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_sequencerSet\",\"type\":\"address[]\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"addr\",\"type\":\"address\"}],\"name\":\"isCurrentSequencer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"addr\",\"type\":\"address\"}],\"name\":\"isSequencer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"sequencerSet0\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"sequencerSet1\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"sequencerSet2\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"sequencerSetVerifyHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"newSequencerSet\",\"type\":\"address[]\"}],\"name\":\"updateSequencerSet\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x60a060405234801561000f575f80fd5b507353000000000000000000000000000000000000126080526080516113d26100475f395f8181610291015261068801526113d25ff3fe608060405234801561000f575f80fd5b506004361061018f575f3560e01c806377d7dffb116100dd578063a224cee711610088578063b1bdeab311610063578063b1bdeab314610325578063eae5b1e31461032d578063f2fde38b14610335575f80fd5b8063a224cee7146102f7578063a2e53a941461030a578063a384c12e1461031d575f80fd5b806389609d74116100b857806389609d74146102b35780638da5cb5b146102c65780639b8201a4146102e4575f80fd5b806377d7dffb146102715780637d99e8ac14610279578063807de4431461028c575f80fd5b806338871fac1161013d5780636d46e987116101185780636d46e9871461023c5780636d7f64db1461025f578063715018a614610267575f80fd5b806338871fac14610216578063480265c91461021e57806365fd0f8d14610233575f80fd5b806328d1357a1161016d57806328d1357a146101cc57806329025fcb146101d55780632aae60bd146101de575f80fd5b80630d78725b146101935780630e06ede8146101af57806317f24c2d146101b7575b5f80fd5b61019c60655481565b6040519081526020015b60405180910390f35b606b5461019c565b6101bf610348565b6040516101a691906110b2565b61019c606a5481565b61019c60685481565b6101f16101ec36600461110b565b610499565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016101a6565b60675461019c565b6102266104ce565b6040516101a69190611122565b61019c60665481565b61024f61024a3660046111b4565b610508565b60405190151581526020016101a6565b6101bf61057e565b61026f6105e9565b005b6101bf6105fc565b6101f161028736600461110b565b610667565b6101f17f000000000000000000000000000000000000000000000000000000000000000081565b6101f16102c136600461110b565b610676565b60335473ffffffffffffffffffffffffffffffffffffffff166101f1565b61026f6102f23660046111d4565b610685565b61026f6103053660046111d4565b61083f565b61024f6103183660046111b4565b610a96565b61019c610bf0565b60695461019c565b6101bf610c18565b61026f6103433660046111b4565b610c83565b6060606a5443106103be57606b8054806020026020016040519081016040528092919081815260200182805480156103b457602002820191905f5260205f20905b815473ffffffffffffffffffffffffffffffffffffffff168152600190910190602001808311610389575b5050505050905090565b60685443106104305760698054806020026020016040519081016040528092919081815260200182805480156103b457602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff168152600190910190602001808311610389575050505050905090565b60678054806020026020016040519081016040528092919081815260200182805480156103b457602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff168152600190910190602001808311610389575050505050905090565b606781815481106104a8575f80fd5b5f9182526020909120015473ffffffffffffffffffffffffffffffffffffffff16905081565b606060665460676068546069606a54606b6040516020016104f49695949392919061128d565b604051602081830303815290604052905090565b5f610578606b80548060200260200160405190810160405280929190818152602001828054801561056d57602002820191905f5260205f20905b815473ffffffffffffffffffffffffffffffffffffffff168152600190910190602001808311610542575b505050505083610d3a565b92915050565b606060678054806020026020016040519081016040528092919081815260200182805480156103b457602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff168152600190910190602001808311610389575050505050905090565b6105f1610dad565b6105fa5f610e2e565b565b6060606b8054806020026020016040519081016040528092919081815260200182805480156103b457602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff168152600190910190602001808311610389575050505050905090565b606b81815481106104a8575f80fd5b606981815481106104a8575f80fd5b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff1614610729576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601760248201527f6f6e6c79204c325374616b696e6720636f6e747261637400000000000000000060448201526064015b60405180910390fd5b606a546107374360026112cd565b111561078b5760688054606655606a5490556107544360026112cd565b606a556069805461076791606791610fdc565b50606b805461077891606991610fdc565b50610785606b8383611028565b50610799565b610797606b8383611028565b505b60665460676068546069606a54606b6040516020016107bd9695949392919061128d565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe081840301815291905280516020909101206065557f7083eed0a633eebfb4ad275c34bdd165d2df2c83d7415e880220b116fb46bc6282826108244360026112cd565b6040516108339392919061134c565b60405180910390a15050565b5f54610100900460ff161580801561085d57505f54600160ff909116105b806108765750303b15801561087657505f5460ff166001145b610902576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a65640000000000000000000000000000000000006064820152608401610720565b5f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00166001179055801561095e575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b816109c5576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601560248201527f696e76616c69642073657175656e6365722073657400000000000000000000006044820152606401610720565b6109cd610ea4565b6109d960678484611028565b506109e660698484611028565b506109f3606b8484611028565b507f7083eed0a633eebfb4ad275c34bdd165d2df2c83d7415e880220b116fb46bc6283835f604051610a279392919061134c565b60405180910390a18015610a91575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b505050565b5f606a544310610b0d57610578606b80548060200260200160405190810160405280929190818152602001828054801561056d57602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161054257505050505083610d3a565b6068544310610b8357610578606980548060200260200160405190810160405280929190818152602001828054801561056d57602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161054257505050505083610d3a565b610578606780548060200260200160405190810160405280929190818152602001828054801561056d57602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff16815260019091019060200180831161054257505050505083610d3a565b5f606a544310610c015750606b5490565b6068544310610c11575060695490565b5060675490565b606060698054806020026020016040519081016040528092919081815260200182805480156103b457602002820191905f5260205f2090815473ffffffffffffffffffffffffffffffffffffffff168152600190910190602001808311610389575050505050905090565b610c8b610dad565b73ffffffffffffffffffffffffffffffffffffffff8116610d2e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f64647265737300000000000000000000000000000000000000000000000000006064820152608401610720565b610d3781610e2e565b50565b5f805b8351811015610da457838181518110610d5857610d5861136f565b602002602001015173ffffffffffffffffffffffffffffffffffffffff168373ffffffffffffffffffffffffffffffffffffffff1603610d9c576001915050610578565b600101610d3d565b505f9392505050565b60335473ffffffffffffffffffffffffffffffffffffffff1633146105fa576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610720565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0905f90a35050565b5f54610100900460ff16610f3a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610720565b6105fa5f54610100900460ff16610fd3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610720565b6105fa33610e2e565b828054828255905f5260205f20908101928215611018575f5260205f209182015b82811115611018578254825591600101919060010190610ffd565b5061102492915061109e565b5090565b828054828255905f5260205f20908101928215611018579160200282015b828111156110185781547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff843516178255602090920191600190910190611046565b5b80821115611024575f815560010161109f565b602080825282518282018190525f9190848201906040850190845b818110156110ff57835173ffffffffffffffffffffffffffffffffffffffff16835292840192918401916001016110cd565b50909695505050505050565b5f6020828403121561111b575f80fd5b5035919050565b5f602080835283518060208501525f5b8181101561114e57858101830151858201604001528201611132565b505f6040828601015260407fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8301168501019250505092915050565b803573ffffffffffffffffffffffffffffffffffffffff811681146111af575f80fd5b919050565b5f602082840312156111c4575f80fd5b6111cd8261118c565b9392505050565b5f80602083850312156111e5575f80fd5b823567ffffffffffffffff808211156111fc575f80fd5b818501915085601f83011261120f575f80fd5b81358181111561121d575f80fd5b8660208260051b8501011115611231575f80fd5b60209290920196919550909350505050565b5f8154825f526020805f205f5b8381101561128257815473ffffffffffffffffffffffffffffffffffffffff1687529582019560019182019101611250565b509495945050505050565b8681525f61129e6020830188611243565b8681526112ae6020820187611243565b90508481526112c06020820185611243565b9998505050505050505050565b80820180821115610578577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b8183525f60208085019450825f5b858110156112825773ffffffffffffffffffffffffffffffffffffffff6113398361118c565b1687529582019590820190600101611313565b604081525f61135f604083018587611305565b9050826020830152949350505050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffdfea26469706673582212205599251f1490790e32170dcb200cec829bc8cce1a135755d1ec8807c3a40d7cd64736f6c63430008180033",
 }
 
 // SequencerABI is the input ABI used to generate the binding from.
@@ -157,11 +156,11 @@ func NewSequencerFilterer(address common.Address, filterer bind.ContractFilterer
 
 // bindSequencer binds a generic wrapper to an already deployed contract.
 func bindSequencer(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := SequencerMetaData.GetAbi()
+	parsed, err := abi.JSON(strings.NewReader(SequencerABI))
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
@@ -231,37 +230,6 @@ func (_Sequencer *SequencerSession) L2STAKINGCONTRACT() (common.Address, error) 
 // Solidity: function L2_STAKING_CONTRACT() view returns(address)
 func (_Sequencer *SequencerCallerSession) L2STAKINGCONTRACT() (common.Address, error) {
 	return _Sequencer.Contract.L2STAKINGCONTRACT(&_Sequencer.CallOpts)
-}
-
-// SEQUENCERSETVERIFYHASH is a free data retrieval call binding the contract method 0x646f7da0.
-//
-// Solidity: function SEQUENCER_SET_VERIFY_HASH() view returns(bytes32)
-func (_Sequencer *SequencerCaller) SEQUENCERSETVERIFYHASH(opts *bind.CallOpts) ([32]byte, error) {
-	var out []interface{}
-	err := _Sequencer.contract.Call(opts, &out, "SEQUENCER_SET_VERIFY_HASH")
-
-	if err != nil {
-		return *new([32]byte), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
-
-	return out0, err
-
-}
-
-// SEQUENCERSETVERIFYHASH is a free data retrieval call binding the contract method 0x646f7da0.
-//
-// Solidity: function SEQUENCER_SET_VERIFY_HASH() view returns(bytes32)
-func (_Sequencer *SequencerSession) SEQUENCERSETVERIFYHASH() ([32]byte, error) {
-	return _Sequencer.Contract.SEQUENCERSETVERIFYHASH(&_Sequencer.CallOpts)
-}
-
-// SEQUENCERSETVERIFYHASH is a free data retrieval call binding the contract method 0x646f7da0.
-//
-// Solidity: function SEQUENCER_SET_VERIFY_HASH() view returns(bytes32)
-func (_Sequencer *SequencerCallerSession) SEQUENCERSETVERIFYHASH() ([32]byte, error) {
-	return _Sequencer.Contract.SEQUENCERSETVERIFYHASH(&_Sequencer.CallOpts)
 }
 
 // BlockHeight0 is a free data retrieval call binding the contract method 0x65fd0f8d.
@@ -698,6 +666,37 @@ func (_Sequencer *SequencerCallerSession) IsSequencer(addr common.Address) (bool
 	return _Sequencer.Contract.IsSequencer(&_Sequencer.CallOpts, addr)
 }
 
+// Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
+//
+// Solidity: function owner() view returns(address)
+func (_Sequencer *SequencerCaller) Owner(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _Sequencer.contract.Call(opts, &out, "owner")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
+//
+// Solidity: function owner() view returns(address)
+func (_Sequencer *SequencerSession) Owner() (common.Address, error) {
+	return _Sequencer.Contract.Owner(&_Sequencer.CallOpts)
+}
+
+// Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
+//
+// Solidity: function owner() view returns(address)
+func (_Sequencer *SequencerCallerSession) Owner() (common.Address, error) {
+	return _Sequencer.Contract.Owner(&_Sequencer.CallOpts)
+}
+
 // SequencerSet0 is a free data retrieval call binding the contract method 0x2aae60bd.
 //
 // Solidity: function sequencerSet0(uint256 ) view returns(address)
@@ -791,6 +790,37 @@ func (_Sequencer *SequencerCallerSession) SequencerSet2(arg0 *big.Int) (common.A
 	return _Sequencer.Contract.SequencerSet2(&_Sequencer.CallOpts, arg0)
 }
 
+// SequencerSetVerifyHash is a free data retrieval call binding the contract method 0x0d78725b.
+//
+// Solidity: function sequencerSetVerifyHash() view returns(bytes32)
+func (_Sequencer *SequencerCaller) SequencerSetVerifyHash(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _Sequencer.contract.Call(opts, &out, "sequencerSetVerifyHash")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// SequencerSetVerifyHash is a free data retrieval call binding the contract method 0x0d78725b.
+//
+// Solidity: function sequencerSetVerifyHash() view returns(bytes32)
+func (_Sequencer *SequencerSession) SequencerSetVerifyHash() ([32]byte, error) {
+	return _Sequencer.Contract.SequencerSetVerifyHash(&_Sequencer.CallOpts)
+}
+
+// SequencerSetVerifyHash is a free data retrieval call binding the contract method 0x0d78725b.
+//
+// Solidity: function sequencerSetVerifyHash() view returns(bytes32)
+func (_Sequencer *SequencerCallerSession) SequencerSetVerifyHash() ([32]byte, error) {
+	return _Sequencer.Contract.SequencerSetVerifyHash(&_Sequencer.CallOpts)
+}
+
 // Initialize is a paid mutator transaction binding the contract method 0xa224cee7.
 //
 // Solidity: function initialize(address[] _sequencerSet) returns()
@@ -810,6 +840,48 @@ func (_Sequencer *SequencerSession) Initialize(_sequencerSet []common.Address) (
 // Solidity: function initialize(address[] _sequencerSet) returns()
 func (_Sequencer *SequencerTransactorSession) Initialize(_sequencerSet []common.Address) (*types.Transaction, error) {
 	return _Sequencer.Contract.Initialize(&_Sequencer.TransactOpts, _sequencerSet)
+}
+
+// RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
+//
+// Solidity: function renounceOwnership() returns()
+func (_Sequencer *SequencerTransactor) RenounceOwnership(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _Sequencer.contract.Transact(opts, "renounceOwnership")
+}
+
+// RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
+//
+// Solidity: function renounceOwnership() returns()
+func (_Sequencer *SequencerSession) RenounceOwnership() (*types.Transaction, error) {
+	return _Sequencer.Contract.RenounceOwnership(&_Sequencer.TransactOpts)
+}
+
+// RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
+//
+// Solidity: function renounceOwnership() returns()
+func (_Sequencer *SequencerTransactorSession) RenounceOwnership() (*types.Transaction, error) {
+	return _Sequencer.Contract.RenounceOwnership(&_Sequencer.TransactOpts)
+}
+
+// TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
+//
+// Solidity: function transferOwnership(address newOwner) returns()
+func (_Sequencer *SequencerTransactor) TransferOwnership(opts *bind.TransactOpts, newOwner common.Address) (*types.Transaction, error) {
+	return _Sequencer.contract.Transact(opts, "transferOwnership", newOwner)
+}
+
+// TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
+//
+// Solidity: function transferOwnership(address newOwner) returns()
+func (_Sequencer *SequencerSession) TransferOwnership(newOwner common.Address) (*types.Transaction, error) {
+	return _Sequencer.Contract.TransferOwnership(&_Sequencer.TransactOpts, newOwner)
+}
+
+// TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
+//
+// Solidity: function transferOwnership(address newOwner) returns()
+func (_Sequencer *SequencerTransactorSession) TransferOwnership(newOwner common.Address) (*types.Transaction, error) {
+	return _Sequencer.Contract.TransferOwnership(&_Sequencer.TransactOpts, newOwner)
 }
 
 // UpdateSequencerSet is a paid mutator transaction binding the contract method 0x9b8201a4.
@@ -961,6 +1033,159 @@ func (_Sequencer *SequencerFilterer) WatchInitialized(opts *bind.WatchOpts, sink
 func (_Sequencer *SequencerFilterer) ParseInitialized(log types.Log) (*SequencerInitialized, error) {
 	event := new(SequencerInitialized)
 	if err := _Sequencer.contract.UnpackLog(event, "Initialized", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SequencerOwnershipTransferredIterator is returned from FilterOwnershipTransferred and is used to iterate over the raw logs and unpacked data for OwnershipTransferred events raised by the Sequencer contract.
+type SequencerOwnershipTransferredIterator struct {
+	Event *SequencerOwnershipTransferred // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SequencerOwnershipTransferredIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SequencerOwnershipTransferred)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SequencerOwnershipTransferred)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SequencerOwnershipTransferredIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SequencerOwnershipTransferredIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SequencerOwnershipTransferred represents a OwnershipTransferred event raised by the Sequencer contract.
+type SequencerOwnershipTransferred struct {
+	PreviousOwner common.Address
+	NewOwner      common.Address
+	Raw           types.Log // Blockchain specific contextual infos
+}
+
+// FilterOwnershipTransferred is a free log retrieval operation binding the contract event 0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0.
+//
+// Solidity: event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+func (_Sequencer *SequencerFilterer) FilterOwnershipTransferred(opts *bind.FilterOpts, previousOwner []common.Address, newOwner []common.Address) (*SequencerOwnershipTransferredIterator, error) {
+
+	var previousOwnerRule []interface{}
+	for _, previousOwnerItem := range previousOwner {
+		previousOwnerRule = append(previousOwnerRule, previousOwnerItem)
+	}
+	var newOwnerRule []interface{}
+	for _, newOwnerItem := range newOwner {
+		newOwnerRule = append(newOwnerRule, newOwnerItem)
+	}
+
+	logs, sub, err := _Sequencer.contract.FilterLogs(opts, "OwnershipTransferred", previousOwnerRule, newOwnerRule)
+	if err != nil {
+		return nil, err
+	}
+	return &SequencerOwnershipTransferredIterator{contract: _Sequencer.contract, event: "OwnershipTransferred", logs: logs, sub: sub}, nil
+}
+
+// WatchOwnershipTransferred is a free log subscription operation binding the contract event 0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0.
+//
+// Solidity: event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+func (_Sequencer *SequencerFilterer) WatchOwnershipTransferred(opts *bind.WatchOpts, sink chan<- *SequencerOwnershipTransferred, previousOwner []common.Address, newOwner []common.Address) (event.Subscription, error) {
+
+	var previousOwnerRule []interface{}
+	for _, previousOwnerItem := range previousOwner {
+		previousOwnerRule = append(previousOwnerRule, previousOwnerItem)
+	}
+	var newOwnerRule []interface{}
+	for _, newOwnerItem := range newOwner {
+		newOwnerRule = append(newOwnerRule, newOwnerItem)
+	}
+
+	logs, sub, err := _Sequencer.contract.WatchLogs(opts, "OwnershipTransferred", previousOwnerRule, newOwnerRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SequencerOwnershipTransferred)
+				if err := _Sequencer.contract.UnpackLog(event, "OwnershipTransferred", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseOwnershipTransferred is a log parse operation binding the contract event 0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0.
+//
+// Solidity: event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+func (_Sequencer *SequencerFilterer) ParseOwnershipTransferred(log types.Log) (*SequencerOwnershipTransferred, error) {
+	event := new(SequencerOwnershipTransferred)
+	if err := _Sequencer.contract.UnpackLog(event, "OwnershipTransferred", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

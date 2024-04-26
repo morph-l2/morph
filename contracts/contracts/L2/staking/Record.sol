@@ -13,51 +13,71 @@ import {IGov} from "./IGov.sol";
 import {IRecord} from "./IRecord.sol";
 
 contract Record is IRecord, OwnableUpgradeable {
-    // MorphToken contract address
+    /*************
+     * Constants *
+     *************/
+
+    /// @notice inflation rate precision
+    uint256 private constant PRECISION = 1e8;
+
+    /// @notice MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
-    // l2 staking contract address
+
+    /// @notice l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
-    // sequencer contract address
+
+    /// @notice sequencer contract address
     address public immutable SEQUENCER_CONTRACT;
-    // distribute contract address
+
+    /// @notice distribute contract address
     address public immutable DISTRIBUTE_CONTRACT;
-    // gov contract address
+
+    /// @notice gov contract address
     address public immutable GOV_CONTRACT;
-    // oracle address
-    address public ORACLE;
 
-    // sequencers reward ratio precision
-    uint256 private immutable RATIO_PRECISION = 10000;
+    /*************
+     * Variables *
+     *************/
 
-    // If the sequencer set or rollup epoch changed, reset the submitter round
-    // mapping(batch_index => batch_submission)
-    mapping(uint256 => BatchSubmission) public batchSubmissions;
-    // mapping(rollup_epoch_index => rollup_epoch_info)
-    mapping(uint256 => RollupEpochInfo) public rollupEpochs;
-    // mapping(reward_epoch_index => reward_epoch_info)
-    mapping(uint256 => RewardEpochInfo) public rewardEpochs;
-    // next batch submission index
+    /// @notice oracle address
+    address public oracle;
+
+    /// @notice If the sequencer set or rollup epoch changed, reset the submitter round
+    mapping(uint256 batchIndex => BatchSubmission) public batchSubmissions;
+
+    /// @notice rollup epoch info
+    mapping(uint256 rollupEpochIndex => RollupEpochInfo) public rollupEpochs;
+
+    /// @notice reward epoch info
+    mapping(uint256 rewardEpochIndex => RewardEpochInfo) public rewardEpochs;
+
+    /// @notice next batch submission index
     uint256 public override nextBatchSubmissionIndex;
-    // next rollup epoch index
+
+    /// @notice next rollup epoch index
     uint256 public override nextRollupEpochIndex;
-    // next reward epoch index
+
+    /// @notice next reward epoch index
     uint256 public override nextRewardEpochIndex;
-    // latest reward epoch block
+
+    /// @notice latest reward epoch block
     uint256 public override latestRewardEpochBlock;
 
-    /*********************** modifiers **************************/
+    /**********************
+     * Function Modifiers *
+     **********************/
 
     /// @notice Only prover allowed.
     modifier onlyOracle() {
-        require(msg.sender == ORACLE, "only oracle allowed");
+        require(_msgSender() == oracle, "only oracle allowed");
         _;
     }
 
-    /*********************** Constructor **************************/
+    /***************
+     * Constructor *
+     ***************/
 
-    /**
-     * @notice constructor
-     */
+    /// @notice constructor
     constructor() {
         MORPH_TOKEN_CONTRACT = Predeploys.MORPH_TOKEN;
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
@@ -66,49 +86,44 @@ contract Record is IRecord, OwnableUpgradeable {
         GOV_CONTRACT = Predeploys.GOV;
     }
 
-    /*********************** Init **************************/
+    /***************
+     * Initializer *
+     ***************/
 
-    /**
-     * @notice Initializer.
-     * @param _admin    params admin
-     * @param _oracle   oracle address
-     */
-    function initialize(address _admin, address _oracle) public initializer {
+    /// @notice Initializer.
+    /// @param _oracle   oracle address
+    function initialize(address _oracle) public initializer {
         require(_oracle != address(0), "invalid oracle address");
-        ORACLE = _oracle;
-
-        // transfer owner to admin
-        _transferOwnership(_admin);
+        __Ownable_init();
+        oracle = _oracle;
     }
 
-    /*********************** External Functions **************************/
+    /************************
+     * Restricted Functions *
+     ************************/
 
-    /**
-     * @notice set oracle address
-     * @param _oracle     oracle address
-     */
+    /// @notice set oracle address
+    /// @param _oracle     oracle address
     function setOracleAddress(address _oracle) external onlyOwner {
         require(_oracle != address(0), "invalid oracle address");
-        ORACLE = _oracle;
+        oracle = _oracle;
     }
 
-    /**
-     * @notice set latest block
-     * @param _latestBlock   latest block
-     */
+    /// @notice set latest block
+    /// @param _latestBlock   latest block
     function setLatestRewardEpochBlock(
         uint256 _latestBlock
     ) external onlyOracle {
+        require(latestRewardEpochBlock == 0, "already set");
         require(_latestBlock > 0, "invalid latest block");
         latestRewardEpochBlock = _latestBlock;
     }
 
-    /**
-     * @notice record batch submissions
-     */
+    /// @notice record batch submissions
     function recordFinalizedBatchSubmissions(
-        BatchSubmission[] memory _batchSubmissions
+        BatchSubmission[] calldata _batchSubmissions
     ) external onlyOracle {
+        require(_batchSubmissions.length > 0, "empty batch submissions");
         for (uint256 i = 0; i < _batchSubmissions.length; i++) {
             require(
                 _batchSubmissions[i].index == nextBatchSubmissionIndex + i,
@@ -123,14 +138,18 @@ contract Record is IRecord, OwnableUpgradeable {
                 _batchSubmissions[i].rollupTime
             );
         }
+        emit BatchSubmissionsUploaded(
+            nextBatchSubmissionIndex,
+            _batchSubmissions.length
+        );
+        nextBatchSubmissionIndex += _batchSubmissions.length;
     }
 
-    /**
-     * @notice record epochs
-     */
+    /// @notice record epochs
     function recordRollupEpochs(
-        RollupEpochInfo[] memory _rollupEpochs
+        RollupEpochInfo[] calldata _rollupEpochs
     ) external onlyOracle {
+        require(_rollupEpochs.length > 0, "empty rollup epochs");
         for (uint256 i = 0; i < _rollupEpochs.length; i++) {
             require(
                 _rollupEpochs[i].index == nextRollupEpochIndex + i,
@@ -144,14 +163,15 @@ contract Record is IRecord, OwnableUpgradeable {
                 _rollupEpochs[i].endTime
             );
         }
+        emit RollupEpochsUploaded(nextRollupEpochIndex, _rollupEpochs.length);
+        nextRollupEpochIndex += _rollupEpochs.length;
     }
 
-    /**
-     * @notice record epochs
-     */
+    /// @notice record epochs
     function recordRewardEpochs(
-        RewardEpochInfo[] memory _rewardEpochs
+        RewardEpochInfo[] calldata _rewardEpochs
     ) external onlyOracle {
+        require(_rewardEpochs.length > 0, "empty reward epochs");
         require(latestRewardEpochBlock > 0, "start block should be set");
         require(
             nextRewardEpochIndex + _rewardEpochs.length - 1 <
@@ -162,7 +182,7 @@ contract Record is IRecord, OwnableUpgradeable {
             nextRewardEpochIndex + _rewardEpochs.length - 1
         );
 
-        uint256 latestRewardEpochBlockSubstitute = latestRewardEpochBlock;
+        uint256 totalBlocks;
         for (uint256 i = 0; i < _rewardEpochs.length; i++) {
             uint256 dataLen = _rewardEpochs[i].sequencers.length;
             uint256 index = _rewardEpochs[i].index;
@@ -174,7 +194,7 @@ contract Record is IRecord, OwnableUpgradeable {
                 "invalid data length"
             );
 
-            latestRewardEpochBlockSubstitute += _rewardEpochs[i].blockCount;
+            totalBlocks += _rewardEpochs[i].blockCount;
             rewardEpochs[index] = RewardEpochInfo(
                 index,
                 _rewardEpochs[i].blockCount,
@@ -186,8 +206,8 @@ contract Record is IRecord, OwnableUpgradeable {
 
             uint256 inflationAmount = IMorphToken(MORPH_TOKEN_CONTRACT)
                 .inflation(index);
-            uint256 blockCount = 0;
-            uint256 ratioSum = 0;
+            uint256 blockCount;
+            uint256 ratioSum;
             uint256[] memory delegatorRewards = new uint256[](dataLen);
             uint256[] memory commissions = new uint256[](dataLen);
             for (uint256 j = 0; j < dataLen; j++) {
@@ -200,7 +220,7 @@ contract Record is IRecord, OwnableUpgradeable {
 
                 // compute rewards per sequencer
                 uint256 reward = (inflationAmount *
-                    _rewardEpochs[i].sequencerRatios[j]) / RATIO_PRECISION;
+                    _rewardEpochs[i].sequencerRatios[j]) / PRECISION;
                 commissions[j] =
                     (reward * _rewardEpochs[i].sequencerCommissions[j]) /
                     100;
@@ -210,7 +230,7 @@ contract Record is IRecord, OwnableUpgradeable {
                 blockCount == _rewardEpochs[i].blockCount,
                 "invalid sequencers blocks"
             );
-            require(ratioSum <= RATIO_PRECISION, "invalid sequencers ratios");
+            require(ratioSum <= PRECISION, "invalid sequencers ratios");
 
             // update sequencers reward data
             IDistribute(DISTRIBUTE_CONTRACT).updateEpochReward(
@@ -221,18 +241,18 @@ contract Record is IRecord, OwnableUpgradeable {
             );
         }
 
-        latestRewardEpochBlock = latestRewardEpochBlockSubstitute;
-
+        emit RewardEpochsUploaded(nextRewardEpochIndex, _rewardEpochs.length);
+        latestRewardEpochBlock += totalBlocks;
         nextRewardEpochIndex += _rewardEpochs.length;
     }
 
-    /*********************** External View Functions **************************/
+    /*************************
+     * Public View Functions *
+     *************************/
 
-    /**
-     * @notice getBatchSubmissions
-     * @param start start index
-     * @param end   end index
-     */
+    /// @notice getBatchSubmissions
+    /// @param start start index
+    /// @param end   end index
     function getBatchSubmissions(
         uint256 start,
         uint256 end
@@ -244,11 +264,9 @@ contract Record is IRecord, OwnableUpgradeable {
         }
     }
 
-    /**
-     * @notice get rollup epochs
-     * @param start start index
-     * @param end   end index
-     */
+    /// @notice get rollup epochs
+    /// @param start start index
+    /// @param end   end index
     function getRollupEpochs(
         uint256 start,
         uint256 end
@@ -260,11 +278,9 @@ contract Record is IRecord, OwnableUpgradeable {
         }
     }
 
-    /**
-     * @notice get reward epochs
-     * @param start start index
-     * @param end   end index
-     */
+    /// @notice get reward epochs
+    /// @param start start index
+    /// @param end   end index
     function getRewardEpochs(
         uint256 start,
         uint256 end

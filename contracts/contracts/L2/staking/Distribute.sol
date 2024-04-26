@@ -13,74 +13,96 @@ import {IMorphToken} from "../system/IMorphToken.sol";
 contract Distribute is IDistribute, OwnableUpgradeable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
-    // MorphToken contract address
+    /*************
+     * Constants *
+     *************/
+
+    /// @notice MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
-    // record contract address
+
+    /// @notice record contract address
     address public immutable RECORD_CONTRACT;
-    // l2 staking contract address
+
+    /// @notice l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
-    // reward epoch, seconds of one day (3600 * 24)
+
+    /// @notice reward epoch, seconds of one day (3600 * 24)
     uint256 public immutable REWARD_EPOCH = 86400;
 
-    // total minted epoch
+    /*************
+     * Variables *
+     *************/
+
+    /// @notice total minted epoch
     uint256 private mintedEpochCount;
 
-    // mapping(delegatee => mapping(epoch_index => Distribution)). delete after all claimed
-    mapping(address => mapping(uint256 => Distribution)) private distributions;
-    // mapping(delegatee => epoch_index)
-    mapping(address => uint256) public override unclaimedCommission;
-    // mapping(delegator => unclaimed_info)
-    mapping(address => Unclaimed) private unclaimed;
+    /// @notice distribution info, delete after all claimed
+    mapping(address delegatee => mapping(uint256 epochIndex => Distribution))
+        private distributions;
 
-    /*********************** modifiers ***********************************/
+    /// @notice delegatee's unclaimed commission
+    mapping(address delegatee => uint256 epochIndex)
+        public
+        override unclaimedCommission;
 
-    /**
-     * @notice Ensures that the caller message from l2 staking contract.
-     */
+    /// @notice delegator's unclaimed reward
+    mapping(address delegator => Unclaimed) private unclaimed;
+
+    /**********************
+     * Function Modifiers *
+     **********************/
+
+    /// @notice Ensures that the caller message from l2 staking contract.
     modifier onlyL2StakingContract() {
         require(
-            msg.sender == L2_STAKING_CONTRACT,
+            _msgSender() == L2_STAKING_CONTRACT,
             "only l2 staking contract allowed"
         );
         _;
     }
 
-    /**
-     * @notice Ensures that the caller message from record contract.
-     */
+    /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
-        require(msg.sender == RECORD_CONTRACT, "only record contract allowed");
+        require(
+            _msgSender() == RECORD_CONTRACT,
+            "only record contract allowed"
+        );
 
         _;
     }
 
-    /*********************** Constructor *********************************/
+    /***************
+     * Constructor *
+     ***************/
 
-    /**
-     * @notice constructor
-     */
+    /// @notice constructor
     constructor() {
         MORPH_TOKEN_CONTRACT = Predeploys.MORPH_TOKEN;
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
         RECORD_CONTRACT = Predeploys.RECORD;
     }
 
+    /***************
+     * Initializer *
+     ***************/
+
+    /// @notice initializer
     function initialize() public initializer {
-        super.__Ownable_init_unchained();
+        __Ownable_init();
     }
 
-    /*********************** External Functions **************************/
+    /************************
+     * Restricted Functions *
+     ************************/
 
-    /**
-     * @dev notify delegation
-     * @param delegatee         delegatee address
-     * @param delegator         delegator address
-     * @param effectiveEpoch    delegation effective epoch
-     * @param amount            delegator total amount, not increment
-     * @param totalAmount       delegatee total amount
-     * @param remainsNumber     delegator number
-     * @param newDelegation     first delegate or additional delegate
-     */
+    /// @dev notify delegation
+    /// @param delegatee         delegatee address
+    /// @param delegator         delegator address
+    /// @param effectiveEpoch    delegation effective epoch
+    /// @param amount            delegator total amount, not increment
+    /// @param totalAmount       delegatee total amount
+    /// @param remainsNumber     delegator number
+    /// @param newDelegation     first delegate or additional delegate
     function notifyDelegation(
         address delegatee,
         address delegator,
@@ -103,14 +125,12 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
-    /**
-     * @dev notify unDelegation
-     * @param delegatee         delegatee address
-     * @param delegator         delegator address
-     * @param effectiveEpoch    delegation effective epoch
-     * @param totalAmount       delegatee total amount
-     * @param remainsNumber     delegator number
-     */
+    /// @dev notify unDelegation
+    /// @param delegatee         delegatee address
+    /// @param delegator         delegator address
+    /// @param effectiveEpoch    delegation effective epoch
+    /// @param totalAmount       delegatee total amount
+    /// @param remainsNumber     delegator number
     function notifyUndelegation(
         address delegatee,
         address delegator,
@@ -146,19 +166,16 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         unclaimed[delegator].unclaimedEnd[delegatee] = effectiveEpoch - 1;
     }
 
-    /**
-     * @dev update epoch reward
-     * @param epochIndex        epoch index
-     * @param sequencers        sequencers
-     * @param delegatorRewards  sequencer's delegatorRewardAmount
-     * @param commissions       sequencers commission
-     *
-     */
+    /// @dev update epoch reward
+    /// @param epochIndex        epoch index
+    /// @param sequencers        sequencers
+    /// @param delegatorRewards  sequencer's delegatorRewardAmount
+    /// @param commissions       sequencers commission
     function updateEpochReward(
         uint256 epochIndex,
-        address[] memory sequencers,
-        uint256[] memory delegatorRewards,
-        uint256[] memory commissions
+        address[] calldata sequencers,
+        uint256[] calldata delegatorRewards,
+        uint256[] calldata commissions
     ) external onlyRecordContract {
         mintedEpochCount++;
         require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
@@ -177,15 +194,13 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
-    /**
-     * @dev claim delegation reward of a delegatee.
-     * @param delegatee         delegatee address
-     * @param delegator         delegator address
-     * @param targetEpochIndex  the epoch index that the user wants to claim up to
-     *
-     * If targetEpochIndex is zero, claim up to latest mint epoch,
-     * otherwise it must be greater than the last claimed epoch index.
-     */
+    /// @dev claim delegation reward of a delegatee.
+    /// @param delegatee         delegatee address
+    /// @param delegator         delegator address
+    /// @param targetEpochIndex  the epoch index that the user wants to claim up to
+    ///
+    ///  If targetEpochIndex is zero, claim up to latest mint epoch,
+    ///  otherwise it must be greater than the last claimed epoch index.
     function claim(
         address delegatee,
         address delegator,
@@ -202,14 +217,12 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
-    /**
-     * @dev claim delegation reward of all sequencers.
-     * @param delegator         delegator address
-     * @param targetEpochIndex  the epoch index that the user wants to claim up to
-     *
-     * If targetEpochIndex is zero, claim up to latest mint epoch,
-     * otherwise it must be greater than the last claimed epoch index.
-     */
+    /// @dev claim delegation reward of all sequencers.
+    /// @param delegator         delegator address
+    /// @param targetEpochIndex  the epoch index that the user wants to claim up to
+    ///
+    ///  If targetEpochIndex is zero, claim up to latest mint epoch,
+    ///  otherwise it must be greater than the last claimed epoch index.
     function claimAll(
         address delegator,
         uint256 targetEpochIndex
@@ -234,11 +247,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
-    /**
-     * @dev claim commission reward
-     * @param delegatee         delegatee address
-     * @param targetEpochIndex  the epoch index that the user wants to claim up to
-     */
+    /// @dev claim commission reward
+    /// @param delegatee         delegatee address
+    /// @param targetEpochIndex  the epoch index that the user wants to claim up to
     function claimCommission(
         address delegatee,
         uint256 targetEpochIndex
@@ -253,22 +264,24 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             "all commission claimed"
         );
         uint256 commission;
-        for (uint256 i = 0; i <= end; i++) {
+        for (uint256 i = unclaimedCommission[delegatee]; i <= end; i++) {
             commission += distributions[delegatee][i].commissionAmount;
         }
         if (commission > 0) {
             _transfer(delegatee, commission);
         }
         unclaimedCommission[delegatee] = end + 1;
+
+        emit CommissionClaimed(delegatee, end, commission);
     }
 
-    /*********************** External View Functions **************************/
+    /*************************
+     * Public View Functions *
+     *************************/
 
-    /**
-     * @notice query unclaimed morph reward on a delegatee
-     * @param delegatee     delegatee address
-     * @param delegator     delegatee address
-     */
+    /// @notice query unclaimed morph reward on a delegatee
+    /// @param delegatee     delegatee address
+    /// @param delegator     delegatee address
     function queryUnclaimed(
         address delegatee,
         address delegator
@@ -298,11 +311,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
-    /*********************** Internal Functions *******************************/
+    /**********************
+     * Internal Functions *
+     **********************/
 
-    /**
-     * @notice transfer morph token
-     */
+    /// @notice transfer morph token
     function _transfer(address _to, uint256 _amount) internal {
         uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(
             _to
@@ -315,9 +328,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         );
     }
 
-    /**
-     * @notice claim delegator morph reward
-     */
+    /// @notice claim delegator morph reward
     function _claim(
         address delegatee,
         address delegator,
