@@ -11,5 +11,6 @@ use (
 	./node
 	./ops/L2-genesis
 	./ops/tools
+	./oracle
 	./tx-submitter
 )
