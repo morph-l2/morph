@@ -352,124 +352,124 @@ services:
       morphnode
       --home $NODE_DATA_DIR
 
-  sentry-geth-0:
-    container_name: sentry-geth-0
-    depends_on:
-      node-3:
-        condition: service_started
-    image: sentry-geth:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-geth-sentry
-    restart: unless-stopped
-    ports:
-      - "8945:8545"
-      - "8946:8546"
-      - "8551"
-      - "6060"
-      - "30303"
-    volumes:
-      - "sentry_geth_data:/db"
-      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
-    entrypoint:
-      - "/bin/sh"
-      - "/entrypoint.sh"
+  # sentry-geth-0:
+  #   container_name: sentry-geth-0
+  #   depends_on:
+  #     node-3:
+  #       condition: service_started
+  #   image: sentry-geth:latest
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.l2-geth-sentry
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8945:8545"
+  #     - "8946:8546"
+  #     - "8551"
+  #     - "6060"
+  #     - "30303"
+  #   volumes:
+  #     - "sentry_geth_data:/db"
+  #     - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+  #     - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+  #     - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+  #   entrypoint:
+  #     - "/bin/sh"
+  #     - "/entrypoint.sh"
 
-  sentry-node-0:
-    container_name: sentry-node-0
-    depends_on:
-      sentry-geth-0:
-        condition: service_started
-    image: sentry-node-0:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-node-4
-      target: sentry0
-    restart: unless-stopped
-    ports:
-      - "26656"
-      - "26657"
-      - "26658"
-      - "26660"
-    environment:
-      - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://sentry-geth-0:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://sentry-geth-0:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
-      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - MORPH_NODE_L1_CONFIRMATIONS=0
-      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
-    volumes:
-      - "sentry_node_data:${NODE_DATA_DIR}"
-      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-    command: >
-      morphnode
-      --home $NODE_DATA_DIR    
+  # sentry-node-0:
+  #   container_name: sentry-node-0
+  #   depends_on:
+  #     sentry-geth-0:
+  #       condition: service_started
+  #   image: sentry-node-0:latest
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.l2-node-4
+  #     target: sentry0
+  #   restart: unless-stopped
+  #   ports:
+  #     - "26656"
+  #     - "26657"
+  #     - "26658"
+  #     - "26660"
+  #   environment:
+  #     - EMPTY_BLOCK_DELAY=true
+  #     - MORPH_NODE_L2_ETH_RPC=http://sentry-geth-0:8545
+  #     - MORPH_NODE_L2_ENGINE_RPC=http://sentry-geth-0:8551
+  #     - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+  #     - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+  #     - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+  #     - MORPH_NODE_L1_CONFIRMATIONS=0
+  #     - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+  #   volumes:
+  #     - "sentry_node_data:${NODE_DATA_DIR}"
+  #     - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+  #   command: >
+  #     morphnode
+  #     --home $NODE_DATA_DIR    
     
 
-  validator_geth:
-     container_name: validator_geth
-     image: sentry-geth:latest
-     depends_on:
-       tx-submitter-0:
-         condition: service_started
-     ports:
-       - "7545:8545"
-       - "7546:8546"
-       - "7551:8551"
-     healthcheck:
-       test: curl -f http://localhost:8545
-       interval: 30s
-       timeout: 5s
-       retries: 3
-     volumes:
-       - "validator_geth_data:${GETH_DATA_DIR}"
-       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-       - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
-     entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
-       - "/bin/bash"
-       - "/entrypoint.sh"
+  # validator_geth:
+  #    container_name: validator_geth
+  #    image: sentry-geth:latest
+  #    depends_on:
+  #      tx-submitter-0:
+  #        condition: service_started
+  #    ports:
+  #      - "7545:8545"
+  #      - "7546:8546"
+  #      - "7551:8551"
+  #    healthcheck:
+  #      test: curl -f http://localhost:8545
+  #      interval: 30s
+  #      timeout: 5s
+  #      retries: 3
+  #    volumes:
+  #      - "validator_geth_data:${GETH_DATA_DIR}"
+  #      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+  #      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+  #    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+  #      - "/bin/bash"
+  #      - "/entrypoint.sh"
 
-  validator_node:
-     container_name: validator_node
-     depends_on:
-       validator_geth:
-           condition: service_started
-     build:
-       context: ../..
-       dockerfile: ops/docker/Dockerfile.l2-node-1
-     image: morph-node:latest
-     ports:
-       - "26660"
-     environment:
-       - MORPH_NODE_L2_ETH_RPC=http://validator_geth:8545
-       - MORPH_NODE_L2_ENGINE_RPC=http://validator_geth:8551
-       - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
-       ## todo need to replace it to a public network
-       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-       - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-       - MORPH_NODE_VALIDATOR_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-       - MORPH_NODE_DERIVATION_START_HEIGHT=1
-       - MORPH_NODE_SYNC_START_HEIGHT=1
-       - MORPH_NODE_DERIVATION_FETCH_BLOCK_RANGE=5000
-       - MORPH_NODE_L1_CHAIN_ID=900
-       - MORPH_NODE_VALIDATOR=true
-       - MORPH_NODE_MOCK_SEQUENCER=false
-       - MORPH_NODE_L1_CONFIRMATIONS=1
-       - MORPH_NODE_METRICS_SERVER_ENABLE=true
-       - MORPH_NODE_METRICS_PORT=26660
-     volumes:
-       - "validator_node_data:${NODE_DATA_DIR}"
-       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-     command: >
-       morphnode
-       --validator
-       --home $NODE_DATA_DIR
+  # validator_node:
+  #    container_name: validator_node
+  #    depends_on:
+  #      validator_geth:
+  #          condition: service_started
+  #    build:
+  #      context: ../..
+  #      dockerfile: ops/docker/Dockerfile.l2-node-1
+  #    image: morph-node:latest
+  #    ports:
+  #      - "26660"
+  #    environment:
+  #      - MORPH_NODE_L2_ETH_RPC=http://validator_geth:8545
+  #      - MORPH_NODE_L2_ENGINE_RPC=http://validator_geth:8551
+  #      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+  #      ## todo need to replace it to a public network
+  #      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+  #      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+  #      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+  #      - MORPH_NODE_VALIDATOR_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  #      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #      - MORPH_NODE_DERIVATION_START_HEIGHT=1
+  #      - MORPH_NODE_SYNC_START_HEIGHT=1
+  #      - MORPH_NODE_DERIVATION_FETCH_BLOCK_RANGE=5000
+  #      - MORPH_NODE_L1_CHAIN_ID=900
+  #      - MORPH_NODE_VALIDATOR=true
+  #      - MORPH_NODE_MOCK_SEQUENCER=false
+  #      - MORPH_NODE_L1_CONFIRMATIONS=1
+  #      - MORPH_NODE_METRICS_SERVER_ENABLE=true
+  #      - MORPH_NODE_METRICS_PORT=26660
+  #    volumes:
+  #      - "validator_node_data:${NODE_DATA_DIR}"
+  #      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+  #    command: >
+  #      morphnode
+  #      --validator
+  #      --home $NODE_DATA_DIR
 
   tx-submitter-0:
     container_name:   tx-submitter-0
@@ -645,30 +645,30 @@ services:
   #     - TX_SUBMITTER_LOG_COMPRESS=true
 
 
-  gas-price-oracle:
-    container_name: gas-price-oracle
-    depends_on:
-      node-3:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.oracle
-    image: morph-oracle:latest
-    restart: unless-stopped
-    ports:
-      - "6070:6060"
-    command: >
-      ./app
-    environment:
-      - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
-      - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - GAS_ORACLE_L2_RPC=http://morph-geth-0:8545
-      - GAS_THRESHOLD=5
-      - INTERVAL=28000
-      - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
-      - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-      - OVERHEAD_THRESHOLD=200
-      - OVERHEAD_INTERVAL=10
-      - TXN_PER_BLOCK=1
-      - TXN_PER_BATCH=50
-      - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  # gas-price-oracle:
+  #   container_name: gas-price-oracle
+  #   depends_on:
+  #     node-3:
+  #       condition: service_started
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.oracle
+  #   image: morph-oracle:latest
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6070:6060"
+  #   command: >
+  #     ./app
+  #   environment:
+  #     - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
+  #     - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+  #     - GAS_ORACLE_L2_RPC=http://morph-geth-0:8545
+  #     - GAS_THRESHOLD=5
+  #     - INTERVAL=28000
+  #     - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
+  #     - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  #     - OVERHEAD_THRESHOLD=200
+  #     - OVERHEAD_INTERVAL=10
+  #     - TXN_PER_BLOCK=1
+  #     - TXN_PER_BATCH=50
+  #     - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}

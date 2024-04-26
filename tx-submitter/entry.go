@@ -108,7 +108,7 @@ func Main() func(ctx *cli.Context) error {
 		abi, _ := bindings.RollupMetaData.GetAbi()
 
 		// l1 staking
-		l1Staking, err := bindings.NewL1Staking(common.HexToAddress(cfg.StakingAddress), l1Client)
+		l1Staking, err := bindings.NewL1Staking(common.HexToAddress(cfg.L1StakingAddress), l1Client)
 		if err != nil {
 			return fmt.Errorf("failed to connect to l1 staking contract")
 		}

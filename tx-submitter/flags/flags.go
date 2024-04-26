@@ -63,11 +63,11 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP_ADDRESS"),
 	}
-	StakingAddressFlag = cli.StringFlag{
-		Name:     "staking-address",
+	L1StakingAddressFlag = cli.StringFlag{
+		Name:     "l1-staking-address",
 		Usage:    "Address of the staking contract",
 		Required: true,
-		EnvVar:   prefixEnvVar("STAKING_ADDRESS"),
+		EnvVar:   prefixEnvVar("L1_STAKING_ADDRESS"),
 	}
 
 	// finalize flags
@@ -179,7 +179,7 @@ var requiredFlags = []cli.Flag{
 	L2SequencerAddressFlag,
 	PrivateKeyFlag,
 	TxFeeLimitFlag,
-	StakingAddressFlag,
+	L1StakingAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{

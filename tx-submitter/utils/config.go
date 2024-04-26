@@ -26,7 +26,7 @@ type Config struct {
 	// RollupAddress is the Rollup contract address.
 	RollupAddress string
 	// StakingAddress
-	StakingAddress string
+	L1StakingAddress string
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -85,8 +85,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		Finalize:       ctx.GlobalBool(flags.FinalizeFlag.Name),
 		MaxFinalizeNum: ctx.GlobalUint64(flags.MaxFinalizeNumFlag.Name),
 		// L1 contract
-		StakingAddress: ctx.GlobalString(flags.StakingAddressFlag.Name),
-		RollupAddress:  ctx.GlobalString(flags.RollupAddressFlag.Name),
+		L1StakingAddress: ctx.GlobalString(flags.L1StakingAddressFlag.Name),
+		RollupAddress:    ctx.GlobalString(flags.RollupAddressFlag.Name),
 		// metrics
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
