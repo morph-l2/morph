@@ -6,11 +6,6 @@ import {OwnableBase} from "./OwnableBase.sol";
 import {IWhitelist} from "./IWhitelist.sol";
 
 contract Whitelist is OwnableBase, IWhitelist {
-    /// @notice Emitted when account whitelist status changed.
-    /// @param _account The address of account whose status is changed.
-    /// @param _status The current whitelist status.
-    event WhitelistStatusChanged(address indexed _account, bool _status);
-
     /// @notice Keep track whether the account is whitelisted.
     mapping(address => bool) private isWhitelisted;
 

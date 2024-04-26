@@ -2,30 +2,18 @@
 pragma solidity =0.8.24;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
-import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
+import {L2ToL1MessagePasser} from "../L2/system/L2ToL1MessagePasser.sol";
 import {IL2ETHGateway} from "../L2/gateways/IL2ETHGateway.sol";
 import {L2ETHGateway} from "../L2/gateways/L2ETHGateway.sol";
 import {L2GatewayRouter} from "../L2/gateways/L2GatewayRouter.sol";
 import {L2CrossDomainMessenger} from "../L2/L2CrossDomainMessenger.sol";
 import {IL1ETHGateway} from "../L1/gateways/IL1ETHGateway.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
+import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
 
 contract L2ETHGatewayTest is L2GatewayBaseTest {
-    event WithdrawETH(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data,
-        uint256 nonce
-    );
-    event FinalizeDepositETH(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data
-    );
-
     L2ETHGateway private gateway;
     L2GatewayRouter private router;
     L2CrossDomainMessenger private l2Messenger;
@@ -187,7 +175,9 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         // counterpart is not L1ETHGateway
         // emit FailedRelayedMessage from L2CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(keccak256(xDomainCalldata));
+        emit ICrossDomainMessenger.FailedRelayedMessage(
+            keccak256(xDomainCalldata)
+        );
 
         uint256 messengerBalance = address(l2Messenger).balance;
         uint256 recipientBalance = recipient.balance;
@@ -242,7 +232,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         // emit FinalizeDepositETH from L2ETHGateway
         {
             hevm.expectEmit(true, true, false, true);
-            emit FinalizeDepositETH(
+            emit IL2ETHGateway.FinalizeDepositETH(
                 sender,
                 address(recipient),
                 amount,
@@ -253,7 +243,9 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         // emit RelayedMessage from L2CrossDomainMessenger
         {
             hevm.expectEmit(true, false, false, true);
-            emit RelayedMessage(keccak256(xDomainCalldata));
+            emit ICrossDomainMessenger.RelayedMessage(
+                keccak256(xDomainCalldata)
+            );
         }
 
         uint256 messengerBalance = address(l2Messenger).balance;
@@ -319,13 +311,17 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
+                emit L2ToL1MessagePasser.AppendMessage(
+                    0,
+                    keccak256(xDomainCalldata),
+                    rootHash
+                );
             }
 
             // emit SentMessage from L2CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     amount,
@@ -337,7 +333,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawETH from L2ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit WithdrawETH(
+            emit IL2ETHGateway.WithdrawETH(
                 address(this),
                 address(this),
                 amount,
@@ -404,13 +400,17 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
+                emit L2ToL1MessagePasser.AppendMessage(
+                    0,
+                    keccak256(xDomainCalldata),
+                    rootHash
+                );
             }
 
             // emit SentMessage from L2CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     amount,
@@ -422,7 +422,13 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawETH from L2ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit WithdrawETH(address(this), recipient, amount, new bytes(0), 0);
+            emit IL2ETHGateway.WithdrawETH(
+                address(this),
+                recipient,
+                amount,
+                new bytes(0),
+                0
+            );
 
             uint256 messengerBalance = address(l2Messenger).balance;
             uint256 feeVaultBalance = address(feeVault).balance;
@@ -502,13 +508,17 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
+                emit L2ToL1MessagePasser.AppendMessage(
+                    0,
+                    keccak256(xDomainCalldata),
+                    rootHash
+                );
             }
 
             // emit SentMessage from L2CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     amount,
@@ -520,7 +530,13 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawETH from L2ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit WithdrawETH(address(this), recipient, amount, dataToCall, 0);
+            emit IL2ETHGateway.WithdrawETH(
+                address(this),
+                recipient,
+                amount,
+                dataToCall,
+                0
+            );
 
             uint256 messengerBalance = address(l2Messenger).balance;
             uint256 feeVaultBalance = address(feeVault).balance;

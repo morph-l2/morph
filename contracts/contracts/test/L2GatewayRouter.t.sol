@@ -6,25 +6,12 @@ import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.so
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
 import {L2GatewayRouter} from "../L2/gateways/L2GatewayRouter.sol";
+import {IL2GatewayRouter} from "../L2/gateways/IL2GatewayRouter.sol";
 import {L2CrossDomainMessenger} from "../L2/L2CrossDomainMessenger.sol";
 
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
 
 contract L2GatewayRouterTest is L2GatewayBaseTest {
-    event SetETHGateway(
-        address indexed oldETHGateway,
-        address indexed newEthGateway
-    );
-    event SetDefaultERC20Gateway(
-        address indexed oldDefaultERC20Gateway,
-        address indexed newDefaultERC20Gateway
-    );
-    event SetERC20Gateway(
-        address indexed token,
-        address indexed oldGateway,
-        address indexed newGateway
-    );
-
     L2GatewayRouter private router;
     L2CrossDomainMessenger private l2Messenger;
 
@@ -76,7 +63,7 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
 
         // set by owner, should succeed
         hevm.expectEmit(true, true, false, true);
-        emit SetDefaultERC20Gateway(
+        emit IL2GatewayRouter.SetDefaultERC20Gateway(
             address(0),
             address(l2StandardERC20Gateway)
         );
@@ -109,7 +96,7 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         _gateways[0] = address(l2StandardERC20Gateway);
 
         hevm.expectEmit(true, true, true, true);
-        emit SetERC20Gateway(
+        emit IL2GatewayRouter.SetERC20Gateway(
             address(l1Token),
             address(0),
             address(l2StandardERC20Gateway)

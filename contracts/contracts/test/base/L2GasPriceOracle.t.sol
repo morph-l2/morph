@@ -2,18 +2,13 @@
 pragma solidity =0.8.24;
 
 /* Testing utilities */
+import {IL1MessageQueueWithGasPriceOracle} from "../../L1/rollup/IL1MessageQueueWithGasPriceOracle.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {IWhitelist} from "../../libraries/common/IWhitelist.sol";
 import {CommonTest} from "./CommonTest.t.sol";
 import {L1MessageBaseTest} from "./L1MessageBase.t.sol";
-import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 
 contract L2GasPriceOracleTest is L1MessageBaseTest {
-    event UpdateL2BaseFee(uint256 oldL2BaseFee, uint256 newL2BaseFee);
-    event UpdateWhitelistChecker(
-        address indexed _oldWhitelistChecker,
-        address indexed _newWhitelistChecker
-    );
-    event WhitelistStatusChanged(address indexed _account, bool _status);
-
     /// @notice The intrinsic gas for transaction.
     uint256 INTRINSIC_GAS_TX = 21000;
     /// @notice The appropriate intrinsic gas for each byte.
@@ -42,7 +37,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         address[] memory addList = new address[](1);
         addList[0] = address(multisig);
         hevm.expectEmit(true, true, true, true);
-        emit WhitelistStatusChanged(address(multisig), true);
+        emit IWhitelist.WhitelistStatusChanged(address(multisig), true);
         whitelistChecker.updateWhitelistStatus(addList, true);
         assertTrue(whitelistChecker.isSenderAllowed(address(multisig)));
 
@@ -60,7 +55,10 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         address testChecker = address(123);
         hevm.startPrank(multisig);
         hevm.expectEmit(true, true, true, true);
-        emit UpdateWhitelistChecker(address(whitelistChecker), testChecker);
+        emit IL1MessageQueueWithGasPriceOracle.UpdateWhitelistChecker(
+            address(whitelistChecker),
+            testChecker
+        );
         l2GasPriceOracle.updateWhitelistChecker(testChecker);
         assertEq(l2GasPriceOracle.whitelistChecker(), testChecker);
         hevm.stopPrank();
@@ -69,7 +67,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
     function testUpdateL2BaseFee() external {
         hevm.startPrank(multisig);
         hevm.expectEmit(true, true, true, true);
-        emit UpdateL2BaseFee(0, 1);
+        emit IL1MessageQueueWithGasPriceOracle.UpdateL2BaseFee(0, 1);
         l2GasPriceOracle.setL2BaseFee(1);
         assertEq(l2GasPriceOracle.l2BaseFee(), 1);
         hevm.stopPrank();

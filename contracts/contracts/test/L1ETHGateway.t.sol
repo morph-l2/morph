@@ -1,28 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
+import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
 import {IL2ETHGateway} from "../L2/gateways/IL2ETHGateway.sol";
 import {IL1ETHGateway} from "../L1/gateways/IL1ETHGateway.sol";
+import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1ETHGatewayTest is L1GatewayBaseTest {
-    event DepositETH(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data,
-        uint256 nonce
-    );
-    event RefundETH(address indexed recipient, uint256 amount);
-    event FinalizeWithdrawETH(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data
-    );
-
     address counterpartGateway;
 
     function setUp() public virtual override {
@@ -134,7 +121,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
         // drop message 0
         hevm.expectEmit(true, true, false, true);
-        emit RefundETH(address(this), amount);
+        emit IL1ETHGateway.RefundETH(address(this), amount);
 
         revertOnReceive = false;
         uint256 balance = address(this).balance;
@@ -194,7 +181,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         // counterpart is not L2ETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(_xDomainCalldataHash);
+        emit ICrossDomainMessenger.FailedRelayedMessage(_xDomainCalldataHash);
         l1CrossDomainMessenger.proveAndRelayMessage(
             _from,
             address(l1ETHGateway),
@@ -255,7 +242,12 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, false, false, true);
-            emit FinalizeWithdrawETH(sender, address(recipient), amount, "");
+            emit IL1ETHGateway.FinalizeWithdrawETH(
+                sender,
+                address(recipient),
+                amount,
+                ""
+            );
         }
 
         l1CrossDomainMessenger.proveAndRelayMessage(
@@ -319,7 +311,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -332,7 +324,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(l1ETHGateway),
                     address(counterpartGateway),
                     amount,
@@ -344,7 +336,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(
+            emit IL1ETHGateway.DepositETH(
                 address(this),
                 address(this),
                 amount,
@@ -433,7 +425,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -446,7 +438,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(l1ETHGateway),
                     address(counterpartGateway),
                     amount,
@@ -458,7 +450,13 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), recipient, amount, new bytes(0), 0);
+            emit IL1ETHGateway.DepositETH(
+                address(this),
+                recipient,
+                amount,
+                new bytes(0),
+                0
+            );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
@@ -545,7 +543,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -558,7 +556,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(l1ETHGateway),
                     address(counterpartGateway),
                     amount,
@@ -570,7 +568,13 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit DepositETH(address(this), recipient, amount, dataToCall, 0);
+            emit IL1ETHGateway.DepositETH(
+                address(this),
+                recipient,
+                amount,
+                dataToCall,
+                0
+            );
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
