@@ -168,11 +168,11 @@ contract L1MessageBaseTest is CommonTest {
             abi.encodeCall(
                 L1Staking.initialize,
                 (
-                    address(alice),
                     address(rollupProxy),
-                    20,
                     stakingValue,
                     LOCK,
+                    20,
+                    defaultGasLimit,
                     defaultGasLimit
                 )
             )

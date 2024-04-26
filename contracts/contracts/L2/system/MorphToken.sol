@@ -63,7 +63,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
     /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
-        require(msg.sender == RECORD_CONTRACT, "only record contract allowed");
+        require(
+            _msgSender() == RECORD_CONTRACT,
+            "only record contract allowed"
+        );
         _;
     }
 
@@ -93,7 +96,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
         _name = name_;
         _symbol = symbol_;
-        _mint(msg.sender, initialSupply_);
+        _mint(_msgSender(), initialSupply_);
         _dailyInflationRates.push(DailyInflationRate(dailyInflationRate_, 0));
 
         emit UpdateDailyInflationRate(dailyInflationRate_, 0);
@@ -133,12 +136,8 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             currentDayIndex > upToDayIndex,
             "the specified time has not yet been reached"
         );
-        require(
-            currentDayIndex > _inflationMintedDays,
-            "all inflations minted"
-        );
+        require(upToDayIndex >= _inflationMintedDays, "all inflations minted");
 
-        uint256 _inflationMintedDaysSubstitute = _inflationMintedDays;
         for (uint256 i = _inflationMintedDays; i <= upToDayIndex; i++) {
             uint256 rate = _dailyInflationRates[0].rate;
             // find inflation rate of the day
@@ -149,9 +148,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             }
             _inflations[i] = (_totalSupply * rate) / PRECISION;
             _mint(DISTRIBUTE_CONTRACT, _inflations[i]);
-            _inflationMintedDaysSubstitute++;
+            emit InflationMinted(i, _inflations[i]);
         }
-        _inflationMintedDays = _inflationMintedDaysSubstitute;
+
+        _inflationMintedDays = upToDayIndex + 1;
     }
 
     /*****************************
@@ -167,7 +167,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     ///
     /// - `spender` cannot be the zero address.
     function approve(address spender, uint256 amount) public returns (bool) {
-        address owner = msg.sender;
+        address owner = _msgSender();
         _approve(owner, spender, amount);
         return true;
     }
@@ -190,7 +190,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         address to,
         uint256 amount
     ) public override returns (bool) {
-        address spender = msg.sender;
+        address spender = _msgSender();
         _spendAllowance(from, spender, amount);
         _transfer(from, to, amount);
         return true;
@@ -210,7 +210,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         address spender,
         uint256 addedValue
     ) public virtual returns (bool) {
-        address owner = msg.sender;
+        address owner = _msgSender();
         _approve(owner, spender, allowance(owner, spender) + addedValue);
         return true;
     }
@@ -230,7 +230,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         address spender,
         uint256 subtractedValue
     ) public virtual returns (bool) {
-        address owner = msg.sender;
+        address owner = _msgSender();
         uint256 currentAllowance = allowance(owner, spender);
         require(
             currentAllowance >= subtractedValue,
@@ -310,7 +310,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// - `to` cannot be the zero address.
     /// - the caller must have a balance of at least `amount`.
     function transfer(address to, uint256 amount) public returns (bool) {
-        address owner = msg.sender;
+        address owner = _msgSender();
         _transfer(owner, to, amount);
         return true;
     }

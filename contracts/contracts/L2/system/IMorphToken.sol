@@ -25,11 +25,18 @@ interface IMorphToken is IERC20MetadataUpgradeable {
      * Events *
      **********/
 
-    /// @dev Emitted the owner sets the next valid exchange rate.
+    /// @notice Emitted the owner sets the next valid exchange rate.
+    /// @param rate                 new rate
+    /// @param effectiveDayIndex    effective day index
     event UpdateDailyInflationRate(
         uint256 indexed rate,
         uint256 indexed effectiveDayIndex
     );
+
+    /// @notice Inflation minted
+    /// @param dayIndex     minted day index
+    /// @param amount       inflation amount
+    event InflationMinted(uint256 indexed dayIndex, uint256 amount);
 
     /*************************
      * Public View Functions *

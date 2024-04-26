@@ -12,6 +12,10 @@ interface IL1Staking {
     /// @param blsKey   BLS pubkey
     event Registered(address addr, bytes32 tmKey, bytes blsKey);
 
+    /// @notice stakers removed
+    /// @param stakers     stakers removed
+    event StakersRemoved(address[] stakers);
+
     /// @notice Withdrawn
     /// @param addr             staker address
     /// @param unlockHeight     unlock block height
@@ -26,9 +30,33 @@ interface IL1Staking {
     /// @param stakers  slashed stakers
     event Slashed(address[] stakers);
 
-    /// @notice params updated
-    /// @param gasLimit     new gas limit
-    event ParamsUpdated(uint256 gasLimit);
+    /// @notice slash remaining claimed
+    /// @param receiver  receiver address
+    /// @param amount    claimed amount
+    event SlashRemainingClaimed(address receiver, uint256 amount);
+
+    /// @notice whitelist updated
+    /// @param add     addresses added
+    /// @param remove  addresses removed
+    event WhitelistUpdated(address[] add, address[] remove);
+
+    /// @notice gas limit add staker updated
+    /// @param oldGasLimit    old gas limit
+    /// @param newGasLimit    new gas limit
+    event GasLimitAddStakerUpdated(uint256 oldGasLimit, uint256 newGasLimit);
+
+    /// @notice gas limit remove stakers updated
+    /// @param oldGasLimit    old gas limit
+    /// @param newGasLimit    new gas limit
+    event GasLimitRemoveStakersUpdated(
+        uint256 oldGasLimit,
+        uint256 newGasLimit
+    );
+
+    /// @notice reward percentage updated
+    /// @param oldPercentage    old percentage
+    /// @param newPercentage    new percentage
+    event RewardPercentageUpdated(uint256 oldPercentage, uint256 newPercentage);
 
     /*************************
      * Public View Functions *
@@ -50,10 +78,10 @@ interface IL1Staking {
     /// @param msgHash           bls message hash
     /// @param signature         batch signature
     function verifySignature(
-        address[] memory signedSequencers,
-        address[] memory sequencerSet,
+        address[] calldata signedSequencers,
+        address[] calldata sequencerSet,
         bytes32 msgHash,
-        bytes memory signature
+        bytes calldata signature
     ) external view returns (bool);
 
     /*****************************

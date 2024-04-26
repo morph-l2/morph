@@ -305,7 +305,7 @@ contract L2StakingTest is L2StakingBaseTest {
      */
     function testUpdateParams() public {
         hevm.prank(multisig);
-        l2Staking.updateParams(2);
+        l2Staking.updateSequencerSetMaxSize(2);
 
         assertEq(sequencer.getSequencerSet2Size(), 2);
     }
@@ -384,7 +384,7 @@ contract L2StakingTest is L2StakingBaseTest {
         time = l2Staking.REWARD_EPOCH() * 2;
         hevm.warp(time);
 
-        uint256 blocksCountOfDay = DAY_SECONDS;
+        uint256 blocksCountOfDay = DAY_SECONDS / 3;
         hevm.roll(blocksCountOfDay * 2);
         hevm.prank(oracleAddress);
         record.setLatestRewardEpochBlock(blocksCountOfDay);

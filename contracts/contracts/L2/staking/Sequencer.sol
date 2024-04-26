@@ -37,7 +37,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
 
     /// @notice only L2Staking contract
     modifier onlyL2StakingContract() {
-        require(msg.sender == L2_STAKING_CONTRACT, "only L2Staking contract");
+        require(_msgSender() == L2_STAKING_CONTRACT, "only L2Staking contract");
         _;
     }
 
@@ -65,7 +65,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
         sequencerSet1 = _sequencerSet;
         sequencerSet2 = _sequencerSet;
 
-        // TODO event
+        emit SequencerSetUpdated(_sequencerSet, 0);
     }
 
     /************************
@@ -74,7 +74,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
 
     /// @notice update sequencer set. If new sequencer set is nil, layer2 will stop producing blocks
     function updateSequencerSet(
-        address[] memory newSequencerSet
+        address[] calldata newSequencerSet
     ) public onlyL2StakingContract {
         // sequencerSet changes will take effect after two blocks
         // The current block height +2 can only be greater than or equal to the last record

@@ -27,25 +27,25 @@ contract Gov is IGov, OwnableUpgradeable {
      *************/
 
     /// @notice batch block interval
-    uint256 public override batchBlockInterval = 0;
+    uint256 public override batchBlockInterval;
 
     /// @notice batch max bytes
-    uint256 public override batchMaxBytes = 0;
+    uint256 public override batchMaxBytes;
 
     /// @notice batch timeout
-    uint256 public override batchTimeout = 0;
+    uint256 public override batchTimeout;
 
     /// @notice max chunks
-    uint256 public override maxChunks = 0;
+    uint256 public override maxChunks;
 
     /// @notice rollup epoch
-    uint256 public override rollupEpoch = 0;
+    uint256 public override rollupEpoch;
 
     /// @notice proposal duration
     uint256 public proposalInterval;
 
     /// @notice proposal id
-    uint256 public override currentProposalID = 0;
+    uint256 public override currentProposalID;
 
     /// @notice proposal data
     mapping(uint256 proposalID => ProposalData) public proposalData;
@@ -63,7 +63,7 @@ contract Gov is IGov, OwnableUpgradeable {
 
     /// @notice Ensures that the caller is a sequencer in the sequencer contract.
     modifier onlySequencer() {
-        bool _in = ISequencer(SEQUENCER_CONTRACT).isSequencer(msg.sender);
+        bool _in = ISequencer(SEQUENCER_CONTRACT).isSequencer(_msgSender());
         require(_in, "only sequencer can propose");
         _;
     }
@@ -125,13 +125,12 @@ contract Gov is IGov, OwnableUpgradeable {
         maxChunks = _maxChunks;
         rollupEpoch = _rollupEpoch;
 
-        emit ProposalExecuted(
-            batchBlockInterval,
-            batchMaxBytes,
-            batchTimeout,
-            maxChunks,
-            rollupEpoch
-        );
+        emit ProposalIntervalUpdated(0, _proposalInterval);
+        emit BatchBlockIntervalUpdated(0, _batchBlockInterval);
+        emit BatchMaxBytesUpdated(0, _batchMaxBytes);
+        emit BatchTimeoutUpdated(0, _batchTimeout);
+        emit MaxChunksUpdated(0, _maxChunks);
+        emit RollupEpochUpdated(0, _rollupEpoch);
     }
 
     /************************
@@ -140,7 +139,7 @@ contract Gov is IGov, OwnableUpgradeable {
 
     /// @notice create a proposal
     function createProposal(
-        ProposalData memory proposal
+        ProposalData calldata proposal
     ) external onlySequencer {
         require(proposal.rollupEpoch != 0, "invalid rollup epoch");
         require(proposal.maxChunks > 0, "invalid max chunks");
@@ -164,12 +163,12 @@ contract Gov is IGov, OwnableUpgradeable {
         uint256 proposalID
     ) external onlySequencer proposalCheck(proposalID) {
         require(
-            !votes[proposalID].contains(msg.sender),
+            !votes[proposalID].contains(_msgSender()),
             "sequencer already vote for this proposal"
         );
 
         // update votes
-        votes[proposalID].add(msg.sender);
+        votes[proposalID].add(_msgSender());
 
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
@@ -184,6 +183,16 @@ contract Gov is IGov, OwnableUpgradeable {
         if (votes[proposalID].length() > (latestSequencerSet.length * 2) / 3) {
             _executeProposal(proposalID);
         }
+    }
+
+    function setProposalInterval(uint256 _proposalInterval) external onlyOwner {
+        require(
+            _proposalInterval > 0 && _proposalInterval != batchBlockInterval,
+            "invalid new proposal interval"
+        );
+        uint256 _oldProposalInterval = batchBlockInterval;
+        batchBlockInterval = _proposalInterval;
+        emit ProposalIntervalUpdated(_oldProposalInterval, _proposalInterval);
     }
 
     /*****************************
@@ -212,7 +221,6 @@ contract Gov is IGov, OwnableUpgradeable {
         if (proposalInfos[proposalID].approved) {
             return false;
         }
-
         // out of date
         if (!_proposalActive(proposalID)) {
             return false;
@@ -236,15 +244,50 @@ contract Gov is IGov, OwnableUpgradeable {
 
     /// @notice execute an approved proposal
     function _executeProposal(uint256 proposalID) internal {
-        batchBlockInterval = proposalData[proposalID].batchBlockInterval;
-        batchMaxBytes = proposalData[proposalID].batchMaxBytes;
-        batchTimeout = proposalData[proposalID].batchTimeout;
-        maxChunks = proposalData[proposalID].maxChunks;
-        rollupEpoch = proposalData[proposalID].rollupEpoch;
-
+        if (batchBlockInterval != proposalData[proposalID].batchBlockInterval) {
+            uint256 _oldValue = batchBlockInterval;
+            batchBlockInterval = proposalData[proposalID].batchBlockInterval;
+            emit BatchBlockIntervalUpdated(
+                _oldValue,
+                proposalData[proposalID].batchBlockInterval
+            );
+        }
+        if (batchMaxBytes != proposalData[proposalID].batchMaxBytes) {
+            uint256 _oldValue = batchMaxBytes;
+            batchMaxBytes = proposalData[proposalID].batchMaxBytes;
+            emit BatchMaxBytesUpdated(
+                _oldValue,
+                proposalData[proposalID].batchMaxBytes
+            );
+        }
+        if (batchTimeout != proposalData[proposalID].batchTimeout) {
+            uint256 _oldValue = batchTimeout;
+            batchTimeout = proposalData[proposalID].batchTimeout;
+            emit BatchTimeoutUpdated(
+                _oldValue,
+                proposalData[proposalID].batchTimeout
+            );
+        }
+        if (maxChunks != proposalData[proposalID].maxChunks) {
+            uint256 _oldValue = maxChunks;
+            maxChunks = proposalData[proposalID].maxChunks;
+            emit MaxChunksUpdated(
+                _oldValue,
+                proposalData[proposalID].maxChunks
+            );
+        }
+        if (rollupEpoch != proposalData[proposalID].rollupEpoch) {
+            uint256 _oldValue = rollupEpoch;
+            rollupEpoch = proposalData[proposalID].rollupEpoch;
+            emit RollupEpochUpdated(
+                _oldValue,
+                proposalData[proposalID].rollupEpoch
+            );
+        }
         proposalInfos[proposalID].approved = true;
 
         emit ProposalExecuted(
+            proposalID,
             batchBlockInterval,
             batchMaxBytes,
             batchTimeout,

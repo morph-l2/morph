@@ -98,7 +98,7 @@ contract L2Staking is
 
     /// @notice only staker allowed
     modifier onlyStaker() {
-        require(stakerRankings[msg.sender] > 0, "only staker allowed");
+        require(stakerRankings[_msgSender()] > 0, "only staker allowed");
         _;
     }
 
@@ -152,6 +152,9 @@ contract L2Staking is
             stakerAddresses.push(_stakers[i].addr);
             stakerRankings[_stakers[i].addr] = i + 1;
         }
+
+        emit SequencerSetMaxSizeUpdated(0, _sequencersMaxSize);
+        emit RewardStartTimeUpdated(0, _rewardStartTime);
     }
 
     /************************
@@ -160,7 +163,9 @@ contract L2Staking is
 
     /// @notice add staker, sync from L1
     /// @param add   staker to add. {addr, tmKey, blsKey}
-    function addStaker(Types.StakerInfo memory add) external onlyOtherStaking {
+    function addStaker(
+        Types.StakerInfo calldata add
+    ) external onlyOtherStaking {
         if (stakerRankings[add.addr] == 0) {
             stakerAddresses.push(add.addr);
             stakerRankings[add.addr] = stakerAddresses.length;
@@ -175,7 +180,9 @@ contract L2Staking is
 
     /// @notice remove stakers, sync from L1. If new sequencer set is nil, layer2 will stop producing blocks
     /// @param remove    staker to remove
-    function removeStakers(address[] memory remove) external onlyOtherStaking {
+    function removeStakers(
+        address[] calldata remove
+    ) external onlyOtherStaking {
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
             updateSequencerSet = rewardStart
@@ -212,12 +219,12 @@ contract L2Staking is
     /// @param commission    commission percentage
     function setCommissionRate(uint256 commission) external onlyStaker {
         require(commission <= 20, "invalid commission");
-        commissions[msg.sender] = commission;
+        commissions[_msgSender()] = commission;
         uint256 epochEffective = 0;
         if (rewardStart) {
             epochEffective = currentEpoch() + 1;
         }
-        emit CommissionUpdated(msg.sender, commission, epochEffective);
+        emit CommissionUpdated(_msgSender(), commission, epochEffective);
     }
 
     /// @notice claimCommission claim commission reward
@@ -226,20 +233,27 @@ contract L2Staking is
         uint256 targetEpochIndex
     ) external onlyStaker nonReentrant {
         IDistribute(DISTRIBUTE_CONTRACT).claimCommission(
-            msg.sender,
+            _msgSender(),
             targetEpochIndex
         );
     }
 
     /// @notice update params
-    /// @param _sequencersMaxSize   max size of sequencer set
-    function updateParams(uint256 _sequencersMaxSize) external onlyOwner {
+    /// @param _sequencerSetMaxSize   max size of sequencer set
+    function updateSequencerSetMaxSize(
+        uint256 _sequencerSetMaxSize
+    ) external onlyOwner {
         require(
-            _sequencersMaxSize > 0 && _sequencersMaxSize != sequencerSetMaxSize,
-            "invalid new sequencers size"
+            _sequencerSetMaxSize > 0 &&
+                _sequencerSetMaxSize != sequencerSetMaxSize,
+            "invalid new sequencer set max size"
         );
-        sequencerSetMaxSize = _sequencersMaxSize;
-        emit ParamsUpdated(sequencerSetMaxSize);
+        uint256 _oldSequencerSetMaxSize = sequencerSetMaxSize;
+        sequencerSetMaxSize = _sequencerSetMaxSize;
+        emit SequencerSetMaxSizeUpdated(
+            _oldSequencerSetMaxSize,
+            _sequencerSetMaxSize
+        );
 
         if (sequencerSetMaxSize < latestSequencerSetSize) {
             // update sequencer set
@@ -258,8 +272,9 @@ contract L2Staking is
                 _rewardStartTime % REWARD_EPOCH == 0,
             "invalid reward start time"
         );
+        uint256 _oldTime = rewardStartTime;
         rewardStartTime = _rewardStartTime;
-        emit RewardStartTimeUpdated(rewardStartTime);
+        emit RewardStartTimeUpdated(_oldTime, _rewardStartTime);
     }
 
     /// @notice start reward
@@ -307,11 +322,11 @@ contract L2Staking is
     ) external isStaker(staker) nonReentrant {
         require(amount > 0, "invalid stake amount");
         // Re-staking to the same staker is not allowed before claiming undelegation
-        require(!_unclaimed(msg.sender, staker), "undelegation unclaimed");
+        require(!_unclaimed(_msgSender(), staker), "undelegation unclaimed");
 
         stakerDelegations[staker] += amount;
-        delegations[staker][msg.sender] += amount;
-        delegators[staker].add(msg.sender); // will not be added repeatedly
+        delegations[staker][_msgSender()] += amount;
+        delegators[staker].add(_msgSender()); // will not be added repeatedly
 
         if (stakerDelegations[staker] == amount) {
             candidateNumber += 1;
@@ -338,24 +353,24 @@ contract L2Staking is
 
         emit Delegated(
             staker,
-            msg.sender,
-            delegations[staker][msg.sender], // new amount, not incremental
+            _msgSender(),
+            delegations[staker][_msgSender()], // new amount, not incremental
             effectiveEpoch
         );
 
         // notify delegation to distribute contract
         IDistribute(DISTRIBUTE_CONTRACT).notifyDelegation(
             staker,
-            msg.sender,
+            _msgSender(),
             effectiveEpoch,
-            delegations[staker][msg.sender],
+            delegations[staker][_msgSender()],
             stakerDelegations[staker],
             delegators[staker].length(),
-            delegations[staker][msg.sender] == amount
+            delegations[staker][_msgSender()] == amount
         );
 
         // transfer morph token from delegator to this
-        _transferFrom(msg.sender, address(this), amount);
+        _transferFrom(_msgSender(), address(this), amount);
 
         if (
             rewardStart &&
@@ -370,7 +385,7 @@ contract L2Staking is
     /// @param delegatee delegatee address
     function undelegateStake(address delegatee) external nonReentrant {
         // must claim before you can delegate stake again
-        require(!_unclaimed(msg.sender, delegatee), "undelegation unclaimed");
+        require(!_unclaimed(_msgSender(), delegatee), "undelegation unclaimed");
         require(_isStakingTo(delegatee), "staking amount is zero");
 
         // staker has been removed, unlock next epoch
@@ -388,14 +403,14 @@ contract L2Staking is
 
         Undelegation memory undelegation = Undelegation(
             delegatee,
-            delegations[delegatee][msg.sender],
+            delegations[delegatee][_msgSender()],
             unlockEpoch
         );
 
-        undelegations[msg.sender].push(undelegation);
-        delete delegations[delegatee][msg.sender];
+        undelegations[_msgSender()].push(undelegation);
+        delete delegations[delegatee][_msgSender()];
         stakerDelegations[delegatee] -= undelegation.amount;
-        delegators[delegatee].remove(msg.sender);
+        delegators[delegatee].remove(_msgSender());
 
         // update candidateNumber
         if (!removed && stakerDelegations[delegatee] == 0) {
@@ -431,7 +446,7 @@ contract L2Staking is
         // notify undelegation to distribute contract
         IDistribute(DISTRIBUTE_CONTRACT).notifyUndelegation(
             delegatee,
-            msg.sender,
+            _msgSender(),
             effectiveEpoch,
             undelegation.amount,
             delegators[delegatee].length()
@@ -439,7 +454,7 @@ contract L2Staking is
 
         emit Undelegated(
             delegatee,
-            msg.sender,
+            _msgSender(),
             undelegation.amount,
             effectiveEpoch,
             unlockEpoch
@@ -458,21 +473,21 @@ contract L2Staking is
     /// @notice delegator cliam delegate staking value
     function claimUndelegation() external nonReentrant {
         uint256 totalAmount;
-        for (uint256 i = 0; i < undelegations[msg.sender].length; i++) {
-            if (undelegations[msg.sender][i].unlockEpoch <= currentEpoch()) {
-                totalAmount += undelegations[msg.sender][i].amount;
-                if (undelegations[msg.sender].length > 1) {
-                    undelegations[msg.sender][i] = undelegations[msg.sender][
-                        undelegations[msg.sender].length - 1
-                    ];
+        for (uint256 i = 0; i < undelegations[_msgSender()].length; i++) {
+            if (undelegations[_msgSender()][i].unlockEpoch <= currentEpoch()) {
+                totalAmount += undelegations[_msgSender()][i].amount;
+                if (undelegations[_msgSender()].length > 1) {
+                    undelegations[_msgSender()][i] = undelegations[
+                        _msgSender()
+                    ][undelegations[_msgSender()].length - 1];
                 }
-                undelegations[msg.sender].pop();
+                undelegations[_msgSender()].pop();
             }
         }
         require(totalAmount > 0, "no Morph token to claim");
-        _transfer(msg.sender, totalAmount);
+        _transfer(_msgSender(), totalAmount);
 
-        emit UndelegationClaimed(msg.sender, totalAmount);
+        emit UndelegationClaimed(_msgSender(), totalAmount);
     }
 
     /// @notice delegator claim reward
@@ -484,13 +499,13 @@ contract L2Staking is
     ) external nonReentrant {
         if (delegatee == address(0)) {
             IDistribute(DISTRIBUTE_CONTRACT).claimAll(
-                msg.sender,
+                _msgSender(),
                 targetEpochIndex
             );
         } else {
             IDistribute(DISTRIBUTE_CONTRACT).claim(
                 delegatee,
-                msg.sender,
+                _msgSender(),
                 targetEpochIndex
             );
         }
@@ -591,7 +606,7 @@ contract L2Staking is
     /// @notice check if the user has staked to staker
     /// @param staker sequencers size
     function _isStakingTo(address staker) internal view returns (bool) {
-        return delegations[staker][msg.sender] > 0;
+        return delegations[staker][_msgSender()] > 0;
     }
 
     /// @notice select the size of staker with the largest staking amount, the max size is ${sequencerSetMaxSize}
