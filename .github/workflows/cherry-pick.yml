@@ -5,7 +5,7 @@ on:
     types: ["closed"]
 
 jobs:
-  cherry_pick_release_0.1.x:
+  cherry_pick_release_0_1_x:
     runs-on: ubuntu-latest
     name: Cherry pick into release/0.1.x
     if: ${{ contains(github.event.pull_request.labels.*.name, 'release/0.1.x') && github.event.pull_request.merged == true }}
