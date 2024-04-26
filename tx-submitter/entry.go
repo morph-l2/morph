@@ -107,38 +107,18 @@ func Main() func(ctx *cli.Context) error {
 		m := metrics.NewMetrics()
 		abi, _ := bindings.RollupMetaData.GetAbi()
 
-		// l2 submitters
-		var l2Submitters []iface.IL2Submitter
-		// l2 sequencers
-		var l2Sequencers []iface.IL2Sequencer
-		for _, l2Client := range l2Clients {
-			l2Sequencer, err := bindings.NewL2Sequencer(
-				common.HexToAddress(cfg.SequencerAddress),
-				l2Client,
-			)
-			if err != nil {
-				return err
-			}
-			l2Sequencers = append(l2Sequencers, l2Sequencer)
-
-			l2Submitter, err := bindings.NewSubmitter(
-				common.HexToAddress(cfg.SubmitterAddress),
-				l2Client,
-			)
-			if err != nil {
-				return err
-			}
-			l2Submitters = append(l2Submitters, l2Submitter)
+		// l1 staking
+		l1Staking, err := bindings.NewL1Staking(common.HexToAddress(cfg.L1StakingAddress), l1Client)
+		if err != nil {
+			return fmt.Errorf("failed to connect to l1 staking contract")
 		}
 
 		sr := services.NewRollup(
 			ctx,
 			m,
 			l1Client,
-			l2Clients,
 			l1Rollup,
-			l2Submitters,
-			l2Sequencers,
+			l1Staking,
 			chainID,
 			privKey,
 			*rollupAddr,
