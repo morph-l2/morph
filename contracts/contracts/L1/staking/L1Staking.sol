@@ -47,6 +47,9 @@ contract L1Staking is
     /// @notice staker whitelist
     mapping(address => bool) public whitelist;
 
+    /// @notice staker removed list
+    mapping(address => bool) public removedList;
+
     /// @notice all stakers
     EnumerableSetUpgradeable.AddressSet internal stakerSet;
 
@@ -141,6 +144,7 @@ contract L1Staking is
         address[] calldata remove
     ) external onlyOwner {
         for (uint256 i = 0; i < add.length; i++) {
+            require(!removedList[add[i]], "in removed list");
             whitelist[add[i]] = true;
         }
         for (uint256 i = 0; i < remove.length; i++) {
@@ -183,6 +187,8 @@ contract L1Staking is
         // send message to remove staker on l2
         address[] memory remove = new address[](1);
         remove[0] = _msgSender();
+        delete whitelist[_msgSender()];
+        removedList[_msgSender()] = true;
         emit StakersRemoved(remove);
 
         _removeStakers(remove);
@@ -196,17 +202,16 @@ contract L1Staking is
         for (uint256 i = 0; i < sequencers.length; i++) {
             if (withdrawals[sequencers[i]] > 0) {
                 delete withdrawals[sequencers[i]];
-                delete stakers[sequencers[i]];
                 valueSum += stakingValue;
             } else {
                 if (stakerSet.contains(sequencers[i])) {
                     valueSum += stakingValue;
                 }
                 stakerSet.remove(sequencers[i]);
-                delete stakers[sequencers[i]];
+                // remove from whitelist
+                delete whitelist[sequencers[i]];
+                removedList[sequencers[i]] = true;
             }
-            // remove from whitelist
-            delete whitelist[sequencers[i]];
         }
 
         uint256 reward = (valueSum * rewardPercentage) / 100;
@@ -285,7 +290,6 @@ contract L1Staking is
         require(withdrawals[_msgSender()] > 0, "withdrawal not exist");
         require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
 
-        delete stakers[_msgSender()];
         delete withdrawals[_msgSender()];
         emit Claimed(_msgSender(), receiver);
 
