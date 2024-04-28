@@ -24,6 +24,7 @@ type Config struct {
 	L2CrossDomainMessengerAddress common.Address  `json:"cross_domain_messenger_address"`
 	SequencerAddress              common.Address  `json:"sequencer_address"`
 	GovAddress                    common.Address  `json:"gov_address"`
+	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
 	DevSequencer                  bool            `json:"dev_sequencer"`
 	Logger                        tmlog.Logger    `json:"logger"`
@@ -37,6 +38,7 @@ func DefaultConfig() *Config {
 		L2CrossDomainMessengerAddress: predeploys.L2CrossDomainMessengerAddr,
 		SequencerAddress:              predeploys.SequencerAddr,
 		GovAddress:                    predeploys.GovAddr,
+		L2StakingAddress:              predeploys.L2StakingAddr,
 	}
 }
 
