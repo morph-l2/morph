@@ -92,6 +92,10 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	if err != nil {
 		return nil, err
 	}
+	l2Staking, err := bindings.NewL2Staking(config.L2StakingAddress, eClient)
+	if err != nil {
+		return nil, err
+	}
 
 	rollupAbi, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
@@ -106,6 +110,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		bc:                  &Version1Converter{},
 		govContract:         gov,
 		sequencer:           sequencer,
+		l2Staking:           l2Staking,
 		tmPubKey:            tmPubKeyBytes,
 		nextL1MsgIndex:      index,
 		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
