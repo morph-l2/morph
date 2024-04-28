@@ -182,7 +182,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
     /// @notice get the encoded sequencer set bytes
     function getSequencerSetBytes() external view returns (bytes memory) {
         return
-            abi.encodePacked(
+            abi.encode(
                 blockHeight0,
                 sequencerSet0,
                 blockHeight1,
