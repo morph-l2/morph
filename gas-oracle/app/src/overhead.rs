@@ -22,6 +22,7 @@ pub struct OverHead {
     overhead_threshold: u128,
     execution_node: ExecutionNode,
     beacon_node: BeaconNode,
+    overhead_switch: bool,
 }
 
 impl OverHead {
@@ -32,6 +33,7 @@ impl OverHead {
         overhead_threshold: u128,
         l1_rpc: String,
         l1_beacon_rpc: String,
+        overhead_switch: bool,
     ) -> Self {
         let execution_node = ExecutionNode { rpc_url: l1_rpc };
         let beacon_node = BeaconNode {
@@ -45,6 +47,7 @@ impl OverHead {
             overhead_threshold,
             execution_node,
             beacon_node,
+            overhead_switch,
         }
     }
 
@@ -132,9 +135,7 @@ impl OverHead {
             "current overhead on l2 is: {:#?}",
             current_overhead.as_u128()
         );
-        ORACLE_SERVICE_METRICS
-            .overhead
-            .set(i64::try_from(current_overhead).unwrap_or(-1));
+        ORACLE_SERVICE_METRICS.overhead.set(latest_overhead as i64);
 
         latest_overhead = latest_overhead.min(MAX_OVERHEAD);
         let abs_diff = U256::from(latest_overhead).abs_diff(current_overhead);
@@ -149,14 +150,16 @@ impl OverHead {
         }
 
         // Step3. update overhead
-        let tx = self
-            .l2_oracle
-            .set_overhead(U256::from(latest_overhead))
-            .legacy();
-        let rt = tx.send().await;
-        match rt {
-            Ok(info) => log::info!("tx of set_overhead has been sent: {:?}", info.tx_hash()),
-            Err(e) => log::error!("update overhead error: {:#?}", e),
+        if self.overhead_switch {
+            let tx = self
+                .l2_oracle
+                .set_overhead(U256::from(latest_overhead))
+                .legacy();
+            let rt = tx.send().await;
+            match rt {
+                Ok(info) => log::info!("tx of set_overhead has been sent: {:?}", info.tx_hash()),
+                Err(e) => log::error!("update overhead error: {:#?}", e),
+            }
         }
         *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
     }
