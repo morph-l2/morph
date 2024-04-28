@@ -6,8 +6,11 @@ go-work-sync: ## update the dependencies
 
 submodules:
 	git submodule update --init
-	git submodule update --remote 
 .PHONY: submodules
+
+submodule-update:
+	git submodule update --remote 
+.PHONY: submodule-update
 
 format: ## format the code
 	go work sync
