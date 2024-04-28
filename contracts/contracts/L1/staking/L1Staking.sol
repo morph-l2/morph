@@ -107,13 +107,13 @@ contract L1Staking is
         uint256 _gasLimitRemove
     ) public initializer {
         require(_rollupContract != address(0), "invalid rollup contract");
-        require(_stakingValue > 0, "staking limit must greater than 0");
-        require(_lockBlocks > 0, "staking limit must greater than 0");
-        require(_gasLimitAdd > 0, "gas limit must greater than 0");
-        require(_gasLimitRemove > 0, "gas limit must greater than 0");
+        require(_stakingValue > 0, "invalid staking value");
+        require(_lockBlocks > 0, "invalid withdrawal lock blocks");
+        require(_gasLimitAdd > 0, "invalid gas limit add staker");
+        require(_gasLimitRemove > 0, "invalid gas limit remove stakers");
         require(
             _rewardPercentage > 0 && _rewardPercentage <= 100,
-            "invalid reward percentage"
+            "invalid challenger reward percentage"
         );
 
         __Ownable_init();

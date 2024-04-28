@@ -17,17 +17,17 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * Constants *
      *************/
 
+    /// @notice reward epoch, seconds of one day (3600 * 24)
+    uint256 private constant REWARD_EPOCH = 86400;
+
     /// @notice MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
-
-    /// @notice record contract address
-    address public immutable RECORD_CONTRACT;
 
     /// @notice l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
 
-    /// @notice reward epoch, seconds of one day (3600 * 24)
-    uint256 public immutable REWARD_EPOCH = 86400;
+    /// @notice record contract address
+    address public immutable RECORD_CONTRACT;
 
     /*************
      * Variables *

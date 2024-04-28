@@ -23,7 +23,7 @@ contract L1WETHGateway is L1ERC20Gateway {
      *************/
 
     /// @notice The address of L2 WETH address.
-    address public immutable l2WETH;
+    address public immutable L2_WETH;
 
     /// @notice The address of L1 WETH address.
     // solhint-disable-next-line var-name-mixedcase
@@ -37,7 +37,7 @@ contract L1WETHGateway is L1ERC20Gateway {
         _disableInitializers();
 
         WETH = _WETH;
-        l2WETH = _l2WETH;
+        L2_WETH = _l2WETH;
     }
 
     /// @notice Initialize the storage of L1WETHGateway.
@@ -63,7 +63,7 @@ contract L1WETHGateway is L1ERC20Gateway {
 
     /// @inheritdoc IL1ERC20Gateway
     function getL2ERC20Address(address) public view override returns (address) {
-        return l2WETH;
+        return L2_WETH;
     }
 
     /**********************
@@ -80,7 +80,7 @@ contract L1WETHGateway is L1ERC20Gateway {
         bytes calldata
     ) internal virtual override {
         require(_l1Token == WETH, "l1 token not WETH");
-        require(_l2Token == l2WETH, "l2 token not WETH");
+        require(_l2Token == L2_WETH, "l2 token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
         IWETH(_l1Token).deposit{value: _amount}();
@@ -117,7 +117,7 @@ contract L1WETHGateway is L1ERC20Gateway {
         // 2. Generate message passed to L2WETHGateway.
         bytes memory _message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
-            (_token, l2WETH, _from, _to, _amount, _data)
+            (_token, L2_WETH, _from, _to, _amount, _data)
         );
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
@@ -126,6 +126,6 @@ contract L1WETHGateway is L1ERC20Gateway {
             value: _amount + msg.value
         }(counterpart, _amount, _message, _gasLimit, _from);
 
-        emit DepositERC20(_token, l2WETH, _from, _to, _amount, _data, nonce);
+        emit DepositERC20(_token, L2_WETH, _from, _to, _amount, _data, nonce);
     }
 }

@@ -19,14 +19,14 @@ contract ZkEvmVerifierV1 is IZkEvmVerifier {
      *************/
 
     /// @notice The address of highly optimized plonk verifier contract.
-    address public immutable plonkVerifier;
+    address public immutable PLONK_VERIFIER;
 
     /***************
      * Constructor *
      ***************/
 
     constructor(address _verifier) {
-        plonkVerifier = _verifier;
+        PLONK_VERIFIER = _verifier;
     }
 
     /*************************
@@ -38,7 +38,7 @@ contract ZkEvmVerifierV1 is IZkEvmVerifier {
         bytes calldata aggrProof,
         bytes32 publicInputHash
     ) external view override {
-        address _verifier = plonkVerifier;
+        address _verifier = PLONK_VERIFIER;
         bool success;
 
         // 1. the first 12 * 32 (0x180) bytes of `aggrProof` is `accumulator`

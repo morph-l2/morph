@@ -35,6 +35,10 @@ contract L2CrossDomainMessenger is
         _disableInitializers();
     }
 
+    /***************
+     * Initializer *
+     ***************/
+
     function initialize(address _counterpart) external initializer {
         if (_counterpart == address(0)) revert ErrZeroAddress();
         __Messenger_init(_counterpart, address(0));

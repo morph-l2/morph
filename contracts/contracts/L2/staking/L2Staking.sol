@@ -25,17 +25,17 @@ contract L2Staking is
      * Constants *
      *************/
 
-    /// @notice sequencer contract address
-    address public immutable SEQUENCER_CONTRACT;
+    /// @notice reward epoch, seconds of one day (3600 * 24)
+    uint256 private constant REWARD_EPOCH = 86400;
 
     /// @notice MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
 
+    /// @notice sequencer contract address
+    address public immutable SEQUENCER_CONTRACT;
+
     /// @notice distribute contract address
     address public immutable DISTRIBUTE_CONTRACT;
-
-    /// @notice reward epoch, seconds of one day (3600 * 24)
-    uint256 public immutable REWARD_EPOCH = 86400;
 
     /*************
      * Variables *
@@ -266,10 +266,14 @@ contract L2Staking is
     function updateRewardStartTime(
         uint256 _rewardStartTime
     ) external onlyOwner {
-        require(!rewardStart, "reward already started");
+        require(
+            !rewardStart && rewardStartTime > block.timestamp,
+            "reward already started"
+        );
         require(
             _rewardStartTime > block.timestamp &&
-                _rewardStartTime % REWARD_EPOCH == 0,
+                _rewardStartTime % REWARD_EPOCH == 0 &&
+                _rewardStartTime != rewardStartTime,
             "invalid reward start time"
         );
         uint256 _oldTime = rewardStartTime;
