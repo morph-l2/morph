@@ -33,7 +33,7 @@ export const deployZkEvmVerifierV1 = async (
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", implStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     // check params
-    await assertContractVariable(contract, 'plonkVerifier', receipt.contractAddress)
+    await assertContractVariable(contract, 'PLONK_VERIFIER', receipt.contractAddress)
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     let err = await storage(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
