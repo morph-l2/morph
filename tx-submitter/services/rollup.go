@@ -66,6 +66,7 @@ func NewRollup(
 	ctx context.Context,
 	metrics *metrics.Metrics,
 	l1 iface.Client,
+	l2Clients []iface.L2Client,
 	rollup iface.IRollup,
 	staking iface.IL1Staking,
 	chainId *big.Int,
@@ -79,9 +80,10 @@ func NewRollup(
 		ctx:     ctx,
 		metrics: metrics,
 
-		L1Client: l1,
-		Rollup:   rollup,
-		Staking:  staking,
+		L1Client:  l1,
+		Rollup:    rollup,
+		Staking:   staking,
+		L2Clients: l2Clients,
 
 		privKey:    priKey,
 		chainId:    chainId,
