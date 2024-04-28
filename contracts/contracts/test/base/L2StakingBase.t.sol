@@ -4,15 +4,14 @@ pragma solidity =0.8.24;
 import "forge-std/console2.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {Sequencer} from "../../L2/staking/Sequencer.sol";
-import {L2Staking} from "../../L2/staking/L2Staking.sol";
-import {Distribute} from "../../L2/staking/Distribute.sol";
-import {Gov} from "../../L2/staking/Gov.sol";
-import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
+import {Types} from "../../libraries/common/Types.sol";
 import {MorphToken} from "../../L2/system/MorphToken.sol";
+import {L2Staking} from "../../L2/staking/L2Staking.sol";
+import {Sequencer} from "../../L2/staking/Sequencer.sol";
+import {Distribute} from "../../L2/staking/Distribute.sol";
 import {Record} from "../../L2/staking/Record.sol";
+import {Gov} from "../../L2/staking/Gov.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 
 contract L2StakingBaseTest is L2MessageBaseTest {
@@ -23,9 +22,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     address[] public sequencerAddresses;
 
     uint256 public constant SEQUENCER_SIZE = 3;
-
     uint256 public NEXT_EPOCH_START = 1700000000;
-
+    uint256 public REWARD_EPOCH = 86400;
     uint256 public rewardStartTime = 86400;
 
     // Sequencer config
@@ -167,17 +165,12 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
         hevm.startPrank(multisig);
         // deploy impl contracts
-        Sequencer sequencerImpl = new Sequencer();
-
-        Gov govImpl = new Gov();
-
-        L2Staking l2StakingImpl = new L2Staking(payable(NON_ZERO_ADDRESS));
-
         MorphToken morphTokenImpl = new MorphToken();
-
+        L2Staking l2StakingImpl = new L2Staking(payable(NON_ZERO_ADDRESS));
+        Sequencer sequencerImpl = new Sequencer();
         Distribute distributeImpl = new Distribute();
-
         Record recordImpl = new Record();
+        Gov govImpl = new Gov();
 
         // upgrade proxy
         Types.StakerInfo[] memory stakerInfos = new Types.StakerInfo[](

@@ -57,7 +57,7 @@ contract L2StakingTest is L2StakingBaseTest {
      */
     function testAddStakers() public {
         hevm.mockCall(
-            address(l2Staking.messenger()),
+            address(l2Staking.MESSENGER()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
@@ -84,7 +84,7 @@ contract L2StakingTest is L2StakingBaseTest {
      */
     function testRemoveStakers() public {
         hevm.mockCall(
-            address(l2Staking.messenger()),
+            address(l2Staking.MESSENGER()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
@@ -210,9 +210,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(firstStaker, morphBalance);
         l2Staking.undelegateStake(firstStaker);
 
-        uint256 time = rewardStartTime +
-            l2Staking.REWARD_EPOCH() *
-            (ROLLUP_EPOCH + 1);
+        uint256 time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 1);
 
         hevm.warp(time);
         l2Staking.claimUndelegation();
@@ -246,9 +244,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         hevm.roll(ROLLUP_EPOCH);
 
-        uint256 time = rewardStartTime +
-            l2Staking.REWARD_EPOCH() *
-            (ROLLUP_EPOCH + 1);
+        uint256 time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 1);
 
         hevm.warp(time);
         l2Staking.claimUndelegation();
@@ -361,7 +357,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = l2Staking.REWARD_EPOCH();
+        uint256 time = DAY_SECONDS;
         hevm.warp(time);
 
         // reward starting
@@ -380,7 +376,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.setCommissionRate(1);
 
         // *************** epoch = 1 ******************** //
-        time = l2Staking.REWARD_EPOCH() * 2;
+        time = DAY_SECONDS * 2;
         hevm.warp(time);
 
         uint256 blocksCountOfDay = DAY_SECONDS / 3;
@@ -400,13 +396,13 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(secondRanking, 0 + 1);
 
         // *************** epoch = 2 ******************** //
-        time = l2Staking.REWARD_EPOCH() * 3;
+        time = DAY_SECONDS * 3;
         hevm.roll(blocksCountOfDay * 3);
         hevm.warp(time);
         _updateDistribute(1);
 
         // *************** epoch = 3 ******************** //
-        time = l2Staking.REWARD_EPOCH() * 4;
+        time = DAY_SECONDS * 4;
         hevm.roll(blocksCountOfDay * 4);
         hevm.warp(time);
         uint256 totalInflations = _updateDistribute(2);
@@ -452,7 +448,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = l2Staking.REWARD_EPOCH();
+        uint256 time = DAY_SECONDS;
         hevm.warp(time);
 
         // reward starting
@@ -471,7 +467,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.setCommissionRate(1);
 
         // *************** epoch = 1 ******************** //
-        time = l2Staking.REWARD_EPOCH() * 2;
+        time = DAY_SECONDS * 2;
         hevm.warp(time);
 
         uint256 blocksCountOfDay = DAY_SECONDS / 3;
@@ -498,19 +494,19 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         // *************** epoch = 2 ******************** //
-        time = l2Staking.REWARD_EPOCH() * 3 + 1;
+        time = DAY_SECONDS * 3 + 1;
         hevm.roll(blocksCountOfDay * 3);
         hevm.warp(time);
         uint256 totalInflations1 = _updateDistribute(1);
 
         // *************** epoch = 3 ******************** //
-        time = l2Staking.REWARD_EPOCH() * 4;
+        time = DAY_SECONDS * 4;
         hevm.roll(blocksCountOfDay * 4);
         hevm.warp(time);
         _updateDistribute(2);
 
         // *************** at unlock epoch ******************** //
-        time = rewardStartTime + l2Staking.REWARD_EPOCH() * (ROLLUP_EPOCH + 2);
+        time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 2);
         hevm.warp(time);
         hevm.prank(alice);
         l2Staking.claimUndelegation();

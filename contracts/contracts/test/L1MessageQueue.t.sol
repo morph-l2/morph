@@ -19,7 +19,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     function test_validateGasLimit() external {
         // store alice as messenger
         upgradeStorage(address(alice), address(rollup), address(alice));
-        assertEq(alice, l1MessageQueue.messenger());
+        assertEq(alice, l1MessageQueue.MESSENGER());
 
         // append message
         hevm.prank(multisig);
@@ -40,7 +40,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     function test_appendCrossDomainMessage() external {
         // store alice as messenger
         upgradeStorage(address(alice), address(rollup), address(alice));
-        assertEq(alice, l1MessageQueue.messenger());
+        assertEq(alice, l1MessageQueue.MESSENGER());
         // append message
         assertEq(0, l1MessageQueue.nextCrossDomainMessageIndex());
         address sender = AddressAliasHelper.applyL1ToL2Alias(address(alice));
@@ -63,7 +63,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
 
     function test_appendEnforcedTransaction() external {
         hevm.prank(multisig);
-        assertEq(alice, l1MessageQueue.enforcedTxGateway());
+        assertEq(alice, l1MessageQueue.ENFORCED_TX_GATEWAAY());
         // append message
         assertEq(0, l1MessageQueue.nextCrossDomainMessageIndex());
         bytes memory _calldata = "0x0";
@@ -82,8 +82,8 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     function test_pop_dropCrossDomainMessage() external {
         // store alice as messenger and rollup
         upgradeStorage(address(alice), address(alice), address(alice));
-        assertEq(alice, l1MessageQueue.messenger());
-        assertEq(alice, l1MessageQueue.rollup());
+        assertEq(alice, l1MessageQueue.MESSENGER());
+        assertEq(alice, l1MessageQueue.ROLLUP_CONTRACT());
         bytes memory _calldata = "0x0";
         uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee("0x0");
         // append 10 message

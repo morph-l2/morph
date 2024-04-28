@@ -54,6 +54,7 @@ contract L2MessageBaseTest is CommonTest {
             Predeploys.GAS_PRICE_ORACLE,
             address(new GasPriceOracle(multisig)).code
         );
+
         TransparentUpgradeableProxy l2ToL1MessagePasserProxy = TransparentUpgradeableProxy(
                 payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
             );

@@ -18,35 +18,29 @@ contract L1MessageBaseTest is CommonTest {
     // Staking config
     L1Staking l1Staking;
     L1Staking l1StakingImpl;
+
     uint256 public STAKING_VALUE = 1e18; // 1 eth
-    uint256 public STAKER_NUMBER = 3; // 1 eth
-    uint256 public LOCK = 3;
-    uint256 public beginSeq = 10;
+    uint256 public LOCK_BLOCKS = 3;
+    uint256 public rewardPercentage = 20;
 
     // Rollup config
     Rollup rollup;
     Rollup rollupImpl;
-    MockZkEvmVerifier verifier;
+    MockZkEvmVerifier verifier = new MockZkEvmVerifier();
 
     uint256 public proofWindow = 100;
     uint256 public maxNumTxInChunk = 10;
-    uint64 public layer2ChainId = 53077;
-    uint32 public minGasLimit = 10000;
-
-    address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
-    bytes32 public stateRoot = bytes32(uint256(1));
-    IRollup.BatchData public batchData;
-    IRollup.BatchChallengeReward public nilBatchSig;
-    address[] public sequencerSigned;
-    bytes public signature;
+    uint64 public layer2ChainID = 53077;
 
     // whitelist config
     Whitelist whitelistChecker;
 
     // L1MessageQueueWithGasPriceOracle config
     L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracle;
-    uint256 l1MessageQueue_maxGasLimit = 100000000;
+    uint256 l1MessageQueueMaxGasLimit = 100000000;
     uint32 defaultGasLimit = 1000000;
+    uint32 defaultGasLimitAdd = 1000000;
+    uint32 defaultGasLimitRemove = 10000000;
 
     // L1CrossDomainMessenger config
     L1CrossDomainMessenger l1CrossDomainMessenger;
@@ -82,11 +76,8 @@ contract L1MessageBaseTest is CommonTest {
                 new bytes(0)
             );
 
-        // deploy mock verifier
-        verifier = new MockZkEvmVerifier();
-
         // deploy impl
-        rollupImpl = new Rollup(layer2ChainId);
+        rollupImpl = new Rollup(layer2ChainID);
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
                 payable(address(l1CrossDomainMessengerProxy)),
                 address(rollupProxy),
@@ -117,7 +108,7 @@ contract L1MessageBaseTest is CommonTest {
                 abi.encodeCall(
                     L1MessageQueueWithGasPriceOracle.initialize,
                     (
-                        l1MessageQueue_maxGasLimit, // gasLimit
+                        l1MessageQueueMaxGasLimit, // gasLimit
                         address(whitelistChecker) // whitelistChecker
                     )
                 )
@@ -141,10 +132,10 @@ contract L1MessageBaseTest is CommonTest {
                 (
                     address(rollupProxy),
                     STAKING_VALUE,
-                    LOCK,
-                    20,
-                    defaultGasLimit,
-                    defaultGasLimit
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
                 )
             )
         );
@@ -165,7 +156,7 @@ contract L1MessageBaseTest is CommonTest {
 
         assertEq(
             address(l1CrossDomainMessenger),
-            l1MessageQueueWithGasPriceOracle.messenger()
+            l1MessageQueueWithGasPriceOracle.MESSENGER()
         );
 
         rollup.addChallenger(bob);
@@ -210,11 +201,14 @@ contract L1MessageBaseTest is CommonTest {
             address(_rollup), // _rollup
             address(_enforcedTxGateway) // _enforcedTxGateway
         );
-        assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.messenger());
-        assertEq(_rollup, l1MessageQueueWithGasPriceOracleImpl.rollup());
+        assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.MESSENGER());
+        assertEq(
+            _rollup,
+            l1MessageQueueWithGasPriceOracleImpl.ROLLUP_CONTRACT()
+        );
         assertEq(
             _enforcedTxGateway,
-            l1MessageQueueWithGasPriceOracleImpl.enforcedTxGateway()
+            l1MessageQueueWithGasPriceOracleImpl.ENFORCED_TX_GATEWAAY()
         );
 
         hevm.prank(multisig);
@@ -224,11 +218,11 @@ contract L1MessageBaseTest is CommonTest {
             ),
             address(l1MessageQueueWithGasPriceOracleImpl)
         );
-        assertEq(_messenger, l1MessageQueueWithGasPriceOracle.messenger());
-        assertEq(_rollup, l1MessageQueueWithGasPriceOracle.rollup());
+        assertEq(_messenger, l1MessageQueueWithGasPriceOracle.MESSENGER());
+        assertEq(_rollup, l1MessageQueueWithGasPriceOracle.ROLLUP_CONTRACT());
         assertEq(
             _enforcedTxGateway,
-            l1MessageQueueWithGasPriceOracle.enforcedTxGateway()
+            l1MessageQueueWithGasPriceOracle.ENFORCED_TX_GATEWAAY()
         );
     }
 }
