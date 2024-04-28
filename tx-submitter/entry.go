@@ -117,6 +117,7 @@ func Main() func(ctx *cli.Context) error {
 			ctx,
 			m,
 			l1Client,
+			l2Clients,
 			l1Rollup,
 			l1Staking,
 			chainID,
