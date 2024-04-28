@@ -297,22 +297,13 @@ contract L1Staking is
      *************************/
 
     /// @notice verify BLS signature
-    /// @param signedSequencers  signed sequencers
-    /// @param sequencerSet      sequencer set
-    /// @param msgHash           bls message hash
-    /// @param signature         batch signature
     function verifySignature(
-        address[] calldata signedSequencers,
-        address[] calldata sequencerSet,
-        bytes32 msgHash,
-        bytes calldata signature
+        address[] calldata, // signedSequencers
+        address[] calldata, // sequencerSet
+        bytes32, // msgHash
+        bytes calldata // signature
     ) external pure returns (bool) {
         // TODO verify BLS signature
-        signedSequencers = signedSequencers;
-        sequencerSet = sequencerSet;
-        msgHash = msgHash;
-        signature = signature;
-
         return true;
     }
 

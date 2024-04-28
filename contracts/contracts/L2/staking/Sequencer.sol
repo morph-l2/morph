@@ -94,7 +94,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
         // update SEQUENCER_VERIFY_HASH
         // ************************************************
         sequencerSetVerifyHash = keccak256(
-            abi.encodePacked(
+            abi.encode(
                 blockHeight0,
                 sequencerSet0,
                 blockHeight1,

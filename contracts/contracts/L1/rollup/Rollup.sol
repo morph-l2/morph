@@ -851,21 +851,18 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @dev Internal function to compute BLS msg hash
     function _getBLSMsgHash(
-        BatchDataInput calldata batchDataInput
+        BatchDataInput calldata // batchDataInput
     ) internal pure returns (bytes32) {
         // TODO compute bls message hash
-        batchDataInput = batchDataInput;
         return bytes32(0);
     }
 
     /// @dev Internal function to compute BLS msg hash
     function _checkSequencerSetVerifyHash(
-        BatchDataInput calldata batchDataInput,
-        bytes32 sequencerSetVerifyHash
+        BatchDataInput calldata, // batchDataInput
+        bytes32 // sequencerSetVerifyHash
     ) internal pure returns (bool) {
         // TODO check sequencerSetVerifyHash in batch
-        batchDataInput = batchDataInput;
-        sequencerSetVerifyHash = sequencerSetVerifyHash;
         return true;
     }
 
