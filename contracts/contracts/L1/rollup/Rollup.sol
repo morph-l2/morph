@@ -107,14 +107,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     modifier OnlyStaker() {
         require(
             IL1Staking(l1StakingContract).isStaker(_msgSender()),
-            "caller not sequencer"
+            "only staker allowed"
         );
         _;
     }
 
     /// @notice Only challenger allowed.
     modifier onlyChallenger() {
-        require(isChallenger[_msgSender()], "caller not challenger");
+        require(isChallenger[_msgSender()], "caller challenger allowed");
         _;
     }
 

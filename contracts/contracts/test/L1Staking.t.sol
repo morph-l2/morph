@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-// import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
-// import {Types} from "../libraries/common/Types.sol";
+import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
+import {Types} from "../libraries/common/Types.sol";
 
 // contract StakingRegisterTest is L1MessageBaseTest {
+//     uint256 public stakerNumber = 3;
+//     uint256 public beginSeq = 10;
+
 //     function testSetUpCheck() external {
 //         assertEq(l1Sequencer.stakingContract(), address(staking));
 //         assertEq(l1Sequencer.rollupContract(), address(rollup));
@@ -138,7 +141,11 @@ pragma solidity =0.8.24;
 
 //             hevm.expectEmit(true, true, true, true);
 //             version++;
-//             emit SequencerUpdated(sequencerAddresses, sequencerBLSKeys, version);
+//             emit SequencerUpdated(
+//                 sequencerAddresses,
+//                 sequencerBLSKeys,
+//                 version
+//             );
 
 //             hevm.prank(bob);
 //             staking.register{value: 3 * MIN_DEPOSIT}(

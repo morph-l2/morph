@@ -271,6 +271,7 @@ contract L1Staking is
             "invalid reward percentage"
         );
         uint256 _oldRewardPercentage = rewardPercentage;
+        rewardPercentage = _rewardPercentage;
         emit RewardPercentageUpdated(_oldRewardPercentage, _rewardPercentage);
     }
 
