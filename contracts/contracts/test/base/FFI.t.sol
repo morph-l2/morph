@@ -21,10 +21,8 @@ contract FFITest is CommonTest {
     function testGenerateStakingInfo() external {
         for (uint256 i = 0; i < 10; i++) {
             address user = address(uint160(10 + i));
-            Types.StakerInfo memory sequencerInfo = ffi.generateStakingInfo(
-                user
-            );
-            assertEq(sequencerInfo.addr, user);
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            assertEq(stakerInfo.addr, user);
         }
     }
 }

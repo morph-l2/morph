@@ -123,12 +123,12 @@ contract FFIInterface is Test {
         return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
     }
 
-    function generateStakingInfo(
+    function generateStakerInfo(
         address _staker
     ) external returns (Types.StakerInfo memory) {
         string[] memory cmds = new string[](3);
         cmds[0] = "scripts/differential-testing/differential-testing";
-        cmds[1] = "generateStakingInfo";
+        cmds[1] = "generateStakerInfo";
         cmds[2] = vm.toString(_staker);
 
         bytes memory result = vm.ffi(cmds);

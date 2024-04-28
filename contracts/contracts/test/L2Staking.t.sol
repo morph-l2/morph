@@ -64,9 +64,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(address(l2CrossDomainMessenger));
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
-            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(
-                staker
-            );
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
             l2Staking.addStaker(stakerInfo);
         }
         hevm.stopPrank();
@@ -92,9 +90,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
-            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(
-                staker
-            );
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
             l2Staking.addStaker(stakerInfo);
         }
 

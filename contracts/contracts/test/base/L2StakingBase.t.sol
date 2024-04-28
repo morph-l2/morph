@@ -178,7 +178,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         );
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address user = address(uint160(beginSeq + i));
-            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(user);
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
             stakerInfos[i] = stakerInfo;
             sequencerAddresses.push(stakerInfo.addr);
         }

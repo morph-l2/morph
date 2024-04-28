@@ -13,7 +13,7 @@ contract SequencerTest is L2StakingBaseTest {
         beginSeq = 100;
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address user = address(uint160(beginSeq + i));
-            Types.StakerInfo memory stakerInfo = ffi.generateStakingInfo(user);
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
             sequencerBLSKeys.push(stakerInfo.blsKey);
 
             newSequencers[i] = stakerInfo.addr;

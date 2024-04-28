@@ -22,6 +22,8 @@ contract L1MessageBaseTest is CommonTest {
     uint256 public STAKING_VALUE = 1e18; // 1 eth
     uint256 public LOCK_BLOCKS = 3;
     uint256 public rewardPercentage = 20;
+    uint32 public defaultGasLimitAdd = 1000000;
+    uint32 public defaultGasLimitRemove = 10000000;
 
     // Rollup config
     Rollup rollup;
@@ -37,10 +39,8 @@ contract L1MessageBaseTest is CommonTest {
 
     // L1MessageQueueWithGasPriceOracle config
     L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracle;
-    uint256 l1MessageQueueMaxGasLimit = 100000000;
-    uint32 defaultGasLimit = 1000000;
-    uint32 defaultGasLimitAdd = 1000000;
-    uint32 defaultGasLimitRemove = 10000000;
+    uint256 public l1MessageQueueMaxGasLimit = 100000000;
+    uint32 public defaultGasLimit = 1000000;
 
     // L1CrossDomainMessenger config
     L1CrossDomainMessenger l1CrossDomainMessenger;
