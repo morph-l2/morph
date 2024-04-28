@@ -2,6 +2,7 @@
 pragma solidity =0.8.24;
 
 import "forge-std/console2.sol";
+
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
@@ -39,5 +40,17 @@ contract SequencerTest is L2StakingBaseTest {
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             assertEq(sequencer.getCurrentSequencerSet()[i], newSequencers[i]);
         }
+    }
+
+    function testSequencerSetAfterRemove() external {
+        hevm.prank(address(multisig));
+        l2Staking.updateSequencerSetMaxSize(SEQUENCER_SIZE - 1);
+
+        hevm.roll(1);
+        assertEq(sequencer.getCurrentSequencerSetSize(), SEQUENCER_SIZE);
+        hevm.roll(2);
+        assertEq(sequencer.getCurrentSequencerSetSize(), SEQUENCER_SIZE);
+        hevm.roll(3);
+        assertEq(sequencer.getCurrentSequencerSetSize(), SEQUENCER_SIZE - 1);
     }
 }

@@ -2,11 +2,11 @@
 pragma solidity =0.8.24;
 
 /* Testing utilities */
+import "forge-std/Test.sol";
+import "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
-import {Test} from "forge-std/Test.sol";
 import {MockTree} from "../../mock/MockTree.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {EmptyContract} from "../../misc/EmptyContract.sol";

@@ -375,7 +375,7 @@ contract L2Staking is
         if (
             rewardStart &&
             beforeRanking > latestSequencerSetSize &&
-            stakerRankings[staker] <= latestSequencerSetSize
+            stakerRankings[staker] <= sequencerSetMaxSize
         ) {
             _updateSequencerSet();
         }
@@ -412,17 +412,8 @@ contract L2Staking is
         stakerDelegations[delegatee] -= undelegation.amount;
         delegators[delegatee].remove(_msgSender());
 
-        // update candidateNumber
-        if (!removed && stakerDelegations[delegatee] == 0) {
-            candidateNumber -= 1;
-        }
-
         uint256 beforeRanking = stakerRankings[delegatee];
-        if (
-            !removed &&
-            rewardStart &&
-            stakerRankings[delegatee] < candidateNumber
-        ) {
+        if (!removed && rewardStart && beforeRanking < candidateNumber) {
             // update stakers and rankings
             for (
                 uint256 i = stakerRankings[delegatee] - 1;
@@ -441,6 +432,11 @@ contract L2Staking is
                     stakerRankings[stakerAddresses[i + 1]] = i + 2;
                 }
             }
+        }
+
+        // update candidateNumber
+        if (!removed && stakerDelegations[delegatee] == 0) {
+            candidateNumber -= 1;
         }
 
         // notify undelegation to distribute contract
@@ -464,7 +460,8 @@ contract L2Staking is
             !removed &&
             rewardStart &&
             beforeRanking <= latestSequencerSetSize &&
-            stakerRankings[delegatee] > latestSequencerSetSize
+            (stakerRankings[delegatee] > latestSequencerSetSize ||
+                stakerRankings[delegatee] > candidateNumber)
         ) {
             _updateSequencerSet();
         }

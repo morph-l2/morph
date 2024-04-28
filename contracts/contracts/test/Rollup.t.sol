@@ -4,11 +4,12 @@ pragma solidity =0.8.24;
 // import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 // import {ChunkCodecV0} from "../libraries/codec/ChunkCodecV0.sol";
+// import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 // import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 // import {Types} from "../libraries/common/Types.sol";
 // import {Rollup} from "../L1/rollup/Rollup.sol";
 // import {IRollup} from "../L1/rollup/IRollup.sol";
-// import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+// import {IL1Staking} from "../L1/staking/IL1Staking.sol";
 
 // contract RollupCommitBatchTest is L1MessageBaseTest {
 //     function setUp() public virtual override {
@@ -23,11 +24,11 @@ pragma solidity =0.8.24;
 //     function testCommitAndFinalizeWithL1Messages() public {
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeCall(IL1Sequencer.verifySignature, ()),
+//             abi.encodeCall(IL1Staking.verifySignature, ()),
 //             abi.encode(true)
 //         );
 //         upgradeStorage(address(caller), address(rollup), address(alice));
-//         hevm.deal(caller, 5 * MIN_DEPOSIT);
+//         hevm.deal(caller, 5 * STAKING_VALUE);
 //         bytes memory batchHeader0 = new bytes(121);
 
 //         hevm.startPrank(caller);
@@ -120,7 +121,7 @@ pragma solidity =0.8.24;
 //         bitmap = new bytes(32);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
+//             abi.encodeCall(IL1Staking.isStaker, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));
@@ -141,12 +142,7 @@ pragma solidity =0.8.24;
 //             bytes32(uint256(3)),
 //             nilBatchSig
 //         );
-//         rollup.commitBatch(
-//             batchData,
-//             sequencerVersion,
-//             sequencerSigned,
-//             signature
-//         );
+//         rollup.commitBatch(batchData, sequencerSigned, signature);
 //         hevm.stopPrank();
 
 //         assertFalse(rollup.isBatchFinalized(1));
@@ -270,7 +266,7 @@ pragma solidity =0.8.24;
 //         rollup.updateMaxNumTxInChunk(2);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
+//             abi.encodeCall(IL1Staking.isStaker, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));
@@ -285,19 +281,14 @@ pragma solidity =0.8.24;
 //             bytes32(uint256(4)),
 //             nilBatchSig
 //         );
-//         rollup.commitBatch(
-//             batchData,
-//             sequencerVersion,
-//             sequencerSigned,
-//             signature
-//         ); // first chunk with too many txs
+//         rollup.commitBatch(batchData, sequencerSigned, signature); // first chunk with too many txs
 
 //         hevm.stopPrank();
 //         hevm.prank(multisig);
 //         rollup.updateMaxNumTxInChunk(10);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
+//             abi.encodeCall(IL1Staking.isStaker, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));
@@ -312,19 +303,14 @@ pragma solidity =0.8.24;
 //             bytes32(uint256(4)),
 //             nilBatchSig
 //         );
-//         rollup.commitBatch(
-//             batchData,
-//             sequencerVersion,
-//             sequencerSigned,
-//             signature
-//         ); // second chunk with too many txs
+//         rollup.commitBatch(batchData, sequencerSigned, signature); // second chunk with too many txs
 //         hevm.stopPrank();
 
 //         hevm.prank(multisig);
 //         rollup.updateMaxNumTxInChunk(186);
 //         hevm.mockCall(
 //             address(rollup.l1SequencerContract()),
-//             abi.encodeCall(IL1Sequencer.isSequencer, ()),
+//             abi.encodeCall(IL1Staking.isStaker, ()),
 //             abi.encode(true)
 //         );
 //         hevm.startPrank(address(0));
@@ -347,12 +333,7 @@ pragma solidity =0.8.24;
 //             bytes32(uint256(5)),
 //             nilBatchSig
 //         );
-//         rollup.commitBatch(
-//             batchData,
-//             sequencerVersion,
-//             sequencerSigned,
-//             signature
-//         );
+//         rollup.commitBatch(batchData, sequencerSigned, signature);
 //         hevm.stopPrank();
 //         assertFalse(rollup.isBatchFinalized(2));
 //         bytes32 batchHash2 = rollup.committedBatches(2);
@@ -414,23 +395,23 @@ pragma solidity =0.8.24;
 //             signature: "0x123456"
 //         });
 
-//         Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](
+//         Types.StakerInfo[] memory stakerInfos = new Types.StakerInfo[](
 //             SEQUENCER_SIZE
 //         );
 //         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
 //             address user = address(uint160(beginSeq + i));
-//             Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
+//             Types.StakerInfo memory sequencerInfo = ffi.generateStakingInfo(
 //                 user
 //             );
 //             sequencerAddresses.push(sequencerInfo.addr);
 //             sequencerBLSKeys.push(sequencerInfo.blsKey);
-//             sequencerInfos[i] = sequencerInfo;
+//             stakerInfos[i] = sequencerInfo;
 //         }
 //         hevm.startPrank(address(staking));
 //         l1Sequencer.updateAndSendSequencerSet(
 //             abi.encodeCall(
-//                 IL2Sequencer.updateSequencers,
-//                 (l1Sequencer.newestVersion() + 1, sequencerInfos)
+//                 IL2Staking.updateSequencers,
+//                 (l1Sequencer.newestVersion() + 1, stakerInfos)
 //             ),
 //             sequencerAddresses,
 //             sequencerBLSKeys,

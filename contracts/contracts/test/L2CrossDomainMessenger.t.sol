@@ -2,9 +2,10 @@
 pragma solidity =0.8.24;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
-import {L2MessageBaseTest} from "./base/L2MessageBase.t.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {Tree} from "../libraries/common/Tree.sol";
+import {L2MessageBaseTest} from "./base/L2MessageBase.t.sol";
 
 contract L2CrossDomainMessengerTest is L2MessageBaseTest {
     function testSendMessage() external {
@@ -28,7 +29,14 @@ contract L2CrossDomainMessengerTest is L2MessageBaseTest {
         // send message
         hevm.deal(address(this), _value);
         hevm.expectEmit(true, true, true, true);
-        emit SentMessage(address(this), to, _value, nonce, gasLimit, message);
+        emit ICrossDomainMessenger.SentMessage(
+            address(this),
+            to,
+            _value,
+            nonce,
+            gasLimit,
+            message
+        );
         l2CrossDomainMessenger.sendMessage{value: _value}(
             to,
             _value,
@@ -42,7 +50,7 @@ contract L2CrossDomainMessengerTest is L2MessageBaseTest {
         hevm.deal(address(this), _value);
         hevm.store(
             address(l2ToL1MessagePasser),
-            bytes32(l2ToL1MessagePasser_leafNodesCount),
+            bytes32(l2ToL1MessagePasserLeafNodesCount),
             bytes32(abi.encode(0))
         );
         hevm.expectRevert("Duplicated message");
@@ -83,7 +91,7 @@ contract L2CrossDomainMessengerTest is L2MessageBaseTest {
             _encodeXDomainCalldata(from, to, value, nonce, message)
         );
         hevm.expectEmit(true, true, true, true);
-        emit RelayedMessage(msgHash);
+        emit ICrossDomainMessenger.RelayedMessage(msgHash);
         l2CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
         assertEq(address(l2CrossDomainMessenger).balance, 0);
         assertEq(address(bob).balance, (1 << 16) + 100);

@@ -97,7 +97,7 @@ export const RollupInit = async (
         )
         await assertContractVariable(
             contractTmp,
-            'L1_STAKING_CONTRACT',
+            'l1StakingContract',
             L1StakingProxyAddress
         )
         await assertContractVariable(
@@ -117,12 +117,12 @@ export const RollupInit = async (
         )
         await assertContractVariable(
             contractTmp,
-            'FINALIZATION_PERIOD_SECONDS',
+            'finalizationPeriodSeconds',
             finalizationPeriodSeconds,
         )
         await assertContractVariable(
             contractTmp,
-            'PROOF_WINDOW',
+            'proofWindow',
             proofWindow,
         )
         await assertContractVariable(

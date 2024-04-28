@@ -156,10 +156,6 @@ pragma solidity =0.8.24;
 // }
 
 // contract StakingStakeAndWithdrawTest is L1MessageBaseTest {
-//     event Staked(address addr, uint256 balance);
-//     event Withdrawn(address addr, uint256 balance);
-//     event Claimed(address addr, uint256 balance);
-
 //     function setUp() public virtual override {
 //         super.setUp();
 //         // staking 10 -> 13

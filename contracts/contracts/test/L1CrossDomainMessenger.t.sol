@@ -2,16 +2,13 @@
 pragma solidity =0.8.24;
 
 import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {IL1CrossDomainMessenger} from "../L1/L1CrossDomainMessenger.sol";
 import {IRollup} from "../L1/rollup/IRollup.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
 contract L1CrossDomainMessengerTest is L1MessageBaseTest {
-    event UpdateMaxReplayTimes(
-        uint256 oldMaxReplayTimes,
-        uint256 newMaxReplayTimes
-    );
-
     uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
     address refundAddress = address(2048);
 
@@ -311,7 +308,14 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
             _xDomainCalldata
         );
         hevm.expectEmit(true, true, true, true);
-        emit SentMessage(sender, to, value, nonce, gas, data);
+        emit ICrossDomainMessenger.SentMessage(
+            sender,
+            to,
+            value,
+            nonce,
+            gas,
+            data
+        );
 
         hevm.expectCall(
             address(l1MessageQueueWithGasPriceOracle),
@@ -403,7 +407,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         hevm.stopPrank();
 
         hevm.expectEmit(false, false, false, true);
-        emit UpdateMaxReplayTimes(3, _maxReplayTimes);
+        emit IL1CrossDomainMessenger.UpdateMaxReplayTimes(3, _maxReplayTimes);
 
         assertEq(l1CrossDomainMessenger.maxReplayTimes(), 3);
         hevm.prank(multisig);

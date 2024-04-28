@@ -4,6 +4,7 @@ pragma solidity =0.8.24;
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 
@@ -46,7 +47,14 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         bytes memory _calldata = "0x0";
         uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee("0x0");
         hevm.expectEmit(true, true, true, true);
-        emit QueueTransaction(sender, alice, 0, 0, gasLimit, _calldata);
+        emit IL1MessageQueue.QueueTransaction(
+            sender,
+            alice,
+            0,
+            0,
+            gasLimit,
+            _calldata
+        );
         hevm.startPrank(alice);
         l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
         assertEq(1, l1MessageQueue.nextCrossDomainMessageIndex());

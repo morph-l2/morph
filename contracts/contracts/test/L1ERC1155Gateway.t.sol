@@ -4,58 +4,15 @@ pragma solidity =0.8.24;
 import {MockERC1155} from "@rari-capital/solmate/src/test/utils/mocks/MockERC1155.sol";
 import {ERC1155TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC1155.sol";
 
-import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
 import {L1ERC1155Gateway} from "../L1/gateways/L1ERC1155Gateway.sol";
 import {IL1ERC1155Gateway} from "../L1/gateways/IL1ERC1155Gateway.sol";
 import {IL2ERC1155Gateway} from "../L2/gateways/IL2ERC1155Gateway.sol";
+import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
-    event FinalizeWithdrawERC1155(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _tokenId,
-        uint256 _amount
-    );
-    event FinalizeBatchWithdrawERC1155(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256[] _tokenIds,
-        uint256[] _amounts
-    );
-    event DepositERC1155(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _tokenId,
-        uint256 _amount
-    );
-    event BatchDepositERC1155(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256[] _tokenIds,
-        uint256[] _amounts
-    );
-    event RefundERC1155(
-        address indexed token,
-        address indexed recipient,
-        uint256 tokenId,
-        uint256 amount
-    );
-    event BatchRefundERC1155(
-        address indexed token,
-        address indexed recipient,
-        uint256[] tokenIds,
-        uint256[] amounts
-    );
-
     uint256 private constant TOKEN_COUNT = 100;
     uint256 private constant MAX_TOKEN_BALANCE = 1000000000;
 
@@ -167,7 +124,12 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         // drop message 0
         hevm.expectEmit(true, true, false, true);
-        emit RefundERC1155(address(l1Token), address(this), tokenId, amount);
+        emit IL1ERC1155Gateway.RefundERC1155(
+            address(l1Token),
+            address(this),
+            tokenId,
+            amount
+        );
 
         uint256 balance = l1Token.balanceOf(address(this), tokenId);
         l1CrossDomainMessenger.dropMessage(
@@ -218,7 +180,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         // drop message 0
         hevm.expectEmit(true, true, false, true);
-        emit BatchRefundERC1155(
+        emit IL1ERC1155Gateway.BatchRefundERC1155(
             address(l1Token),
             address(this),
             _tokenIds,
@@ -294,7 +256,9 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(keccak256(xDomainCalldata));
+        emit ICrossDomainMessenger.FailedRelayedMessage(
+            keccak256(xDomainCalldata)
+        );
 
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway), tokenId);
         uint256 recipientBalance = l1Token.balanceOf(recipient, tokenId);
@@ -380,7 +344,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // emit FinalizeWithdrawERC1155 from L1ERC1155Gateway
         {
             hevm.expectEmit(true, true, true, true);
-            emit FinalizeWithdrawERC1155(
+            emit IL1ERC1155Gateway.FinalizeWithdrawERC1155(
                 address(l1Token),
                 address(l2Token),
                 sender,
@@ -393,7 +357,9 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // emit RelayedMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, false, false, true);
-            emit RelayedMessage(keccak256(xDomainCalldata));
+            emit ICrossDomainMessenger.RelayedMessage(
+                keccak256(xDomainCalldata)
+            );
         }
 
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway), tokenId);
@@ -486,7 +452,9 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(keccak256(xDomainCalldata));
+        emit ICrossDomainMessenger.FailedRelayedMessage(
+            keccak256(xDomainCalldata)
+        );
 
         uint256[] memory gatewayBalances = new uint256[](tokenCount);
         uint256[] memory recipientBalances = new uint256[](tokenCount);
@@ -607,7 +575,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // emit FinalizeBatchWithdrawERC1155 from L1ERC1155Gateway
         {
             hevm.expectEmit(true, true, true, true);
-            emit FinalizeBatchWithdrawERC1155(
+            emit IL1ERC1155Gateway.FinalizeBatchWithdrawERC1155(
                 address(l1Token),
                 address(l2Token),
                 sender,
@@ -620,7 +588,9 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // emit RelayedMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, false, false, true);
-            emit RelayedMessage(keccak256(xDomainCalldata));
+            emit ICrossDomainMessenger.RelayedMessage(
+                keccak256(xDomainCalldata)
+            );
         }
 
         uint256[] memory gatewayBalances = new uint256[](tokenCount);
@@ -732,7 +702,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -745,7 +715,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     0,
@@ -757,7 +727,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
             // emit FinalizeWithdrawERC1155 from L1ERC1155Gateway
             hevm.expectEmit(true, true, true, true);
-            emit DepositERC1155(
+            emit IL1ERC1155Gateway.DepositERC1155(
                 address(l1Token),
                 address(l2Token),
                 address(this),
@@ -852,7 +822,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -865,7 +835,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     0,
@@ -877,7 +847,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
             // emit FinalizeWithdrawERC1155 from L1ERC1155Gateway
             hevm.expectEmit(true, true, true, true);
-            emit DepositERC1155(
+            emit IL1ERC1155Gateway.DepositERC1155(
                 address(l1Token),
                 address(l2Token),
                 address(this),
@@ -999,7 +969,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             address sender = AddressAliasHelper.applyL1ToL2Alias(
                 address(l1CrossDomainMessenger)
             );
-            emit QueueTransaction(
+            emit IL1MessageQueue.QueueTransaction(
                 sender,
                 address(l2Messenger),
                 0,
@@ -1012,7 +982,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // emit SentMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, true, false, true);
-            emit SentMessage(
+            emit ICrossDomainMessenger.SentMessage(
                 address(gateway),
                 address(counterpartGateway),
                 0,
@@ -1024,7 +994,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         // emit FinalizeWithdrawERC1155 from L1ERC1155Gateway
         hevm.expectEmit(true, true, true, true);
-        emit BatchDepositERC1155(
+        emit IL1ERC1155Gateway.BatchDepositERC1155(
             address(l1Token),
             address(l2Token),
             address(this),
@@ -1151,7 +1121,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             address sender = AddressAliasHelper.applyL1ToL2Alias(
                 address(l1CrossDomainMessenger)
             );
-            emit QueueTransaction(
+            emit IL1MessageQueue.QueueTransaction(
                 sender,
                 address(l2Messenger),
                 0,
@@ -1164,7 +1134,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // emit SentMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, true, false, true);
-            emit SentMessage(
+            emit ICrossDomainMessenger.SentMessage(
                 address(gateway),
                 address(counterpartGateway),
                 0,
@@ -1176,7 +1146,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         // emit FinalizeWithdrawERC1155 from L1ERC1155Gateway
         hevm.expectEmit(true, true, true, true);
-        emit BatchDepositERC1155(
+        emit IL1ERC1155Gateway.BatchDepositERC1155(
             address(l1Token),
             address(l2Token),
             address(this),

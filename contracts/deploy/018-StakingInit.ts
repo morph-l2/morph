@@ -38,11 +38,14 @@ export const StakingInit = async (
         const stakingChallengerRewardPercentage: number = configTmp.stakingChallengerRewardPercentage
         const limit: number = configTmp.stakingMinDeposit
         const lock: number = configTmp.stakingLockNumber
-        const gasLimit: number = configTmp.stakingCrossChainGaslimit
+        const gasLimitAdd: number = configTmp.stakingCrossChainGaslimitAdd
+        const gasLimitRemove: number = configTmp.stakingCrossChainGaslimitRemove
+
         if (!ethers.utils.isAddress(admin)
             || lock <= 0
             || limit <= 0
-            || gasLimit <= 0
+            || gasLimitAdd <= 0
+            || gasLimitRemove <= 0
             || stakingChallengerRewardPercentage > 100
             || stakingChallengerRewardPercentage <= 0
         ) {
@@ -54,12 +57,12 @@ export const StakingInit = async (
         await IL1StakingProxy.upgradeToAndCall(
             L1StakingImplAddress,
             L1StakingFactory.interface.encodeFunctionData('initialize', [
-                admin,
                 RollupProxyAddress,
-                stakingChallengerRewardPercentage,
                 hre.ethers.utils.parseEther(limit.toString()),
                 hre.ethers.utils.parseEther(lock.toString()),
-                gasLimit,
+                stakingChallengerRewardPercentage,
+                gasLimitAdd,
+                gasLimitRemove,
             ])
         )
 
@@ -81,28 +84,33 @@ export const StakingInit = async (
 
         await assertContractVariable(
             contractTmp,
-            'ROLLUP_CONTRACT',
+            'rollupContract',
             RollupProxyAddress
         )
         await assertContractVariable(
             contractTmp,
-            'REWARD_PERCENTAGE',
+            'rewardPercentage',
             stakingChallengerRewardPercentage
         )
         await assertContractVariable(
             contractTmp,
-            'STAKING_VALUE',
+            'stakingValue',
             hre.ethers.utils.parseEther(limit.toString())
         )
         await assertContractVariable(
             contractTmp,
-            'WITHDRAWAL_LOCK_BLOCKS',
+            'withdrawalLockBlocks',
             hre.ethers.utils.parseEther(lock.toString())
         )
         await assertContractVariable(
             contractTmp,
-            'DEFAULT_GAS_LIMIT',
-            gasLimit
+            'gasLimitAddStaker',
+            gasLimitAdd
+        )
+        await assertContractVariable(
+            contractTmp,
+            'gasLimitRemoveStakers',
+            gasLimitRemove
         )
         await assertContractVariable(
             contractTmp,

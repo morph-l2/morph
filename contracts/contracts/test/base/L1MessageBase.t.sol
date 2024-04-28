@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.so
 import {CommonTest} from "./CommonTest.t.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Whitelist} from "../../libraries/common/Whitelist.sol";
+import {IL1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
 import {L1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {L1Staking} from "../../L1/staking/L1Staking.sol";
@@ -16,9 +17,11 @@ import {MockZkEvmVerifier} from "../../mock/MockZkEvmVerifier.sol";
 contract L1MessageBaseTest is CommonTest {
     // Staking config
     L1Staking l1Staking;
-    uint256 public beginSeq = 10;
-    // uint256 public version = 0;
+    L1Staking l1StakingImpl;
+    uint256 public STAKING_VALUE = 1e18; // 1 eth
+    uint256 public STAKER_NUMBER = 3; // 1 eth
     uint256 public LOCK = 3;
+    uint256 public beginSeq = 10;
 
     // Rollup config
     Rollup rollup;
@@ -26,7 +29,6 @@ contract L1MessageBaseTest is CommonTest {
     MockZkEvmVerifier verifier;
 
     uint256 public proofWindow = 100;
-    uint256 public stakingValue = 1000000000000000000; // 1 eth
     uint256 public maxNumTxInChunk = 10;
     uint64 public layer2ChainId = 53077;
     uint32 public minGasLimit = 10000;
@@ -38,46 +40,15 @@ contract L1MessageBaseTest is CommonTest {
     address[] public sequencerSigned;
     bytes public signature;
 
-    event CommitBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
-    event RevertBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
-    event UpdateVerifier(
-        address indexed oldVerifier,
-        address indexed newVerifier
-    );
-    event UpdateMaxNumTxInChunk(
-        uint256 oldMaxNumTxInChunk,
-        uint256 newMaxNumTxInChunk
-    );
-
     // whitelist config
     Whitelist whitelistChecker;
 
     // L1MessageQueueWithGasPriceOracle config
-    event QueueTransaction(
-        address indexed sender,
-        address indexed target,
-        uint256 value,
-        uint64 queueIndex,
-        uint256 gasLimit,
-        bytes data
-    );
     L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracle;
     uint256 l1MessageQueue_maxGasLimit = 100000000;
     uint32 defaultGasLimit = 1000000;
 
     // L1CrossDomainMessenger config
-    event SentMessage(
-        address indexed sender,
-        address indexed target,
-        uint256 value,
-        uint256 messageNonce,
-        uint256 gasLimit,
-        bytes message
-    );
-    event FailedRelayedMessage(bytes32 indexed messageHash);
-    event RelayedMessage(bytes32 indexed messageHash);
-
-    L1Staking l1StakingImpl;
     L1CrossDomainMessenger l1CrossDomainMessenger;
     L1CrossDomainMessenger l1CrossDomainMessengerImpl;
 
@@ -169,7 +140,7 @@ contract L1MessageBaseTest is CommonTest {
                 L1Staking.initialize,
                 (
                     address(rollupProxy),
-                    stakingValue,
+                    STAKING_VALUE,
                     LOCK,
                     20,
                     defaultGasLimit,
