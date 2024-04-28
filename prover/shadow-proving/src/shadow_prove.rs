@@ -113,7 +113,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
                 log::info!("query proof and prove state: {:?}", batch_index);
                 if !prove_result.proof_data.is_empty() {
                     prove_state(batch_index, &l1_shadow_rollup).await;
-                    continue;
+                    break;
                 }
             }
             None => (),

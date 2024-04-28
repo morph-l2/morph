@@ -20,3 +20,5 @@ jobs:
           branch: release/0.1.x
           labels: |
             cherry-pick
+env:
+  GITHUB_TOKEN: ${{ secrets.TOKEN }}
