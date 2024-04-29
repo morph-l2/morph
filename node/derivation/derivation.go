@@ -282,11 +282,6 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		PrevStateRoot          [32]uint8 "json:\"prevStateRoot\""
 		PostStateRoot          [32]uint8 "json:\"postStateRoot\""
 		WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
-		Signature              struct {
-			Version   *big.Int   "json:\"version\""
-			Signers   []*big.Int "json:\"signers\""
-			Signature []uint8    "json:\"signature\""
-		} "json:\"signature\""
 	})
 
 	// query blob
