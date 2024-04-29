@@ -27,7 +27,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
-	"github.com/scroll-tech/go-ethereum/rlp"
 	"github.com/tendermint/tendermint/blssignatures"
 )
 
@@ -580,10 +579,16 @@ func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRol
 	}
 	aggregatedSig := blssignatures.AggregateSignatures(sigs)
 	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
-	bsSigner, err := rlp.EncodeToBytes(signers)
-	if err != nil {
-		return nil, fmt.Errorf("encode signers error:%v", err)
+	// abi pack
+	AddressArr, _ := abi.NewType("address[]", "", nil)
+	args := abi.Arguments{
+		{Type: AddressArr, Name: "stakeAddresses"},
 	}
+	bsSigner, err := args.Pack(&signers)
+	if err != nil {
+		return nil, fmt.Errorf("pack signers error:%v", err)
+	}
+
 	sigData := bindings.IRollupBatchSignatureInput{
 		SignedSequencers: bsSigner,
 		SequencerSets:    batch.CurrentSequencerSetBytes,
