@@ -23,8 +23,7 @@ export const RollupInit = async (
     // Load the contracts we need to interact with.
     const ZkEvmVerifierV1Address = getContractAddressByName(path, ImplStorageName.ZkEvmVerifierV1StorageName)
     const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName)
-    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
-    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStorageName)
+    const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
 
     // Rollup config
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
@@ -61,8 +60,7 @@ export const RollupInit = async (
 
         if (!ethers.utils.isAddress(L1MessageQueueWithGasPriceOracleProxyAddress)
             || !ethers.utils.isAddress(MultipleVersionRollupVerifierContract.address)
-            || !ethers.utils.isAddress(L1SequencerProxyAddress)
-            || !ethers.utils.isAddress(StakingProxyAddress)
+            || !ethers.utils.isAddress(L1StakingProxyAddress)
 
         ) {
             console.error('please check your address')
@@ -72,8 +70,7 @@ export const RollupInit = async (
         await IRollupProxy.upgradeToAndCall(
             RollupImplAddress,
             RollupFactory.interface.encodeFunctionData('initialize', [
-                L1SequencerProxyAddress,
-                StakingProxyAddress,
+                L1StakingProxyAddress,
                 L1MessageQueueWithGasPriceOracleProxyAddress,
                 MultipleVersionRollupVerifierContract.address,
                 maxNumTxInChunk,
@@ -100,6 +97,11 @@ export const RollupInit = async (
         )
         await assertContractVariable(
             contractTmp,
+            'l1StakingContract',
+            L1StakingProxyAddress
+        )
+        await assertContractVariable(
+            contractTmp,
             'messageQueue',
             L1MessageQueueWithGasPriceOracleProxyAddress
         )
@@ -115,12 +117,12 @@ export const RollupInit = async (
         )
         await assertContractVariable(
             contractTmp,
-            'FINALIZATION_PERIOD_SECONDS',
+            'finalizationPeriodSeconds',
             finalizationPeriodSeconds,
         )
         await assertContractVariable(
             contractTmp,
-            'PROOF_WINDOW',
+            'proofWindow',
             proofWindow,
         )
         await assertContractVariable(

@@ -1,26 +1,26 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "es2017",
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "composite": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "noImplicitAny": false,
-    "removeComments": true,
-    "noLib": false,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "outDir": "./dist"
-  },
-  "include": [
-    "src/**/*",
-    "deploy-config/**/*",
-    "deploy-config/**/*.json",
-    "tasks/**/*",
-    "scripts/**/*",
-    "deploy/**/*",
-    "integration-test/**/*"
-  ]
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es2017",
+        "sourceMap": true,
+        "esModuleInterop": true,
+        "composite": true,
+        "resolveJsonModule": true,
+        "declaration": true,
+        "noImplicitAny": false,
+        "removeComments": true,
+        "noLib": false,
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "outDir": "./dist"
+    },
+    "include": [
+        "src/**/*",
+        "deploy-config/**/*",
+        "deploy-config/**/*.json",
+        "tasks/**/*",
+        "scripts/**/*",
+        "deploy/**/*",
+        "integration-test/**/*"
+    ]
 }

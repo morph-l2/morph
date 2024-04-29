@@ -2,11 +2,11 @@
 pragma solidity =0.8.24;
 
 /* Testing utilities */
+import "forge-std/Test.sol";
+import "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
-import {Test} from "forge-std/Test.sol";
 import {MockTree} from "../../mock/MockTree.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {EmptyContract} from "../../misc/EmptyContract.sol";
@@ -28,7 +28,7 @@ contract CommonTest is DSTestPlus, MockTree {
     bytes32 PROXY_IMPLEMENTATION_KEY =
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
-    uint256 public FINALIZATION_PERIOD_SECONDS = 2;
+    uint256 public finalizationPeriodSeconds = 2;
 
     function setUp() public virtual {
         // Give alice and bob some ETH
@@ -123,19 +123,19 @@ contract FFIInterface is Test {
         return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
     }
 
-    function generateStakingInfo(
+    function generateStakerInfo(
         address _staker
-    ) external returns (Types.SequencerInfo memory) {
+    ) external returns (Types.StakerInfo memory) {
         string[] memory cmds = new string[](3);
         cmds[0] = "scripts/differential-testing/differential-testing";
-        cmds[1] = "generateStakingInfo";
+        cmds[1] = "generateStakerInfo";
         cmds[2] = vm.toString(_staker);
 
         bytes memory result = vm.ffi(cmds);
-        Types.SequencerInfo memory sequencerInfo = abi.decode(
+        Types.StakerInfo memory stakerInfo = abi.decode(
             result,
-            (Types.SequencerInfo)
+            (Types.StakerInfo)
         );
-        return sequencerInfo;
+        return stakerInfo;
     }
 }

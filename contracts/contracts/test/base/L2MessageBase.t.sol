@@ -15,18 +15,7 @@ contract L2MessageBaseTest is CommonTest {
     L2ToL1MessagePasser l2ToL1MessagePasser;
     L2ToL1MessagePasser l2ToL1MessagePasserImpl;
 
-    bytes32 l2ToL1MessagePasser_leafNodesCount = bytes32(uint256(32));
-    event AppendMessage(uint256 indexed index, bytes32 indexed messageHash, bytes32 indexed rootHash);
-    event SentMessage(
-        address indexed sender,
-        address indexed target,
-        uint256 value,
-        uint256 messageNonce,
-        uint256 gasLimit,
-        bytes message
-    );
-    event RelayedMessage(bytes32 indexed messageHash);
-    event FailedRelayedMessage(bytes32 indexed messageHash);
+    bytes32 l2ToL1MessagePasserLeafNodesCount = bytes32(uint256(32));
 
     // L2CrossDomainMessenger config
     L2CrossDomainMessenger l2CrossDomainMessenger;
@@ -65,6 +54,7 @@ contract L2MessageBaseTest is CommonTest {
             Predeploys.GAS_PRICE_ORACLE,
             address(new GasPriceOracle(multisig)).code
         );
+
         TransparentUpgradeableProxy l2ToL1MessagePasserProxy = TransparentUpgradeableProxy(
                 payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
             );

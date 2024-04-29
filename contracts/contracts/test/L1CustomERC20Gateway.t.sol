@@ -8,33 +8,12 @@ import {L1CustomERC20Gateway} from "../L1/gateways/L1CustomERC20Gateway.sol";
 import {L1GatewayRouter} from "../L1/gateways/L1GatewayRouter.sol";
 import {IL1ERC20Gateway} from "../L1/gateways/IL1ERC20Gateway.sol";
 import {L2CustomERC20Gateway} from "../L2/gateways/L2CustomERC20Gateway.sol";
+import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
 import {IL2ERC20Gateway} from "../L2/gateways/IL2ERC20Gateway.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 
 contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
-    event FinalizeWithdrawERC20(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
-    );
-    event DepositERC20(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data,
-        uint256 nonce
-    );
-    event RefundERC20(
-        address indexed token,
-        address indexed recipient,
-        uint256 amount
-    );
-
     address private counterpartGateway;
     L1CustomERC20Gateway private gateway;
     L1GatewayRouter private router;
@@ -160,7 +139,11 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
 
         // drop message 0
         hevm.expectEmit(true, true, false, true);
-        emit RefundERC20(address(l1Token), address(this), amount);
+        emit IL1ERC20Gateway.RefundERC20(
+            address(l1Token),
+            address(this),
+            amount
+        );
 
         uint256 balance = l1Token.balanceOf(address(this));
         l1CrossDomainMessenger.dropMessage(
@@ -223,7 +206,9 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(keccak256(xDomainCalldata));
+        emit ICrossDomainMessenger.FailedRelayedMessage(
+            keccak256(xDomainCalldata)
+        );
 
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
         uint256 recipientBalance = l1Token.balanceOf(recipient);
@@ -300,7 +285,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         // emit FinalizeWithdrawERC20 from L1StandardERC20Gateway
         {
             hevm.expectEmit(true, true, true, true);
-            emit FinalizeWithdrawERC20(
+            emit IL1ERC20Gateway.FinalizeWithdrawERC20(
                 address(l1Token),
                 address(l2Token),
                 sender,
@@ -313,7 +298,9 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         // emit RelayedMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, false, false, true);
-            emit RelayedMessage(keccak256(xDomainCalldata));
+            emit ICrossDomainMessenger.RelayedMessage(
+                keccak256(xDomainCalldata)
+            );
         }
 
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
@@ -417,7 +404,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -430,7 +417,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     0,
@@ -442,7 +429,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
 
             // emit DepositERC20 from L1CustomERC20Gateway
             hevm.expectEmit(true, true, true, true);
-            emit DepositERC20(
+            emit IL1ERC20Gateway.DepositERC20(
                 address(l1Token),
                 address(l2Token),
                 address(this),
@@ -561,7 +548,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -574,7 +561,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     0,
@@ -586,7 +573,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
 
             // emit DepositERC20 from L1CustomERC20Gateway
             hevm.expectEmit(true, true, true, true);
-            emit DepositERC20(
+            emit IL1ERC20Gateway.DepositERC20(
                 address(l1Token),
                 address(l2Token),
                 address(this),
@@ -710,7 +697,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 address sender = AddressAliasHelper.applyL1ToL2Alias(
                     address(l1CrossDomainMessenger)
                 );
-                emit QueueTransaction(
+                emit IL1MessageQueue.QueueTransaction(
                     sender,
                     address(l2Messenger),
                     0,
@@ -723,7 +710,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
             // emit SentMessage from L1CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     0,
@@ -735,7 +722,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
 
             // emit DepositERC20 from L1CustomERC20Gateway
             hevm.expectEmit(true, true, true, true);
-            emit DepositERC20(
+            emit IL1ERC20Gateway.DepositERC20(
                 address(l1Token),
                 address(l2Token),
                 address(this),

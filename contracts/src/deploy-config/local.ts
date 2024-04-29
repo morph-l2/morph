@@ -28,12 +28,13 @@ const config = {
 
   // staking config
   // staking Cross-Chain config
-  stakingCrossChainGaslimit: 10000,
-
+  stakingCrossChainGaslimitAdd: 100000,
+  stakingCrossChainGaslimitRemove: 1000000,
+  
   // staking initialize config
-  stakingSequencerSize: 4,
   stakingLockNumber: 3,
   stakingMinDeposit: 1, // limit
+  stakingChallengerRewardPercentage: 100,
   // register sequencers
   l2SequencerAddresses: [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",

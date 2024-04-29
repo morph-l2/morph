@@ -9,12 +9,10 @@ import {ICrossDomainMessenger} from "../libraries/CrossDomainMessenger.sol";
 import {L2ToL1MessagePasser} from "./system/L2ToL1MessagePasser.sol";
 import {IL2CrossDomainMessenger} from "./IL2CrossDomainMessenger.sol";
 
-/**
- * @title L2CrossDomainMessenger
- * @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
- *         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
- *         level message passing contracts.
- */
+/// @title L2CrossDomainMessenger
+/// @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
+///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
+///         level message passing contracts.
 contract L2CrossDomainMessenger is
     CrossDomainMessenger,
     IL2CrossDomainMessenger
@@ -36,6 +34,10 @@ contract L2CrossDomainMessenger is
     constructor() {
         _disableInitializers();
     }
+
+    /***************
+     * Initializer *
+     ***************/
 
     function initialize(address _counterpart) external initializer {
         if (_counterpart == address(0)) revert ErrZeroAddress();

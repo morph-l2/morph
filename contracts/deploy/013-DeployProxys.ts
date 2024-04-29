@@ -54,8 +54,7 @@ export const deployContractProxys = async (
     const L1MessageQueueWithGasPriceOracleProxyStorageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
 
     const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
-    const StakingProxyStorageName = ProxyStorageName.StakingProxyStorageName
-    const L1SequencerProxyStorageName = ProxyStorageName.L1SequencerProxyStorageName
+    const L1StakingProxyStorageName = ProxyStorageName.L1StakingProxyStorageName
 
     const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
@@ -97,13 +96,7 @@ export const deployContractProxys = async (
 
     // ************************ staking contracts deploy ************************
     // StakingProxy deploy
-    err = await deployContractProxyByStorageName(hre, path, deployer, StakingProxyStorageName)
-    if (err != '') {
-        return err
-    }
-
-    // L1SequencerProxy deploy
-    err = await deployContractProxyByStorageName(hre, path, deployer, L1SequencerProxyStorageName)
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1StakingProxyStorageName)
     if (err != '') {
         return err
     }

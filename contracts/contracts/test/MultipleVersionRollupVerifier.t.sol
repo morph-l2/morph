@@ -9,9 +9,6 @@ import {MockRollup} from "../mock/MockRollup.sol";
 import {MockZkEvmVerifier} from "../mock/MockZkEvmVerifier.sol";
 
 contract MultipleVersionRollupVerifierTest is DSTestPlus {
-    // from MultipleVersionRollupVerifier
-    event UpdateVerifier(uint256 startBatchIndex, address verifier);
-
     MultipleVersionRollupVerifier private verifier;
     MockZkEvmVerifier private v0;
     MockZkEvmVerifier private v1;

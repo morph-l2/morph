@@ -28,7 +28,10 @@ library BatchHeaderCodecV0 {
         bytes calldata _batchHeader
     ) internal pure returns (uint256 batchPtr, uint256 length) {
         length = _batchHeader.length;
-        require(length >= BATCH_HEADER_FIXED_LENGTH, "batch header length too small");
+        require(
+            length >= BATCH_HEADER_FIXED_LENGTH,
+            "batch header length too small"
+        );
         // copy batch header to memory.
         assembly {
             batchPtr := mload(0x40)
@@ -41,7 +44,10 @@ library BatchHeaderCodecV0 {
 
         unchecked {
             require(
-                length == BATCH_HEADER_FIXED_LENGTH + ((_l1MessagePopped + 255) / 256) * 32,
+                length ==
+                    BATCH_HEADER_FIXED_LENGTH +
+                        ((_l1MessagePopped + 255) / 256) *
+                        32,
                 "wrong bitmap length"
             );
         }

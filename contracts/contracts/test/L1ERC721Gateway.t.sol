@@ -1,63 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {MockERC721} from "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
-import {ERC721TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC721.sol";
+import "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
+import "@rari-capital/solmate/src/tokens/ERC721.sol";
 
-import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
+import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L2ERC721Gateway} from "../L2/gateways/L2ERC721Gateway.sol";
 import {IL2ERC721Gateway} from "../L2/gateways/IL2ERC721Gateway.sol";
 import {IL1ERC721Gateway} from "../L1/gateways/IL1ERC721Gateway.sol";
 import {L1ERC721Gateway} from "../L1/gateways/L1ERC721Gateway.sol";
-import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
+import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
-    // from L1ERC721Gateway
-    event FinalizeWithdrawERC721(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _tokenId
-    );
-    event FinalizeBatchWithdrawERC721(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256[] _tokenIds
-    );
-    event DepositERC721(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _tokenId
-    );
-    event BatchDepositERC721(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256[] _tokenIds
-    );
-    event RefundERC721(
-        address indexed token,
-        address indexed recipient,
-        uint256 tokenId
-    );
-    event BatchRefundERC721(
-        address indexed token,
-        address indexed recipient,
-        uint256[] tokenIds
-    );
-
     uint256 private constant TOKEN_COUNT = 100;
-
     L1ERC721Gateway private gateway;
-
     address private counterpartGateway;
-
     MockERC721 private l1Token;
     MockERC721 private l2Token;
 
@@ -167,7 +126,11 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
 
         // drop message 0
         hevm.expectEmit(true, true, false, true);
-        emit RefundERC721(address(l1Token), address(this), tokenId);
+        emit IL1ERC721Gateway.RefundERC721(
+            address(l1Token),
+            address(this),
+            tokenId
+        );
 
         assertEq(l1Token.ownerOf(tokenId), address(gateway));
         l1CrossDomainMessenger.dropMessage(
@@ -213,7 +176,11 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
 
         // drop message 0
         hevm.expectEmit(true, true, false, true);
-        emit BatchRefundERC721(address(l1Token), address(this), _tokenIds);
+        emit IL1ERC721Gateway.BatchRefundERC721(
+            address(l1Token),
+            address(this),
+            _tokenIds
+        );
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(l1Token.ownerOf(_tokenIds[i]), address(gateway));
         }
@@ -267,7 +234,9 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(keccak256(xDomainCalldata));
+        emit ICrossDomainMessenger.FailedRelayedMessage(
+            keccak256(xDomainCalldata)
+        );
 
         assertEq(address(gateway), l1Token.ownerOf(tokenId));
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
@@ -343,7 +312,9 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(keccak256(xDomainCalldata));
+        emit ICrossDomainMessenger.FailedRelayedMessage(
+            keccak256(xDomainCalldata)
+        );
 
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(address(gateway), l1Token.ownerOf(_tokenIds[i]));
@@ -430,7 +401,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // emit FinalizeBatchWithdrawERC721 from L1ERC721Gateway
         {
             hevm.expectEmit(true, true, true, true);
-            emit FinalizeBatchWithdrawERC721(
+            emit IL1ERC721Gateway.FinalizeBatchWithdrawERC721(
                 address(l1Token),
                 address(l2Token),
                 sender,
@@ -442,7 +413,9 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // emit RelayedMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, false, false, true);
-            emit RelayedMessage(keccak256(xDomainCalldata));
+            emit ICrossDomainMessenger.RelayedMessage(
+                keccak256(xDomainCalldata)
+            );
         }
 
         for (uint256 i = 0; i < tokenCount; i++) {
@@ -524,7 +497,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
             address sender = AddressAliasHelper.applyL1ToL2Alias(
                 address(l1CrossDomainMessenger)
             );
-            emit QueueTransaction(
+            emit IL1MessageQueue.QueueTransaction(
                 sender,
                 address(l2Messenger),
                 0,
@@ -537,7 +510,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // emit SentMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, true, false, true);
-            emit SentMessage(
+            emit ICrossDomainMessenger.SentMessage(
                 address(gateway),
                 address(counterpartGateway),
                 0,
@@ -549,7 +522,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
 
         // emit FinalizeWithdrawERC721 from L1ERC721Gateway
         hevm.expectEmit(true, true, true, true);
-        emit DepositERC721(
+        emit IL1ERC721Gateway.DepositERC721(
             address(l1Token),
             address(l2Token),
             address(this),
@@ -625,7 +598,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
             address sender = AddressAliasHelper.applyL1ToL2Alias(
                 address(l1CrossDomainMessenger)
             );
-            emit QueueTransaction(
+            emit IL1MessageQueue.QueueTransaction(
                 sender,
                 address(l2Messenger),
                 0,
@@ -638,7 +611,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // emit SentMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, true, false, true);
-            emit SentMessage(
+            emit ICrossDomainMessenger.SentMessage(
                 address(gateway),
                 address(counterpartGateway),
                 0,
@@ -650,7 +623,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
 
         // emit FinalizeWithdrawERC721 from L1ERC721Gateway
         hevm.expectEmit(true, true, true, true);
-        emit DepositERC721(
+        emit IL1ERC721Gateway.DepositERC721(
             address(l1Token),
             address(l2Token),
             address(this),
@@ -738,7 +711,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
             address sender = AddressAliasHelper.applyL1ToL2Alias(
                 address(l1CrossDomainMessenger)
             );
-            emit QueueTransaction(
+            emit IL1MessageQueue.QueueTransaction(
                 sender,
                 address(l2Messenger),
                 0,
@@ -751,7 +724,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // emit SentMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, true, false, true);
-            emit SentMessage(
+            emit ICrossDomainMessenger.SentMessage(
                 address(gateway),
                 address(counterpartGateway),
                 0,
@@ -763,7 +736,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
 
         // emit FinalizeWithdrawERC721 from L1ERC721Gateway
         hevm.expectEmit(true, true, true, true);
-        emit BatchDepositERC721(
+        emit IL1ERC721Gateway.BatchDepositERC721(
             address(l1Token),
             address(l2Token),
             address(this),
@@ -864,7 +837,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
             address sender = AddressAliasHelper.applyL1ToL2Alias(
                 address(l1CrossDomainMessenger)
             );
-            emit QueueTransaction(
+            emit IL1MessageQueue.QueueTransaction(
                 sender,
                 address(l2Messenger),
                 0,
@@ -877,7 +850,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // emit SentMessage from L1CrossDomainMessenger
         {
             hevm.expectEmit(true, true, false, true);
-            emit SentMessage(
+            emit ICrossDomainMessenger.SentMessage(
                 address(gateway),
                 address(counterpartGateway),
                 0,
@@ -889,7 +862,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
 
         // emit FinalizeWithdrawERC721 from L1ERC721Gateway
         hevm.expectEmit(true, true, true, true);
-        emit BatchDepositERC721(
+        emit IL1ERC721Gateway.BatchDepositERC721(
             address(l1Token),
             address(l2Token),
             address(this),

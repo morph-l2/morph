@@ -6,11 +6,6 @@ import {OwnableBase} from "./OwnableBase.sol";
 import {IWhitelist} from "./IWhitelist.sol";
 
 contract Whitelist is OwnableBase, IWhitelist {
-    /// @notice Emitted when account whitelist status changed.
-    /// @param _account The address of account whose status is changed.
-    /// @param _status The current whitelist status.
-    event WhitelistStatusChanged(address indexed _account, bool _status);
-
     /// @notice Keep track whether the account is whitelisted.
     mapping(address => bool) private isWhitelisted;
 
@@ -26,7 +21,10 @@ contract Whitelist is OwnableBase, IWhitelist {
     /// @notice Update the whitelist status
     /// @param _accounts The list of addresses to update.
     /// @param _status The whitelist status to update.
-    function updateWhitelistStatus(address[] memory _accounts, bool _status) external onlyOwner {
+    function updateWhitelistStatus(
+        address[] memory _accounts,
+        bool _status
+    ) external onlyOwner {
         for (uint256 i = 0; i < _accounts.length; i++) {
             isWhitelisted[_accounts[i]] = _status;
             emit WhitelistStatusChanged(_accounts[i], _status);

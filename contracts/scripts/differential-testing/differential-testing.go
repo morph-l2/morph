@@ -56,7 +56,7 @@ func main() {
 		data, err := uint64Arg.Pack(&testNum)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(data))
-	case "generateStakingInfo":
+	case "generateStakerInfo":
 		user := common.HexToAddress(args[1]) // user
 		tmKey := common.BytesToHash(keccak256.Hash(user.Bytes()))
 		blsKey, err := libraries.GenerateRandomBytes(256)

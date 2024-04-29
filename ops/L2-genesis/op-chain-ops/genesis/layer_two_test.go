@@ -3,6 +3,7 @@ package genesis
 import (
 	"math/big"
 	"testing"
+	"time"
 
 	node "github.com/morph-l2/node/core"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -20,9 +21,9 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		BatchInboxAddress:  address1,
 		BatchSenderAddress: address1,
 
+		L1StakingProxy:              address1,
 		ProxyAdminOwner:             address1,
 		FinalSystemOwner:            address1,
-		L1SequencerProxy:            address1,
 		L1CrossDomainMessengerProxy: address1,
 		RollupProxy:                 address1,
 		L1GatewayRouterProxy:        address1,
@@ -41,12 +42,25 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		SequencerFeeVaultRecipient: address1,
 		L2BridgeFeeVaultRecipient:  address1,
 
+		RecordOracleAddress: address1,
+
+		// L2Staking configs
+		L2StakingSequencerMaxSize:      1,
+		L2StakingUnDelegatedLockEpochs: 1,
+		L2StakingRewardStartTime:       uint64(time.Now().Unix()),
+
 		GovProposalInterval:   1000,
 		GovBatchBlockInterval: 20,
 		GovBatchMaxBytes:      124928,
 		GovRollupEpoch:        600,
 		GovBatchTimeout:       100,
 		GovBatchMaxChunks:     15,
+
+		// MorphToken
+		MorphTokenName:               "Morph Token",
+		MorphTokenSymbol:             "Morph",
+		MorphTokenInitialSupply:      1,
+		MorphTokenDailyInflationRate: 1,
 
 		FundDevAccounts: true,
 		MaxTxPerBlock:   1000,

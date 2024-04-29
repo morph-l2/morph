@@ -28,13 +28,13 @@ contract L1MessageQueueWithGasPriceOracle is
     uint256 private constant APPROPRIATE_INTRINSIC_GAS_PER_BYTE = 16;
 
     /// @notice The address of L1CrossDomainMessenger contract.
-    address public immutable messenger;
+    address public immutable MESSENGER;
 
     /// @notice The address of Rollup contract.
-    address public immutable rollup;
+    address public immutable ROLLUP_CONTRACT;
 
     /// @notice The address EnforcedTxGateway contract.
-    address public immutable enforcedTxGateway;
+    address public immutable ENFORCED_TX_GATEWAAY;
 
     /*************
      * Variables *
@@ -67,7 +67,7 @@ contract L1MessageQueueWithGasPriceOracle is
 
     modifier onlyMessenger() {
         require(
-            _msgSender() == messenger,
+            _msgSender() == MESSENGER,
             "Only callable by the L1CrossDomainMessenger"
         );
         _;
@@ -80,7 +80,7 @@ contract L1MessageQueueWithGasPriceOracle is
     /// @notice Constructor for `L1MessageQueue` implementation contract.
     ///
     /// @param _messenger The address of `L1CrossDomainMessenger` contract.
-    /// @param _rollup The address of `ROllup` contract.
+    /// @param _rollup The address of `Rollup` contract.
     /// @param _enforcedTxGateway The address of `EnforcedTxGateway` contract.
     constructor(
         address _messenger,
@@ -96,9 +96,9 @@ contract L1MessageQueueWithGasPriceOracle is
         }
         _disableInitializers();
 
-        messenger = _messenger;
-        rollup = _rollup;
-        enforcedTxGateway = _enforcedTxGateway;
+        MESSENGER = _messenger;
+        ROLLUP_CONTRACT = _rollup;
+        ENFORCED_TX_GATEWAAY = _enforcedTxGateway;
     }
 
     function initialize(
@@ -352,7 +352,7 @@ contract L1MessageQueueWithGasPriceOracle is
         bytes calldata _data
     ) external override {
         require(
-            _msgSender() == enforcedTxGateway,
+            _msgSender() == ENFORCED_TX_GATEWAAY,
             "Only callable by the EnforcedTxGateway"
         );
         // We will check it in EnforcedTxGateway, just in case.
@@ -370,7 +370,7 @@ contract L1MessageQueueWithGasPriceOracle is
         uint256 _count,
         uint256 _skippedBitmap
     ) external {
-        require(_msgSender() == rollup, "Only callable by the rollup");
+        require(_msgSender() == ROLLUP_CONTRACT, "Only callable by the rollup");
 
         require(_count <= 256, "pop too many messages");
         require(pendingQueueIndex == _startIndex, "start index mismatch");
@@ -429,6 +429,7 @@ contract L1MessageQueueWithGasPriceOracle is
         emit UpdateWhitelistChecker(whitelistChecker, _newWhitelistChecker);
         whitelistChecker = _newWhitelistChecker;
     }
+
     /**********************
      * Internal Functions *
      **********************/

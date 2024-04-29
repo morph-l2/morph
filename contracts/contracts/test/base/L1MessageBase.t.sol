@@ -4,105 +4,45 @@ pragma solidity =0.8.24;
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {CommonTest} from "./CommonTest.t.sol";
-import {Staking} from "../../L1/staking/Staking.sol";
-import {L1Sequencer} from "../../L1/staking/L1Sequencer.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Whitelist} from "../../libraries/common/Whitelist.sol";
+import {IL1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
 import {L1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {L1Staking} from "../../L1/staking/L1Staking.sol";
 import {Rollup} from "../../L1/rollup/Rollup.sol";
 import {IRollup} from "../../L1/rollup/IRollup.sol";
 import {MockZkEvmVerifier} from "../../mock/MockZkEvmVerifier.sol";
 
 contract L1MessageBaseTest is CommonTest {
-    // staking config
-    event Registered(
-        address addr,
-        bytes32 tmKey,
-        bytes blsKey,
-        uint256 balance
-    );
-    event SequencerUpdated(
-        uint256 indexed version,
-        address[] sequencersAddr,
-        bytes[] sequencersBLS
-    );
-    Staking staking;
-    uint256 public beginSeq = 10;
-    uint256 public version = 0;
-    address[] public sequencerAddresses;
-    bytes[] public sequencerBLSKeys;
-    uint256 public constant SEQUENCER_SIZE = 3;
-    uint256 public LOCK = 3;
+    // Staking config
+    L1Staking l1Staking;
+    L1Staking l1StakingImpl;
 
-    // L1Sequencer config
-    L1Sequencer l1Sequencer;
-
-    address l2Sequencer = address(Predeploys.L2_SEQUENCER);
+    uint256 public STAKING_VALUE = 1e18; // 1 eth
+    uint256 public LOCK_BLOCKS = 3;
+    uint256 public rewardPercentage = 20;
+    uint32 public defaultGasLimitAdd = 1000000;
+    uint32 public defaultGasLimitRemove = 10000000;
 
     // Rollup config
     Rollup rollup;
     Rollup rollupImpl;
-    MockZkEvmVerifier verifier;
+    MockZkEvmVerifier verifier = new MockZkEvmVerifier();
 
-    uint256 public PROOF_WINDOW = 100;
-    uint256 public MIN_DEPOSIT = 1000000000000000000; // 1 eth
+    uint256 public proofWindow = 100;
     uint256 public maxNumTxInChunk = 10;
-    uint64 public layer2ChainId = 53077;
-    uint32 public minGasLimit = 10000;
-
-    address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
-    bytes32 public stateRoot = bytes32(uint256(1));
-    IRollup.BatchData public batchData;
-    IRollup.BatchSignature public nilBatchSig;
-    address sequencerAddr = address(uint160(beginSeq));
-    uint256 public sequencerVersion;
-    address[] public sequencerSigned;
-    bytes public signature;
-
-    event UpdateSequencer(address indexed account, bool status);
-    event CommitBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
-    event RevertBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
-    event UpdateProver(address indexed account, bool status);
-    event UpdateVerifier(
-        address indexed oldVerifier,
-        address indexed newVerifier
-    );
-    event UpdateMaxNumTxInChunk(
-        uint256 oldMaxNumTxInChunk,
-        uint256 newMaxNumTxInChunk
-    );
+    uint64 public layer2ChainID = 53077;
 
     // whitelist config
     Whitelist whitelistChecker;
 
     // L1MessageQueueWithGasPriceOracle config
-    event QueueTransaction(
-        address indexed sender,
-        address indexed target,
-        uint256 value,
-        uint64 queueIndex,
-        uint256 gasLimit,
-        bytes data
-    );
     L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracle;
-    uint256 l1MessageQueue_maxGasLimit = 100000000;
-    uint32 defaultGasLimit = 1000000;
+    uint256 public l1MessageQueueMaxGasLimit = 100000000;
+    uint32 public defaultGasLimit = 1000000;
 
     // L1CrossDomainMessenger config
-    event SentMessage(
-        address indexed sender,
-        address indexed target,
-        uint256 value,
-        uint256 messageNonce,
-        uint256 gasLimit,
-        bytes message
-    );
-    event FailedRelayedMessage(bytes32 indexed messageHash);
-    event RelayedMessage(bytes32 indexed messageHash);
-
-    Staking stakingImpl;
-    L1Sequencer l1SequencerImpl;
     L1CrossDomainMessenger l1CrossDomainMessenger;
     L1CrossDomainMessenger l1CrossDomainMessengerImpl;
 
@@ -130,30 +70,21 @@ contract L1MessageBaseTest is CommonTest {
                 address(multisig),
                 new bytes(0)
             );
-        TransparentUpgradeableProxy stakingProxy = new TransparentUpgradeableProxy(
+        TransparentUpgradeableProxy l1StakingProxy = new TransparentUpgradeableProxy(
                 address(emptyContract),
                 address(multisig),
                 new bytes(0)
             );
-        TransparentUpgradeableProxy l1SequencerProxy = new TransparentUpgradeableProxy(
-                address(emptyContract),
-                address(multisig),
-                new bytes(0)
-            );
-
-        // deploy mock verifier
-        verifier = new MockZkEvmVerifier();
 
         // deploy impl
-        rollupImpl = new Rollup(layer2ChainId);
+        rollupImpl = new Rollup(layer2ChainID);
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
                 payable(address(l1CrossDomainMessengerProxy)),
                 address(rollupProxy),
                 address(alice)
             );
         l1CrossDomainMessengerImpl = new L1CrossDomainMessenger();
-        stakingImpl = new Staking();
-        l1SequencerImpl = new L1Sequencer(payable(l1CrossDomainMessengerProxy));
+        l1StakingImpl = new L1Staking(payable(l1CrossDomainMessengerProxy));
 
         // upgrade and initialize
         ITransparentUpgradeableProxy(address(rollupProxy)).upgradeToAndCall(
@@ -161,13 +92,12 @@ contract L1MessageBaseTest is CommonTest {
             abi.encodeCall(
                 Rollup.initialize,
                 (
-                    address(l1SequencerProxy),
-                    address(stakingProxy),
+                    address(l1StakingProxy),
                     address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
                     address(verifier), // _verifier
                     maxNumTxInChunk, // _maxNumTxInChunk
-                    FINALIZATION_PERIOD_SECONDS, // _finalizationPeriodSeconds
-                    PROOF_WINDOW // _proofWindow
+                    finalizationPeriodSeconds, // _finalizationPeriodSeconds
+                    proofWindow // _proofWindow
                 )
             )
         );
@@ -178,7 +108,7 @@ contract L1MessageBaseTest is CommonTest {
                 abi.encodeCall(
                     L1MessageQueueWithGasPriceOracle.initialize,
                     (
-                        l1MessageQueue_maxGasLimit, // gasLimit
+                        l1MessageQueueMaxGasLimit, // gasLimit
                         address(whitelistChecker) // whitelistChecker
                     )
                 )
@@ -195,27 +125,20 @@ contract L1MessageBaseTest is CommonTest {
                     )
                 )
             );
-        ITransparentUpgradeableProxy(address(stakingProxy)).upgradeToAndCall(
-            address(stakingImpl),
-            abi.encodeWithSelector(
-                Staking.initialize.selector,
-                address(alice),
-                address(l1SequencerProxy),
-                address(rollupProxy),
-                SEQUENCER_SIZE,
-                MIN_DEPOSIT,
-                LOCK
+        ITransparentUpgradeableProxy(address(l1StakingProxy)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(rollupProxy),
+                    STAKING_VALUE,
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
             )
         );
-
-        ITransparentUpgradeableProxy(address(l1SequencerProxy))
-            .upgradeToAndCall(
-                address(l1SequencerImpl),
-                abi.encodeCall(
-                    L1Sequencer.initialize,
-                    (address(stakingProxy), address(rollupProxy))
-                )
-            );
 
         l1CrossDomainMessenger = L1CrossDomainMessenger(
             payable(address(l1CrossDomainMessengerProxy))
@@ -224,18 +147,16 @@ contract L1MessageBaseTest is CommonTest {
         l1MessageQueueWithGasPriceOracle = L1MessageQueueWithGasPriceOracle(
             address(l1MessageQueueWithGasPriceOracleProxy)
         );
-        staking = Staking(address(stakingProxy));
-        l1Sequencer = L1Sequencer(payable(address(l1SequencerProxy)));
+        l1Staking = L1Staking(address(l1StakingProxy));
 
-        _changeAdmin(address(staking));
-        _changeAdmin(address(l1Sequencer));
+        _changeAdmin(address(l1Staking));
         _changeAdmin(address(rollup));
         _changeAdmin(address(l1CrossDomainMessenger));
         _changeAdmin(address(l1MessageQueueWithGasPriceOracle));
 
         assertEq(
             address(l1CrossDomainMessenger),
-            l1MessageQueueWithGasPriceOracle.messenger()
+            l1MessageQueueWithGasPriceOracle.MESSENGER()
         );
 
         rollup.addChallenger(bob);
@@ -276,15 +197,18 @@ contract L1MessageBaseTest is CommonTest {
                 payable(address(l1MessageQueueWithGasPriceOracle))
             );
         L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracleImpl = new L1MessageQueueWithGasPriceOracle(
-                payable(_messenger), // _messenger
-                address(_rollup), // _rollup
-                address(_enforcedTxGateway) // _enforcedTxGateway
-            );
-        assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.messenger());
-        assertEq(_rollup, l1MessageQueueWithGasPriceOracleImpl.rollup());
+            payable(_messenger), // _messenger
+            address(_rollup), // _rollup
+            address(_enforcedTxGateway) // _enforcedTxGateway
+        );
+        assertEq(_messenger, l1MessageQueueWithGasPriceOracleImpl.MESSENGER());
+        assertEq(
+            _rollup,
+            l1MessageQueueWithGasPriceOracleImpl.ROLLUP_CONTRACT()
+        );
         assertEq(
             _enforcedTxGateway,
-            l1MessageQueueWithGasPriceOracleImpl.enforcedTxGateway()
+            l1MessageQueueWithGasPriceOracleImpl.ENFORCED_TX_GATEWAAY()
         );
 
         hevm.prank(multisig);
@@ -294,11 +218,11 @@ contract L1MessageBaseTest is CommonTest {
             ),
             address(l1MessageQueueWithGasPriceOracleImpl)
         );
-        assertEq(_messenger, l1MessageQueueWithGasPriceOracle.messenger());
-        assertEq(_rollup, l1MessageQueueWithGasPriceOracle.rollup());
+        assertEq(_messenger, l1MessageQueueWithGasPriceOracle.MESSENGER());
+        assertEq(_rollup, l1MessageQueueWithGasPriceOracle.ROLLUP_CONTRACT());
         assertEq(
             _enforcedTxGateway,
-            l1MessageQueueWithGasPriceOracle.enforcedTxGateway()
+            l1MessageQueueWithGasPriceOracle.ENFORCED_TX_GATEWAAY()
         );
     }
 }

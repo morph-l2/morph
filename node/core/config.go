@@ -22,8 +22,9 @@ import (
 type Config struct {
 	L2                            *types.L2Config `json:"l2"`
 	L2CrossDomainMessengerAddress common.Address  `json:"cross_domain_messenger_address"`
-	L2SequencerAddress            common.Address  `json:"l2_sequencer_address"`
-	L2GovAddress                  common.Address  `json:"l2_gov_address"`
+	SequencerAddress              common.Address  `json:"sequencer_address"`
+	GovAddress                    common.Address  `json:"gov_address"`
+	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
 	DevSequencer                  bool            `json:"dev_sequencer"`
 	Logger                        tmlog.Logger    `json:"logger"`
@@ -35,8 +36,9 @@ func DefaultConfig() *Config {
 		Logger:                        tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		MaxL1MessageNumPerBlock:       100,
 		L2CrossDomainMessengerAddress: predeploys.L2CrossDomainMessengerAddr,
-		L2SequencerAddress:            predeploys.L2SequencerAddr,
-		L2GovAddress:                  predeploys.GovAddr,
+		SequencerAddress:              predeploys.SequencerAddr,
+		GovAddress:                    predeploys.GovAddr,
+		L2StakingAddress:              predeploys.L2StakingAddr,
 	}
 }
 
@@ -127,16 +129,16 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if ctx.GlobalIsSet(flags.L2SequencerAddr.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.L2SequencerAddr.Name))
-		c.L2SequencerAddress = addr
-		if len(c.L2SequencerAddress.Bytes()) == 0 {
+		c.SequencerAddress = addr
+		if len(c.SequencerAddress.Bytes()) == 0 {
 			return errors.New("invalid L2SequencerAddr")
 		}
 	}
 
 	if ctx.GlobalIsSet(flags.GovAddr.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.GovAddr.Name))
-		c.L2GovAddress = addr
-		if len(c.L2GovAddress.Bytes()) == 0 {
+		c.GovAddress = addr
+		if len(c.GovAddress.Bytes()) == 0 {
 			return errors.New("invalid GovAddr")
 		}
 	}

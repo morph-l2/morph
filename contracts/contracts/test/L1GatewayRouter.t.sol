@@ -3,24 +3,11 @@ pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
+import {IL1GatewayRouter} from "../L1/gateways/IL1GatewayRouter.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {TransferReentrantToken} from "../mock/tokens/TransferReentrantToken.sol";
 
 contract L1GatewayRouterTest is L1GatewayBaseTest {
-    event SetETHGateway(
-        address indexed oldETHGateway,
-        address indexed newEthGateway
-    );
-    event SetDefaultERC20Gateway(
-        address indexed oldDefaultERC20Gateway,
-        address indexed newDefaultERC20Gateway
-    );
-    event SetERC20Gateway(
-        address indexed token,
-        address indexed oldGateway,
-        address indexed newGateway
-    );
-
     MockERC20 private l1Token;
 
     function setUp() public virtual override {
@@ -47,7 +34,7 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
 
         // set by owner, should succeed
         hevm.expectEmit(true, true, false, true);
-        emit SetDefaultERC20Gateway(
+        emit IL1GatewayRouter.SetDefaultERC20Gateway(
             address(0),
             address(l1StandardERC20Gateway)
         );
@@ -83,7 +70,7 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         _gateways[0] = address(l1StandardERC20Gateway);
 
         hevm.expectEmit(true, true, true, true);
-        emit SetERC20Gateway(
+        emit IL1GatewayRouter.SetERC20Gateway(
             address(l1Token),
             address(0),
             address(l1StandardERC20Gateway)

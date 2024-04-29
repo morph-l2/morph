@@ -26,7 +26,7 @@ contract L2WETHGateway is L2ERC20Gateway {
      *************/
 
     /// @notice The address of L1 WETH address.
-    address public immutable l1WETH;
+    address public immutable L1_WETH;
 
     /// @notice The address of L2 WETH address.
     // solhint-disable-next-line var-name-mixedcase
@@ -40,7 +40,7 @@ contract L2WETHGateway is L2ERC20Gateway {
         _disableInitializers();
 
         WETH = _WETH;
-        l1WETH = _l1WETH;
+        L1_WETH = _l1WETH;
     }
 
     function initialize(
@@ -64,7 +64,7 @@ contract L2WETHGateway is L2ERC20Gateway {
     function getL1ERC20Address(
         address
     ) external view override returns (address) {
-        return l1WETH;
+        return L1_WETH;
     }
 
     /// @inheritdoc IL2ERC20Gateway
@@ -85,7 +85,7 @@ contract L2WETHGateway is L2ERC20Gateway {
         uint256 _amount,
         bytes calldata _data
     ) external payable override onlyCallByCounterpart nonReentrant {
-        require(_l1Token == l1WETH, "l1 token not WETH");
+        require(_l1Token == L1_WETH, "l1 token not WETH");
         require(_l2Token == WETH, "l2 token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
@@ -134,7 +134,7 @@ contract L2WETHGateway is L2ERC20Gateway {
         IWETH(_token).withdraw(_amount);
 
         // 3. Generate message passed to L2StandardERC20Gateway.
-        address _l1WETH = l1WETH;
+        address _l1WETH = L1_WETH;
         bytes memory _message = abi.encodeCall(
             IL1ERC20Gateway.finalizeWithdrawERC20,
             (_l1WETH, _token, _from, _to, _amount, _data)

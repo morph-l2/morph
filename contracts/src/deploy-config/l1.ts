@@ -12,7 +12,7 @@ const config = {
 
   // gasPriceOracle config
   l2BaseFee: 0.1,  // Gwei 
-  
+
   // rollup contract config
   // initialize config
   rollupMaxNumTxInChunk: 100,
@@ -22,15 +22,19 @@ const config = {
   rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
   // genesis config
-  rollupGenesisStateRoot: '0x08b00084171fb0ca559b6dd047d38588610df44886239231b4103941a3123859',
+  rollupGenesisStateRoot: '0x06374560ac61775a9ee81644c875754fc69029a05a32becf6ebc2c801070db0e',
   withdrawRoot: '0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757',
-  batchHeader: '0x000000000000000000000000000000000000000000000000008cbda99363848bdf6a8595319b92bbcbeb8df248608f109a119fc1dd9d76ff52010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c4440140000000000000000000000000000000000000000000000000000000000000000',
+  batchHeader: '0x000000000000000000000000000000000000000000000000001c886dcf76b0d43e796488c6ed2776179e359d8f567f1e06faee36357b06fa04010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c4440140000000000000000000000000000000000000000000000000000000000000000',
 
   // staking config
+  // staking Cross-Chain config
+  stakingCrossChainGaslimitAdd: 100000,
+  stakingCrossChainGaslimitRemove: 1000000,
+  
   // staking initialize config
-  stakingSequencerSize: 4,
   stakingLockNumber: 3,
   stakingMinDeposit: 1, // limit
+  stakingChallengerRewardPercentage: 100,
   // register sequencers
   l2SequencerAddresses: [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",

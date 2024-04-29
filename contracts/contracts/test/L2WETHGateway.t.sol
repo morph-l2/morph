@@ -6,7 +6,9 @@ import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";
 
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
+import {L2ToL1MessagePasser} from "../L2/system/L2ToL1MessagePasser.sol";
 import {L2WETHGateway} from "../L2/gateways/L2WETHGateway.sol";
 import {IL2ERC20Gateway} from "../L2/gateways/IL2ERC20Gateway.sol";
 import {L2GatewayRouter} from "../L2/gateways/L2GatewayRouter.sol";
@@ -15,24 +17,6 @@ import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
 import {L2CrossDomainMessenger} from "../L2/L2CrossDomainMessenger.sol";
 
 contract L2WETHGatewayTest is L2GatewayBaseTest {
-    event WithdrawERC20(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data,
-        uint256 nonce
-    );
-    event FinalizeDepositERC20(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
-    );
-
     WETH private l1weth;
     WETH private l2weth;
 
@@ -293,7 +277,9 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // counterpart is not L1WETHGateway
         // emit FailedRelayedMessage from L2CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
-        emit FailedRelayedMessage(keccak256(xDomainCalldata));
+        emit ICrossDomainMessenger.FailedRelayedMessage(
+            keccak256(xDomainCalldata)
+        );
 
         uint256 messengerBalance = address(l2Messenger).balance;
         uint256 recipientBalance = l2weth.balanceOf(recipient);
@@ -355,7 +341,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // emit FinalizeDepositERC20 from L2WETHGateway
         {
             hevm.expectEmit(true, true, true, true);
-            emit FinalizeDepositERC20(
+            emit IL2ERC20Gateway.FinalizeDepositERC20(
                 address(l1weth),
                 address(l2weth),
                 sender,
@@ -368,7 +354,9 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // emit RelayedMessage from L2CrossDomainMessenger
         {
             hevm.expectEmit(true, false, false, true);
-            emit RelayedMessage(keccak256(xDomainCalldata));
+            emit ICrossDomainMessenger.RelayedMessage(
+                keccak256(xDomainCalldata)
+            );
         }
 
         uint256 messengerBalance = address(l2Messenger).balance;
@@ -456,13 +444,17 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
+                emit L2ToL1MessagePasser.AppendMessage(
+                    0,
+                    keccak256(xDomainCalldata),
+                    rootHash
+                );
             }
 
             // emit SentMessage from L2CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     amount,
@@ -474,7 +466,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawERC20 from L2WETHGateway
             hevm.expectEmit(true, true, true, true);
-            emit WithdrawERC20(
+            emit IL2ERC20Gateway.WithdrawERC20(
                 address(l1weth),
                 address(l2weth),
                 address(this),
@@ -572,13 +564,17 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
+                emit L2ToL1MessagePasser.AppendMessage(
+                    0,
+                    keccak256(xDomainCalldata),
+                    rootHash
+                );
             }
 
             // emit SentMessage from L2CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     amount,
@@ -590,7 +586,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawERC20 from L2WETHGateway
             hevm.expectEmit(true, true, true, true);
-            emit WithdrawERC20(
+            emit IL2ERC20Gateway.WithdrawERC20(
                 address(l1weth),
                 address(l2weth),
                 address(this),
@@ -699,13 +695,17 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
             // emit AppendMessage from L2MessageQueue
             {
                 hevm.expectEmit(false, false, false, true);
-                emit AppendMessage(0, keccak256(xDomainCalldata), rootHash);
+                emit L2ToL1MessagePasser.AppendMessage(
+                    0,
+                    keccak256(xDomainCalldata),
+                    rootHash
+                );
             }
 
             // emit SentMessage from L2CrossDomainMessenger
             {
                 hevm.expectEmit(true, true, false, true);
-                emit SentMessage(
+                emit ICrossDomainMessenger.SentMessage(
                     address(gateway),
                     address(counterpartGateway),
                     amount,
@@ -717,7 +717,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
 
             // emit WithdrawERC20 from L2WETHGateway
             hevm.expectEmit(true, true, true, true);
-            emit WithdrawERC20(
+            emit IL2ERC20Gateway.WithdrawERC20(
                 address(l1weth),
                 address(l2weth),
                 address(this),

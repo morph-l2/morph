@@ -40,11 +40,11 @@ type Rollup struct {
 	ctx     context.Context
 	metrics *metrics.Metrics
 
-	L1Client     iface.Client
-	L2Clients    []iface.L2Client
-	Rollup       iface.IRollup
-	L2Submitters []iface.IL2Submitter
-	L2Sequencers []iface.IL2Sequencer
+	L1Client  iface.Client
+	L2Clients []iface.L2Client
+	Rollup    iface.IRollup
+
+	Staking iface.IL1Staking
 
 	chainId    *big.Int
 	privKey    *ecdsa.PrivateKey
@@ -65,10 +65,9 @@ func NewRollup(
 	ctx context.Context,
 	metrics *metrics.Metrics,
 	l1 iface.Client,
-	l2 []iface.L2Client,
+	l2Clients []iface.L2Client,
 	rollup iface.IRollup,
-	l2Submitters []iface.IL2Submitter,
-	l2Sequencers []iface.IL2Sequencer,
+	staking iface.IL1Staking,
 	chainId *big.Int,
 	priKey *ecdsa.PrivateKey,
 	rollupAddr common.Address,
@@ -80,11 +79,10 @@ func NewRollup(
 		ctx:     ctx,
 		metrics: metrics,
 
-		L1Client:     l1,
-		L2Clients:    l2,
-		Rollup:       rollup,
-		L2Submitters: l2Submitters,
-		L2Sequencers: l2Sequencers,
+		L1Client:  l1,
+		Rollup:    rollup,
+		Staking:   staking,
+		L2Clients: l2Clients,
 
 		privKey:    priKey,
 		chainId:    chainId,
@@ -318,23 +316,6 @@ func (sr *Rollup) finalize() error {
 
 func (sr *Rollup) rollup() error {
 
-	if !sr.PriorityRollup {
-		// is the turn of the submitter
-		currentSubmitter, err := sr.getCurrentSubmitter()
-		if err != nil {
-			return fmt.Errorf("get next submitter error:%v", err)
-		}
-		log.Info("current rolluped submitter", "rolluped_submitter", currentSubmitter.Hex(), "submitter", sr.walletAddr())
-
-		if currentSubmitter.Hex() == sr.walletAddr() {
-			log.Info("start to rollup")
-		} else {
-			log.Info("not my turn, wait for the next turn")
-			time.Sleep(3 * time.Second)
-			return nil
-		}
-	}
-
 	nonce, err := sr.L1Client.NonceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
 	if err != nil {
 		return fmt.Errorf("query layer1 nonce error:%v", err.Error())
@@ -369,11 +350,11 @@ func (sr *Rollup) rollup() error {
 	for _, chunk := range batch.Chunks {
 		chunks = append(chunks, chunk)
 	}
-	signature, err := sr.aggregateSignatures(batch.Signatures)
+	signature, err := sr.aggregateSignatures(batch)
 	if err != nil {
 		return err
 	}
-	rollupBatch := bindings.IRollupBatchData{
+	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:                uint8(batch.Version),
 		ParentBatchHeader:      batch.ParentBatchHeader,
 		Chunks:                 chunks,
@@ -381,7 +362,6 @@ func (sr *Rollup) rollup() error {
 		PrevStateRoot:          batch.PrevStateRoot,
 		PostStateRoot:          batch.PostStateRoot,
 		WithdrawalRoot:         batch.WithdrawRoot,
-		Signature:              *signature,
 	}
 
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
@@ -399,7 +379,7 @@ func (sr *Rollup) rollup() error {
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, *signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
@@ -410,7 +390,7 @@ func (sr *Rollup) rollup() error {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, *signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
@@ -580,11 +560,12 @@ func (sr *Rollup) rollup() error {
 	return nil
 }
 
-func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindings.IRollupBatchSignature, error) {
+func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
+	blsSignatures := batch.Signatures
 	if len(blsSignatures) == 0 {
 		return nil, fmt.Errorf("invalid batch signature")
 	}
-	signers := make([]*big.Int, len(blsSignatures))
+	signers := make([]common.Address, len(blsSignatures))
 	sigs := make([]blssignatures.Signature, 0)
 	for i, bz := range blsSignatures {
 		if len(bz.Signature) > 0 {
@@ -593,17 +574,27 @@ func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*b
 				return nil, err
 			}
 			sigs = append(sigs, sig)
-			signers[i] = big.NewInt(int64(bz.Signer))
+			signers[i] = bz.Signer
 		}
 	}
 	aggregatedSig := blssignatures.AggregateSignatures(sigs)
 	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
-	rollupBatchSignature := bindings.IRollupBatchSignature{
-		Version:   big.NewInt(int64(blsSignatures[0].Version)),
-		Signers:   signers,
-		Signature: blsSignature,
+	// abi pack
+	AddressArr, _ := abi.NewType("address[]", "", nil)
+	args := abi.Arguments{
+		{Type: AddressArr, Name: "stakeAddresses"},
 	}
-	return &rollupBatchSignature, nil
+	bsSigner, err := args.Pack(&signers)
+	if err != nil {
+		return nil, fmt.Errorf("pack signers error:%v", err)
+	}
+
+	sigData := bindings.IRollupBatchSignatureInput{
+		SignedSequencers: bsSigner,
+		SequencerSets:    batch.CurrentSequencerSetBytes,
+		Signature:        blsSignature,
+	}
+	return &sigData, nil
 }
 
 func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
@@ -688,13 +679,13 @@ func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*
 // Init is run before the submitter to check whether the submitter can be started
 func (sr *Rollup) Init() error {
 
-	isSequencer, err := sr.inSequencersSet()
+	isStaker, err := sr.IsStaker()
 	if err != nil {
-		return err
+		return fmt.Errorf("check if this account is sequencer error:%v", err)
 	}
 
-	if !isSequencer {
-		return fmt.Errorf("this account is not sequencer")
+	if !isStaker {
+		return fmt.Errorf("this account is not staker, can not rollup")
 	}
 
 	return nil
@@ -926,34 +917,11 @@ func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Trans
 	return nil, nil, errors.New("replace tx failed after try 10 times")
 }
 
-func (r *Rollup) getCurrentSubmitter() (*common.Address, error) {
+func (r *Rollup) IsStaker() (bool, error) {
 
-	for _, l2Submitter := range r.L2Submitters {
-		current, _, _, err := l2Submitter.GetCurrentSubmitter(nil)
-		if err != nil {
-			log.Warn("get current submitter error", "error", err)
-			continue
-		}
-		return &current, nil
-
+	isStaker, err := r.Staking.IsStaker(nil, common.HexToAddress(r.walletAddr()))
+	if err != nil {
+		return false, fmt.Errorf("failed to get staker info:%v", err)
 	}
-
-	return nil, errors.New("failed to get current submitter")
-}
-
-func (r *Rollup) inSequencersSet() (bool, error) {
-
-	for _, l2Sequencer := range r.L2Sequencers {
-		isSequencer, _, err := l2Sequencer.InSequencersSet(
-			nil,
-			false,
-			common.HexToAddress(r.walletAddr()),
-		)
-		if err != nil {
-			log.Warn("get in sequencer set error", "error", err)
-			continue
-		}
-		return isSequencer, nil
-	}
-	return false, errors.New("failed to get in sequencer set")
+	return isStaker, nil
 }
