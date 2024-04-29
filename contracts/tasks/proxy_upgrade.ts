@@ -281,3 +281,25 @@ task("upgradeRollupImpl")
         await rollupNewImpl.deployed()
         console.log("new rollupNewImpl contract address: ", rollupNewImpl.address)
     })
+
+task("upgradeRollupProxy")
+    .addParam("proxyadminaddr")
+    .addParam("rollupproxyaddr")
+    .addParam("chainid")
+    .setAction(async (taskArgs, hre) => {
+        const ProxyAdminFactory = await hre.ethers.getContractFactory('ProxyAdmin')
+        const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadminaddr)
+        // upgrade
+        const chainId = taskArgs.chainid
+        const RollupFactory = await hre.ethers.getContractFactory("Rollup");
+        const rollupNewImpl = await RollupFactory.deploy(chainId);
+        await rollupNewImpl.deployed()
+        console.log("new rollupNewImpl contract address: ", rollupNewImpl.address)
+        if (!hre.ethers.utils.isAddress(taskArgs.rollupproxyaddr) || !hre.ethers.utils.isAddress(rollupNewImpl.address)) {
+            console.log(`not address ${taskArgs.rollupproxyaddr} ${rollupNewImpl.address}`)
+            return
+        }
+        const res = await proxyAdmin.upgrade(taskArgs.rollupproxyaddr, rollupNewImpl.address)
+        const rec = await res.wait()
+        console.log(`upgrade rollup ${rec.status === 1}`)
+    })

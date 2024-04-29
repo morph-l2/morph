@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/iden3/go-iden3-crypto/keccak256"
-	"github.com/morph-l2/contract/scripts/differential-testing/libraries"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
+
+	"github.com/morph-l2/contract/scripts/differential-testing/libraries"
 )
 
 func Test_encodeStaking(t *testing.T) {
@@ -24,7 +25,7 @@ func Test_encodeStaking(t *testing.T) {
 		TmKey:  tmkey,
 		BlsKey: blsKey,
 	}
-	packed, err := stakingInfoInputsArgs.Pack(&stakerInfo)
+	packed, err := stakerInfoInputsArgs.Pack(&stakerInfo)
 	checkErr(err, "Error encoding output")
 	fmt.Println(hexutil.Encode(packed))
 }
