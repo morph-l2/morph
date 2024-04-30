@@ -1,13 +1,22 @@
 module github.com/morph-l2/tx-submitter
 
-go 1.20
+go 1.21
+
+toolchain go1.22.2
 
 require (
+	github.com/morph-l2/bindings v0.1.0-beta
 	github.com/prometheus/client_golang v1.17.0
-	github.com/scroll-tech/go-ethereum v1.10.14-0.20231130005111-38a3a9c9198c
+	github.com/scroll-tech/go-ethereum v1.11.4
 	github.com/stretchr/testify v1.8.4
+	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
+)
+
+replace (
+	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240429050506-03fd4c3e771d
+	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta
 )
 
 require (
@@ -67,13 +76,23 @@ require (
 )
 
 require (
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-kit/kit v0.12.0 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/bits-and-blooms/bitset v1.7.0 // indirect
+	github.com/btcsuite/btcd/btcec/v2 v2.2.1 // indirect
+	github.com/consensys/bavard v0.1.13 // indirect
+	github.com/consensys/gnark-crypto v0.12.1 // indirect
+	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
+	github.com/ethereum/c-kzg-4844/bindings/go v0.0.0-20230126171313-363c7d7593b4 // indirect
+	github.com/go-kit/log v0.2.1 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
+	github.com/mmcloughlin/addchain v0.4.0 // indirect
+	github.com/petermattis/goid v0.0.0-20231207134359-e60b3f734c67 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
-	github.com/rogpeppe/go-internal v1.12.0 // indirect
+	github.com/sasha-s/go-deadlock v0.3.1 // indirect
+	github.com/supranational/blst v0.3.11 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/net v0.22.0 // indirect
+	rsc.io/tmplfunc v0.0.3 // indirect
 )
