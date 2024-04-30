@@ -1,10 +1,11 @@
 package rollup
 
 import (
+	"math/big"
+
 	"github.com/morph-l2/morph-deployer/eth"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"math/big"
 )
 
 type Genesis struct {
