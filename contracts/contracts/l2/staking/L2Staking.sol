@@ -185,9 +185,9 @@ contract L2Staking is
     ) external onlyOtherStaking {
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
-            updateSequencerSet = rewardStart
-                ? stakerRankings[remove[i]] <= latestSequencerSetSize
-                : stakerRankings[remove[i]] <= sequencerSetMaxSize;
+            if (stakerRankings[remove[i]] <= latestSequencerSetSize) {
+                updateSequencerSet = true;
+            }
 
             if (stakerRankings[remove[i]] > 0) {
                 // update stakerRankings
