@@ -179,6 +179,7 @@ func Main() func(ctx *cli.Context) error {
 			"sequencer_addr", cfg.SequencerAddress,
 			"finalize_enable", cfg.Finalize,
 			"priority_rollup_enable", cfg.PriorityRollup,
+			"l1_sequencer_addr", cfg.L1SequencerAddress,
 		)
 		sr.Start()
 
