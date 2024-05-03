@@ -128,12 +128,8 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// @dev mint inflations
     /// @param upToDayIndex mint up to which day
     function mintInflations(uint256 upToDayIndex) external onlyRecordContract {
-        uint256 currentDayIndex = (block.timestamp -
-            IL2Staking(L2_STAKING_CONTRACT).rewardStartTime()) /
-            DAY_SECONDS +
-            1;
         require(
-            currentDayIndex > upToDayIndex,
+            IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > upToDayIndex,
             "the specified time has not yet been reached"
         );
         require(upToDayIndex >= _inflationMintedDays, "all inflations minted");

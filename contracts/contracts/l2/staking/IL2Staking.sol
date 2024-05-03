@@ -100,7 +100,7 @@ interface IL2Staking {
     /// @notice start reward
     function startReward() external;
 
-    /// @notice return current reward epoch index
+    /// @notice return current reward epoch index. Revert if not start reward
     function currentEpoch() external view returns (uint256);
 
     /// @notice check if the user has staked to staker

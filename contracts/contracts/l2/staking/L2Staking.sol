@@ -220,10 +220,7 @@ contract L2Staking is
     function setCommissionRate(uint256 commission) external onlyStaker {
         require(commission <= 20, "invalid commission");
         commissions[_msgSender()] = commission;
-        uint256 epochEffective = 0;
-        if (rewardStart) {
-            epochEffective = currentEpoch() + 1;
-        }
+        uint256 epochEffective = rewardStart ? currentEpoch() + 1 : 0;
         emit CommissionUpdated(_msgSender(), commission, epochEffective);
     }
 
@@ -395,15 +392,10 @@ contract L2Staking is
         // staker has been removed, unlock next epoch
         bool removed = stakerRankings[delegatee] == 0;
 
-        uint256 effectiveEpoch;
-        uint256 unlockEpoch;
-
-        if (rewardStart) {
-            effectiveEpoch = currentEpoch() + 1;
-            unlockEpoch = removed
-                ? effectiveEpoch
-                : effectiveEpoch + undelegateLockEpochs;
-        }
+        uint256 effectiveEpoch = rewardStart ? currentEpoch() + 1 : 0;
+        uint256 unlockEpoch = (rewardStart && !removed)
+            ? effectiveEpoch + undelegateLockEpochs // reward started and staker is active
+            : effectiveEpoch; // equal to 0 if reward not started. equal to effectiveEpoch is staker is removed
 
         Undelegation memory undelegation = Undelegation(
             delegatee,
@@ -518,10 +510,11 @@ contract L2Staking is
 
     /// @notice return current reward epoch index
     function currentEpoch() public view returns (uint256) {
-        return
-            block.timestamp > rewardStartTime
-                ? (block.timestamp - rewardStartTime) / REWARD_EPOCH
-                : 0;
+        require(
+            block.timestamp >= rewardStartTime,
+            "reward is not started yet"
+        );
+        return (block.timestamp - rewardStartTime) / REWARD_EPOCH;
     }
 
     /// @notice check if the user has staked to staker
