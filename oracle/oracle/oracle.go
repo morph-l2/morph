@@ -148,7 +148,7 @@ func NewOracle(cfg *config.Config) (*Oracle, error) {
 		panic(err)
 	}
 
-	o := &Oracle{
+	return &Oracle{
 		l1Client:    l1Client,
 		l2Client:    l2Client,
 		rollup:      rollup,
@@ -159,9 +159,7 @@ func NewOracle(cfg *config.Config) (*Oracle, error) {
 		rewardEpoch: defaultRewardEpoch,
 		privKey:     privKey,
 		ctx:         context.TODO(),
-	}
-
-	return o, nil
+	}, nil
 }
 
 func (o *Oracle) Start() {
