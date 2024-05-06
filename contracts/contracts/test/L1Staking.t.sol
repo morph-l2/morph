@@ -400,3 +400,63 @@ contract StakingRegisterTest is L1MessageBaseTest {
         assertTrue(l1Staking.tmKeys(aliceInfo.tmKey));
     }
 }
+
+contract StakingWithdrawTest is L1MessageBaseTest {
+    function testWithdraw_notStaker() external {
+        hevm.startPrank(bob);
+        // bob withdraw
+        hevm.expectRevert("only staker");
+        l1Staking.withdraw();
+        hevm.stopPrank();
+    }
+
+    function testWithdraw() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+
+        // before withdraw
+        assertEq(l1Staking.withdrawals(bob), 0);
+        assertTrue(l1Staking.isStaker(bob));
+        assertTrue(!l1Staking.removedList(bob));
+
+        // bob withdraw
+        l1Staking.withdraw();
+        hevm.stopPrank();
+
+        // after withdraw
+        // check
+        assertEq(l1Staking.withdrawals(bob), block.number + l1Staking.withdrawalLockBlocks());
+        assertTrue(!l1Staking.isStaker(bob));
+        assertTrue(!l1Staking.whitelist(bob));
+        assertTrue(l1Staking.removedList(bob));
+
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(!l1Staking.whitelist(bob));
+        assertTrue(!l1Staking.removedList(alice));
+        assertTrue(l1Staking.removedList(bob));
+    }
+}
