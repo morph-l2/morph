@@ -42,3 +42,7 @@ type IL2Submitter interface {
 type IL2Sequencer interface {
 	InSequencersSet(opts *bind.CallOpts, previous bool, checkAddr common.Address) (bool, *big.Int, error)
 }
+
+type IL1Sequencer interface {
+	NewestVersion(opts *bind.CallOpts) (*big.Int, error)
+}

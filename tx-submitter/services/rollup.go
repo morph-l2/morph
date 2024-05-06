@@ -43,6 +43,7 @@ type Rollup struct {
 	L1Client     iface.Client
 	L2Clients    []iface.L2Client
 	Rollup       iface.IRollup
+	L1Sequencer  iface.IL1Sequencer
 	L2Submitters []iface.IL2Submitter
 	L2Sequencers []iface.IL2Sequencer
 
@@ -67,6 +68,7 @@ func NewRollup(
 	l1 iface.Client,
 	l2 []iface.L2Client,
 	rollup iface.IRollup,
+	l1Sequencer iface.IL1Sequencer,
 	l2Submitters []iface.IL2Submitter,
 	l2Sequencers []iface.IL2Sequencer,
 	chainId *big.Int,
@@ -80,9 +82,12 @@ func NewRollup(
 		ctx:     ctx,
 		metrics: metrics,
 
-		L1Client:     l1,
-		L2Clients:    l2,
-		Rollup:       rollup,
+		L1Client:  l1,
+		L2Clients: l2,
+		// l1
+		Rollup:      rollup,
+		L1Sequencer: l1Sequencer,
+		// l2
 		L2Submitters: l2Submitters,
 		L2Sequencers: l2Sequencers,
 
@@ -396,10 +401,15 @@ func (sr *Rollup) rollup() error {
 		return fmt.Errorf("dial ethclient error:%v", err)
 	}
 
+	sequencerVersion, err := sr.L1Sequencer.NewestVersion(nil)
+	if err != nil {
+		return fmt.Errorf("get sequencer version error:%v", err)
+	}
+
 	var tx *types.Transaction
 	// blob tx
 	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
-		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, sequencerVersion, []common.Address{}, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("craft commitBatch tx failed:%v", err)
 		}
@@ -410,7 +420,7 @@ func (sr *Rollup) rollup() error {
 			return fmt.Errorf("get gas tip and cap error:%v", err)
 		}
 		// calldata encode
-		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, big.NewInt(int64(batch.Version)), []common.Address{}, signature.Signature)
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, sequencerVersion, []common.Address{}, signature.Signature)
 		if err != nil {
 			return fmt.Errorf("pack calldata error:%v", err)
 		}
