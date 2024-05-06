@@ -29,7 +29,7 @@ const config = {
 
   // staking config
   // staking initialize config
-  stakingSequencerSize: 4,
+  stakingSequencerSize: 7,
   stakingLockNumber: 3,
   stakingMinDeposit: 1, // limit
   // register sequencers
