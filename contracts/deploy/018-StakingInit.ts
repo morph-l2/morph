@@ -87,16 +87,18 @@ export const StakingInit = async (
         console.log('Upgrading the Staking proxy...')
         const admin: string = configTmp.contractAdmin
         const sequencerSize: number = configTmp.stakingSequencerSize
+        const sequencerWhiteList = configTmp.l2SequencerAddresses
         const limit: number = configTmp.stakingMinDeposit
         const lock: number = configTmp.stakingLockNumber
 
         if (!ethers.utils.isAddress(admin)
             || !ethers.utils.isAddress(L1SequencerProxyAddress)
             || sequencerSize == 0
+            || sequencerSize != sequencerWhiteList.length
             || lock == 0
             || limit == 0
         ) {
-            console.error('please check your address')
+            console.error('please check your address and your sequencer array size')
             return ''
         }
 
