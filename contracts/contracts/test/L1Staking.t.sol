@@ -113,3 +113,162 @@ contract StakingRegisterTest is L1MessageBaseTest {
         // TODO
     }
 }
+
+contract StakingWhitelistTest is L1MessageBaseTest {
+    function testWhitelist_notOwner() external {
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(alice);
+        hevm.expectRevert("Ownable: caller is not the owner");
+        l1Staking.updateWhitelist(add, new address[](0));
+    }
+    function testWhitelist_add() external {
+        // make add param
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+    }
+
+    function testWhitelist_remove() external {
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        address[] memory remove = new address[](1);
+        remove[0] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, remove);
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(!l1Staking.whitelist(bob));
+    }
+
+    function testWhitelist_withdraw() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+
+        // bob withdraw
+        l1Staking.withdraw();
+        hevm.stopPrank();
+
+        // check
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(!l1Staking.whitelist(bob));
+        assertTrue(!l1Staking.removedList(alice));
+        assertTrue(l1Staking.removedList(bob));
+    }
+
+    function testWhitelist_reAdd() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+
+        // bob withdraw
+        l1Staking.withdraw();
+        hevm.stopPrank();
+
+        // check
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(!l1Staking.whitelist(bob));
+        assertTrue(!l1Staking.removedList(alice));
+        assertTrue(l1Staking.removedList(bob));
+
+        hevm.startPrank(multisig);
+        address[] memory reAdd = new address[](1);
+        reAdd[0] = bob;
+        hevm.expectRevert("in removed list");
+        l1Staking.updateWhitelist(reAdd, new address[](0));
+        hevm.stopPrank();
+    }
+
+    function testWhitelist_slash() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+        hevm.stopPrank();
+
+        address[] memory sequencers = new address[](1);
+        sequencers[0] = bob;
+        hevm.prank(l1Staking.rollupContract());
+        // bob sequencer to slash
+        l1Staking.slash(sequencers);
+
+        // check
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(!l1Staking.whitelist(bob));
+        assertTrue(!l1Staking.removedList(alice));
+        assertTrue(l1Staking.removedList(bob));
+    }
+}
