@@ -170,7 +170,7 @@ contract L1Sequencer is
             "invalid version"
         );
         for (uint256 i = 0; i < sequencerAddresses[version].length; i++) {
-            if (sequencerAddresses[currentVersion][i] == addr) {
+            if (sequencerAddresses[version][i] == addr) {
                 return true;
             }
         }

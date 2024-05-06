@@ -32,11 +32,19 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPCS"),
 	}
+
+	// l1 contract
 	RollupAddressFlag = cli.StringFlag{
 		Name:     "rollup-address",
 		Usage:    "Address of the rollup contract",
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP_ADDRESS"),
+	}
+	L1SequencerAddressFlag = cli.StringFlag{
+		Name:     "l1-sequencer",
+		Usage:    "Address of the sequencer contract",
+		Required: true,
+		EnvVar:   prefixEnvVar("L1_SEQUENCER_ADDRESS"),
 	}
 
 	PollIntervalFlag = cli.DurationFlag{
@@ -162,6 +170,7 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcsFlag,
 	RollupAddressFlag,
+	L1SequencerAddressFlag,
 	PollIntervalFlag,
 	TxTimeoutFlag,
 	FinalizeFlag,

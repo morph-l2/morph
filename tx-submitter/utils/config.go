@@ -23,8 +23,9 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpcs []string
 
-	// RollupAddress is the Rollup contract address.
-	RollupAddress string
+	// L1 contract
+	RollupAddress      string
+	L1SequencerAddress string
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -72,14 +73,16 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:      ctx.GlobalString(flags.BuildEnvFlag.Name),
-		L1EthRpc:      ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpcs:     ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
-		RollupAddress: ctx.GlobalString(flags.RollupAddressFlag.Name),
-		PollInterval:  ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		LogLevel:      ctx.GlobalString(flags.LogLevelFlag.Name),
-		PrivateKey:    ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		TxTimeout:     ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
+		BuildEnv:  ctx.GlobalString(flags.BuildEnvFlag.Name),
+		L1EthRpc:  ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpcs: ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
+		// l1
+		L1SequencerAddress: ctx.GlobalString(flags.L1SequencerAddressFlag.Name),
+		RollupAddress:      ctx.GlobalString(flags.RollupAddressFlag.Name),
+		PollInterval:       ctx.GlobalDuration(flags.PollIntervalFlag.Name),
+		LogLevel:           ctx.GlobalString(flags.LogLevelFlag.Name),
+		PrivateKey:         ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		TxTimeout:          ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
 		// finalize
 		Finalize:       ctx.GlobalBool(flags.FinalizeFlag.Name),
 		MaxFinalizeNum: ctx.GlobalUint64(flags.MaxFinalizeNumFlag.Name),

@@ -130,6 +130,14 @@ func Main() func(ctx *cli.Context) error {
 			}
 			l2Submitters = append(l2Submitters, l2Submitter)
 		}
+		// l1 sequencer
+		l1Sequencer, err := bindings.NewL1Sequencer(
+			common.HexToAddress(cfg.L1SequencerAddress),
+			l1Client,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to connect to L1 sequencer: %v", err)
+		}
 
 		sr := services.NewRollup(
 			ctx,
@@ -137,6 +145,7 @@ func Main() func(ctx *cli.Context) error {
 			l1Client,
 			l2Clients,
 			l1Rollup,
+			l1Sequencer,
 			l2Submitters,
 			l2Sequencers,
 			chainID,
@@ -170,6 +179,7 @@ func Main() func(ctx *cli.Context) error {
 			"sequencer_addr", cfg.SequencerAddress,
 			"finalize_enable", cfg.Finalize,
 			"priority_rollup_enable", cfg.PriorityRollup,
+			"l1_sequencer_addr", cfg.L1SequencerAddress,
 		)
 		sr.Start()
 
