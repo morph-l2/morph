@@ -22,6 +22,8 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
+	PrivateKey string
+
 	TendermintRpc string
 	WsEndpoint    string
 
@@ -57,14 +59,16 @@ type Config struct {
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
 
-	RollupAddress common.Address
+	//RollupAddress common.Address
 
-	StakingAddress common.Address
+	//StakingAddress common.Address
 
-	RollupAddr    common.Address
-	L2StakingAddr common.Address
-	MaxSize       uint64
-	StartBlock    uint64
+	RollupAddr common.Address
+	//L2StakingAddr common.Address
+	//L2RecordAddr  common.Address
+	MaxSize    uint64
+	StartBlock uint64
+	PrivKey    string
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -72,13 +76,15 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		ChainID:        ctx.GlobalUint64(flags.ChainIDFlag.Name),
-		L1EthRpc:       ctx.GlobalString(flags.L1EthRPCFlag.Name),
-		L2EthRpc:       ctx.GlobalString(flags.L2EthRPCFlag.Name),
-		TendermintRpc:  ctx.GlobalString(flags.TendermintFlag.Name),
-		WsEndpoint:     ctx.GlobalString(flags.WSEndpointFlag.Name),
-		RollupAddress:  common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
-		StakingAddress: common.HexToAddress(ctx.GlobalString(flags.StakingAddress.Name)),
+		//ChainID:       ctx.GlobalUint64(flags.ChainIDFlag.Name),
+		L1EthRpc:      ctx.GlobalString(flags.L1EthRPCFlag.Name),
+		L2EthRpc:      ctx.GlobalString(flags.L2EthRPCFlag.Name),
+		PrivateKey:    ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		TendermintRpc: ctx.GlobalString(flags.TendermintFlag.Name),
+		WsEndpoint:    ctx.GlobalString(flags.WSEndpointFlag.Name),
+		RollupAddr:    common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
+		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		//StakingAddress: common.HexToAddress(ctx.GlobalString(flags.StakingAddress.Name)),
 		/* Optional Flags */
 
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
@@ -87,6 +93,12 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
 	}
+	fmt.Println("L1EthRpc=========", cfg.L1EthRpc, flags.L1EthRPCFlag.Name)
+	fmt.Println("L2EthRpc=========", cfg.L2EthRpc, flags.L2EthRPCFlag.Name)
+	fmt.Println("PrivateKey=========", cfg.PrivateKey, flags.PrivateKeyFlag.Name)
+	fmt.Println("TendermintRpc=========", cfg.TendermintRpc, flags.TendermintFlag.Name)
+	fmt.Println("WsEndpoint=========", cfg.WsEndpoint, flags.WSEndpointFlag.Name)
+	fmt.Println("RollupAddr=========", cfg.RollupAddr, flags.RollupAddress.Name)
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {
 		cfg.LogFilename = ctx.GlobalString(flags.LogFilenameFlag.Name)
@@ -125,12 +137,10 @@ func ValidateConfig(cfg *Config) error {
 		return err
 	}
 
-	if (cfg.RollupAddress == common.Address{} ||
-		cfg.StakingAddress == common.Address{}) {
+	if (cfg.RollupAddr == common.Address{}) {
 		return fmt.Errorf(
-			"invalied address,RollupAddress:%v,StakingAddress:%v",
-			cfg.RollupAddress.String(),
-			cfg.StakingAddress.String(),
+			"invalied address,RollupAddress:%v",
+			cfg.RollupAddr.String(),
 		)
 	}
 	return nil

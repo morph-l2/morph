@@ -4,7 +4,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const envVarPrefix = "STAKINK_ORACLE_"
+const envVarPrefix = "STAKING_ORACLE_"
 
 func prefixEnvVar(name string) string {
 	return envVarPrefix + name
@@ -13,46 +13,41 @@ func prefixEnvVar(name string) string {
 var (
 	/* Required Flags */
 
-	ChainIDFlag = cli.StringFlag{
-		Name:     "chain-id",
-		Usage:    "Ethereum chain ID",
-		Required: true,
-		EnvVar:   prefixEnvVar("CHAIN_ID"),
-	}
 	L1EthRPCFlag = cli.StringFlag{
-		Name:     "l1-eth-rpc",
-		Usage:    "HTTP provider URL for L1",
-		Required: true,
-		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
+		Name:  "l1-eth-rpc",
+		Usage: "HTTP provider URL for L1",
+		//Required: true,
+		EnvVar: prefixEnvVar("L1_ETH_RPC"),
 	}
 	L2EthRPCFlag = cli.StringFlag{
-		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for L2",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
+		Name:  "l2-eth-rpc",
+		Usage: "HTTP provider URL for L2",
+		//Required: true,
+		EnvVar: prefixEnvVar("L2_ETH_RPC"),
+	}
+	PrivateKeyFlag = cli.StringFlag{
+		Name:   "private-key",
+		Usage:  "The private key to use for sending to the rollup contract",
+		EnvVar: prefixEnvVar("RECORD_PRIVATE_KEY"),
+		//Required: true,
 	}
 	TendermintFlag = cli.StringFlag{
-		Name:     "l2-tendermint-rpc",
-		Usage:    "HTTP provider Tendermint URL for L2",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_TENDERMINT_RPC"),
+		Name:  "l2-tendermint-rpc",
+		Usage: "HTTP provider Tendermint URL for L2",
+		//Required: true,
+		EnvVar: prefixEnvVar("L2_TENDERMINT_RPC"),
 	}
 	WSEndpointFlag = cli.StringFlag{
-		Name:     "l2-ws-endpoint",
-		Usage:    "HTTP provider ws-endpoint URL for L2",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_WS_ENDPOINT"),
+		Name:  "l2-ws-endpoint",
+		Usage: "HTTP provider ws-endpoint URL for L2",
+		//Required: true,
+		EnvVar: prefixEnvVar("L2_WS_ENDPOINT"),
 	}
 
 	RollupAddress = cli.StringFlag{
 		Name:   "rollup-address",
 		Usage:  "Address of the rollup",
 		EnvVar: prefixEnvVar("ROLLUP"),
-	}
-	StakingAddress = cli.StringFlag{
-		Name:   "staking-address",
-		Usage:  "Address of the staking",
-		EnvVar: prefixEnvVar("STAKING"),
 	}
 
 	LogLevelFlag = cli.StringFlag{
@@ -110,16 +105,16 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
-	ChainIDFlag,
 	L1EthRPCFlag,
 	L2EthRPCFlag,
+	PrivateKeyFlag,
 	TendermintFlag,
 	WSEndpointFlag,
 	RollupAddress,
-	StakingAddress,
 }
 
 var optionalFlags = []cli.Flag{
+
 	LogLevelFlag,
 	LogTerminalFlag,
 	LogFilenameFlag,
