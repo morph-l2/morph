@@ -134,7 +134,8 @@ contract L2Staking is
         require(_sequencersMaxSize > 0, "sequencersSize must greater than 0");
         require(_undelegateLockEpochs > 0, "invalid undelegateLockEpochs");
         require(
-            _rewardStartTime > block.timestamp ,
+            _rewardStartTime > block.timestamp &&
+                _rewardStartTime % REWARD_EPOCH == 0,
             "invalid reward start time"
         );
         require(_stakers.length > 0, "invalid initial stakers");
@@ -271,6 +272,7 @@ contract L2Staking is
         );
         require(
             _rewardStartTime > block.timestamp &&
+                _rewardStartTime % REWARD_EPOCH == 0 &&
                 _rewardStartTime != rewardStartTime,
             "invalid reward start time"
         );
