@@ -6,7 +6,7 @@ import {Types} from "../libraries/common/Types.sol";
 import {IL1Staking} from "../L1/staking/IL1Staking.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
-contract StakingRegisterTest is L1MessageBaseTest {
+contract StakingTest is L1MessageBaseTest {
     function testSetUpCheck() external {
         assertEq(rollup.l1StakingContract(), address(l1Staking));
         assertEq(
@@ -270,5 +270,133 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         assertTrue(!l1Staking.whitelist(bob));
         assertTrue(!l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
+    }
+}
+
+contract StakingRegisterTest is L1MessageBaseTest {
+    function testRegister_notInWhitelist() external {
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.startPrank(alice);
+        hevm.expectRevert("not in whitelist");
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+        hevm.stopPrank();
+    }
+
+    function testRegister_registered() external {
+        // add to whitelist
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.startPrank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        hevm.expectRevert("already registered");
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+        hevm.stopPrank();
+    }
+
+    function testRegister_notStakingValue() external {
+        // add to whitelist
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.startPrank(alice);
+        hevm.expectRevert("invalid staking value");
+        l1Staking.register{value: STAKING_VALUE - 1}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+        hevm.stopPrank();
+    }
+
+    function testRegister_notTmKey() external {
+        // add to whitelist
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.startPrank(alice);
+        hevm.expectRevert("invalid tendermint pubkey");
+        l1Staking.register{value: STAKING_VALUE}(
+            0,
+            aliceInfo.blsKey
+        );
+        hevm.stopPrank();
+    }
+
+    function testRegister_notBlsKey() external {
+        // add to whitelist
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.startPrank(alice);
+        hevm.expectRevert("invalid bls pubkey");
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            ""
+        );
+        hevm.stopPrank();
+    }
+
+    function testRegister_success() external {
+        // add to whitelist
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+
+        (address addressCheck,,) = l1Staking.stakers(alice);
+        assertEq(addressCheck, address(0));
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        assertTrue(!l1Staking.blsKeys(aliceInfo.blsKey));
+        assertTrue(!l1Staking.tmKeys(aliceInfo.tmKey));
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        (
+            address addrCheck,
+            bytes32 tmKeyCheck,
+            bytes memory blsKeyCheck
+        ) = l1Staking.stakers(alice);
+        assertEq(addrCheck, alice);
+        assertEq(tmKeyCheck, aliceInfo.tmKey);
+        assertBytesEq(blsKeyCheck, aliceInfo.blsKey);
+        assertTrue(l1Staking.blsKeys(aliceInfo.blsKey));
+        assertTrue(l1Staking.tmKeys(aliceInfo.tmKey));
     }
 }
