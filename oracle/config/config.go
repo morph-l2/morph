@@ -59,13 +59,8 @@ type Config struct {
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
 
-	//RollupAddress common.Address
-
-	//StakingAddress common.Address
-
 	RollupAddr common.Address
-	//L2StakingAddr common.Address
-	//L2RecordAddr  common.Address
+
 	MaxSize    uint64
 	StartBlock uint64
 	PrivKey    string
@@ -76,7 +71,6 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		//ChainID:       ctx.GlobalUint64(flags.ChainIDFlag.Name),
 		L1EthRpc:      ctx.GlobalString(flags.L1EthRPCFlag.Name),
 		L2EthRpc:      ctx.GlobalString(flags.L2EthRPCFlag.Name),
 		PrivateKey:    ctx.GlobalString(flags.PrivateKeyFlag.Name),
@@ -84,7 +78,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		WsEndpoint:    ctx.GlobalString(flags.WSEndpointFlag.Name),
 		RollupAddr:    common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
 		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		//StakingAddress: common.HexToAddress(ctx.GlobalString(flags.StakingAddress.Name)),
 		/* Optional Flags */
 
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
@@ -93,12 +86,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
 	}
-	fmt.Println("L1EthRpc=========", cfg.L1EthRpc, flags.L1EthRPCFlag.Name)
-	fmt.Println("L2EthRpc=========", cfg.L2EthRpc, flags.L2EthRPCFlag.Name)
-	fmt.Println("PrivateKey=========", cfg.PrivateKey, flags.PrivateKeyFlag.Name)
-	fmt.Println("TendermintRpc=========", cfg.TendermintRpc, flags.TendermintFlag.Name)
-	fmt.Println("WsEndpoint=========", cfg.WsEndpoint, flags.WSEndpointFlag.Name)
-	fmt.Println("RollupAddr=========", cfg.RollupAddr, flags.RollupAddress.Name)
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {
 		cfg.LogFilename = ctx.GlobalString(flags.LogFilenameFlag.Name)

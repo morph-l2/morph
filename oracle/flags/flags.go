@@ -14,34 +14,34 @@ var (
 	/* Required Flags */
 
 	L1EthRPCFlag = cli.StringFlag{
-		Name:  "l1-eth-rpc",
-		Usage: "HTTP provider URL for L1",
-		//Required: true,
-		EnvVar: prefixEnvVar("L1_ETH_RPC"),
+		Name:     "l1-eth-rpc",
+		Usage:    "HTTP provider URL for L1",
+		Required: true,
+		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
 	L2EthRPCFlag = cli.StringFlag{
-		Name:  "l2-eth-rpc",
-		Usage: "HTTP provider URL for L2",
-		//Required: true,
-		EnvVar: prefixEnvVar("L2_ETH_RPC"),
+		Name:     "l2-eth-rpc",
+		Usage:    "HTTP provider URL for L2",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
 	PrivateKeyFlag = cli.StringFlag{
-		Name:   "private-key",
-		Usage:  "The private key to use for sending to the rollup contract",
-		EnvVar: prefixEnvVar("RECORD_PRIVATE_KEY"),
-		//Required: true,
+		Name:     "private-key",
+		Usage:    "The private key to use for sending to the rollup contract",
+		EnvVar:   prefixEnvVar("RECORD_PRIVATE_KEY"),
+		Required: true,
 	}
 	TendermintFlag = cli.StringFlag{
-		Name:  "l2-tendermint-rpc",
-		Usage: "HTTP provider Tendermint URL for L2",
-		//Required: true,
-		EnvVar: prefixEnvVar("L2_TENDERMINT_RPC"),
+		Name:     "l2-tendermint-rpc",
+		Usage:    "HTTP provider Tendermint URL for L2",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_TENDERMINT_RPC"),
 	}
 	WSEndpointFlag = cli.StringFlag{
-		Name:  "l2-ws-endpoint",
-		Usage: "HTTP provider ws-endpoint URL for L2",
-		//Required: true,
-		EnvVar: prefixEnvVar("L2_WS_ENDPOINT"),
+		Name:     "l2-ws-endpoint",
+		Usage:    "HTTP provider ws-endpoint URL for L2",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_WS_ENDPOINT"),
 	}
 
 	RollupAddress = cli.StringFlag{
