@@ -98,8 +98,9 @@ export const StakingInit = async (
             || lock == 0
             || limit == 0
         ) {
-            console.error('please check your address and your sequencer array size')
-            return ''
+            const err = 'please check your address and your sequencer array size'
+            console.error(err)
+            return err
         }
 
         // Upgrade and initialize the proxy.
