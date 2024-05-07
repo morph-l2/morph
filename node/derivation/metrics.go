@@ -18,10 +18,12 @@ const (
 )
 
 type Metrics struct {
-	L1SyncHeight   metrics.Gauge
-	RollupL2Height metrics.Gauge
-	DeriveL2Height metrics.Gauge
-	BatchStatus    metrics.Gauge
+	L1SyncHeight     metrics.Gauge
+	RollupL2Height   metrics.Gauge
+	DeriveL2Height   metrics.Gauge
+	BatchStatus      metrics.Gauge
+	LatestBatchIndex metrics.Gauge
+	SyncedBatchIndex metrics.Gauge
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -71,6 +73,14 @@ func (m *Metrics) SetRollupL2Height(height uint64) {
 
 func (m *Metrics) SetBatchStatus(status uint64) {
 	m.BatchStatus.Set(float64(status))
+}
+
+func (m *Metrics) SetLatestBatchIndex(batchIndex uint64) {
+	m.LatestBatchIndex.Set(float64(batchIndex))
+}
+
+func (m *Metrics) SetSyncedBatchIndex(batchIndex uint64) {
+	m.SyncedBatchIndex.Set(float64(batchIndex))
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {
