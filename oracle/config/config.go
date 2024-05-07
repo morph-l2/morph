@@ -22,6 +22,8 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
+	PrivateKey string
+
 	TendermintRpc string
 	WsEndpoint    string
 
@@ -57,14 +59,11 @@ type Config struct {
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
 
-	RollupAddress common.Address
+	RollupAddr common.Address
 
-	StakingAddress common.Address
-
-	RollupAddr    common.Address
-	L2StakingAddr common.Address
-	MaxSize       uint64
-	StartBlock    uint64
+	MaxSize    uint64
+	StartBlock uint64
+	PrivKey    string
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -72,13 +71,13 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		ChainID:        ctx.GlobalUint64(flags.ChainIDFlag.Name),
-		L1EthRpc:       ctx.GlobalString(flags.L1EthRPCFlag.Name),
-		L2EthRpc:       ctx.GlobalString(flags.L2EthRPCFlag.Name),
-		TendermintRpc:  ctx.GlobalString(flags.TendermintFlag.Name),
-		WsEndpoint:     ctx.GlobalString(flags.WSEndpointFlag.Name),
-		RollupAddress:  common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
-		StakingAddress: common.HexToAddress(ctx.GlobalString(flags.StakingAddress.Name)),
+		L1EthRpc:      ctx.GlobalString(flags.L1EthRPCFlag.Name),
+		L2EthRpc:      ctx.GlobalString(flags.L2EthRPCFlag.Name),
+		PrivateKey:    ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		TendermintRpc: ctx.GlobalString(flags.TendermintFlag.Name),
+		WsEndpoint:    ctx.GlobalString(flags.WSEndpointFlag.Name),
+		RollupAddr:    common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
+		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		/* Optional Flags */
 
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
@@ -125,12 +124,10 @@ func ValidateConfig(cfg *Config) error {
 		return err
 	}
 
-	if (cfg.RollupAddress == common.Address{} ||
-		cfg.StakingAddress == common.Address{}) {
+	if (cfg.RollupAddr == common.Address{}) {
 		return fmt.Errorf(
-			"invalied address,RollupAddress:%v,StakingAddress:%v",
-			cfg.RollupAddress.String(),
-			cfg.StakingAddress.String(),
+			"invalied address,RollupAddress:%v",
+			cfg.RollupAddr.String(),
 		)
 	}
 	return nil
