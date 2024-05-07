@@ -41,6 +41,9 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice rollup epoch
     uint256 public override rollupEpoch;
 
+    /// @notice rollup epoch last modified timestamp
+    uint256 public rollupEpochUpdateTime;
+
     /// @notice proposal duration
     uint256 public proposalInterval;
 
@@ -124,6 +127,7 @@ contract Gov is IGov, OwnableUpgradeable {
         batchTimeout = _batchTimeout;
         maxChunks = _maxChunks;
         rollupEpoch = _rollupEpoch;
+        rollupEpochUpdateTime = block.timestamp;
 
         emit ProposalIntervalUpdated(0, _proposalInterval);
         emit BatchBlockIntervalUpdated(0, _batchBlockInterval);
@@ -279,6 +283,7 @@ contract Gov is IGov, OwnableUpgradeable {
         if (rollupEpoch != proposalData[proposalID].rollupEpoch) {
             uint256 _oldValue = rollupEpoch;
             rollupEpoch = proposalData[proposalID].rollupEpoch;
+            rollupEpochUpdateTime = block.timestamp;
             emit RollupEpochUpdated(
                 _oldValue,
                 proposalData[proposalID].rollupEpoch
