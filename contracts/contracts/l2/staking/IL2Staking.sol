@@ -25,7 +25,7 @@ interface IL2Staking {
 
     /// @notice Emitted delegated stake
     /// @param delegatee          delegatee
-    /// @param delegator          unlock epoch index
+    /// @param delegator          delegator
     /// @param amount             new delegation amount, not increment
     /// @param effectiveEpoch     effective epoch
     event Delegated(
@@ -104,16 +104,17 @@ interface IL2Staking {
     function currentEpoch() external view returns (uint256);
 
     /// @notice check if the user has staked to staker
-    /// @param staker sequencers size
+    /// @param staker    address
     function isStakingTo(address staker) external view returns (bool);
 
     /// @notice Get all the delegators which staked to staker
-    /// @param staker sequencers size
+    /// @param staker    address
     function getDelegators(
         address staker
     ) external view returns (address[] memory);
 
     /// @notice get stakers info
+    /// @param _stakerAddresses    staker's addresses
     function getStakesInfo(
         address[] calldata _stakerAddresses
     ) external view returns (Types.StakerInfo[] memory);
@@ -134,7 +135,7 @@ interface IL2Staking {
     function removeStakers(address[] calldata remove) external;
 
     /// @notice setCommissionRate set delegate commission percentage
-    /// @param commission    commission percentage
+    /// @param commission    commission percentage, denominator is 100
     function setCommissionRate(uint256 commission) external;
 
     /// @notice delegator stake morph to delegatee
@@ -150,7 +151,7 @@ interface IL2Staking {
     function claimUndelegation() external;
 
     /// @notice delegator claim reward
-    /// @param delegatee         delegatee address, claim all if empty
+    /// @param delegatee         delegatee address, claim all if address(0)
     /// @param targetEpochIndex  up to the epoch index that the delegator wants to claim
     function claimReward(address delegatee, uint256 targetEpochIndex) external;
 
