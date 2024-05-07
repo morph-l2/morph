@@ -37,16 +37,16 @@ interface IL2Staking {
 
     /// @notice Emitted undelegated stake
     /// @param delegatee          delegatee
-    /// @param delegator          unlock epoch index
-    /// @param amount             delegation amount
+    /// @param delegator          delegator
+    /// @param amount             undelegation amount
     /// @param effectiveEpoch     effective epoch
-    /// @param ublockEpoch        effective epoch
+    /// @param unlockEpoch        unlock epoch index
     event Undelegated(
         address indexed delegatee,
         address indexed delegator,
         uint256 amount,
         uint256 effectiveEpoch,
-        uint256 ublockEpoch
+        uint256 unlockEpoch
     );
 
     /// @notice Emitted claim info

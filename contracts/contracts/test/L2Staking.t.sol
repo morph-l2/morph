@@ -59,6 +59,49 @@ contract L2StakingTest is L2StakingBaseTest {
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
         hevm.startPrank(address(l2CrossDomainMessenger));
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2 + 1; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+            l2Staking.addStaker(stakerInfo);
+        }
+        hevm.stopPrank();
+        for (uint256 i = 0; i < SEQUENCER_SIZE * 2 + 1; i++) {
+            address user = address(uint160(beginSeq + i));
+            (address staker, , ) = l2Staking.stakers(user);
+            assertEq(user, staker);
+            uint256 ranking = l2Staking.stakerRankings(user);
+            assertEq(ranking, i + 1);
+        }
+
+        assertEq(
+            sequencer.getSequencerSet2Size(),
+            l2Staking.sequencerSetMaxSize()
+        );
+    }
+
+    /**
+     * @notice test add staker, reward starting
+     */
+    function testAddStakerWhenRewardStarting() public {
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        uint256 time = DAY_SECONDS;
+        hevm.warp(time);
+
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
@@ -72,6 +115,10 @@ contract L2StakingTest is L2StakingBaseTest {
             uint256 ranking = l2Staking.stakerRankings(user);
             assertEq(ranking, i + 1);
         }
+
+        // sequencer did not update
+        // update by staking amount
+        assertEq(sequencer.getSequencerSet2Size(), SEQUENCER_SIZE);
     }
 
     /**
@@ -140,9 +187,9 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice normal unstaking
+     * @notice normal undelegate
      */
-    function testUnstaking() public {
+    function testUndelegate() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -160,6 +207,61 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(stakerAmount1, stakerAmount0 - amount0);
 
         hevm.stopPrank();
+    }
+
+    /**
+     * @notice undelegate, staker removed
+     */
+    function testUndelegateWhenStakerRemoved() public {
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        uint256 time = DAY_SECONDS;
+        hevm.warp(time);
+
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        hevm.stopPrank();
+
+        // remove staker
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+        address[] memory removed = new address[](1);
+        removed[0] = firstStaker;
+        l2Staking.removeStakers(removed);
+        hevm.stopPrank();
+
+        // sequenser size decrease
+        assertEq(sequencer.getSequencerSet2Size(), SEQUENCER_SIZE - 1);
+        assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 1);
+
+        // staker ranking is 0, removed
+        assertTrue(l2Staking.stakerRankings(firstStaker) == 0);
+
+        hevm.startPrank(bob);
+        l2Staking.undelegateStake(firstStaker);
+        assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 1);
+        hevm.stopPrank();
+
+        hevm.startPrank(alice);
+        l2Staking.undelegateStake(secondStaker);
+        hevm.stopPrank();
+
+        assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 2);
+        // staker ranking is 0, removed
+        assertTrue(l2Staking.stakerRankings(secondStaker) == 0);
     }
 
     /**
@@ -433,7 +535,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice  staking -> distribute -> claim
      */
-    function testDelegatorUndelefateWhenRewardStarting() public {
+    function testDelegatorUndelegateWhenRewardStarting() public {
         hevm.startPrank(alice);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
