@@ -31,6 +31,9 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
     uint256 public blockHeight2;
     address[] public sequencerSet2;
 
+    /// @notice Sequencer set last modified timestamp
+    uint256 public updateTime;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -65,6 +68,8 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
         sequencerSet1 = _sequencerSet;
         sequencerSet2 = _sequencerSet;
 
+        updateTime = block.timestamp;
+
         emit SequencerSetUpdated(_sequencerSet, 0);
     }
 
@@ -89,6 +94,8 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
         } else {
             sequencerSet2 = newSequencerSet;
         }
+
+        updateTime = block.timestamp;
 
         // ************************************************
         // update SEQUENCER_VERIFY_HASH
