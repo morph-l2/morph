@@ -174,14 +174,11 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.logger.Error("eth_getLogs failed", "err", err)
 		return
 	}
-	latestBatchIndex, err := d.rollup.LastCommittedBatchIndex(&bind.CallOpts{
-		BlockNumber: big.NewInt(int64(latest)),
-	})
+	latestBatchIndex, err := d.rollup.LastCommittedBatchIndex(nil)
 	if err != nil {
 		d.logger.Error("query rollup latestCommitted batch Index failed", "err", err)
 		return
 	}
-	d.metrics.SetLatestBatchIndex(latestBatchIndex.Uint64())
 	d.logger.Info("fetched rollup tx", "txNum", len(logs), "latestBatchIndex", latestBatchIndex)
 
 	for _, lg := range logs {
@@ -211,7 +208,6 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		// only last block of batch
 		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
-		d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
 		withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
 			BlockNumber: lastHeader.Number,
 		})
