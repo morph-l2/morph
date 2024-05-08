@@ -56,6 +56,18 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "batch_root_exception",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
+		LatestBatchIndex: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "latest_batch_index",
+			Help:      "",
+		}, labels).With(labelsAndValues...),
+		SyncedBatchIndex: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "synced_batch_index",
+			Help:      "",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
