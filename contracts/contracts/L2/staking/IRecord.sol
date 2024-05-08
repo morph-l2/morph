@@ -15,12 +15,14 @@ interface IRecord {
     /// @custom:field startBlock     batch start block
     /// @custom:field endBlock       batch end block
     /// @custom:field rollupTime     batch rollup time
+    /// @custom:field rollupBlock    batch rollup block number
     struct BatchSubmission {
         uint256 index;
         address submitter;
         uint256 startBlock;
         uint256 endBlock;
         uint256 rollupTime;
+        uint256 rollupBlock;
     }
 
     /// @notice RollupEpochInfo representing a rollup epoch
