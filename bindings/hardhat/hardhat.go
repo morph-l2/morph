@@ -10,7 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
+
 	"github.com/scroll-tech/go-ethereum/common"
 )
 

@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
 )
 
 const GasPriceOracleStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/L2/system/GasPriceOracle.sol:GasPriceOracle\",\"label\":\"_owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"contracts/L2/system/GasPriceOracle.sol:GasPriceOracle\",\"label\":\"l1BaseFee\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_uint256\"},{\"astId\":1002,\"contract\":\"contracts/L2/system/GasPriceOracle.sol:GasPriceOracle\",\"label\":\"overhead\",\"offset\":0,\"slot\":\"2\",\"type\":\"t_uint256\"},{\"astId\":1003,\"contract\":\"contracts/L2/system/GasPriceOracle.sol:GasPriceOracle\",\"label\":\"scalar\",\"offset\":0,\"slot\":\"3\",\"type\":\"t_uint256\"},{\"astId\":1004,\"contract\":\"contracts/L2/system/GasPriceOracle.sol:GasPriceOracle\",\"label\":\"allowListEnabled\",\"offset\":0,\"slot\":\"4\",\"type\":\"t_bool\"},{\"astId\":1005,\"contract\":\"contracts/L2/system/GasPriceOracle.sol:GasPriceOracle\",\"label\":\"isAllowed\",\"offset\":0,\"slot\":\"5\",\"type\":\"t_mapping(t_address,t_bool)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_mapping(t_address,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(address =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_address\",\"value\":\"t_bool\"},\"t_uint256\":{\"encoding\":\"inplace\",\"label\":\"uint256\",\"numberOfBytes\":\"32\"}}}"

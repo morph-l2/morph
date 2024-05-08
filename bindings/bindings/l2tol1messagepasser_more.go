@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
 )
 
 const L2ToL1MessagePasserStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/L2/system/L2ToL1MessagePasser.sol:L2ToL1MessagePasser\",\"label\":\"_branch\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_array(t_bytes1003)32_storage\"},{\"astId\":1001,\"contract\":\"contracts/L2/system/L2ToL1MessagePasser.sol:L2ToL1MessagePasser\",\"label\":\"leafNodesCount\",\"offset\":0,\"slot\":\"32\",\"type\":\"t_uint256\"},{\"astId\":1002,\"contract\":\"contracts/L2/system/L2ToL1MessagePasser.sol:L2ToL1MessagePasser\",\"label\":\"messageRoot\",\"offset\":0,\"slot\":\"33\",\"type\":\"t_bytes32\"}],\"types\":{\"t_array(t_bytes1003)32_storage\":{\"encoding\":\"inplace\",\"label\":\"bytes32[32]\",\"numberOfBytes\":\"1024\"},\"t_bytes32\":{\"encoding\":\"inplace\",\"label\":\"bytes32\",\"numberOfBytes\":\"32\"},\"t_uint256\":{\"encoding\":\"inplace\",\"label\":\"uint256\",\"numberOfBytes\":\"32\"}}}"
