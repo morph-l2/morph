@@ -9,11 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/tx-submitter/iface"
-	"github.com/morph-l2/tx-submitter/metrics"
-	"github.com/morph-l2/tx-submitter/utils"
-
 	"github.com/holiman/uint256"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
@@ -28,6 +23,11 @@ import (
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/tendermint/tendermint/blssignatures"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/metrics"
+	"morph-l2/tx-submitter/utils"
 )
 
 const (

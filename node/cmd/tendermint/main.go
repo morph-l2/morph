@@ -4,11 +4,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/morph-l2/node/types"
 	cmd "github.com/tendermint/tendermint/cmd/tendermint/commands"
 	"github.com/tendermint/tendermint/cmd/tendermint/commands/debug"
 	"github.com/tendermint/tendermint/libs/cli"
 	nm "github.com/tendermint/tendermint/node"
+
+	"morph-l2/node/types"
 )
 
 func main() {

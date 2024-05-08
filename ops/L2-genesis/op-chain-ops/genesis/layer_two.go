@@ -3,12 +3,13 @@ package genesis
 import (
 	"fmt"
 
-	"github.com/morph-l2/morph-deployer/op-chain-ops/state"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/rollup/rcfg"
 	"github.com/scroll-tech/go-ethereum/rollup/withdrawtrie"
+
+	"morph-l2/morph-deployer/op-chain-ops/state"
 )
 
 // BuildL2DeveloperGenesis will build the developer Morph Genesis

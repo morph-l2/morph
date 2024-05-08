@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	submitter "github.com/morph-l2/tx-submitter"
-	"github.com/morph-l2/tx-submitter/flags"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/urfave/cli"
+
+	submitter "morph-l2/tx-submitter"
+	"morph-l2/tx-submitter/flags"
 )
 
 var (

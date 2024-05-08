@@ -1,10 +1,10 @@
 # morph-deployer
 
-## Compile Smart Contract 
+## Compile Smart Contract
 
 ### step 1 build solidity files
 
-checkout the contract repo: ``git clone https://github.com/morph-l2/contracts``
+checkout the contract repo: ``git clone https://github.com/morph-l2/morph``
 
 ```cd contracts```
 
@@ -32,9 +32,10 @@ checkout this repo ```git clone https://github.com/morph-l2/morph-deployer.git``
  make all
 ```
 
-
 ## Prepare Genesis File
+
 Run script `devnet-gensis.sh`
+
 ```shell
 DEVNET="$PWD/.devnet"
 echo "Regenerating genesis files"
@@ -49,4 +50,5 @@ go run cmd/main.go genesis devnet \
 touch "$DEVNET/done"
 )
 ```
+
 Make sure `genesis-l1.json` and `genesis-l2.json` are generated correctly.

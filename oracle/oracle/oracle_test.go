@@ -10,9 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/morph/oracle/config"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -22,6 +19,10 @@ import (
 	"github.com/stretchr/testify/require"
 	tmhttp "github.com/tendermint/tendermint/rpc/client/http"
 	"golang.org/x/crypto/sha3"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/oracle/config"
 )
 
 func testNewOracleClient(t *testing.T) *Oracle {

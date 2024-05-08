@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/morph-deployer/op-chain-ops/immutables"
-	"github.com/morph-l2/morph-deployer/op-chain-ops/state"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/vm"
 	"github.com/scroll-tech/go-ethereum/log"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/morph-deployer/op-chain-ops/immutables"
+	"morph-l2/morph-deployer/op-chain-ops/state"
 )
 
 // UntouchableCodeHashes contains code hashes of all the contracts

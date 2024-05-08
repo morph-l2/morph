@@ -3,8 +3,9 @@ package flags
 import (
 	"time"
 
-	oplog "github.com/morph-l2/morph-deployer/log"
 	"github.com/urfave/cli"
+
+	oplog "morph-l2/morph-deployer/log"
 )
 
 // Flags

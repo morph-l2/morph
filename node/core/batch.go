@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/bls12381"
 	"github.com/tendermint/tendermint/l2node"
 	tmtypes "github.com/tendermint/tendermint/types"
+
+	"morph-l2/node/types"
 )
 
 // MaxNumChunks is the maximum number of chunks that a batch can contain.

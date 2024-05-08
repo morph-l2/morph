@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/solc"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/vm"
 	"github.com/scroll-tech/go-ethereum/log"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/solc"
 )
 
 var (

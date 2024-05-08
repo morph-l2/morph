@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/morph-deployer/op-chain-ops/deployer"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -15,6 +12,10 @@ import (
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/rlp"
 	"github.com/scroll-tech/go-ethereum/trie"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/morph-deployer/op-chain-ops/deployer"
 )
 
 // ImmutableValues represents the values to be set in immutable code.

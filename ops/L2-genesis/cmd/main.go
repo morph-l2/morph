@@ -3,12 +3,13 @@ package main
 import (
 	"os"
 
-	"github.com/morph-l2/morph-deployer/cmd/genesis"
-	"github.com/morph-l2/morph-deployer/flags"
-	oplog "github.com/morph-l2/morph-deployer/log"
-	"github.com/morph-l2/morph-deployer/version"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/urfave/cli"
+
+	"morph-l2/morph-deployer/cmd/genesis"
+	"morph-l2/morph-deployer/flags"
+	oplog "morph-l2/morph-deployer/log"
+	"morph-l2/morph-deployer/version"
 )
 
 var (

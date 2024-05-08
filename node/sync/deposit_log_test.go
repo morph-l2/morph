@@ -4,9 +4,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/morph-l2/bindings/bindings"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"morph-l2/bindings/bindings"
 )
 
 func TestParseRelayMessage(t *testing.T) {

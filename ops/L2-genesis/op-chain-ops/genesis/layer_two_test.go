@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	node "github.com/morph-l2/node/core"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+
+	node "morph-l2/node/core"
 )
 
 func Test_BuildL2DeveloperGenesis(t *testing.T) {

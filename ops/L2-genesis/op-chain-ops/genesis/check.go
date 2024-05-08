@@ -1,8 +1,9 @@
 package genesis
 
 import (
-	"github.com/morph-l2/bindings/predeploys"
 	"github.com/scroll-tech/go-ethereum/common"
+
+	"morph-l2/bindings/predeploys"
 )
 
 const (

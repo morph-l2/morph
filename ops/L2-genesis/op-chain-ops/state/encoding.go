@@ -8,10 +8,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/morph-l2/bindings/solc"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/crypto"
+
+	"morph-l2/bindings/solc"
 )
 
 // EncodeStorageKeyValue encodes the key value pair that is stored in state

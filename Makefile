@@ -1,7 +1,7 @@
 .PHONY: update format
 
 update:
-	# go work sync
+	go work sync
 	cd $(PWD)/bindings/ && go mod tidy
 	cd $(PWD)/contracts/ && go mod tidy
 	cd $(PWD)/node/ && go mod tidy

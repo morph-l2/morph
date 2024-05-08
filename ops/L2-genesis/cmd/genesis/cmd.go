@@ -9,13 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/morph-l2/bindings/hardhat"
-	"github.com/morph-l2/morph-deployer/op-chain-ops/genesis"
-	node "github.com/morph-l2/node/core"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/urfave/cli"
+
+	"morph-l2/bindings/hardhat"
+	"morph-l2/morph-deployer/op-chain-ops/genesis"
+	node "morph-l2/node/core"
 )
 
 var Subcommands = cli.Commands{

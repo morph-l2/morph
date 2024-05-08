@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/morph-l2/morph/oracle/flags"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/urfave/cli"
+
+	"morph-l2/oracle/flags"
 )
 
 type Config struct {

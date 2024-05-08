@@ -8,12 +8,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/scroll-tech/go-ethereum/rlp"
+
+	"morph-l2/bindings/bindings"
 )
 
 var (

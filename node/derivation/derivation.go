@@ -9,11 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/node/sync"
-	"github.com/morph-l2/node/types"
-	"github.com/morph-l2/node/validator"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -25,6 +20,12 @@ import (
 	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
 	"github.com/scroll-tech/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/node/sync"
+	"morph-l2/node/types"
+	"morph-l2/node/validator"
 )
 
 var (

@@ -11,7 +11,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 
-	"github.com/morph-l2/contract/scripts/differential-testing/libraries"
+	"morph-l2/contract/scripts/differential-testing/libraries"
 )
 
 // ABI types

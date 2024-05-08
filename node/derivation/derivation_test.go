@@ -9,9 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -25,6 +22,10 @@ import (
 	"github.com/scroll-tech/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/node/types"
 )
 
 func TestCompareBlock(t *testing.T) {
