@@ -23,13 +23,11 @@ Make sure artifacts are generated in ./artifacts directory
 ### step 2 generate go-bindings
 
 To be developed standalone project bindings  
-checkout this repo ```git clone https://github.com/morph-l2/morph-deployer.git```.  
-
-***Make sure ``morph-deployer`` and ``contracts`` in same folder.***  
+checkout this repo ```git clone https://github.com/morph-l2/morph.git```.  
 
 ```shell
- cd morph-deployer/bindings
- make all
+cd morph/bindings
+make all
 ```
 
 ## Prepare Genesis File

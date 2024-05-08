@@ -5,10 +5,18 @@ on:
         branches:
             - main
         paths:
+            - "bindings/**"
+            - "node/**"
+            - "ops/l2-genesis/**"
+            - "ops/tools/**"
             - "tx-submitter/**"
             - ".github/workflows/tx-submitter.yaml"
     pull_request:
         paths:
+            - "bindings/**"
+            - "node/**"
+            - "ops/l2-genesis/**"
+            - "ops/tools/**"
             - "tx-submitter/**"
             - ".github/workflows/tx-submitter.yaml"
 

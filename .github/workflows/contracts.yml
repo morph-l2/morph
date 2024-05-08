@@ -6,9 +6,13 @@ on:
             - main
         paths:
             - "contracts/**"
+            - "ops/l2-genesis/**"
+            - ".github/workflows/contracts.yaml"
     pull_request:
         paths:
             - "contracts/**"
+            - "ops/l2-genesis/**"
+            - ".github/workflows/contracts.yaml"
 
 defaults:
     run:
