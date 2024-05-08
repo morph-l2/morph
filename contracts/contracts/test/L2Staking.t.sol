@@ -11,6 +11,7 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 contract L2StakingTest is L2StakingBaseTest {
     uint256 SEQUENCER_RATIO_PRECISION = 1e8;
     uint256 INFLATION_RATIO_PRECISION = 1e16;
+    uint256 DAY_SECONDS = 86400;
 
     uint256 morphBalance = 20 ether;
 

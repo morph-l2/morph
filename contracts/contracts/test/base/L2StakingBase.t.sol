@@ -26,6 +26,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     uint256 public REWARD_EPOCH = 86400;
     uint256 public rewardStartTime = 86400;
 
+    uint256 SEQUENCER_RATIO_PRECISION = 1e8;
+
     // Sequencer config
     Sequencer public sequencer;
 
