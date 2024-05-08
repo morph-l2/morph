@@ -135,7 +135,8 @@ contract Record is IRecord, OwnableUpgradeable {
                 _batchSubmissions[i].submitter,
                 _batchSubmissions[i].startBlock,
                 _batchSubmissions[i].endBlock,
-                _batchSubmissions[i].rollupTime
+                _batchSubmissions[i].rollupTime,
+                _batchSubmissions[i].rollupBlock
             );
         }
         emit BatchSubmissionsUploaded(
