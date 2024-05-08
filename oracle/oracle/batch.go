@@ -36,6 +36,17 @@ type BatchInfo struct {
 	L2TxCount     uint64
 }
 
+func (o *Oracle) GetPreBatchRollupBlock(nextBatchSubmissionIndex *big.Int) (uint64, error) {
+	if nextBatchSubmissionIndex.Uint64() == 0 {
+		return o.cfg.StartBlock, nil
+	}
+	bs, err := o.record.BatchSubmissions(nil, nextBatchSubmissionIndex)
+	if err != nil {
+		return 0, err
+	}
+	return bs.RollupBlock.Uint64(), nil
+}
+
 func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, endBlock uint64) ([]bindings.IRecordBatchSubmission, error) {
 	rLogs, err := o.fetchRollupLog(ctx, startBlock, endBlock)
 	if err != nil {
@@ -47,10 +58,6 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, endBlock ui
 	//}
 	//o.l2Client.GetRollupBatchByIndex(o.ctx,)
 	var recordBatchSubmissions []bindings.IRecordBatchSubmission
-	nextBatchSubmissionIndex, err := o.record.NextBatchSubmissionIndex(nil)
-	if err != nil {
-		return nil, err
-	}
 	for _, lg := range rLogs {
 		tx, pending, err := o.l1Client.TransactionByHash(ctx, lg.TxHash)
 		if err != nil {
@@ -152,7 +159,6 @@ func (o *Oracle) fetchRollupLog(ctx context.Context, start, end uint64) ([]types
 }
 
 func (o *Oracle) GetNextBatchSubmissionIndex() (*big.Int, error) {
-	// TODO
 	return o.record.NextBatchSubmissionIndex(nil)
 }
 
@@ -160,24 +166,33 @@ func (o *Oracle) submitRecord() {
 	nextBatchSubmissionIndex, err := o.GetNextBatchSubmissionIndex()
 	lastFinalized, err := o.rollup.LastFinalizedBatchIndex(nil)
 	if err != nil {
-		// TODO
-	}
-	if nextBatchSubmissionIndex.Cmp(lastFinalized) > 0 {
-		// TODO
+		log.Error("get last finalized batch index failed ", "error", err)
 		return
 	}
-	start := nextBatchSubmissionIndex.Uint64()
-	end := lastFinalized.Uint64()
+	if nextBatchSubmissionIndex.Cmp(lastFinalized) > 0 {
+		log.Info("already newest batch...")
+		return
+	}
+	start, err := o.GetPreBatchRollupBlock(nextBatchSubmissionIndex)
+	if err != nil {
+		log.Error("get pre batch rollup block number failed", "error", err)
+		return
+	}
+	end, err := o.l1Client.BlockNumber(o.ctx)
+	if err != nil {
+		log.Error("get latest block number failed", "error", err)
+		return
+	}
 	if start+o.cfg.MaxSize < end {
 		end = start + o.cfg.MaxSize - 1
 	}
-	batchSubmissiones, err := o.GetBatchSubmission(context.Background(), start, end)
-	tx, err := o.record.RecordFinalizedBatchSubmissions(nil, batchSubmissiones)
+	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start, end)
+	tx, err := o.record.RecordFinalizedBatchSubmissions(nil, batchSubmissions)
 	receipt, err := o.l2Client.TransactionReceipt(context.Background(), tx.Hash())
 	if err != nil {
 
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
-
+		// TODO
 	}
 }
