@@ -5,11 +5,11 @@ import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {L1GatewayRouter} from "../L1/gateways/L1GatewayRouter.sol";
-import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
-import {L1WETHGateway} from "../L1/gateways/L1WETHGateway.sol";
-import {IL2ERC20Gateway} from "../L2/gateways/IL2ERC20Gateway.sol";
-import {IL1ERC20Gateway} from "../L1/gateways/IL1ERC20Gateway.sol";
+import {L1GatewayRouter} from "../l1/gateways/L1GatewayRouter.sol";
+import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
+import {L1WETHGateway} from "../l1/gateways/L1WETHGateway.sol";
+import {IL2ERC20Gateway} from "../l2/gateways/IL2ERC20Gateway.sol";
+import {IL1ERC20Gateway} from "../l1/gateways/IL1ERC20Gateway.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1WETHGatewayTest is L1GatewayBaseTest {

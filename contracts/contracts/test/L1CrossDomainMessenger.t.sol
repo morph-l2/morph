@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
-import {IL1CrossDomainMessenger} from "../L1/L1CrossDomainMessenger.sol";
-import {IRollup} from "../L1/rollup/IRollup.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {IL1CrossDomainMessenger} from "../l1/L1CrossDomainMessenger.sol";
+import {IRollup} from "../l1/rollup/IRollup.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";

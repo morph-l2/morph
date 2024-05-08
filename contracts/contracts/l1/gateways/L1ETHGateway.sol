@@ -2,7 +2,7 @@
 
 pragma solidity =0.8.24;
 
-import {IL2ETHGateway} from "../../L2/gateways/IL2ETHGateway.sol";
+import {IL2ETHGateway} from "../../l2/gateways/IL2ETHGateway.sol";
 import {IL1CrossDomainMessenger} from "../IL1CrossDomainMessenger.sol";
 import {IL1ETHGateway} from "./IL1ETHGateway.sol";
 

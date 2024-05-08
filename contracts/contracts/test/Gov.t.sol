@@ -2,8 +2,8 @@
 pragma solidity =0.8.24;
 
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
-import {Gov} from "../L2/staking/Gov.sol";
-import {IGov} from "../L2/staking/IGov.sol";
+import {Gov} from "../l2/staking/Gov.sol";
+import {IGov} from "../l2/staking/IGov.sol";
 
 contract GovTest is L2StakingBaseTest {
     function setUp() public virtual override {

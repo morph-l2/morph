@@ -5,7 +5,7 @@ pragma solidity =0.8.24;
 import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import {ERC721HolderUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
 
-import {IL2ERC721Gateway} from "../../L2/gateways/IL2ERC721Gateway.sol";
+import {IL2ERC721Gateway} from "../../l2/gateways/IL2ERC721Gateway.sol";
 import {IL1CrossDomainMessenger} from "../IL1CrossDomainMessenger.sol";
 import {IL1ERC721Gateway} from "./IL1ERC721Gateway.sol";
 

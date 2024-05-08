@@ -10,7 +10,7 @@ import {IL1GatewayRouter} from "./IL1GatewayRouter.sol";
 
 import {IMessageDropCallback} from "../../libraries/callbacks/IMessageDropCallback.sol";
 import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
-import {IL2ERC20Gateway} from "../../L2/gateways/IL2ERC20Gateway.sol";
+import {IL2ERC20Gateway} from "../../l2/gateways/IL2ERC20Gateway.sol";
 
 /// @title L1ERC20Gateway
 /// @notice The `L1ERC20Gateway` as a base contract for ERC20 gateways in L1.

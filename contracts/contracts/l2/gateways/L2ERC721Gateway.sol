@@ -6,7 +6,7 @@ import {ERC721HolderUpgradeable} from "@openzeppelin/contracts-upgradeable/token
 
 import {IL2ERC721Gateway} from "./IL2ERC721Gateway.sol";
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
-import {IL1ERC721Gateway} from "../../L1/gateways/IL1ERC721Gateway.sol";
+import {IL1ERC721Gateway} from "../../l1/gateways/IL1ERC721Gateway.sol";
 import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
 import {IMorphERC721} from "../../libraries/token/IMorphERC721.sol";
 

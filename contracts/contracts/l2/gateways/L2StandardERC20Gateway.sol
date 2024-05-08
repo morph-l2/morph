@@ -6,7 +6,7 @@ import {AddressUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Addr
 
 import {IL2ERC20Gateway, L2ERC20Gateway} from "./L2ERC20Gateway.sol";
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
-import {IL1ERC20Gateway} from "../../L1/gateways/IL1ERC20Gateway.sol";
+import {IL1ERC20Gateway} from "../../l1/gateways/IL1ERC20Gateway.sol";
 import {IMorphERC20Upgradeable} from "../../libraries/token/IMorphERC20Upgradeable.sol";
 import {MorphStandardERC20} from "../../libraries/token/MorphStandardERC20.sol";
 import {IMorphStandardERC20Factory} from "../../libraries/token/IMorphStandardERC20Factory.sol";

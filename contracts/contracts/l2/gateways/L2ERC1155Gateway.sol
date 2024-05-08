@@ -6,7 +6,7 @@ import {ERC1155HolderUpgradeable, ERC1155ReceiverUpgradeable} from "@openzeppeli
 
 import {IL2ERC1155Gateway} from "./IL2ERC1155Gateway.sol";
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
-import {IL1ERC1155Gateway} from "../../L1/gateways/IL1ERC1155Gateway.sol";
+import {IL1ERC1155Gateway} from "../../l1/gateways/IL1ERC1155Gateway.sol";
 import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
 import {IMorphERC1155} from "../../libraries/token/IMorphERC1155.sol";
 

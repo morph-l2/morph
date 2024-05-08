@@ -2,12 +2,12 @@
 pragma solidity =0.8.24;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
-import {L2ToL1MessagePasser} from "../L2/system/L2ToL1MessagePasser.sol";
-import {IL2ETHGateway} from "../L2/gateways/IL2ETHGateway.sol";
-import {L2ETHGateway} from "../L2/gateways/L2ETHGateway.sol";
-import {L2GatewayRouter} from "../L2/gateways/L2GatewayRouter.sol";
-import {L2CrossDomainMessenger} from "../L2/L2CrossDomainMessenger.sol";
-import {IL1ETHGateway} from "../L1/gateways/IL1ETHGateway.sol";
+import {L2ToL1MessagePasser} from "../l2/system/L2ToL1MessagePasser.sol";
+import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
+import {L2ETHGateway} from "../l2/gateways/L2ETHGateway.sol";
+import {L2GatewayRouter} from "../l2/gateways/L2GatewayRouter.sol";
+import {L2CrossDomainMessenger} from "../l2/L2CrossDomainMessenger.sol";
+import {IL1ETHGateway} from "../l1/gateways/IL1ETHGateway.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";

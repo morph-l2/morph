@@ -4,9 +4,9 @@ pragma solidity =0.8.24;
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
-import {IL2ETHGateway} from "../L2/gateways/IL2ETHGateway.sol";
-import {IL1ETHGateway} from "../L1/gateways/IL1ETHGateway.sol";
+import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
+import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
+import {IL1ETHGateway} from "../l1/gateways/IL1ETHGateway.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1ETHGatewayTest is L1GatewayBaseTest {

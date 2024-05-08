@@ -2,7 +2,7 @@
 
 pragma solidity =0.8.24;
 
-import {Rollup} from "../L1/rollup/Rollup.sol";
+import {Rollup} from "../l1/rollup/Rollup.sol";
 
 contract MockRollup is Rollup {
     constructor() Rollup(0) {}

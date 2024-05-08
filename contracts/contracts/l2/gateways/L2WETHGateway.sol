@@ -8,7 +8,7 @@ import {SafeERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ER
 import {IL2ERC20Gateway, L2ERC20Gateway} from "./L2ERC20Gateway.sol";
 import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
 import {IWETH} from "../../interfaces/IWETH.sol";
-import {IL1ERC20Gateway} from "../../L1/gateways/IL1ERC20Gateway.sol";
+import {IL1ERC20Gateway} from "../../l1/gateways/IL1ERC20Gateway.sol";
 import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
 
 /// @title L2WETHGateway

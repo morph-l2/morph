@@ -3,7 +3,7 @@ pragma solidity =0.8.24;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {Types} from "../libraries/common/Types.sol";
-import {IL1Staking} from "../L1/staking/IL1Staking.sol";
+import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
 contract StakingTest is L1MessageBaseTest {
@@ -123,6 +123,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         hevm.expectRevert("Ownable: caller is not the owner");
         l1Staking.updateWhitelist(add, new address[](0));
     }
+
     function testWhitelist_add() external {
         // make add param
         address[] memory add = new address[](2);
@@ -168,10 +169,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
         hevm.deal(bob, 5 * STAKING_VALUE);
         hevm.startPrank(bob);
-        l1Staking.register{value: STAKING_VALUE}(
-            bobInfo.tmKey,
-            bobInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(bobInfo.tmKey, bobInfo.blsKey);
 
         // bob withdraw
         l1Staking.withdraw();
@@ -207,10 +205,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
         hevm.deal(bob, 5 * STAKING_VALUE);
         hevm.startPrank(bob);
-        l1Staking.register{value: STAKING_VALUE}(
-            bobInfo.tmKey,
-            bobInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(bobInfo.tmKey, bobInfo.blsKey);
 
         // bob withdraw
         l1Staking.withdraw();
@@ -253,10 +248,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
         hevm.deal(bob, 5 * STAKING_VALUE);
         hevm.startPrank(bob);
-        l1Staking.register{value: STAKING_VALUE}(
-            bobInfo.tmKey,
-            bobInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(bobInfo.tmKey, bobInfo.blsKey);
         hevm.stopPrank();
 
         address[] memory sequencers = new address[](1);
@@ -342,10 +334,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.startPrank(alice);
         hevm.expectRevert("invalid tendermint pubkey");
-        l1Staking.register{value: STAKING_VALUE}(
-            0,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(0, aliceInfo.blsKey);
         hevm.stopPrank();
     }
 
@@ -361,10 +350,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.startPrank(alice);
         hevm.expectRevert("invalid bls pubkey");
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            ""
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, "");
         hevm.stopPrank();
     }
 
@@ -375,7 +361,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.prank(multisig);
         l1Staking.updateWhitelist(add, new address[](0));
 
-        (address addressCheck,,) = l1Staking.stakers(alice);
+        (address addressCheck, , ) = l1Staking.stakers(alice);
         assertEq(addressCheck, address(0));
         // alice register
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);

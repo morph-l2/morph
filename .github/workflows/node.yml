@@ -8,14 +8,12 @@ on:
             - "bindings/**"
             - "node/**"
             - "ops/l2-genesis/**"
-            - "ops/tools/**"
             - ".github/workflows/node.yaml"
     pull_request:
         paths:
             - "bindings/**"
             - "node/**"
             - "ops/l2-genesis/**"
-            - "ops/tools/**"
             - ".github/workflows/node.yaml"
 
 defaults:

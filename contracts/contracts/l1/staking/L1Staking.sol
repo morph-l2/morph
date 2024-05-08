@@ -9,7 +9,7 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Types} from "../../libraries/common/Types.sol";
 import {Staking} from "../../libraries/staking/Staking.sol";
 import {IL1Staking} from "./IL1Staking.sol";
-import {IL2Staking} from "../../L2/staking/IL2Staking.sol";
+import {IL2Staking} from "../../l2/staking/IL2Staking.sol";
 
 contract L1Staking is
     IL1Staking,
