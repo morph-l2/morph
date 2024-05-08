@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/node/derivation"
@@ -14,7 +15,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
-	"math/big"
 )
 
 var (
@@ -41,8 +41,16 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, endBlock ui
 	if err != nil {
 		return nil, err
 	}
-	var recordBatchSubmissiones []bindings.IRecordBatchSubmission
-	o.record.NextBatchSubmissionIndex(nil)
+	//lastBatchIndex,err:= o.rollup.LastCommittedBatchIndex(nil)
+	//if err != nil {
+	//	return nil,err
+	//}
+	//o.l2Client.GetRollupBatchByIndex(o.ctx,)
+	var recordBatchSubmissions []bindings.IRecordBatchSubmission
+	nextBatchSubmissionIndex, err := o.record.NextBatchSubmissionIndex(nil)
+	if err != nil {
+		return nil, err
+	}
 	for _, lg := range rLogs {
 		tx, pending, err := o.l1Client.TransactionByHash(ctx, lg.TxHash)
 		if err != nil {
@@ -124,9 +132,9 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, endBlock ui
 			EndBlock:   big.NewInt(int64(batchData.LastBlockNumber())),
 			RollupTime: big.NewInt(int64(header.Time)),
 		}
-		recordBatchSubmissiones = append(recordBatchSubmissiones, recordBatchSubmission)
+		recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
 	}
-	return recordBatchSubmissiones, nil
+	return recordBatchSubmissions, nil
 }
 
 func (o *Oracle) fetchRollupLog(ctx context.Context, start, end uint64) ([]types.Log, error) {
