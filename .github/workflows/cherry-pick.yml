@@ -3,6 +3,8 @@ on:
     branches:
       - main
     types: ["closed"]
+    permissions:
+      pull-requests: write
 
 jobs:
   cherry_pick_release_0_1_x:
