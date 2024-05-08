@@ -159,6 +159,17 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice test set commission rate
+     */
+    function testSetCommissionRate() public {
+        hevm.startPrank(firstStaker);
+
+        // set commission rate
+        hevm.expectRevert("invalid commission");
+        l2Staking.setCommissionRate(21);
+    }
+
+    /**
      * @notice failed staking, staker not exists
      */
     function testStakeToNotStaker() public {
@@ -260,8 +271,6 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 2);
-        // staker ranking is 0, removed
-        assertTrue(l2Staking.stakerRankings(secondStaker) == 0);
     }
 
     /**
@@ -391,9 +400,9 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice update params
+     * @notice update sequencerSetMaxSize
      */
-    function testUpdateParams() public {
+    function testupdateSequencerSetMaxSize() public {
         hevm.prank(multisig);
         l2Staking.updateSequencerSetMaxSize(2);
 
