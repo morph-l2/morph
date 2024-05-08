@@ -31,9 +31,8 @@ import (
 )
 
 const (
-	txSlotSize     = 32 * 1024
-	txMaxSize      = 4 * txSlotSize // 128KB
-	minFinalizeNum = 2              // min finalize num from contract
+	txSlotSize = 32 * 1024
+	txMaxSize  = 4 * txSlotSize // 128KB
 )
 
 type Rollup struct {
