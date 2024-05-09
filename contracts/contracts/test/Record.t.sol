@@ -9,21 +9,27 @@ contract RecordTest is L2StakingBaseTest {
         super.setUp();
     }
 
-    /// test set zero address
+    /**
+     * @notice setOracleAddress: check params
+     */
     function testSetOracleAddress() public {
         hevm.expectRevert("invalid oracle address");
         hevm.prank(multisig);
         record.setOracleAddress(address(0));
     }
 
-    /// test owner
+    /**
+     * @notice setOracleAddress: check owner
+     */
     function testOwner() public {
         hevm.expectRevert("Ownable: caller is not the owner");
         hevm.prank(alice);
         record.setOracleAddress(address(0));
     }
 
-    /// test only oracle owner, valid block number
+    /**
+     * @notice setLatestRewardEpochBlock: check params
+     */
     function testSetLatestRewardEpochBlock() public {
         hevm.expectRevert("only oracle allowed");
         hevm.prank(multisig);
@@ -41,7 +47,9 @@ contract RecordTest is L2StakingBaseTest {
         record.setLatestRewardEpochBlock(100);
     }
 
-    /// test recordFinalizedBatchSubmissions
+    /**
+     * @notice recordFinalizedBatchSubmissions: check owner
+     */
     function testRecordFinalizedBatchSubmissions() public {
         IRecord.BatchSubmission memory submission = IRecord.BatchSubmission(
             0,
@@ -61,7 +69,9 @@ contract RecordTest is L2StakingBaseTest {
         record.recordFinalizedBatchSubmissions(submissions);
     }
 
-    /// test recordRollupEpochs
+    /**
+     * @notice recordRollupEpochs: check owner
+     */
     function testRecordRollupEpochs() public {
         IRecord.RollupEpochInfo memory epochInfo = IRecord.RollupEpochInfo(
             0,
@@ -79,7 +89,9 @@ contract RecordTest is L2StakingBaseTest {
         record.recordRollupEpochs(epochInfos);
     }
 
-    /// test recordRewardEpochs
+    /**
+     * @notice recordRewardEpochs: check owner
+     */
     function testRecordRewardEpochs() public {
         uint256 sequencerSize = sequencer.getSequencerSet2Size();
         address[] memory sequencers = sequencer.getSequencerSet2();
@@ -110,21 +122,27 @@ contract RecordTest is L2StakingBaseTest {
         record.recordRewardEpochs(rewardEpochInfos);
     }
 
-    // test getBatchSubmissions
+    /**
+     * @notice getBatchSubmissions: check params
+     */
     function testGetBatchSubmissions() public {
         hevm.expectRevert("invalid index");
         hevm.prank(oracleAddress);
         record.getBatchSubmissions(2, 1);
     }
 
-    // test getRollupEpochs
+    /**
+     * @notice getRollupEpochs: check params
+     */
     function testGetRollupEpochs() public {
         hevm.expectRevert("invalid index");
         hevm.prank(oracleAddress);
         record.getRollupEpochs(2, 1);
     }
 
-    // test getRewardEpochs
+    /**
+     * @notice getRewardEpochs: check params
+     */
     function testGetRewardEpochs() public {
         hevm.expectRevert("invalid index");
         hevm.prank(oracleAddress);
