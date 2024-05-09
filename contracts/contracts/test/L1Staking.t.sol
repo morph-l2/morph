@@ -603,3 +603,61 @@ contract StakingSlashTest is L1MessageBaseTest {
         assertEq(reward, afterBalance - beforeBalance);
     }
 }
+
+contract StakingClaimSlashRemainingTest is L1MessageBaseTest {
+    function testClaimSlashRemaining_notOwner() external {
+        hevm.prank(alice);
+        hevm.expectRevert("Ownable: caller is not the owner");
+        l1Staking.claimSlashRemaining(bob);
+    }
+    function testClaimSlashRemaining() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+        hevm.stopPrank();
+
+        address[] memory sequencers = new address[](2);
+        sequencers[0] = alice;
+        sequencers[1] = bob;
+        uint256 beforeBalance = l1Staking.rollupContract().balance;
+        hevm.prank(l1Staking.rollupContract());
+        // bob sequencer to slash
+        uint256 reward = l1Staking.slash(sequencers);
+        assertEq(reward, 2 * STAKING_VALUE * l1Staking.rewardPercentage() / 100);
+        uint256 afterBalance = l1Staking.rollupContract().balance;
+        assertEq(reward, afterBalance - beforeBalance);
+
+        uint256 beforeBalanceOfM = multisig.balance;
+        hevm.prank(multisig);
+        l1Staking.claimSlashRemaining(multisig);
+        uint256 afterBalanceOfM = multisig.balance;
+        emit log_uint(STAKING_VALUE * 2);
+        emit log_uint(afterBalanceOfM - beforeBalanceOfM);
+        emit log_uint(reward);
+        uint256 remaining = 2 * STAKING_VALUE - reward;
+        assertEq(afterBalanceOfM - beforeBalanceOfM, remaining);
+    }
+}
