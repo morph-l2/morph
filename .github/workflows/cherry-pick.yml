@@ -3,6 +3,7 @@ on:
     branches:
       - main
     types: ["closed"]
+    permissions: write-all
 
 jobs:
   cherry_pick_release_0_1_x:
@@ -21,4 +22,4 @@ jobs:
           labels: |
             cherry-pick
 env:
-  GITHUB_TOKEN: ${{ secrets.TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
