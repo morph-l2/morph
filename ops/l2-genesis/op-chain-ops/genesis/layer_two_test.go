@@ -43,7 +43,8 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		SequencerFeeVaultRecipient: address1,
 		L2BridgeFeeVaultRecipient:  address1,
 
-		RecordOracleAddress: address1,
+		RecordOracleAddress:            address1,
+		RecordNextBatchSubmissionIndex: 1,
 
 		// L2Staking configs
 		L2StakingSequencerMaxSize:      1,
