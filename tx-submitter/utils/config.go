@@ -49,8 +49,9 @@ type Config struct {
 	Finalize       bool
 	MaxFinalizeNum uint64
 	// L2 contract
-	SubmitterAddress string
-	SequencerAddress string
+	L2SubmitterAddress string
+	L2SequencerAddress string
+	L2GovAddress       string
 
 	// metrics
 	MetricsServerEnable bool
@@ -87,6 +88,9 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		// L1 contract
 		L1StakingAddress: ctx.GlobalString(flags.L1StakingAddressFlag.Name),
 		RollupAddress:    ctx.GlobalString(flags.RollupAddressFlag.Name),
+		// L2 contract
+		L2SequencerAddress: ctx.GlobalString(flags.L2SequencerAddressFlag.Name),
+		L2GovAddress:       ctx.GlobalString(flags.L2GovAddressFlag.Name),
 		// metrics
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),

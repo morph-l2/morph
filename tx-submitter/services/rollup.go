@@ -712,6 +712,55 @@ func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRoll
 	return nil, nil
 }
 
+// query sequencer set update time from sequencer contract on l2
+func GetSequencerSetUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
+
+	if len(clients) < 1 {
+		return nil, fmt.Errorf("no client to query sequencer set update time")
+	}
+	for _, client := range clients {
+		// l2 sequencer
+		l2Seqencer, err := bindings.NewSequencer(addr, client)
+		if err != nil {
+			log.Warn("failed to connect to sequencer", "error", err)
+			continue
+		}
+		// get sequencer set update time
+		updateTime, err := l2Seqencer.UpdateTime(nil)
+		if err != nil {
+			log.Warn("failed to get sequencer set update time", "error", err)
+			continue
+		}
+		return updateTime, nil
+	}
+	return nil, fmt.Errorf("no sequencer set update time found after querying all clients")
+}
+
+// query epoch update time from gov contract on l2
+func GetEpochUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
+	if len(clients) < 1 {
+		return nil, fmt.Errorf("no client to query epoch update time")
+	}
+	for _, client := range clients {
+		// l2 gov
+		l2Gov, err := bindings.NewGov(addr, client)
+		if err != nil {
+			log.Warn("failed to connect to gov", "error", err)
+			continue
+		}
+		// get epoch update time
+		updateTime, err := l2Gov.RollupEpochUpdateTime(nil)
+		if err != nil {
+			log.Warn("failed to get epoch update time", "error", err)
+			continue
+		}
+		return updateTime, nil
+
+	}
+	return nil, fmt.Errorf("no epoch update time found after querying all clients")
+
+}
+
 func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 	// add buffer to gas limit (*1.2)
 	newGasLimit := tx.Gas() * 12 / 10
