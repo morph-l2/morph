@@ -689,3 +689,31 @@ contract StakingUpdateGasLimitAddStakerTest is L1MessageBaseTest {
         assertEq(l1Staking.gasLimitAddStaker(), newValue);
     }
 }
+
+
+contract StakingUpdateGasLimitRemoveStakersTest is L1MessageBaseTest {
+    function testUpdateGasLimitRemoveStakers_notOwner() external {
+        hevm.prank(alice);
+        hevm.expectRevert("Ownable: caller is not the owner");
+        l1Staking.updateGasLimitRemoveStakers(0);
+    }
+
+    function testUpdateGasLimitRemoveStakers_eqZero() external {
+        hevm.prank(multisig);
+        hevm.expectRevert("invalid new gas limit");
+        l1Staking.updateGasLimitRemoveStakers(0);
+    }
+
+    function testUpdateGasLimitRemoveStakers_eqDefaultValue() external {
+        hevm.prank(multisig);
+        hevm.expectRevert("invalid new gas limit");
+        l1Staking.updateGasLimitRemoveStakers(defaultGasLimitRemove);
+    }
+
+    function testUpdateGasLimitRemoveStakers() external {
+        hevm.prank(multisig);
+        uint256 newValue = defaultGasLimitRemove / 10;
+        l1Staking.updateGasLimitRemoveStakers(newValue);
+        assertEq(l1Staking.gasLimitRemoveStakers(), newValue);
+    }
+}
