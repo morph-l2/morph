@@ -45,7 +45,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     Record public record;
 
     //Oracle address
-    address oracleAddress = address(1000);
+    address public oracleAddress = address(1000);
+    uint256 public nextBatchSubmissionIndex = 1;
 
     uint256 public PROPOSAL_INTERVAL = 1000;
     uint256 public ROLLUP_EPOCH = 1000;
@@ -222,7 +223,10 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             );
         ITransparentUpgradeableProxy(address(recordProxy)).upgradeToAndCall(
             address(recordImpl),
-            abi.encodeCall(Record.initialize, (oracleAddress))
+            abi.encodeCall(
+                Record.initialize,
+                (oracleAddress, nextBatchSubmissionIndex)
+            )
         );
 
         // set address
