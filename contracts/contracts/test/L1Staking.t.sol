@@ -690,7 +690,6 @@ contract StakingUpdateGasLimitAddStakerTest is L1MessageBaseTest {
     }
 }
 
-
 contract StakingUpdateGasLimitRemoveStakersTest is L1MessageBaseTest {
     function testUpdateGasLimitRemoveStakers_notOwner() external {
         hevm.prank(alice);
@@ -715,5 +714,38 @@ contract StakingUpdateGasLimitRemoveStakersTest is L1MessageBaseTest {
         uint256 newValue = defaultGasLimitRemove / 10;
         l1Staking.updateGasLimitRemoveStakers(newValue);
         assertEq(l1Staking.gasLimitRemoveStakers(), newValue);
+    }
+}
+
+contract StakingUpdateRewardPercentageTest is L1MessageBaseTest {
+    function testUpdateRewardPercentage_notOwner() external {
+        hevm.prank(alice);
+        hevm.expectRevert("Ownable: caller is not the owner");
+        l1Staking.updateRewardPercentage(0);
+    }
+
+    function testUpdateRewardPercentage_eqZero() external {
+        hevm.prank(multisig);
+        hevm.expectRevert("invalid reward percentage");
+        l1Staking.updateRewardPercentage(0);
+    }
+
+    function testUpdateRewardPercentage_ge100() external {
+        hevm.prank(multisig);
+        hevm.expectRevert("invalid reward percentage");
+        l1Staking.updateRewardPercentage(101);
+    }
+
+    function testUpdateRewardPercentage_eqDefaultValue() external {
+        hevm.prank(multisig);
+        hevm.expectRevert("invalid reward percentage");
+        l1Staking.updateRewardPercentage(rewardPercentage);
+    }
+
+    function testUpdateRewardPercentage() external {
+        hevm.prank(multisig);
+        uint256 newValue = 66;
+        l1Staking.updateRewardPercentage(newValue);
+        assertEq(l1Staking.rewardPercentage(), newValue);
     }
 }
