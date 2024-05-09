@@ -113,6 +113,9 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to l1 staking contract")
 		}
 
+		// new rotator
+		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress))
+
 		sr := services.NewRollup(
 			ctx,
 			m,
@@ -125,6 +128,7 @@ func Main() func(ctx *cli.Context) error {
 			*rollupAddr,
 			abi,
 			cfg,
+			rotator,
 		)
 		if err := sr.Init(); err != nil {
 			return err

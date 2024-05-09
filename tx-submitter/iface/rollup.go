@@ -22,6 +22,7 @@ type IRollup interface {
 // IL2Sequencer is the interface for the sequencer on L2
 type IL2Sequencer interface {
 	UpdateTime(opts *bind.CallOpts) (*big.Int, error)
+	GetSequencerSet2() ([]common.Address, error)
 }
 
 type IL2Gov interface {

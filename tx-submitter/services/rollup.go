@@ -31,8 +31,10 @@ import (
 )
 
 const (
-	txSlotSize = 32 * 1024
-	txMaxSize  = 4 * txSlotSize // 128KB
+	txSlotSize  = 32 * 1024
+	txMaxSize   = 4 * txSlotSize // 128KB
+	rotatorWait = 3 * time.Second
+	rotatorBuff = 15
 )
 
 type Rollup struct {
@@ -58,6 +60,9 @@ type Rollup struct {
 
 	// tx cfg
 	txFeeLimit uint64
+
+	// rotator
+	rotator *Rotator
 }
 
 func NewRollup(
@@ -72,6 +77,7 @@ func NewRollup(
 	rollupAddr common.Address,
 	abi *abi.ABI,
 	cfg utils.Config,
+	rotator *Rotator,
 ) *Rollup {
 
 	return &Rollup{
@@ -95,6 +101,8 @@ func NewRollup(
 		PriorityRollup: cfg.PriorityRollup,
 
 		txFeeLimit: cfg.TxFeeLimit,
+
+		rotator: rotator,
 	}
 }
 
@@ -314,6 +322,50 @@ func (sr *Rollup) finalize() error {
 }
 
 func (sr *Rollup) rollup() error {
+
+	if !sr.PriorityRollup {
+		cur, err := sr.rotator.CurrentSubmitter(sr.L2Clients)
+		if err != nil {
+			return fmt.Errorf("rollup: get current submitter err, %w", err)
+		}
+		if cur.Hex() != sr.walletAddr() {
+			log.Info("not current submitter, wait for the next turn", "rolluped_submitter", cur.Hex(), "submitter", sr.walletAddr())
+			time.Sleep(rotatorWait)
+			return nil
+		}
+	}
+
+	if sr.rotator.GetEpoch() == nil {
+		err := sr.rotator.UpdateState(sr.L2Clients)
+		if err != nil {
+			return fmt.Errorf("rollup: update state err, %w", err)
+		}
+	}
+
+	// epoch start
+	epPast := (time.Now().Unix() - sr.rotator.GetStartTime().Int64()) % sr.rotator.GetEpoch().Int64()
+
+	epStart := time.Now().Unix() - epPast
+	// epoch end
+	epEnd := epStart + sr.rotator.GetEpoch().Int64()
+
+	// format epStart time to human readable
+	epStartTime := time.Unix(epStart, 0).Format("15:04:05")
+	epEndTime := time.Unix(epEnd, 0).Format("15:04:05")
+
+	log.Info("epoch info", "epoch_start", epStartTime, "epoch_end", epEndTime, "epoch_last", epEnd-time.Now().Unix())
+
+	if epEnd-time.Now().Unix() < rotatorBuff {
+		log.Info("epoch buff time is not enough, wait for the next turn")
+		time.Sleep(rotatorWait)
+		return nil
+	}
+
+	cur, err := sr.rotator.CurrentSubmitter(sr.L2Clients)
+	if err != nil {
+		return fmt.Errorf("rollup: get current submitter err, %w", err)
+	}
+	log.Info("start to rollup", "submitter", sr.walletAddr(), "epoch_submitter", cur.Hex())
 
 	nonce, err := sr.L1Client.NonceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
 	if err != nil {
@@ -710,6 +762,52 @@ func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRoll
 	}
 
 	return nil, nil
+}
+
+// query sequencer set from sequencer contract on l2
+func GetSequencerSet(addr common.Address, clients []iface.L2Client) ([]common.Address, error) {
+	if len(clients) < 1 {
+		return nil, fmt.Errorf("no client to query sequencer set")
+	}
+	for _, client := range clients {
+		// l2 sequencer
+		l2Seqencer, err := bindings.NewSequencer(addr, client)
+		if err != nil {
+			log.Warn("failed to connect to sequencer", "error", err)
+			continue
+		}
+		// get sequencer set
+		seqSet, err := l2Seqencer.GetSequencerSet2(nil)
+		if err != nil {
+			log.Warn("failed to get sequencer set", "error", err)
+			continue
+		}
+		return seqSet, nil
+	}
+	return nil, fmt.Errorf("no sequencer set found after querying all clients")
+}
+
+// query epoch from gov contract on l2
+func GetEpoch(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
+	if len(clients) < 1 {
+		return nil, fmt.Errorf("no client to query epoch")
+	}
+	for _, client := range clients {
+		// l2 gov
+		l2Gov, err := bindings.NewGov(addr, client)
+		if err != nil {
+			log.Warn("failed to connect to gov", "error", err)
+			continue
+		}
+		// get epoch
+		epoch, err := l2Gov.RollupEpoch(nil)
+		if err != nil {
+			log.Warn("failed to get epoch", "error", err)
+			continue
+		}
+		return epoch, nil
+	}
+	return nil, fmt.Errorf("no epoch found after querying all clients")
 }
 
 // query sequencer set update time from sequencer contract on l2
