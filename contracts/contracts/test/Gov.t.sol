@@ -10,6 +10,9 @@ contract GovTest is L2StakingBaseTest {
         super.setUp();
     }
 
+    /**
+     * @notice create a proposal
+     */
     function testProposal() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
@@ -42,6 +45,9 @@ contract GovTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
+    /**
+     * @notice vote a proposal
+     */
     function testVote() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
@@ -68,6 +74,9 @@ contract GovTest is L2StakingBaseTest {
         assertTrue(approved);
     }
 
+    /**
+     * @notice approval by more than 2/3 of the valid votes
+     */
     function testCanBeApproved() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
@@ -113,6 +122,9 @@ contract GovTest is L2StakingBaseTest {
         gov.vote(currentproposalID);
     }
 
+    /**
+     * @notice proposal is outdated
+     */
     function testVoteOutOfDate() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
@@ -140,5 +152,57 @@ contract GovTest is L2StakingBaseTest {
         hevm.expectRevert("proposal out of date");
         hevm.prank(address(user));
         gov.vote(currentproposalID);
+    }
+
+    /**
+     * @notice only sequenser is allowed to create proposal
+     */
+    function testCreateProposalOnlySequencer() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        hevm.expectRevert("only sequencer can propose");
+        hevm.prank(alice);
+        gov.createProposal(proposal);
+    }
+
+    /**
+     * @notice vote: only sequencer allowed
+     */
+    function testVoteOnlySequencer() external {
+        uint256 proposalID = gov.currentProposalID();
+
+        hevm.expectRevert("only sequencer can propose");
+        hevm.prank(alice);
+        gov.vote(proposalID);
+    }
+
+    /**
+     * @notice setProposalInterval: check params
+     */
+    function testSetProposalInterval() external {
+        hevm.expectRevert("Ownable: caller is not the owner");
+        hevm.prank(alice);
+        gov.setProposalInterval(0);
+
+        hevm.expectRevert("invalid new proposal interval");
+        hevm.prank(multisig);
+        gov.setProposalInterval(0);
+
+        uint256 oldProposalInterval = gov.proposalInterval();
+        hevm.expectRevert("invalid new proposal interval");
+        hevm.prank(multisig);
+        gov.setProposalInterval(oldProposalInterval);
+
+        uint256 newProposalInterval = 100;
+        hevm.prank(multisig);
+        gov.setProposalInterval(newProposalInterval);
+        assertEq(newProposalInterval, gov.proposalInterval());
     }
 }
