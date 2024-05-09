@@ -245,9 +245,7 @@ task("withdraw-l2-eth")
         const res = await contract["withdrawETH(uint256,uint256)"](
             ethers.utils.parseEther('1'),
             0,
-            {
-                value: ethers.utils.parseEther('1'),
-            }
+            { value: ethers.utils.parseEther('1'), }
         )
         const receipt = await res.wait()
         console.log(`Withdraw\n from ${receipt.from}\n blockNum ${receipt.blockNumber}\n tx ${receipt.transactionHash}\n status ${receipt.status == 1}`)
@@ -255,11 +253,11 @@ task("withdraw-l2-eth")
 
 task("getSequencerAddresses")
     .setAction(async (taskArgs, hre) => {
-        const factory = await hre.ethers.getContractFactory('L2Sequencer')
+        const factory = await hre.ethers.getContractFactory('Sequencer')
         const contract = factory.attach('0x5300000000000000000000000000000000000003')
-        const res = await contract.getSequencerAddresses(false)
+        const res = await contract.getCurrentSequencerSet()
 
-        console.log(`getSequencerAddresses : ${res}`)
+        console.log(`getCurrentSequencerSet : ${res}`)
     });
 
 task("rollupEpoch")
@@ -271,44 +269,17 @@ task("rollupEpoch")
         console.log(`rollupEpoch : ${res}`)
     });
 
-task("getCurrentSubmitter")
-    .setAction(async (taskArgs, hre) => {
-        const factory = await hre.ethers.getContractFactory('Submitter')
-        const contract = factory.attach('0x5300000000000000000000000000000000000005')
-
-        const govFactory = await hre.ethers.getContractFactory('Gov')
-        const gov = govFactory.attach('0x5300000000000000000000000000000000000004')
-
-        const L2SequencerFactory = await hre.ethers.getContractFactory('L2Sequencer')
-        const sequencer = L2SequencerFactory.attach('0x5300000000000000000000000000000000000003')
-
-        let sequencers = await sequencer.getSequencerAddresses(false)
-        const rollupEpoch = (await gov.rollupEpoch()).toNumber()
-        const sequencersLen = sequencers.length
-        console.log(`sequencersLen: ${sequencersLen} , rollupEpoch: ${rollupEpoch}`)
-
-        let nextEpochStart = (await contract.nextEpochStart()).toNumber()
-        console.log(`nextEpochStart : ${nextEpochStart}`)
-        let nextSubmitterIndex = await contract.nextSubmitterIndex()
-        console.log(`nextSubmitterIndex : ${nextSubmitterIndex}`)
-        const block = await hre.ethers.provider.getBlock('latest')
-        console.log(block.timestamp)
-
-        const res = await contract.getCurrentSubmitter()
-        console.log(`res : ${res}`)
-    });
-
 task("l2withdrawLock-deploy")
     .addParam('l1Gateway')
     .setAction(async (taskArgs, hre) => {
         const factoryF = await hre.ethers.getContractFactory('L2WithdrawLockERC20Gateway')
         const fc = await factoryF.deploy()
         await fc.deployed()
-        const signers = await hre.ethers.getSigners()
+        const signer = await hre.ethers.provider.getSigner().getAddress()
         const ProxyFactoryF = await hre.ethers.getContractFactory('TransparentUpgradeableProxy')
         const proxy = await ProxyFactoryF.deploy(
             fc.address,
-            signers,
+            signer,
             factoryF.interface.encodeFunctionData('initialize', [
                 taskArgs.l1Gateway,
                 '0x5300000000000000000000000000000000000002',
