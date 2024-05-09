@@ -108,6 +108,7 @@ module.exports = {
             {
                 version: '0.8.24',
                 settings: {
+                    metadata: { bytecodeHash: 'none', },
                     optimizer: { enabled: true, runs: 10_000 },
                     evmVersion: 'cancun',
                 },
