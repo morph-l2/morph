@@ -749,3 +749,152 @@ contract StakingUpdateRewardPercentageTest is L1MessageBaseTest {
         assertEq(l1Staking.rewardPercentage(), newValue);
     }
 }
+
+contract StakingClaimWithdrawalTest is L1MessageBaseTest {
+    function testClaimWithdrawal_notWithdraw() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+
+        hevm.expectRevert("withdrawal not exist");
+        l1Staking.claimWithdrawal(bob);
+        hevm.stopPrank();
+    }
+
+    function testClaimWithdrawal_locked() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+
+        // bob withdraw
+        l1Staking.withdraw();
+
+        hevm.expectRevert("withdrawal locked");
+        l1Staking.claimWithdrawal(bob);
+        hevm.stopPrank();
+    }
+
+    function testClaimWithdrawal_eqLockedBlockNumber() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+
+        // bob withdraw
+        l1Staking.withdraw();
+
+        // set block number
+        hevm.roll(block.number + l1Staking.withdrawalLockBlocks());
+        hevm.expectRevert("withdrawal locked");
+        l1Staking.claimWithdrawal(bob);
+        hevm.stopPrank();
+    }
+
+    function testClaimWithdrawal() external {
+        // add to whitelist
+        address[] memory add = new address[](2);
+        add[0] = alice;
+        add[1] = bob;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        assertTrue(l1Staking.whitelist(alice));
+        assertTrue(l1Staking.whitelist(bob));
+
+        // alice register
+        Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(
+            aliceInfo.tmKey,
+            aliceInfo.blsKey
+        );
+
+        // bob register
+        Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
+        hevm.deal(bob, 5 * STAKING_VALUE);
+        hevm.startPrank(bob);
+        l1Staking.register{value: STAKING_VALUE}(
+            bobInfo.tmKey,
+            bobInfo.blsKey
+        );
+
+        // bob withdraw
+        l1Staking.withdraw();
+
+        // set block number
+        hevm.roll(block.number + l1Staking.withdrawalLockBlocks() + 1);
+        uint256 beforeBalance = bob.balance;
+        l1Staking.claimWithdrawal(bob);
+        uint256 afterBalance = bob.balance;
+        assertEq(afterBalance - beforeBalance, STAKING_VALUE);
+        hevm.stopPrank();
+    }
+}
