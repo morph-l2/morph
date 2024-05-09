@@ -898,3 +898,9 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 }
+
+contract StakingVerifySignatureTest is L1MessageBaseTest {
+//    function testVerifySignature() external {
+//        l1Staking.verifySignature();
+//    }
+}
