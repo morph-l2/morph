@@ -30,12 +30,6 @@ library Predeploys {
     address internal constant GOV = 0x5300000000000000000000000000000000000004;
 
     /**
-     * @notice Address of the RECORD predeploy.
-     */
-    address internal constant RECORD =
-        0x5300000000000000000000000000000000000005;
-
-    /**
      * @notice Address of the L2_ETH_GATEWAY predeploy.
      */
     address internal constant L2_ETH_GATEWAY =
@@ -97,32 +91,38 @@ library Predeploys {
         0x530000000000000000000000000000000000000f;
 
     /**
-     * @notice Address of the MORPH_TOKEN predeploy.
-     */
-    address internal constant MORPH_TOKEN =
-        0x5300000000000000000000000000000000000010;
-
-    /**
-     * @notice Address of the DISTRIBUTE predeploy.
-     */
-    address internal constant DISTRIBUTE =
-        0x5300000000000000000000000000000000000011;
-
-    /**
-     * @notice Address of the L2_STAKING predeploy.
-     */
-    address internal constant L2_STAKING =
-        0x5300000000000000000000000000000000000012;
-
-    /**
      * @notice Address of the L2_WETH_GATEWAY predeploy.
      */
     address internal constant L2_WETH_GATEWAY =
-        0x5300000000000000000000000000000000000013;
+        0x5300000000000000000000000000000000000010;
 
     /**
      * @notice Address of the L2_WETH predeploy.
      */
     address internal constant L2_WETH =
+        0x5300000000000000000000000000000000000011;
+
+    /**
+     * @notice Address of the RECORD predeploy.
+     */
+    address internal constant RECORD =
+        0x5300000000000000000000000000000000000012;
+
+    /**
+     * @notice Address of the MORPH_TOKEN predeploy.
+     */
+    address internal constant MORPH_TOKEN =
+        0x5300000000000000000000000000000000000013;
+
+    /**
+     * @notice Address of the DISTRIBUTE predeploy.
+     */
+    address internal constant DISTRIBUTE =
         0x5300000000000000000000000000000000000014;
+
+    /**
+     * @notice Address of the L2_STAKING predeploy.
+     */
+    address internal constant L2_STAKING =
+        0x5300000000000000000000000000000000000015;
 }
