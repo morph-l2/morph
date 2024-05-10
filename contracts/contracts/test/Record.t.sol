@@ -10,6 +10,15 @@ contract RecordTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice initialize: re-initialize
+     */
+    function testInitialize() public {
+        hevm.expectRevert("Initializable: contract is already initialized");
+        hevm.prank(multisig);
+        record.initialize(address(0));
+    }
+
+    /**
      * @notice setOracleAddress: check params
      */
     function testSetOracleAddress() public {
