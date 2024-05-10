@@ -57,44 +57,79 @@ contract RecordTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice recordFinalizedBatchSubmissions: check owner
+     * @notice recordFinalizedBatchSubmissions
+     * 1. check owner
+     * 2. check params
      */
     function testRecordFinalizedBatchSubmissions() public {
-        IRecord.BatchSubmission memory submission = IRecord.BatchSubmission(
-            0,
-            address(0),
-            0,
-            0,
-            0,
-            0
-        );
-
         IRecord.BatchSubmission[]
-            memory submissions = new IRecord.BatchSubmission[](1);
-        submissions[0] = submission;
+            memory submissions = new IRecord.BatchSubmission[](0);
 
         hevm.expectRevert("only oracle allowed");
         hevm.prank(multisig);
         record.recordFinalizedBatchSubmissions(submissions);
+
+        hevm.expectRevert("empty batch submissions");
+        hevm.prank(oracleAddress);
+        record.recordFinalizedBatchSubmissions(submissions);
+
+        submissions = new IRecord.BatchSubmission[](1);
+        hevm.expectRevert("invalid index");
+        hevm.prank(oracleAddress);
+        record.recordFinalizedBatchSubmissions(submissions);
+
+        // recordFinalizedBatchSubmissions
+        IRecord.BatchSubmission memory submission = IRecord.BatchSubmission(
+            nextBatchSubmissionIndex,
+            address(0),
+            0,
+            1,
+            0,
+            0
+        );
+        submissions = new IRecord.BatchSubmission[](1);
+        submissions[0] = submission;
+        hevm.expectEmit(true, true, false, false);
+        emit IRecord.BatchSubmissionsUploaded(1, 1);
+        hevm.prank(oracleAddress);
+        record.recordFinalizedBatchSubmissions(submissions);
     }
 
     /**
-     * @notice recordRollupEpochs: check owner
+     * @notice recordRollupEpochs
+     * 1. check owner
+     * 2. check params
      */
     function testRecordRollupEpochs() public {
+        IRecord.RollupEpochInfo[]
+            memory epochInfos = new IRecord.RollupEpochInfo[](0);
+
+        hevm.expectRevert("only oracle allowed");
+        hevm.prank(multisig);
+        record.recordRollupEpochs(epochInfos);
+
+        hevm.expectRevert("empty rollup epochs");
+        hevm.prank(oracleAddress);
+        record.recordRollupEpochs(epochInfos);
+
+        epochInfos = new IRecord.RollupEpochInfo[](1);
         IRecord.RollupEpochInfo memory epochInfo = IRecord.RollupEpochInfo(
-            0,
+            1, // invalid index
             address(0),
             0,
             0
         );
-
-        IRecord.RollupEpochInfo[]
-            memory epochInfos = new IRecord.RollupEpochInfo[](1);
         epochInfos[0] = epochInfo;
+        hevm.expectRevert("invalid index");
+        hevm.prank(oracleAddress);
+        record.recordRollupEpochs(epochInfos);
 
-        hevm.expectRevert("only oracle allowed");
-        hevm.prank(multisig);
+        // recordRollupEpochs
+        epochInfo = IRecord.RollupEpochInfo(0, address(0), 0, 0);
+        epochInfos[0] = epochInfo;
+        hevm.expectEmit(true, true, false, false);
+        emit IRecord.RollupEpochsUploaded(0, 1);
+        hevm.prank(oracleAddress);
         record.recordRollupEpochs(epochInfos);
     }
 
