@@ -36,6 +36,40 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice initialize: re-initialize
+     */
+    function testInitialize() public {
+        Types.StakerInfo[] memory _stakerInfos = new Types.StakerInfo[](0);
+
+        hevm.expectRevert("Initializable: contract is already initialized");
+        hevm.prank(multisig);
+        l2Staking.initialize(0, 0, 0, _stakerInfos);
+
+        // reset initialize
+        hevm.store(
+            address(l2Staking),
+            bytes32(uint256(0)),
+            bytes32(uint256(0))
+        );
+
+        hevm.expectRevert("sequencersSize must greater than 0");
+        hevm.prank(multisig);
+        l2Staking.initialize(0, 0, 0, _stakerInfos);
+
+        hevm.expectRevert("invalid undelegateLockEpochs");
+        hevm.prank(multisig);
+        l2Staking.initialize(1, 0, 0, _stakerInfos);
+
+        hevm.expectRevert("invalid reward start time");
+        hevm.prank(multisig);
+        l2Staking.initialize(1, 1, 100, _stakerInfos);
+
+        hevm.expectRevert("invalid initial stakers");
+        hevm.prank(multisig);
+        l2Staking.initialize(1, 1, rewardStartTime * 2, _stakerInfos);
+    }
+
+    /**
      * @notice test init staker info & ranking
      */
     function testInitStakers() public {
@@ -653,5 +687,74 @@ contract L2StakingTest is L2StakingBaseTest {
 
         assertEq(balanceAfter, balanceBefore + totalReward);
         hevm.stopPrank();
+    }
+
+    /**
+     * @notice currentEpoch
+     */
+
+    function testCurrentEpoch() public {
+        uint256 currentEpoch = l2Staking.currentEpoch();
+        assertEq(currentEpoch, 0);
+
+        hevm.warp(rewardStartTime);
+        currentEpoch = l2Staking.currentEpoch();
+        assertEq(currentEpoch, 0);
+
+        hevm.warp(rewardStartTime * 2);
+        currentEpoch = l2Staking.currentEpoch();
+        assertEq(currentEpoch, 1);
+    }
+
+    /**
+     * @notice getStakesInfo
+     */
+    function testGetStakesInfo() public {
+        address[] memory _sequencerAddresses = new address[](SEQUENCER_SIZE);
+        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
+            SEQUENCER_SIZE
+        );
+
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            stakerInfos0[i] = stakerInfo;
+            _sequencerAddresses[i] = stakerInfo.addr;
+        }
+
+        Types.StakerInfo[] memory stakerInfos1 = l2Staking.getStakesInfo(
+            _sequencerAddresses
+        );
+
+        // check params
+        assertEq(stakerInfos1.length, stakerInfos0.length);
+        for (uint i = 0; i < stakerInfos1.length; i++) {
+            assertEq(stakerInfos0[i].addr, stakerInfos1[i].addr);
+            assertEq(stakerInfos0[i].tmKey, stakerInfos1[i].tmKey);
+        }
+    }
+
+    /**
+     * @notice get stakers
+     */
+    function testGetStakers() public {
+        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
+            SEQUENCER_SIZE
+        );
+
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            stakerInfos0[i] = stakerInfo;
+        }
+
+        Types.StakerInfo[] memory stakerInfos1 = l2Staking.getStakers();
+
+        // check params
+        assertEq(stakerInfos1.length, stakerInfos0.length);
+        for (uint i = 0; i < stakerInfos1.length; i++) {
+            assertEq(stakerInfos0[i].addr, stakerInfos1[i].addr);
+            assertEq(stakerInfos0[i].tmKey, stakerInfos1[i].tmKey);
+        }
     }
 }

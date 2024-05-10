@@ -132,6 +132,97 @@ contract RecordTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice recordRewardEpochs: check params
+     */
+    function testRecordRewardEpochsParams() public {
+        uint256 sequencerSize = sequencer.getSequencerSet2Size();
+        address[] memory sequencers = sequencer.getSequencerSet2();
+        uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
+        uint256[] memory sequencerRatios = new uint256[](sequencerSize);
+        uint256[] memory sequencerCommissions = new uint256[](sequencerSize);
+
+        for (uint i = 0; i < sequencerSize; i++) {
+            sequencerBlocks[i] = 1;
+            sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize;
+            sequencerCommissions[i] = 1;
+        }
+
+        IRecord.RewardEpochInfo[]
+            memory rewardEpochInfos = new IRecord.RewardEpochInfo[](0);
+
+        hevm.expectRevert("empty reward epochs");
+        hevm.prank(oracleAddress);
+        record.recordRewardEpochs(rewardEpochInfos);
+
+        // greater than minted epoch
+        rewardEpochInfos = new IRecord.RewardEpochInfo[](2);
+
+        hevm.expectRevert("start block should be set");
+        hevm.prank(oracleAddress);
+        record.recordRewardEpochs(rewardEpochInfos);
+
+        hevm.prank(oracleAddress);
+        record.setLatestRewardEpochBlock(1);
+
+        hevm.expectRevert("future data cannot be uploaded");
+        hevm.prank(oracleAddress);
+        record.recordRewardEpochs(rewardEpochInfos);
+
+        // update epoch
+        hevm.warp(rewardStartTime * 2);
+        rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
+        rewardEpochInfos[0] = IRecord.RewardEpochInfo(
+            0,
+            1, // total block not equal
+            sequencers,
+            sequencerBlocks,
+            sequencerRatios,
+            sequencerCommissions
+        );
+        hevm.expectRevert("invalid sequencers blocks");
+        hevm.prank(oracleAddress);
+        record.recordRewardEpochs(rewardEpochInfos);
+
+        // invalide commission rate
+        sequencerCommissions = new uint256[](sequencerSize);
+        for (uint i = 0; i < sequencerSize; i++) {
+            sequencerCommissions[i] = 21;
+        }
+        rewardEpochInfos[0] = IRecord.RewardEpochInfo(
+            0,
+            1, // total block not equal
+            sequencers,
+            sequencerBlocks,
+            sequencerRatios,
+            sequencerCommissions
+        );
+
+        hevm.expectRevert("invalid sequencers commission");
+        hevm.prank(oracleAddress);
+        record.recordRewardEpochs(rewardEpochInfos);
+
+        // invalide sequencers ratios
+        sequencerRatios = new uint256[](sequencerSize);
+        sequencerCommissions = new uint256[](sequencerSize);
+        for (uint i = 0; i < sequencerSize; i++) {
+            sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize + 1;
+            sequencerCommissions[i] = 2;
+        }
+        rewardEpochInfos[0] = IRecord.RewardEpochInfo(
+            0,
+            3, // total block not equal
+            sequencers,
+            sequencerBlocks,
+            sequencerRatios,
+            sequencerCommissions
+        );
+
+        hevm.expectRevert("invalid sequencers ratios");
+        hevm.prank(oracleAddress);
+        record.recordRewardEpochs(rewardEpochInfos);
+    }
+
+    /**
      * @notice getBatchSubmissions: check params
      */
     function testGetBatchSubmissions() public {
