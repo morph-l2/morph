@@ -148,7 +148,7 @@ contract L1Staking is
             whitelist[add[i]] = true;
         }
         for (uint256 i = 0; i < remove.length; i++) {
-            whitelist[remove[i]] = false;
+            delete whitelist[remove[i]];
         }
         emit WhitelistUpdated(add, remove);
     }
