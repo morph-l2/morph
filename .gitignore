@@ -19,3 +19,6 @@ ops/devnet-morph/devnet/__pycache__
 contracts/qanetL1.json
 contracts/holesky.json
 .env
+
+# logs
+*.log
