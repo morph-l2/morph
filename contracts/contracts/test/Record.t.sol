@@ -2,7 +2,7 @@
 pragma solidity =0.8.24;
 
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
-import {IRecord} from "../L2/staking/IRecord.sol";
+import {IRecord} from "../l2/staking/IRecord.sol";
 
 contract RecordTest is L2StakingBaseTest {
     function setUp() public virtual override {
