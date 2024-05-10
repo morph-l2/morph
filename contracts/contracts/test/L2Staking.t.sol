@@ -11,7 +11,6 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 contract L2StakingTest is L2StakingBaseTest {
     uint256 SEQUENCER_RATIO_PRECISION = 1e8;
     uint256 INFLATION_RATIO_PRECISION = 1e16;
-    uint256 DAY_SECONDS = 86400;
 
     uint256 morphBalance = 20 ether;
 
@@ -91,7 +90,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = DAY_SECONDS;
+        uint256 time = REWARD_EPOCH;
         hevm.warp(time);
 
         hevm.prank(multisig);
@@ -232,7 +231,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = DAY_SECONDS;
+        uint256 time = REWARD_EPOCH;
         hevm.warp(time);
 
         hevm.prank(multisig);
