@@ -91,11 +91,20 @@ contract Record is IRecord, OwnableUpgradeable {
      ***************/
 
     /// @notice Initializer.
-    /// @param _oracle   oracle address
-    function initialize(address _oracle) public initializer {
+    /// @param _oracle                      oracle address
+    /// @param _nextBatchSubmissionIndex    next batch submission index
+    function initialize(
+        address _oracle,
+        uint256 _nextBatchSubmissionIndex
+    ) public initializer {
+        require(
+            _nextBatchSubmissionIndex != 0,
+            "invalid next batch submission index"
+        );
         require(_oracle != address(0), "invalid oracle address");
         __Ownable_init();
         oracle = _oracle;
+        nextBatchSubmissionIndex = _nextBatchSubmissionIndex;
     }
 
     /************************

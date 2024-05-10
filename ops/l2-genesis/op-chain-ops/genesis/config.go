@@ -111,7 +111,9 @@ type DeployConfig struct {
 	L2StakingBlsKeys               []hexutil.Bytes  `json:"l2StakingBlsKeys"`
 
 	// Record configs
-	RecordOracleAddress common.Address `json:"recordOracleAddress"`
+	RecordOracleAddress            common.Address `json:"recordOracleAddress"`
+	RecordNextBatchSubmissionIndex uint64         `json:"recordNextBatchSubmissionIndex"`
+
 	// MorphToken configs
 	MorphTokenName               string `json:"morphTokenName"`
 	MorphTokenSymbol             string `json:"morphTokenSymbol"`
@@ -362,6 +364,9 @@ func (d *DeployConfig) Check() error {
 	if d.RecordOracleAddress == (common.Address{}) {
 		return fmt.Errorf("RecordOracleAddress cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
+	if d.RecordNextBatchSubmissionIndex <= 0 {
+		return fmt.Errorf("RecordNextBatchSubmissionIndex cannot be address(0): %w", ErrInvalidDeployConfig)
+	}
 	if d.L2StakingSequencerMaxSize <= 0 {
 		return fmt.Errorf("L2StakingSequencerMaxSize must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
@@ -416,10 +421,11 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_initializing": false,
 	}
 	storage["Record"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"_owner":        config.FinalSystemOwner,
-		"oracle":        config.RecordOracleAddress,
+		"_initialized":             1,
+		"_initializing":            false,
+		"_owner":                   config.FinalSystemOwner,
+		"oracle":                   config.RecordOracleAddress,
+		"nextBatchSubmissionIndex": config.RecordNextBatchSubmissionIndex,
 	}
 	storage["Distribute"] = state.StorageValues{
 		"_initialized":  1,

@@ -80,12 +80,12 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 
 	for name, address := range predeploys.Predeploys {
 		if UntouchablePredeploys[*address] {
-			err = SetTouchable(db, name, *address, storage, deployResults, slotResults)
+			err = SetUntouchable(db, name, *address, storage, deployResults, slotResults)
 			if err != nil {
 				return err
 			}
 		} else {
-			err = SetUntouchable(db, name, *address, storage, deployResults, slotResults)
+			err = SetTouchable(db, name, *address, storage, deployResults, slotResults)
 			if err != nil {
 				return err
 			}
@@ -94,7 +94,7 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	return nil
 }
 
-func SetUntouchable(db vm.StateDB, name string, address common.Address, storage state.StorageConfig, deployResults immutables.DeploymentResults, slotResults immutables.SlotResults) error {
+func SetTouchable(db vm.StateDB, name string, address common.Address, storage state.StorageConfig, deployResults immutables.DeploymentResults, slotResults immutables.SlotResults) error {
 	codeAddr, err := AddressToCodeNamespace(address)
 	if err != nil {
 		return fmt.Errorf("error converting to code namespace: %w", err)
@@ -117,12 +117,11 @@ func SetUntouchable(db vm.StateDB, name string, address common.Address, storage 
 	return nil
 }
 
-func SetTouchable(db vm.StateDB, name string, address common.Address, storage state.StorageConfig, deployResults immutables.DeploymentResults, slotResults immutables.SlotResults) error {
+func SetUntouchable(db vm.StateDB, name string, address common.Address, storage state.StorageConfig, deployResults immutables.DeploymentResults, slotResults immutables.SlotResults) error {
 	codeAddr := address
 	if !db.Exist(codeAddr) {
 		db.CreateAccount(codeAddr)
 	}
-	db.SetState(address, ImplementationSlot, codeAddr.Hash())
 	if err := setupPredeploy(db, deployResults, slotResults, storage, name, address, codeAddr); err != nil {
 		return err
 	}
