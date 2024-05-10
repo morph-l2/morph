@@ -611,6 +611,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 delete challenges[batchChallenged];
             }
             inChallenge = false;
+        } else {
             _unpause();
         }
     }
