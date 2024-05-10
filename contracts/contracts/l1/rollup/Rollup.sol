@@ -608,9 +608,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchChallengeReward[
                     challenges[batchChallenged].challenger
                 ] += challenges[batchChallenged].challengeDeposit;
+                delete challenges[batchChallenged];
             }
-            delete challenges[batchChallenged];
-        } else {
+            inChallenge = false;
             _unpause();
         }
     }
