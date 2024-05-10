@@ -1,6 +1,6 @@
 package sync
 
-import "github.com/morph-l2/node/types"
+import "morph-l2/node/types"
 
 type Database interface {
 	Reader

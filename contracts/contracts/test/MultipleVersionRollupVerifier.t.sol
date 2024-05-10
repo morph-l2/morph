@@ -4,7 +4,7 @@ pragma solidity =0.8.24;
 
 import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 
-import {MultipleVersionRollupVerifier} from "../L1/rollup/MultipleVersionRollupVerifier.sol";
+import {MultipleVersionRollupVerifier} from "../l1/rollup/MultipleVersionRollupVerifier.sol";
 import {MockRollup} from "../mock/MockRollup.sol";
 import {MockZkEvmVerifier} from "../mock/MockZkEvmVerifier.sol";
 

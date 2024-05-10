@@ -5,7 +5,7 @@ pragma solidity =0.8.24;
 import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
-import {L2TxFeeVault} from "../L2/system/L2TxFeeVault.sol";
+import {L2TxFeeVault} from "../l2/system/L2TxFeeVault.sol";
 
 contract L2TxFeeVaultTest is DSTestPlus {
     MockCrossDomainMessenger private messenger;

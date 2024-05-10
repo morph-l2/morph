@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "forge-std/console2.sol";
-
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";

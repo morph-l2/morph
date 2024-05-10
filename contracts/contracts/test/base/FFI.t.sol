@@ -18,7 +18,7 @@ contract FFITest is CommonTest {
         assertTrue(verifyMerkleProof(wdHashRes, wdProof, 0, wdRoot));
     }
 
-    function testGenerateStakingInfo() external {
+    function testGenerateStakerInfo() external {
         for (uint256 i = 0; i < 10; i++) {
             address user = address(uint160(10 + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);

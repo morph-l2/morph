@@ -21,6 +21,7 @@
         "tasks/**/*",
         "scripts/**/*",
         "deploy/**/*",
-        "integration-test/**/*"
+        "integration-test/**/*",
+        "./typechain-types"
     ]
 }

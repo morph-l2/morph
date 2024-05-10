@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"github.com/morph-l2/bindings/ast"
-	"github.com/morph-l2/bindings/hardhat"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"morph-l2/bindings/ast"
+	"morph-l2/bindings/hardhat"
 )
 
 type flags struct {
@@ -103,7 +104,7 @@ package {{.Package}}
 import (
 	"encoding/json"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
 )
 
 const {{.Name}}StorageLayoutJSON = "{{.StorageLayout}}"

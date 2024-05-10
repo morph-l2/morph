@@ -4,12 +4,12 @@ pragma solidity =0.8.24;
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {ChunkCodecV0} from "../libraries/codec/ChunkCodecV0.sol";
-import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
-import {Rollup} from "../L1/rollup/Rollup.sol";
-import {IRollup} from "../L1/rollup/IRollup.sol";
-import {IL1Staking} from "../L1/staking/IL1Staking.sol";
+import {Rollup} from "../l1/rollup/Rollup.sol";
+import {IRollup} from "../l1/rollup/IRollup.sol";
+import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 
 contract RollupCommitBatchTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);

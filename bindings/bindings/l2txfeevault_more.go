@@ -6,10 +6,10 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
 )
 
-const L2TxFeeVaultStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/L2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"contracts/L2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"minWithdrawAmount\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_uint256\"},{\"astId\":1002,\"contract\":\"contracts/L2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"messenger\",\"offset\":0,\"slot\":\"2\",\"type\":\"t_address\"},{\"astId\":1003,\"contract\":\"contracts/L2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"recipient\",\"offset\":0,\"slot\":\"3\",\"type\":\"t_address\"},{\"astId\":1004,\"contract\":\"contracts/L2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"totalProcessed\",\"offset\":0,\"slot\":\"4\",\"type\":\"t_uint256\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_uint256\":{\"encoding\":\"inplace\",\"label\":\"uint256\",\"numberOfBytes\":\"32\"}}}"
+const L2TxFeeVaultStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/l2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"contracts/l2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"minWithdrawAmount\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_uint256\"},{\"astId\":1002,\"contract\":\"contracts/l2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"messenger\",\"offset\":0,\"slot\":\"2\",\"type\":\"t_address\"},{\"astId\":1003,\"contract\":\"contracts/l2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"recipient\",\"offset\":0,\"slot\":\"3\",\"type\":\"t_address\"},{\"astId\":1004,\"contract\":\"contracts/l2/system/L2TxFeeVault.sol:L2TxFeeVault\",\"label\":\"totalProcessed\",\"offset\":0,\"slot\":\"4\",\"type\":\"t_uint256\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_uint256\":{\"encoding\":\"inplace\",\"label\":\"uint256\",\"numberOfBytes\":\"32\"}}}"
 
 var L2TxFeeVaultStorageLayout = new(solc.StorageLayout)
 

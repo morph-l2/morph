@@ -6,10 +6,10 @@ import {ERC1155TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC1155.sol
 
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
-import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
-import {L1ERC1155Gateway} from "../L1/gateways/L1ERC1155Gateway.sol";
-import {IL1ERC1155Gateway} from "../L1/gateways/IL1ERC1155Gateway.sol";
-import {IL2ERC1155Gateway} from "../L2/gateways/IL2ERC1155Gateway.sol";
+import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
+import {L1ERC1155Gateway} from "../l1/gateways/L1ERC1155Gateway.sol";
+import {IL1ERC1155Gateway} from "../l1/gateways/IL1ERC1155Gateway.sol";
+import {IL2ERC1155Gateway} from "../l2/gateways/IL2ERC1155Gateway.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {

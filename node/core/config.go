@@ -8,15 +8,16 @@ import (
 	"os"
 	"strings"
 
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/node/flags"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	tmconfig "github.com/tendermint/tendermint/config"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"morph-l2/bindings/predeploys"
+	"morph-l2/node/flags"
+	"morph-l2/node/types"
 )
 
 type Config struct {

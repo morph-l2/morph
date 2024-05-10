@@ -118,8 +118,13 @@ type receiptsFetchingJob struct {
 	result types.Receipts
 }
 
-func NewReceiptsFetchingJob(client *rpc.Client, maxBatchSize int, block BlockID,
-	receiptHash common.Hash, txHashes []common.Hash) *receiptsFetchingJob {
+func NewReceiptsFetchingJob(
+	client *rpc.Client,
+	maxBatchSize int,
+	block BlockID,
+	receiptHash common.Hash,
+	txHashes []common.Hash,
+) *receiptsFetchingJob {
 	return &receiptsFetchingJob{
 		client:       client,
 		maxBatchSize: maxBatchSize,
@@ -164,10 +169,10 @@ func (job *receiptsFetchingJob) runFetcher(ctx context.Context) error {
 	return nil
 }
 
-// receiptsWrapper is a decoding type util. Alchemy in particular wraps the receipts array result.
-type receiptsWrapper struct {
-	Receipts []*types.Receipt `json:"receipts"`
-}
+// // receiptsWrapper is a decoding type util. Alchemy in particular wraps the receipts array result.
+// type receiptsWrapper struct {
+// 	Receipts []*types.Receipt `json:"receipts"`
+// }
 
 func makeReceiptRequest(txHash common.Hash) (*types.Receipt, rpc.BatchElem) {
 	out := new(types.Receipt)

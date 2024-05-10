@@ -2,7 +2,7 @@
   
 PACKAGE_NAME="@morph-l2/contracts"  
   
-FILE_PATH="artifacts/contracts/L1/rollup/Rollup.sol/Rollup.json"  
+FILE_PATH="artifacts/contracts/l1/rollup/Rollup.sol/Rollup.json"  
   
 TEMP_DIR=$(mktemp -d) 
   

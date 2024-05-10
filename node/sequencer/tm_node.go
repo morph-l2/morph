@@ -6,9 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	node "github.com/morph-l2/node/core"
-	"github.com/morph-l2/node/flags"
-	nodetypes "github.com/morph-l2/node/types"
 	"github.com/spf13/viper"
 	tmtypes "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/blssignatures"
@@ -21,6 +18,10 @@ import (
 	"github.com/tendermint/tendermint/proxy"
 	"github.com/tendermint/tendermint/types"
 	"github.com/urfave/cli"
+
+	node "morph-l2/node/core"
+	"morph-l2/node/flags"
+	nodetypes "morph-l2/node/types"
 )
 
 func LoadTmConfig(ctx *cli.Context, home string) (*config.Config, error) {

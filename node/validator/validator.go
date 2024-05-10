@@ -8,13 +8,14 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	ethtypes "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+
+	"morph-l2/bindings/bindings"
 )
 
 type Validator struct {

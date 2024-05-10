@@ -7,8 +7,8 @@ import {ERC1155TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC1155.sol
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
-import {L1ERC1155Gateway} from "../L1/gateways/L1ERC1155Gateway.sol";
-import {L2ERC1155Gateway} from "../L2/gateways/L2ERC1155Gateway.sol";
+import {L1ERC1155Gateway} from "../l1/gateways/L1ERC1155Gateway.sol";
+import {L2ERC1155Gateway} from "../l2/gateways/L2ERC1155Gateway.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 

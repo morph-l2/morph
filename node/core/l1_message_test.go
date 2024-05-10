@@ -5,12 +5,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/eth/catalyst"
 	"github.com/stretchr/testify/require"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+
+	"morph-l2/node/types"
 )
 
 func l1TxHashes(l1Messages []types.L1Message) (l1TxHashes []common.Hash) {

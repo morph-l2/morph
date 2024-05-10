@@ -3,7 +3,7 @@ pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
-import {IL1GatewayRouter} from "../L1/gateways/IL1GatewayRouter.sol";
+import {IL1GatewayRouter} from "../l1/gateways/IL1GatewayRouter.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {TransferReentrantToken} from "../mock/tokens/TransferReentrantToken.sol";
 

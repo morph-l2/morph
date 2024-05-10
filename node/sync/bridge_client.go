@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/morph-l2/bindings/bindings"
-	nodecommon "github.com/morph-l2/node/common"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+
+	"morph-l2/bindings/bindings"
+	nodecommon "morph-l2/node/common"
+	"morph-l2/node/types"
 )
 
 type BridgeClient struct {

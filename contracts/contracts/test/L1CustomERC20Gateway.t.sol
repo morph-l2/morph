@@ -4,12 +4,12 @@ pragma solidity =0.8.24;
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
-import {L1CustomERC20Gateway} from "../L1/gateways/L1CustomERC20Gateway.sol";
-import {L1GatewayRouter} from "../L1/gateways/L1GatewayRouter.sol";
-import {IL1ERC20Gateway} from "../L1/gateways/IL1ERC20Gateway.sol";
-import {L2CustomERC20Gateway} from "../L2/gateways/L2CustomERC20Gateway.sol";
-import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
-import {IL2ERC20Gateway} from "../L2/gateways/IL2ERC20Gateway.sol";
+import {L1CustomERC20Gateway} from "../l1/gateways/L1CustomERC20Gateway.sol";
+import {L1GatewayRouter} from "../l1/gateways/L1GatewayRouter.sol";
+import {IL1ERC20Gateway} from "../l1/gateways/IL1ERC20Gateway.sol";
+import {L2CustomERC20Gateway} from "../l2/gateways/L2CustomERC20Gateway.sol";
+import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
+import {IL2ERC20Gateway} from "../l2/gateways/IL2ERC20Gateway.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 

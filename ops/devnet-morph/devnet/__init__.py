@@ -40,8 +40,8 @@ def main():
     args = parser.parse_args()
 
     polyrepo_dir = os.path.abspath(args.polyrepo_dir)
-    L2_dir = pjoin(polyrepo_dir, 'ops', 'L2-genesis')
-    devnet_dir = pjoin(polyrepo_dir, 'ops', 'L2-genesis', '.devnet')
+    L2_dir = pjoin(polyrepo_dir, 'ops', 'l2-genesis')
+    devnet_dir = pjoin(polyrepo_dir, 'ops', 'l2-genesis', '.devnet')
     ops_dir = pjoin(polyrepo_dir, 'ops', 'docker')
     contracts_dir = pjoin(polyrepo_dir, 'contracts')
 

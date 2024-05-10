@@ -7,14 +7,14 @@ import (
 	"os"
 	"testing"
 
-	tmlog "github.com/tendermint/tendermint/libs/log"
-
-	"github.com/morph-l2/node/db"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	gethTypes "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/urfave/cli"
+
+	"morph-l2/node/db"
+	"morph-l2/node/types"
 )
 
 func TestSyncer_GetL1Message(t *testing.T) {

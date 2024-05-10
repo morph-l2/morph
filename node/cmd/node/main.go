@@ -8,21 +8,22 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/node/cmd/keyconverter"
-	node "github.com/morph-l2/node/core"
-	"github.com/morph-l2/node/db"
-	"github.com/morph-l2/node/derivation"
-	"github.com/morph-l2/node/flags"
-	"github.com/morph-l2/node/sequencer"
-	"github.com/morph-l2/node/sequencer/mock"
-	"github.com/morph-l2/node/sync"
-	"github.com/morph-l2/node/types"
-	"github.com/morph-l2/node/validator"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
 	"github.com/urfave/cli"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/cmd/keyconverter"
+	node "morph-l2/node/core"
+	"morph-l2/node/db"
+	"morph-l2/node/derivation"
+	"morph-l2/node/flags"
+	"morph-l2/node/sequencer"
+	"morph-l2/node/sequencer/mock"
+	"morph-l2/node/sync"
+	"morph-l2/node/types"
+	"morph-l2/node/validator"
 )
 
 var keyConverterCmd = cli.Command{

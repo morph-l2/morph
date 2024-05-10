@@ -3,13 +3,13 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"math/big"
+	"testing"
+
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
-	"math/big"
-	"testing"
-
 	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/rand"

@@ -2,7 +2,7 @@
 pragma solidity =0.8.24;
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {L2ToL1MessagePasser} from "../../L2/system/L2ToL1MessagePasser.sol";
+import {L2ToL1MessagePasser} from "../../l2/system/L2ToL1MessagePasser.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 
 contract L2ToL1MessagePasserTest is L2MessageBaseTest {

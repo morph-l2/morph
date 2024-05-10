@@ -7,11 +7,11 @@ export type DeployConfigSpec<
         [key: string]: any
     }
 > = {
-    [K in keyof TDeployConfig]: {
-        type: 'address' | 'number' | 'string' | 'boolean'
-        default?: any
+        [K in keyof TDeployConfig]: {
+            type: 'address' | 'number' | 'string' | 'boolean'
+            default?: any
+        }
     }
-}
 
 declare module 'hardhat/types/config' {
     interface HardhatUserConfig {
