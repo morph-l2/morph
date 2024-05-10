@@ -454,18 +454,20 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         lastCommittedBatchIndex = _batchIndex - 1;
         while (_count > 0) {
+            emit RevertBatch(_batchIndex, _batchHash);
+
             batchBaseStore[_batchIndex].batchHash = bytes32(0);
+            // if challenge exist and not finished yet, return challenge deposit to challenger
+            if (!challenges[_batchIndex].finished) {
+                batchChallengeReward[
+                    challenges[_batchIndex].challenger
+                ] += challenges[_batchIndex].challengeDeposit;
+            }
+            delete challenges[_batchIndex];
+            
             if (revertReqIndex > 0 && _batchIndex == revertReqIndex) {
-                // if challenge exist and not finished yet, return challenge deposit to challenger
-                if (!challenges[_batchIndex].finished) {
-                    batchChallengeReward[
-                        challenges[_batchIndex].challenger
-                    ] += challenges[_batchIndex].challengeDeposit;
-                }
-                delete challenges[_batchIndex];
                 revertReqIndex = 0;
             }
-            emit RevertBatch(_batchIndex, _batchHash);
 
             unchecked {
                 _batchIndex += 1;
