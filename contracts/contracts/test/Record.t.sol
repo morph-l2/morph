@@ -15,7 +15,7 @@ contract RecordTest is L2StakingBaseTest {
     function testInitialize() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        record.initialize(address(0));
+        record.initialize(address(0), 1);
     }
 
     /**
