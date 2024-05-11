@@ -38,7 +38,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice initialize: re-initialize
      */
-    function testInitialize() public {
+    function test_initialize_paramsCheck_reverts() public {
         Types.StakerInfo[] memory _stakerInfos = new Types.StakerInfo[](0);
 
         hevm.expectRevert("Initializable: contract is already initialized");
@@ -72,7 +72,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test init staker info & ranking
      */
-    function testInitStakers() public {
+    function test_init_stakersInfo_succeeds() public {
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address user = address(uint160(beginSeq + i));
             (address staker, , ) = l2Staking.stakers(user);
@@ -86,7 +86,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test add staker
      */
-    function testAddStakers() public {
+    function test_addStakers_succeeds() public {
         hevm.mockCall(
             address(l2Staking.MESSENGER()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
@@ -116,7 +116,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test add staker, reward starting
      */
-    function testAddStakerWhenRewardStarting() public {
+    function test_addStakerWhenRewardStarting_succeeds() public {
         hevm.startPrank(alice);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
@@ -158,7 +158,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test removed staker
      */
-    function testRemoveStakers() public {
+    function test_removeStakers_succeeds() public {
         hevm.mockCall(
             address(l2Staking.MESSENGER()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
@@ -195,7 +195,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test set commission rate
      */
-    function testSetCommissionRate() public {
+    function test_setCommissionRate_invalidCommission_reverts() public {
         hevm.startPrank(firstStaker);
 
         // set commission rate
@@ -204,9 +204,9 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice failed staking, staker not exists
+     * @notice failed delegate, staker not exists
      */
-    function testStakeToNotStaker() public {
+    function test_stake_notStaker_reverts() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
 
@@ -220,7 +220,7 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice staking by delegator
      * stag0
      */
-    function testStakeWhenRewardNotStarting() public {
+    function test_stakeWhenRewardNotStarting_succeeds() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
 
@@ -234,7 +234,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice normal undelegate
      */
-    function testUndelegate() public {
+    function test_undelegate_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -257,7 +257,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice undelegate, staker removed
      */
-    function testUndelegateWhenStakerRemoved() public {
+    function test_undelegateWhenStakerRemoved_succeeds() public {
         hevm.startPrank(alice);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
@@ -310,7 +310,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice failed unstaking, when staking amount is zero
      */
-    function testDelegatorUnstakingIfStakingAmountZero() public {
+    function test_delegatorUnstaking_stakingAmountIsZero_reverts() public {
         hevm.startPrank(bob);
 
         hevm.expectRevert("staking amount is zero");
@@ -322,7 +322,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice failed claim, amount in lock period
      */
-    function testDelegatorclaimInLockPeriod() public {
+    function test_delegatorClaim_inLockPeriod_reverts() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, morphBalance);
@@ -341,7 +341,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice normal claim undelegation
      */
-    function testDelegatorClaimUndelegation() public {
+    function test_delegatorClaimUndelegation_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -359,7 +359,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice failed restaking, pre claim in lock period
      */
-    function testDelegatorRestakeInLockPeriod() public {
+    function test_delegatorRestake_inLockPeriod_fails() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -373,7 +373,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice normal restaking
      */
-    function testDelegatorRestakeAfterLockPeriod() public {
+    function test_delegatorRestakeAfterLockPeriod_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -395,7 +395,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test ranking, reward_start = false
      */
-    function testRankWhenRewardNotStarting() public {
+    function test_rankWhenRewardNotStarting_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -412,7 +412,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test ranking, reward_start = true
      */
-    function testRankWhenRewardStarting() public {
+    function test_rankWhenRewardStarting_succeeds() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(secondStaker, 10 ether);
@@ -436,7 +436,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice update sequencerSetMaxSize
      */
-    function testupdateSequencerSetMaxSize() public {
+    function test_updateSequencerSetMaxSize_succeeds() public {
         hevm.prank(multisig);
         l2Staking.updateSequencerSetMaxSize(2);
 
@@ -485,7 +485,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice  staking -> distribute -> claim
      */
-    function testDelegatorClaimRewardWhenRewardStarting() public {
+    function test_delegatorClaimRewardWhenRewardStarting_succeeds() public {
         uint256 sequencerSize = sequencer.getSequencerSet2Size();
 
         hevm.startPrank(alice);
@@ -578,7 +578,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice  staking -> distribute -> claim
      */
-    function testDelegatorUndelegateWhenRewardStarting() public {
+    function test_delegatorUndelegateWhenRewardStarting_succeeds() public {
         hevm.startPrank(alice);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
@@ -693,7 +693,7 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice currentEpoch
      */
 
-    function testCurrentEpoch() public {
+    function test_currentEpoch_succeeds() public {
         uint256 currentEpoch = l2Staking.currentEpoch();
         assertEq(currentEpoch, 0);
 
@@ -709,7 +709,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice getStakesInfo
      */
-    function testGetStakesInfo() public {
+    function test_getStakesInfo_succeeds() public {
         address[] memory _sequencerAddresses = new address[](SEQUENCER_SIZE);
         Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
             SEQUENCER_SIZE
@@ -737,7 +737,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice get stakers
      */
-    function testGetStakers() public {
+    function test_getStakers_succeeds() public {
         Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
             SEQUENCER_SIZE
         );
