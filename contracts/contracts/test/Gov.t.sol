@@ -4,6 +4,8 @@ pragma solidity =0.8.24;
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {Gov} from "../l2/staking/Gov.sol";
 import {IGov} from "../l2/staking/IGov.sol";
+import {Types} from "../libraries/common/Types.sol";
+import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract GovTest is L2StakingBaseTest {
     function setUp() public virtual override {
@@ -120,6 +122,80 @@ contract GovTest is L2StakingBaseTest {
         hevm.expectRevert("proposal already approved");
         hevm.prank(address(user));
         gov.vote(currentproposalID);
+    }
+
+    /**
+     * @notice approval by more than 2/3 of the valid votes
+     * 1. remove all old sequencer which vote a proposal
+     * 2. add new sequencer and vote, more thran 2 / 3, the proposal should be approved
+     */
+    function testCanBeApprovedWithNewSequencers() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        address user = address(uint160(beginSeq));
+        hevm.prank(address(user));
+        gov.createProposal(proposal);
+
+        uint256 currentproposalID = gov.currentProposalID();
+        for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
+            user = address(uint160(beginSeq + i));
+            hevm.prank(address(user));
+            gov.vote(currentproposalID);
+            assertTrue(gov.isVoted(currentproposalID, user));
+        }
+
+        (, bool approved) = gov.proposalInfos(currentproposalID);
+        assertFalse(approved);
+
+        bool canBeApproved = gov.isProposalCanBeApproved(currentproposalID);
+        assertFalse(canBeApproved);
+
+        // update new sequencer
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+            l2Staking.addStaker(stakerInfo);
+        }
+
+        // remove old sequencer
+        address[] memory removed = new address[](SEQUENCER_SIZE);
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address staker = address(uint160(beginSeq + i));
+            removed[i] = staker;
+        }
+        l2Staking.removeStakers(removed);
+        hevm.stopPrank();
+
+        canBeApproved = gov.isProposalCanBeApproved(currentproposalID);
+        assertFalse(canBeApproved);
+
+        // invalide votes
+        for (uint i = 0; i < removed.length - 1; i++) {
+            assertTrue(gov.isVoted(currentproposalID, removed[i]));
+        }
+
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            user = address(uint160(beginSeq + i));
+            hevm.prank(address(user));
+            gov.vote(currentproposalID);
+            assertTrue(gov.isVoted(currentproposalID, user));
+        }
+
+        (, approved) = gov.proposalInfos(currentproposalID);
+        assertTrue(approved);
     }
 
     /**
