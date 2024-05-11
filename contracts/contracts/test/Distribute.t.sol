@@ -21,7 +21,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice update epoch reward
      */
-    function _updateEpochReward(uint256 epochIndex) internal {
+    function _update_epoch_reward(uint256 epochIndex) internal {
         uint256 updateEpochNum = sequencer.getSequencerSet2Size();
         address[] memory sequencers = new address[](updateEpochNum);
         uint256[] memory delegatorRewards = new uint256[](updateEpochNum);
@@ -45,7 +45,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice initialize: re-initialize
      */
-    function testInitialize() public {
+    function test_initialize_onlyOnce_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
         distribute.initialize();
@@ -54,7 +54,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice notifyDelegation: only l2 staking allowed
      */
-    function testNotifyDelegation() public {
+    function test_notifyDelegation_onlyCaller_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
         distribute.notifyDelegation(address(0), address(0), 0, 0, 0, 0, false);
@@ -63,7 +63,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice notifyUndelegation: only l2 staking allowed
      */
-    function testNotifyUndelegation() public {
+    function test_notifyUndelegation_onlyCaller_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
         distribute.notifyUndelegation(address(0), address(0), 0, 0, 0);
@@ -75,7 +75,7 @@ contract DistributeTest is L2StakingBaseTest {
      * 2. not mint yet
      * 3. no remaining reward
      */
-    function testClaimParams() public {
+    function test_claim_paramsCheck_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
         distribute.claim(address(0), address(0), 0);
@@ -84,7 +84,7 @@ contract DistributeTest is L2StakingBaseTest {
         hevm.prank(address(l2Staking));
         distribute.claim(address(0), address(0), 0);
 
-        _updateEpochReward(0);
+        _update_epoch_reward(0);
         hevm.expectRevert("no remaining reward");
         hevm.prank(address(l2Staking));
         distribute.claim(firstStaker, alice, 0);
@@ -95,7 +95,7 @@ contract DistributeTest is L2StakingBaseTest {
      * 1. normal clain
      * 2. all reward claimed
      */
-    function test1Claim() public {
+    function test_claim_succeeds() public {
         hevm.prank(address(l2Staking));
         distribute.notifyDelegation(
             firstStaker,
@@ -107,7 +107,7 @@ contract DistributeTest is L2StakingBaseTest {
             true
         );
 
-        _updateEpochReward(0);
+        _update_epoch_reward(0);
 
         // mock inflation
         hevm.prank(multisig);
@@ -143,7 +143,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice claimAll: only l2 staking allowed
      */
-    function testClaimAll() public {
+    function test_claimAll_paramsCheck_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
         distribute.claimAll(address(0), 0);
@@ -156,7 +156,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice updateEpochReward: only record contract allowed
      */
-    function testUpdateEpochReward() public {
+    function test_updateEpochReward_paramsCheck_reverts() public {
         uint256 updateEpochNum = 1;
         address[] memory sequencers = new address[](updateEpochNum);
         uint256[] memory delegatorRewards = new uint256[](updateEpochNum);
@@ -194,7 +194,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice claimCommission: only l2 staking allowed
      */
-    function testClaimCommission() public {
+    function test_claimCommission_onlyCaller_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
         distribute.claimCommission(address(0), 0);
