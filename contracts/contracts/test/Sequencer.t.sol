@@ -21,7 +21,7 @@ contract SequencerTest is L2StakingBaseTest {
     /**
      * @notice initialize: re-initialize
      */
-    function testInitialize() public {
+    function test_initialize_paramsCheck_reverts() public {
         address[] memory _sequencersAddresses = new address[](0);
 
         hevm.expectRevert("Initializable: contract is already initialized");
@@ -43,7 +43,7 @@ contract SequencerTest is L2StakingBaseTest {
     /**
      * @notice update sequencer
      */
-    function testUpdateSequencers() external {
+    function test_updateSequencers_succeeds() external {
         address[] memory newSequencers = new address[](SEQUENCER_SIZE);
         beginSeq = 100;
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
@@ -89,7 +89,7 @@ contract SequencerTest is L2StakingBaseTest {
     /**
      * @notice remove sequencer
      */
-    function testSequencerSetAfterRemove() external {
+    function test_sequencerSetAfterRemove_succeeds() external {
         hevm.prank(address(multisig));
         l2Staking.updateSequencerSetMaxSize(SEQUENCER_SIZE - 1);
 
