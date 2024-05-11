@@ -7,7 +7,7 @@ import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
 contract StakingTest is L1MessageBaseTest {
-    function testSetUpCheck() external {
+    function test_setUpCheck_succeeds() external {
         assertEq(rollup.l1StakingContract(), address(l1Staking));
         assertEq(
             address(l1Staking.OTHER_STAKING()),
@@ -25,7 +25,7 @@ contract StakingTest is L1MessageBaseTest {
         assertEq(l1Staking.gasLimitRemoveStakers(), 10000000);
     }
 
-    function testRegisterAlice() external {
+    function test_registerAlice_succeeds() external {
         hevm.deal(alice, 5 * STAKING_VALUE);
         Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(alice);
         address[] memory add = new address[](1);
@@ -53,7 +53,7 @@ contract StakingTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testStakerWithdrawAndClaim() external {
+    function test_stakerWithdrawAndClaim_succeeds() external {
         // register
 
         hevm.deal(bob, 5 * STAKING_VALUE);
@@ -105,17 +105,17 @@ contract StakingTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testSlash() external {
+    function test_Slash_succeeds() external {
         // TODO
     }
 
-    function testUpdateParams() external {
+    function test_updateParams_succeeds() external {
         // TODO
     }
 }
 
 contract StakingWhitelistTest is L1MessageBaseTest {
-    function testWhitelist_notOwner() external {
+    function test_whitelist_notOwner_reverts() external {
         address[] memory add = new address[](2);
         add[0] = alice;
         add[1] = bob;
@@ -124,7 +124,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         l1Staking.updateWhitelist(add, new address[](0));
     }
 
-    function testWhitelist_add() external {
+    function test_whitelist_add_succeeds() external {
         // make add param
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -135,7 +135,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         assertTrue(l1Staking.whitelist(bob));
     }
 
-    function testWhitelist_remove() external {
+    function test_whitelist_remove_succeeds() external {
         address[] memory add = new address[](1);
         add[0] = alice;
         address[] memory remove = new address[](1);
@@ -146,7 +146,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         assertTrue(!l1Staking.whitelist(bob));
     }
 
-    function testWhitelist_withdraw() external {
+    function test_whitelist_withdraw_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -182,7 +182,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         assertTrue(l1Staking.removedList(bob));
     }
 
-    function testWhitelist_reAdd() external {
+    function test_whitelist_reAdd_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -225,7 +225,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testWhitelist_slash() external {
+    function test_whitelist_slash_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -266,7 +266,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
 }
 
 contract StakingRegisterTest is L1MessageBaseTest {
-    function testRegister_notInWhitelist() external {
+    function test_register_notInWhitelist_reverts() external {
         // alice register
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
@@ -279,7 +279,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testRegister_registered() external {
+    function test_register_alreadyRegistered_reverts() external {
         // add to whitelist
         address[] memory add = new address[](1);
         add[0] = alice;
@@ -303,7 +303,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testRegister_notStakingValue() external {
+    function test_register_notStakingValue_reverts() external {
         // add to whitelist
         address[] memory add = new address[](1);
         add[0] = alice;
@@ -322,7 +322,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testRegister_notTmKey() external {
+    function test_register_notTmKey_reverts() external {
         // add to whitelist
         address[] memory add = new address[](1);
         add[0] = alice;
@@ -338,7 +338,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testRegister_notBlsKey() external {
+    function test_register_notBlsKey_reverts() external {
         // add to whitelist
         address[] memory add = new address[](1);
         add[0] = alice;
@@ -354,7 +354,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testRegister_success() external {
+    function test_register_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](1);
         add[0] = alice;
@@ -388,7 +388,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
 }
 
 contract StakingWithdrawTest is L1MessageBaseTest {
-    function testWithdraw_notStaker() external {
+    function test_withdraw_notStaker_reverts() external {
         hevm.startPrank(bob);
         // bob withdraw
         hevm.expectRevert("only staker");
@@ -396,7 +396,7 @@ contract StakingWithdrawTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testWithdraw() external {
+    function test_withdraw_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -448,7 +448,7 @@ contract StakingWithdrawTest is L1MessageBaseTest {
 }
 
 contract StakingSlashTest is L1MessageBaseTest {
-    function testSlash_notRollup() external {
+    function test_slash_notRollup_reverts() external {
         // make param
         address[] memory sequencers = new address[](2);
         sequencers[0] = alice;
@@ -459,7 +459,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testSlash_withdraw() external {
+    function test_slash_withdraw_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -503,7 +503,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         assertTrue(l1Staking.removedList(bob));
     }
 
-    function testSlash_notWithdraw() external {
+    function test_slash_notWithdraw_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -543,7 +543,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         assertTrue(l1Staking.removedList(bob));
     }
 
-    function testSlash_all() external {
+    function test_slash_all_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -586,13 +586,13 @@ contract StakingSlashTest is L1MessageBaseTest {
 }
 
 contract StakingClaimSlashRemainingTest is L1MessageBaseTest {
-    function testClaimSlashRemaining_notOwner() external {
+    function test_claimSlashRemaining_notOwner_reverts() external {
         hevm.prank(alice);
         hevm.expectRevert("Ownable: caller is not the owner");
         l1Staking.claimSlashRemaining(bob);
     }
 
-    function testClaimSlashRemaining() external {
+    function test_claimSlashRemaining_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -645,26 +645,26 @@ contract StakingClaimSlashRemainingTest is L1MessageBaseTest {
 }
 
 contract StakingUpdateGasLimitAddStakerTest is L1MessageBaseTest {
-    function testUpdateGasLimitAddStaker_notOwner() external {
+    function test_updateGasLimitAddStaker_notOwner_reverts() external {
         hevm.prank(alice);
         hevm.expectRevert("Ownable: caller is not the owner");
         l1Staking.updateGasLimitAddStaker(0);
     }
 
-    function testUpdateGasLimitAddStaker_eqZero() external {
+    function test_updateGasLimitAddStaker_eqZero_reverts() external {
         hevm.prank(multisig);
         hevm.expectRevert("invalid new gas limit");
         l1Staking.updateGasLimitAddStaker(0);
         // defaultGasLimitAdd
     }
 
-    function testUpdateGasLimitAddStaker_eqDefaultValue() external {
+    function test_updateGasLimitAddStaker_eqDefaultValue_reverts() external {
         hevm.prank(multisig);
         hevm.expectRevert("invalid new gas limit");
         l1Staking.updateGasLimitAddStaker(defaultGasLimitAdd);
     }
 
-    function testUpdateGasLimitAddStaker() external {
+    function test_updateGasLimitAddStaker_succeeds() external {
         hevm.prank(multisig);
         uint256 newValue = defaultGasLimitAdd / 10;
         l1Staking.updateGasLimitAddStaker(newValue);
@@ -673,25 +673,27 @@ contract StakingUpdateGasLimitAddStakerTest is L1MessageBaseTest {
 }
 
 contract StakingUpdateGasLimitRemoveStakersTest is L1MessageBaseTest {
-    function testUpdateGasLimitRemoveStakers_notOwner() external {
+    function test_updateGasLimitRemoveStakers_notOwner_reverts() external {
         hevm.prank(alice);
         hevm.expectRevert("Ownable: caller is not the owner");
         l1Staking.updateGasLimitRemoveStakers(0);
     }
 
-    function testUpdateGasLimitRemoveStakers_eqZero() external {
+    function test_updateGasLimitRemoveStakers_eqZero_reverts() external {
         hevm.prank(multisig);
         hevm.expectRevert("invalid new gas limit");
         l1Staking.updateGasLimitRemoveStakers(0);
     }
 
-    function testUpdateGasLimitRemoveStakers_eqDefaultValue() external {
+    function test_updateGasLimitRemoveStakers_eqDefaultValue_reverts()
+        external
+    {
         hevm.prank(multisig);
         hevm.expectRevert("invalid new gas limit");
         l1Staking.updateGasLimitRemoveStakers(defaultGasLimitRemove);
     }
 
-    function testUpdateGasLimitRemoveStakers() external {
+    function test_updateGasLimitRemoveStakers_succeeds() external {
         hevm.prank(multisig);
         uint256 newValue = defaultGasLimitRemove / 10;
         l1Staking.updateGasLimitRemoveStakers(newValue);
@@ -700,31 +702,31 @@ contract StakingUpdateGasLimitRemoveStakersTest is L1MessageBaseTest {
 }
 
 contract StakingUpdateRewardPercentageTest is L1MessageBaseTest {
-    function testUpdateRewardPercentage_notOwner() external {
+    function test_updateRewardPercentage_notOwner_reverts() external {
         hevm.prank(alice);
         hevm.expectRevert("Ownable: caller is not the owner");
         l1Staking.updateRewardPercentage(0);
     }
 
-    function testUpdateRewardPercentage_eqZero() external {
+    function test_updateRewardPercentage_eqZero_reverts() external {
         hevm.prank(multisig);
         hevm.expectRevert("invalid reward percentage");
         l1Staking.updateRewardPercentage(0);
     }
 
-    function testUpdateRewardPercentage_ge100() external {
+    function test_updateRewardPercentage_ge100_reverts() external {
         hevm.prank(multisig);
         hevm.expectRevert("invalid reward percentage");
         l1Staking.updateRewardPercentage(101);
     }
 
-    function testUpdateRewardPercentage_eqDefaultValue() external {
+    function test_updateRewardPercentage_eqDefaultValue_reverts() external {
         hevm.prank(multisig);
         hevm.expectRevert("invalid reward percentage");
         l1Staking.updateRewardPercentage(rewardPercentage);
     }
 
-    function testUpdateRewardPercentage() external {
+    function test_updateRewardPercentage_succeeds() external {
         hevm.prank(multisig);
         uint256 newValue = 66;
         l1Staking.updateRewardPercentage(newValue);
@@ -733,7 +735,7 @@ contract StakingUpdateRewardPercentageTest is L1MessageBaseTest {
 }
 
 contract StakingClaimWithdrawalTest is L1MessageBaseTest {
-    function testClaimWithdrawal_notWithdraw() external {
+    function test_claimWithdrawal_notWithdraw_reverts() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -763,7 +765,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testClaimWithdrawal_locked() external {
+    function test_claimWithdrawal_locked_reverts() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -796,7 +798,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testClaimWithdrawal_eqLockedBlockNumber() external {
+    function test_claimWithdrawal_eqLockedBlockNumber_reverts() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -831,7 +833,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testClaimWithdrawal() external {
+    function test_claimWithdrawal_succeeds() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
