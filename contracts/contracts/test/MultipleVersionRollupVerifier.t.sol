@@ -28,7 +28,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         verifier = new MultipleVersionRollupVerifier(_versions, _verifiers);
     }
 
-    function testInitialize(address _chain) external {
+    function test_initialize_reInit_reverts(address _chain) external {
         hevm.assume(_chain != address(0));
 
         // set by non-owner, should revert
@@ -47,7 +47,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         verifier.initialize(_chain);
     }
 
-    function testUpdateVerifier(address _newVerifier) external {
+    function test_updateVerifier_succeeds(address _newVerifier) external {
         verifier.initialize(address(rollup));
 
         hevm.assume(_newVerifier != address(0));
@@ -99,7 +99,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         verifier.updateVerifier(0, 99, _newVerifier);
     }
 
-    function testUpdateVerifierVersion(
+    function test_updateVerifierVersion_succeeds(
         uint256 version,
         address _newVerifier
     ) external {
@@ -163,7 +163,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         verifier.updateVerifier(version, 99, _newVerifier);
     }
 
-    function testGetVerifier(uint256 version) external {
+    function test_getVerifier_succeeds(uint256 version) external {
         verifier.initialize(address(rollup));
         hevm.assume(version != 0);
 
@@ -181,7 +181,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         assertEq(verifier.getVerifier(version, 10000), address(v2));
     }
 
-    function testVerifyAggregateProof(uint256 version) external {
+    function test_verifyAggregateProof_succeeds(uint256 version) external {
         verifier.initialize(address(rollup));
         hevm.assume(version != 0);
 
