@@ -34,7 +34,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         );
     }
 
-    function testCommitAndFinalizeWithL1Messages() public {
+    function test_commitAndFinalizeWithL1Messages_succeeds() public {
         upgradeStorage(address(caller), address(rollup), address(alice));
         hevm.deal(caller, 5 * STAKING_VALUE);
         bytes memory batchHeader0 = new bytes(121);
@@ -442,7 +442,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testCommitBatches() external {
+    function test_commitBatches_succeeds() external {
         bytes memory batchHeader0 = new bytes(121);
 
         // import 10 L1 messages
@@ -699,7 +699,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testRevertBatch() public {
+    function test_revertBatch_succeeds() public {
         // caller not owner, revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -807,7 +807,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testSetPause() external {
+    function test_setPause_onlyOwner_reverts() external {
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
 
@@ -843,7 +843,7 @@ contract RollupTest is L1MessageBaseTest {
         assertBoolEq(false, rollup.paused());
     }
 
-    function testUpdateVerifier(address _newVerifier) public {
+    function test_updateVerifier_succeeds(address _newVerifier) public {
         hevm.assume(_newVerifier != address(0));
         hevm.assume(_newVerifier != rollup.verifier());
         hevm.prank(multisig);
@@ -863,7 +863,9 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.verifier(), _newVerifier);
     }
 
-    function testUpdateMaxNumTxInChunk(uint256 _maxNumTxInChunk) public {
+    function test_updateMaxNumTxInChunk_succeeds(
+        uint256 _maxNumTxInChunk
+    ) public {
         hevm.assume(_maxNumTxInChunk > 0);
         hevm.assume(_maxNumTxInChunk != 10);
 
@@ -884,7 +886,7 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.maxNumTxInChunk(), _maxNumTxInChunk);
     }
 
-    function testImportGenesisBlock() public {
+    function test_importGenesisBlock_succeeds() public {
         bytes memory batchHeader;
 
         // zero state root, revert
