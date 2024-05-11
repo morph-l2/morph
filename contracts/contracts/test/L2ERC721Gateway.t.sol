@@ -48,7 +48,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         token.mint(address(mockRecipient), NOT_OWNED_TOKEN_ID);
     }
 
-    function testUpdateTokenMappingFailed(address token1) public {
+    function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -60,7 +60,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         gateway.updateTokenMapping(token1, address(0));
     }
 
-    function testUpdateTokenMappingSuccess(
+    function test_updateTokenMapping_succeeds(
         address token1,
         address token2
     ) public {
@@ -72,7 +72,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev failed to withdraw erc721
-    function testWithdrawERC721WithGatewayFailed(address to) public {
+    function test_withdrawERC721WithGateway_onlyHolder_fails(
+        address to
+    ) public {
         // token not support
         hevm.expectRevert("no corresponding l1 token");
         if (to == address(0)) {
@@ -92,7 +94,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev withdraw erc721 without recipient
-    function testWithdrawERC721WithGatewaySuccess(uint256 tokenId) public {
+    function test_withdrawERC721WithGateway_succeeds(uint256 tokenId) public {
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         gateway.updateTokenMapping(address(token), address(token));
 
@@ -105,7 +107,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev withdraw erc721 with recipient
-    function testWithdrawERC721WithGatewaySuccess(
+    function test_withdrawERC721WithGateway_succeeds(
         uint256 tokenId,
         address to
     ) public {
@@ -121,7 +123,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev failed to batch withdraw erc721
-    function testBatchWithdrawERC721WithGatewayFailed(address to) public {
+    function test_batchWithdrawERC721WithGateway_noneToken_fails(
+        address to
+    ) public {
         // token not support
         hevm.expectRevert("no corresponding l1 token");
         if (to == address(0)) {
@@ -161,7 +165,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev batch withdraw erc721 without recipient
-    function testBatchWithdrawERC721WithGatewaySuccess(uint256 count) public {
+    function test_batchWithdrawERC721WithGateway_succeeds(
+        uint256 count
+    ) public {
         count = bound(count, 1, TOKEN_COUNT);
         gateway.updateTokenMapping(address(token), address(token));
 
@@ -181,7 +187,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev batch withdraw erc721 with recipient
-    function testBatchWithdrawERC721WithGatewaySuccess(
+    function test_batchWithdrawERC721WithGateway_succeeds(
         uint256 count,
         address to
     ) public {
@@ -204,7 +210,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev failed to finalize withdraw erc721
-    function testFinalizeDepositERC721Failed() public {
+    function test_finalizeDepositERC721_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
         gateway.finalizeDepositERC721(
@@ -238,7 +244,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev finalize withdraw erc721
-    function testFinalizeDepositERC721(
+    function test_finalizeDepositERC721_succeeds(
         address from,
         address to,
         uint256 tokenId
@@ -263,7 +269,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev failed to finalize batch withdraw erc721
-    function testFinalizeBatchDepositERC721Failed() public {
+    function test_finalizeBatchDepositERC721_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
         gateway.finalizeBatchDepositERC721(
@@ -309,7 +315,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev finalize batch withdraw erc721
-    function testFinalizeBatchDepositERC721(
+    function test_finalizeBatchDepositERC721_succeeds(
         address from,
         address to,
         uint256 count

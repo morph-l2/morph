@@ -105,7 +105,7 @@ contract StakingTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function test_Slash_succeeds() external {
+    function test_slash_succeeds() external {
         // TODO
     }
 

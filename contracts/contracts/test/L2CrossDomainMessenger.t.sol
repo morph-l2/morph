@@ -8,7 +8,7 @@ import {Tree} from "../libraries/common/Tree.sol";
 import {L2MessageBaseTest} from "./base/L2MessageBase.t.sol";
 
 contract L2CrossDomainMessengerTest is L2MessageBaseTest {
-    function testSendMessage() external {
+    function test_sendMessage_succeeds() external {
         // message config
         address to = address(bob);
         uint256 _value = 100;
@@ -62,7 +62,7 @@ contract L2CrossDomainMessengerTest is L2MessageBaseTest {
         );
     }
 
-    function testRelayMessage() external {
+    function test_relayMessage_succeeds() external {
         // send 100 to L2CrossDomainMessenger contract
         hevm.deal(address(l2CrossDomainMessenger), 100);
         // message config

@@ -77,14 +77,14 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         hevm.stopPrank();
     }
 
-    function testGetL2ERC20Address(address l1Address) public {
+    function test_getL2ERC20Address_succeeds(address l1Address) public {
         assertEq(
             gateway.getL2ERC20Address(l1Address),
             factory.computeL2TokenAddress(address(gateway), l1Address)
         );
     }
 
-    function testWithdrawERC20(
+    function test_withdrawERC20_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -92,7 +92,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         _withdrawERC20(false, amount, gasLimit, feePerGas);
     }
 
-    function testWithdrawERC20WithRecipient(
+    function test_withdrawERC20WithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -107,7 +107,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testWithdrawERC20WithRecipientAndCalldata(
+    function test_withdrawERC20WithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -124,7 +124,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testRouterDepositERC20(
+    function test_routerDepositERC20_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -132,7 +132,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         _withdrawERC20(true, amount, gasLimit, feePerGas);
     }
 
-    function testRouterDepositERC20WithRecipient(
+    function test_routerDepositERC20WithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -147,7 +147,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testRouterDepositERC20WithRecipientAndCalldata(
+    function test_routerDepositERC20WithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -164,7 +164,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeDepositERC20FailedMocking(
+    function test_finalizeDepositERC20_mocking_fails(
         address sender,
         address recipient,
         uint256 amount,
@@ -244,7 +244,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeDepositERC20Failed(
+    function test_finalizeDepositERC20_counterError_fails(
         address sender,
         address recipient,
         uint256 amount,
@@ -307,7 +307,7 @@ contract L2StandardERC20GatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeDepositERC20(
+    function test_finalizeDepositERC20_succeeds(
         address sender,
         uint256 amount,
         bytes memory dataToCall

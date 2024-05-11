@@ -16,7 +16,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         l1MessageQueue = l1MessageQueueWithGasPriceOracle;
     }
 
-    function test_validateGasLimit() external {
+    function test_validateGasLimit_succeeds() external {
         // store alice as messenger
         upgradeStorage(address(alice), address(rollup), address(alice));
         assertEq(alice, l1MessageQueue.MESSENGER());
@@ -37,7 +37,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         l1MessageQueue.appendCrossDomainMessage(alice, 3, "0x0");
     }
 
-    function test_appendCrossDomainMessage() external {
+    function test_appendCrossDomainMessage_succeeds() external {
         // store alice as messenger
         upgradeStorage(address(alice), address(rollup), address(alice));
         assertEq(alice, l1MessageQueue.MESSENGER());
@@ -61,7 +61,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function test_appendEnforcedTransaction() external {
+    function test_appendEnforcedTransaction_succeeds() external {
         hevm.prank(multisig);
         assertEq(alice, l1MessageQueue.ENFORCED_TX_GATEWAAY());
         // append message
@@ -79,7 +79,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         assertEq(1, l1MessageQueue.nextCrossDomainMessageIndex());
     }
 
-    function test_pop_dropCrossDomainMessage() external {
+    function test_pop_dropCrossDomainMessage_succeeds() external {
         // store alice as messenger and rollup
         upgradeStorage(address(alice), address(alice), address(alice));
         assertEq(alice, l1MessageQueue.MESSENGER());

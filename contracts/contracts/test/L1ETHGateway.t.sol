@@ -17,7 +17,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         counterpartGateway = l1ETHGateway.counterpart();
     }
 
-    function testDepositETH(
+    function test_depositETH_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -25,7 +25,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         _depositETH(false, amount, gasLimit, feePerGas);
     }
 
-    function testDepositETHWithRecipient(
+    function test_depositETHWithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -34,7 +34,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         _depositETHWithRecipient(false, amount, recipient, gasLimit, feePerGas);
     }
 
-    function testDepositETHWithRecipientAndCalldata(
+    function test_depositETHWithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -51,7 +51,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testRouterDepositETH(
+    function test_routerDepositETH_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -59,7 +59,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         _depositETH(true, amount, gasLimit, feePerGas);
     }
 
-    function testRouterDepositETHWithRecipient(
+    function test_routerDepositETHWithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -68,7 +68,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         _depositETHWithRecipient(true, amount, recipient, gasLimit, feePerGas);
     }
 
-    function testRouterDepositETHWithRecipientAndCalldata(
+    function test_routerDepositETHWithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -85,7 +85,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDropMessage(
+    function test_dropMessage_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall
@@ -135,7 +135,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         assertEq(balance + amount, address(this).balance);
     }
 
-    function testFinalizeWithdrawETHFailed(
+    function test_finalizeWithdrawETH_counterErr_fails(
         address sender,
         address recipient,
         uint256 amount,
@@ -200,7 +200,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawETH() public {
+    function test_finalizeWithdrawETH_succeeds() public {
         address sender = bob;
         uint256 amount = 1000;
         address recipient = address(2048);
