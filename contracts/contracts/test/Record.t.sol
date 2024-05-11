@@ -12,7 +12,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice initialize: re-initialize
      */
-    function testInitialize() public {
+    function test_initialize_onlyOnce_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
         record.initialize(address(0), 1);
@@ -21,7 +21,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice setOracleAddress: check params
      */
-    function testSetOracleAddress() public {
+    function test_setOracleAddress_invalidAddress_reverts() public {
         hevm.expectRevert("invalid oracle address");
         hevm.prank(multisig);
         record.setOracleAddress(address(0));
@@ -30,7 +30,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice setOracleAddress: check owner
      */
-    function testOwner() public {
+    function test_owner_onlyOwner_reverts() public {
         hevm.expectRevert("Ownable: caller is not the owner");
         hevm.prank(alice);
         record.setOracleAddress(address(0));
@@ -39,7 +39,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice setLatestRewardEpochBlock: check params
      */
-    function testSetLatestRewardEpochBlock() public {
+    function test_setLatestRewardEpochBlock_paramsCheck_reverts() public {
         hevm.expectRevert("only oracle allowed");
         hevm.prank(multisig);
         record.setLatestRewardEpochBlock(0);
@@ -61,7 +61,7 @@ contract RecordTest is L2StakingBaseTest {
      * 1. check owner
      * 2. check params
      */
-    function testRecordFinalizedBatchSubmissions() public {
+    function test_recordFinalizedBatchSubmissions_paramsCheck_reverts() public {
         IRecord.BatchSubmission[]
             memory submissions = new IRecord.BatchSubmission[](0);
 
@@ -100,7 +100,7 @@ contract RecordTest is L2StakingBaseTest {
      * 1. check owner
      * 2. check params
      */
-    function testRecordRollupEpochs() public {
+    function test_recordRollupEpochs_paramsCheck_reverts() public {
         IRecord.RollupEpochInfo[]
             memory epochInfos = new IRecord.RollupEpochInfo[](0);
 
@@ -136,7 +136,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice recordRewardEpochs: check owner
      */
-    function testRecordRewardEpochs() public {
+    function test_recordRewardEpochs_onlyOwner_reverts() public {
         uint256 sequencerSize = sequencer.getSequencerSet2Size();
         address[] memory sequencers = sequencer.getSequencerSet2();
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
@@ -169,7 +169,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice recordRewardEpochs: check params
      */
-    function testRecordRewardEpochsParams() public {
+    function test_recordRewardEpochs_paramsCheck_reverts() public {
         uint256 sequencerSize = sequencer.getSequencerSet2Size();
         address[] memory sequencers = sequencer.getSequencerSet2();
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
@@ -260,7 +260,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice getBatchSubmissions: check params
      */
-    function testGetBatchSubmissions() public {
+    function test_getBatchSubmissions_paramsCheck_reverts() public {
         hevm.expectRevert("invalid index");
         hevm.prank(oracleAddress);
         record.getBatchSubmissions(2, 1);
@@ -269,7 +269,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice getRollupEpochs: check params
      */
-    function testGetRollupEpochs() public {
+    function test_getRollupEpochs_paramsCheck_reverts() public {
         hevm.expectRevert("invalid index");
         hevm.prank(oracleAddress);
         record.getRollupEpochs(2, 1);
@@ -278,7 +278,7 @@ contract RecordTest is L2StakingBaseTest {
     /**
      * @notice getRewardEpochs: check params
      */
-    function testGetRewardEpochs() public {
+    function test_getRewardEpochs_paramsCheck_reverts() public {
         hevm.expectRevert("invalid index");
         hevm.prank(oracleAddress);
         record.getRewardEpochs(2, 1);
