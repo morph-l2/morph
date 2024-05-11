@@ -5,12 +5,12 @@ import {CommonTest} from "./CommonTest.t.sol";
 import {Types} from "../../libraries/common/Types.sol";
 
 contract FFITest is CommonTest {
-    function testget() external {
+    function test_get_succeeds() external {
         uint64 num = ffi.getTest();
         assertEq(num, 12345);
     }
 
-    function testGetProveWithdrawalTransactionInputs() external {
+    function test_getProveWithdrawalTransactionInputs_succeeds() external {
         bytes32 wdHash = bytes32(uint256(2));
         (bytes32 wdHashRes, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
             .getProveWithdrawalTransactionInputs(wdHash);
@@ -18,7 +18,7 @@ contract FFITest is CommonTest {
         assertTrue(verifyMerkleProof(wdHashRes, wdProof, 0, wdRoot));
     }
 
-    function testGenerateStakerInfo() external {
+    function test_generateStakerInfo_succeeds() external {
         for (uint256 i = 0; i < 10; i++) {
             address user = address(uint160(10 + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
