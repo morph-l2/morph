@@ -15,7 +15,7 @@ contract GovTest is L2StakingBaseTest {
     /**
      * @notice create a proposal
      */
-    function testProposal() external {
+    function test_createProposal_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -50,7 +50,7 @@ contract GovTest is L2StakingBaseTest {
     /**
      * @notice vote a proposal
      */
-    function testVote() external {
+    function test_vote_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -79,7 +79,7 @@ contract GovTest is L2StakingBaseTest {
     /**
      * @notice approval by more than 2/3 of the valid votes
      */
-    function testCanBeApproved() external {
+    function test_proposalCanBeApproved_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -129,7 +129,7 @@ contract GovTest is L2StakingBaseTest {
      * 1. remove all old sequencer which vote a proposal
      * 2. add new sequencer and vote, more thran 2 / 3, the proposal should be approved
      */
-    function testCanBeApprovedWithNewSequencers() external {
+    function test_canBeApprovedWithNewSequencers_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -201,7 +201,7 @@ contract GovTest is L2StakingBaseTest {
     /**
      * @notice proposal is outdated
      */
-    function testVoteOutOfDate() external {
+    function test_vote_outOfDate_reverts() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -233,7 +233,7 @@ contract GovTest is L2StakingBaseTest {
     /**
      * @notice only sequenser is allowed to create proposal
      */
-    function testCreateProposalOnlySequencer() external {
+    function test_createProposal_onlySequencer_reverts() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
@@ -251,7 +251,7 @@ contract GovTest is L2StakingBaseTest {
     /**
      * @notice vote: only sequencer allowed
      */
-    function testVoteOnlySequencer() external {
+    function test_vote_onlySequencer_reverts() external {
         uint256 proposalID = gov.currentProposalID();
 
         hevm.expectRevert("only sequencer can propose");
@@ -262,7 +262,7 @@ contract GovTest is L2StakingBaseTest {
     /**
      * @notice setProposalInterval: check params
      */
-    function testSetProposalInterval() external {
+    function test_setProposalInterval_succeeds() external {
         hevm.expectRevert("Ownable: caller is not the owner");
         hevm.prank(alice);
         gov.setProposalInterval(0);
