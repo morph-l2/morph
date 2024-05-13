@@ -462,9 +462,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchChallengeReward[
                     challenges[_batchIndex].challenger
                 ] += challenges[_batchIndex].challengeDeposit;
+                inChallenge = false;
             }
             delete challenges[_batchIndex];
-            
+
             if (revertReqIndex > 0 && _batchIndex == revertReqIndex) {
                 revertReqIndex = 0;
             }
