@@ -1,14 +1,42 @@
 .PHONY: update format
 
+ETHEREUM_TAG=v1.10.14-0.20240429050506-03fd4c3e771d
+TENDERMINT_TAG=v0.2.0-beta.0.20240513090937-03bf2a578b48
+BTCD_TAG=v0.20.1-beta
+
 update:
 	go work sync
-	cd $(PWD)/bindings/ && go mod tidy
-	cd $(PWD)/contracts/ && go mod tidy
-	cd $(PWD)/node/ && go mod tidy
-	cd $(PWD)/ops/l2-genesis/ && go mod tidy
-	cd $(PWD)/ops/tools/ && go mod tidy
-	cd $(PWD)/oracle/ && go mod tidy
-	cd $(PWD)/tx-submitter/ && go mod tidy
+
+	cd $(PWD)/bindings/ && \
+		sed -i '' '8s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
+		sed -i '' '9s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '10s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		go mod tidy
+	cd $(PWD)/contracts/ && \
+		sed -i '' '8s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
+		sed -i '' '9s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '10s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		go mod tidy
+	cd $(PWD)/node/ && \
+		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		go mod tidy
+	cd $(PWD)/ops/l2-genesis/ && \
+		sed -i '' '8s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
+		sed -i '' '9s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '10s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+	cd $(PWD)/ops/tools/ && \
+		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		go mod tidy
+	cd $(PWD)/oracle/ && \
+		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		go mod tidy
+	cd $(PWD)/tx-submitter/ && \
+		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		go mod tidy
 .PHONY: update
 
 submodules:

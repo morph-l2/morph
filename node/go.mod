@@ -4,6 +4,11 @@ go 1.22
 
 toolchain go1.22.2
 
+replace (
+	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240429050506-03fd4c3e771d
+	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
+)
+
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/go-kit/kit v0.12.0
@@ -18,11 +23,6 @@ require (
 	github.com/urfave/cli v1.22.14
 	golang.org/x/exp v0.0.0-20230206171751-46f607a40771
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-)
-
-replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240429050506-03fd4c3e771d
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta
 )
 
 require (

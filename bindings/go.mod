@@ -7,7 +7,7 @@ toolchain go1.22.2
 replace (
 	github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.20.1-beta
 	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240429050506-03fd4c3e771d
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta
+	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
 )
 
 require github.com/scroll-tech/go-ethereum v1.11.4
