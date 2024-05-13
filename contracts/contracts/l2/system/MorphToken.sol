@@ -51,7 +51,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// @notice inflations
     mapping(uint256 epochIndex => uint256 inflationAmount) private _inflations;
 
-    /// @notice inflation minted epochs
+    /// @notice inflation minted epochs count
     uint256 private _inflationMintedEpochs;
 
     /**********************
@@ -127,6 +127,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     function mintInflations(
         uint256 upToEpochIndex
     ) external onlyRecordContract {
+        // inflations can only be minted for epochs that have ended.
         require(
             IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > upToEpochIndex,
             "the specified time has not yet been reached"
@@ -136,6 +137,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             "all inflations minted"
         );
 
+        // the index of next epoch to mint is equal to the count of minted epochs
         for (uint256 i = _inflationMintedEpochs; i <= upToEpochIndex; i++) {
             uint256 rate = _epochInflationRates[0].rate;
             // find inflation rate of the epoch
