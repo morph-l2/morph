@@ -54,78 +54,78 @@ compile-forge:
 ## L1
 # Staking
 l1-staking-bindings: compile
-	./gen_bindings.sh contracts/L1/staking/L1Staking.sol:L1Staking $(pkg)
+	./gen_bindings.sh contracts/l1/staking/L1Staking.sol:L1Staking $(pkg)
 
 # CrossDomainMessenger
 l1-cross-domain-messenger-bindings: compile
-	./gen_bindings.sh contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger $(pkg)
+	./gen_bindings.sh contracts/l1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger $(pkg)
 
 # Gateways
 l1-standard-erc20-gateway-bindings: compile
-	./gen_bindings.sh contracts/L1/gateways/L1StandardERC20Gateway.sol:L1StandardERC20Gateway $(pkg)
+	./gen_bindings.sh contracts/l1/gateways/L1StandardERC20Gateway.sol:L1StandardERC20Gateway $(pkg)
 l1-eth-gateway-bindings: compile
-	./gen_bindings.sh contracts/L1/gateways/L1ETHGateway.sol:L1ETHGateway $(pkg)
+	./gen_bindings.sh contracts/l1/gateways/L1ETHGateway.sol:L1ETHGateway $(pkg)
 l1-erc20-gateway-bindings: compile
-	./gen_bindings.sh contracts/L1/gateways/L1ERC20Gateway.sol:L1ERC20Gateway $(pkg)
+	./gen_bindings.sh contracts/l1/gateways/L1ERC20Gateway.sol:L1ERC20Gateway $(pkg)
 l1-gateway-router-bindings: compile
-	./gen_bindings.sh contracts/L1/gateways/L1GatewayRouter.sol:L1GatewayRouter $(pkg)
+	./gen_bindings.sh contracts/l1/gateways/L1GatewayRouter.sol:L1GatewayRouter $(pkg)
 l1-weth-gateway-bindings: compile
-	./gen_bindings.sh contracts/L1/gateways/L1WETHGateway.sol:L1WETHGateway $(pkg)
+	./gen_bindings.sh contracts/l1/gateways/L1WETHGateway.sol:L1WETHGateway $(pkg)
 l1-custom-erc20-gateway-bindings: compile
-	./gen_bindings.sh contracts/L1/gateways/L1CustomERC20Gateway.sol:L1CustomERC20Gateway $(pkg)
+	./gen_bindings.sh contracts/l1/gateways/L1CustomERC20Gateway.sol:L1CustomERC20Gateway $(pkg)
 
 # Rollup
 l1-message-queue-with-gas-price-oracle-bindings: compile
-	./gen_bindings.sh contracts/L1/rollup/L1MessageQueueWithGasPriceOracle.sol:L1MessageQueueWithGasPriceOracle $(pkg)
+	./gen_bindings.sh contracts/l1/rollup/L1MessageQueueWithGasPriceOracle.sol:L1MessageQueueWithGasPriceOracle $(pkg)
 morph-rollup-bindings: compile
-	./gen_bindings.sh contracts/L1/rollup/Rollup.sol:Rollup $(pkg)
+	./gen_bindings.sh contracts/l1/rollup/Rollup.sol:Rollup $(pkg)
 multiple-version-rollup-verifier-bindings: compile
-	./gen_bindings.sh contracts/L1/rollup/MultipleVersionRollupVerifier.sol:MultipleVersionRollupVerifier $(pkg)
+	./gen_bindings.sh contracts/l1/rollup/MultipleVersionRollupVerifier.sol:MultipleVersionRollupVerifier $(pkg)
 
 ## L2
 # CrossDomainMessenger
 l2-cross-domain-messenger-bindings: compile
-	./gen_bindings.sh contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger $(pkg)
+	./gen_bindings.sh contracts/l2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger $(pkg)
 
 # System
 l2-gas-price-oracle-bindings: compile
-	./gen_bindings.sh contracts/L2/system/GasPriceOracle.sol:GasPriceOracle $(pkg)
+	./gen_bindings.sh contracts/l2/system/GasPriceOracle.sol:GasPriceOracle $(pkg)
 l2-to-l1-message-passer-bindings: compile
-	./gen_bindings.sh contracts/L2/system/L2ToL1MessagePasser.sol:L2ToL1MessagePasser $(pkg)
+	./gen_bindings.sh contracts/l2/system/L2ToL1MessagePasser.sol:L2ToL1MessagePasser $(pkg)
 l2-tx-fee-vault-bindings: compile
-	./gen_bindings.sh contracts/L2/system/L2TxFeeVault.sol:L2TxFeeVault $(pkg)
+	./gen_bindings.sh contracts/l2/system/L2TxFeeVault.sol:L2TxFeeVault $(pkg)
 
 # Staking
 l2-gov-bindings: compile
-	./gen_bindings.sh contracts/L2/staking/Gov.sol:Gov $(pkg)
+	./gen_bindings.sh contracts/l2/staking/Gov.sol:Gov $(pkg)
 l2-sequencer-bindings: compile
-	./gen_bindings.sh contracts/L2/staking/Sequencer.sol:Sequencer $(pkg)
+	./gen_bindings.sh contracts/l2/staking/Sequencer.sol:Sequencer $(pkg)
 l2-staking-bindings: compile
-	./gen_bindings.sh contracts/L2/staking/L2Staking.sol:L2Staking $(pkg)
+	./gen_bindings.sh contracts/l2/staking/L2Staking.sol:L2Staking $(pkg)
 l2-distribute-bindings: compile
-	./gen_bindings.sh contracts/L2/staking/Distribute.sol:Distribute $(pkg)
+	./gen_bindings.sh contracts/l2/staking/Distribute.sol:Distribute $(pkg)
 l2-record-bindings: compile
-	./gen_bindings.sh contracts/L2/staking/Record.sol:Record $(pkg)
+	./gen_bindings.sh contracts/l2/staking/Record.sol:Record $(pkg)
 
 # Gateways
 l2-eth-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2ETHGateway.sol:L2ETHGateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2ETHGateway.sol:L2ETHGateway $(pkg)
 l2-standard-erc20-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2StandardERC20Gateway.sol:L2StandardERC20Gateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2StandardERC20Gateway.sol:L2StandardERC20Gateway $(pkg)
 l2-gateway-router-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2GatewayRouter.sol:L2GatewayRouter $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2GatewayRouter.sol:L2GatewayRouter $(pkg)
 l2-weth-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2WETHGateway.sol:L2WETHGateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2WETHGateway.sol:L2WETHGateway $(pkg)
 l2-erc20-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2ERC20Gateway.sol:L2ERC20Gateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2ERC20Gateway.sol:L2ERC20Gateway $(pkg)
 l2-erc721-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2ERC721Gateway.sol:L2ERC721Gateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2ERC721Gateway.sol:L2ERC721Gateway $(pkg)
 l2-erc1155-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2ERC1155Gateway.sol:L2ERC1155Gateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2ERC1155Gateway.sol:L2ERC1155Gateway $(pkg)
 l2-custom-erc20-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2CustomERC20Gateway.sol:L2CustomERC20Gateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2CustomERC20Gateway.sol:L2CustomERC20Gateway $(pkg)
 l2-withdrawlock-erc20-gateway-bindings: compile
-	./gen_bindings.sh contracts/L2/gateways/L2WithdrawLockERC20Gateway.sol:L2WithdrawLockERC20Gateway $(pkg)
+	./gen_bindings.sh contracts/l2/gateways/L2WithdrawLockERC20Gateway.sol:L2WithdrawLockERC20Gateway $(pkg)
 
 ## Common
 # Proxy
@@ -136,13 +136,13 @@ proxy-admin-bindings: compile
 
 # Token
 morph-token-bindings: compile
-	./gen_bindings.sh contracts/L2/system/MorphToken.sol:MorphToken $(pkg)
+	./gen_bindings.sh contracts/l2/system/MorphToken.sol:MorphToken $(pkg)
 morph-standard-erc20-bindings: compile
 	./gen_bindings.sh contracts/libraries/token/MorphStandardERC20.sol:MorphStandardERC20 $(pkg)
 morph-standard-erc20-factory-bindings: compile
 	./gen_bindings.sh contracts/libraries/token/MorphStandardERC20Factory.sol:MorphStandardERC20Factory $(pkg)
 morph-wrapped-ether-bindings: compile
-	./gen_bindings.sh contracts/L2/system/WrappedEther.sol:WrappedEther $(pkg)
+	./gen_bindings.sh contracts/l2/system/WrappedEther.sol:WrappedEther $(pkg)
 erc20-bindings: compile
 	./gen_bindings.sh node_modules/@rari-capital/solmate/src/tokens/ERC20.sol:ERC20 $(pkg)
 

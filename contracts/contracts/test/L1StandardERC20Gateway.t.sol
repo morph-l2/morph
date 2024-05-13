@@ -6,9 +6,9 @@ import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.so
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
-import {IL2ERC20Gateway} from "../L2/gateways/IL2ERC20Gateway.sol";
-import {IL1ERC20Gateway} from "../L1/gateways/IL1ERC20Gateway.sol";
-import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
+import {IL2ERC20Gateway} from "../l2/gateways/IL2ERC20Gateway.sol";
+import {IL1ERC20Gateway} from "../l1/gateways/IL1ERC20Gateway.sol";
+import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
 import {TransferReentrantToken} from "../mock/tokens/TransferReentrantToken.sol";
 import {FeeOnTransferToken} from "../mock/tokens/FeeOnTransferToken.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";

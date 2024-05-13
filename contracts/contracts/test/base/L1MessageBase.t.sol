@@ -6,12 +6,12 @@ import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.so
 import {CommonTest} from "./CommonTest.t.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Whitelist} from "../../libraries/common/Whitelist.sol";
-import {IL1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
-import {L1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
-import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
-import {L1Staking} from "../../L1/staking/L1Staking.sol";
-import {Rollup} from "../../L1/rollup/Rollup.sol";
-import {IRollup} from "../../L1/rollup/IRollup.sol";
+import {IL1CrossDomainMessenger} from "../../l1/L1CrossDomainMessenger.sol";
+import {L1CrossDomainMessenger} from "../../l1/L1CrossDomainMessenger.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {L1Staking} from "../../l1/staking/L1Staking.sol";
+import {Rollup} from "../../l1/rollup/Rollup.sol";
+import {IRollup} from "../../l1/rollup/IRollup.sol";
 import {MockZkEvmVerifier} from "../../mock/MockZkEvmVerifier.sol";
 
 contract L1MessageBaseTest is CommonTest {

@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
 )
 
 const ProxyAdminStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"node_modules/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin\",\"label\":\"_owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"}}}"

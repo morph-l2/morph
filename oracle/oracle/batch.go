@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"time"
+
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/node/derivation"
 	"github.com/scroll-tech/go-ethereum"
@@ -14,8 +17,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
-	"math/big"
-	"time"
+
 )
 
 var (

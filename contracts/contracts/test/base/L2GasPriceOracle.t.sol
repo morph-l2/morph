@@ -2,8 +2,8 @@
 pragma solidity =0.8.24;
 
 /* Testing utilities */
-import {IL1MessageQueueWithGasPriceOracle} from "../../L1/rollup/IL1MessageQueueWithGasPriceOracle.sol";
-import {L1MessageQueueWithGasPriceOracle} from "../../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {IL1MessageQueueWithGasPriceOracle} from "../../l1/rollup/IL1MessageQueueWithGasPriceOracle.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {IWhitelist} from "../../libraries/common/IWhitelist.sol";
 import {CommonTest} from "./CommonTest.t.sol";
 import {L1MessageBaseTest} from "./L1MessageBase.t.sol";

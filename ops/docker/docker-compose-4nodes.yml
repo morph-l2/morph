@@ -139,7 +139,7 @@ services:
     volumes:
       - "morph_data_0:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/nodekey0:/db/geth/nodekey"
     environment:
       - RUST_LOG=${RUST_LOG}
@@ -162,7 +162,7 @@ services:
     volumes:
       - "morph_data_1:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/nodekey1:/db/geth/nodekey"
       - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
     environment:
@@ -186,7 +186,7 @@ services:
     volumes:
       - "morph_data_2:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/nodekey2:/db/geth/nodekey"
       - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
     environment:
@@ -210,7 +210,7 @@ services:
     volumes:
       - "morph_data_3:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/nodekey3:/db/geth/nodekey"
       - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
     environment:
@@ -371,7 +371,7 @@ services:
     volumes:
       - "sentry_geth_data:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
     entrypoint:
       - "/bin/sh"
@@ -428,7 +428,7 @@ services:
      volumes:
        - "validator_geth_data:${GETH_DATA_DIR}"
        - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-       - "${PWD}/../L2-genesis/.devnet/genesis-l2.json:/genesis.json"
+       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
      entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
        - "/bin/bash"
        - "/entrypoint.sh"

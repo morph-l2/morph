@@ -7,9 +7,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/node/sync"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -23,6 +20,10 @@ import (
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/sync"
+	"morph-l2/node/types"
 )
 
 type NewSyncerFunc func() (*sync.Syncer, error)

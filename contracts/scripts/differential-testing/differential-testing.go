@@ -7,12 +7,11 @@ import (
 	"strconv"
 
 	"github.com/iden3/go-iden3-crypto/keccak256"
-
-	"github.com/morph-l2/contract/scripts/differential-testing/libraries"
-
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
+
+	"morph-l2/contract/scripts/differential-testing/libraries"
 )
 
 // ABI types
@@ -28,13 +27,13 @@ var (
 	}
 
 	// Prove withdrawal inputs tuple (address, bytes32, bytes)
-	stakingInfoInputs, _ = abi.NewType("tuple", "StakingInfo", []abi.ArgumentMarshaling{
+	stakerInfoInputs, _ = abi.NewType("tuple", "StakerInfo", []abi.ArgumentMarshaling{
 		{Name: "addr", Type: "address"},
 		{Name: "tmKey", Type: "bytes32"},
 		{Name: "blsKey", Type: "bytes"},
 	})
-	stakingInfoInputsArgs = abi.Arguments{
-		{Name: "inputs", Type: stakingInfoInputs},
+	stakerInfoInputsArgs = abi.Arguments{
+		{Name: "inputs", Type: stakerInfoInputs},
 	}
 )
 
@@ -71,7 +70,7 @@ func main() {
 			TmKey:  tmKey,
 			BlsKey: blsKey,
 		}
-		packed, err := stakingInfoInputsArgs.Pack(&stakerInfo)
+		packed, err := stakerInfoInputsArgs.Pack(&stakerInfo)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed))
 	case "getProveWithdrawalTransactionInputs":

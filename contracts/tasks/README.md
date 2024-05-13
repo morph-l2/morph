@@ -3,6 +3,7 @@
 This package contains the smart contracts that compose the on-chain component.
 
 ## upgrade Contracts steps
+
 - update contract code
 
 - compile updated contract
@@ -22,4 +23,3 @@ or
 `yarn hardhat upgradeProxyWithProxyAdmin --proxyadminaddr 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
 --proxyaddr 0x8a791620dd6260079bf849dc5567adc3f2fdc318 --newimpladdr 0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1 \
 --network l1`
-

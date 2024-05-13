@@ -4,9 +4,9 @@ pragma solidity =0.8.24;
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
-import {IL1MessageQueue} from "../L1/rollup/IL1MessageQueue.sol";
+import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
-import {L1MessageQueueWithGasPriceOracle} from "../L1/rollup/L1MessageQueueWithGasPriceOracle.sol";
+import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 
 contract L1MessageQueueTest is L1MessageBaseTest {
     L1MessageQueueWithGasPriceOracle l1MessageQueue;

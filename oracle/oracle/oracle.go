@@ -14,11 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/morph/oracle/backoff"
-	"github.com/morph-l2/morph/oracle/config"
-	"github.com/morph-l2/node/derivation"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -30,6 +25,12 @@ import (
 	tmtypes "github.com/tendermint/tendermint/types"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/node/derivation"
+	"morph-l2/oracle/backoff"
+	"morph-l2/oracle/config"
 )
 
 const (

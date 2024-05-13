@@ -1,7 +1,7 @@
 package derivation
 
 import (
-	"github.com/morph-l2/node/sync"
+	"morph-l2/node/sync"
 )
 
 type Database interface {

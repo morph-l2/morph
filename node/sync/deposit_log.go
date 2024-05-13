@@ -6,11 +6,12 @@ import (
 	"math/big"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/types"
 )
 
 var (

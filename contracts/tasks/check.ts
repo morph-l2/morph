@@ -54,13 +54,14 @@ task("check-l2-status")
         let defaultERC20Gateway = await gwrContract.defaultERC20Gateway()
         console.log(`L2GatewayRouter params check \n owner ${owner} \n ETHGateway set ${ethGateway == predeploys.L2ETHGateway} \n  ERC20Gateway set ${defaultERC20Gateway == predeploys.L2StandardERC20Gateway}`)
 
-        const sqFactory = await hre.ethers.getContractFactory('L2Sequencer')
-        const sqContract = sqFactory.attach(predeploys.L2Sequencer)
-        const currVersion = await sqContract.currentVersion()
-        console.log(`L2Sequencer params check \n currentVersion status ${currVersion == 1}`)
+        const l2StakingFactory = await hre.ethers.getContractFactory('L2Staking')
+        const l2StakingContract = l2StakingFactory.attach(predeploys.L2Staking)
+
+        const sequencerFactory = await hre.ethers.getContractFactory('Sequencer')
+        const sequencerContract = sequencerFactory.attach(predeploys.Sequencer)
 
         const govFactory = await hre.ethers.getContractFactory('Gov')
-        const govContract = govFactory.attach(predeploys.L2Gov)
+        const govContract = govFactory.attach(predeploys.Gov)
         const proposalInterval = await govContract.proposalInterval()
         const batchBlockInterval = await govContract.batchBlockInterval()
         const batchMaxBytes = await govContract.batchMaxBytes()
@@ -69,20 +70,18 @@ task("check-l2-status")
         const maxChunks = await govContract.maxChunks()
         console.log(`Gov params check \n proposalInterval ${proposalInterval} \n batchMaxBytes ${batchMaxBytes} \n batchBlockInterval ${batchBlockInterval} \n batchTimeout ${batchTimeout} \n rollupEpoch ${rollupEpoch} \n maxChunks ${maxChunks}`)
 
-        const submitterFactory = await hre.ethers.getContractFactory('Submitter')
-        const submitterContract = submitterFactory.attach(predeploys.L2Submitter)
 
         const ethgwFactory = await hre.ethers.getContractFactory('L2ETHGateway')
         const ethgwContract = ethgwFactory.attach(predeploys.L2ETHGateway)
         let router = await ethgwContract.router()
-        let messenger = await ethgwContract.MESSENGER()
+        let messenger = await ethgwContract.messenger()
         let counterpart = await ethgwContract.counterpart()
         console.log(`L2ETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const wethgwFactory = await hre.ethers.getContractFactory('L2WETHGateway')
         const wethgwContract = wethgwFactory.attach(predeploys.L2WETHGateway)
         router = await wethgwContract.router()
-        messenger = await wethgwContract.MESSENGER()
+        messenger = await wethgwContract.messenger()
         counterpart = await wethgwContract.counterpart()
         console.log(`L2WETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
@@ -98,14 +97,14 @@ task("check-l2-status")
         const segwContract = segwFactory.attach(predeploys.L2StandardERC20Gateway)
         const tokenFactory = await segwContract.tokenFactory()
         router = await segwContract.router()
-        messenger = await segwContract.MESSENGER()
+        messenger = await segwContract.messenger()
         counterpart = await segwContract.counterpart()
         console.log(`L2StandardERC20Gateway params check \n tokenFactory ${tokenFactory == predeploys.MorphStandardERC20Factory} \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const gw721Factory = await hre.ethers.getContractFactory('L2ERC721Gateway')
         const gw721Contract = gw721Factory.attach(predeploys.L2ERC721Gateway)
         router = await gw721Contract.router()
-        messenger = await gw721Contract.MESSENGER()
+        messenger = await gw721Contract.messenger()
         counterpart = await gw721Contract.counterpart()
         console.log(`L2ERC721Gateway params check \n tokenFactory ${router == ethers.constants.AddressZero} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
@@ -124,7 +123,7 @@ task("check-l2-status")
         const gw1155Factory = await hre.ethers.getContractFactory('L2ERC1155Gateway')
         const gw1155Contract = gw1155Factory.attach(predeploys.L2ERC1155Gateway)
         router = await gw1155Contract.router()
-        messenger = await gw1155Contract.MESSENGER()
+        messenger = await gw1155Contract.messenger()
         counterpart = await gw1155Contract.counterpart()
         console.log(`L2ERC1155Gateway params check \n tokenFactory ${router == ethers.constants.AddressZero} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
@@ -246,9 +245,7 @@ task("withdraw-l2-eth")
         const res = await contract["withdrawETH(uint256,uint256)"](
             ethers.utils.parseEther('1'),
             0,
-            {
-                value: ethers.utils.parseEther('1'),
-            }
+            { value: ethers.utils.parseEther('1'), }
         )
         const receipt = await res.wait()
         console.log(`Withdraw\n from ${receipt.from}\n blockNum ${receipt.blockNumber}\n tx ${receipt.transactionHash}\n status ${receipt.status == 1}`)
@@ -256,11 +253,11 @@ task("withdraw-l2-eth")
 
 task("getSequencerAddresses")
     .setAction(async (taskArgs, hre) => {
-        const factory = await hre.ethers.getContractFactory('L2Sequencer')
+        const factory = await hre.ethers.getContractFactory('Sequencer')
         const contract = factory.attach('0x5300000000000000000000000000000000000003')
-        const res = await contract.getSequencerAddresses(false)
+        const res = await contract.getCurrentSequencerSet()
 
-        console.log(`getSequencerAddresses : ${res}`)
+        console.log(`getCurrentSequencerSet : ${res}`)
     });
 
 task("rollupEpoch")
@@ -272,44 +269,17 @@ task("rollupEpoch")
         console.log(`rollupEpoch : ${res}`)
     });
 
-task("getCurrentSubmitter")
-    .setAction(async (taskArgs, hre) => {
-        const factory = await hre.ethers.getContractFactory('Submitter')
-        const contract = factory.attach('0x5300000000000000000000000000000000000005')
-
-        const govFactory = await hre.ethers.getContractFactory('Gov')
-        const gov = govFactory.attach('0x5300000000000000000000000000000000000004')
-
-        const L2SequencerFactory = await hre.ethers.getContractFactory('L2Sequencer')
-        const sequencer = L2SequencerFactory.attach('0x5300000000000000000000000000000000000003')
-
-        let sequencers = await sequencer.getSequencerAddresses(false)
-        const rollupEpoch = (await gov.rollupEpoch()).toNumber()
-        const sequencersLen = sequencers.length
-        console.log(`sequencersLen: ${sequencersLen} , rollupEpoch: ${rollupEpoch}`)
-
-        let nextEpochStart = (await contract.nextEpochStart()).toNumber()
-        console.log(`nextEpochStart : ${nextEpochStart}`)
-        let nextSubmitterIndex = await contract.nextSubmitterIndex()
-        console.log(`nextSubmitterIndex : ${nextSubmitterIndex}`)
-        const block = await hre.ethers.provider.getBlock('latest')
-        console.log(block.timestamp)
-
-        const res = await contract.getCurrentSubmitter()
-        console.log(`res : ${res}`)
-    });
-
 task("l2withdrawLock-deploy")
     .addParam('l1Gateway')
     .setAction(async (taskArgs, hre) => {
         const factoryF = await hre.ethers.getContractFactory('L2WithdrawLockERC20Gateway')
-        const fc = await factoryF.deploy(predeploys.MorphStandardERC20)
+        const fc = await factoryF.deploy()
         await fc.deployed()
-        const signers = await hre.ethers.getSigners()
+        const signer = await hre.ethers.provider.getSigner().getAddress()
         const ProxyFactoryF = await hre.ethers.getContractFactory('TransparentUpgradeableProxy')
         const proxy = await ProxyFactoryF.deploy(
             fc.address,
-            signers,
+            signer,
             factoryF.interface.encodeFunctionData('initialize', [
                 taskArgs.l1Gateway,
                 '0x5300000000000000000000000000000000000002',
