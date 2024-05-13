@@ -117,6 +117,7 @@ contract RecordTest is L2StakingBaseTest {
             1, // invalid index
             address(0),
             0,
+            0,
             0
         );
         epochInfos[0] = epochInfo;
@@ -125,7 +126,7 @@ contract RecordTest is L2StakingBaseTest {
         record.recordRollupEpochs(epochInfos);
 
         // recordRollupEpochs
-        epochInfo = IRecord.RollupEpochInfo(0, address(0), 0, 0);
+        epochInfo = IRecord.RollupEpochInfo(0, address(0), 0, 0, 0);
         epochInfos[0] = epochInfo;
         hevm.expectEmit(true, true, false, false);
         emit IRecord.RollupEpochsUploaded(0, 1);
