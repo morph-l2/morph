@@ -170,7 +170,8 @@ contract Record is IRecord, OwnableUpgradeable {
                 _rollupEpochs[i].index,
                 _rollupEpochs[i].submitter,
                 _rollupEpochs[i].startTime,
-                _rollupEpochs[i].endTime
+                _rollupEpochs[i].endTime,
+                _rollupEpochs[i].endBlock
             );
         }
         emit RollupEpochsUploaded(nextRollupEpochIndex, _rollupEpochs.length);
