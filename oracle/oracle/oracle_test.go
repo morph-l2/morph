@@ -41,6 +41,8 @@ func testNewOracleClient(t *testing.T) *Oracle {
 	require.NoError(t, err)
 	cfg := &config.Config{
 		StartBlock: 1,
+		MaxSize:    1000,
+		RollupAddr: common.HexToAddress("0x0165878a594ca255338adfa4d48449f69242eb8f"),
 	}
 	rollup, err := bindings.NewRollup(common.HexToAddress("0x0165878a594ca255338adfa4d48449f69242eb8f"), l1Client)
 	require.NoError(t, err)

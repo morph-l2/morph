@@ -79,7 +79,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		RollupAddr:    common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
 		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		/* Optional Flags */
-
+		MaxSize:             ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
 		LogTerminal:         ctx.GlobalBool(flags.LogTerminalFlag.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),

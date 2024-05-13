@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
+	"github.com/scroll-tech/go-ethereum"
 	"io"
 	"math/big"
 	"os"
@@ -64,7 +66,6 @@ type Oracle struct {
 	l2Client            *ethclient.Client
 	l2Staking           *bindings.L2Staking
 	rollup              *bindings.Rollup
-	rollupAddr          common.Address
 	record              *bindings.Record
 	TmClient            *tmhttp.HTTP
 	cancel              context.CancelFunc
@@ -167,6 +168,24 @@ func (o *Oracle) Start() {
 		for {
 			if err := o.syncRewardEpoch(); err != nil {
 				log.Error("syncReward Epoch failed", "error", err)
+				time.Sleep(30 * time.Second)
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			if err := o.submitRecord(); err != nil {
+				log.Error("reward submission batch failed", "error", err)
+				time.Sleep(30 * time.Second)
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			if err := o.recordRollupEpoch(); err != nil {
+				log.Error("record rollup epoch failed", "error", err)
 				time.Sleep(30 * time.Second)
 			}
 		}
@@ -505,7 +524,7 @@ func (o *Oracle) setStartBlock() {
 			time.Sleep(defaultSleepTime)
 			continue
 		}
-		receipt, err := o.l2Client.TransactionReceipt(o.ctx, tx.Hash())
+		receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 		if err != nil {
 			log.Error("TransactionReceipt failed,retry...", "error", err)
 		}
@@ -514,5 +533,29 @@ func (o *Oracle) setStartBlock() {
 			continue
 		}
 		log.Info("set start block success")
+	}
+}
+
+func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+	t := time.NewTicker(time.Second)
+	receipt := new(types.Receipt)
+	var err error
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, errors.New("timeout")
+		case <-t.C:
+			receipt, err = o.l2Client.TransactionReceipt(o.ctx, txHash)
+			if errors.Is(err, ethereum.NotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			if receipt != nil {
+				t.Stop()
+				return receipt, nil
+			}
+		}
 	}
 }
