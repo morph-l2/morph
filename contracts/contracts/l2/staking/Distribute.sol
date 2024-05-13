@@ -17,9 +17,6 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * Constants *
      *************/
 
-    /// @notice reward epoch, seconds of one day (3600 * 24)
-    uint256 private constant REWARD_EPOCH = 86400;
-
     /// @notice MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
 
@@ -208,7 +205,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ) external onlyL2StakingContract {
         require(mintedEpochCount != 0, "not mint yet");
         uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+        if (targetEpochIndex == 0 || targetEpochIndex >= mintedEpochCount) {
             endEpochIndex = mintedEpochCount - 1;
         }
         uint256 reward = _claim(delegatee, delegator, endEpochIndex);
@@ -229,7 +226,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ) external onlyL2StakingContract {
         require(mintedEpochCount != 0, "not mint yet");
         uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+        if (targetEpochIndex == 0 || targetEpochIndex >= mintedEpochCount) {
             endEpochIndex = mintedEpochCount - 1;
         }
         uint256 reward;
@@ -256,7 +253,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ) external onlyL2StakingContract {
         require(mintedEpochCount != 0, "not mint yet");
         uint256 end = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
+        if (targetEpochIndex == 0 || targetEpochIndex >= mintedEpochCount) {
             end = mintedEpochCount - 1;
         }
         require(
