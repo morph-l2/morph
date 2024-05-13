@@ -31,11 +31,13 @@ interface IRecord {
     /// @custom:field submitter     submitter
     /// @custom:field startTime     epoch start time
     /// @custom:field endTime       epoch end time
+    /// @custom:field endBlock      epoch end block number
     struct RollupEpochInfo {
         uint256 index;
         address submitter;
         uint256 startTime;
         uint256 endTime;
+        uint256 endBlock;
     }
 
     /// @notice RewardEpochInfo representing a reward epoch.
