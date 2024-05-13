@@ -9,7 +9,6 @@ import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract L2StakingTest is L2StakingBaseTest {
-    uint256 DAY_SECONDS = 86400;
     uint256 SEQUENCER_RATIO_PRECISION = 1e8;
     uint256 INFLATION_RATIO_PRECISION = 1e16;
 
@@ -204,7 +203,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(firstStaker, morphBalance);
         l2Staking.undelegateStake(firstStaker);
 
-        uint256 time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 1);
+        uint256 time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 1);
 
         hevm.warp(time);
         l2Staking.claimUndelegation();
@@ -238,7 +237,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         hevm.roll(ROLLUP_EPOCH);
 
-        uint256 time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 1);
+        uint256 time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 1);
 
         hevm.warp(time);
         l2Staking.claimUndelegation();
@@ -301,7 +300,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
     function _updateDistribute(uint256 epochIndex) internal returns (uint256) {
         uint256 sequencerSize = SEQUENCER_SIZE;
-        uint256 blockCount = DAY_SECONDS / 3; // 1 block per 3s
+        uint256 blockCount = REWARD_EPOCH / 3; // 1 block per 3s
         address[] memory sequencers = sequencerAddresses;
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
@@ -351,7 +350,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = DAY_SECONDS;
+        uint256 time = REWARD_EPOCH;
         hevm.warp(time);
 
         // reward starting
@@ -370,13 +369,13 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.setCommissionRate(1);
 
         // *************** epoch = 1 ******************** //
-        time = DAY_SECONDS * 2;
+        time = REWARD_EPOCH * 2;
         hevm.warp(time);
 
-        uint256 blocksCountOfDay = DAY_SECONDS / 3;
-        hevm.roll(blocksCountOfDay * 2);
+        uint256 blocksCountOfEpoch = REWARD_EPOCH / 3;
+        hevm.roll(blocksCountOfEpoch * 2);
         hevm.prank(oracleAddress);
-        record.setLatestRewardEpochBlock(blocksCountOfDay);
+        record.setLatestRewardEpochBlock(blocksCountOfEpoch);
         _updateDistribute(0);
 
         // effectiveEpoch = 2
@@ -390,14 +389,14 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(secondRanking, 0 + 1);
 
         // *************** epoch = 2 ******************** //
-        time = DAY_SECONDS * 3;
-        hevm.roll(blocksCountOfDay * 3);
+        time = REWARD_EPOCH * 3;
+        hevm.roll(blocksCountOfEpoch * 3);
         hevm.warp(time);
         _updateDistribute(1);
 
         // *************** epoch = 3 ******************** //
-        time = DAY_SECONDS * 4;
-        hevm.roll(blocksCountOfDay * 4);
+        time = REWARD_EPOCH * 4;
+        hevm.roll(blocksCountOfEpoch * 4);
         hevm.warp(time);
         uint256 totalInflations = _updateDistribute(2);
 
@@ -442,7 +441,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = DAY_SECONDS;
+        uint256 time = REWARD_EPOCH;
         hevm.warp(time);
 
         // reward starting
@@ -461,13 +460,13 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.setCommissionRate(1);
 
         // *************** epoch = 1 ******************** //
-        time = DAY_SECONDS * 2;
+        time = REWARD_EPOCH * 2;
         hevm.warp(time);
 
-        uint256 blocksCountOfDay = DAY_SECONDS / 3;
-        hevm.roll(blocksCountOfDay * 2);
+        uint256 blocksCountOfEpoch = REWARD_EPOCH / 3;
+        hevm.roll(blocksCountOfEpoch * 2);
         hevm.prank(oracleAddress);
-        record.setLatestRewardEpochBlock(blocksCountOfDay);
+        record.setLatestRewardEpochBlock(blocksCountOfEpoch);
         uint256 totalInflations0 = _updateDistribute(0);
 
         // effectiveEpoch = 2
@@ -488,19 +487,19 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         // *************** epoch = 2 ******************** //
-        time = DAY_SECONDS * 3 + 1;
-        hevm.roll(blocksCountOfDay * 3);
+        time = REWARD_EPOCH * 3 + 1;
+        hevm.roll(blocksCountOfEpoch * 3);
         hevm.warp(time);
         uint256 totalInflations1 = _updateDistribute(1);
 
         // *************** epoch = 3 ******************** //
-        time = DAY_SECONDS * 4;
-        hevm.roll(blocksCountOfDay * 4);
+        time = REWARD_EPOCH * 4;
+        hevm.roll(blocksCountOfEpoch * 4);
         hevm.warp(time);
         _updateDistribute(2);
 
         // *************** at unlock epoch ******************** //
-        time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 2);
+        time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 2);
         hevm.warp(time);
         hevm.prank(alice);
         l2Staking.claimUndelegation();

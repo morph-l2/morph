@@ -44,11 +44,11 @@ contract MorphTokenTest is L2StakingBaseTest {
 
     function test_inflationRate() public {
         uint256 count = morphToken.inflationRatesCount();
-        assertEq(morphToken.dailyInflationRates(count - 1).rate, 1596535874529);
+        assertEq(morphToken.epochInflationRates(count - 1).rate, 1596535874529);
     }
 
-    function test_inflationMintedDays() public {
-        assertEq(morphToken.inflationMintedDays(), 0);
+    function test_inflationMintedEpochs() public {
+        assertEq(morphToken.inflationMintedEpochs(), 0);
     }
 
     function test_transfer() public {
