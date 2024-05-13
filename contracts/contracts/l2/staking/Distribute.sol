@@ -266,6 +266,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         uint256 commission;
         for (uint256 i = unclaimedCommission[delegatee]; i <= end; i++) {
             commission += distributions[delegatee][i].commissionAmount;
+            distributions[delegatee][i].commissionAmount = 0;
+            // if all delegators claimed, delete distribution
+            if (distributions[delegatee][i].remainsNumber == 0) {
+                delete distributions[delegatee][i];
+            }
         }
         if (commission > 0) {
             _transfer(delegatee, commission);
@@ -376,7 +381,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
             // update distribution info, delete if all claimed
             distributions[delegatee][i].remainsNumber--;
-            if (distributions[delegatee][i].remainsNumber == 0) {
+            if (
+                distributions[delegatee][i].remainsNumber == 0 && // all delegators claimed
+                distributions[delegatee][i].commissionAmount == 0 // delegatee claimed
+            ) {
                 delete distributions[delegatee][i];
             }
 
