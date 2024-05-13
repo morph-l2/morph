@@ -353,22 +353,31 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             i <= endEpochIndex;
             i++
         ) {
-            // compute reward
+            // compute delegator epoch reward
             reward +=
                 (distributions[delegatee][i].delegatorRewardAmount *
                     distributions[delegatee][i].amounts[delegator]) /
                 distributions[delegatee][i].delegationAmount;
 
-            // if distribution is empty, update next distribution info
+            // if claimed end epoch is reached, next distribution has been updated when undelegate
             if (
-                !distributions[delegatee][i + 1].delegators.contains(delegator)
+                !unclaimed[delegator].undelegated[delegatee] ||
+                unclaimed[delegator].unclaimedEnd[delegatee] != i
             ) {
-                distributions[delegatee][i + 1].delegators.add(delegator);
-                distributions[delegatee][i + 1].amounts[
-                    delegator
-                ] = distributions[delegatee][i].amounts[delegator];
+                // if delegator has not finished the claim and distribution not contains the delegator's info in next epoch,
+                // migrate delegator info to next epoch.
+                if (
+                    !distributions[delegatee][i + 1].delegators.contains(
+                        delegator
+                    )
+                ) {
+                    distributions[delegatee][i + 1].delegators.add(delegator);
+                    distributions[delegatee][i + 1].amounts[
+                        delegator
+                    ] = distributions[delegatee][i].amounts[delegator];
+                }
 
-                // if delegator info exist in next epoch, distribution must be updated
+                // if next distribution is empty, migrate distribution to next epoch
                 if (distributions[delegatee][i + 1].delegationAmount == 0) {
                     distributions[delegatee][i + 1]
                         .delegationAmount = distributions[delegatee][i]
@@ -399,9 +408,8 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 delete unclaimed[delegator].unclaimedEnd[delegatee];
                 break;
             }
-            unclaimed[delegator].unclaimedStart[delegatee]++;
         }
-
+        unclaimed[delegator].unclaimedStart[delegatee] = endEpochIndex + 1;
         emit RewardClaimed(delegator, delegatee, endEpochIndex, reward);
     }
 }
