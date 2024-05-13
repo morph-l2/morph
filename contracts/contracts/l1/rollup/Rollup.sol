@@ -186,9 +186,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice Import layer 2 genesis block
     function importGenesisBatch(
+        uint256 _batchIndex,
         bytes calldata _batchHeader,
-        bytes32 _postStateRoot
+        bytes32 _postStateRoot,
+        bytes32 _withdrawalRoot
     ) external onlyOwner {
+        // check genesis batch index >= 0
+        require(_batchIndex >= 0, "batch index must >= 0");
+
         // check genesis batch header length
         require(_postStateRoot != bytes32(0), "zero state root");
 
@@ -222,28 +227,30 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             "invalid versioned hash"
         );
 
-        batchBaseStore[0] = BatchBase(
+        batchBaseStore[_batchIndex] = BatchBase(
             _batchHash,
             _batchVersion,
             block.timestamp,
             block.timestamp,
             0
         );
-        batchDataStore[0] = BatchData(
+        batchDataStore[_batchIndex] = BatchData(
             ZERO_VERSIONED_HASH,
             _l1DataHash,
             bytes32(0),
             _postStateRoot,
-            bytes32(0),
+            _withdrawalRoot,
             0,
             0,
             bytes("0x")
         );
-        batchSignatureStore[0] = BatchSignature(bytes32(0), bytes32(0), "0x");
-        finalizedStateRoots[0] = _postStateRoot;
+        batchSignatureStore[_batchIndex] = BatchSignature(bytes32(0), bytes32(0), "0x");
+        finalizedStateRoots[_batchIndex] = _postStateRoot;
+        lastCommittedBatchIndex = _batchIndex;
+        lastFinalizedBatchIndex = _batchIndex;
 
-        emit CommitBatch(0, _batchHash);
-        emit FinalizeBatch(0, _batchHash, _postStateRoot, bytes32(0));
+        emit CommitBatch(_batchIndex, _batchHash);
+        emit FinalizeBatch(_batchIndex, _batchHash, _postStateRoot, bytes32(0));
     }
 
     /// @inheritdoc IRollup
