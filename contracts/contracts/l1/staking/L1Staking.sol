@@ -212,6 +212,7 @@ contract L1Staking is
                 delete whitelist[sequencers[i]];
                 removedList[sequencers[i]] = true;
             }
+            delete stakers[sequencers[i]];
         }
 
         uint256 reward = (valueSum * rewardPercentage) / 100;
@@ -291,6 +292,7 @@ contract L1Staking is
         require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
 
         delete withdrawals[_msgSender()];
+        delete stakers[_msgSender()];
         emit Claimed(_msgSender(), receiver);
 
         _transfer(receiver, stakingValue);
