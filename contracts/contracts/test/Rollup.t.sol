@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-
 import {ChunkCodecV0} from "../libraries/codec/ChunkCodecV0.sol";
-import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
-import {Rollup} from "../l1/rollup/Rollup.sol";
 import {IRollup} from "../l1/rollup/IRollup.sol";
 import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 
 contract RollupCommitBatchTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
     bytes32 public stateRoot = bytes32(uint256(1));
-    IRollup.BatchDataInput batchDataInput;
-    IRollup.BatchSignatureInput batchSignatureInput;
+    IRollup.BatchDataInput public batchDataInput;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();
@@ -328,7 +324,12 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             )
         );
 
-        // 0x01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000bc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a
+        // 0x
+        // 0100000000000000000000000000000000000000000000000000000000000000
+        // 0000000000000000000000000000000000000000000000000000030000bc3678
+        // 9e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc3678
+        // 9e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc3678
+        // 9e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a
         batchDataInput = IRollup.BatchDataInput(
             0,
             batchHeader1,
@@ -395,8 +396,8 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
 contract RollupTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
     bytes32 public stateRoot = bytes32(uint256(1));
-    IRollup.BatchDataInput batchDataInput;
-    IRollup.BatchSignatureInput batchSignatureInput;
+    IRollup.BatchDataInput public batchDataInput;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();

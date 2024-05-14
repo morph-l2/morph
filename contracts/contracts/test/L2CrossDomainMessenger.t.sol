@@ -4,7 +4,6 @@ pragma solidity =0.8.24;
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {Tree} from "../libraries/common/Tree.sol";
 import {L2MessageBaseTest} from "./base/L2MessageBase.t.sol";
 
 contract L2CrossDomainMessengerTest is L2MessageBaseTest {

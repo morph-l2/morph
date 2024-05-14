@@ -2,7 +2,6 @@
 pragma solidity =0.8.24;
 
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
-import {Gov} from "../l2/staking/Gov.sol";
 import {IGov} from "../l2/staking/IGov.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";

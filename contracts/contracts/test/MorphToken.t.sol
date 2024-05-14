@@ -2,7 +2,6 @@
 pragma solidity =0.8.24;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
-import {Types} from "../libraries/common/Types.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 
 contract MorphTokenTest is L2StakingBaseTest {

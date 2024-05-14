@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2ToL1MessagePasser} from "../l2/system/L2ToL1MessagePasser.sol";
 import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
 import {L2ETHGateway} from "../l2/gateways/L2ETHGateway.sol";

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {IL1CrossDomainMessenger} from "../l1/L1CrossDomainMessenger.sol";
 import {IRollup} from "../l1/rollup/IRollup.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
@@ -9,8 +8,8 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
 contract L1CrossDomainMessengerTest is L1MessageBaseTest {
-    uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
-    address refundAddress = address(2048);
+    uint256 public l1CrossDomainMessengerProvenWithdrawalsSlot = 251;
+    address public refundAddress = address(2048);
 
     function test_proveWithdrawalTransaction_relayMessage_succeeds() external {
         // tx msg set

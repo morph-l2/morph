@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";
 
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {L2ToL1MessagePasser} from "../l2/system/L2ToL1MessagePasser.sol";
