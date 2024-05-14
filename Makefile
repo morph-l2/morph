@@ -62,7 +62,15 @@ lint-contracts:
 	solhint $$(find contracts -name '*.sol' -not -path '**/@openzeppelin/**')
 .PHONY: lint-contracts
 
-format: ## format the code
+format: format-go format-contracts
+.PHONY: format
+
+format-contracts:
+	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
+
+.PHONY: format-contracts
+
+format-go: ## format the go code
 	go work sync
 	cd $(PWD)/bindings/ && go mod tidy
 	cd $(PWD)/contracts/ && go mod tidy
@@ -75,7 +83,7 @@ format: ## format the code
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs gofmt -w -s
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs misspell -w
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs goimports -w -local $(PWD)/
-.PHONY: format
+.PHONY: format-go
 
 docker-build:
 	cd ops/docker && docker compose build
