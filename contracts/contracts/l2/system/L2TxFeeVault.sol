@@ -113,7 +113,7 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Triggers a withdrawal of funds to the L1 fee wallet.
     /// @param _value The amount of ETH to withdraw.
-    function withdraw(uint256 _value) public {
+    function withdraw(uint256 _value) public onlyOwner {
         require(
             _value >= minWithdrawAmount,
             "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
@@ -141,7 +141,7 @@ contract L2TxFeeVault is OwnableBase {
     }
 
     /// @notice Triggers a withdrawal of all available funds to the L1 fee wallet.
-    function withdraw() external {
+    function withdraw() external onlyOwner {
         uint256 value = address(this).balance;
         withdraw(value);
     }
