@@ -26,7 +26,7 @@
 #         steps:
 #             - uses: actions/checkout@v3
 #             - name: Install Go
-#               uses: actions/setup-go@v2
+#               uses: actions/setup-go@v5
 #               with:
 #                   go-version: 1.22.x
 #             - name: Run build

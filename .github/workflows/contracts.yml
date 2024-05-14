@@ -26,9 +26,14 @@ jobs:
             GAS: true
         steps:
             - uses: actions/checkout@v3
-            - uses: actions/setup-node@v3
+            - name: Install Node
+              uses: actions/setup-node@v3
               with:
                   node-version: 18.x
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
             - name: Install Foundry
               uses: foundry-rs/foundry-toolchain@v1
               with:
