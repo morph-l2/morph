@@ -32,7 +32,7 @@ pub struct ProveRequest {
     pub batch_index: u64,
     pub chunks: Vec<Vec<u64>>,
     pub rpc: String,
-    pub shadow: bool,
+    pub shadow: Option<bool>,
 }
 
 pub struct Prover {
@@ -153,13 +153,14 @@ impl Prover {
             params_file.write_all(&protocol[..]).unwrap();
             chunk_hashes_proofs.push((chunk_hash, chunk_proof));
 
+            // Check high-priority request
             let queue_lock = match timeout(Duration::from_secs(2), self.prove_queue.lock()).await {
                 Ok(queue_lock) => queue_lock,
                 Err(_) => continue,
             };
-            if queue_lock.last().is_some() && queue_lock.last().unwrap().shadow == false {
-                // First handle the on chain challenge
-                log::info!("Received challenge request, End the current task");
+            if queue_lock.last().is_some() && queue_lock.last().unwrap().shadow.unwrap_or(false) == false {
+                // First handle the high-priority request
+                log::info!("Received high-priority request, End the current task");
                 return;
             }
         }

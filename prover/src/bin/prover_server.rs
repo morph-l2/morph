@@ -135,7 +135,11 @@ async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>
         Ok(req) => req,
         Err(_) => return String::from("deserialize proveRequest failed"),
     };
-    log::info!("recived prove request of batch_index: {:#?}", prove_request.batch_index);
+    log::info!(
+        "recived prove request of batch_index: {:#?}, shadow: {:#?}",
+        prove_request.batch_index,
+        prove_request.shadow.unwrap_or(false)
+    );
 
     // Verify block number is greater than 0
     if prove_request.chunks.len() == 0 {
