@@ -239,7 +239,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 unclaimed[delegator].delegatees.contains(delegatee) &&
                 unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex
             ) {
-                reward += _claim(delegatee, delegator, targetEpochIndex);
+                reward += _claim(delegatee, delegator, endEpochIndex);
             }
         }
         if (reward > 0) {
