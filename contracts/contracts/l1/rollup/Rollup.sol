@@ -607,12 +607,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (_status) {
             _pause();
             // if challenge exist and not finished yet, return challenge deposit to challenger
-            if (inChallenge && !challenges[batchChallenged].finished) {
+            if (inChallenge) {
                 batchChallengeReward[
                     challenges[batchChallenged].challenger
                 ] += challenges[batchChallenged].challengeDeposit;
+                delete challenges[batchChallenged];
+                inChallenge = false;
             }
-            delete challenges[batchChallenged];
         } else {
             _unpause();
         }
