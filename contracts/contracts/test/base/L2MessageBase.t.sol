@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {CommonTest} from "./CommonTest.t.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {L2CrossDomainMessenger} from "../../l2/L2CrossDomainMessenger.sol";
 import {L2ToL1MessagePasser} from "../../l2/system/L2ToL1MessagePasser.sol";
 import {GasPriceOracle} from "../../l2/system/GasPriceOracle.sol";
-import {EmptyContract} from "../../misc/EmptyContract.sol";
 
 contract L2MessageBaseTest is CommonTest {
     // L2ToL1MessagePasser config

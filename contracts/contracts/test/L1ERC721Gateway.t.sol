@@ -6,7 +6,6 @@ import {ERC721TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC721.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {L2ERC721Gateway} from "../l2/gateways/L2ERC721Gateway.sol";
 import {IL2ERC721Gateway} from "../l2/gateways/IL2ERC721Gateway.sol";
 import {IL1ERC721Gateway} from "../l1/gateways/IL1ERC721Gateway.sol";
 import {L1ERC721Gateway} from "../l1/gateways/L1ERC721Gateway.sol";

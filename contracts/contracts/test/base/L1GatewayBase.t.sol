@@ -18,36 +18,36 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 contract L1GatewayBaseTest is L1MessageBaseTest {
     // L1GatewayRouter config
-    L1GatewayRouter l1GatewayRouter;
+    L1GatewayRouter public l1GatewayRouter;
 
     // L1ETHGateway config
-    L1ETHGateway l1ETHGateway;
+    L1ETHGateway public l1ETHGateway;
 
     uint256 internal constant extraValue = 1e17;
 
     // L1StandardERC20Gateway config
-    L1StandardERC20Gateway l1StandardERC20Gateway;
+    L1StandardERC20Gateway public l1StandardERC20Gateway;
 
     // L1CustomERC20Gateway config
-    L1CustomERC20Gateway l1CustomERC20Gateway;
+    L1CustomERC20Gateway public l1CustomERC20Gateway;
 
     bool internal revertOnReceive;
 
     // MorphStandardERC20 config
-    MorphStandardERC20 template;
+    MorphStandardERC20 public template;
 
     // MorphStandardERC20Factory config
-    MorphStandardERC20Factory factory;
+    MorphStandardERC20Factory public factory;
 
     // L1ERC721Gateway config
-    L1ERC721Gateway l1ERC721Gateway;
+    L1ERC721Gateway public l1ERC721Gateway;
 
     // L1ERC1155Gateway config
-    L1ERC1155Gateway l1ERC1155Gateway;
+    L1ERC1155Gateway public l1ERC1155Gateway;
 
     // L1WETHGateway config
-    L1WETHGateway l1WETHGateway;
-    address l2Messenger = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+    L1WETHGateway public l1WETHGateway;
+    address public l2Messenger = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
     receive() external payable {
         if (revertOnReceive) {

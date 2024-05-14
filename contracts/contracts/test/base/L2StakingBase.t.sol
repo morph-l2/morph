@@ -2,7 +2,7 @@
 pragma solidity =0.8.24;
 
 import "forge-std/console2.sol";
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Types} from "../../libraries/common/Types.sol";

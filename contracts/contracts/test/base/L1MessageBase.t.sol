@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {CommonTest} from "./CommonTest.t.sol";
-import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {Whitelist} from "../../libraries/common/Whitelist.sol";
-import {IL1CrossDomainMessenger} from "../../l1/L1CrossDomainMessenger.sol";
 import {L1CrossDomainMessenger} from "../../l1/L1CrossDomainMessenger.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {L1Staking} from "../../l1/staking/L1Staking.sol";
@@ -16,8 +14,8 @@ import {MockZkEvmVerifier} from "../../mock/MockZkEvmVerifier.sol";
 
 contract L1MessageBaseTest is CommonTest {
     // Staking config
-    L1Staking l1Staking;
-    L1Staking l1StakingImpl;
+    L1Staking public l1Staking;
+    L1Staking public l1StakingImpl;
 
     uint256 public STAKING_VALUE = 1e18; // 1 eth
     uint256 public LOCK_BLOCKS = 3;
@@ -26,19 +24,19 @@ contract L1MessageBaseTest is CommonTest {
     uint32 public defaultGasLimitRemove = 10000000;
 
     // Rollup config
-    Rollup rollup;
-    Rollup rollupImpl;
-    MockZkEvmVerifier verifier = new MockZkEvmVerifier();
+    Rollup public rollup;
+    Rollup public rollupImpl;
+    MockZkEvmVerifier public verifier = new MockZkEvmVerifier();
 
     uint256 public proofWindow = 100;
     uint256 public maxNumTxInChunk = 10;
     uint64 public layer2ChainID = 53077;
 
     // whitelist config
-    Whitelist whitelistChecker;
+    Whitelist public whitelistChecker;
 
     // L1MessageQueueWithGasPriceOracle config
-    L1MessageQueueWithGasPriceOracle l1MessageQueueWithGasPriceOracle;
+    L1MessageQueueWithGasPriceOracle public l1MessageQueueWithGasPriceOracle;
     uint256 public l1MessageQueueMaxGasLimit = 100000000;
     uint32 public defaultGasLimit = 1000000;
 
