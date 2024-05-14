@@ -37,10 +37,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     mapping(address delegatee => mapping(uint256 epochIndex => Distribution))
         private distributions;
 
-    /// @notice delegatee's unclaimed commission
+    /// @notice the next epoch to claim commission for a delegatee
     mapping(address delegatee => uint256 epochIndex)
         public
-        override unclaimedCommission;
+        override nextEpochToClaimCommission;
 
     /// @notice delegator's unclaimed reward
     mapping(address delegator => Unclaimed) private unclaimed;
@@ -203,11 +203,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegator,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
-        require(mintedEpochCount != 0, "not mint yet");
-        uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex >= mintedEpochCount) {
-            endEpochIndex = mintedEpochCount - 1;
-        }
+        require(mintedEpochCount != 0, "not minted yet");
+        uint256 endEpochIndex = (targetEpochIndex == 0 ||
+            targetEpochIndex > mintedEpochCount - 1)
+            ? mintedEpochCount - 1
+            : targetEpochIndex;
         uint256 reward = _claim(delegatee, delegator, endEpochIndex);
         if (reward > 0) {
             _transfer(delegator, reward);
@@ -224,11 +224,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegator,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
-        require(mintedEpochCount != 0, "not mint yet");
-        uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex >= mintedEpochCount) {
-            endEpochIndex = mintedEpochCount - 1;
-        }
+        require(mintedEpochCount != 0, "not minted yet");
+        uint256 endEpochIndex = (targetEpochIndex == 0 ||
+            targetEpochIndex > mintedEpochCount - 1)
+            ? mintedEpochCount - 1
+            : targetEpochIndex;
         uint256 reward;
         for (uint256 i = 0; i < unclaimed[delegator].delegatees.length(); i++) {
             address delegatee = unclaimed[delegator].delegatees.at(i);
@@ -251,17 +251,17 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         address delegatee,
         uint256 targetEpochIndex
     ) external onlyL2StakingContract {
-        require(mintedEpochCount != 0, "not mint yet");
-        uint256 end = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex >= mintedEpochCount) {
-            end = mintedEpochCount - 1;
-        }
+        require(mintedEpochCount != 0, "not minted yet");
+        uint256 end = (targetEpochIndex == 0 ||
+            targetEpochIndex > mintedEpochCount - 1)
+            ? mintedEpochCount - 1
+            : targetEpochIndex;
         require(
-            unclaimedCommission[delegatee] <= end,
+            nextEpochToClaimCommission[delegatee] <= end,
             "all commission claimed"
         );
         uint256 commission;
-        for (uint256 i = unclaimedCommission[delegatee]; i <= end; i++) {
+        for (uint256 i = nextEpochToClaimCommission[delegatee]; i <= end; i++) {
             commission += distributions[delegatee][i].commissionAmount;
             distributions[delegatee][i].commissionAmount = 0;
             // if all delegators claimed, delete distribution
@@ -272,7 +272,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         if (commission > 0) {
             _transfer(delegatee, commission);
         }
-        unclaimedCommission[delegatee] = end + 1;
+        nextEpochToClaimCommission[delegatee] = end + 1;
 
         emit CommissionClaimed(delegatee, end, commission);
     }

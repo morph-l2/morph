@@ -72,9 +72,9 @@ interface IDistribute {
      * Public View Functions *
      *************************/
 
-    /// @dev return delegatee unclaimed epoch index
+    /// @dev return the next epoch to claim commission for a delegatee
     /// @param delegatee    delegatee
-    function unclaimedCommission(
+    function nextEpochToClaimCommission(
         address delegatee
     ) external view returns (uint256);
 
