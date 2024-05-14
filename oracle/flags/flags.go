@@ -53,7 +53,7 @@ var (
 	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
 		Name:   "max-header-batch-size",
 		Usage:  "The maximum number of headers to request as a batch",
-		Value:  2000,
+		Value:  1000,
 		EnvVar: prefixEnvVar("MAX_HEADER_BATCH_SIZE"),
 	}
 

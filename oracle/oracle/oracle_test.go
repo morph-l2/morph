@@ -108,6 +108,9 @@ func TestQueryRewardStartTime(t *testing.T) {
 	fmt.Println("rewardStartTime:", rewardStartTime.Uint64())
 	fmt.Println(time.Now().Unix())
 	fmt.Println(rewardStartTime.Uint64())
+	rewardStart, err := o.l2Staking.RewardStart(nil)
+	require.NoError(t, err)
+	fmt.Println("rewardStart:", rewardStart)
 
 }
 

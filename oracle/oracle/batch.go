@@ -7,8 +7,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/node/derivation"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -17,7 +15,8 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
-
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/derivation"
 )
 
 var (
@@ -128,16 +127,16 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
 			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
-				fmt.Println("rollupCommitBatch.BatchIndex.Uint64() == 0")
-				recordBatchSubmission := bindings.IRecordBatchSubmission{
-					Index:       rollupCommitBatch.BatchIndex,
-					Submitter:   msg.From(),
-					StartBlock:  big.NewInt(0),
-					EndBlock:    big.NewInt(0),
-					RollupTime:  big.NewInt(int64(header.Time)),
-					RollupBlock: big.NewInt(int64(lg.BlockNumber)),
-				}
-				recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
+				//fmt.Println("rollupCommitBatch.BatchIndex.Uint64() == 0")
+				//recordBatchSubmission := bindings.IRecordBatchSubmission{
+				//	Index:       rollupCommitBatch.BatchIndex,
+				//	Submitter:   msg.From(),
+				//	StartBlock:  big.NewInt(0),
+				//	EndBlock:    big.NewInt(0),
+				//	RollupTime:  big.NewInt(int64(header.Time)),
+				//	RollupBlock: big.NewInt(int64(lg.BlockNumber)),
+				//}
+				//recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
 				continue
 			}
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
@@ -221,7 +220,7 @@ func (o *Oracle) submitRecord() error {
 		return err
 	}
 	if nextBatchSubmissionIndex.Cmp(lastFinalized) > 0 {
-		log.Info("already newest batch...")
+		log.Info("already newest batch submission...")
 		time.Sleep(defaultSleepTime)
 		return err
 	}

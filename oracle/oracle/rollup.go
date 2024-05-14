@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
+	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/log"
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
 )
 
 var (
@@ -34,21 +35,53 @@ func (o *Oracle) recordRollupEpoch() error {
 	if err != nil {
 		return err
 	}
-	var startBlock uint64
-	recordRollupEpochInfos, err := o.GetRollupEpoch(startBlock, startBlock, rollupEpoch.EndTime.Uint64(), rollupEpoch.Index.Uint64())
+	// TODO
+	startBlock := rollupEpoch.EndBlock.Uint64()
+
+	var rollupEpochInfos []bindings.IRecordRollupEpochInfo
+	for {
+		blockNumber, err := o.l2Client.BlockNumber(o.ctx)
+		if err != nil {
+			return err
+		}
+		if startBlock >= blockNumber {
+			log.Info("latest block small than startBlock", "startBlock", startBlock, "latestBlock", blockNumber)
+			time.Sleep(defaultSleepTime)
+			continue
+		}
+		endBlock := startBlock + o.cfg.MaxSize
+		if endBlock > blockNumber {
+			endBlock = blockNumber
+		}
+		rollupEpochInfos, err = o.GetRollupEpoch(startBlock, endBlock, rollupEpoch.EndTime.Uint64(), rollupEpoch.Index.Uint64())
+		if err != nil {
+			return err
+		}
+		if len(rollupEpochInfos) != 0 {
+			break
+		}
+		log.Info("rollup epoch infos length is zero", "startBlock", startBlock, "endBlock", endBlock)
+		startBlock = endBlock + 1
+	}
 	chainId, err := o.l2Client.ChainID(o.ctx)
 	if err != nil {
 		return err
 	}
 	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	tx, err := o.record.RecordRollupEpochs(opts, recordRollupEpochInfos)
-	log.Info("send record reward tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
+	if err != nil {
+		return err
+	}
+	tx, err := o.record.RecordRollupEpochs(opts, rollupEpochInfos)
+	if err != nil {
+		return err
+	}
+	log.Info("send record rollup epoch tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
 	receipt, err := o.l2Client.TransactionReceipt(o.ctx, tx.Hash())
 	if err != nil {
-		return fmt.Errorf("receipt record reward epochs error:%v", err)
+		return fmt.Errorf("receipt record rollup epochs error:%v", err)
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("record reward epochs not success")
+		return fmt.Errorf("record rollup epochs not success")
 	}
 	return nil
 }

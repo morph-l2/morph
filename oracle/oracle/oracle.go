@@ -166,6 +166,7 @@ func NewOracle(cfg *config.Config) (*Oracle, error) {
 
 func (o *Oracle) Start() {
 	go func() {
+		o.setStartBlock()
 		for {
 			if err := o.syncRewardEpoch(); err != nil {
 				log.Error("syncReward Epoch failed", "error", err)
@@ -464,6 +465,7 @@ func (o *Oracle) setStartBlock() {
 			break
 		}
 		start = header.Number.Uint64()
+		log.Info("wait reward start...")
 		time.Sleep(defaultSleepTime)
 		continue
 	}
