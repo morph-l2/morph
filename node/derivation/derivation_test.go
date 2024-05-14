@@ -1,106 +1,14 @@
 package derivation
 
 import (
-	"context"
-	"crypto/ecdsa"
-	"math/big"
-	"os"
-	"reflect"
-	"strings"
 	"testing"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core"
-	"github.com/scroll-tech/go-ethereum/core/rawdb"
 	"github.com/scroll-tech/go-ethereum/eth"
-	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
-	"github.com/scroll-tech/go-ethereum/ethdb"
-	"github.com/scroll-tech/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
-	tmlog "github.com/tendermint/tendermint/libs/log"
-
 	"morph-l2/bindings/bindings"
-	"morph-l2/bindings/predeploys"
-	"morph-l2/node/types"
 )
-
-func TestCompareBlock(t *testing.T) {
-	eClient, err := ethclient.Dial("http://localhost:7545")
-	require.NoError(t, err)
-	l2Client, err := ethclient.Dial("http://localhost:8545")
-	blockNumber, err := eClient.BlockNumber(context.Background())
-	require.NoError(t, err)
-	for i := 0; i < int(blockNumber); i++ {
-		block, err := l2Client.BlockByNumber(context.Background(), big.NewInt(int64(i)))
-		require.NoError(t, err)
-		dBlock, err := eClient.BlockByNumber(context.Background(), big.NewInt(int64(i)))
-		require.True(t, reflect.DeepEqual(block.Header(), dBlock.Header()))
-	}
-}
-
-func testNewDerivationClient(t *testing.T) *Derivation {
-	ctx := context.Background()
-	l1Client, err := ethclient.Dial("http://localhost:9545")
-	addr := common.HexToAddress("0x6900000000000000000000000000000000000010")
-	require.NoError(t, err)
-	var secret [32]byte
-	jwtSecret := common.FromHex(strings.TrimSpace("688f5d737bad920bdfb2fc2f488d6b6209eebda1dae949a8de91398d932c517a"))
-	require.True(t, len(jwtSecret) == 32)
-	copy(secret[:], jwtSecret)
-	aClient, err := authclient.DialContext(context.Background(), "http://localhost:7551", secret)
-	require.NoError(t, err)
-	eClient, err := ethclient.Dial("http://localhost:7545")
-	require.NoError(t, err)
-	msgPasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, eClient)
-	require.NoError(t, err)
-	logger := tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))
-	baseHttp := NewBasicHTTPClient("http://localhost:3500", logger)
-	l1BeaconClient := NewL1BeaconClient(baseHttp)
-	d := Derivation{
-		ctx:                   ctx,
-		l1Client:              l1Client,
-		RollupContractAddress: addr,
-		confirmations:         rpc.BlockNumber(5),
-		l2Client:              types.NewRetryableClient(aClient, eClient, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))),
-		validator:             nil,
-		latestDerivation:      9,
-		fetchBlockRange:       100,
-		pollInterval:          1,
-		l1BeaconClient:        l1BeaconClient,
-		L2ToL1MessagePasser:   msgPasser,
-	}
-	return &d
-}
-
-func TestFetchRollupData(t *testing.T) {
-	d := testNewDerivationClient(t)
-	_, err := d.fetchRollupDataByTxHash(common.HexToHash("0xf2eaf0c8c121751a544046bc5358db521dc0b8dce660c674ad64c8f1a2a12c1b"), 390)
-	require.NoError(t, err)
-}
-
-func TestFetchWithdrawalRoot(t *testing.T) {
-	d := testNewDerivationClient(t)
-	bn, err := d.l2Client.BlockNumber(context.Background())
-	require.NoError(t, err)
-	_, err = d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
-		BlockNumber: big.NewInt(int64(bn)),
-	})
-	require.NoError(t, err)
-}
-
-func newSimulatedBackend(key *ecdsa.PrivateKey) (*backends.SimulatedBackend, ethdb.Database) {
-	var gasLimit uint64 = 9_000_000
-	auth, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
-	genAlloc := make(core.GenesisAlloc)
-	genAlloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
-	db := rawdb.NewMemoryDatabase()
-	sim := backends.NewSimulatedBackendWithDatabase(db, genAlloc, gasLimit)
-	return sim, db
-}
 
 func TestDecodeBatch(t *testing.T) {
 	abi, err := bindings.RollupMetaData.GetAbi()
@@ -118,11 +26,6 @@ func TestDecodeBatch(t *testing.T) {
 		PrevStateRoot          [32]uint8 "json:\"prevStateRoot\""
 		PostStateRoot          [32]uint8 "json:\"postStateRoot\""
 		WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
-		Signature              struct {
-			Version   *big.Int   "json:\"version\""
-			Signers   []*big.Int "json:\"signers\""
-			Signature []uint8    "json:\"signature\""
-		} "json:\"signature\""
 	})
 
 	var chunks []hexutil.Bytes
