@@ -43,7 +43,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         l1Token.setApprovalForAll(address(gateway), true);
     }
 
-    function testDepositERC1155(
+    function test_depositERC1155_succeeds(
         uint256 tokenId,
         uint256 amount,
         uint256 gasLimit,
@@ -52,7 +52,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         _testDepositERC1155(tokenId, amount, gasLimit, feePerGas);
     }
 
-    function testDepositERC1155WithRecipient(
+    function test_depositERC1155WithRecipient_succeeds(
         uint256 tokenId,
         uint256 amount,
         address recipient,
@@ -68,7 +68,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
     }
 
-    function testBatchDepositERC1155(
+    function test_batchDepositERC1155_succeeds(
         uint256 tokenCount,
         uint256 amount,
         uint256 gasLimit,
@@ -77,7 +77,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         _testBatchDepositERC1155(tokenCount, amount, gasLimit, feePerGas);
     }
 
-    function testBatchDepositERC1155WithRecipient(
+    function test_batchDepositERC1155WithRecipient_succeeds(
         uint256 tokenCount,
         uint256 amount,
         address recipient,
@@ -93,7 +93,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
     }
 
-    function testDropMessage(uint256 tokenId, uint256 amount) public {
+    function test_dropMessage_succeeds(uint256 tokenId, uint256 amount) public {
         gateway.updateTokenMapping(address(l1Token), address(l2Token));
 
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
@@ -142,7 +142,10 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         assertEq(balance + amount, l1Token.balanceOf(address(this), tokenId));
     }
 
-    function testDropMessageBatch(uint256 tokenCount, uint256 amount) public {
+    function test_dropMessageBatch_succeeds(
+        uint256 tokenCount,
+        uint256 amount
+    ) public {
         tokenCount = bound(tokenCount, 1, TOKEN_COUNT);
         amount = bound(amount, 1, MAX_TOKEN_BALANCE);
         gateway.updateTokenMapping(address(l1Token), address(l2Token));
@@ -206,7 +209,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         }
     }
 
-    function testFinalizeWithdrawERC1155Failed(
+    function test_finalizeWithdrawERC1155_counterErr_fails(
         address sender,
         address recipient,
         uint256 tokenId,
@@ -288,7 +291,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
     }
 
-    function testFinalizeWithdrawERC1155(
+    function test_finalizeWithdrawERC1155_succeeds(
         address sender,
         address recipient,
         uint256 tokenId,
@@ -396,7 +399,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
     }
 
-    function testFinalizeBatchWithdrawERC1155Failed(
+    function test_finalizeBatchWithdrawERC1155_counterErr_fails(
         address sender,
         address recipient,
         uint256 tokenCount,
@@ -493,7 +496,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
     }
 
-    function testFinalizeBatchWithdrawERC1155(
+    function test_finalizeBatchWithdrawERC1155_succeeds(
         address sender,
         address recipient,
         uint256 tokenCount,

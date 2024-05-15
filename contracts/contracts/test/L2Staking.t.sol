@@ -1,25 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {L2Staking} from "../l2/staking/L2Staking.sol";
 import {IRecord} from "../l2/staking/IRecord.sol";
 import {Types} from "../libraries/common/Types.sol";
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract L2StakingTest is L2StakingBaseTest {
-    uint256 DAY_SECONDS = 86400;
-    uint256 SEQUENCER_RATIO_PRECISION = 1e8;
-    uint256 INFLATION_RATIO_PRECISION = 1e16;
-
-    uint256 morphBalance = 20 ether;
-
-    address[] stakers;
-
-    address firstStaker;
-    address secondStaker;
-    address thirdStaker;
+    uint256 public morphBalance = 20 ether;
+    address[] public stakers;
+    address public firstStaker;
+    address public secondStaker;
+    address public thirdStaker;
 
     function setUp() public virtual override {
         super.setUp();
@@ -37,9 +29,43 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice initialize: re-initialize
+     */
+    function test_initialize_paramsCheck_reverts() public {
+        Types.StakerInfo[] memory _stakerInfos = new Types.StakerInfo[](0);
+
+        hevm.expectRevert("Initializable: contract is already initialized");
+        hevm.prank(multisig);
+        l2Staking.initialize(0, 0, 0, _stakerInfos);
+
+        // reset initialize
+        hevm.store(
+            address(l2Staking),
+            bytes32(uint256(0)),
+            bytes32(uint256(0))
+        );
+
+        hevm.expectRevert("sequencersSize must greater than 0");
+        hevm.prank(multisig);
+        l2Staking.initialize(0, 0, 0, _stakerInfos);
+
+        hevm.expectRevert("invalid undelegateLockEpochs");
+        hevm.prank(multisig);
+        l2Staking.initialize(1, 0, 0, _stakerInfos);
+
+        hevm.expectRevert("invalid reward start time");
+        hevm.prank(multisig);
+        l2Staking.initialize(1, 1, 100, _stakerInfos);
+
+        hevm.expectRevert("invalid initial stakers");
+        hevm.prank(multisig);
+        l2Staking.initialize(1, 1, rewardStartTime * 2, _stakerInfos);
+    }
+
+    /**
      * @notice test init staker info & ranking
      */
-    function testInitStakers() public {
+    function test_init_stakersInfo_succeeds() public {
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address user = address(uint160(beginSeq + i));
             (address staker, , ) = l2Staking.stakers(user);
@@ -53,7 +79,50 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test add staker
      */
-    function testAddStakers() public {
+    function test_addStakers_succeeds() public {
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2 + 1; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+            l2Staking.addStaker(stakerInfo);
+        }
+        hevm.stopPrank();
+        for (uint256 i = 0; i < SEQUENCER_SIZE * 2 + 1; i++) {
+            address user = address(uint160(beginSeq + i));
+            (address staker, , ) = l2Staking.stakers(user);
+            assertEq(user, staker);
+            uint256 ranking = l2Staking.stakerRankings(user);
+            assertEq(ranking, i + 1);
+        }
+
+        assertEq(
+            sequencer.getSequencerSet2Size(),
+            l2Staking.sequencerSetMaxSize()
+        );
+    }
+
+    /**
+     * @notice test add staker, reward starting
+     */
+    function test_addStakerWhenRewardStarting_succeeds() public {
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        uint256 time = REWARD_EPOCH;
+        hevm.warp(time);
+
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
         hevm.mockCall(
             address(l2Staking.MESSENGER()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
@@ -73,12 +142,16 @@ contract L2StakingTest is L2StakingBaseTest {
             uint256 ranking = l2Staking.stakerRankings(user);
             assertEq(ranking, i + 1);
         }
+
+        // sequencer did not update
+        // update by staking amount
+        assertEq(sequencer.getSequencerSet2Size(), SEQUENCER_SIZE);
     }
 
     /**
      * @notice test removed staker
      */
-    function testRemoveStakers() public {
+    function test_removeStakers_succeeds() public {
         hevm.mockCall(
             address(l2Staking.MESSENGER()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
@@ -113,9 +186,20 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice failed staking, staker not exists
+     * @notice test set commission rate
      */
-    function testStakeToNotStaker() public {
+    function test_setCommissionRate_invalidCommission_reverts() public {
+        hevm.startPrank(firstStaker);
+
+        // set commission rate
+        hevm.expectRevert("invalid commission");
+        l2Staking.setCommissionRate(21);
+    }
+
+    /**
+     * @notice failed delegate, staker not exists
+     */
+    function test_stake_notStaker_reverts() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
 
@@ -129,7 +213,7 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice staking by delegator
      * stag0
      */
-    function testStakeWhenRewardNotStarting() public {
+    function test_stakeWhenRewardNotStarting_succeeds() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
 
@@ -141,9 +225,9 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice normal unstaking
+     * @notice normal undelegate
      */
-    function testUnstaking() public {
+    function test_undelegate_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -164,9 +248,62 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice undelegate, staker removed
+     */
+    function test_undelegateWhenStakerRemoved_succeeds() public {
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        uint256 time = REWARD_EPOCH;
+        hevm.warp(time);
+
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance);
+        hevm.stopPrank();
+
+        // remove staker
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+        address[] memory removed = new address[](1);
+        removed[0] = firstStaker;
+        l2Staking.removeStakers(removed);
+        hevm.stopPrank();
+
+        // sequenser size decrease
+        assertEq(sequencer.getSequencerSet2Size(), SEQUENCER_SIZE - 1);
+        assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 1);
+
+        // staker ranking is 0, removed
+        assertTrue(l2Staking.stakerRankings(firstStaker) == 0);
+
+        hevm.startPrank(bob);
+        l2Staking.undelegateStake(firstStaker);
+        assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 1);
+        hevm.stopPrank();
+
+        hevm.startPrank(alice);
+        l2Staking.undelegateStake(secondStaker);
+        hevm.stopPrank();
+
+        assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 2);
+    }
+
+    /**
      * @notice failed unstaking, when staking amount is zero
      */
-    function testDelegatorUnstakingIfStakingAmountZero() public {
+    function test_delegatorUnstaking_stakingAmountIsZero_reverts() public {
         hevm.startPrank(bob);
 
         hevm.expectRevert("staking amount is zero");
@@ -178,7 +315,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice failed claim, amount in lock period
      */
-    function testDelegatorclaimInLockPeriod() public {
+    function test_delegatorClaim_inLockPeriod_reverts() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, morphBalance);
@@ -197,14 +334,14 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice normal claim undelegation
      */
-    function testDelegatorClaimUndelegation() public {
+    function test_delegatorClaimUndelegation_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, morphBalance);
         l2Staking.undelegateStake(firstStaker);
 
-        uint256 time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 1);
+        uint256 time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 1);
 
         hevm.warp(time);
         l2Staking.claimUndelegation();
@@ -215,7 +352,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice failed restaking, pre claim in lock period
      */
-    function testDelegatorRestakeInLockPeriod() public {
+    function test_delegatorRestake_inLockPeriod_fails() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -229,7 +366,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice normal restaking
      */
-    function testDelegatorRestakeAfterLockPeriod() public {
+    function test_delegatorRestakeAfterLockPeriod_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -238,7 +375,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         hevm.roll(ROLLUP_EPOCH);
 
-        uint256 time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 1);
+        uint256 time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 1);
 
         hevm.warp(time);
         l2Staking.claimUndelegation();
@@ -251,7 +388,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test ranking, reward_start = false
      */
-    function testRankWhenRewardNotStarting() public {
+    function test_rankWhenRewardNotStarting_succeeds() public {
         hevm.startPrank(bob);
 
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -268,7 +405,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice test ranking, reward_start = true
      */
-    function testRankWhenRewardStarting() public {
+    function test_rankWhenRewardStarting_succeeds() public {
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(secondStaker, 10 ether);
@@ -290,9 +427,9 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice update params
+     * @notice update sequencerSetMaxSize
      */
-    function testUpdateParams() public {
+    function test_updateSequencerSetMaxSize_succeeds() public {
         hevm.prank(multisig);
         l2Staking.updateSequencerSetMaxSize(2);
 
@@ -301,12 +438,12 @@ contract L2StakingTest is L2StakingBaseTest {
 
     function _updateDistribute(uint256 epochIndex) internal returns (uint256) {
         uint256 sequencerSize = SEQUENCER_SIZE;
-        uint256 blockCount = DAY_SECONDS / 3; // 1 block per 3s
+        uint256 blockCount = REWARD_EPOCH / 3; // 1 block per 3s
         address[] memory sequencers = sequencerAddresses;
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
         uint256[] memory sequencerCommissions = new uint256[](sequencerSize);
-        for (uint i = 0; i < sequencerSize; i++) {
+        for (uint256 i = 0; i < sequencerSize; i++) {
             // same blocks
             sequencerBlocks[i] = blockCount / sequencerSize;
             sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize;
@@ -341,7 +478,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice  staking -> distribute -> claim
      */
-    function testDelegatorClaimRewardWhenRewardStarting() public {
+    function test_delegatorClaimRewardWhenRewardStarting_succeeds() public {
         uint256 sequencerSize = sequencer.getSequencerSet2Size();
 
         hevm.startPrank(alice);
@@ -351,7 +488,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = DAY_SECONDS;
+        uint256 time = REWARD_EPOCH;
         hevm.warp(time);
 
         // reward starting
@@ -370,13 +507,13 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.setCommissionRate(1);
 
         // *************** epoch = 1 ******************** //
-        time = DAY_SECONDS * 2;
+        time = REWARD_EPOCH * 2;
         hevm.warp(time);
 
-        uint256 blocksCountOfDay = DAY_SECONDS / 3;
-        hevm.roll(blocksCountOfDay * 2);
+        uint256 blocksCountOfEpoch = REWARD_EPOCH / 3;
+        hevm.roll(blocksCountOfEpoch * 2);
         hevm.prank(oracleAddress);
-        record.setLatestRewardEpochBlock(blocksCountOfDay);
+        record.setLatestRewardEpochBlock(blocksCountOfEpoch);
         _updateDistribute(0);
 
         // effectiveEpoch = 2
@@ -390,14 +527,14 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(secondRanking, 0 + 1);
 
         // *************** epoch = 2 ******************** //
-        time = DAY_SECONDS * 3;
-        hevm.roll(blocksCountOfDay * 3);
+        time = REWARD_EPOCH * 3;
+        hevm.roll(blocksCountOfEpoch * 3);
         hevm.warp(time);
         _updateDistribute(1);
 
         // *************** epoch = 3 ******************** //
-        time = DAY_SECONDS * 4;
-        hevm.roll(blocksCountOfDay * 4);
+        time = REWARD_EPOCH * 4;
+        hevm.roll(blocksCountOfEpoch * 4);
         hevm.warp(time);
         uint256 totalInflations = _updateDistribute(2);
 
@@ -434,7 +571,7 @@ contract L2StakingTest is L2StakingBaseTest {
     /**
      * @notice  staking -> distribute -> claim
      */
-    function testDelegatorUndelefateWhenRewardStarting() public {
+    function test_delegatorUndelegateWhenRewardStarting_succeeds() public {
         hevm.startPrank(alice);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
@@ -442,7 +579,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        uint256 time = DAY_SECONDS;
+        uint256 time = REWARD_EPOCH;
         hevm.warp(time);
 
         // reward starting
@@ -461,13 +598,13 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.setCommissionRate(1);
 
         // *************** epoch = 1 ******************** //
-        time = DAY_SECONDS * 2;
+        time = REWARD_EPOCH * 2;
         hevm.warp(time);
 
-        uint256 blocksCountOfDay = DAY_SECONDS / 3;
-        hevm.roll(blocksCountOfDay * 2);
+        uint256 blocksCountOfEpoch = REWARD_EPOCH / 3;
+        hevm.roll(blocksCountOfEpoch * 2);
         hevm.prank(oracleAddress);
-        record.setLatestRewardEpochBlock(blocksCountOfDay);
+        record.setLatestRewardEpochBlock(blocksCountOfEpoch);
         uint256 totalInflations0 = _updateDistribute(0);
 
         // effectiveEpoch = 2
@@ -488,19 +625,19 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         // *************** epoch = 2 ******************** //
-        time = DAY_SECONDS * 3 + 1;
-        hevm.roll(blocksCountOfDay * 3);
+        time = REWARD_EPOCH * 3 + 1;
+        hevm.roll(blocksCountOfEpoch * 3);
         hevm.warp(time);
         uint256 totalInflations1 = _updateDistribute(1);
 
         // *************** epoch = 3 ******************** //
-        time = DAY_SECONDS * 4;
-        hevm.roll(blocksCountOfDay * 4);
+        time = REWARD_EPOCH * 4;
+        hevm.roll(blocksCountOfEpoch * 4);
         hevm.warp(time);
         _updateDistribute(2);
 
         // *************** at unlock epoch ******************** //
-        time = rewardStartTime + DAY_SECONDS * (ROLLUP_EPOCH + 2);
+        time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 2);
         hevm.warp(time);
         hevm.prank(alice);
         l2Staking.claimUndelegation();
@@ -543,5 +680,74 @@ contract L2StakingTest is L2StakingBaseTest {
 
         assertEq(balanceAfter, balanceBefore + totalReward);
         hevm.stopPrank();
+    }
+
+    /**
+     * @notice currentEpoch
+     */
+
+    function test_currentEpoch_succeeds() public {
+        uint256 currentEpoch = l2Staking.currentEpoch();
+        assertEq(currentEpoch, 0);
+
+        hevm.warp(rewardStartTime);
+        currentEpoch = l2Staking.currentEpoch();
+        assertEq(currentEpoch, 0);
+
+        hevm.warp(rewardStartTime * 2);
+        currentEpoch = l2Staking.currentEpoch();
+        assertEq(currentEpoch, 1);
+    }
+
+    /**
+     * @notice getStakesInfo
+     */
+    function test_getStakesInfo_succeeds() public {
+        address[] memory _sequencerAddresses = new address[](SEQUENCER_SIZE);
+        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
+            SEQUENCER_SIZE
+        );
+
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            stakerInfos0[i] = stakerInfo;
+            _sequencerAddresses[i] = stakerInfo.addr;
+        }
+
+        Types.StakerInfo[] memory stakerInfos1 = l2Staking.getStakesInfo(
+            _sequencerAddresses
+        );
+
+        // check params
+        assertEq(stakerInfos1.length, stakerInfos0.length);
+        for (uint256 i = 0; i < stakerInfos1.length; i++) {
+            assertEq(stakerInfos0[i].addr, stakerInfos1[i].addr);
+            assertEq(stakerInfos0[i].tmKey, stakerInfos1[i].tmKey);
+        }
+    }
+
+    /**
+     * @notice get stakers
+     */
+    function test_getStakers_succeeds() public {
+        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
+            SEQUENCER_SIZE
+        );
+
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            stakerInfos0[i] = stakerInfo;
+        }
+
+        Types.StakerInfo[] memory stakerInfos1 = l2Staking.getStakers();
+
+        // check params
+        assertEq(stakerInfos1.length, stakerInfos0.length);
+        for (uint256 i = 0; i < stakerInfos1.length; i++) {
+            assertEq(stakerInfos0[i].addr, stakerInfos1[i].addr);
+            assertEq(stakerInfos0[i].tmKey, stakerInfos1[i].tmKey);
+        }
     }
 }

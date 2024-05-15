@@ -3,7 +3,6 @@ pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {IL2ERC20Gateway} from "../l2/gateways/IL2ERC20Gateway.sol";
@@ -14,7 +13,7 @@ import {FeeOnTransferToken} from "../mock/tokens/FeeOnTransferToken.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
-    address counterpartGateway;
+    address public counterpartGateway;
     MockERC20 private l1Token;
     MockERC20 private l2Token;
     TransferReentrantToken private reentrantToken;
@@ -51,7 +50,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         reentrantToken.approve(address(l1GatewayRouter), type(uint256).max);
     }
 
-    function testGetL2ERC20Address(address l1Address) public {
+    function test_getL2ERC20Address_succeeds(address l1Address) public {
         hevm.assume(l1Address != address(0));
         assertEq(
             l1StandardERC20Gateway.getL2ERC20Address(l1Address),
@@ -62,7 +61,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDepositERC20(
+    function test_depositERC20_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -70,7 +69,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         _depositERC20(false, amount, gasLimit, feePerGas);
     }
 
-    function testRouterDepositERC20(
+    function test_routerDepositERC20_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -78,7 +77,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         _depositERC20(true, amount, gasLimit, feePerGas);
     }
 
-    function testDepositERC20WithRecipient(
+    function test_depositERC20WithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -93,7 +92,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDepositERC20WithRecipientAndCalldata(
+    function test_depositERC20WithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -110,7 +109,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testRouterDepositERC20WithRecipient(
+    function test_routerDepositERC20WithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -125,7 +124,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testRouterDepositERC20WithRecipientAndCalldata(
+    function tes_routerDepositERC20WithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -142,7 +141,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDepositReentrantToken(uint256 amount) public {
+    function test_depositReentrantToken_succeeds(uint256 amount) public {
         // should revert, reentrant before transfer
         reentrantToken.setReentrantCall(
             address(l1StandardERC20Gateway),
@@ -184,7 +183,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testFeeOnTransferTokenFailed(uint256 amount) public {
+    function test_feeOnTransferToken_zeroAmount_fails(uint256 amount) public {
         feeToken.setFeeRate(1e9);
         amount = bound(amount, 1, feeToken.balanceOf(address(this)));
         hevm.expectRevert("deposit zero amount");
@@ -195,7 +194,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testFeeOnTransferTokenSucceed(
+    function test_feeOnTransferToken_succeeds(
         uint256 amount,
         uint256 feeRate
     ) public {
@@ -219,7 +218,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         assertEq(balanceBefore + amount - fee, balanceAfter);
     }
 
-    function testDropMessage(
+    function test_dropMessage_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall
@@ -286,7 +285,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         assertEq(balance + amount, l1Token.balanceOf(address(this)));
     }
 
-    function testFinalizeWithdrawERC20Failed(
+    function test_finalizeWithdrawERC20_counterErr_fails(
         address recipient,
         uint256 amount,
         bytes memory dataToCall
@@ -369,7 +368,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawERC20(
+    function test_finalizeWithdrawERC20_succeeds(
         address sender,
         uint256 amount,
         bytes memory dataToCall

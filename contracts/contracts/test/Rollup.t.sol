@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-
 import {ChunkCodecV0} from "../libraries/codec/ChunkCodecV0.sol";
-import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
-import {Rollup} from "../l1/rollup/Rollup.sol";
 import {IRollup} from "../l1/rollup/IRollup.sol";
 import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 
 contract RollupCommitBatchTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
     bytes32 public stateRoot = bytes32(uint256(1));
-    IRollup.BatchDataInput batchDataInput;
-    IRollup.BatchSignatureInput batchSignatureInput;
+    IRollup.BatchDataInput public batchDataInput;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();
@@ -34,7 +30,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         );
     }
 
-    function testCommitAndFinalizeWithL1Messages() public {
+    function test_commitAndFinalizeWithL1Messages_succeeds() public {
         upgradeStorage(address(caller), address(rollup), address(alice));
         hevm.deal(caller, 5 * STAKING_VALUE);
         bytes memory batchHeader0 = new bytes(121);
@@ -328,7 +324,12 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             )
         );
 
-        // 0x01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000bc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a
+        // 0x
+        // 0100000000000000000000000000000000000000000000000000000000000000
+        // 0000000000000000000000000000000000000000000000000000030000bc3678
+        // 9e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc3678
+        // 9e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98abc3678
+        // 9e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a
         batchDataInput = IRollup.BatchDataInput(
             0,
             batchHeader1,
@@ -395,8 +396,8 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
 contract RollupTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
     bytes32 public stateRoot = bytes32(uint256(1));
-    IRollup.BatchDataInput batchDataInput;
-    IRollup.BatchSignatureInput batchSignatureInput;
+    IRollup.BatchDataInput public batchDataInput;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();
@@ -442,7 +443,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testCommitBatches() external {
+    function test_commitBatches_succeeds() external {
         bytes memory batchHeader0 = new bytes(121);
 
         // import 10 L1 messages
@@ -699,7 +700,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testRevertBatch() public {
+    function test_revertBatch_succeeds() public {
         // caller not owner, revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -807,7 +808,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testSetPause() external {
+    function test_setPause_onlyOwner_reverts() external {
         hevm.prank(multisig);
         rollup.transferOwnership(address(this));
 
@@ -843,7 +844,7 @@ contract RollupTest is L1MessageBaseTest {
         assertBoolEq(false, rollup.paused());
     }
 
-    function testUpdateVerifier(address _newVerifier) public {
+    function test_updateVerifier_succeeds(address _newVerifier) public {
         hevm.assume(_newVerifier != address(0));
         hevm.assume(_newVerifier != rollup.verifier());
         hevm.prank(multisig);
@@ -863,7 +864,9 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.verifier(), _newVerifier);
     }
 
-    function testUpdateMaxNumTxInChunk(uint256 _maxNumTxInChunk) public {
+    function test_updateMaxNumTxInChunk_succeeds(
+        uint256 _maxNumTxInChunk
+    ) public {
         hevm.assume(_maxNumTxInChunk > 0);
         hevm.assume(_maxNumTxInChunk != 10);
 
@@ -884,7 +887,7 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.maxNumTxInChunk(), _maxNumTxInChunk);
     }
 
-    function testImportGenesisBlock() public {
+    function test_importGenesisBlock_succeeds() public {
         bytes memory batchHeader;
 
         // zero state root, revert

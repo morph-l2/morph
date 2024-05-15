@@ -4,12 +4,9 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {Types} from "../../libraries/common/Types.sol";
 import {IMorphToken} from "../system/IMorphToken.sol";
 import {IL2Staking} from "./IL2Staking.sol";
-import {ISequencer} from "./ISequencer.sol";
 import {IDistribute} from "./IDistribute.sol";
-import {IGov} from "./IGov.sol";
 import {IRecord} from "./IRecord.sol";
 
 contract Record is IRecord, OwnableUpgradeable {
@@ -187,7 +184,7 @@ contract Record is IRecord, OwnableUpgradeable {
         require(
             nextRewardEpochIndex + _rewardEpochs.length - 1 <
                 IL2Staking(L2_STAKING_CONTRACT).currentEpoch(),
-            "future data cannot be uploaded"
+            "unfinished epochs cannot be uploaded"
         );
         IMorphToken(MORPH_TOKEN_CONTRACT).mintInflations(
             nextRewardEpochIndex + _rewardEpochs.length - 1

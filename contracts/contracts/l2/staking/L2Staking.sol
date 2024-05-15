@@ -41,8 +41,8 @@ contract L2Staking is
      * Variables *
      *************/
 
-    /// @notice is reward start
-    bool public rewardStart;
+    /// @notice is reward started
+    bool public rewardStarted;
 
     /// @notice reward start time
     uint256 public rewardStartTime;
@@ -173,7 +173,7 @@ contract L2Staking is
         stakers[add.addr] = add;
         emit StakerAdded(add.addr, add.tmKey, add.blsKey);
 
-        if (!rewardStart && stakerAddresses.length <= sequencerSetMaxSize) {
+        if (!rewardStarted && stakerAddresses.length <= sequencerSetMaxSize) {
             _updateSequencerSet();
         }
     }
@@ -185,9 +185,9 @@ contract L2Staking is
     ) external onlyOtherStaking {
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
-            updateSequencerSet = rewardStart
-                ? stakerRankings[remove[i]] <= latestSequencerSetSize
-                : stakerRankings[remove[i]] <= sequencerSetMaxSize;
+            if (stakerRankings[remove[i]] <= latestSequencerSetSize) {
+                updateSequencerSet = true;
+            }
 
             if (stakerRankings[remove[i]] > 0) {
                 // update stakerRankings
@@ -220,10 +220,7 @@ contract L2Staking is
     function setCommissionRate(uint256 commission) external onlyStaker {
         require(commission <= 20, "invalid commission");
         commissions[_msgSender()] = commission;
-        uint256 epochEffective = 0;
-        if (rewardStart) {
-            epochEffective = currentEpoch() + 1;
-        }
+        uint256 epochEffective = rewardStarted ? currentEpoch() + 1 : 0;
         emit CommissionUpdated(_msgSender(), commission, epochEffective);
     }
 
@@ -267,7 +264,7 @@ contract L2Staking is
         uint256 _rewardStartTime
     ) external onlyOwner {
         require(
-            !rewardStart && rewardStartTime > block.timestamp,
+            !rewardStarted && rewardStartTime > block.timestamp,
             "reward already started"
         );
         require(
@@ -289,7 +286,7 @@ contract L2Staking is
         );
         require(candidateNumber > 0, "none candidate");
 
-        rewardStart = true;
+        rewardStarted = true;
 
         // sort stakers by insertion sort
         for (uint256 i = 1; i < stakerAddresses.length; i++) {
@@ -317,27 +314,27 @@ contract L2Staking is
      * Public Mutating Functions *
      *****************************/
 
-    /// @notice delegator stake morph to staker
-    /// @param staker    stake to whom
-    /// @param amount    stake amount
+    /// @notice delegator stake morph to delegatee
+    /// @param delegatee    stake to whom
+    /// @param amount       stake amount
     function delegateStake(
-        address staker,
+        address delegatee,
         uint256 amount
-    ) external isStaker(staker) nonReentrant {
+    ) external isStaker(delegatee) nonReentrant {
         require(amount > 0, "invalid stake amount");
-        // Re-staking to the same staker is not allowed before claiming undelegation
-        require(!_unclaimed(_msgSender(), staker), "undelegation unclaimed");
+        // Re-staking to the same delegatee is not allowed before claiming undelegation
+        require(!_unclaimed(_msgSender(), delegatee), "undelegation unclaimed");
 
-        stakerDelegations[staker] += amount;
-        delegations[staker][_msgSender()] += amount;
-        delegators[staker].add(_msgSender()); // will not be added repeatedly
+        stakerDelegations[delegatee] += amount;
+        delegations[delegatee][_msgSender()] += amount;
+        delegators[delegatee].add(_msgSender()); // will not be added repeatedly
 
-        if (stakerDelegations[staker] == amount) {
+        if (stakerDelegations[delegatee] == amount) {
             candidateNumber += 1;
         }
 
-        uint256 beforeRanking = stakerRankings[staker];
-        if (rewardStart && beforeRanking > 1) {
+        uint256 beforeRanking = stakerRankings[delegatee];
+        if (rewardStarted && beforeRanking > 1) {
             // update stakers and rankings
             for (uint256 i = beforeRanking - 1; i > 0; i--) {
                 if (
@@ -353,33 +350,33 @@ contract L2Staking is
                 }
             }
         }
-        uint256 effectiveEpoch = rewardStart ? currentEpoch() + 1 : 0;
+        uint256 effectiveEpoch = rewardStarted ? currentEpoch() + 1 : 0;
 
         emit Delegated(
-            staker,
+            delegatee,
             _msgSender(),
-            delegations[staker][_msgSender()], // new amount, not incremental
+            delegations[delegatee][_msgSender()], // new amount, not incremental
             effectiveEpoch
         );
 
         // notify delegation to distribute contract
         IDistribute(DISTRIBUTE_CONTRACT).notifyDelegation(
-            staker,
+            delegatee,
             _msgSender(),
             effectiveEpoch,
-            delegations[staker][_msgSender()],
-            stakerDelegations[staker],
-            delegators[staker].length(),
-            delegations[staker][_msgSender()] == amount
+            delegations[delegatee][_msgSender()],
+            stakerDelegations[delegatee],
+            delegators[delegatee].length(),
+            delegations[delegatee][_msgSender()] == amount
         );
 
         // transfer morph token from delegator to this
         _transferFrom(_msgSender(), address(this), amount);
 
         if (
-            rewardStart &&
+            rewardStarted &&
             beforeRanking > latestSequencerSetSize &&
-            stakerRankings[staker] <= sequencerSetMaxSize
+            stakerRankings[delegatee] <= sequencerSetMaxSize
         ) {
             _updateSequencerSet();
         }
@@ -395,15 +392,10 @@ contract L2Staking is
         // staker has been removed, unlock next epoch
         bool removed = stakerRankings[delegatee] == 0;
 
-        uint256 effectiveEpoch;
-        uint256 unlockEpoch;
-
-        if (rewardStart) {
-            effectiveEpoch = currentEpoch() + 1;
-            unlockEpoch = removed
-                ? effectiveEpoch
-                : effectiveEpoch + undelegateLockEpochs;
-        }
+        uint256 effectiveEpoch = rewardStarted ? currentEpoch() + 1 : 0;
+        uint256 unlockEpoch = (rewardStarted && !removed)
+            ? effectiveEpoch + undelegateLockEpochs // reward started and staker is active
+            : effectiveEpoch; // equal to 0 if reward not started. equal to effectiveEpoch is staker is removed
 
         Undelegation memory undelegation = Undelegation(
             delegatee,
@@ -417,7 +409,7 @@ contract L2Staking is
         delegators[delegatee].remove(_msgSender());
 
         uint256 beforeRanking = stakerRankings[delegatee];
-        if (!removed && rewardStart && beforeRanking < candidateNumber) {
+        if (!removed && rewardStarted && beforeRanking < candidateNumber) {
             // update stakers and rankings
             for (
                 uint256 i = stakerRankings[delegatee] - 1;
@@ -448,7 +440,7 @@ contract L2Staking is
             delegatee,
             _msgSender(),
             effectiveEpoch,
-            undelegation.amount,
+            stakerDelegations[delegatee],
             delegators[delegatee].length()
         );
 
@@ -462,7 +454,7 @@ contract L2Staking is
 
         if (
             !removed &&
-            rewardStart &&
+            rewardStarted &&
             beforeRanking <= latestSequencerSetSize &&
             (stakerRankings[delegatee] > latestSequencerSetSize ||
                 stakerRankings[delegatee] > candidateNumber)
@@ -474,8 +466,13 @@ contract L2Staking is
     /// @notice delegator cliam delegate staking value
     function claimUndelegation() external nonReentrant {
         uint256 totalAmount;
+
         for (uint256 i = 0; i < undelegations[_msgSender()].length; i++) {
-            if (undelegations[_msgSender()][i].unlockEpoch <= currentEpoch()) {
+            // if the reward is not started yet, claiming directly is allowed
+            if (
+                !rewardStarted ||
+                undelegations[_msgSender()][i].unlockEpoch <= currentEpoch()
+            ) {
                 totalAmount += undelegations[_msgSender()][i].amount;
                 if (undelegations[_msgSender()].length > 1) {
                     undelegations[_msgSender()][i] = undelegations[
@@ -485,6 +482,7 @@ contract L2Staking is
                 undelegations[_msgSender()].pop();
             }
         }
+
         require(totalAmount > 0, "no Morph token to claim");
         _transfer(_msgSender(), totalAmount);
 
@@ -518,10 +516,11 @@ contract L2Staking is
 
     /// @notice return current reward epoch index
     function currentEpoch() public view returns (uint256) {
-        return
-            block.timestamp > rewardStartTime
-                ? (block.timestamp - rewardStartTime) / REWARD_EPOCH
-                : 0;
+        require(
+            block.timestamp >= rewardStartTime,
+            "reward is not started yet"
+        );
+        return (block.timestamp - rewardStartTime) / REWARD_EPOCH;
     }
 
     /// @notice check if the user has staked to staker
@@ -613,7 +612,7 @@ contract L2Staking is
     /// @notice select the size of staker with the largest staking amount, the max size is ${sequencerSetMaxSize}
     function _updateSequencerSet() internal {
         uint256 sequencerSize = sequencerSetMaxSize;
-        if (rewardStart) {
+        if (rewardStarted) {
             if (candidateNumber < sequencerSetMaxSize) {
                 sequencerSize = candidateNumber;
             }

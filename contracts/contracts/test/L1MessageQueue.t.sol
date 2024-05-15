@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 
 contract L1MessageQueueTest is L1MessageBaseTest {
-    L1MessageQueueWithGasPriceOracle l1MessageQueue;
+    L1MessageQueueWithGasPriceOracle public l1MessageQueue;
 
     function setUp() public virtual override {
         super.setUp();
         l1MessageQueue = l1MessageQueueWithGasPriceOracle;
     }
 
-    function test_validateGasLimit() external {
+    function test_validateGasLimit_succeeds() external {
         // store alice as messenger
         upgradeStorage(address(alice), address(rollup), address(alice));
         assertEq(alice, l1MessageQueue.MESSENGER());
@@ -37,7 +35,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         l1MessageQueue.appendCrossDomainMessage(alice, 3, "0x0");
     }
 
-    function test_appendCrossDomainMessage() external {
+    function test_appendCrossDomainMessage_succeeds() external {
         // store alice as messenger
         upgradeStorage(address(alice), address(rollup), address(alice));
         assertEq(alice, l1MessageQueue.MESSENGER());
@@ -61,7 +59,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function test_appendEnforcedTransaction() external {
+    function test_appendEnforcedTransaction_succeeds() external {
         hevm.prank(multisig);
         assertEq(alice, l1MessageQueue.ENFORCED_TX_GATEWAAY());
         // append message
@@ -79,7 +77,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         assertEq(1, l1MessageQueue.nextCrossDomainMessageIndex());
     }
 
-    function test_pop_dropCrossDomainMessage() external {
+    function test_pop_dropCrossDomainMessage_succeeds() external {
         // store alice as messenger and rollup
         upgradeStorage(address(alice), address(alice), address(alice));
         assertEq(alice, l1MessageQueue.MESSENGER());

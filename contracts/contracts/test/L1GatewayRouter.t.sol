@@ -19,11 +19,11 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         hevm.stopPrank();
     }
 
-    function testOwnership() public {
+    function test_ownership_succeeds() public {
         assertEq(address(this), l1GatewayRouter.owner());
     }
 
-    function testSetDefaultERC20Gateway() public {
+    function test_setDefaultERC20Gateway_works() public {
         l1GatewayRouter.setDefaultERC20Gateway(address(0));
 
         // set by non-owner, should revert
@@ -52,7 +52,7 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         );
     }
 
-    function testSetERC20Gateway() public {
+    function test_setERC20Gateway_works() public {
         l1GatewayRouter.setDefaultERC20Gateway(address(0));
 
         // length mismatch, should revert
@@ -84,7 +84,7 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawERC20() public {
+    function test_finalizeWithdrawERC20_neverCalled_reverts() public {
         hevm.expectRevert("should never be called");
         l1GatewayRouter.finalizeWithdrawERC20(
             address(0),
@@ -96,12 +96,12 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawETH() public {
+    function test_finalizeWithdrawETH_neverCalled_reverts() public {
         hevm.expectRevert("should never be called");
         l1GatewayRouter.finalizeWithdrawETH(address(0), address(0), 0, "");
     }
 
-    function testRequestERC20(
+    function test_requestERC20_context_reverts(
         address _sender,
         address _token,
         uint256 _amount
@@ -110,7 +110,7 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         l1GatewayRouter.requestERC20(_sender, _token, _amount);
     }
 
-    function testReentrant() public {
+    function test_reentrant_context_reverts() public {
         TransferReentrantToken reentrantToken = new TransferReentrantToken(
             "Reentrant",
             "R",

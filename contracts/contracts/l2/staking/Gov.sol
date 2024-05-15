@@ -7,7 +7,6 @@ import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/util
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {ISequencer} from "./ISequencer.sol";
 import {IGov} from "./IGov.sol";
-import {IL2Staking} from "./IL2Staking.sol";
 
 contract Gov is IGov, OwnableUpgradeable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
@@ -174,28 +173,19 @@ contract Gov is IGov, OwnableUpgradeable {
         // update votes
         votes[proposalID].add(_msgSender());
 
-        // checking invalidate votes
-        address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
-            .getSequencerSet2();
-        for (uint i = 0; i < latestSequencerSet.length; i++) {
-            if (!votes[proposalID].contains(latestSequencerSet[i])) {
-                votes[proposalID].remove(latestSequencerSet[i]);
-            }
-        }
-
-        // check votes
-        if (votes[proposalID].length() > (latestSequencerSet.length * 2) / 3) {
+        // try execute proposal
+        if (_checkProposal(proposalID)) {
             _executeProposal(proposalID);
         }
     }
 
     function setProposalInterval(uint256 _proposalInterval) external onlyOwner {
         require(
-            _proposalInterval > 0 && _proposalInterval != batchBlockInterval,
+            _proposalInterval > 0 && _proposalInterval != proposalInterval,
             "invalid new proposal interval"
         );
-        uint256 _oldProposalInterval = batchBlockInterval;
-        batchBlockInterval = _proposalInterval;
+        uint256 _oldProposalInterval = proposalInterval;
+        proposalInterval = _proposalInterval;
         emit ProposalIntervalUpdated(_oldProposalInterval, _proposalInterval);
     }
 
@@ -207,8 +197,7 @@ contract Gov is IGov, OwnableUpgradeable {
     function executeProposal(
         uint256 proposalID
     ) external proposalCheck(proposalID) {
-        bool approved = _checkProposal(proposalID);
-        if (approved) {
+        if (_checkProposal(proposalID)) {
             _executeProposal(proposalID);
         }
     }
@@ -307,7 +296,7 @@ contract Gov is IGov, OwnableUpgradeable {
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT)
             .getSequencerSet2();
         uint256 validVotes = 0;
-        for (uint i = 0; i < latestSequencerSet.length; i++) {
+        for (uint256 i = 0; i < latestSequencerSet.length; i++) {
             if (votes[proposalID].contains(latestSequencerSet[i])) {
                 validVotes = validVotes + 1;
             }

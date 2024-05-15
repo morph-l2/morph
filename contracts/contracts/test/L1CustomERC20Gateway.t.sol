@@ -7,7 +7,6 @@ import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {L1CustomERC20Gateway} from "../l1/gateways/L1CustomERC20Gateway.sol";
 import {L1GatewayRouter} from "../l1/gateways/L1GatewayRouter.sol";
 import {IL1ERC20Gateway} from "../l1/gateways/IL1ERC20Gateway.sol";
-import {L2CustomERC20Gateway} from "../l2/gateways/L2CustomERC20Gateway.sol";
 import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
 import {IL2ERC20Gateway} from "../l2/gateways/IL2ERC20Gateway.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
@@ -40,7 +39,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         gateway.transferOwnership(address(this));
     }
 
-    function testUpdateTokenMappingFailed(address token1) public {
+    function test_updateTokenMapping_onlyOwner_reverts(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -52,7 +51,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         gateway.updateTokenMapping(token1, address(0));
     }
 
-    function testUpdateTokenMappingSuccess(
+    function test_updateTokenMapping_succeeds(
         address token1,
         address token2
     ) public {
@@ -64,7 +63,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         assertEq(gateway.getL2ERC20Address(token1), token2);
     }
 
-    function testDepositERC20(
+    function test_depositERC20_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -72,7 +71,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         _depositERC20(false, amount, gasLimit, feePerGas);
     }
 
-    function testDepositERC20WithRecipient(
+    function test_depositERC20WithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -87,7 +86,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDepositERC20WithRecipientAndCalldata(
+    function test_depositERC20WithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -104,7 +103,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDropMessage(
+    function test_dropMessage_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall
@@ -156,7 +155,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         assertEq(balance + amount, l1Token.balanceOf(address(this)));
     }
 
-    function testFinalizeWithdrawERC20Failed(
+    function test_finalizeWithdrawERC20_counterError_fails(
         address sender,
         address recipient,
         uint256 amount,
@@ -237,7 +236,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawERC20(
+    function test_finalizeWithdrawERC20_succeeds(
         address sender,
         uint256 amount,
         bytes memory dataToCall

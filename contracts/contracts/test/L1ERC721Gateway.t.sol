@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
-import "@rari-capital/solmate/src/tokens/ERC721.sol";
+import {MockERC721} from "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
+import {ERC721TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC721.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {L2ERC721Gateway} from "../l2/gateways/L2ERC721Gateway.sol";
 import {IL2ERC721Gateway} from "../l2/gateways/IL2ERC721Gateway.sol";
 import {IL1ERC721Gateway} from "../l1/gateways/IL1ERC721Gateway.sol";
 import {L1ERC721Gateway} from "../l1/gateways/L1ERC721Gateway.sol";
@@ -39,7 +38,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         l1Token.setApprovalForAll(address(gateway), true);
     }
 
-    function testUpdateTokenMappingFailed(address token1) public {
+    function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -51,7 +50,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         gateway.updateTokenMapping(token1, address(0));
     }
 
-    function testUpdateTokenMappingSuccess(
+    function test_updateTokenMapping_succeeds(
         address token1,
         address token2
     ) public {
@@ -62,7 +61,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         assertEq(gateway.tokenMapping(token1), token2);
     }
 
-    function testDepositERC721(
+    function test_depositERC721_succeeds(
         uint256 tokenId,
         uint256 gasLimit,
         uint256 feePerGas
@@ -70,7 +69,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         _testDepositERC721(tokenId, gasLimit, feePerGas);
     }
 
-    function testDepositERC721WithRecipient(
+    function test_depositERC721WithRecipient_succeeds(
         uint256 tokenId,
         address to,
         uint256 gasLimit,
@@ -79,7 +78,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         _testDepositERC721WithRecipient(tokenId, to, gasLimit, feePerGas);
     }
 
-    function testBatchDepositERC721WithGatewaySuccess(
+    function test_batchDepositERC721WithGateway_succeeds(
         uint256 tokenCount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -88,7 +87,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
     }
 
     /// @dev batch deposit erc721 with recipient
-    function testBatchDepositERC721WithGatewaySuccess(
+    function test_batchDepositERC721WithGateway_succeeds(
         uint256 tokenCount,
         address recipient,
         uint256 gasLimit,
@@ -102,7 +101,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         );
     }
 
-    function testDropMessage(uint256 tokenId) public {
+    function test_dropMessage_succeeds(uint256 tokenId) public {
         gateway.updateTokenMapping(address(l1Token), address(l2Token));
 
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
@@ -143,7 +142,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         assertEq(l1Token.ownerOf(tokenId), address(this));
     }
 
-    function testDropMessageBatch(uint256 tokenCount) public {
+    function test_dropMessageBatch_succeeds(uint256 tokenCount) public {
         tokenCount = bound(tokenCount, 1, TOKEN_COUNT);
         gateway.updateTokenMapping(address(l1Token), address(l2Token));
 
@@ -197,7 +196,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         }
     }
 
-    function testFinalizeWithdrawERC721Failed(
+    function test_finalizeWithdrawERC721_counterError_fails(
         address sender,
         address recipient,
         uint256 tokenId
@@ -267,7 +266,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         );
     }
 
-    function testFinalizeBatchWithdrawERC721Failed(
+    function test_finalizeBatchWithdrawERC721_counterError_fails(
         address sender,
         address recipient,
         uint256 tokenCount
@@ -350,7 +349,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         );
     }
 
-    function testFinalizeBatchWithdrawERC721(
+    function test_finalizeBatchWithdrawERC721_succeeds(
         address sender,
         address recipient,
         uint256 tokenCount

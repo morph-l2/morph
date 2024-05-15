@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2ToL1MessagePasser} from "../l2/system/L2ToL1MessagePasser.sol";
 import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
 import {L2ETHGateway} from "../l2/gateways/L2ETHGateway.sol";
@@ -32,7 +31,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         l1Messenger = address(NON_ZERO_ADDRESS);
     }
 
-    function testWithdrawETH(
+    function test_withdrawETH_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -40,7 +39,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         _withdrawETH(false, amount, gasLimit, feePerGas);
     }
 
-    function testWithdrawETHWithRecipient(
+    function test_withdrawETHWithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -55,7 +54,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testWithdrawETHWithRecipientAndCalldata(
+    function test_withdrawETHWithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -72,7 +71,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testRouterWithdrawETH(
+    function test_routerWithdrawETH_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -80,7 +79,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         _withdrawETH(true, amount, gasLimit, feePerGas);
     }
 
-    function testRouterWithdrawETHWithRecipient(
+    function test_routerWithdrawETHWithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -89,7 +88,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         _withdrawETHWithRecipient(true, amount, recipient, gasLimit, feePerGas);
     }
 
-    function testRouterWithdrawETHWithRecipientAndCalldata(
+    function test_routerWithdrawETHWithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -106,7 +105,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeDepositETHFailedMocking(
+    function test_finalizeDepositETHFailedMocking_succeeds(
         address sender,
         address recipient,
         uint256 amount,
@@ -148,7 +147,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawETHFailed(
+    function test_finalizeWithdrawETHFailed_succeeds(
         address sender,
         address recipient,
         uint256 amount,
@@ -204,7 +203,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawETH(
+    function test_finalizeWithdrawETH_succeeds(
         address sender,
         uint256 amount,
         bytes memory dataToCall

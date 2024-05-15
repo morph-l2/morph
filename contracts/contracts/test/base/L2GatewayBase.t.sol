@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 import {L2ERC721Gateway} from "../../l2/gateways/L2ERC721Gateway.sol";
@@ -20,41 +20,41 @@ import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 contract L2GatewayBaseTest is L2MessageBaseTest {
     // L2GatewayRouter config
-    L2GatewayRouter l2GatewayRouter;
+    L2GatewayRouter public l2GatewayRouter;
 
     // L2ETHGateway config
-    L2ETHGateway l2ETHGateway;
+    L2ETHGateway public l2ETHGateway;
 
     // L2ERC20Gateway config
-    L2ERC20Gateway l2ERC20Gateway;
+    L2ERC20Gateway public l2ERC20Gateway;
 
     // L2CustomERC20Gateway config
-    L2CustomERC20Gateway l2CustomERC20Gateway;
+    L2CustomERC20Gateway public l2CustomERC20Gateway;
 
     // L2StandardERC20Gateway config
-    L2StandardERC20Gateway l2StandardERC20Gateway;
+    L2StandardERC20Gateway public l2StandardERC20Gateway;
 
     // L2ERC721Gateway config
-    L2ERC721Gateway l2ERC721Gateway;
+    L2ERC721Gateway public l2ERC721Gateway;
 
     // L2ERC1155Gateway config
-    L2ERC1155Gateway l2ERC1155Gateway;
+    L2ERC1155Gateway public l2ERC1155Gateway;
 
     // MorphStandardERC20 config
-    MorphStandardERC20 template;
+    MorphStandardERC20 public template;
 
     // MorphStandardERC20Factory config
-    MorphStandardERC20Factory factory;
+    MorphStandardERC20Factory public factory;
 
     // l2WETHGateway config
-    L2WETHGateway l2WETHGateway;
+    L2WETHGateway public l2WETHGateway;
 
     bool internal revertOnReceive;
 
-    address l2FeeVault = address(3033);
-    uint256 eth_erc20_messenger_slot = 153;
-    uint256 erc721_messenger_slot = 203;
-    uint256 erc1155_messenger_slot = 303;
+    address public l2FeeVault = address(3033);
+    uint256 public eth_erc20_messenger_slot = 153;
+    uint256 public erc721_messenger_slot = 203;
+    uint256 public erc1155_messenger_slot = 303;
 
     receive() external payable {
         if (revertOnReceive) {
