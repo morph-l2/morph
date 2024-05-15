@@ -12,7 +12,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
     uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
     address refundAddress = address(2048);
 
-    function testProveWithdrawalTransaction_relayMessage() external {
+    function test_proveWithdrawalTransaction_relayMessage_succeeds() external {
         // tx msg set
         address from = address(alice);
         address to = address(bob);
@@ -74,7 +74,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
     }
 
-    function testReplayMessage(uint256 exceedValue) external {
+    function test_replayMessage_succeeds(uint256 exceedValue) external {
         hevm.deal(address(this), 1 ether);
         // tx msg set
         exceedValue = bound(exceedValue, 1, address(this).balance / 2);
@@ -221,7 +221,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         }
     }
 
-    function testForbidCallMessageQueueFromL2() external {
+    function test_forbidCallMessageQueueFromL2_succeeds() external {
         // withdrawal tx
         address from = address(alice);
         address to = address(l1MessageQueueWithGasPriceOracle);
@@ -254,7 +254,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
     }
 
-    function testForbidCallSelfFromL2() external {
+    function test_forbidCallSelfFromL2_succeeds() external {
         // withdrawal tx
         address from = address(alice);
         address to = address(l1CrossDomainMessenger);
@@ -287,7 +287,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         );
     }
 
-    function test_sendMessage() external {
+    function test_sendMessage_succeeds() external {
         address sender = address(this);
         address to = address(bob);
         bytes memory data = "send message";
@@ -327,7 +327,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
     }
 
-    function test_sendMessage_value() external {
+    function test_sendMessage_value_succeeds() external {
         address sender = address(this);
         address to = address(bob);
         bytes memory data = "send message";
@@ -398,7 +398,9 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         assertEq(address(refundAddress).balance, fee);
     }
 
-    function testUpdateMaxReplayTimes(uint256 _maxReplayTimes) external {
+    function test_updateMaxReplayTimes_succeeds(
+        uint256 _maxReplayTimes
+    ) external {
         hevm.assume(_maxReplayTimes > 0);
         // not owner, revert
         hevm.startPrank(address(1));
@@ -415,7 +417,7 @@ contract L1CrossDomainMessengerTest is L1MessageBaseTest {
         assertEq(l1CrossDomainMessenger.maxReplayTimes(), _maxReplayTimes);
     }
 
-    function testSetPause() external {
+    function test_setPause_succeeds() external {
         // not owner, revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");

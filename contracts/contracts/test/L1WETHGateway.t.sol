@@ -44,7 +44,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         l1weth.approve(address(router), type(uint256).max);
     }
 
-    function testDirectTransferETH(uint256 amount) public {
+    function test_directTransferETH_onlyWeth_fails(uint256 amount) public {
         amount = bound(amount, 0, address(this).balance);
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory result) = address(gateway).call{
@@ -57,7 +57,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDepositERC20(
+    function test_depositERC20_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -65,7 +65,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         _depositERC20(false, amount, gasLimit, feePerGas);
     }
 
-    function testDepositERC20WithRecipient(
+    function test_depositERC20WithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -80,7 +80,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDepositERC20WithRecipientAndCalldata(
+    function test_depositERC20WithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -97,7 +97,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testRouterDepositERC20(
+    function test_routerDepositERC20_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas
@@ -105,7 +105,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         _depositERC20(true, amount, gasLimit, feePerGas);
     }
 
-    function testRouterDepositERC20WithRecipient(
+    function test_routerDepositERC20WithRecipient_succeeds(
         uint256 amount,
         address recipient,
         uint256 gasLimit,
@@ -120,7 +120,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testRouterDepositERC20WithRecipientAndCalldata(
+    function test_routerDepositERC20WithRecipientAndCalldata_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall,
@@ -137,7 +137,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testDropMessage(
+    function test_dropMessage_succeeds(
         uint256 amount,
         address recipient,
         bytes memory dataToCall
@@ -187,7 +187,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         assertEq(balance + amount, l1weth.balanceOf(address(this)));
     }
 
-    function testFinalizeWithdrawERC20Failed(
+    function test_finalizeWithdrawERC20_counterErr_fails(
         address sender,
         address recipient,
         uint256 amount,
@@ -266,7 +266,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         );
     }
 
-    function testFinalizeWithdrawERC20(
+    function test_finalizeWithdrawERC20_succeeds(
         address sender,
         uint256 amount,
         bytes memory dataToCall

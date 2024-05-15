@@ -21,7 +21,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         l2GasPriceOracle = l1MessageQueueWithGasPriceOracle;
     }
 
-    function testEstimateCrossDomainMessageFee() external {
+    function test_estimateCrossDomainMessageFee_succeeds() external {
         hevm.startPrank(multisig);
         uint256 gasLimit = 100;
         l2GasPriceOracle.setL2BaseFee(1);
@@ -51,7 +51,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testUpdateWhitelistChecker() external {
+    function test_updateWhitelistChecker_succeeds() external {
         address testChecker = address(123);
         hevm.startPrank(multisig);
         hevm.expectEmit(true, true, true, true);
@@ -64,7 +64,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testUpdateL2BaseFee() external {
+    function test_updateL2BaseFee_succeeds() external {
         hevm.startPrank(multisig);
         hevm.expectEmit(true, true, true, true);
         emit IL1MessageQueueWithGasPriceOracle.UpdateL2BaseFee(0, 1);
@@ -73,7 +73,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-    function testCalculateIntrinsicGasFee() external {
+    function test_calculateIntrinsicGasFee_succeeds() external {
         hevm.startPrank(multisig);
         bytes memory _calldata = "0x00";
         uint256 intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(

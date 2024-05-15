@@ -17,7 +17,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         vault.updateMessenger(address(messenger));
     }
 
-    function testCantWithdrawBelowMinimum() public {
+    function test_withdraw_belowMinimum_reverts() public {
         hevm.deal(address(vault), 9 ether);
         hevm.expectRevert(
             "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
@@ -25,7 +25,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         vault.withdraw();
     }
 
-    function testCantWithdrawAmountBelowMinimum(uint256 amount) public {
+    function test_withdraw_amountBelowMinimum_reverts(uint256 amount) public {
         amount = bound(amount, 0 ether, 10 ether - 1);
         hevm.deal(address(vault), 100 ether);
         hevm.expectRevert(
@@ -34,21 +34,21 @@ contract L2TxFeeVaultTest is DSTestPlus {
         vault.withdraw(amount);
     }
 
-    function testCantWithdrawMoreThanBalance(uint256 amount) public {
+    function test_withdraw_moreThanBalance_reverts(uint256 amount) public {
         hevm.assume(amount >= 10 ether);
         hevm.deal(address(vault), amount - 1);
         hevm.expectRevert("FeeVault: insufficient balance to withdraw");
         vault.withdraw(amount);
     }
 
-    function testWithdrawOnce() public {
+    function test_withdrawOnce_succeeds() public {
         hevm.deal(address(vault), 11 ether);
         vault.withdraw();
         assertEq(address(messenger).balance, 11 ether);
         assertEq(vault.totalProcessed(), 11 ether);
     }
 
-    function testWithdrawAmountOnce(uint256 amount) public {
+    function test_withdrawAmountOnce_succeeds(uint256 amount) public {
         amount = bound(amount, 10 ether, 100 ether);
 
         hevm.deal(address(vault), 100 ether);
@@ -59,7 +59,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         assertEq(address(vault).balance, 100 ether - amount);
     }
 
-    function testWithdrawTwice() public {
+    function test_withdrawTwice_succeeds() public {
         hevm.deal(address(vault), 11 ether);
         vault.withdraw();
         assertEq(address(messenger).balance, 11 ether);
@@ -71,7 +71,10 @@ contract L2TxFeeVaultTest is DSTestPlus {
         assertEq(vault.totalProcessed(), 33 ether);
     }
 
-    function testWithdrawAmountTwice(uint256 amount1, uint256 amount2) public {
+    function test_withdrawAmountTwice_succeeds(
+        uint256 amount1,
+        uint256 amount2
+    ) public {
         amount1 = bound(amount1, 10 ether, 100 ether);
         amount2 = bound(amount2, 10 ether, 100 ether);
 

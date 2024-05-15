@@ -33,11 +33,11 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         l1Token = new MockERC20("Mock", "M", 18);
     }
 
-    function testOwnership() public {
+    function test_ownership_succeeds() public {
         assertEq(address(this), router.owner());
     }
 
-    function testInitialized() public {
+    function test_initialized_reInit_reverts() public {
         assertEq(address(l2ETHGateway), router.ethGateway());
         assertEq(address(l2StandardERC20Gateway), router.defaultERC20Gateway());
         assertEq(
@@ -52,7 +52,7 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         );
     }
 
-    function testSetDefaultERC20Gateway() public {
+    function test_setDefaultERC20Gateway_succeeds() public {
         router.setDefaultERC20Gateway(address(0));
 
         // set by non-owner, should revert
@@ -78,7 +78,7 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         assertEq(address(l2StandardERC20Gateway), router.defaultERC20Gateway());
     }
 
-    function testSetERC20Gateway() public {
+    function test_setERC20Gateway_succeeds() public {
         router.setDefaultERC20Gateway(address(0));
 
         // length mismatch, should revert
@@ -110,7 +110,7 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeDepositERC20() public {
+    function test_finalizeDepositERC20_neverCalled_reverts() public {
         hevm.expectRevert("should never be called");
         router.finalizeDepositERC20(
             address(0),
@@ -122,7 +122,7 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         );
     }
 
-    function testFinalizeDepositETH() public {
+    function test_finalizeDepositETH_neverCalled_reverts() public {
         hevm.expectRevert("should never be called");
         router.finalizeDepositETH(address(0), address(0), 0, "");
     }

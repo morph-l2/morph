@@ -182,11 +182,11 @@ contract Gov is IGov, OwnableUpgradeable {
 
     function setProposalInterval(uint256 _proposalInterval) external onlyOwner {
         require(
-            _proposalInterval > 0 && _proposalInterval != batchBlockInterval,
+            _proposalInterval > 0 && _proposalInterval != proposalInterval,
             "invalid new proposal interval"
         );
-        uint256 _oldProposalInterval = batchBlockInterval;
-        batchBlockInterval = _proposalInterval;
+        uint256 _oldProposalInterval = proposalInterval;
+        proposalInterval = _proposalInterval;
         emit ProposalIntervalUpdated(_oldProposalInterval, _proposalInterval);
     }
 

@@ -48,12 +48,12 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         token.setApprovalForAll(address(gateway), true);
     }
 
-    function testReinitilize() public {
+    function test_initilize_reInit_fails() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         gateway.initialize(address(1), address(messenger));
     }
 
-    function testUpdateTokenMappingFailed(address token1) public {
+    function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -65,7 +65,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         gateway.updateTokenMapping(token1, address(0));
     }
 
-    function testUpdateTokenMappingSuccess(
+    function test_updateTokenMapping_succeeds(
         address token1,
         address token2
     ) public {
@@ -77,7 +77,9 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev failed to withdraw erc1155
-    function testWithdrawERC1155WithGatewayFailed(address to) public {
+    function test_withdrawERC1155WithGateway_zeroAmount_fails(
+        address to
+    ) public {
         // token not support
         hevm.expectRevert("no corresponding l1 token");
         if (to == address(0)) {
@@ -96,7 +98,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev withdraw erc1155 without recipient
-    function testWithdrawERC1155WithGatewaySuccess(
+    function test_withdrawERC1155WithGateway_succeeds(
         uint256 tokenId,
         uint256 amount
     ) public {
@@ -115,7 +117,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev withdraw erc1155 with recipient
-    function testWithdrawERC1155WithGatewaySuccess(
+    function test_withdrawERC1155WithGateway_succeeds(
         uint256 tokenId,
         uint256 amount,
         address to
@@ -135,7 +137,9 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev failed to batch withdraw erc1155
-    function testBatchWithdrawERC1155WithGatewayFailed(address to) public {
+    function test_batchWithdrawERC1155WithGateway_zeroAmount_fails(
+        address to
+    ) public {
         // no token to withdraw
         hevm.expectRevert("no token to withdraw");
         if (to == address(0)) {
@@ -216,7 +220,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev batch withdraw erc1155 without recipient
-    function testBatchWithdrawERC1155WithGatewaySuccess(
+    function test_batchWithdrawERC1155WithGateway_succeeds(
         uint256 count,
         uint256 amount
     ) public {
@@ -244,7 +248,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev batch withdraw erc1155 with recipient
-    function testBatchWithdrawERC1155WithGatewaySuccess(
+    function test_batchWithdrawERC1155WithGateway_succeeds(
         uint256 count,
         uint256 amount,
         address to
@@ -279,7 +283,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev failed to finalize deposit erc1155
-    function testFinalizeDepositERC1155Failed() public {
+    function test_finalizeDepositERC1155_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
         gateway.finalizeDepositERC1155(
@@ -314,7 +318,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev finalize deposit erc1155
-    function testFinalizeDepositERC1155(
+    function test_finalizeDepositERC1155_succeeds(
         address from,
         address to,
         uint256 tokenId,
@@ -340,7 +344,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev failed to finalize batch deposit erc1155
-    function testFinalizeBatchDepositERC1155Failed() public {
+    function test_finalizeBatchDepositERC1155_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
         gateway.finalizeBatchDepositERC1155(
@@ -389,7 +393,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev finalize batch withdraw erc1155
-    function testFinalizeBatchWithdrawERC1155(
+    function test_finalizeBatchWithdrawERC1155_succeeds(
         address from,
         address to,
         uint256 count,
