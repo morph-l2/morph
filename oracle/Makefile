@@ -2,7 +2,7 @@
 
 GITCOMMIT := $(shell git rev-parse HEAD)
 GITDATE := $(shell git show -s --format='%ct')
-GITVERSION := $(shell cat package.json | jq .version)
+GITVERSION := $(shell git describe --tags --always --abbrev=12)
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)

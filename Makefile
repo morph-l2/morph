@@ -55,14 +55,13 @@ bindings:
 lint: lint-sol lint-go
 .PHONY: lint
 
-# npm install --global --save-dev solhint
 lint-sol:
-	solhint $$(find contracts -name '*.sol' -not -path '**/@openzeppelin/**')
+	make -C contracts lint-sol
 .PHONY: lint-sol
 
 lint-go:
 	make -C bindings lint
-	make -C contracts lint
+	make -C contracts lint-go
 	make -C node lint
 	make -C ops/l2-genesis lint
 	make -C ops/tools lint
