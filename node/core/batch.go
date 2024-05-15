@@ -150,6 +150,9 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			return false, 0, err
 		}
 		e.batchingCache.prevStateRoot = header.Root
+
+		// initialize latest batch index
+		e.metrics.BatchIndex.Set(float64(e.batchingCache.parentBatchHeader.BatchIndex))
 	}
 
 	height, err := heightFromBCBytes(currentBlockBytes)
@@ -277,20 +280,25 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		}
 	}
 
+	currentIndex := e.batchingCache.parentBatchHeader.BatchIndex + 1
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
-		Version:                0,
-		Index:                  e.batchingCache.parentBatchHeader.BatchIndex + 1,
-		Hash:                   e.batchingCache.sealedBatchHeader.Hash(),
-		ParentBatchHeader:      e.batchingCache.parentBatchHeader.Encode(),
-		Chunks:                 chunksBytes,
-		SkippedL1MessageBitmap: e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
-		PrevStateRoot:          e.batchingCache.prevStateRoot,
-		PostStateRoot:          e.batchingCache.postStateRoot,
-		WithdrawRoot:           e.batchingCache.withdrawRoot,
-		Sidecar:                e.batchingCache.sealedSidecar,
+		Version:                  0,
+		Index:                    currentIndex,
+		Hash:                     e.batchingCache.sealedBatchHeader.Hash(),
+		ParentBatchHeader:        e.batchingCache.parentBatchHeader.Encode(),
+		CurrentSequencerSetBytes: sequencerBytes,
+		Chunks:                   chunksBytes,
+		SkippedL1MessageBitmap:   e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
+		PrevStateRoot:            e.batchingCache.prevStateRoot,
+		PostStateRoot:            e.batchingCache.postStateRoot,
+		WithdrawRoot:             e.batchingCache.withdrawRoot,
+		Sidecar:                  e.batchingCache.sealedSidecar,
 	}, batchSigs); err != nil {
 		return err
 	}
+
+	// update newest batch index
+	e.metrics.BatchIndex.Set(float64(currentIndex))
 
 	// commit sealed batch header; move current block into the next batch
 	e.batchingCache.parentBatchHeader = e.batchingCache.sealedBatchHeader
@@ -311,7 +319,7 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	e.batchingCache.chunks.Append(e.batchingCache.currentBlockContext, e.batchingCache.currentTxsPayload, e.batchingCache.currentL1TxsHashes, e.batchingCache.currentRowConsumption)
 	e.batchingCache.ClearCurrent()
 
-	e.logger.Info("Committed batch")
+	e.logger.Info("Committed batch", "batchIndex", currentIndex)
 	return nil
 }
 
