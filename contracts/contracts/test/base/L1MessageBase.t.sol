@@ -17,8 +17,8 @@ contract L1MessageBaseTest is CommonTest {
     L1Staking public l1Staking;
     L1Staking public l1StakingImpl;
 
-    uint256 public STAKING_VALUE = 1e18; // 1 eth
-    uint256 public LOCK_BLOCKS = 3;
+    uint256 public constant STAKING_VALUE = 1e18; // 1 eth
+    uint256 public constant LOCK_BLOCKS = 3;
     uint256 public rewardPercentage = 20;
     uint32 public defaultGasLimitAdd = 1000000;
     uint32 public defaultGasLimitRemove = 10000000;
@@ -41,10 +41,10 @@ contract L1MessageBaseTest is CommonTest {
     uint32 public defaultGasLimit = 1000000;
 
     // L1CrossDomainMessenger config
-    L1CrossDomainMessenger l1CrossDomainMessenger;
-    L1CrossDomainMessenger l1CrossDomainMessengerImpl;
+    L1CrossDomainMessenger public l1CrossDomainMessenger;
+    L1CrossDomainMessenger public l1CrossDomainMessengerImpl;
 
-    address l1FeeVault = address(3033);
+    address public l1FeeVault = address(3033);
 
     function setUp() public virtual override {
         super.setUp();

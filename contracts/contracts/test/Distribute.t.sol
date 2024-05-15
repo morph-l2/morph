@@ -2,13 +2,11 @@
 pragma solidity =0.8.24;
 
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
-import {Distribute} from "../l2/staking/Distribute.sol";
-import {IDistribute} from "../l2/staking/IDistribute.sol";
 
 contract DistributeTest is L2StakingBaseTest {
-    address firstStaker;
-    uint256 mockReward;
-    uint256 mockCommission;
+    address public firstStaker;
+    uint256 public mockReward;
+    uint256 public mockCommission;
 
     function setUp() public virtual override {
         super.setUp();
@@ -27,7 +25,7 @@ contract DistributeTest is L2StakingBaseTest {
         uint256[] memory delegatorRewards = new uint256[](updateEpochNum);
         uint256[] memory commissions = new uint256[](updateEpochNum);
 
-        for (uint i = 0; i < updateEpochNum; i++) {
+        for (uint256 i = 0; i < updateEpochNum; i++) {
             sequencers[i] = address(uint160(beginSeq + i));
             delegatorRewards[i] = mockReward;
             commissions[i] = mockCommission;

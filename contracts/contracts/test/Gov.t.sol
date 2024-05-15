@@ -182,7 +182,7 @@ contract GovTest is L2StakingBaseTest {
         assertFalse(canBeApproved);
 
         // invalide votes
-        for (uint i = 0; i < removed.length - 1; i++) {
+        for (uint256 i = 0; i < removed.length - 1; i++) {
             assertTrue(gov.isVoted(currentproposalID, removed[i]));
         }
 

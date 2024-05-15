@@ -11,19 +11,19 @@ import {GasPriceOracle} from "../../l2/system/GasPriceOracle.sol";
 
 contract L2MessageBaseTest is CommonTest {
     // L2ToL1MessagePasser config
-    L2ToL1MessagePasser l2ToL1MessagePasser;
-    L2ToL1MessagePasser l2ToL1MessagePasserImpl;
+    L2ToL1MessagePasser public l2ToL1MessagePasser;
+    L2ToL1MessagePasser public l2ToL1MessagePasserImpl;
 
-    bytes32 l2ToL1MessagePasserLeafNodesCount = bytes32(uint256(32));
+    bytes32 public l2ToL1MessagePasserLeafNodesCount = bytes32(uint256(32));
 
     // L2CrossDomainMessenger config
-    L2CrossDomainMessenger l2CrossDomainMessenger;
-    L2CrossDomainMessenger l2CrossDomainMessengerImpl;
+    L2CrossDomainMessenger public l2CrossDomainMessenger;
+    L2CrossDomainMessenger public l2CrossDomainMessengerImpl;
 
     // GasPriceOracle config
-    GasPriceOracle gasPriceOracle;
+    GasPriceOracle public gasPriceOracle;
 
-    uint256 gasOracle_owner_slot = 0;
+    uint256 public gasOracle_owner_slot = 0;
 
     function setUp() public virtual override {
         super.setUp();

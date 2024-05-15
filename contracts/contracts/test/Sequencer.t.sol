@@ -6,9 +6,9 @@ import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
 
 contract SequencerTest is L2StakingBaseTest {
-    address firstStaker;
-    address secondStaker;
-    address thirdStaker;
+    address public firstStaker;
+    address public secondStaker;
+    address public thirdStaker;
 
     function setUp() public virtual override {
         super.setUp();

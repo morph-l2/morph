@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L1MessageBaseTest} from "./L1MessageBase.t.sol";
 import {L1GatewayRouter} from "../../l1/gateways/L1GatewayRouter.sol";

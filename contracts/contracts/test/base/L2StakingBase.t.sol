@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "forge-std/console2.sol";
 import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -15,9 +14,9 @@ import {Gov} from "../../l2/staking/Gov.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 
 contract L2StakingBaseTest is L2MessageBaseTest {
-    uint256 public SEQUENCER_RATIO_PRECISION = 1e8;
-    uint256 public INFLATION_RATIO_PRECISION = 1e16;
-    uint256 public REWARD_EPOCH = 86400;
+    uint256 public constant SEQUENCER_RATIO_PRECISION = 1e8;
+    uint256 public constant INFLATION_RATIO_PRECISION = 1e16;
+    uint256 public constant REWARD_EPOCH = 86400;
 
     uint256 public beginSeq = 10;
     uint256 public version = 0;
@@ -26,7 +25,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     address[] public sequencerAddresses;
 
     uint256 public constant SEQUENCER_SIZE = 3;
-    uint256 public NEXT_EPOCH_START = 1700000000;
+    uint256 public constant NEXT_EPOCH_START = 1700000000;
     uint256 public rewardStartTime = 86400;
 
     // Sequencer config
@@ -51,9 +50,9 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     address public oracleAddress = address(1000);
     uint256 public nextBatchSubmissionIndex = 1;
 
-    uint256 public PROPOSAL_INTERVAL = 1000;
-    uint256 public ROLLUP_EPOCH = 1000;
-    uint256 public MAX_CHUNKS = 1000000000;
+    uint256 public constant PROPOSAL_INTERVAL = 1000;
+    uint256 public constant ROLLUP_EPOCH = 1000;
+    uint256 public constant MAX_CHUNKS = 1000000000;
 
     function setUp() public virtual override {
         super.setUp();

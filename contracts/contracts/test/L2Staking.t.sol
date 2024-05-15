@@ -7,11 +7,11 @@ import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 contract L2StakingTest is L2StakingBaseTest {
-    uint256 morphBalance = 20 ether;
-    address[] stakers;
-    address firstStaker;
-    address secondStaker;
-    address thirdStaker;
+    uint256 public morphBalance = 20 ether;
+    address[] public stakers;
+    address public firstStaker;
+    address public secondStaker;
+    address public thirdStaker;
 
     function setUp() public virtual override {
         super.setUp();
@@ -443,7 +443,7 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256[] memory sequencerBlocks = new uint256[](sequencerSize);
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
         uint256[] memory sequencerCommissions = new uint256[](sequencerSize);
-        for (uint i = 0; i < sequencerSize; i++) {
+        for (uint256 i = 0; i < sequencerSize; i++) {
             // same blocks
             sequencerBlocks[i] = blockCount / sequencerSize;
             sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize;
@@ -721,7 +721,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         // check params
         assertEq(stakerInfos1.length, stakerInfos0.length);
-        for (uint i = 0; i < stakerInfos1.length; i++) {
+        for (uint256 i = 0; i < stakerInfos1.length; i++) {
             assertEq(stakerInfos0[i].addr, stakerInfos1[i].addr);
             assertEq(stakerInfos0[i].tmKey, stakerInfos1[i].tmKey);
         }
@@ -745,7 +745,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         // check params
         assertEq(stakerInfos1.length, stakerInfos0.length);
-        for (uint i = 0; i < stakerInfos1.length; i++) {
+        for (uint256 i = 0; i < stakerInfos1.length; i++) {
             assertEq(stakerInfos0[i].addr, stakerInfos1[i].addr);
             assertEq(stakerInfos0[i].tmKey, stakerInfos1[i].tmKey);
         }

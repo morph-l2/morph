@@ -33,7 +33,7 @@ contract L1OverflowTester {
         gas_limit = _gasLimit;
     }
 
-    function crossHash(string calldata _message, uint count) public {
+    function crossHash(string calldata _message, uint256 count) public {
         MESSENGER.sendMessage(
             OTHERTESTER,
             0,
