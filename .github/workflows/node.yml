@@ -31,5 +31,5 @@ jobs:
                   go-version: 1.22.x
             - name: Run build
               run: make build
-             - name: Run tests
-               run: make test
+            - name: Run tests
+              run: make test
