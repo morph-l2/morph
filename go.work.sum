@@ -481,6 +481,7 @@ github.com/morph-l2/tendermint v0.1.0-beta.0.20240417065957-8ff3c98baa2f h1:xVTU
 github.com/morph-l2/tendermint v0.1.0-beta.0.20240417065957-8ff3c98baa2f/go.mod h1:0d9/EvR8QheuLJBOq7mHPunn/7dPW22JGfeOaNEMxhA=
 github.com/morph-l2/tendermint v0.2.0-beta h1:j/6DvfrKt5nT1ZG55Uh6sxzdrtlPgdMbEQ7uE4iZQzo=
 github.com/morph-l2/tendermint v0.2.0-beta/go.mod h1:0d9/EvR8QheuLJBOq7mHPunn/7dPW22JGfeOaNEMxhA=
+github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48 h1:12smHBB/l1p8KLZ90ooRat++WwiIAjqEMw5MzbZPK4s=
 github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48/go.mod h1:0d9/EvR8QheuLJBOq7mHPunn/7dPW22JGfeOaNEMxhA=
 github.com/mrunalp/fileutils v0.5.1 h1:F+S7ZlNKnrwHfSwdlgNSkKo67ReVf8o9fel6C3dkm/Q=
 github.com/mrunalp/fileutils v0.5.1/go.mod h1:M1WthSahJixYnrXQl/DFQuteStB1weuxD2QJNHXfbSQ=

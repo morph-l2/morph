@@ -282,17 +282,16 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 
 	currentIndex := e.batchingCache.parentBatchHeader.BatchIndex + 1
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
-		Version:                  0,
-		Index:                    currentIndex,
-		Hash:                     e.batchingCache.sealedBatchHeader.Hash(),
-		ParentBatchHeader:        e.batchingCache.parentBatchHeader.Encode(),
-		CurrentSequencerSetBytes: sequencerBytes,
-		Chunks:                   chunksBytes,
-		SkippedL1MessageBitmap:   e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
-		PrevStateRoot:            e.batchingCache.prevStateRoot,
-		PostStateRoot:            e.batchingCache.postStateRoot,
-		WithdrawRoot:             e.batchingCache.withdrawRoot,
-		Sidecar:                  e.batchingCache.sealedSidecar,
+		Version:                0,
+		Index:                  currentIndex,
+		Hash:                   e.batchingCache.sealedBatchHeader.Hash(),
+		ParentBatchHeader:      e.batchingCache.parentBatchHeader.Encode(),
+		Chunks:                 chunksBytes,
+		SkippedL1MessageBitmap: e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
+		PrevStateRoot:          e.batchingCache.prevStateRoot,
+		PostStateRoot:          e.batchingCache.postStateRoot,
+		WithdrawRoot:           e.batchingCache.withdrawRoot,
+		Sidecar:                e.batchingCache.sealedSidecar,
 	}, batchSigs); err != nil {
 		return err
 	}
