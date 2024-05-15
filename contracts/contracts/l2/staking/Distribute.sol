@@ -5,8 +5,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {IL2Staking} from "./IL2Staking.sol";
-import {IRecord} from "./IRecord.sol";
 import {IDistribute} from "./IDistribute.sol";
 import {IMorphToken} from "../system/IMorphToken.sol";
 
@@ -290,7 +288,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ) external view returns (uint256 reward) {
         uint256 totalAmount;
         uint256 delegatorAmount;
-        uint start = unclaimed[delegator].unclaimedStart[delegatee];
+        uint256 start = unclaimed[delegator].unclaimedStart[delegatee];
         for (uint256 i = start; i < mintedEpochCount; i++) {
             if (distributions[delegatee][i].amounts[delegator] > 0) {
                 delegatorAmount = distributions[delegatee][i].amounts[

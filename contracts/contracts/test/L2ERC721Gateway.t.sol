@@ -4,12 +4,9 @@ pragma solidity =0.8.24;
 
 import {MockERC721} from "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
-import {L1ERC721Gateway} from "../l1/gateways/L1ERC721Gateway.sol";
 import {L2ERC721Gateway} from "../l2/gateways/L2ERC721Gateway.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
-import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 
 contract L2ERC721GatewayTest is L2GatewayBaseTest {
     uint256 private constant TOKEN_COUNT = 100;

@@ -3,7 +3,6 @@ pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {IL2ERC20Gateway} from "../l2/gateways/IL2ERC20Gateway.sol";
@@ -14,7 +13,7 @@ import {FeeOnTransferToken} from "../mock/tokens/FeeOnTransferToken.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 
 contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
-    address counterpartGateway;
+    address public counterpartGateway;
     MockERC20 private l1Token;
     MockERC20 private l2Token;
     TransferReentrantToken private reentrantToken;

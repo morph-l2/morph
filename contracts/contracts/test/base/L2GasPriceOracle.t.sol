@@ -5,16 +5,15 @@ pragma solidity =0.8.24;
 import {IL1MessageQueueWithGasPriceOracle} from "../../l1/rollup/IL1MessageQueueWithGasPriceOracle.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {IWhitelist} from "../../libraries/common/IWhitelist.sol";
-import {CommonTest} from "./CommonTest.t.sol";
 import {L1MessageBaseTest} from "./L1MessageBase.t.sol";
 
 contract L2GasPriceOracleTest is L1MessageBaseTest {
     /// @notice The intrinsic gas for transaction.
-    uint256 INTRINSIC_GAS_TX = 21000;
+    uint256 public constant INTRINSIC_GAS_TX = 21000;
     /// @notice The appropriate intrinsic gas for each byte.
-    uint256 APPROPRIATE_INTRINSIC_GAS_PER_BYTE = 16;
+    uint256 public constant APPROPRIATE_INTRINSIC_GAS_PER_BYTE = 16;
 
-    L1MessageQueueWithGasPriceOracle l2GasPriceOracle;
+    L1MessageQueueWithGasPriceOracle public l2GasPriceOracle;
 
     function setUp() public virtual override {
         super.setUp();

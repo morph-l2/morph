@@ -144,7 +144,7 @@ contract RecordTest is L2StakingBaseTest {
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
         uint256[] memory sequencerCommissions = new uint256[](sequencerSize);
 
-        for (uint i = 0; i < sequencerSize; i++) {
+        for (uint256 i = 0; i < sequencerSize; i++) {
             sequencerBlocks[i] = 0;
             sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize;
             sequencerCommissions[i] = 1;
@@ -177,7 +177,7 @@ contract RecordTest is L2StakingBaseTest {
         uint256[] memory sequencerRatios = new uint256[](sequencerSize);
         uint256[] memory sequencerCommissions = new uint256[](sequencerSize);
 
-        for (uint i = 0; i < sequencerSize; i++) {
+        for (uint256 i = 0; i < sequencerSize; i++) {
             sequencerBlocks[i] = 1;
             sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize;
             sequencerCommissions[i] = 1;
@@ -221,7 +221,7 @@ contract RecordTest is L2StakingBaseTest {
 
         // invalide commission rate
         sequencerCommissions = new uint256[](sequencerSize);
-        for (uint i = 0; i < sequencerSize; i++) {
+        for (uint256 i = 0; i < sequencerSize; i++) {
             sequencerCommissions[i] = 21;
         }
         rewardEpochInfos[0] = IRecord.RewardEpochInfo(
@@ -240,7 +240,7 @@ contract RecordTest is L2StakingBaseTest {
         // invalide sequencers ratios
         sequencerRatios = new uint256[](sequencerSize);
         sequencerCommissions = new uint256[](sequencerSize);
-        for (uint i = 0; i < sequencerSize; i++) {
+        for (uint256 i = 0; i < sequencerSize; i++) {
             sequencerRatios[i] = SEQUENCER_RATIO_PRECISION / sequencerSize + 1;
             sequencerCommissions[i] = 2;
         }
