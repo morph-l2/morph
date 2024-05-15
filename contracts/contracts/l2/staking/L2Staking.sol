@@ -317,26 +317,26 @@ contract L2Staking is
      * Public Mutating Functions *
      *****************************/
 
-    /// @notice delegator stake morph to staker
-    /// @param staker    stake to whom
-    /// @param amount    stake amount
+    /// @notice delegator stake morph to delegatee
+    /// @param delegatee    stake to whom
+    /// @param amount       stake amount
     function delegateStake(
-        address staker,
+        address delegatee,
         uint256 amount
-    ) external isStaker(staker) nonReentrant {
+    ) external isStaker(delegatee) nonReentrant {
         require(amount > 0, "invalid stake amount");
-        // Re-staking to the same staker is not allowed before claiming undelegation
-        require(!_unclaimed(_msgSender(), staker), "undelegation unclaimed");
+        // Re-staking to the same delegatee is not allowed before claiming undelegation
+        require(!_unclaimed(_msgSender(), delegatee), "undelegation unclaimed");
 
-        stakerDelegations[staker] += amount;
-        delegations[staker][_msgSender()] += amount;
-        delegators[staker].add(_msgSender()); // will not be added repeatedly
+        stakerDelegations[delegatee] += amount;
+        delegations[delegatee][_msgSender()] += amount;
+        delegators[delegatee].add(_msgSender()); // will not be added repeatedly
 
-        if (stakerDelegations[staker] == amount) {
+        if (stakerDelegations[delegatee] == amount) {
             candidateNumber += 1;
         }
 
-        uint256 beforeRanking = stakerRankings[staker];
+        uint256 beforeRanking = stakerRankings[delegatee];
         if (rewardStart && beforeRanking > 1) {
             // update stakers and rankings
             for (uint256 i = beforeRanking - 1; i > 0; i--) {
@@ -356,21 +356,21 @@ contract L2Staking is
         uint256 effectiveEpoch = rewardStart ? currentEpoch() + 1 : 0;
 
         emit Delegated(
-            staker,
+            delegatee,
             _msgSender(),
-            delegations[staker][_msgSender()], // new amount, not incremental
+            delegations[delegatee][_msgSender()], // new amount, not incremental
             effectiveEpoch
         );
 
         // notify delegation to distribute contract
         IDistribute(DISTRIBUTE_CONTRACT).notifyDelegation(
-            staker,
+            delegatee,
             _msgSender(),
             effectiveEpoch,
-            delegations[staker][_msgSender()],
-            stakerDelegations[staker],
-            delegators[staker].length(),
-            delegations[staker][_msgSender()] == amount
+            delegations[delegatee][_msgSender()],
+            stakerDelegations[delegatee],
+            delegators[delegatee].length(),
+            delegations[delegatee][_msgSender()] == amount
         );
 
         // transfer morph token from delegator to this
@@ -379,7 +379,7 @@ contract L2Staking is
         if (
             rewardStart &&
             beforeRanking > latestSequencerSetSize &&
-            stakerRankings[staker] <= sequencerSetMaxSize
+            stakerRankings[delegatee] <= sequencerSetMaxSize
         ) {
             _updateSequencerSet();
         }
@@ -448,7 +448,7 @@ contract L2Staking is
             delegatee,
             _msgSender(),
             effectiveEpoch,
-            undelegation.amount,
+            stakerDelegations[delegatee],
             delegators[delegatee].length()
         );
 

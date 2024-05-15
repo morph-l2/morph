@@ -137,10 +137,10 @@ interface IL2Staking {
     /// @param commission    commission percentage
     function setCommissionRate(uint256 commission) external;
 
-    /// @notice delegator stake morph to staker
-    /// @param staker    stake to whom
-    /// @param amount    stake amount
-    function delegateStake(address staker, uint256 amount) external;
+    /// @notice delegator stake morph to delegatee
+    /// @param delegatee    stake to whom
+    /// @param amount       stake amount
+    function delegateStake(address delegatee, uint256 amount) external;
 
     /// @notice delegator unstake morph
     /// @param delegatee delegatee address
