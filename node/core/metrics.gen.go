@@ -26,6 +26,12 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "batch_point_height",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
+		BatchIndex: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "batch_index",
+			Help:      "",
+		}, labels).With(labelsAndValues...),
 		NextL1MessageQueueIndex: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: MetricsSubsystem,
@@ -39,6 +45,7 @@ func NopMetrics() *Metrics {
 	return &Metrics{
 		Height:                  discard.NewGauge(),
 		BatchPointHeight:        discard.NewGauge(),
+		BatchIndex:              discard.NewGauge(),
 		NextL1MessageQueueIndex: discard.NewGauge(),
 	}
 }
