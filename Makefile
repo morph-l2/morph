@@ -1,4 +1,4 @@
-.PHONY: update format
+################## update dependencies ####################
 
 ETHEREUM_TAG=v1.10.14-0.20240429050506-03fd4c3e771d
 TENDERMINT_TAG=v0.2.0-beta.0.20240513090937-03bf2a578b48
@@ -44,8 +44,15 @@ submodules:
 	git submodule update --remote 
 .PHONY: submodules
 
-lint: lint-go lint-contracts
+################## lint code ####################
+
+lint: lint-go lint-sol
 .PHONY: lint
+
+# npm install --global --save-dev solhint
+lint-sol:
+	solhint $$(find contracts -name '*.sol' -not -path '**/@openzeppelin/**')
+.PHONY: lint-sol
 
 lint-go:
 	cd $(PWD)/bindings/ && golangci-lint run --out-format=tab --timeout 10m
@@ -57,20 +64,17 @@ lint-go:
 	cd $(PWD)/tx-submitter/ && golangci-lint run --out-format=tab --timeout 10m
 .PHONY: lint-go
 
-# npm install --global --save-dev solhint
-lint-contracts:
-	solhint $$(find contracts -name '*.sol' -not -path '**/@openzeppelin/**')
-.PHONY: lint-contracts
+################## format code ####################
 
-format: format-go format-contracts
-.PHONY: format
+fmt: fmt-go fmt-sol
+.PHONY: fmt
 
-format-contracts:
+# npm install --global --save-dev prettier-plugin-solidity
+fmt-sol:
 	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
+.PHONY: fmt-sol
 
-.PHONY: format-contracts
-
-format-go: ## format the go code
+fmt-go:
 	go work sync
 	cd $(PWD)/bindings/ && go mod tidy
 	cd $(PWD)/contracts/ && go mod tidy
@@ -83,7 +87,9 @@ format-go: ## format the go code
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs gofmt -w -s
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs misspell -w
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs goimports -w -local $(PWD)/
-.PHONY: format-go
+.PHONY: fmt-go
+
+################## docker build ####################
 
 docker-build:
 	cd ops/docker && docker compose build
@@ -129,8 +135,6 @@ devnet-l1:
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
 .PHONY: devnet-logs
-
-
 
 # tx-submitter
 SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)
