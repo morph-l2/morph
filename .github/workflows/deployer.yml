@@ -1,0 +1,35 @@
+name: Deployer
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "bindings/**"
+            - "node/**"
+            - "ops/l2-genesis/**"
+            - ".github/workflows/deployer.yaml"
+    pull_request:
+        paths:
+            - "bindings/**"
+            - "node/**"
+            - "ops/l2-genesis/**"
+            - ".github/workflows/deployer.yaml"
+
+defaults:
+    run:
+        working-directory: "ops/l2-genesis"
+
+jobs:
+    tests:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
+            # - name: Run build
+            #   run: make build
+            # - name: Run tests
+            #   run: make test
