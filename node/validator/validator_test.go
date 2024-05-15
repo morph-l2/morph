@@ -26,14 +26,15 @@ func TestValidator_ChallengeState(t *testing.T) {
 	require.NoError(t, err)
 	sim.Commit()
 	v := Validator{
-		cli:        sim,
-		privateKey: key,
-		l1ChainID:  big.NewInt(1),
-		contract:   rollup,
+		cli:             sim,
+		privateKey:      key,
+		l1ChainID:       big.NewInt(1),
+		contract:        rollup,
+		challengeEnable: true,
 	}
 	err = v.ChallengeState(10)
 	log.Info("addr:", addr)
-	require.EqualError(t, err, "execution reverted: Batch not exist")
+	require.EqualError(t, err, "execution reverted: caller challenger allowed")
 }
 
 func newSimulatedBackend(key *ecdsa.PrivateKey) (*backends.SimulatedBackend, ethdb.Database) {
