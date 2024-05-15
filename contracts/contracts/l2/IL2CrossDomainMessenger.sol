@@ -12,10 +12,7 @@ interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     /// @notice Emitted when the maximum number of times each message can fail in L2 is updated.
     /// @param oldMaxFailedExecutionTimes The old maximum number of times each message can fail in L2.
     /// @param newMaxFailedExecutionTimes The new maximum number of times each message can fail in L2.
-    event UpdateMaxFailedExecutionTimes(
-        uint256 oldMaxFailedExecutionTimes,
-        uint256 newMaxFailedExecutionTimes
-    );
+    event UpdateMaxFailedExecutionTimes(uint256 oldMaxFailedExecutionTimes, uint256 newMaxFailedExecutionTimes);
 
     /*****************************
      * Public Mutating Functions *
@@ -28,11 +25,5 @@ interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     /// @param value The msg.value passed to the message call.
     /// @param nonce The nonce of the message to avoid replay attack.
     /// @param message The content of the message.
-    function relayMessage(
-        address from,
-        address to,
-        uint256 value,
-        uint256 nonce,
-        bytes calldata message
-    ) external;
+    function relayMessage(address from, address to, uint256 value, uint256 nonce, bytes calldata message) external;
 }

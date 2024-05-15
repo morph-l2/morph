@@ -10,11 +10,7 @@ import {IL1MessageQueueWithGasPriceOracle} from "./IL1MessageQueueWithGasPriceOr
 import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
 import {IWhitelist} from "../../libraries/common/IWhitelist.sol";
 
-contract L1MessageQueueWithGasPriceOracle is
-    OwnableUpgradeable,
-    IL1MessageQueue,
-    IL1MessageQueueWithGasPriceOracle
-{
+contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue, IL1MessageQueueWithGasPriceOracle {
     using BitMapsUpgradeable for BitMapsUpgradeable.BitMap;
 
     /*************
@@ -66,10 +62,7 @@ contract L1MessageQueueWithGasPriceOracle is
      **********************/
 
     modifier onlyMessenger() {
-        require(
-            _msgSender() == MESSENGER,
-            "Only callable by the L1CrossDomainMessenger"
-        );
+        require(_msgSender() == MESSENGER, "Only callable by the L1CrossDomainMessenger");
         _;
     }
 
@@ -82,16 +75,8 @@ contract L1MessageQueueWithGasPriceOracle is
     /// @param _messenger The address of `L1CrossDomainMessenger` contract.
     /// @param _rollup The address of `Rollup` contract.
     /// @param _enforcedTxGateway The address of `EnforcedTxGateway` contract.
-    constructor(
-        address _messenger,
-        address _rollup,
-        address _enforcedTxGateway
-    ) {
-        if (
-            _messenger == address(0) ||
-            _rollup == address(0) ||
-            _enforcedTxGateway == address(0)
-        ) {
+    constructor(address _messenger, address _rollup, address _enforcedTxGateway) {
+        if (_messenger == address(0) || _rollup == address(0) || _enforcedTxGateway == address(0)) {
             revert ErrZeroAddress();
         }
         _disableInitializers();
@@ -101,10 +86,7 @@ contract L1MessageQueueWithGasPriceOracle is
         ENFORCED_TX_GATEWAAY = _enforcedTxGateway;
     }
 
-    function initialize(
-        uint256 _maxGasLimit,
-        address _whitelistChecker
-    ) external initializer {
+    function initialize(uint256 _maxGasLimit, address _whitelistChecker) external initializer {
         OwnableUpgradeable.__Ownable_init();
         maxGasLimit = _maxGasLimit;
         whitelistChecker = _whitelistChecker;
@@ -120,21 +102,13 @@ contract L1MessageQueueWithGasPriceOracle is
     }
 
     /// @inheritdoc IL1MessageQueue
-    function getCrossDomainMessage(
-        uint256 _queueIndex
-    ) external view returns (bytes32) {
-        require(
-            _queueIndex < messageQueue.length,
-            "message index out of range"
-        );
+    function getCrossDomainMessage(uint256 _queueIndex) external view returns (bytes32) {
+        require(_queueIndex < messageQueue.length, "message index out of range");
         return messageQueue[_queueIndex];
     }
 
     /// @inheritdoc IL1MessageQueue
-    function estimateCrossDomainMessageFee(
-        address _sender,
-        uint256 _gasLimit
-    ) external view returns (uint256) {
+    function estimateCrossDomainMessageFee(address _sender, uint256 _gasLimit) external view returns (uint256) {
         // GasFee is waived for whitelisted users
         if (IWhitelist(whitelistChecker).isSenderAllowed(_sender)) {
             return 0;
@@ -143,15 +117,10 @@ contract L1MessageQueueWithGasPriceOracle is
     }
 
     /// @inheritdoc IL1MessageQueue
-    function calculateIntrinsicGasFee(
-        bytes calldata _calldata
-    ) public pure virtual returns (uint256) {
+    function calculateIntrinsicGasFee(bytes calldata _calldata) public pure virtual returns (uint256) {
         // no way this can overflow `uint256`
         unchecked {
-            return
-                INTRINSIC_GAS_TX +
-                _calldata.length *
-                APPROPRIATE_INTRINSIC_GAS_PER_BYTE;
+            return INTRINSIC_GAS_TX + _calldata.length * APPROPRIATE_INTRINSIC_GAS_PER_BYTE;
         }
     }
 
@@ -237,11 +206,7 @@ contract L1MessageQueueWithGasPriceOracle is
             switch eq(_data.length, 1)
             case 1 {
                 // single byte
-                ptr := store_uint_or_byte(
-                    ptr,
-                    byte(0, calldataload(_data.offset)),
-                    0
-                )
+                ptr := store_uint_or_byte(ptr, byte(0, calldataload(_data.offset)), 0)
             }
             default {
                 switch lt(_data.length, 56)
@@ -285,10 +250,7 @@ contract L1MessageQueueWithGasPriceOracle is
             value := or(value, shl(mul(8, value_bytes), transactionType))
             value_bytes := add(value_bytes, 1)
             let value_bits := mul(8, value_bytes)
-            value := or(
-                shl(sub(256, value_bits), value),
-                shr(value_bits, mload(start_ptr))
-            )
+            value := or(shl(sub(256, value_bits), value), shr(value_bits, mload(start_ptr)))
             start_ptr := sub(start_ptr, value_bytes)
             mstore(start_ptr, value)
             hash := keccak256(start_ptr, sub(ptr, start_ptr))
@@ -297,22 +259,16 @@ contract L1MessageQueueWithGasPriceOracle is
     }
 
     /// @inheritdoc IL1MessageQueue
-    function isMessageSkipped(
-        uint256 _queueIndex
-    ) external view returns (bool) {
+    function isMessageSkipped(uint256 _queueIndex) external view returns (bool) {
         if (_queueIndex >= pendingQueueIndex) return false;
 
         return _isMessageSkipped(_queueIndex);
     }
 
     /// @inheritdoc IL1MessageQueue
-    function isMessageDropped(
-        uint256 _queueIndex
-    ) external view returns (bool) {
+    function isMessageDropped(uint256 _queueIndex) external view returns (bool) {
         // it should be a skipped message first.
-        return
-            _isMessageSkipped(_queueIndex) &&
-            droppedMessageBitmap.get(_queueIndex);
+        return _isMessageSkipped(_queueIndex) && droppedMessageBitmap.get(_queueIndex);
     }
 
     /*****************************
@@ -351,10 +307,7 @@ contract L1MessageQueueWithGasPriceOracle is
         uint256 _gasLimit,
         bytes calldata _data
     ) external override {
-        require(
-            _msgSender() == ENFORCED_TX_GATEWAAY,
-            "Only callable by the EnforcedTxGateway"
-        );
+        require(_msgSender() == ENFORCED_TX_GATEWAAY, "Only callable by the EnforcedTxGateway");
         // We will check it in EnforcedTxGateway, just in case.
         require(_sender.code.length == 0, "only EOA");
 
@@ -365,11 +318,7 @@ contract L1MessageQueueWithGasPriceOracle is
     }
 
     /// @inheritdoc IL1MessageQueue
-    function popCrossDomainMessage(
-        uint256 _startIndex,
-        uint256 _count,
-        uint256 _skippedBitmap
-    ) external {
+    function popCrossDomainMessage(uint256 _startIndex, uint256 _count, uint256 _skippedBitmap) external {
         require(_msgSender() == ROLLUP_CONTRACT, "Only callable by the rollup");
 
         require(_count <= 256, "pop too many messages");
@@ -384,9 +333,7 @@ contract L1MessageQueueWithGasPriceOracle is
             uint256 offset = _startIndex & 0xff;
             skippedMessageBitmap[bucket] |= _skippedBitmap << offset;
             if (offset + _count > 256) {
-                skippedMessageBitmap[bucket + 1] =
-                    _skippedBitmap >>
-                    (256 - offset);
+                skippedMessageBitmap[bucket + 1] = _skippedBitmap >> (256 - offset);
             }
 
             pendingQueueIndex = _startIndex + _count;
@@ -423,9 +370,7 @@ contract L1MessageQueueWithGasPriceOracle is
     /// @notice Update whitelist checker contract.
     /// @dev This function can only called by contract owner.
     /// @param _newWhitelistChecker The address of new whitelist checker contract.
-    function updateWhitelistChecker(
-        address _newWhitelistChecker
-    ) external onlyOwner {
+    function updateWhitelistChecker(address _newWhitelistChecker) external onlyOwner {
         emit UpdateWhitelistChecker(whitelistChecker, _newWhitelistChecker);
         whitelistChecker = _newWhitelistChecker;
     }
@@ -449,41 +394,18 @@ contract L1MessageQueueWithGasPriceOracle is
     ) internal {
         // compute transaction hash
         uint256 _queueIndex = messageQueue.length;
-        bytes32 _hash = computeTransactionHash(
-            _sender,
-            _queueIndex,
-            _value,
-            _target,
-            _gasLimit,
-            _data
-        );
+        bytes32 _hash = computeTransactionHash(_sender, _queueIndex, _value, _target, _gasLimit, _data);
         messageQueue.push(_hash);
 
         // emit event
-        emit QueueTransaction(
-            _sender,
-            _target,
-            _value,
-            uint64(_queueIndex),
-            _gasLimit,
-            _data
-        );
+        emit QueueTransaction(_sender, _target, _value, uint64(_queueIndex), _gasLimit, _data);
     }
 
-    function _validateGasLimit(
-        uint256 _gasLimit,
-        bytes calldata _calldata
-    ) internal view {
-        require(
-            _gasLimit <= maxGasLimit,
-            "Gas limit must not exceed maxGasLimit"
-        );
+    function _validateGasLimit(uint256 _gasLimit, bytes calldata _calldata) internal view {
+        require(_gasLimit <= maxGasLimit, "Gas limit must not exceed maxGasLimit");
         // check if the gas limit is above intrinsic gas
         uint256 intrinsicGas = calculateIntrinsicGasFee(_calldata);
-        require(
-            _gasLimit >= intrinsicGas,
-            "Insufficient gas limit, must be above intrinsic gas"
-        );
+        require(_gasLimit >= intrinsicGas, "Insufficient gas limit, must be above intrinsic gas");
     }
 
     /// @dev Returns whether the bit at `index` is set.

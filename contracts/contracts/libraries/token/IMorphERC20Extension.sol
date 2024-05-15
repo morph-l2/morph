@@ -13,11 +13,7 @@ interface IMorphERC20Extension {
     /// @dev ERC677 Standard, see https://github.com/ethereum/EIPs/issues/677
     /// Defi can use this method to transfer L1/L2 token to L2/L1,
     /// and deposit to L2/L1 contract in one transaction
-    function transferAndCall(
-        address receiver,
-        uint256 amount,
-        bytes calldata data
-    ) external returns (bool success);
+    function transferAndCall(address receiver, uint256 amount, bytes calldata data) external returns (bool success);
 
     /// @notice Mint some token to recipient's account.
     /// @dev Gateway Utilities, only gateway contract can call

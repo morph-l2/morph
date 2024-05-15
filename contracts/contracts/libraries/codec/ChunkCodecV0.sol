@@ -38,26 +38,20 @@ library ChunkCodecV0 {
     /// @param chunkPtr The start memory offset of the chunk in memory.
     /// @param _length The length of the chunk.
     /// @return _numBlocks The number of blocks in current chunk.
-    function validateChunkLength(
-        uint256 chunkPtr,
-        uint256 _length
-    ) internal pure returns (uint256 _numBlocks) {
+    function validateChunkLength(uint256 chunkPtr, uint256 _length) internal pure returns (uint256 _numBlocks) {
         _numBlocks = getNumBlocks(chunkPtr);
 
         // should contain at least one block
         if (_numBlocks == 0) revert ErrorNoBlockInChunk();
 
         // should contain the number of the blocks and block contexts
-        if (_length != 1 + _numBlocks * BLOCK_CONTEXT_LENGTH)
-            revert ErrorIncorrectChunkLength();
+        if (_length != 1 + _numBlocks * BLOCK_CONTEXT_LENGTH) revert ErrorIncorrectChunkLength();
     }
 
     /// @notice Return the number of blocks in current chunk.
     /// @param chunkPtr The start memory offset of the chunk in memory.
     /// @return _numBlocks The number of blocks in current chunk.
-    function getNumBlocks(
-        uint256 chunkPtr
-    ) internal pure returns (uint256 _numBlocks) {
+    function getNumBlocks(uint256 chunkPtr) internal pure returns (uint256 _numBlocks) {
         assembly {
             _numBlocks := shr(248, mload(chunkPtr))
         }
@@ -68,21 +62,14 @@ library ChunkCodecV0 {
     /// @param dstPtr The destination memory offset to store the block context.
     /// @param index The index of block context to copy.
     /// @return uint256 The new destination memory offset after copy.
-    function copyBlockContext(
-        uint256 chunkPtr,
-        uint256 dstPtr,
-        uint256 index
-    ) internal pure returns (uint256) {
+    function copyBlockContext(uint256 chunkPtr, uint256 dstPtr, uint256 index) internal pure returns (uint256) {
         // only first 58 bytes is needed.
         assembly {
             chunkPtr := add(chunkPtr, add(1, mul(BLOCK_CONTEXT_LENGTH, index)))
             mstore(dstPtr, mload(chunkPtr)) // first 32 bytes
             mstore(
                 add(dstPtr, 0x20),
-                and(
-                    mload(add(chunkPtr, 0x20)),
-                    0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
-                )
+                and(mload(add(chunkPtr, 0x20)), 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000)
             ) // next 26 bytes
 
             dstPtr := add(dstPtr, 58)
@@ -94,9 +81,7 @@ library ChunkCodecV0 {
     /// @notice Return the number of transactions in current block.
     /// @param blockPtr The start memory offset of the block context in memory.
     /// @return _numTransactions The number of transactions in current block.
-    function getNumTransactions(
-        uint256 blockPtr
-    ) internal pure returns (uint256 _numTransactions) {
+    function getNumTransactions(uint256 blockPtr) internal pure returns (uint256 _numTransactions) {
         assembly {
             _numTransactions := shr(240, mload(add(blockPtr, 56)))
         }
@@ -105,9 +90,7 @@ library ChunkCodecV0 {
     /// @notice Return the number of L1 messages in current block.
     /// @param blockPtr The start memory offset of the block context in memory.
     /// @return _numL1Messages The number of L1 messages in current block.
-    function getNumL1Messages(
-        uint256 blockPtr
-    ) internal pure returns (uint256 _numL1Messages) {
+    function getNumL1Messages(uint256 blockPtr) internal pure returns (uint256 _numL1Messages) {
         assembly {
             _numL1Messages := shr(240, mload(add(blockPtr, 58)))
         }
@@ -116,9 +99,7 @@ library ChunkCodecV0 {
     /// @notice Return the number of the block.
     /// @param blockPtr The start memory offset of the block context in memory.
     /// @return _blockNumber The block number of blockPtr in current block.
-    function getBlockNumber(
-        uint256 blockPtr
-    ) internal pure returns (uint256 _blockNumber) {
+    function getBlockNumber(uint256 blockPtr) internal pure returns (uint256 _blockNumber) {
         assembly {
             _blockNumber := shr(192, mload(blockPtr))
         }

@@ -72,33 +72,20 @@ interface IL2ERC721Gateway {
     /// @param token The address of ERC721 NFT on layer 2.
     /// @param tokenId The token id to withdraw.
     /// @param gasLimit Unused, but included for potential forward compatibility considerations.
-    function withdrawERC721(
-        address token,
-        uint256 tokenId,
-        uint256 gasLimit
-    ) external payable;
+    function withdrawERC721(address token, uint256 tokenId, uint256 gasLimit) external payable;
 
     /// @notice Withdraw some ERC721 NFT to caller's account on layer 1.
     /// @param token The address of ERC721 NFT on layer 2.
     /// @param to The address of recipient on layer 1.
     /// @param tokenId The token id to withdraw.
     /// @param gasLimit Unused, but included for potential forward compatibility considerations.
-    function withdrawERC721(
-        address token,
-        address to,
-        uint256 tokenId,
-        uint256 gasLimit
-    ) external payable;
+    function withdrawERC721(address token, address to, uint256 tokenId, uint256 gasLimit) external payable;
 
     /// @notice Batch withdraw a list of ERC721 NFT to caller's account on layer 1.
     /// @param token The address of ERC721 NFT on layer 2.
     /// @param tokenIds The list of token ids to withdraw.
     /// @param gasLimit Unused, but included for potential forward compatibility considerations.
-    function batchWithdrawERC721(
-        address token,
-        uint256[] memory tokenIds,
-        uint256 gasLimit
-    ) external payable;
+    function batchWithdrawERC721(address token, uint256[] memory tokenIds, uint256 gasLimit) external payable;
 
     /// @notice Batch withdraw a list of ERC721 NFT to caller's account on layer 1.
     /// @param token The address of ERC721 NFT on layer 2.

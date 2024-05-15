@@ -29,9 +29,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         hevm.prank(multisig);
         l1MessageQueue.updateMaxGasLimit(100);
         hevm.prank(alice);
-        hevm.expectRevert(
-            "Insufficient gas limit, must be above intrinsic gas"
-        );
+        hevm.expectRevert("Insufficient gas limit, must be above intrinsic gas");
         l1MessageQueue.appendCrossDomainMessage(alice, 3, "0x0");
     }
 
@@ -45,14 +43,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         bytes memory _calldata = "0x0";
         uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee("0x0");
         hevm.expectEmit(true, true, true, true);
-        emit IL1MessageQueue.QueueTransaction(
-            sender,
-            alice,
-            0,
-            0,
-            gasLimit,
-            _calldata
-        );
+        emit IL1MessageQueue.QueueTransaction(sender, alice, 0, 0, gasLimit, _calldata);
         hevm.startPrank(alice);
         l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
         assertEq(1, l1MessageQueue.nextCrossDomainMessageIndex());
@@ -67,13 +58,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         bytes memory _calldata = "0x0";
         uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee("0x0");
         hevm.prank(alice);
-        l1MessageQueue.appendEnforcedTransaction(
-            alice,
-            bob,
-            0,
-            gasLimit,
-            _calldata
-        );
+        l1MessageQueue.appendEnforcedTransaction(alice, bob, 0, gasLimit, _calldata);
         assertEq(1, l1MessageQueue.nextCrossDomainMessageIndex());
     }
 

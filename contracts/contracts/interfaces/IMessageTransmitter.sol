@@ -7,9 +7,7 @@ pragma solidity =0.8.24;
 interface IMessageTransmitter {
     /// @notice Compute the nonce of a message.
     /// @param _sourceAndNonce The bytes contains source and nonce.
-    function usedNonces(
-        bytes32 _sourceAndNonce
-    ) external view returns (uint256);
+    function usedNonces(bytes32 _sourceAndNonce) external view returns (uint256);
 
     /**
      * @notice Receives an incoming message, validating the header and passing
@@ -18,8 +16,5 @@ interface IMessageTransmitter {
      * @param signature The message signature
      * @return success bool, true if successful
      */
-    function receiveMessage(
-        bytes calldata message,
-        bytes calldata signature
-    ) external returns (bool success);
+    function receiveMessage(bytes calldata message, bytes calldata signature) external returns (bool success);
 }

@@ -39,11 +39,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.initialize(0, 0, 0, _stakerInfos);
 
         // reset initialize
-        hevm.store(
-            address(l2Staking),
-            bytes32(uint256(0)),
-            bytes32(uint256(0))
-        );
+        hevm.store(address(l2Staking), bytes32(uint256(0)), bytes32(uint256(0)));
 
         hevm.expectRevert("sequencersSize must greater than 0");
         hevm.prank(multisig);
@@ -100,10 +96,7 @@ contract L2StakingTest is L2StakingBaseTest {
             assertEq(ranking, i + 1);
         }
 
-        assertEq(
-            sequencer.getSequencerSet2Size(),
-            l2Staking.sequencerSetMaxSize()
-        );
+        assertEq(sequencer.getSequencerSet2Size(), l2Staking.sequencerSetMaxSize());
     }
 
     /**
@@ -450,8 +443,7 @@ contract L2StakingTest is L2StakingBaseTest {
             sequencerCommissions[i] = l2Staking.commissions(sequencers[i]);
         }
 
-        IRecord.RewardEpochInfo[]
-            memory rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
+        IRecord.RewardEpochInfo[] memory rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
 
         rewardEpochInfos[0] = IRecord.RewardEpochInfo(
             epochIndex,
@@ -467,8 +459,7 @@ contract L2StakingTest is L2StakingBaseTest {
         record.recordRewardEpochs(rewardEpochInfos);
         hevm.stopPrank();
 
-        uint256 totalInflations = (totalSupply * 1596535874529) /
-            INFLATION_RATIO_PRECISION;
+        uint256 totalInflations = (totalSupply * 1596535874529) / INFLATION_RATIO_PRECISION;
         uint256 inflationAmount = morphToken.inflation(epochIndex);
         assertEq(totalInflations, inflationAmount);
 
@@ -556,8 +547,7 @@ contract L2StakingTest is L2StakingBaseTest {
         // check the reward
 
         uint256 commissionRate = l2Staking.commissions(secondStaker);
-        uint256 sequencerEpochReward = ((totalInflations *
-            (SEQUENCER_RATIO_PRECISION / sequencerSize)) /
+        uint256 sequencerEpochReward = ((totalInflations * (SEQUENCER_RATIO_PRECISION / sequencerSize)) /
             SEQUENCER_RATIO_PRECISION);
         uint256 commission = (sequencerEpochReward * commissionRate) / 100;
         uint256 delegatorReward = sequencerEpochReward - commission;
@@ -669,8 +659,7 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256 totalReward = 0;
         for (uint256 i = 0; i < validEpoch; i++) {
             uint256 commissionRate = l2Staking.commissions(secondStaker);
-            uint256 sequencerEpochReward = ((rewardInflations[i] *
-                (SEQUENCER_RATIO_PRECISION / SEQUENCER_SIZE)) /
+            uint256 sequencerEpochReward = ((rewardInflations[i] * (SEQUENCER_RATIO_PRECISION / SEQUENCER_SIZE)) /
                 SEQUENCER_RATIO_PRECISION);
             uint256 commission = (sequencerEpochReward * commissionRate) / 100;
             uint256 delegatorReward = sequencerEpochReward - commission;
@@ -704,9 +693,7 @@ contract L2StakingTest is L2StakingBaseTest {
      */
     function test_getStakesInfo_succeeds() public {
         address[] memory _sequencerAddresses = new address[](SEQUENCER_SIZE);
-        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
-            SEQUENCER_SIZE
-        );
+        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](SEQUENCER_SIZE);
 
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address user = address(uint160(beginSeq + i));
@@ -715,9 +702,7 @@ contract L2StakingTest is L2StakingBaseTest {
             _sequencerAddresses[i] = stakerInfo.addr;
         }
 
-        Types.StakerInfo[] memory stakerInfos1 = l2Staking.getStakesInfo(
-            _sequencerAddresses
-        );
+        Types.StakerInfo[] memory stakerInfos1 = l2Staking.getStakesInfo(_sequencerAddresses);
 
         // check params
         assertEq(stakerInfos1.length, stakerInfos0.length);
@@ -731,9 +716,7 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice get stakers
      */
     function test_getStakers_succeeds() public {
-        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](
-            SEQUENCER_SIZE
-        );
+        Types.StakerInfo[] memory stakerInfos0 = new Types.StakerInfo[](SEQUENCER_SIZE);
 
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             address user = address(uint160(beginSeq + i));

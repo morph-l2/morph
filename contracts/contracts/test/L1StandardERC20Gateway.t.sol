@@ -30,9 +30,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
 
         counterpartGateway = l1StandardERC20Gateway.counterpart();
 
-        l2Token = MockERC20(
-            l1StandardERC20Gateway.getL2ERC20Address(address(l1Token))
-        );
+        l2Token = MockERC20(l1StandardERC20Gateway.getL2ERC20Address(address(l1Token)));
         l1Token.mint(address(this), type(uint128).max);
         reentrantToken.mint(address(this), type(uint128).max);
         feeToken.mint(address(this), type(uint128).max);
@@ -43,10 +41,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         l1Token.approve(address(l1GatewayRouter), type(uint256).max);
         feeToken.approve(address(l1StandardERC20Gateway), type(uint256).max);
         feeToken.approve(address(l1GatewayRouter), type(uint256).max);
-        reentrantToken.approve(
-            address(l1StandardERC20Gateway),
-            type(uint256).max
-        );
+        reentrantToken.approve(address(l1StandardERC20Gateway), type(uint256).max);
         reentrantToken.approve(address(l1GatewayRouter), type(uint256).max);
     }
 
@@ -54,26 +49,15 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         hevm.assume(l1Address != address(0));
         assertEq(
             l1StandardERC20Gateway.getL2ERC20Address(l1Address),
-            factory.computeL2TokenAddress(
-                address(counterpartGateway),
-                l1Address
-            )
+            factory.computeL2TokenAddress(address(counterpartGateway), l1Address)
         );
     }
 
-    function test_depositERC20_succeeds(
-        uint256 amount,
-        uint256 gasLimit,
-        uint256 feePerGas
-    ) public {
+    function test_depositERC20_succeeds(uint256 amount, uint256 gasLimit, uint256 feePerGas) public {
         _depositERC20(false, amount, gasLimit, feePerGas);
     }
 
-    function test_routerDepositERC20_succeeds(
-        uint256 amount,
-        uint256 gasLimit,
-        uint256 feePerGas
-    ) public {
+    function test_routerDepositERC20_succeeds(uint256 amount, uint256 gasLimit, uint256 feePerGas) public {
         _depositERC20(true, amount, gasLimit, feePerGas);
     }
 
@@ -83,13 +67,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         uint256 gasLimit,
         uint256 feePerGas
     ) public {
-        _depositERC20WithRecipient(
-            false,
-            amount,
-            recipient,
-            gasLimit,
-            feePerGas
-        );
+        _depositERC20WithRecipient(false, amount, recipient, gasLimit, feePerGas);
     }
 
     function test_depositERC20WithRecipientAndCalldata_succeeds(
@@ -99,14 +77,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         uint256 gasLimit,
         uint256 feePerGas
     ) public {
-        _depositERC20WithRecipientAndCalldata(
-            false,
-            amount,
-            recipient,
-            dataToCall,
-            gasLimit,
-            feePerGas
-        );
+        _depositERC20WithRecipientAndCalldata(false, amount, recipient, dataToCall, gasLimit, feePerGas);
     }
 
     function test_routerDepositERC20WithRecipient_succeeds(
@@ -115,13 +86,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         uint256 gasLimit,
         uint256 feePerGas
     ) public {
-        _depositERC20WithRecipient(
-            true,
-            amount,
-            recipient,
-            gasLimit,
-            feePerGas
-        );
+        _depositERC20WithRecipient(true, amount, recipient, gasLimit, feePerGas);
     }
 
     function tes_routerDepositERC20WithRecipientAndCalldata_succeeds(
@@ -131,14 +96,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         uint256 gasLimit,
         uint256 feePerGas
     ) public {
-        _depositERC20WithRecipientAndCalldata(
-            true,
-            amount,
-            recipient,
-            dataToCall,
-            gasLimit,
-            feePerGas
-        );
+        _depositERC20WithRecipientAndCalldata(true, amount, recipient, dataToCall, gasLimit, feePerGas);
     }
 
     function test_depositReentrantToken_succeeds(uint256 amount) public {
@@ -146,83 +104,46 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         reentrantToken.setReentrantCall(
             address(l1StandardERC20Gateway),
             0,
-            abi.encodeWithSignature(
-                "depositERC20(address,uint256,uint256)",
-                address(0),
-                1,
-                0
-            ),
+            abi.encodeWithSignature("depositERC20(address,uint256,uint256)", address(0), 1, 0),
             true
         );
         amount = bound(amount, 1, reentrantToken.balanceOf(address(this)));
         hevm.expectRevert("ReentrancyGuard: reentrant call");
-        l1StandardERC20Gateway.depositERC20(
-            address(reentrantToken),
-            amount,
-            defaultGasLimit
-        );
+        l1StandardERC20Gateway.depositERC20(address(reentrantToken), amount, defaultGasLimit);
 
         // should revert, reentrant after transfer
         reentrantToken.setReentrantCall(
             address(l1StandardERC20Gateway),
             0,
-            abi.encodeWithSignature(
-                "depositERC20(address,uint256,uint256)",
-                address(0),
-                1,
-                0
-            ),
+            abi.encodeWithSignature("depositERC20(address,uint256,uint256)", address(0), 1, 0),
             false
         );
         amount = bound(amount, 1, reentrantToken.balanceOf(address(this)));
         hevm.expectRevert("ReentrancyGuard: reentrant call");
-        l1StandardERC20Gateway.depositERC20(
-            address(reentrantToken),
-            amount,
-            defaultGasLimit
-        );
+        l1StandardERC20Gateway.depositERC20(address(reentrantToken), amount, defaultGasLimit);
     }
 
     function test_feeOnTransferToken_zeroAmount_fails(uint256 amount) public {
         feeToken.setFeeRate(1e9);
         amount = bound(amount, 1, feeToken.balanceOf(address(this)));
         hevm.expectRevert("deposit zero amount");
-        l1StandardERC20Gateway.depositERC20(
-            address(feeToken),
-            amount,
-            defaultGasLimit
-        );
+        l1StandardERC20Gateway.depositERC20(address(feeToken), amount, defaultGasLimit);
     }
 
-    function test_feeOnTransferToken_succeeds(
-        uint256 amount,
-        uint256 feeRate
-    ) public {
+    function test_feeOnTransferToken_succeeds(uint256 amount, uint256 feeRate) public {
         feeRate = bound(feeRate, 0, 1e9 - 1);
         amount = bound(amount, 1e9, feeToken.balanceOf(address(this)));
         feeToken.setFeeRate(feeRate);
 
         // should succeed, for valid amount
-        uint256 balanceBefore = feeToken.balanceOf(
-            address(l1StandardERC20Gateway)
-        );
+        uint256 balanceBefore = feeToken.balanceOf(address(l1StandardERC20Gateway));
         uint256 fee = (amount * feeRate) / 1e9;
-        l1StandardERC20Gateway.depositERC20(
-            address(feeToken),
-            amount,
-            defaultGasLimit
-        );
-        uint256 balanceAfter = feeToken.balanceOf(
-            address(l1StandardERC20Gateway)
-        );
+        l1StandardERC20Gateway.depositERC20(address(feeToken), amount, defaultGasLimit);
+        uint256 balanceAfter = feeToken.balanceOf(address(l1StandardERC20Gateway));
         assertEq(balanceBefore + amount - fee, balanceAfter);
     }
 
-    function test_dropMessage_succeeds(
-        uint256 amount,
-        address recipient,
-        bytes memory dataToCall
-    ) public {
+    function test_dropMessage_succeeds(uint256 amount, address recipient, bytes memory dataToCall) public {
         amount = bound(amount, 1, l1Token.balanceOf(address(this)) / 2);
         bytes memory message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
@@ -234,31 +155,12 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 amount,
                 abi.encode(
                     true,
-                    abi.encode(
-                        dataToCall,
-                        abi.encode(
-                            l1Token.symbol(),
-                            l1Token.name(),
-                            l1Token.decimals()
-                        )
-                    )
+                    abi.encode(dataToCall, abi.encode(l1Token.symbol(), l1Token.name(), l1Token.decimals()))
                 )
             )
         );
-        l1StandardERC20Gateway.depositERC20AndCall(
-            address(l1Token),
-            recipient,
-            amount,
-            dataToCall,
-            defaultGasLimit
-        );
-        l1StandardERC20Gateway.depositERC20AndCall(
-            address(l1Token),
-            recipient,
-            amount,
-            dataToCall,
-            defaultGasLimit
-        );
+        l1StandardERC20Gateway.depositERC20AndCall(address(l1Token), recipient, amount, dataToCall, defaultGasLimit);
+        l1StandardERC20Gateway.depositERC20AndCall(address(l1Token), recipient, amount, dataToCall, defaultGasLimit);
 
         // skip message 0 and 1
         hevm.startPrank(address(rollup));
@@ -268,20 +170,10 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
 
         // drop message 1
         hevm.expectEmit(true, true, false, true);
-        emit IL1ERC20Gateway.RefundERC20(
-            address(l1Token),
-            address(this),
-            amount
-        );
+        emit IL1ERC20Gateway.RefundERC20(address(l1Token), address(this), amount);
 
         uint256 balance = l1Token.balanceOf(address(this));
-        l1CrossDomainMessenger.dropMessage(
-            address(l1StandardERC20Gateway),
-            address(counterpartGateway),
-            0,
-            1,
-            message
-        );
+        l1CrossDomainMessenger.dropMessage(address(l1StandardERC20Gateway), address(counterpartGateway), 0, 1, message);
         assertEq(balance + amount, l1Token.balanceOf(address(this)));
     }
 
@@ -297,56 +189,31 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         address _from = address(uint160(address(counterpartGateway)) + 1);
 
         // deposit some token to L1StandardERC20Gateway
-        l1StandardERC20Gateway.depositERC20(
-            address(l1Token),
-            amount,
-            defaultGasLimit
-        );
+        l1StandardERC20Gateway.depositERC20(address(l1Token), amount, defaultGasLimit);
 
         // do finalize withdraw token
         bytes memory message = abi.encodeCall(
             IL1ERC20Gateway.finalizeWithdrawERC20,
-            (
-                address(l1Token),
-                address(l2Token),
-                _from,
-                recipient,
-                amount,
-                dataToCall
-            )
+            (address(l1Token), address(l2Token), _from, recipient, amount, dataToCall)
         );
         bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(
-                _from,
-                address(l1StandardERC20Gateway),
-                0,
-                0,
-                message
-            )
+            _encodeXDomainCalldata(_from, address(l1StandardERC20Gateway), 0, 0, message)
         );
-        (
-            bytes32[32] memory wdProof,
-            bytes32 wdRoot
-        ) = messageProveAndRelayPrepare(
-                _from,
-                address(l1StandardERC20Gateway),
-                0,
-                0,
-                message
-            );
+        (bytes32[32] memory wdProof, bytes32 wdRoot) = messageProveAndRelayPrepare(
+            _from,
+            address(l1StandardERC20Gateway),
+            0,
+            0,
+            message
+        );
         // counterpart is not L2WETHGateway
         // emit FailedRelayedMessage from L1CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
         emit ICrossDomainMessenger.FailedRelayedMessage(_xDomainCalldataHash);
 
-        uint256 gatewayBalance = l1Token.balanceOf(
-            address(l1StandardERC20Gateway)
-        );
+        uint256 gatewayBalance = l1Token.balanceOf(address(l1StandardERC20Gateway));
         uint256 recipientBalance = l1Token.balanceOf(recipient);
-        assertBoolEq(
-            false,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
+        assertBoolEq(false, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
 
         l1CrossDomainMessenger.proveAndRelayMessage(
             _from,
@@ -357,65 +224,35 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             wdProof,
             wdRoot
         );
-        assertEq(
-            gatewayBalance,
-            l1Token.balanceOf(address(l1StandardERC20Gateway))
-        );
+        assertEq(gatewayBalance, l1Token.balanceOf(address(l1StandardERC20Gateway)));
         assertEq(recipientBalance, l1Token.balanceOf(recipient));
-        assertBoolEq(
-            false,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
+        assertBoolEq(false, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
     }
 
-    function test_finalizeWithdrawERC20_succeeds(
-        address sender,
-        uint256 amount,
-        bytes memory dataToCall
-    ) public {
+    function test_finalizeWithdrawERC20_succeeds(address sender, uint256 amount, bytes memory dataToCall) public {
         address recipient = address(2048);
         address _from = address(counterpartGateway);
 
         amount = bound(amount, 1, l1Token.balanceOf(address(this)));
 
         // deposit some token to L1StandardERC20Gateway
-        l1StandardERC20Gateway.depositERC20(
-            address(l1Token),
-            amount,
-            defaultGasLimit
-        );
+        l1StandardERC20Gateway.depositERC20(address(l1Token), amount, defaultGasLimit);
 
         // do finalize withdraw token
         bytes memory message = abi.encodeCall(
             IL1ERC20Gateway.finalizeWithdrawERC20,
-            (
-                address(l1Token),
-                address(l2Token),
-                sender,
-                address(recipient),
-                amount,
-                dataToCall
-            )
+            (address(l1Token), address(l2Token), sender, address(recipient), amount, dataToCall)
         );
         bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(
-                _from,
-                address(l1StandardERC20Gateway),
-                0,
-                0,
-                message
-            )
+            _encodeXDomainCalldata(_from, address(l1StandardERC20Gateway), 0, 0, message)
         );
-        (
-            bytes32[32] memory wdProof,
-            bytes32 wdRoot
-        ) = messageProveAndRelayPrepare(
-                _from,
-                address(l1StandardERC20Gateway),
-                0,
-                0,
-                message
-            );
+        (bytes32[32] memory wdProof, bytes32 wdRoot) = messageProveAndRelayPrepare(
+            _from,
+            address(l1StandardERC20Gateway),
+            0,
+            0,
+            message
+        );
 
         // emit FinalizeWithdrawERC20 from L1StandardERC20Gateway
         {
@@ -436,14 +273,9 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             emit ICrossDomainMessenger.RelayedMessage(_xDomainCalldataHash);
         }
 
-        uint256 gatewayBalance = l1Token.balanceOf(
-            address(l1StandardERC20Gateway)
-        );
+        uint256 gatewayBalance = l1Token.balanceOf(address(l1StandardERC20Gateway));
         uint256 recipientBalance = l1Token.balanceOf(address(recipient));
-        assertBoolEq(
-            false,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
+        assertBoolEq(false, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
 
         l1CrossDomainMessenger.proveAndRelayMessage(
             _from,
@@ -454,26 +286,12 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             wdProof,
             wdRoot
         );
-        assertEq(
-            gatewayBalance - amount,
-            l1Token.balanceOf(address(l1StandardERC20Gateway))
-        );
-        assertEq(
-            recipientBalance + amount,
-            l1Token.balanceOf(address(recipient))
-        );
-        assertBoolEq(
-            true,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
+        assertEq(gatewayBalance - amount, l1Token.balanceOf(address(l1StandardERC20Gateway)));
+        assertEq(recipientBalance + amount, l1Token.balanceOf(address(recipient)));
+        assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
     }
 
-    function _depositERC20(
-        bool useRouter,
-        uint256 amount,
-        uint256 gasLimit,
-        uint256 feePerGas
-    ) private {
+    function _depositERC20(bool useRouter, uint256 amount, uint256 gasLimit, uint256 feePerGas) private {
         amount = bound(amount, 0, l1Token.balanceOf(address(this)));
         gasLimit = bound(gasLimit, defaultGasLimit / 2, defaultGasLimit);
         feePerGas = bound(feePerGas, 0, 1000);
@@ -492,14 +310,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 amount,
                 abi.encode(
                     true,
-                    abi.encode(
-                        new bytes(0),
-                        abi.encode(
-                            l1Token.symbol(),
-                            l1Token.name(),
-                            l1Token.decimals()
-                        )
-                    )
+                    abi.encode(new bytes(0), abi.encode(l1Token.symbol(), l1Token.name(), l1Token.decimals()))
                 )
             )
         );
@@ -514,31 +325,16 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         if (amount == 0) {
             hevm.expectRevert("deposit zero amount");
             if (useRouter) {
-                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(
-                    address(l1Token),
-                    amount,
-                    gasLimit
-                );
+                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
             } else {
-                l1StandardERC20Gateway.depositERC20{
-                    value: feeToPay + extraValue
-                }(address(l1Token), amount, gasLimit);
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
             }
         } else {
             // emit QueueTransaction from L1MessageQueue
             {
                 hevm.expectEmit(true, true, false, true);
-                address sender = AddressAliasHelper.applyL1ToL2Alias(
-                    address(l1CrossDomainMessenger)
-                );
-                emit IL1MessageQueue.QueueTransaction(
-                    sender,
-                    address(l2Messenger),
-                    0,
-                    0,
-                    gasLimit,
-                    xDomainCalldata
-                );
+                address sender = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+                emit IL1MessageQueue.QueueTransaction(sender, address(l2Messenger), 0, 0, gasLimit, xDomainCalldata);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -566,38 +362,17 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 0
             );
 
-            uint256 l1StandardERC20GatewayBalance = l1Token.balanceOf(
-                address(l1StandardERC20Gateway)
-            );
+            uint256 l1StandardERC20GatewayBalance = l1Token.balanceOf(address(l1StandardERC20Gateway));
             uint256 feeVaultBalance = address(l1FeeVault).balance;
-            assertEq(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(
-                    address(l1Token),
-                    amount,
-                    gasLimit
-                );
+                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
             } else {
-                l1StandardERC20Gateway.depositERC20{
-                    value: feeToPay + extraValue
-                }(address(l1Token), amount, gasLimit);
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
             }
-            assertEq(
-                amount + l1StandardERC20GatewayBalance,
-                l1Token.balanceOf(address(l1StandardERC20Gateway))
-            );
+            assertEq(amount + l1StandardERC20GatewayBalance, l1Token.balanceOf(address(l1StandardERC20Gateway)));
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
-            assertGt(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertGt(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
         }
     }
 
@@ -626,14 +401,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 amount,
                 abi.encode(
                     true,
-                    abi.encode(
-                        new bytes(0),
-                        abi.encode(
-                            l1Token.symbol(),
-                            l1Token.name(),
-                            l1Token.decimals()
-                        )
-                    )
+                    abi.encode(new bytes(0), abi.encode(l1Token.symbol(), l1Token.name(), l1Token.decimals()))
                 )
             )
         );
@@ -655,25 +423,19 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                     gasLimit
                 );
             } else {
-                l1StandardERC20Gateway.depositERC20{
-                    value: feeToPay + extraValue
-                }(address(l1Token), recipient, amount, gasLimit);
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(
+                    address(l1Token),
+                    recipient,
+                    amount,
+                    gasLimit
+                );
             }
         } else {
             // emit QueueTransaction from L1MessageQueue
             {
                 hevm.expectEmit(true, true, false, true);
-                address sender = AddressAliasHelper.applyL1ToL2Alias(
-                    address(l1CrossDomainMessenger)
-                );
-                emit IL1MessageQueue.QueueTransaction(
-                    sender,
-                    address(l2Messenger),
-                    0,
-                    0,
-                    gasLimit,
-                    xDomainCalldata
-                );
+                address sender = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+                emit IL1MessageQueue.QueueTransaction(sender, address(l2Messenger), 0, 0, gasLimit, xDomainCalldata);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -701,16 +463,9 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 0
             );
 
-            uint256 gatewayBalance = l1Token.balanceOf(
-                address(l1StandardERC20Gateway)
-            );
+            uint256 gatewayBalance = l1Token.balanceOf(address(l1StandardERC20Gateway));
             uint256 feeVaultBalance = address(l1FeeVault).balance;
-            assertEq(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
                 l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(
                     address(l1Token),
@@ -719,21 +474,16 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                     gasLimit
                 );
             } else {
-                l1StandardERC20Gateway.depositERC20{
-                    value: feeToPay + extraValue
-                }(address(l1Token), recipient, amount, gasLimit);
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(
+                    address(l1Token),
+                    recipient,
+                    amount,
+                    gasLimit
+                );
             }
-            assertEq(
-                amount + gatewayBalance,
-                l1Token.balanceOf(address(l1StandardERC20Gateway))
-            );
+            assertEq(amount + gatewayBalance, l1Token.balanceOf(address(l1StandardERC20Gateway)));
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
-            assertGt(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertGt(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
         }
     }
 
@@ -763,14 +513,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 amount,
                 abi.encode(
                     true,
-                    abi.encode(
-                        dataToCall,
-                        abi.encode(
-                            l1Token.symbol(),
-                            l1Token.name(),
-                            l1Token.decimals()
-                        )
-                    )
+                    abi.encode(dataToCall, abi.encode(l1Token.symbol(), l1Token.name(), l1Token.decimals()))
                 )
             )
         );
@@ -785,29 +528,28 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         if (amount == 0) {
             hevm.expectRevert("deposit zero amount");
             if (useRouter) {
-                l1GatewayRouter.depositERC20AndCall{
-                    value: feeToPay + extraValue
-                }(address(l1Token), recipient, amount, dataToCall, gasLimit);
+                l1GatewayRouter.depositERC20AndCall{value: feeToPay + extraValue}(
+                    address(l1Token),
+                    recipient,
+                    amount,
+                    dataToCall,
+                    gasLimit
+                );
             } else {
-                l1StandardERC20Gateway.depositERC20AndCall{
-                    value: feeToPay + extraValue
-                }(address(l1Token), recipient, amount, dataToCall, gasLimit);
+                l1StandardERC20Gateway.depositERC20AndCall{value: feeToPay + extraValue}(
+                    address(l1Token),
+                    recipient,
+                    amount,
+                    dataToCall,
+                    gasLimit
+                );
             }
         } else {
             // emit QueueTransaction from L1MessageQueue
             {
                 hevm.expectEmit(true, true, false, true);
-                address sender = AddressAliasHelper.applyL1ToL2Alias(
-                    address(l1CrossDomainMessenger)
-                );
-                emit IL1MessageQueue.QueueTransaction(
-                    sender,
-                    address(l2Messenger),
-                    0,
-                    0,
-                    gasLimit,
-                    xDomainCalldata
-                );
+                address sender = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+                emit IL1MessageQueue.QueueTransaction(sender, address(l2Messenger), 0, 0, gasLimit, xDomainCalldata);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -835,36 +577,29 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                 0
             );
 
-            uint256 gatewayBalance = l1Token.balanceOf(
-                address(l1StandardERC20Gateway)
-            );
+            uint256 gatewayBalance = l1Token.balanceOf(address(l1StandardERC20Gateway));
             uint256 feeVaultBalance = address(l1FeeVault).balance;
-            assertEq(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositERC20AndCall{
-                    value: feeToPay + extraValue
-                }(address(l1Token), recipient, amount, dataToCall, gasLimit);
+                l1GatewayRouter.depositERC20AndCall{value: feeToPay + extraValue}(
+                    address(l1Token),
+                    recipient,
+                    amount,
+                    dataToCall,
+                    gasLimit
+                );
             } else {
-                l1StandardERC20Gateway.depositERC20AndCall{
-                    value: feeToPay + extraValue
-                }(address(l1Token), recipient, amount, dataToCall, gasLimit);
+                l1StandardERC20Gateway.depositERC20AndCall{value: feeToPay + extraValue}(
+                    address(l1Token),
+                    recipient,
+                    amount,
+                    dataToCall,
+                    gasLimit
+                );
             }
-            assertEq(
-                amount + gatewayBalance,
-                l1Token.balanceOf(address(l1StandardERC20Gateway))
-            );
+            assertEq(amount + gatewayBalance, l1Token.balanceOf(address(l1StandardERC20Gateway)));
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
-            assertGt(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertGt(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
         }
     }
 }

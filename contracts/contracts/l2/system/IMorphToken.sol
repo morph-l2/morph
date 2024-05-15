@@ -28,10 +28,7 @@ interface IMorphToken is IERC20MetadataUpgradeable {
     /// @notice Emitted the owner sets the next valid exchange rate.
     /// @param rate                 new rate
     /// @param effectiveEpochIndex  effective epoch index
-    event UpdateEpochInflationRate(
-        uint256 indexed rate,
-        uint256 indexed effectiveEpochIndex
-    );
+    event UpdateEpochInflationRate(uint256 indexed rate, uint256 indexed effectiveEpochIndex);
 
     /// @notice Inflation minted
     /// @param epochIndex   minted epoch index
@@ -47,9 +44,7 @@ interface IMorphToken is IERC20MetadataUpgradeable {
 
     /// @dev query epoch inflation rates.
     /// @param index in array
-    function epochInflationRates(
-        uint256 index
-    ) external view returns (EpochInflationRate memory);
+    function epochInflationRates(uint256 index) external view returns (EpochInflationRate memory);
 
     /// @dev inflation returns amount of daily issues.
     /// @param epochIndex epoch index from start inflation.
@@ -86,10 +81,7 @@ interface IMorphToken is IERC20MetadataUpgradeable {
     /// Requirements:
     ///
     /// - `spender` cannot be the zero address.
-    function increaseAllowance(
-        address spender,
-        uint256 addedValue
-    ) external returns (bool);
+    function increaseAllowance(address spender, uint256 addedValue) external returns (bool);
 
     /// @dev Atomically decreases the allowance granted to `spender` by the caller.
     ///
@@ -100,10 +92,7 @@ interface IMorphToken is IERC20MetadataUpgradeable {
     ///
     /// - `spender` cannot be the zero address.
     /// - `spender` must have allowance for the caller of at least `subtractedValue`.
-    function decreaseAllowance(
-        address spender,
-        uint256 subtractedValue
-    ) external returns (bool);
+    function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
     /// @dev mint inflations
     /// @param upToEpochIndex mint up to which epoch

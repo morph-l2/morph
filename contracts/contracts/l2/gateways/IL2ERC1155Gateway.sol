@@ -81,12 +81,7 @@ interface IL2ERC1155Gateway {
     /// @param tokenId The token id to withdraw.
     /// @param amount The amount of token to withdraw.
     /// @param gasLimit Unused, but included for potential forward compatibility considerations.
-    function withdrawERC1155(
-        address token,
-        uint256 tokenId,
-        uint256 amount,
-        uint256 gasLimit
-    ) external payable;
+    function withdrawERC1155(address token, uint256 tokenId, uint256 amount, uint256 gasLimit) external payable;
 
     /// @notice Withdraw some ERC1155 NFT to caller's account on layer 1.
     /// @param token The address of ERC1155 NFT on layer 2.

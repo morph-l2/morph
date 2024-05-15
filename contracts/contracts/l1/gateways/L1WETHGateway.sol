@@ -44,11 +44,7 @@ contract L1WETHGateway is L1ERC20Gateway {
     /// @param _counterpart The address of L2ETHGateway in L2.
     /// @param _router The address of L1GatewayRouter.
     /// @param _messenger The address of L1CrossDomainMessenger.
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         require(_router != address(0), "zero router address");
         GatewayBase._initialize(_counterpart, _router, _messenger);
     }
@@ -87,11 +83,7 @@ contract L1WETHGateway is L1ERC20Gateway {
     }
 
     /// @inheritdoc L1ERC20Gateway
-    function _beforeDropMessage(
-        address _token,
-        address,
-        uint256 _amount
-    ) internal virtual override {
+    function _beforeDropMessage(address _token, address, uint256 _amount) internal virtual override {
         require(_token == WETH, "token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
@@ -122,9 +114,13 @@ contract L1WETHGateway is L1ERC20Gateway {
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
         // 3. Send message to L1CrossDomainMessenger.
-        IL1CrossDomainMessenger(messenger).sendMessage{
-            value: _amount + msg.value
-        }(counterpart, _amount, _message, _gasLimit, _from);
+        IL1CrossDomainMessenger(messenger).sendMessage{value: _amount + msg.value}(
+            counterpart,
+            _amount,
+            _message,
+            _gasLimit,
+            _from
+        );
 
         emit DepositERC20(_token, L2_WETH, _from, _to, _amount, _data, nonce);
     }

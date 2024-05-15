@@ -12,8 +12,9 @@ contract FFITest is CommonTest {
 
     function test_getProveWithdrawalTransactionInputs_succeeds() external {
         bytes32 wdHash = bytes32(uint256(2));
-        (bytes32 wdHashRes, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi
-            .getProveWithdrawalTransactionInputs(wdHash);
+        (bytes32 wdHashRes, bytes32[32] memory wdProof, bytes32 wdRoot) = ffi.getProveWithdrawalTransactionInputs(
+            wdHash
+        );
         assertEq(wdHash, wdHashRes);
         assertTrue(verifyMerkleProof(wdHashRes, wdProof, 0, wdRoot));
     }

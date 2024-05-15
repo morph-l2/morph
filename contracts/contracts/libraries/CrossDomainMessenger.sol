@@ -31,10 +31,7 @@ abstract contract CrossDomainMessenger is
     /// @notice Emitted when owner updates fee vault contract.
     /// @param _oldFeeVault The address of old fee vault contract.
     /// @param _newFeeVault The address of new fee vault contract.
-    event UpdateFeeVault(
-        address indexed _oldFeeVault,
-        address indexed _newFeeVault
-    );
+    event UpdateFeeVault(address indexed _oldFeeVault, address indexed _newFeeVault);
 
     /*************
      * Variables *
@@ -64,10 +61,7 @@ abstract contract CrossDomainMessenger is
      **********************/
 
     modifier notInExecution() {
-        require(
-            xDomainMessageSender == Constants.DEFAULT_XDOMAIN_MESSAGE_SENDER,
-            "Message is already in execution"
-        );
+        require(xDomainMessageSender == Constants.DEFAULT_XDOMAIN_MESSAGE_SENDER, "Message is already in execution");
         _;
     }
 
@@ -75,10 +69,7 @@ abstract contract CrossDomainMessenger is
      * Constructor *
      ***************/
 
-    function __Messenger_init(
-        address _counterpart,
-        address _feeVault
-    ) internal onlyInitializing {
+    function __Messenger_init(address _counterpart, address _feeVault) internal onlyInitializing {
         OwnableUpgradeable.__Ownable_init();
         PausableUpgradeable.__Pausable_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();

@@ -31,74 +31,42 @@ contract L2MessageBaseTest is CommonTest {
         // Set the proxy at the correct address
         hevm.etch(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            address(
-                new TransparentUpgradeableProxy(
-                    address(emptyContract),
-                    address(multisig),
-                    new bytes(0)
-                )
-            ).code
+            address(new TransparentUpgradeableProxy(address(emptyContract), address(multisig), new bytes(0))).code
         );
         hevm.etch(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            address(
-                new TransparentUpgradeableProxy(
-                    address(emptyContract),
-                    address(multisig),
-                    new bytes(0)
-                )
-            ).code
+            address(new TransparentUpgradeableProxy(address(emptyContract), address(multisig), new bytes(0))).code
         );
-        hevm.etch(
-            Predeploys.GAS_PRICE_ORACLE,
-            address(new GasPriceOracle(multisig)).code
-        );
+        hevm.etch(Predeploys.GAS_PRICE_ORACLE, address(new GasPriceOracle(multisig)).code);
 
         TransparentUpgradeableProxy l2ToL1MessagePasserProxy = TransparentUpgradeableProxy(
-                payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
-            );
+            payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)
+        );
         TransparentUpgradeableProxy l2CrossDomainMessengerProxy = TransparentUpgradeableProxy(
-                payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-            );
+            payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+        );
         gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
 
-        hevm.store(
-            address(l2ToL1MessagePasserProxy),
-            bytes32(PROXY_OWNER_KEY),
-            bytes32(abi.encode(address(multisig)))
-        );
+        hevm.store(address(l2ToL1MessagePasserProxy), bytes32(PROXY_OWNER_KEY), bytes32(abi.encode(address(multisig))));
         hevm.store(
             address(l2CrossDomainMessengerProxy),
             bytes32(PROXY_OWNER_KEY),
             bytes32(abi.encode(address(multisig)))
         );
-        hevm.store(
-            address(gasPriceOracle),
-            bytes32(gasOracle_owner_slot),
-            bytes32(abi.encode(address(multisig)))
-        );
+        hevm.store(address(gasPriceOracle), bytes32(gasOracle_owner_slot), bytes32(abi.encode(address(multisig))));
         // deploy impl contracts and upgrade
         hevm.startPrank(multisig);
 
         l2ToL1MessagePasserImpl = new L2ToL1MessagePasser();
-        ITransparentUpgradeableProxy(address(l2ToL1MessagePasserProxy))
-            .upgradeTo(address(l2ToL1MessagePasserImpl));
-        l2ToL1MessagePasser = L2ToL1MessagePasser(
-            address(l2ToL1MessagePasserProxy)
-        );
+        ITransparentUpgradeableProxy(address(l2ToL1MessagePasserProxy)).upgradeTo(address(l2ToL1MessagePasserImpl));
+        l2ToL1MessagePasser = L2ToL1MessagePasser(address(l2ToL1MessagePasserProxy));
 
         l2CrossDomainMessengerImpl = new L2CrossDomainMessenger();
-        ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxy))
-            .upgradeToAndCall(
-                address(l2CrossDomainMessengerImpl),
-                abi.encodeCall(
-                    L2CrossDomainMessenger.initialize,
-                    (NON_ZERO_ADDRESS)
-                )
-            );
-        l2CrossDomainMessenger = L2CrossDomainMessenger(
-            payable(address(l2CrossDomainMessengerProxy))
+        ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxy)).upgradeToAndCall(
+            address(l2CrossDomainMessengerImpl),
+            abi.encodeCall(L2CrossDomainMessenger.initialize, (NON_ZERO_ADDRESS))
         );
+        l2CrossDomainMessenger = L2CrossDomainMessenger(payable(address(l2CrossDomainMessengerProxy)));
         _changeAdmin(address(l2ToL1MessagePasser));
         _changeAdmin(address(l2CrossDomainMessenger));
         hevm.stopPrank();

@@ -19,18 +19,14 @@ contract L2TxFeeVaultTest is DSTestPlus {
 
     function test_withdraw_belowMinimum_reverts() public {
         hevm.deal(address(vault), 9 ether);
-        hevm.expectRevert(
-            "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
-        );
+        hevm.expectRevert("FeeVault: withdrawal amount must be greater than minimum withdrawal amount");
         vault.withdraw();
     }
 
     function test_withdraw_amountBelowMinimum_reverts(uint256 amount) public {
         amount = bound(amount, 0 ether, 10 ether - 1);
         hevm.deal(address(vault), 100 ether);
-        hevm.expectRevert(
-            "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
-        );
+        hevm.expectRevert("FeeVault: withdrawal amount must be greater than minimum withdrawal amount");
         vault.withdraw(amount);
     }
 
@@ -71,10 +67,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         assertEq(vault.totalProcessed(), 33 ether);
     }
 
-    function test_withdrawAmountTwice_succeeds(
-        uint256 amount1,
-        uint256 amount2
-    ) public {
+    function test_withdrawAmountTwice_succeeds(uint256 amount1, uint256 amount2) public {
         amount1 = bound(amount1, 10 ether, 100 ether);
         amount2 = bound(amount2, 10 ether, 100 ether);
 

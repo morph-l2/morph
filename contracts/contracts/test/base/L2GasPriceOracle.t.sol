@@ -26,10 +26,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         l2GasPriceOracle.setL2BaseFee(1);
 
         // estimate fee without sender in whitelist
-        uint256 fee = l2GasPriceOracle.estimateCrossDomainMessageFee(
-            multisig,
-            gasLimit
-        );
+        uint256 fee = l2GasPriceOracle.estimateCrossDomainMessageFee(multisig, gasLimit);
         assertEq(fee, gasLimit * 1);
 
         // add address this to whitelist
@@ -41,10 +38,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         assertTrue(whitelistChecker.isSenderAllowed(address(multisig)));
 
         // estimate fee with sender in whitelist
-        fee = l2GasPriceOracle.estimateCrossDomainMessageFee(
-            multisig,
-            gasLimit
-        );
+        fee = l2GasPriceOracle.estimateCrossDomainMessageFee(multisig, gasLimit);
         assertEq(fee, 0);
 
         hevm.stopPrank();
@@ -54,10 +48,7 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
         address testChecker = address(123);
         hevm.startPrank(multisig);
         hevm.expectEmit(true, true, true, true);
-        emit IL1MessageQueueWithGasPriceOracle.UpdateWhitelistChecker(
-            address(whitelistChecker),
-            testChecker
-        );
+        emit IL1MessageQueueWithGasPriceOracle.UpdateWhitelistChecker(address(whitelistChecker), testChecker);
         l2GasPriceOracle.updateWhitelistChecker(testChecker);
         assertEq(l2GasPriceOracle.whitelistChecker(), testChecker);
         hevm.stopPrank();
@@ -75,32 +66,15 @@ contract L2GasPriceOracleTest is L1MessageBaseTest {
     function test_calculateIntrinsicGasFee_succeeds() external {
         hevm.startPrank(multisig);
         bytes memory _calldata = "0x00";
-        uint256 intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(
-            _calldata
-        );
-        assertEq(
-            intrinsicGasFee,
-            INTRINSIC_GAS_TX +
-                _calldata.length *
-                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
-        );
+        uint256 intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(_calldata);
+        assertEq(intrinsicGasFee, INTRINSIC_GAS_TX + _calldata.length * APPROPRIATE_INTRINSIC_GAS_PER_BYTE);
         _calldata = "0x001122";
         intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(_calldata);
-        assertEq(
-            intrinsicGasFee,
-            INTRINSIC_GAS_TX +
-                _calldata.length *
-                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
-        );
+        assertEq(intrinsicGasFee, INTRINSIC_GAS_TX + _calldata.length * APPROPRIATE_INTRINSIC_GAS_PER_BYTE);
 
         _calldata = "0x0011220033";
         intrinsicGasFee = l2GasPriceOracle.calculateIntrinsicGasFee(_calldata);
-        assertEq(
-            intrinsicGasFee,
-            INTRINSIC_GAS_TX +
-                _calldata.length *
-                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
-        );
+        assertEq(intrinsicGasFee, INTRINSIC_GAS_TX + _calldata.length * APPROPRIATE_INTRINSIC_GAS_PER_BYTE);
         hevm.stopPrank();
     }
 }
