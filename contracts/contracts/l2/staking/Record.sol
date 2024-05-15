@@ -187,7 +187,7 @@ contract Record is IRecord, OwnableUpgradeable {
         require(
             nextRewardEpochIndex + _rewardEpochs.length - 1 <
                 IL2Staking(L2_STAKING_CONTRACT).currentEpoch(),
-            "future data cannot be uploaded"
+            "unfinished epochs cannot be uploaded"
         );
         IMorphToken(MORPH_TOKEN_CONTRACT).mintInflations(
             nextRewardEpochIndex + _rewardEpochs.length - 1
