@@ -142,6 +142,7 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
         // The spec of rlp: https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/
         uint256 transactionType = 0x7E;
         bytes32 hash;
+        /* solhint-disable */
         assembly {
             function get_uint_bytes(v) -> len {
                 if eq(v, 0) {
@@ -255,6 +256,7 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
             mstore(start_ptr, value)
             hash := keccak256(start_ptr, sub(ptr, start_ptr))
         }
+        /* solhint-enable */
         return hash;
     }
 

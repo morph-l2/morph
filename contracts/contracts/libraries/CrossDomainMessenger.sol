@@ -69,6 +69,7 @@ abstract contract CrossDomainMessenger is
      * Constructor *
      ***************/
 
+    /* solhint-disable */
     function __Messenger_init(address _counterpart, address _feeVault) internal onlyInitializing {
         OwnableUpgradeable.__Ownable_init();
         PausableUpgradeable.__Pausable_init();
@@ -82,6 +83,8 @@ abstract contract CrossDomainMessenger is
             feeVault = _feeVault;
         }
     }
+
+    /* solhint-enable */
 
     // make sure only owner can send ether to messenger to avoid possible user fund loss.
     receive() external payable onlyOwner {}

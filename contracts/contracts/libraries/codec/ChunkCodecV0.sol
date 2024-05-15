@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.16;
 
+/* solhint-disable */
+
 /// @dev Below is the encoding for `Chunk`, total 60*n+1 bytes.
 /// The only difference between `ChunkCodecV0` is we remove `l2Transactions` from chunk encoding.
 /// ```text

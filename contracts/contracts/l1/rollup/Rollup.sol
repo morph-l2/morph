@@ -4,7 +4,6 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {ChunkCodecV0} from "../../libraries/codec/ChunkCodecV0.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";

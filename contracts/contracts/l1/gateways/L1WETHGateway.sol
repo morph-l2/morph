@@ -27,16 +27,16 @@ contract L1WETHGateway is L1ERC20Gateway {
 
     /// @notice The address of L1 WETH address.
     // solhint-disable-next-line var-name-mixedcase
-    address public immutable WETH;
+    address public immutable L1_WETH;
 
     /***************
      * Constructor *
      ***************/
 
-    constructor(address _WETH, address _l2WETH) {
+    constructor(address _l1WETH, address _l2WETH) {
         _disableInitializers();
 
-        WETH = _WETH;
+        L1_WETH = _l1WETH;
         L2_WETH = _l2WETH;
     }
 
@@ -50,7 +50,7 @@ contract L1WETHGateway is L1ERC20Gateway {
     }
 
     receive() external payable {
-        require(_msgSender() == WETH, "only WETH");
+        require(_msgSender() == L1_WETH, "only WETH");
     }
 
     /*************************
@@ -75,7 +75,7 @@ contract L1WETHGateway is L1ERC20Gateway {
         uint256 _amount,
         bytes calldata
     ) internal virtual override {
-        require(_l1Token == WETH, "l1 token not WETH");
+        require(_l1Token == L1_WETH, "l1 token not WETH");
         require(_l2Token == L2_WETH, "l2 token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
@@ -84,7 +84,7 @@ contract L1WETHGateway is L1ERC20Gateway {
 
     /// @inheritdoc L1ERC20Gateway
     function _beforeDropMessage(address _token, address, uint256 _amount) internal virtual override {
-        require(_token == WETH, "token not WETH");
+        require(_token == L1_WETH, "token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
         IWETH(_token).deposit{value: _amount}();
@@ -99,7 +99,7 @@ contract L1WETHGateway is L1ERC20Gateway {
         uint256 _gasLimit
     ) internal virtual override nonReentrant {
         require(_amount > 0, "deposit zero amount");
-        require(_token == WETH, "only WETH is allowed");
+        require(_token == L1_WETH, "only WETH is allowed");
 
         // 1. Transfer token into this contract.
         address _from;

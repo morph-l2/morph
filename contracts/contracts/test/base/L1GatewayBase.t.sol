@@ -17,13 +17,13 @@ import {MorphStandardERC20} from "../../libraries/token/MorphStandardERC20.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 contract L1GatewayBaseTest is L1MessageBaseTest {
+    uint256 internal constant EXTRA_VALUE = 1e17;
+
     // L1GatewayRouter config
     L1GatewayRouter public l1GatewayRouter;
 
     // L1ETHGateway config
     L1ETHGateway public l1ETHGateway;
-
-    uint256 internal constant extraValue = 1e17;
 
     // L1StandardERC20Gateway config
     L1StandardERC20Gateway public l1StandardERC20Gateway;

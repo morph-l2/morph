@@ -325,9 +325,9 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         if (amount == 0) {
             hevm.expectRevert("deposit zero amount");
             if (useRouter) {
-                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
+                l1GatewayRouter.depositERC20{value: feeToPay + EXTRA_VALUE}(address(l1Token), amount, gasLimit);
             } else {
-                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + EXTRA_VALUE}(address(l1Token), amount, gasLimit);
             }
         } else {
             // emit QueueTransaction from L1MessageQueue
@@ -366,9 +366,9 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
+                l1GatewayRouter.depositERC20{value: feeToPay + EXTRA_VALUE}(address(l1Token), amount, gasLimit);
             } else {
-                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(address(l1Token), amount, gasLimit);
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + EXTRA_VALUE}(address(l1Token), amount, gasLimit);
             }
             assertEq(amount + l1StandardERC20GatewayBalance, l1Token.balanceOf(address(l1StandardERC20Gateway)));
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
@@ -416,14 +416,14 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         if (amount == 0) {
             hevm.expectRevert("deposit zero amount");
             if (useRouter) {
-                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(
+                l1GatewayRouter.depositERC20{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,
                     gasLimit
                 );
             } else {
-                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,
@@ -467,14 +467,14 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositERC20{value: feeToPay + extraValue}(
+                l1GatewayRouter.depositERC20{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,
                     gasLimit
                 );
             } else {
-                l1StandardERC20Gateway.depositERC20{value: feeToPay + extraValue}(
+                l1StandardERC20Gateway.depositERC20{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,
@@ -528,7 +528,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         if (amount == 0) {
             hevm.expectRevert("deposit zero amount");
             if (useRouter) {
-                l1GatewayRouter.depositERC20AndCall{value: feeToPay + extraValue}(
+                l1GatewayRouter.depositERC20AndCall{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,
@@ -536,7 +536,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                     gasLimit
                 );
             } else {
-                l1StandardERC20Gateway.depositERC20AndCall{value: feeToPay + extraValue}(
+                l1StandardERC20Gateway.depositERC20AndCall{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,
@@ -581,7 +581,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositERC20AndCall{value: feeToPay + extraValue}(
+                l1GatewayRouter.depositERC20AndCall{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,
@@ -589,7 +589,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
                     gasLimit
                 );
             } else {
-                l1StandardERC20Gateway.depositERC20AndCall{value: feeToPay + extraValue}(
+                l1StandardERC20Gateway.depositERC20AndCall{value: feeToPay + EXTRA_VALUE}(
                     address(l1Token),
                     recipient,
                     amount,

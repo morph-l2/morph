@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.16;
 
+/* solhint-disable */
 library RollupVerifier {
     function pairing(G1Point[] memory p1, G2Point[] memory p2) internal view returns (bool) {
         uint256 length = p1.length * 6;

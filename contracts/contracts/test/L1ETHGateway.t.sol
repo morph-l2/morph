@@ -227,9 +227,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositETH{value: amount + feeToPay + extraValue}(amount, gasLimit);
+                l1GatewayRouter.depositETH{value: amount + feeToPay + EXTRA_VALUE}(amount, gasLimit);
             } else {
-                l1ETHGateway.depositETH{value: amount + feeToPay + extraValue}(amount, gasLimit);
+                l1ETHGateway.depositETH{value: amount + feeToPay + EXTRA_VALUE}(amount, gasLimit);
             }
             assertEq(amount + messengerBalance, address(l1CrossDomainMessenger).balance);
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
@@ -300,9 +300,9 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositETH{value: amount + feeToPay + extraValue}(recipient, amount, gasLimit);
+                l1GatewayRouter.depositETH{value: amount + feeToPay + EXTRA_VALUE}(recipient, amount, gasLimit);
             } else {
-                l1ETHGateway.depositETH{value: amount + feeToPay + extraValue}(recipient, amount, gasLimit);
+                l1ETHGateway.depositETH{value: amount + feeToPay + EXTRA_VALUE}(recipient, amount, gasLimit);
             }
             assertEq(amount + messengerBalance, address(l1CrossDomainMessenger).balance);
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
@@ -374,14 +374,14 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositETHAndCall{value: amount + feeToPay + extraValue}(
+                l1GatewayRouter.depositETHAndCall{value: amount + feeToPay + EXTRA_VALUE}(
                     recipient,
                     amount,
                     dataToCall,
                     gasLimit
                 );
             } else {
-                l1ETHGateway.depositETHAndCall{value: amount + feeToPay + extraValue}(
+                l1ETHGateway.depositETHAndCall{value: amount + feeToPay + EXTRA_VALUE}(
                     recipient,
                     amount,
                     dataToCall,

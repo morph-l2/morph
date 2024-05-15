@@ -396,7 +396,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
         uint256 feeVaultBalance = address(l1FeeVault).balance;
         assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-        gateway.depositERC721{value: feeToPay + extraValue}(address(l1Token), tokenId, gasLimit);
+        gateway.depositERC721{value: feeToPay + EXTRA_VALUE}(address(l1Token), tokenId, gasLimit);
         assertEq(address(gateway), l1Token.ownerOf(tokenId));
         assertEq(1 + gatewayBalance, l1Token.balanceOf(address(gateway)));
         assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
@@ -462,7 +462,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
         uint256 feeVaultBalance = address(l1FeeVault).balance;
         assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-        gateway.depositERC721{value: feeToPay + extraValue}(address(l1Token), recipient, tokenId, gasLimit);
+        gateway.depositERC721{value: feeToPay + EXTRA_VALUE}(address(l1Token), recipient, tokenId, gasLimit);
         assertEq(address(gateway), l1Token.ownerOf(tokenId));
         assertEq(1 + gatewayBalance, l1Token.balanceOf(address(gateway)));
         assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
@@ -539,7 +539,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
         uint256 feeVaultBalance = address(l1FeeVault).balance;
         assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-        gateway.batchDepositERC721{value: feeToPay + extraValue}(address(l1Token), _tokenIds, gasLimit);
+        gateway.batchDepositERC721{value: feeToPay + EXTRA_VALUE}(address(l1Token), _tokenIds, gasLimit);
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(l1Token.ownerOf(i), address(gateway));
         }
@@ -623,7 +623,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         uint256 gatewayBalance = l1Token.balanceOf(address(gateway));
         uint256 feeVaultBalance = address(l1FeeVault).balance;
         assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-        gateway.batchDepositERC721{value: feeToPay + extraValue}(address(l1Token), recipient, _tokenIds, gasLimit);
+        gateway.batchDepositERC721{value: feeToPay + EXTRA_VALUE}(address(l1Token), recipient, _tokenIds, gasLimit);
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(l1Token.ownerOf(i), address(gateway));
         }

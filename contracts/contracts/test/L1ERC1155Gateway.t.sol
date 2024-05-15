@@ -470,7 +470,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         if (amount == 0) {
             hevm.expectRevert("deposit zero amount");
-            gateway.depositERC1155{value: feeToPay + extraValue}(address(l1Token), tokenId, amount, gasLimit);
+            gateway.depositERC1155{value: feeToPay + EXTRA_VALUE}(address(l1Token), tokenId, amount, gasLimit);
         } else {
             hevm.expectRevert("no corresponding l2 token");
             gateway.depositERC1155(address(l1Token), tokenId, amount, gasLimit);
@@ -510,7 +510,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             uint256 gatewayBalance = l1Token.balanceOf(address(gateway), tokenId);
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-            gateway.depositERC1155{value: feeToPay + extraValue}(address(l1Token), tokenId, amount, gasLimit);
+            gateway.depositERC1155{value: feeToPay + EXTRA_VALUE}(address(l1Token), tokenId, amount, gasLimit);
             assertEq(amount + gatewayBalance, l1Token.balanceOf(address(gateway), tokenId));
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
             assertGt(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
@@ -547,7 +547,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
 
         if (amount == 0) {
             hevm.expectRevert("deposit zero amount");
-            gateway.depositERC1155{value: feeToPay + extraValue}(
+            gateway.depositERC1155{value: feeToPay + EXTRA_VALUE}(
                 address(l1Token),
                 recipient,
                 tokenId,
@@ -593,7 +593,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             uint256 gatewayBalance = l1Token.balanceOf(address(gateway), tokenId);
             uint256 feeVaultBalance = address(l1FeeVault).balance;
             assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-            gateway.depositERC1155{value: feeToPay + extraValue}(
+            gateway.depositERC1155{value: feeToPay + EXTRA_VALUE}(
                 address(l1Token),
                 recipient,
                 tokenId,
@@ -691,7 +691,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         }
         uint256 feeVaultBalance = address(l1FeeVault).balance;
         assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-        gateway.batchDepositERC1155{value: feeToPay + extraValue}(address(l1Token), _tokenIds, _amounts, gasLimit);
+        gateway.batchDepositERC1155{value: feeToPay + EXTRA_VALUE}(address(l1Token), _tokenIds, _amounts, gasLimit);
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(gatewayBalances[i] + amount, l1Token.balanceOf(address(gateway), i));
         }
@@ -785,7 +785,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         }
         uint256 feeVaultBalance = address(l1FeeVault).balance;
         assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
-        gateway.batchDepositERC1155{value: feeToPay + extraValue}(
+        gateway.batchDepositERC1155{value: feeToPay + EXTRA_VALUE}(
             address(l1Token),
             recipient,
             _tokenIds,

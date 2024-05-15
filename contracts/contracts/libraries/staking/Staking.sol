@@ -20,7 +20,7 @@ abstract contract Staking {
     modifier onlyOtherStaking() {
         require(
             msg.sender == address(MESSENGER) && MESSENGER.xDomainMessageSender() == address(OTHER_STAKING),
-            "Staking: function can only be called from the other staking contract"
+            "staking: only other staking contract allowed"
         );
         _;
     }
