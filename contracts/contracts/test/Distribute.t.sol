@@ -72,7 +72,7 @@ contract DistributeTest is L2StakingBaseTest {
     /**
      * @notice claim: check params
      * 1. only l2 staking allowed
-     * 2. not mint yet
+     * 2. not minted yet
      * 3. no remaining reward
      */
     function test_claim_paramsCheck_reverts() public {
@@ -80,7 +80,7 @@ contract DistributeTest is L2StakingBaseTest {
         hevm.prank(alice);
         distribute.claim(address(0), address(0), 0);
 
-        hevm.expectRevert("not mint yet");
+        hevm.expectRevert("not minted yet");
         hevm.prank(address(l2Staking));
         distribute.claim(address(0), address(0), 0);
 
@@ -123,9 +123,8 @@ contract DistributeTest is L2StakingBaseTest {
         uint256 balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter - balanceBefore, mockReward);
 
-        uint256 unclaimedCommissionEpoch = distribute.unclaimedCommission(
-            firstStaker
-        );
+        uint256 unclaimedCommissionEpoch = distribute
+            .nextEpochToClaimCommission(firstStaker);
         assertEq(unclaimedCommissionEpoch, 0);
 
         // delegatee claimCommission
@@ -148,7 +147,7 @@ contract DistributeTest is L2StakingBaseTest {
         hevm.prank(alice);
         distribute.claimAll(address(0), 0);
 
-        hevm.expectRevert("not mint yet");
+        hevm.expectRevert("not minted yet");
         hevm.prank(address(l2Staking));
         distribute.claim(address(0), address(0), 0);
     }

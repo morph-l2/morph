@@ -15,6 +15,10 @@ import {Gov} from "../../l2/staking/Gov.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 
 contract L2StakingBaseTest is L2MessageBaseTest {
+    uint256 public SEQUENCER_RATIO_PRECISION = 1e8;
+    uint256 public INFLATION_RATIO_PRECISION = 1e16;
+    uint256 public REWARD_EPOCH = 86400;
+
     uint256 public beginSeq = 10;
     uint256 public version = 0;
 
@@ -23,10 +27,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
     uint256 public constant SEQUENCER_SIZE = 3;
     uint256 public NEXT_EPOCH_START = 1700000000;
-    uint256 public REWARD_EPOCH = 86400;
     uint256 public rewardStartTime = 86400;
-
-    uint256 SEQUENCER_RATIO_PRECISION = 1e8;
 
     // Sequencer config
     Sequencer public sequencer;

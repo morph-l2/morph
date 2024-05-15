@@ -200,7 +200,7 @@ contract RecordTest is L2StakingBaseTest {
         hevm.prank(oracleAddress);
         record.setLatestRewardEpochBlock(1);
 
-        hevm.expectRevert("future data cannot be uploaded");
+        hevm.expectRevert("reward is not started yet");
         hevm.prank(oracleAddress);
         record.recordRewardEpochs(rewardEpochInfos);
 
