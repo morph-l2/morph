@@ -44,9 +44,15 @@ submodules:
 	git submodule update --remote 
 .PHONY: submodules
 
+################## bindings ####################
+
+bindings:
+	make -C bindings all
+.PHONY: bindings
+
 ################## lint code ####################
 
-lint: lint-go lint-sol
+lint: lint-sol lint-go
 .PHONY: lint
 
 # npm install --global --save-dev solhint
@@ -55,22 +61,23 @@ lint-sol:
 .PHONY: lint-sol
 
 lint-go:
-	cd $(PWD)/bindings/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/contracts/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/node/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/ops/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/ops/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/oracle/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/tx-submitter/ && golangci-lint run --out-format=tab --timeout 10m
+	make -C bindings lint
+	make -C contracts lint
+	make -C node lint
+	make -C ops/l2-genesis lint
+	make -C ops/tools lint
+	make -C oracle lint
+	make -C tx-submitter lint
 .PHONY: lint-go
 
 ################## format code ####################
 
-fmt: fmt-go fmt-sol
+fmt: fmt-sol fmt-go
 .PHONY: fmt
 
 # npm install --global --save-dev prettier-plugin-solidity
 fmt-sol:
+	find ./contracts/ -name '*.sol' -type f -not -path "**/node_modules*" | xargs misspell -w
 	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
 .PHONY: fmt-sol
 
@@ -83,7 +90,6 @@ fmt-go:
 	cd $(PWD)/ops/tools/ && go mod tidy
 	cd $(PWD)/oracle/ && go mod tidy
 	cd $(PWD)/tx-submitter/ && go mod tidy
-
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs gofmt -w -s
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs misspell -w
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs goimports -w -local $(PWD)/
