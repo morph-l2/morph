@@ -16,7 +16,7 @@ import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
 /// finalize deposit `WETH` from layer 1.
 /// @dev The WETH tokens are not held in the gateway. It will first be unwrapped as Ether and
 /// then the Ether will be sent to the `L2CrossDomainMessenger` contract.
-/// On finalizing deposit, the Ether will be transfered from `L2CrossDomainMessenger`, then
+/// On finalizing deposit, the Ether will be transferred from `L2CrossDomainMessenger`, then
 /// wrapped as WETH and finally transfer to recipient.
 contract L2WETHGateway is L2ERC20Gateway {
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -30,30 +30,26 @@ contract L2WETHGateway is L2ERC20Gateway {
 
     /// @notice The address of L2 WETH address.
     // solhint-disable-next-line var-name-mixedcase
-    address public immutable WETH;
+    address public immutable L2_WETH;
 
     /***************
      * Constructor *
      ***************/
 
-    constructor(address _WETH, address _l1WETH) {
+    constructor(address _l2WETH, address _l1WETH) {
         _disableInitializers();
 
-        WETH = _WETH;
+        L2_WETH = _l2WETH;
         L1_WETH = _l1WETH;
     }
 
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         require(_router != address(0), "zero router address");
         GatewayBase._initialize(_counterpart, _router, _messenger);
     }
 
     receive() external payable {
-        require(_msgSender() == WETH, "only WETH");
+        require(_msgSender() == L2_WETH, "only WETH");
     }
 
     /*************************
@@ -61,15 +57,13 @@ contract L2WETHGateway is L2ERC20Gateway {
      *************************/
 
     /// @inheritdoc IL2ERC20Gateway
-    function getL1ERC20Address(
-        address
-    ) external view override returns (address) {
+    function getL1ERC20Address(address) external view override returns (address) {
         return L1_WETH;
     }
 
     /// @inheritdoc IL2ERC20Gateway
     function getL2ERC20Address(address) public view override returns (address) {
-        return WETH;
+        return L2_WETH;
     }
 
     /*****************************
@@ -86,7 +80,7 @@ contract L2WETHGateway is L2ERC20Gateway {
         bytes calldata _data
     ) external payable override onlyCallByCounterpart nonReentrant {
         require(_l1Token == L1_WETH, "l1 token not WETH");
-        require(_l2Token == WETH, "l2 token not WETH");
+        require(_l2Token == L2_WETH, "l2 token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
         IWETH(_l2Token).deposit{value: _amount}();
@@ -94,14 +88,7 @@ contract L2WETHGateway is L2ERC20Gateway {
 
         _doCallback(_to, _data);
 
-        emit FinalizeDepositERC20(
-            _l1Token,
-            _l2Token,
-            _from,
-            _to,
-            _amount,
-            _data
-        );
+        emit FinalizeDepositERC20(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
     /**********************
@@ -117,7 +104,7 @@ contract L2WETHGateway is L2ERC20Gateway {
         uint256 _gasLimit
     ) internal virtual override nonReentrant {
         require(_amount > 0, "withdraw zero amount");
-        require(_token == WETH, "only WETH is allowed");
+        require(_token == L2_WETH, "only WETH is allowed");
 
         // 1. Extract real sender if this call is from L1GatewayRouter.
         address _from = _msgSender();
@@ -126,11 +113,7 @@ contract L2WETHGateway is L2ERC20Gateway {
         }
 
         // 2. Transfer token into this contract.
-        IERC20Upgradeable(_token).safeTransferFrom(
-            _from,
-            address(this),
-            _amount
-        );
+        IERC20Upgradeable(_token).safeTransferFrom(_from, address(this), _amount);
         IWETH(_token).withdraw(_amount);
 
         // 3. Generate message passed to L2StandardERC20Gateway.
@@ -142,9 +125,12 @@ contract L2WETHGateway is L2ERC20Gateway {
 
         uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
         // 4. Send message to L1CrossDomainMessenger.
-        IL2CrossDomainMessenger(messenger).sendMessage{
-            value: _amount + msg.value
-        }(counterpart, _amount, _message, _gasLimit);
+        IL2CrossDomainMessenger(messenger).sendMessage{value: _amount + msg.value}(
+            counterpart,
+            _amount,
+            _message,
+            _gasLimit
+        );
 
         emit WithdrawERC20(_l1WETH, _token, _from, _to, _amount, _data, nonce);
     }

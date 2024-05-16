@@ -15,7 +15,7 @@ import {L1ERC20Gateway} from "./L1ERC20Gateway.sol";
 /// finalize withdraw `WETH` from layer 2.
 /// @dev The deposited WETH tokens are not held in the gateway. It will first be unwrapped
 /// as Ether and then the Ether will be sent to the `L1CrossDomainMessenger` contract.
-/// On finalizing withdraw, the Ether will be transfered from `L1CrossDomainMessenger`, then
+/// On finalizing withdraw, the Ether will be transferred from `L1CrossDomainMessenger`, then
 /// wrapped as WETH and finally transfer to recipient.
 contract L1WETHGateway is L1ERC20Gateway {
     /*************
@@ -27,16 +27,16 @@ contract L1WETHGateway is L1ERC20Gateway {
 
     /// @notice The address of L1 WETH address.
     // solhint-disable-next-line var-name-mixedcase
-    address public immutable WETH;
+    address public immutable L1_WETH;
 
     /***************
      * Constructor *
      ***************/
 
-    constructor(address _WETH, address _l2WETH) {
+    constructor(address _l1WETH, address _l2WETH) {
         _disableInitializers();
 
-        WETH = _WETH;
+        L1_WETH = _l1WETH;
         L2_WETH = _l2WETH;
     }
 
@@ -44,17 +44,13 @@ contract L1WETHGateway is L1ERC20Gateway {
     /// @param _counterpart The address of L2ETHGateway in L2.
     /// @param _router The address of L1GatewayRouter.
     /// @param _messenger The address of L1CrossDomainMessenger.
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         require(_router != address(0), "zero router address");
         GatewayBase._initialize(_counterpart, _router, _messenger);
     }
 
     receive() external payable {
-        require(_msgSender() == WETH, "only WETH");
+        require(_msgSender() == L1_WETH, "only WETH");
     }
 
     /*************************
@@ -79,7 +75,7 @@ contract L1WETHGateway is L1ERC20Gateway {
         uint256 _amount,
         bytes calldata
     ) internal virtual override {
-        require(_l1Token == WETH, "l1 token not WETH");
+        require(_l1Token == L1_WETH, "l1 token not WETH");
         require(_l2Token == L2_WETH, "l2 token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
@@ -87,12 +83,8 @@ contract L1WETHGateway is L1ERC20Gateway {
     }
 
     /// @inheritdoc L1ERC20Gateway
-    function _beforeDropMessage(
-        address _token,
-        address,
-        uint256 _amount
-    ) internal virtual override {
-        require(_token == WETH, "token not WETH");
+    function _beforeDropMessage(address _token, address, uint256 _amount) internal virtual override {
+        require(_token == L1_WETH, "token not WETH");
         require(_amount == msg.value, "msg.value mismatch");
 
         IWETH(_token).deposit{value: _amount}();
@@ -107,7 +99,7 @@ contract L1WETHGateway is L1ERC20Gateway {
         uint256 _gasLimit
     ) internal virtual override nonReentrant {
         require(_amount > 0, "deposit zero amount");
-        require(_token == WETH, "only WETH is allowed");
+        require(_token == L1_WETH, "only WETH is allowed");
 
         // 1. Transfer token into this contract.
         address _from;
@@ -122,9 +114,13 @@ contract L1WETHGateway is L1ERC20Gateway {
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
         // 3. Send message to L1CrossDomainMessenger.
-        IL1CrossDomainMessenger(messenger).sendMessage{
-            value: _amount + msg.value
-        }(counterpart, _amount, _message, _gasLimit, _from);
+        IL1CrossDomainMessenger(messenger).sendMessage{value: _amount + msg.value}(
+            counterpart,
+            _amount,
+            _message,
+            _gasLimit,
+            _from
+        );
 
         emit DepositERC20(_token, L2_WETH, _from, _to, _amount, _data, nonce);
     }

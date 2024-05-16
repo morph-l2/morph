@@ -6,8 +6,6 @@ contract L2OverflowTester {
     bytes32 private messageHash;
     uint256 private hashCount;
 
-    constructor() {}
-
     function hash(string calldata _message, uint256 count) public {
         bytes memory hashed = bytes(_message);
         for (uint256 i = 0; i < count; i++) {

@@ -19,12 +19,7 @@ import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
 /// NFT will be transfer to the recipient directly.
 ///
 /// This will be changed if we have more specific scenarios.
-contract L1ERC1155Gateway is
-    ERC1155HolderUpgradeable,
-    GatewayBase,
-    IL1ERC1155Gateway,
-    IMessageDropCallback
-{
+contract L1ERC1155Gateway is ERC1155HolderUpgradeable, GatewayBase, IL1ERC1155Gateway, IMessageDropCallback {
     /**********
      * Events *
      **********/
@@ -33,11 +28,7 @@ contract L1ERC1155Gateway is
     /// @param l1Token The address of ERC1155 token in layer 1.
     /// @param oldL2Token The address of the old corresponding ERC1155 token in layer 2.
     /// @param newL2Token The address of the new corresponding ERC1155 token in layer 2.
-    event UpdateTokenMapping(
-        address indexed l1Token,
-        address indexed oldL2Token,
-        address indexed newL2Token
-    );
+    event UpdateTokenMapping(address indexed l1Token, address indexed oldL2Token, address indexed newL2Token);
 
     /*************
      * Variables *
@@ -57,10 +48,7 @@ contract L1ERC1155Gateway is
     /// @notice Initialize the storage of L1ERC1155Gateway.
     /// @param _counterpart The address of L2ERC1155Gateway in L2.
     /// @param _messenger The address of L1CrossDomainMessenger.
-    function initialize(
-        address _counterpart,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _messenger) external initializer {
         ERC1155HolderUpgradeable.__ERC1155Holder_init();
         ERC1155ReceiverUpgradeable.__ERC1155Receiver_init();
 
@@ -99,13 +87,7 @@ contract L1ERC1155Gateway is
         uint256[] calldata _amounts,
         uint256 _gasLimit
     ) external payable override {
-        _batchDepositERC1155(
-            _token,
-            _msgSender(),
-            _tokenIds,
-            _amounts,
-            _gasLimit
-        );
+        _batchDepositERC1155(_token, _msgSender(), _tokenIds, _amounts, _gasLimit);
     }
 
     /// @inheritdoc IL1ERC1155Gateway
@@ -131,22 +113,9 @@ contract L1ERC1155Gateway is
         require(_l2Token != address(0), "token address cannot be 0");
         require(_l2Token == tokenMapping[_l1Token], "l2 token mismatch");
 
-        IERC1155Upgradeable(_l1Token).safeTransferFrom(
-            address(this),
-            _to,
-            _tokenId,
-            _amount,
-            ""
-        );
+        IERC1155Upgradeable(_l1Token).safeTransferFrom(address(this), _to, _tokenId, _amount, "");
 
-        emit FinalizeWithdrawERC1155(
-            _l1Token,
-            _l2Token,
-            _from,
-            _to,
-            _tokenId,
-            _amount
-        );
+        emit FinalizeWithdrawERC1155(_l1Token, _l2Token, _from, _to, _tokenId, _amount);
     }
 
     /// @inheritdoc IL1ERC1155Gateway
@@ -161,76 +130,29 @@ contract L1ERC1155Gateway is
         require(_l2Token != address(0), "token address cannot be 0");
         require(_l2Token == tokenMapping[_l1Token], "l2 token mismatch");
 
-        IERC1155Upgradeable(_l1Token).safeBatchTransferFrom(
-            address(this),
-            _to,
-            _tokenIds,
-            _amounts,
-            ""
-        );
+        IERC1155Upgradeable(_l1Token).safeBatchTransferFrom(address(this), _to, _tokenIds, _amounts, "");
 
-        emit FinalizeBatchWithdrawERC1155(
-            _l1Token,
-            _l2Token,
-            _from,
-            _to,
-            _tokenIds,
-            _amounts
-        );
+        emit FinalizeBatchWithdrawERC1155(_l1Token, _l2Token, _from, _to, _tokenIds, _amounts);
     }
 
     /// @inheritdoc IMessageDropCallback
-    function onDropMessage(
-        bytes calldata _message
-    ) external payable virtual onlyInDropContext nonReentrant {
+    function onDropMessage(bytes calldata _message) external payable virtual onlyInDropContext nonReentrant {
         require(msg.value == 0, "nonzero msg.value");
 
-        if (
-            bytes4(_message[0:4]) ==
-            IL2ERC1155Gateway.finalizeDepositERC1155.selector
-        ) {
-            (
-                address _token,
-                ,
-                address _sender,
-                ,
-                uint256 _tokenId,
-                uint256 _amount
-            ) = abi.decode(
-                    _message[4:],
-                    (address, address, address, address, uint256, uint256)
-                );
-            IERC1155Upgradeable(_token).safeTransferFrom(
-                address(this),
-                _sender,
-                _tokenId,
-                _amount,
-                ""
+        if (bytes4(_message[0:4]) == IL2ERC1155Gateway.finalizeDepositERC1155.selector) {
+            (address _token, , address _sender, , uint256 _tokenId, uint256 _amount) = abi.decode(
+                _message[4:],
+                (address, address, address, address, uint256, uint256)
             );
+            IERC1155Upgradeable(_token).safeTransferFrom(address(this), _sender, _tokenId, _amount, "");
 
             emit RefundERC1155(_token, _sender, _tokenId, _amount);
-        } else if (
-            bytes4(_message[0:4]) ==
-            IL2ERC1155Gateway.finalizeBatchDepositERC1155.selector
-        ) {
-            (
-                address _token,
-                ,
-                address _sender,
-                ,
-                uint256[] memory _tokenIds,
-                uint256[] memory _amounts
-            ) = abi.decode(
-                    _message[4:],
-                    (address, address, address, address, uint256[], uint256[])
-                );
-            IERC1155Upgradeable(_token).safeBatchTransferFrom(
-                address(this),
-                _sender,
-                _tokenIds,
-                _amounts,
-                ""
+        } else if (bytes4(_message[0:4]) == IL2ERC1155Gateway.finalizeBatchDepositERC1155.selector) {
+            (address _token, , address _sender, , uint256[] memory _tokenIds, uint256[] memory _amounts) = abi.decode(
+                _message[4:],
+                (address, address, address, address, uint256[], uint256[])
             );
+            IERC1155Upgradeable(_token).safeBatchTransferFrom(address(this), _sender, _tokenIds, _amounts, "");
 
             emit BatchRefundERC1155(_token, _sender, _tokenIds, _amounts);
         } else {
@@ -245,10 +167,7 @@ contract L1ERC1155Gateway is
     /// @notice Update layer 2 to layer 2 token mapping.
     /// @param _l1Token The address of ERC1155 token on layer 1.
     /// @param _l2Token The address of corresponding ERC1155 token on layer 2.
-    function updateTokenMapping(
-        address _l1Token,
-        address _l2Token
-    ) external onlyOwner {
+    function updateTokenMapping(address _l1Token, address _l2Token) external onlyOwner {
         require(_l2Token != address(0), "token address cannot be 0");
 
         address _oldL2Token = tokenMapping[_l1Token];
@@ -282,13 +201,7 @@ contract L1ERC1155Gateway is
         address _sender = _msgSender();
 
         // 1. transfer token to this contract
-        IERC1155Upgradeable(_token).safeTransferFrom(
-            _sender,
-            address(this),
-            _tokenId,
-            _amount,
-            ""
-        );
+        IERC1155Upgradeable(_token).safeTransferFrom(_sender, address(this), _tokenId, _amount, "");
 
         // 2. Generate message passed to L2ERC1155Gateway.
         bytes memory _message = abi.encodeCall(
@@ -297,13 +210,7 @@ contract L1ERC1155Gateway is
         );
 
         // 3. Send message to L1CrossDomainMessenger.
-        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            counterpart,
-            0,
-            _message,
-            _gasLimit,
-            _sender
-        );
+        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit, _sender);
 
         emit DepositERC1155(_token, _l2Token, _sender, _to, _tokenId, _amount);
     }
@@ -334,13 +241,7 @@ contract L1ERC1155Gateway is
         address _sender = _msgSender();
 
         // 1. transfer token to this contract
-        IERC1155Upgradeable(_token).safeBatchTransferFrom(
-            _sender,
-            address(this),
-            _tokenIds,
-            _amounts,
-            ""
-        );
+        IERC1155Upgradeable(_token).safeBatchTransferFrom(_sender, address(this), _tokenIds, _amounts, "");
 
         // 2. Generate message passed to L2ERC1155Gateway.
         bytes memory _message = abi.encodeCall(
@@ -349,21 +250,8 @@ contract L1ERC1155Gateway is
         );
 
         // 3. Send message to L1CrossDomainMessenger.
-        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            counterpart,
-            0,
-            _message,
-            _gasLimit,
-            _sender
-        );
+        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit, _sender);
 
-        emit BatchDepositERC1155(
-            _token,
-            _l2Token,
-            _sender,
-            _to,
-            _tokenIds,
-            _amounts
-        );
+        emit BatchDepositERC1155(_token, _l2Token, _sender, _to, _tokenIds, _amounts);
     }
 }

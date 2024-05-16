@@ -34,11 +34,7 @@ interface IL1MessageQueue {
     /// @param startIndex The start index of messages popped.
     /// @param count The number of messages popped.
     /// @param skippedBitmap A bitmap indicates whether a message is skipped.
-    event DequeueTransaction(
-        uint256 startIndex,
-        uint256 count,
-        uint256 skippedBitmap
-    );
+    event DequeueTransaction(uint256 startIndex, uint256 count, uint256 skippedBitmap);
 
     /// @notice Emitted when a message is dropped from L1.
     /// @param index The index of message dropped.
@@ -47,18 +43,12 @@ interface IL1MessageQueue {
     /// @notice Emitted when owner updates gas oracle contract.
     /// @param _oldGasOracle The address of old gas oracle contract.
     /// @param _newGasOracle The address of new gas oracle contract.
-    event UpdateGasOracle(
-        address indexed _oldGasOracle,
-        address indexed _newGasOracle
-    );
+    event UpdateGasOracle(address indexed _oldGasOracle, address indexed _newGasOracle);
 
     /// @notice Emitted when owner updates EnforcedTxGateway contract.
     /// @param _oldGateway The address of old EnforcedTxGateway contract.
     /// @param _newGateway The address of new EnforcedTxGateway contract.
-    event UpdateEnforcedTxGateway(
-        address indexed _oldGateway,
-        address indexed _newGateway
-    );
+    event UpdateEnforcedTxGateway(address indexed _oldGateway, address indexed _newGateway);
 
     /// @notice Emitted when owner updates max gas limit.
     /// @param _oldMaxGasLimit The old max gas limit.
@@ -78,24 +68,17 @@ interface IL1MessageQueue {
 
     /// @notice Return the message of in `queueIndex`.
     /// @param queueIndex The index to query.
-    function getCrossDomainMessage(
-        uint256 queueIndex
-    ) external view returns (bytes32);
+    function getCrossDomainMessage(uint256 queueIndex) external view returns (bytes32);
 
     /// @notice Return the amount of ETH should pay for cross domain message.
     /// @param sender The address of the message sender.
     /// @param gasLimit Gas limit required to complete the message relay on L2.
     /// @dev Estimates the fee for a cross-domain message.
-    function estimateCrossDomainMessageFee(
-        address sender,
-        uint256 gasLimit
-    ) external view returns (uint256);
+    function estimateCrossDomainMessageFee(address sender, uint256 gasLimit) external view returns (uint256);
 
     /// @notice Return the amount of intrinsic gas fee should pay for cross domain message.
     /// @param _calldata The calldata of L1-initiated transaction.
-    function calculateIntrinsicGasFee(
-        bytes memory _calldata
-    ) external view returns (uint256);
+    function calculateIntrinsicGasFee(bytes memory _calldata) external view returns (uint256);
 
     /// @notice Return the hash of a L1 message.
     /// @param sender The address of sender.
@@ -129,11 +112,7 @@ interface IL1MessageQueue {
     /// @param target The address of target contract to call in L2.
     /// @param gasLimit The maximum gas should be used for relay this message in L2.
     /// @param data The calldata passed to target contract.
-    function appendCrossDomainMessage(
-        address target,
-        uint256 gasLimit,
-        bytes calldata data
-    ) external;
+    function appendCrossDomainMessage(address target, uint256 gasLimit, bytes calldata data) external;
 
     /// @notice Append an enforced transaction to this contract.
     /// @dev The address of sender should be an EOA.
@@ -158,11 +137,7 @@ interface IL1MessageQueue {
     /// @param startIndex The start index to pop.
     /// @param count The number of messages to pop.
     /// @param skippedBitmap A bitmap indicates whether a message is skipped.
-    function popCrossDomainMessage(
-        uint256 startIndex,
-        uint256 count,
-        uint256 skippedBitmap
-    ) external;
+    function popCrossDomainMessage(uint256 startIndex, uint256 count, uint256 skippedBitmap) external;
 
     /// @notice Drop a skipped message from the queue.
     function dropCrossDomainMessage(uint256 index) external;

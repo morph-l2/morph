@@ -29,11 +29,7 @@ contract SequencerTest is L2StakingBaseTest {
         sequencer.initialize(_sequencersAddresses);
 
         // reset initialize
-        hevm.store(
-            address(sequencer),
-            bytes32(uint256(0)),
-            bytes32(uint256(0))
-        );
+        hevm.store(address(sequencer), bytes32(uint256(0)), bytes32(uint256(0)));
 
         hevm.expectRevert("invalid sequencer set");
         hevm.prank(multisig);
@@ -64,18 +60,12 @@ contract SequencerTest is L2StakingBaseTest {
         sequencer.updateSequencerSet(newSequencers);
 
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(
-                sequencer.getCurrentSequencerSet()[i],
-                sequencerAddresses[i]
-            );
+            assertEq(sequencer.getCurrentSequencerSet()[i], sequencerAddresses[i]);
             assertTrue(sequencer.isCurrentSequencer(sequencerAddresses[i]));
         }
         hevm.roll(2);
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(
-                sequencer.getCurrentSequencerSet()[i],
-                sequencerAddresses[i]
-            );
+            assertEq(sequencer.getCurrentSequencerSet()[i], sequencerAddresses[i]);
             assertTrue(sequencer.isCurrentSequencer(sequencerAddresses[i]));
         }
 

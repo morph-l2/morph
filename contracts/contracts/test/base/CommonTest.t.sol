@@ -23,8 +23,7 @@ contract CommonTest is DSTestPlus, MockTree {
 
     FFIInterface public ffi;
 
-    bytes32 public constant PROXY_OWNER_KEY =
-        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 public constant PROXY_OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
     bytes32 public constant PROXY_IMPLEMENTATION_KEY =
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
@@ -70,9 +69,7 @@ contract CommonTest is DSTestPlus, MockTree {
     }
 
     function _changeAdmin(address proxy) internal {
-        ITransparentUpgradeableProxy(address(proxy)).changeAdmin(
-            address(proxyAdmin)
-        );
+        ITransparentUpgradeableProxy(address(proxy)).changeAdmin(address(proxyAdmin));
     }
 }
 
@@ -96,46 +93,37 @@ contract FFIInterface is Test {
         cmds[2] = vm.toString(withdrawalHash);
 
         bytes memory result = vm.ffi(cmds);
-        (
-            bytes32 withdrawalHashRes,
-            bytes32[32] memory withdrawalProof,
-            bytes32 withdrawalRoot
-        ) = abi.decode(result, (bytes32, bytes32[32], bytes32));
+        (bytes32 withdrawalHashRes, bytes32[32] memory withdrawalProof, bytes32 withdrawalRoot) = abi.decode(
+            result,
+            (bytes32, bytes32[32], bytes32)
+        );
 
         return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
     }
 
-    function getProveWithdrawalCheckProof(
-        uint64 index
-    ) external returns (bytes32, bytes32[32] memory, bytes32) {
+    function getProveWithdrawalCheckProof(uint64 index) external returns (bytes32, bytes32[32] memory, bytes32) {
         string[] memory cmds = new string[](3);
         cmds[0] = "scripts/differential-testing/differential-testing";
         cmds[1] = "getProveWithdrawalCheckProof";
         cmds[2] = vm.toString(index);
 
         bytes memory result = vm.ffi(cmds);
-        (
-            bytes32 withdrawalHashRes,
-            bytes32[32] memory withdrawalProof,
-            bytes32 withdrawalRoot
-        ) = abi.decode(result, (bytes32, bytes32[32], bytes32));
+        (bytes32 withdrawalHashRes, bytes32[32] memory withdrawalProof, bytes32 withdrawalRoot) = abi.decode(
+            result,
+            (bytes32, bytes32[32], bytes32)
+        );
 
         return (withdrawalHashRes, withdrawalProof, withdrawalRoot);
     }
 
-    function generateStakerInfo(
-        address _staker
-    ) external returns (Types.StakerInfo memory) {
+    function generateStakerInfo(address _staker) external returns (Types.StakerInfo memory) {
         string[] memory cmds = new string[](3);
         cmds[0] = "scripts/differential-testing/differential-testing";
         cmds[1] = "generateStakerInfo";
         cmds[2] = vm.toString(_staker);
 
         bytes memory result = vm.ffi(cmds);
-        Types.StakerInfo memory stakerInfo = abi.decode(
-            result,
-            (Types.StakerInfo)
-        );
+        Types.StakerInfo memory stakerInfo = abi.decode(result, (Types.StakerInfo));
         return stakerInfo;
     }
 }

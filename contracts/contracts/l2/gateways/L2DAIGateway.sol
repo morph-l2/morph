@@ -6,6 +6,4 @@ import {L2CustomERC20Gateway} from "./L2CustomERC20Gateway.sol";
 
 // solhint-disable no-empty-blocks
 
-contract L2DAIGateway is L2CustomERC20Gateway {
-
-}
+contract L2DAIGateway is L2CustomERC20Gateway {}

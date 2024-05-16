@@ -64,10 +64,7 @@ interface IRecord {
     /// @notice Emitted batch submissions uploaded
     /// @param startIndex   The data start index
     /// @param dataLength   The data length
-    event BatchSubmissionsUploaded(
-        uint256 indexed startIndex,
-        uint256 dataLength
-    );
+    event BatchSubmissionsUploaded(uint256 indexed startIndex, uint256 dataLength);
 
     /// @notice Emitted rollup epochs uploaded
     /// @param startIndex   The data start index
@@ -98,26 +95,17 @@ interface IRecord {
     /// @notice getBatchSubmissions
     /// @param start start index
     /// @param end   end index
-    function getBatchSubmissions(
-        uint256 start,
-        uint256 end
-    ) external view returns (BatchSubmission[] memory);
+    function getBatchSubmissions(uint256 start, uint256 end) external view returns (BatchSubmission[] memory);
 
     /// @notice get rollup epochs
     /// @param start start index
     /// @param end   end index
-    function getRollupEpochs(
-        uint256 start,
-        uint256 end
-    ) external view returns (RollupEpochInfo[] memory);
+    function getRollupEpochs(uint256 start, uint256 end) external view returns (RollupEpochInfo[] memory);
 
     /// @notice get reward epochs
     /// @param start start index
     /// @param end   end index
-    function getRewardEpochs(
-        uint256 start,
-        uint256 end
-    ) external view returns (RewardEpochInfo[] memory);
+    function getRewardEpochs(uint256 start, uint256 end) external view returns (RewardEpochInfo[] memory);
 
     /*****************************
      * Public Mutating Functions *
@@ -132,17 +120,11 @@ interface IRecord {
     function setLatestRewardEpochBlock(uint256 _latestBlock) external;
 
     /// @notice record batch submissions
-    function recordFinalizedBatchSubmissions(
-        BatchSubmission[] calldata _batchSubmissions
-    ) external;
+    function recordFinalizedBatchSubmissions(BatchSubmission[] calldata _batchSubmissions) external;
 
     /// @notice record epochs
-    function recordRollupEpochs(
-        RollupEpochInfo[] calldata _rollupEpochs
-    ) external;
+    function recordRollupEpochs(RollupEpochInfo[] calldata _rollupEpochs) external;
 
     /// @notice record epochs
-    function recordRewardEpochs(
-        RewardEpochInfo[] calldata _rewardEpochs
-    ) external;
+    function recordRewardEpochs(RewardEpochInfo[] calldata _rewardEpochs) external;
 }

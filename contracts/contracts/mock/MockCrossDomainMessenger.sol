@@ -31,12 +31,7 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
         }
     }
 
-    function sendMessage(
-        address _to,
-        uint256 _value,
-        bytes memory _message,
-        uint256 _gasLimit
-    ) external payable {}
+    function sendMessage(address _to, uint256 _value, bytes memory _message, uint256 _gasLimit) external payable {}
 
     function sendMessage(
         address _to,

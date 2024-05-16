@@ -55,11 +55,7 @@ contract MorphStandardERC20 is ERC20PermitUpgradeable, IMorphERC20Upgradeable {
     /// @dev ERC677 Standard, see https://github.com/ethereum/EIPs/issues/677
     /// Defi can use this method to transfer L1/L2 token to L2/L1,
     /// and deposit to L2/L1 contract in one transaction
-    function transferAndCall(
-        address receiver,
-        uint256 amount,
-        bytes calldata data
-    ) external returns (bool success) {
+    function transferAndCall(address receiver, uint256 amount, bytes calldata data) external returns (bool success) {
         ERC20Upgradeable.transfer(receiver, amount);
         if (isContract(receiver)) {
             contractFallback(receiver, amount, data);
@@ -67,11 +63,7 @@ contract MorphStandardERC20 is ERC20PermitUpgradeable, IMorphERC20Upgradeable {
         return true;
     }
 
-    function contractFallback(
-        address to,
-        uint256 value,
-        bytes memory data
-    ) private {
+    function contractFallback(address to, uint256 value, bytes memory data) private {
         IERC677Receiver receiver = IERC677Receiver(to);
         receiver.onTokenTransfer(_msgSender(), value, data);
     }

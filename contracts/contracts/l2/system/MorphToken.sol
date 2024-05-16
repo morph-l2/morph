@@ -42,8 +42,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     mapping(address owner => uint256) private _balances;
 
     /// @notice allowances
-    mapping(address owner => mapping(address spender => uint256))
-        private _allowances;
+    mapping(address owner => mapping(address spender => uint256)) private _allowances;
 
     /// @notice per epoch inflation rate
     EpochInflationRate[] private _epochInflationRates;
@@ -60,10 +59,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
     /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
-        require(
-            _msgSender() == RECORD_CONTRACT,
-            "only record contract allowed"
-        );
+        require(_msgSender() == RECORD_CONTRACT, "only record contract allowed");
         _;
     }
 
@@ -104,38 +100,26 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
      ************************/
 
     /// @dev See {IMorphToken-setRate}.
-    function updateRate(
-        uint256 newRate,
-        uint256 effectiveEpochIndex
-    ) public onlyOwner {
+    function updateRate(uint256 newRate, uint256 effectiveEpochIndex) public onlyOwner {
         require(
-            effectiveEpochIndex >
-                _epochInflationRates[_epochInflationRates.length - 1]
-                    .effectiveEpochIndex,
+            effectiveEpochIndex > _epochInflationRates[_epochInflationRates.length - 1].effectiveEpochIndex,
             "effective epochs after must be greater than before"
         );
 
-        _epochInflationRates.push(
-            EpochInflationRate(newRate, effectiveEpochIndex)
-        );
+        _epochInflationRates.push(EpochInflationRate(newRate, effectiveEpochIndex));
 
         emit UpdateEpochInflationRate(newRate, effectiveEpochIndex);
     }
 
     /// @dev mint inflations
     /// @param upToEpochIndex mint up to which epoch
-    function mintInflations(
-        uint256 upToEpochIndex
-    ) external onlyRecordContract {
+    function mintInflations(uint256 upToEpochIndex) external onlyRecordContract {
         // inflations can only be minted for epochs that have ended.
         require(
             IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > upToEpochIndex,
             "the specified time has not yet been reached"
         );
-        require(
-            upToEpochIndex >= _inflationMintedEpochs,
-            "all inflations minted"
-        );
+        require(upToEpochIndex >= _inflationMintedEpochs, "all inflations minted");
 
         // the index of next epoch to mint is equal to the count of minted epochs
         for (uint256 i = _inflationMintedEpochs; i <= upToEpochIndex; i++) {
@@ -185,11 +169,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// - `from` and `to` cannot be the zero address.
     /// - `from` must have a balance of at least `amount`.
     /// - the caller must have allowance for ``from``'s tokens of at least `amount`.
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public override returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         address spender = _msgSender();
         _spendAllowance(from, spender, amount);
         _transfer(from, to, amount);
@@ -206,10 +186,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// Requirements:
     ///
     /// - `spender` cannot be the zero address.
-    function increaseAllowance(
-        address spender,
-        uint256 addedValue
-    ) public virtual returns (bool) {
+    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
         address owner = _msgSender();
         _approve(owner, spender, allowance(owner, spender) + addedValue);
         return true;
@@ -226,16 +203,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     ///
     /// - `spender` cannot be the zero address.
     /// - `spender` must have allowance for the caller of at least `subtractedValue`.
-    function decreaseAllowance(
-        address spender,
-        uint256 subtractedValue
-    ) public virtual returns (bool) {
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
         address owner = _msgSender();
         uint256 currentAllowance = allowance(owner, spender);
-        require(
-            currentAllowance >= subtractedValue,
-            "decreased allowance below zero"
-        );
+        require(currentAllowance >= subtractedValue, "decreased allowance below zero");
         unchecked {
             _approve(owner, spender, currentAllowance - subtractedValue);
         }
@@ -287,9 +258,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     }
 
     /// @dev See {IMorphToken-epochInflationRates}.
-    function epochInflationRates(
-        uint256 index
-    ) public view returns (EpochInflationRate memory) {
+    function epochInflationRates(uint256 index) public view returns (EpochInflationRate memory) {
         return _epochInflationRates[index];
     }
 
@@ -316,10 +285,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     }
 
     /// @dev See {IMorphToken-allowance}.
-    function allowance(
-        address owner,
-        address spender
-    ) public view returns (uint256) {
+    function allowance(address owner, address spender) public view returns (uint256) {
         return _allowances[owner][spender];
     }
 
@@ -398,11 +364,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// Revert if not enough allowance is available.
     ///
     /// Might emit an {Approval} event.
-    function _spendAllowance(
-        address owner,
-        address spender,
-        uint256 amount
-    ) internal {
+    function _spendAllowance(address owner, address spender, uint256 amount) internal {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
             require(currentAllowance >= amount, "insufficient allowance");

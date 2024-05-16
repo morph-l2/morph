@@ -19,21 +19,12 @@ abstract contract L2ERC20Gateway is GatewayBase, IL2ERC20Gateway {
      *****************************/
 
     /// @inheritdoc IL2ERC20Gateway
-    function withdrawERC20(
-        address _token,
-        uint256 _amount,
-        uint256 _gasLimit
-    ) external payable override {
+    function withdrawERC20(address _token, uint256 _amount, uint256 _gasLimit) external payable override {
         _withdraw(_token, _msgSender(), _amount, new bytes(0), _gasLimit);
     }
 
     /// @inheritdoc IL2ERC20Gateway
-    function withdrawERC20(
-        address _token,
-        address _to,
-        uint256 _amount,
-        uint256 _gasLimit
-    ) external payable override {
+    function withdrawERC20(address _token, address _to, uint256 _amount, uint256 _gasLimit) external payable override {
         _withdraw(_token, _to, _amount, new bytes(0), _gasLimit);
     }
 

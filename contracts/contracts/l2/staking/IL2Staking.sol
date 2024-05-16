@@ -28,12 +28,7 @@ interface IL2Staking {
     /// @param delegator          delegator
     /// @param amount             new delegation amount, not increment
     /// @param effectiveEpoch     effective epoch
-    event Delegated(
-        address indexed delegatee,
-        address indexed delegator,
-        uint256 amount,
-        uint256 effectiveEpoch
-    );
+    event Delegated(address indexed delegatee, address indexed delegator, uint256 amount, uint256 effectiveEpoch);
 
     /// @notice Emitted undelegated stake
     /// @param delegatee          delegatee
@@ -58,11 +53,7 @@ interface IL2Staking {
     /// @param staker           staker address
     /// @param percentage       commission percentage
     /// @param epochEffective   epoch effective
-    event CommissionUpdated(
-        address indexed staker,
-        uint256 percentage,
-        uint256 epochEffective
-    );
+    event CommissionUpdated(address indexed staker, uint256 percentage, uint256 epochEffective);
 
     /// @notice Emitted staker added
     /// @param addr     staker address
@@ -109,15 +100,11 @@ interface IL2Staking {
 
     /// @notice Get all the delegators which staked to staker
     /// @param staker    address
-    function getDelegators(
-        address staker
-    ) external view returns (address[] memory);
+    function getDelegators(address staker) external view returns (address[] memory);
 
     /// @notice get stakers info
     /// @param _stakerAddresses    staker's addresses
-    function getStakesInfo(
-        address[] calldata _stakerAddresses
-    ) external view returns (Types.StakerInfo[] memory);
+    function getStakesInfo(address[] calldata _stakerAddresses) external view returns (Types.StakerInfo[] memory);
 
     /// @notice get stakers
     function getStakers() external view returns (Types.StakerInfo[] memory);

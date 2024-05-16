@@ -65,13 +65,13 @@ var (
 	}
 )
 
-func eip1967Slots(address common.Address) StorageCheckMap {
-	codeAddr, err := AddressToCodeNamespace(address)
-	if err != nil {
-		panic(err)
-	}
-	return StorageCheckMap{
-		AdminSlot:          predeploys.ProxyAdminAddr.Hash(),
-		ImplementationSlot: codeAddr.Hash(),
-	}
-}
+// func eip1967Slots(address common.Address) StorageCheckMap {
+// 	codeAddr, err := AddressToCodeNamespace(address)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	return StorageCheckMap{
+// 		AdminSlot:          predeploys.ProxyAdminAddr.Hash(),
+// 		ImplementationSlot: codeAddr.Hash(),
+// 	}
+// }

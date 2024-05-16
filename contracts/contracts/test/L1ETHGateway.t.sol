@@ -16,11 +16,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         counterpartGateway = l1ETHGateway.counterpart();
     }
 
-    function test_depositETH_succeeds(
-        uint256 amount,
-        uint256 gasLimit,
-        uint256 feePerGas
-    ) public {
+    function test_depositETH_succeeds(uint256 amount, uint256 gasLimit, uint256 feePerGas) public {
         _depositETH(false, amount, gasLimit, feePerGas);
     }
 
@@ -40,21 +36,10 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         uint256 gasLimit,
         uint256 feePerGas
     ) public {
-        _depositETHWithRecipientAndCalldata(
-            false,
-            amount,
-            recipient,
-            dataToCall,
-            gasLimit,
-            feePerGas
-        );
+        _depositETHWithRecipientAndCalldata(false, amount, recipient, dataToCall, gasLimit, feePerGas);
     }
 
-    function test_routerDepositETH_succeeds(
-        uint256 amount,
-        uint256 gasLimit,
-        uint256 feePerGas
-    ) public {
+    function test_routerDepositETH_succeeds(uint256 amount, uint256 gasLimit, uint256 feePerGas) public {
         _depositETH(true, amount, gasLimit, feePerGas);
     }
 
@@ -74,32 +59,16 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         uint256 gasLimit,
         uint256 feePerGas
     ) public {
-        _depositETHWithRecipientAndCalldata(
-            true,
-            amount,
-            recipient,
-            dataToCall,
-            gasLimit,
-            feePerGas
-        );
+        _depositETHWithRecipientAndCalldata(true, amount, recipient, dataToCall, gasLimit, feePerGas);
     }
 
-    function test_dropMessage_succeeds(
-        uint256 amount,
-        address recipient,
-        bytes memory dataToCall
-    ) public {
+    function test_dropMessage_succeeds(uint256 amount, address recipient, bytes memory dataToCall) public {
         amount = bound(amount, 1, address(this).balance);
         bytes memory message = abi.encodeCall(
             IL2ETHGateway.finalizeDepositETH,
             (address(this), recipient, amount, dataToCall)
         );
-        l1ETHGateway.depositETHAndCall{value: amount}(
-            recipient,
-            amount,
-            dataToCall,
-            defaultGasLimit
-        );
+        l1ETHGateway.depositETHAndCall{value: amount}(recipient, amount, dataToCall, defaultGasLimit);
 
         // skip message 0
         hevm.startPrank(address(rollup));
@@ -110,13 +79,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         // ETH transfer failed, revert
         revertOnReceive = true;
         hevm.expectRevert("ETH transfer failed");
-        l1CrossDomainMessenger.dropMessage(
-            address(l1ETHGateway),
-            address(counterpartGateway),
-            amount,
-            0,
-            message
-        );
+        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
 
         // drop message 0
         hevm.expectEmit(true, true, false, true);
@@ -124,13 +87,7 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
         revertOnReceive = false;
         uint256 balance = address(this).balance;
-        l1CrossDomainMessenger.dropMessage(
-            address(l1ETHGateway),
-            address(counterpartGateway),
-            amount,
-            0,
-            message
-        );
+        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
         assertEq(balance + amount, address(this).balance);
     }
 
@@ -152,51 +109,28 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             (sender, recipient, amount, dataToCall)
         );
         bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(
-                _from,
-                address(l1ETHGateway),
-                amount,
-                0,
-                message
-            )
+            _encodeXDomainCalldata(_from, address(l1ETHGateway), amount, 0, message)
         );
-        (
-            bytes32[32] memory wdProof,
-            bytes32 wdRoot
-        ) = messageProveAndRelayPrepare(
-                _from,
-                address(l1ETHGateway),
-                amount,
-                0,
-                message
-            );
-
-        uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
-        uint256 recipientBalance = recipient.balance;
-        assertBoolEq(
-            false,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
-        // counterpart is not L2ETHGateway
-        // emit FailedRelayedMessage from L1CrossDomainMessenger
-        hevm.expectEmit(true, false, false, true);
-        emit ICrossDomainMessenger.FailedRelayedMessage(_xDomainCalldataHash);
-        l1CrossDomainMessenger.proveAndRelayMessage(
+        (bytes32[32] memory wdProof, bytes32 wdRoot) = messageProveAndRelayPrepare(
             _from,
             address(l1ETHGateway),
             amount,
             0,
-            message,
-            wdProof,
-            wdRoot
+            message
         );
+
+        uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
+        uint256 recipientBalance = recipient.balance;
+        assertBoolEq(false, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
+        // counterpart is not L2ETHGateway
+        // emit FailedRelayedMessage from L1CrossDomainMessenger
+        hevm.expectEmit(true, false, false, true);
+        emit ICrossDomainMessenger.FailedRelayedMessage(_xDomainCalldataHash);
+        l1CrossDomainMessenger.proveAndRelayMessage(_from, address(l1ETHGateway), amount, 0, message, wdProof, wdRoot);
 
         assertEq(messengerBalance, address(l1CrossDomainMessenger).balance);
         assertEq(recipientBalance, recipient.balance);
-        assertBoolEq(
-            false,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
+        assertBoolEq(false, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
     }
 
     function test_finalizeWithdrawETH_succeeds() public {
@@ -208,73 +142,34 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         l1ETHGateway.depositETH{value: amount}(amount, defaultGasLimit);
 
         // do finalize withdraw eth
-        bytes memory message = abi.encodeCall(
-            IL1ETHGateway.finalizeWithdrawETH,
-            (sender, recipient, amount, "")
-        );
+        bytes memory message = abi.encodeCall(IL1ETHGateway.finalizeWithdrawETH, (sender, recipient, amount, ""));
         bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(
-                _from,
-                address(l1ETHGateway),
-                amount,
-                0,
-                message
-            )
+            _encodeXDomainCalldata(_from, address(l1ETHGateway), amount, 0, message)
         );
-        (
-            bytes32[32] memory wdProof,
-            bytes32 wdRoot
-        ) = messageProveAndRelayPrepare(
-                _from,
-                address(l1ETHGateway),
-                amount,
-                0,
-                message
-            );
-        uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
-        uint256 recipientBalance = recipient.balance;
-        assertBoolEq(
-            false,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
-        // counterpart is not L2ETHGateway
-        // emit FailedRelayedMessage from L1CrossDomainMessenger
-        {
-            hevm.expectEmit(true, false, false, true);
-            emit IL1ETHGateway.FinalizeWithdrawETH(
-                sender,
-                address(recipient),
-                amount,
-                ""
-            );
-        }
-
-        l1CrossDomainMessenger.proveAndRelayMessage(
+        (bytes32[32] memory wdProof, bytes32 wdRoot) = messageProveAndRelayPrepare(
             _from,
             address(l1ETHGateway),
             amount,
             0,
-            message,
-            wdProof,
-            wdRoot
+            message
         );
-        assertEq(
-            messengerBalance - amount,
-            address(l1CrossDomainMessenger).balance
-        );
+        uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
+        uint256 recipientBalance = recipient.balance;
+        assertBoolEq(false, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
+        // counterpart is not L2ETHGateway
+        // emit FailedRelayedMessage from L1CrossDomainMessenger
+        {
+            hevm.expectEmit(true, false, false, true);
+            emit IL1ETHGateway.FinalizeWithdrawETH(sender, address(recipient), amount, "");
+        }
+
+        l1CrossDomainMessenger.proveAndRelayMessage(_from, address(l1ETHGateway), amount, 0, message, wdProof, wdRoot);
+        assertEq(messengerBalance - amount, address(l1CrossDomainMessenger).balance);
         assertEq(recipientBalance + amount, address(recipient).balance);
-        assertBoolEq(
-            true,
-            l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash)
-        );
+        assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
     }
 
-    function _depositETH(
-        bool useRouter,
-        uint256 amount,
-        uint256 gasLimit,
-        uint256 feePerGas
-    ) private {
+    function _depositETH(bool useRouter, uint256 amount, uint256 gasLimit, uint256 feePerGas) private {
         amount = bound(amount, 0, address(this).balance / 2);
         gasLimit = bound(gasLimit, defaultGasLimit / 2, defaultGasLimit);
         feePerGas = bound(feePerGas, 0, 1000);
@@ -307,17 +202,8 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
             // emit QueueTransaction from L1MessageQueue
             {
                 hevm.expectEmit(true, true, false, true);
-                address sender = AddressAliasHelper.applyL1ToL2Alias(
-                    address(l1CrossDomainMessenger)
-                );
-                emit IL1MessageQueue.QueueTransaction(
-                    sender,
-                    address(l2Messenger),
-                    0,
-                    0,
-                    gasLimit,
-                    xDomainCalldata
-                );
+                address sender = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+                emit IL1MessageQueue.QueueTransaction(sender, address(l2Messenger), 0, 0, gasLimit, xDomainCalldata);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -335,43 +221,19 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit IL1ETHGateway.DepositETH(
-                address(this),
-                address(this),
-                amount,
-                new bytes(0),
-                0
-            );
+            emit IL1ETHGateway.DepositETH(address(this), address(this), amount, new bytes(0), 0);
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
-            assertEq(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositETH{
-                    value: amount + feeToPay + extraValue
-                }(amount, gasLimit);
+                l1GatewayRouter.depositETH{value: amount + feeToPay + EXTRA_VALUE}(amount, gasLimit);
             } else {
-                l1ETHGateway.depositETH{value: amount + feeToPay + extraValue}(
-                    amount,
-                    gasLimit
-                );
+                l1ETHGateway.depositETH{value: amount + feeToPay + EXTRA_VALUE}(amount, gasLimit);
             }
-            assertEq(
-                amount + messengerBalance,
-                address(l1CrossDomainMessenger).balance
-            );
+            assertEq(amount + messengerBalance, address(l1CrossDomainMessenger).balance);
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
-            assertGt(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertGt(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
         }
     }
 
@@ -405,33 +267,16 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         if (amount == 0) {
             hevm.expectRevert("deposit zero eth");
             if (useRouter) {
-                l1GatewayRouter.depositETH{value: amount}(
-                    recipient,
-                    amount,
-                    gasLimit
-                );
+                l1GatewayRouter.depositETH{value: amount}(recipient, amount, gasLimit);
             } else {
-                l1ETHGateway.depositETH{value: amount}(
-                    recipient,
-                    amount,
-                    gasLimit
-                );
+                l1ETHGateway.depositETH{value: amount}(recipient, amount, gasLimit);
             }
         } else {
             // emit QueueTransaction from L1MessageQueue
             {
                 hevm.expectEmit(true, true, false, true);
-                address sender = AddressAliasHelper.applyL1ToL2Alias(
-                    address(l1CrossDomainMessenger)
-                );
-                emit IL1MessageQueue.QueueTransaction(
-                    sender,
-                    address(l2Messenger),
-                    0,
-                    0,
-                    gasLimit,
-                    xDomainCalldata
-                );
+                address sender = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+                emit IL1MessageQueue.QueueTransaction(sender, address(l2Messenger), 0, 0, gasLimit, xDomainCalldata);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -449,44 +294,19 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit IL1ETHGateway.DepositETH(
-                address(this),
-                recipient,
-                amount,
-                new bytes(0),
-                0
-            );
+            emit IL1ETHGateway.DepositETH(address(this), recipient, amount, new bytes(0), 0);
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
-            assertEq(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositETH{
-                    value: amount + feeToPay + extraValue
-                }(recipient, amount, gasLimit);
+                l1GatewayRouter.depositETH{value: amount + feeToPay + EXTRA_VALUE}(recipient, amount, gasLimit);
             } else {
-                l1ETHGateway.depositETH{value: amount + feeToPay + extraValue}(
-                    recipient,
-                    amount,
-                    gasLimit
-                );
+                l1ETHGateway.depositETH{value: amount + feeToPay + EXTRA_VALUE}(recipient, amount, gasLimit);
             }
-            assertEq(
-                amount + messengerBalance,
-                address(l1CrossDomainMessenger).balance
-            );
+            assertEq(amount + messengerBalance, address(l1CrossDomainMessenger).balance);
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
-            assertGt(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertGt(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
         }
     }
 
@@ -521,35 +341,16 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         if (amount == 0) {
             hevm.expectRevert("deposit zero eth");
             if (useRouter) {
-                l1GatewayRouter.depositETHAndCall{value: amount}(
-                    recipient,
-                    amount,
-                    dataToCall,
-                    gasLimit
-                );
+                l1GatewayRouter.depositETHAndCall{value: amount}(recipient, amount, dataToCall, gasLimit);
             } else {
-                l1ETHGateway.depositETHAndCall{value: amount}(
-                    recipient,
-                    amount,
-                    dataToCall,
-                    gasLimit
-                );
+                l1ETHGateway.depositETHAndCall{value: amount}(recipient, amount, dataToCall, gasLimit);
             }
         } else {
             // emit QueueTransaction from L1MessageQueue
             {
                 hevm.expectEmit(true, true, false, true);
-                address sender = AddressAliasHelper.applyL1ToL2Alias(
-                    address(l1CrossDomainMessenger)
-                );
-                emit IL1MessageQueue.QueueTransaction(
-                    sender,
-                    address(l2Messenger),
-                    0,
-                    0,
-                    gasLimit,
-                    xDomainCalldata
-                );
+                address sender = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+                emit IL1MessageQueue.QueueTransaction(sender, address(l2Messenger), 0, 0, gasLimit, xDomainCalldata);
             }
 
             // emit SentMessage from L1CrossDomainMessenger
@@ -567,42 +368,29 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
 
             // emit DepositETH from L1ETHGateway
             hevm.expectEmit(true, true, false, true);
-            emit IL1ETHGateway.DepositETH(
-                address(this),
-                recipient,
-                amount,
-                dataToCall,
-                0
-            );
+            emit IL1ETHGateway.DepositETH(address(this), recipient, amount, dataToCall, 0);
 
             uint256 messengerBalance = address(l1CrossDomainMessenger).balance;
             uint256 feeVaultBalance = address(l1FeeVault).balance;
-            assertEq(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertEq(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
             if (useRouter) {
-                l1GatewayRouter.depositETHAndCall{
-                    value: amount + feeToPay + extraValue
-                }(recipient, amount, dataToCall, gasLimit);
+                l1GatewayRouter.depositETHAndCall{value: amount + feeToPay + EXTRA_VALUE}(
+                    recipient,
+                    amount,
+                    dataToCall,
+                    gasLimit
+                );
             } else {
-                l1ETHGateway.depositETHAndCall{
-                    value: amount + feeToPay + extraValue
-                }(recipient, amount, dataToCall, gasLimit);
+                l1ETHGateway.depositETHAndCall{value: amount + feeToPay + EXTRA_VALUE}(
+                    recipient,
+                    amount,
+                    dataToCall,
+                    gasLimit
+                );
             }
-            assertEq(
-                amount + messengerBalance,
-                address(l1CrossDomainMessenger).balance
-            );
+            assertEq(amount + messengerBalance, address(l1CrossDomainMessenger).balance);
             assertEq(feeToPay + feeVaultBalance, address(l1FeeVault).balance);
-            assertGt(
-                l1CrossDomainMessenger.messageSendTimestamp(
-                    keccak256(xDomainCalldata)
-                ),
-                0
-            );
+            assertGt(l1CrossDomainMessenger.messageSendTimestamp(keccak256(xDomainCalldata)), 0);
         }
     }
 }

@@ -9,14 +9,8 @@ import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 contract StakingTest is L1MessageBaseTest {
     function test_setUpCheck_succeeds() external {
         assertEq(rollup.l1StakingContract(), address(l1Staking));
-        assertEq(
-            address(l1Staking.OTHER_STAKING()),
-            address(Predeploys.L2_STAKING)
-        );
-        assertEq(
-            address(l1Staking.MESSENGER()),
-            address(l1CrossDomainMessenger)
-        );
+        assertEq(address(l1Staking.OTHER_STAKING()), address(Predeploys.L2_STAKING));
+        assertEq(address(l1Staking.MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(l1Staking.rollupContract(), address(rollup));
         assertEq(l1Staking.stakingValue(), STAKING_VALUE);
         assertEq(l1Staking.withdrawalLockBlocks(), LOCK_BLOCKS);
@@ -36,15 +30,8 @@ contract StakingTest is L1MessageBaseTest {
         hevm.startPrank(alice);
         hevm.expectEmit(true, true, true, true);
         emit IL1Staking.Registered(alice, stakerInfo.tmKey, stakerInfo.blsKey);
-        l1Staking.register{value: STAKING_VALUE}(
-            stakerInfo.tmKey,
-            stakerInfo.blsKey
-        );
-        (
-            address addrCheck,
-            bytes32 tmKeyCheck,
-            bytes memory blsKeyCheck
-        ) = l1Staking.stakers(alice);
+        l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
+        (address addrCheck, bytes32 tmKeyCheck, bytes memory blsKeyCheck) = l1Staking.stakers(alice);
         assertEq(addrCheck, alice);
         assertEq(tmKeyCheck, stakerInfo.tmKey);
         assertBytesEq(blsKeyCheck, stakerInfo.blsKey);
@@ -66,15 +53,8 @@ contract StakingTest is L1MessageBaseTest {
         hevm.startPrank(bob);
         hevm.expectEmit(true, true, true, true);
         emit IL1Staking.Registered(bob, stakerInfo.tmKey, stakerInfo.blsKey);
-        l1Staking.register{value: STAKING_VALUE}(
-            stakerInfo.tmKey,
-            stakerInfo.blsKey
-        );
-        (
-            address addrCheck,
-            bytes32 tmKeyCheck,
-            bytes memory blsKeyCheck
-        ) = l1Staking.stakers(bob);
+        l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
+        (address addrCheck, bytes32 tmKeyCheck, bytes memory blsKeyCheck) = l1Staking.stakers(bob);
         assertEq(addrCheck, bob);
         assertEq(tmKeyCheck, stakerInfo.tmKey);
         assertBytesEq(blsKeyCheck, stakerInfo.blsKey);
@@ -160,10 +140,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -196,10 +173,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -239,10 +213,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -272,10 +243,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.startPrank(alice);
         hevm.expectRevert("not in whitelist");
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
         hevm.stopPrank();
     }
 
@@ -290,16 +258,10 @@ contract StakingRegisterTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.startPrank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         hevm.expectRevert("already registered");
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
         hevm.stopPrank();
     }
 
@@ -315,10 +277,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.startPrank(alice);
         hevm.expectRevert("invalid staking value");
-        l1Staking.register{value: STAKING_VALUE - 1}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE - 1}(aliceInfo.tmKey, aliceInfo.blsKey);
         hevm.stopPrank();
     }
 
@@ -369,16 +328,9 @@ contract StakingRegisterTest is L1MessageBaseTest {
         assertTrue(!l1Staking.tmKeys(aliceInfo.tmKey));
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
-        (
-            address addrCheck,
-            bytes32 tmKeyCheck,
-            bytes memory blsKeyCheck
-        ) = l1Staking.stakers(alice);
+        (address addrCheck, bytes32 tmKeyCheck, bytes memory blsKeyCheck) = l1Staking.stakers(alice);
         assertEq(addrCheck, alice);
         assertEq(tmKeyCheck, aliceInfo.tmKey);
         assertBytesEq(blsKeyCheck, aliceInfo.blsKey);
@@ -410,10 +362,7 @@ contract StakingWithdrawTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -432,10 +381,7 @@ contract StakingWithdrawTest is L1MessageBaseTest {
 
         // after withdraw
         // check
-        assertEq(
-            l1Staking.withdrawals(bob),
-            block.number + l1Staking.withdrawalLockBlocks()
-        );
+        assertEq(l1Staking.withdrawals(bob), block.number + l1Staking.withdrawalLockBlocks());
         assertTrue(!l1Staking.isStaker(bob));
         assertTrue(!l1Staking.whitelist(bob));
         assertTrue(l1Staking.removedList(bob));
@@ -473,10 +419,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -517,10 +460,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -557,10 +497,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -576,10 +513,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         hevm.prank(l1Staking.rollupContract());
         // bob sequencer to slash
         uint256 reward = l1Staking.slash(sequencers);
-        assertEq(
-            reward,
-            (2 * STAKING_VALUE * l1Staking.rewardPercentage()) / 100
-        );
+        assertEq(reward, (2 * STAKING_VALUE * l1Staking.rewardPercentage()) / 100);
         uint256 afterBalance = l1Staking.rollupContract().balance;
         assertEq(reward, afterBalance - beforeBalance);
     }
@@ -606,10 +540,7 @@ contract StakingClaimSlashRemainingTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -625,10 +556,7 @@ contract StakingClaimSlashRemainingTest is L1MessageBaseTest {
         hevm.prank(l1Staking.rollupContract());
         // bob sequencer to slash
         uint256 reward = l1Staking.slash(sequencers);
-        assertEq(
-            reward,
-            (2 * STAKING_VALUE * l1Staking.rewardPercentage()) / 100
-        );
+        assertEq(reward, (2 * STAKING_VALUE * l1Staking.rewardPercentage()) / 100);
         uint256 afterBalance = l1Staking.rollupContract().balance;
         assertEq(reward, afterBalance - beforeBalance);
 
@@ -685,9 +613,7 @@ contract StakingUpdateGasLimitRemoveStakersTest is L1MessageBaseTest {
         l1Staking.updateGasLimitRemoveStakers(0);
     }
 
-    function test_updateGasLimitRemoveStakers_eqDefaultValue_reverts()
-        external
-    {
+    function test_updateGasLimitRemoveStakers_eqDefaultValue_reverts() external {
         hevm.prank(multisig);
         hevm.expectRevert("invalid new gas limit");
         l1Staking.updateGasLimitRemoveStakers(defaultGasLimitRemove);
@@ -749,10 +675,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -779,10 +702,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -812,10 +732,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);
@@ -847,10 +764,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
-        l1Staking.register{value: STAKING_VALUE}(
-            aliceInfo.tmKey,
-            aliceInfo.blsKey
-        );
+        l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
 
         // bob register
         Types.StakerInfo memory bobInfo = ffi.generateStakerInfo(bob);

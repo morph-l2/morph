@@ -62,8 +62,7 @@ contract RecordTest is L2StakingBaseTest {
      * 2. check params
      */
     function test_recordFinalizedBatchSubmissions_paramsCheck_reverts() public {
-        IRecord.BatchSubmission[]
-            memory submissions = new IRecord.BatchSubmission[](0);
+        IRecord.BatchSubmission[] memory submissions = new IRecord.BatchSubmission[](0);
 
         hevm.expectRevert("only oracle allowed");
         hevm.prank(multisig);
@@ -101,8 +100,7 @@ contract RecordTest is L2StakingBaseTest {
      * 2. check params
      */
     function test_recordRollupEpochs_paramsCheck_reverts() public {
-        IRecord.RollupEpochInfo[]
-            memory epochInfos = new IRecord.RollupEpochInfo[](0);
+        IRecord.RollupEpochInfo[] memory epochInfos = new IRecord.RollupEpochInfo[](0);
 
         hevm.expectRevert("only oracle allowed");
         hevm.prank(multisig);
@@ -150,8 +148,7 @@ contract RecordTest is L2StakingBaseTest {
             sequencerCommissions[i] = 1;
         }
 
-        IRecord.RewardEpochInfo[]
-            memory rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
+        IRecord.RewardEpochInfo[] memory rewardEpochInfos = new IRecord.RewardEpochInfo[](1);
 
         rewardEpochInfos[0] = IRecord.RewardEpochInfo(
             0,
@@ -183,8 +180,7 @@ contract RecordTest is L2StakingBaseTest {
             sequencerCommissions[i] = 1;
         }
 
-        IRecord.RewardEpochInfo[]
-            memory rewardEpochInfos = new IRecord.RewardEpochInfo[](0);
+        IRecord.RewardEpochInfo[] memory rewardEpochInfos = new IRecord.RewardEpochInfo[](0);
 
         hevm.expectRevert("empty reward epochs");
         hevm.prank(oracleAddress);

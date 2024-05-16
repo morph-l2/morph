@@ -32,12 +32,7 @@ contract DistributeTest is L2StakingBaseTest {
         }
 
         hevm.prank(address(record));
-        distribute.updateEpochReward(
-            epochIndex,
-            sequencers,
-            delegatorRewards,
-            commissions
-        );
+        distribute.updateEpochReward(epochIndex, sequencers, delegatorRewards, commissions);
     }
 
     /**
@@ -95,15 +90,7 @@ contract DistributeTest is L2StakingBaseTest {
      */
     function test_claim_succeeds() public {
         hevm.prank(address(l2Staking));
-        distribute.notifyDelegation(
-            firstStaker,
-            alice,
-            0,
-            10 ether,
-            10 ether,
-            1,
-            true
-        );
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
 
         _update_epoch_reward(0);
 
@@ -121,8 +108,7 @@ contract DistributeTest is L2StakingBaseTest {
         uint256 balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter - balanceBefore, mockReward);
 
-        uint256 unclaimedCommissionEpoch = distribute
-            .nextEpochToClaimCommission(firstStaker);
+        uint256 unclaimedCommissionEpoch = distribute.nextEpochToClaimCommission(firstStaker);
         assertEq(unclaimedCommissionEpoch, 0);
 
         // delegatee claimCommission
@@ -161,31 +147,16 @@ contract DistributeTest is L2StakingBaseTest {
 
         hevm.expectRevert("only record contract allowed");
         hevm.prank(alice);
-        distribute.updateEpochReward(
-            0,
-            sequencers,
-            delegatorRewards,
-            commissions
-        );
+        distribute.updateEpochReward(0, sequencers, delegatorRewards, commissions);
 
         hevm.expectRevert("invalid epoch index");
         hevm.prank(address(record));
-        distribute.updateEpochReward(
-            1,
-            sequencers,
-            delegatorRewards,
-            commissions
-        );
+        distribute.updateEpochReward(1, sequencers, delegatorRewards, commissions);
 
         delegatorRewards = new uint256[](2);
         hevm.expectRevert("invalid data length");
         hevm.prank(address(record));
-        distribute.updateEpochReward(
-            0,
-            sequencers,
-            delegatorRewards,
-            commissions
-        );
+        distribute.updateEpochReward(0, sequencers, delegatorRewards, commissions);
     }
 
     /**
