@@ -8,23 +8,20 @@ update:
 	go work sync
 
 	cd $(PWD)/bindings/ && \
-		sed -i '' '6s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '8s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/contracts/ && \
-		sed -i '' '6s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '8s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/node/ && \
 		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
 		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/ops/l2-genesis/ && \
-		sed -i '' '6s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '8s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 	cd $(PWD)/ops/tools/ && \
 		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
 		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
