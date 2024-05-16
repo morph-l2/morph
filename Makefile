@@ -71,6 +71,7 @@ fmt: fmt-sol fmt-go
 .PHONY: fmt
 
 # npm install --global --save-dev prettier-plugin-solidity
+# install misspell (https://github.com/client9/misspell)
 fmt-sol:
 	find ./contracts/ -name '*.sol' -type f -not -path "**/node_modules*" | xargs misspell -w
 	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
