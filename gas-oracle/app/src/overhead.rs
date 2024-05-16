@@ -23,6 +23,7 @@ pub struct OverHead {
     execution_node: ExecutionNode,
     beacon_node: BeaconNode,
     overhead_switch: bool,
+    max_overhead: u128,
 }
 
 impl OverHead {
@@ -34,6 +35,7 @@ impl OverHead {
         l1_rpc: String,
         l1_beacon_rpc: String,
         overhead_switch: bool,
+        max_overhead: u128,
     ) -> Self {
         let execution_node = ExecutionNode { rpc_url: l1_rpc };
         let beacon_node = BeaconNode {
@@ -48,6 +50,7 @@ impl OverHead {
             execution_node,
             beacon_node,
             overhead_switch,
+            max_overhead,
         }
     }
 
@@ -137,7 +140,7 @@ impl OverHead {
         );
         ORACLE_SERVICE_METRICS.overhead.set(latest_overhead as i64);
 
-        latest_overhead = latest_overhead.min(MAX_OVERHEAD);
+        latest_overhead = latest_overhead.min(self.max_overhead as usize);
         let abs_diff = U256::from(latest_overhead).abs_diff(current_overhead);
         log::info!(
             "overhead actual_change = {:#?}, expected_change =  {:#?}",
@@ -289,8 +292,7 @@ impl OverHead {
         let mut sys_gas: u128 =
             rollup_gas_used.as_u128() + 156400 + (blob_gas_used * x).ceil() as u128;
         sys_gas = if sys_gas < l2_data_gas as u128 {
-            log::error!("sys_gas < l2_data_gas, tx_hash = {:#?}", tx_hash);
-            return None;
+            0u128
         } else {
             sys_gas - l2_data_gas as u128
         };
@@ -550,8 +552,6 @@ struct IndexedBlobHash {
 fn data_and_hashes_from_txs(txs: &[Value], target_tx: &Value) -> Vec<IndexedBlobHash> {
     let mut hashes = Vec::new();
     let mut blob_index = 0u64; // index of each blob in the block's blob sidecar
-
-    log::info!("txs.len ={:#?}", txs.len());
 
     for tx in txs {
         // skip any non-batcher transactions
