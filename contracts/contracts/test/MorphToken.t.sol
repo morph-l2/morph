@@ -3,6 +3,7 @@ pragma solidity =0.8.24;
 
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
+import {IMorphToken} from "../l2/system/IMorphToken.sol";
 
 contract MorphTokenTest is L2StakingBaseTest {
     function setUp() public virtual override {
@@ -36,6 +37,48 @@ contract MorphTokenTest is L2StakingBaseTest {
     function test_totalSupply_succeeds() public {
         assertEq(morphToken.totalSupply(), 1000000000 ether);
     }
+
+    function test_updateRate_notOwner_reverts() public {
+        hevm.startPrank(alice);
+        hevm.expectRevert("Ownable: caller is not the owner");
+        morphToken.updateRate(1596535874529, 0);
+        hevm.stopPrank();
+    }
+
+    function test_updateRate_sameAsLatestRate_reverts() public {
+        uint256 count = morphToken.inflationRatesCount();
+        IMorphToken.EpochInflationRate memory info = morphToken.epochInflationRates(count - 1);
+        hevm.startPrank(multisig);
+        hevm.expectRevert("new rate is the same as the latest rate");
+        morphToken.updateRate(info.rate, 0);
+        hevm.stopPrank();
+    }
+
+    function test_updateRate_epochIndex_reverts() public {
+        uint256 count = morphToken.inflationRatesCount();
+        IMorphToken.EpochInflationRate memory info = morphToken.epochInflationRates(count - 1);
+        hevm.startPrank(multisig);
+        hevm.expectRevert("effective epochs after must be greater than before");
+        morphToken.updateRate(info.rate + 1, info.effectiveEpochIndex);
+        hevm.stopPrank();
+    }
+
+    function test_updateRate_succeeds() public {
+        uint256 count = morphToken.inflationRatesCount();
+        IMorphToken.EpochInflationRate memory info = morphToken.epochInflationRates(count - 1);
+        assertEq(info.effectiveEpochIndex, 0);
+        assertEq(info.rate, 1596535874529);
+
+        uint256 newRate = info.rate + 1;
+        uint256 newEpochIndex = info.effectiveEpochIndex + 1;
+        hevm.prank(multisig);
+        morphToken.updateRate(newRate, newEpochIndex);
+
+        uint256 newCount = morphToken.inflationRatesCount();
+        assertEq(morphToken.epochInflationRates(newCount - 1).rate, newRate);
+        assertEq(morphToken.epochInflationRates(newCount - 1).effectiveEpochIndex, newEpochIndex);
+    }
+
 
     function test_balanceOf_succeeds() public {
         assertEq(morphToken.balanceOf(multisig), 1000000000 ether);

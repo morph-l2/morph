@@ -102,6 +102,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// @dev See {IMorphToken-setRate}.
     function updateRate(uint256 newRate, uint256 effectiveEpochIndex) public onlyOwner {
         require(
+            _epochInflationRates[_epochInflationRates.length - 1].rate != newRate,
+            "new rate is the same as the latest rate"
+        );
+        require(
             effectiveEpochIndex > _epochInflationRates[_epochInflationRates.length - 1].effectiveEpochIndex,
             "effective epochs after must be greater than before"
         );
