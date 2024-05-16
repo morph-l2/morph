@@ -26,3 +26,4 @@ services:
       - TXN_PER_BATCH=${TXN_PER_BATCH}
       - L1_ROLLUP=${L1_ROLLUP}
       - OVERHEAD_SWITCH=${OVERHEAD_SWITCH} #false
+      - MAX_OVERHEAD=${MAX_OVERHEAD}

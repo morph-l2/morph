@@ -105,6 +105,7 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
             .parse()
             .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var"),
         read_env_var("OVERHEAD_SWITCH", false),
+        read_env_var("MAX_OVERHEAD", 200000),
     );
 
     // Register metrics.

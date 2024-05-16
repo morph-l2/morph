@@ -39,7 +39,7 @@ fn setup_logging() {
         .unwrap()
         .log_to_file(
             FileSpec::default()
-                .directory("/data/logs/morph-oracle")
+                .directory("/data/logs/morph-gas-oracle")
                 .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)
