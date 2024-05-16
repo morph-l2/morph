@@ -134,9 +134,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
                     rate = _epochInflationRates[j].rate;
                 }
             }
-            _inflations[i] = (_totalSupply * rate) / PRECISION;
-            _mint(DISTRIBUTE_CONTRACT, _inflations[i]);
-            emit InflationMinted(i, _inflations[i]);
+            uint256 increment = (_totalSupply * rate) / PRECISION;
+            _inflations[i] = increment;
+            _mint(DISTRIBUTE_CONTRACT, increment);
+            emit InflationMinted(i, increment);
         }
 
         _inflationMintedEpochs = upToEpochIndex + 1;
