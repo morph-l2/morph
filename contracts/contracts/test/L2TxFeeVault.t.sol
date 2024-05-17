@@ -17,6 +17,35 @@ contract L2TxFeeVaultTest is DSTestPlus {
         vault.updateMessenger(address(messenger));
     }
 
+    function test_owner_succeeds() public {
+        assertEq(vault.owner(), address(this));
+    }
+
+    function test_transferOwnership_succeeds() public {
+        address newOwner = address(100);
+
+        vault.transferOwnership(newOwner);
+        assertEq(vault.owner(), newOwner);
+
+        hevm.prank(newOwner);
+        vault.transferOwnership(address(this));
+        assertEq(vault.owner(), address(this));
+    }
+
+    function test_renounceOwnership_succeeds() public {
+        assertEq(vault.owner(), address(this));
+
+        vault.renounceOwnership();
+        assertEq(vault.owner(), address(0));
+    }
+
+    function test_withdraw_onlyOwner_reverts() public {
+        hevm.deal(address(vault), 9 ether);
+        hevm.expectRevert("caller is not the owner");
+        hevm.prank(address(100));
+        vault.withdraw();
+    }
+
     function test_withdraw_belowMinimum_reverts() public {
         hevm.deal(address(vault), 9 ether);
         hevm.expectRevert("FeeVault: withdrawal amount must be greater than minimum withdrawal amount");

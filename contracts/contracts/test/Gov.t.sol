@@ -12,6 +12,35 @@ contract GovTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice initialize: re-initialize
+     */
+    function test_initialize_paramsCheck_reverts() public {
+        hevm.expectRevert("Initializable: contract is already initialized");
+        hevm.prank(multisig);
+        gov.initialize(0, 0, 0, 0, 0, 0);
+
+        // reset initialize
+        hevm.store(address(gov), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        hevm.expectRevert("invalid proposal interval");
+        hevm.prank(multisig);
+        gov.initialize(0, 0, 0, 0, 0, 0);
+
+        hevm.expectRevert("invalid max chunks");
+        hevm.prank(multisig);
+        gov.initialize(1, 0, 0, 0, 0, 0);
+
+        hevm.expectRevert("invalid rollup epoch");
+        hevm.prank(multisig);
+        gov.initialize(1, 0, 0, 0, 1, 0);
+
+        // _batchBlockInterval
+        hevm.expectRevert("invalid batch params");
+        hevm.prank(multisig);
+        gov.initialize(1, 0, 0, 0, 1, 1);
+    }
+
+    /**
      * @notice create a proposal
      */
     function test_createProposal_succeeds() external {
@@ -80,8 +109,8 @@ contract GovTest is L2StakingBaseTest {
      */
     function test_proposalCanBeApproved_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
-            0, // batchBlockInterval
-            0, // batchMaxBytes
+            1, // batchBlockInterval
+            1, // batchMaxBytes
             finalizationPeriodSeconds, // batchTimeout
             MAX_CHUNKS, // maxChunks
             ROLLUP_EPOCH // rollupEpoch
@@ -121,6 +150,12 @@ contract GovTest is L2StakingBaseTest {
         hevm.expectRevert("proposal already approved");
         hevm.prank(address(user));
         gov.vote(currentproposalID);
+
+        assertEq(gov.batchBlockInterval(), 1);
+        assertEq(gov.batchMaxBytes(), 1);
+        assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
+        assertEq(gov.maxChunks(), MAX_CHUNKS);
+        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
     }
 
     /**
