@@ -336,7 +336,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice delegator unstake morph
     /// @param delegatee delegatee address
     function undelegateStake(address delegatee) external nonReentrant {
-        // must claim before you can delegate stake again
+        // must claim any undelegation first
         require(!_unclaimed(_msgSender(), delegatee), "undelegation unclaimed");
         require(_isStakingTo(delegatee), "staking amount is zero");
 

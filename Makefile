@@ -2,7 +2,6 @@
 
 ETHEREUM_TAG=v1.10.14-0.20240429050506-03fd4c3e771d
 TENDERMINT_TAG=v0.2.0-beta.0.20240513090937-03bf2a578b48
-BTCD_TAG=v0.20.1-beta
 
 update:
 	go work sync
@@ -77,6 +76,7 @@ fmt-sol:
 	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
 .PHONY: fmt-sol
 
+# go get -u github.com/client9/misspell/cmd/misspell
 fmt-go:
 	go work sync
 	cd $(PWD)/bindings/ && go mod tidy
