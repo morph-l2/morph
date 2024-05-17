@@ -79,6 +79,55 @@ contract MorphTokenTest is L2StakingBaseTest {
         assertEq(morphToken.epochInflationRates(newCount - 1).effectiveEpochIndex, newEpochIndex);
     }
 
+    function test_mintInflations_notRecord_reverts() public {
+        hevm.startPrank(Predeploys.DISTRIBUTE);
+        hevm.expectRevert("only record contract allowed");
+        morphToken.mintInflations(0);
+        hevm.stopPrank();
+    }
+
+    function test_mintInflations_notStart_reverts() public {
+        hevm.startPrank(Predeploys.RECORD);
+        hevm.warp(block.timestamp + rewardStartTime - 2);
+        hevm.expectRevert("reward is not started yet");
+        morphToken.mintInflations(0);
+        hevm.stopPrank();
+    }
+
+    function test_mintInflations_invalidEpoch_reverts() public {
+        hevm.startPrank(Predeploys.RECORD);
+        hevm.warp(block.timestamp + rewardStartTime);
+        hevm.expectRevert("the specified time has not yet been reached");
+        morphToken.mintInflations(0);
+        hevm.stopPrank();
+    }
+
+    function test_mintInflations_reverts() public {
+        hevm.startPrank(Predeploys.RECORD);
+        uint256 beforeTotal = morphToken.totalSupply();
+        hevm.warp(block.timestamp + rewardStartTime * 2);
+        morphToken.mintInflations(0);
+        uint256 afterTotal = morphToken.totalSupply();
+        assertEq(afterTotal - beforeTotal, morphToken.inflation(0));
+        assertEq(morphToken.inflationMintedEpochs(), 1);
+        hevm.expectRevert("all inflations minted");
+        morphToken.mintInflations(0);
+        hevm.stopPrank();
+    }
+
+    function test_mintInflations_succeeds() public {
+        hevm.startPrank(Predeploys.RECORD);
+        uint256 beforeTotal = morphToken.totalSupply();
+        uint256 dbb = morphToken.balanceOf(Predeploys.DISTRIBUTE);
+        hevm.warp(block.timestamp + rewardStartTime * 2);
+        morphToken.mintInflations(0);
+        uint256 afterTotal = morphToken.totalSupply();
+        uint256 dab = morphToken.balanceOf(Predeploys.DISTRIBUTE);
+        assertEq(afterTotal - beforeTotal, morphToken.inflation(0));
+        assertEq(dab - dbb, morphToken.inflation(0));
+        hevm.stopPrank();
+    }
+
 
     function test_balanceOf_succeeds() public {
         assertEq(morphToken.balanceOf(multisig), 1000000000 ether);
