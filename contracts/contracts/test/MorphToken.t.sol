@@ -232,7 +232,15 @@ contract MorphTokenTest is L2StakingBaseTest {
     }
 
     function test_inflationMintedEpochs_succeeds() public {
+        hevm.startPrank(Predeploys.RECORD);
+        uint256 beforeTotal = morphToken.totalSupply();
+        hevm.warp(block.timestamp + rewardStartTime * 2);
         assertEq(morphToken.inflationMintedEpochs(), 0);
+        morphToken.mintInflations(0);
+        uint256 afterTotal = morphToken.totalSupply();
+        assertEq(afterTotal - beforeTotal, morphToken.inflation(0));
+        assertEq(morphToken.inflationMintedEpochs(), 1);
+        hevm.stopPrank();
     }
 
     function test_transfer_succeeds() public {
