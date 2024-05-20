@@ -212,6 +212,10 @@ contract MorphTokenTest is L2StakingBaseTest {
         assertEq(morphToken.balanceOf(multisig), 1000000000 ether);
     }
 
+    function test_inflationRatesCount_succeeds() public {
+        assertEq(morphToken.inflationRatesCount(), 1);
+    }
+
     function test_inflationRate_succeeds() public {
         uint256 count = morphToken.inflationRatesCount();
         assertEq(morphToken.epochInflationRates(count - 1).rate, 1596535874529);
