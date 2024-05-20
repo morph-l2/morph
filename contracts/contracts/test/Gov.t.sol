@@ -57,14 +57,17 @@ contract GovTest is L2StakingBaseTest {
         hevm.expectEmit(true, true, true, true);
         emit IGov.ProposalCreated(nextProposalID, user, 0, 0, finalizationPeriodSeconds, MAX_CHUNKS, ROLLUP_EPOCH);
         hevm.startPrank(address(user));
-        gov.createProposal(proposal);
+        uint256 proposalID = gov.createProposal(proposal);
+        uint256 currentProposalID = gov.currentProposalID();
+        assertEq(proposalID, nextProposalID);
+        assertEq(proposalID, currentProposalID);
         (
             uint256 batchBlockInterval_,
             uint256 batchMaxBytes_,
             uint256 batchTimeout_,
             uint256 maxChunks_,
             uint256 rollupEpoch_
-        ) = gov.proposalData(nextProposalID);
+        ) = gov.proposalData(proposalID);
         hevm.stopPrank();
         assertEq(batchBlockInterval_, proposal.batchBlockInterval);
         assertEq(batchMaxBytes_, proposal.batchMaxBytes);
@@ -77,10 +80,10 @@ contract GovTest is L2StakingBaseTest {
         bool passed;
         bool executed;
 
-        (expirationTime, executed) = gov.proposalInfos(nextProposalID);
+        (expirationTime, executed) = gov.proposalInfos(proposalID);
         assertFalse(executed);
         assertEq(block.timestamp + VOTING_DURATION, expirationTime);
-        (finished, passed, executed) = gov.proposalStatus(nextProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertFalse(finished);
         assertFalse(passed);
         assertFalse(executed);
@@ -101,16 +104,15 @@ contract GovTest is L2StakingBaseTest {
         // create proposal
         address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        gov.createProposal(proposal);
+        uint256 proposalID = gov.createProposal(proposal);
         hevm.stopPrank();
 
-        uint256 currentProposalID = gov.currentProposalID();
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             user = address(uint160(beginSeq + i));
             hevm.prank(address(user));
-            gov.vote(currentProposalID);
+            gov.vote(proposalID);
             hevm.stopPrank();
-            assertTrue(gov.isVoted(currentProposalID, user));
+            assertTrue(gov.isVoted(proposalID, user));
         }
 
         uint256 expirationTime;
@@ -118,10 +120,10 @@ contract GovTest is L2StakingBaseTest {
         bool passed;
         bool executed;
 
-        (expirationTime, executed) = gov.proposalInfos(currentProposalID);
+        (expirationTime, executed) = gov.proposalInfos(proposalID);
         assertTrue(executed);
         assertEq(block.timestamp + VOTING_DURATION, expirationTime);
-        (finished, passed, executed) = gov.proposalStatus(currentProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertTrue(finished);
         assertTrue(passed);
         assertTrue(executed);
@@ -142,25 +144,24 @@ contract GovTest is L2StakingBaseTest {
         // create proposal
         address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        gov.createProposal(proposal);
+        uint256 proposalID = gov.createProposal(proposal);
         hevm.stopPrank();
 
-        uint256 currentProposalID = gov.currentProposalID();
         for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
             user = address(uint160(beginSeq + i));
             hevm.prank(address(user));
-            gov.vote(currentProposalID);
+            gov.vote(proposalID);
             hevm.stopPrank();
-            assertTrue(gov.isVoted(currentProposalID, user));
+            assertTrue(gov.isVoted(proposalID, user));
         }
 
         bool finished;
         bool passed;
         bool executed;
 
-        (, executed) = gov.proposalInfos(currentProposalID);
+        (, executed) = gov.proposalInfos(proposalID);
         assertFalse(executed);
-        (finished, passed, executed) = gov.proposalStatus(currentProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertFalse(finished);
         assertFalse(passed);
         assertFalse(executed);
@@ -169,26 +170,26 @@ contract GovTest is L2StakingBaseTest {
         // decrease sequencer size
         l2Staking.updateSequencerSetMaxSize(SEQUENCER_SIZE - 1);
 
-        (, executed) = gov.proposalInfos(currentProposalID);
+        (, executed) = gov.proposalInfos(proposalID);
         assertFalse(executed);
-        (finished, passed, executed) = gov.proposalStatus(currentProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertFalse(finished);
         assertTrue(passed);
         assertFalse(executed);
 
-        gov.executeProposal(currentProposalID);
+        gov.executeProposal(proposalID);
         hevm.stopPrank();
 
-        (, executed) = gov.proposalInfos(currentProposalID);
+        (, executed) = gov.proposalInfos(proposalID);
         assertTrue(executed);
-        (finished, passed, executed) = gov.proposalStatus(currentProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertTrue(finished);
         assertTrue(passed);
         assertTrue(executed);
 
         hevm.expectRevert("voting has ended");
         hevm.prank(address(user));
-        gov.vote(currentProposalID);
+        gov.vote(proposalID);
         hevm.stopPrank();
 
         assertEq(gov.batchBlockInterval(), 1);
@@ -215,25 +216,24 @@ contract GovTest is L2StakingBaseTest {
         // create proposal
         address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        gov.createProposal(proposal);
+        uint256 proposalID = gov.createProposal(proposal);
         hevm.stopPrank();
 
-        uint256 currentProposalID = gov.currentProposalID();
         for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
             user = address(uint160(beginSeq + i));
             hevm.prank(address(user));
-            gov.vote(currentProposalID);
+            gov.vote(proposalID);
             hevm.stopPrank();
-            assertTrue(gov.isVoted(currentProposalID, user));
+            assertTrue(gov.isVoted(proposalID, user));
         }
 
         bool finished;
         bool passed;
         bool executed;
 
-        (, executed) = gov.proposalInfos(currentProposalID);
+        (, executed) = gov.proposalInfos(proposalID);
         assertFalse(executed);
-        (finished, passed, executed) = gov.proposalStatus(currentProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertFalse(finished);
         assertFalse(passed);
         assertFalse(executed);
@@ -260,29 +260,29 @@ contract GovTest is L2StakingBaseTest {
         l2Staking.removeStakers(removed);
         hevm.stopPrank();
 
-        (, executed) = gov.proposalInfos(currentProposalID);
+        (, executed) = gov.proposalInfos(proposalID);
         assertFalse(executed);
-        (finished, passed, executed) = gov.proposalStatus(currentProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertFalse(finished);
         assertFalse(passed);
         assertFalse(executed);
 
         // invalide votes
         for (uint256 i = 0; i < removed.length - 1; i++) {
-            assertTrue(gov.isVoted(currentProposalID, removed[i]));
+            assertTrue(gov.isVoted(proposalID, removed[i]));
         }
 
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             user = address(uint160(beginSeq + i));
             hevm.prank(address(user));
-            gov.vote(currentProposalID);
+            gov.vote(proposalID);
             hevm.stopPrank();
-            assertTrue(gov.isVoted(currentProposalID, user));
+            assertTrue(gov.isVoted(proposalID, user));
         }
 
-        (, executed) = gov.proposalInfos(currentProposalID);
+        (, executed) = gov.proposalInfos(proposalID);
         assertTrue(executed);
-        (finished, passed, executed) = gov.proposalStatus(currentProposalID);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertTrue(finished);
         assertTrue(passed);
         assertTrue(executed);
@@ -303,15 +303,14 @@ contract GovTest is L2StakingBaseTest {
         // create proposal
         address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        gov.createProposal(proposal);
+        uint256 proposalID = gov.createProposal(proposal);
         hevm.stopPrank();
 
-        uint256 currentProposalID = gov.currentProposalID();
         hevm.warp(block.timestamp + VOTING_DURATION + 1);
         hevm.expectRevert("voting has ended");
         user = address(uint160(beginSeq + 1));
         hevm.prank(address(user));
-        gov.vote(currentProposalID);
+        gov.vote(proposalID);
         hevm.stopPrank();
     }
 
@@ -330,23 +329,21 @@ contract GovTest is L2StakingBaseTest {
         // create proposal
         address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        gov.createProposal(proposal);
+        uint256 proposalID = gov.createProposal(proposal);
         hevm.stopPrank();
-
-        uint256 currentProposalID = gov.currentProposalID();
 
         user = address(uint160(beginSeq + 1));
-        bool voted = gov.isVoted(currentProposalID, user);
+        bool voted = gov.isVoted(proposalID, user);
         assertFalse(voted);
         hevm.prank(address(user));
-        gov.vote(currentProposalID);
+        gov.vote(proposalID);
         hevm.stopPrank();
-        voted = gov.isVoted(currentProposalID, user);
+        voted = gov.isVoted(proposalID, user);
         assertTrue(voted);
 
         hevm.expectRevert("sequencer already voted for this proposal");
         hevm.prank(address(user));
-        gov.vote(currentProposalID);
+        gov.vote(proposalID);
         hevm.stopPrank();
     }
 

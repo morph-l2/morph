@@ -120,7 +120,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             abi.encodeCall(
                 Gov.initialize,
                 (
-                    VOTING_DURATION, // _proposalInterval
+                    VOTING_DURATION, // _votingDuration
                     0, // _batchBlockInterval
                     0, // _batchMaxBytes
                     finalizationPeriodSeconds, // _batchTimeout
