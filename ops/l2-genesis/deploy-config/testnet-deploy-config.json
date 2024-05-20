@@ -19,7 +19,7 @@
   "stakingSequencerSize": 7,
   "stakingLockNumber": 3,
 
-  "govProposalInterval": 1000,
+  "govVotingDuration": 1000,
   "govBatchBlockInterval": 600,
   "govBatchMaxBytes": 124928,
   "govBatchTimeout": 1200,
