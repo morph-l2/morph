@@ -163,6 +163,8 @@ contract L2StakingTest is L2StakingBaseTest {
         removed[1] = address(uint160(beginSeq + 4));
 
         l2Staking.removeStakers(removed);
+
+        assertEq(sequencer.getSequencerSet2Size(), 4);
         hevm.stopPrank();
 
         for (uint256 i = 0; i < 4; i++) {
@@ -732,5 +734,47 @@ contract L2StakingTest is L2StakingBaseTest {
             assertEq(stakerInfos0[i].addr, stakerInfos1[i].addr);
             assertEq(stakerInfos0[i].tmKey, stakerInfos1[i].tmKey);
         }
+    }
+
+    /**
+     * @notice getDelegators
+     */
+    function test_getDelegators_succeeds() public {
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        address[] memory delegator0 = l2Staking.getDelegators(firstStaker);
+        address[] memory delegator1 = l2Staking.getDelegators(secondStaker);
+        address[] memory delegator2 = l2Staking.getDelegators(thirdStaker);
+
+        assertEq(delegator0.length, 1);
+        assertEq(delegator1.length, 1);
+        assertEq(delegator2.length, 1);
+
+        assertEq(delegator0[0], alice);
+        assertEq(delegator1[0], alice);
+        assertEq(delegator2[0], alice);
+    }
+
+    /**
+     * @notice isStakingTo
+     */
+    function test_isStakingTo_succeeds() public {
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        hevm.startPrank(alice);
+        assertBoolEq(l2Staking.isStakingTo(firstStaker), true);
+        assertBoolEq(l2Staking.isStakingTo(secondStaker), true);
+        assertBoolEq(l2Staking.isStakingTo(thirdStaker), true);
+        hevm.stopPrank();
     }
 }
