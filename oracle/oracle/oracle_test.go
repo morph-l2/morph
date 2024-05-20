@@ -40,6 +40,11 @@ func testNewOracleClient(t *testing.T) *Oracle {
 	require.NoError(t, err)
 	record, err := bindings.NewRecord(predeploys.RecordAddr, l2Client)
 	require.NoError(t, err)
+	gov, err := bindings.NewGov(predeploys.GovAddr, l2Client)
+	require.NoError(t, err)
+	sequencer, err := bindings.NewSequencer(predeploys.SequencerAddr, l2Client)
+	require.NoError(t, err)
+	require.NoError(t, err)
 	cfg := &config.Config{
 		StartBlock: 1,
 		MaxSize:    1000,
@@ -58,6 +63,8 @@ func testNewOracleClient(t *testing.T) *Oracle {
 		rollup:      rollup,
 		l2Staking:   l2Staking,
 		record:      record,
+		gov:         gov,
+		sequencer:   sequencer,
 		cfg:         cfg,
 		rewardEpoch: defaultRewardEpoch,
 		ctx:         context.Background(),

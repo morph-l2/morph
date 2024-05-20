@@ -208,19 +208,27 @@ func (o *Oracle) GetNextBatchSubmissionIndex() (*big.Int, error) {
 	return o.record.NextBatchSubmissionIndex(nil)
 }
 
+func (o *Oracle) LastBatchIndex(opts *bind.CallOpts) (*big.Int, error) {
+	if o.isFinalized {
+		return o.rollup.LastFinalizedBatchIndex(opts)
+
+	}
+	return o.rollup.LastCommittedBatchIndex(opts)
+}
+
 func (o *Oracle) submitRecord() error {
 	nextBatchSubmissionIndex, err := o.GetNextBatchSubmissionIndex()
 	if err != nil {
 		log.Error("get next batch submission index failed ", "error", err)
 		return err
 	}
-	lastFinalized, err := o.rollup.LastFinalizedBatchIndex(nil)
+	lastBatchIndex, err := o.LastBatchIndex(nil)
 	if err != nil {
 		log.Error("get last finalized batch index failed ", "error", err)
 		return err
 	}
-	if nextBatchSubmissionIndex.Cmp(lastFinalized) > 0 {
-		log.Info("already newest batch submission...")
+	if nextBatchSubmissionIndex.Cmp(lastBatchIndex) > 0 {
+		log.Info("already newest batch submission...", "lastBatchIndex", lastBatchIndex, "nextBatchSubmissionIndex", nextBatchSubmissionIndex)
 		time.Sleep(defaultSleepTime)
 		return err
 	}
@@ -229,19 +237,6 @@ func (o *Oracle) submitRecord() error {
 		log.Error("get pre batch rollup block number failed", "error", err)
 		return err
 	}
-	//header, err := o.l1Client.HeaderByNumber(o.ctx, nil)
-	//if err != nil {
-	//	log.Error("get latest block number failed", "error", err)
-	//	return
-	//}
-	//end := header.Number.Uint64()
-	//fmt.Println("eend:", end)
-	//if start+o.cfg.MaxSize < end {
-	//	end = start + o.cfg.MaxSize - 1
-	//}
-	//fmt.Println("start:", start)
-	//fmt.Println("end:", end)
-	//fmt.Println("max size:", o.cfg.MaxSize)
 	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start)
 	if err != nil {
 		log.Error("get batch submission failed", "error", err)
@@ -269,7 +264,7 @@ func (o *Oracle) submitRecord() error {
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		// TODO
-		return fmt.Errorf("record not success")
+		return fmt.Errorf("record batch not success")
 	}
 	return nil
 }

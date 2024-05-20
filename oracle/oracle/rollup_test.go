@@ -2,6 +2,7 @@ package oracle
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"sort"
 	"testing"
 )
@@ -11,4 +12,10 @@ func TestSortBlock(t *testing.T) {
 	sortedArr := removeDuplicatesAndSort(arr)
 	sort.Ints(sortedArr)
 	fmt.Println(sortedArr)
+}
+
+func TestXXXXXX(t *testing.T) {
+	o := testNewOracleClient(t)
+	err := o.recordRollupEpoch()
+	require.NoError(t, err)
 }

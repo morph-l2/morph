@@ -63,6 +63,7 @@ type Config struct {
 	RollupAddr common.Address
 
 	MaxSize    uint64
+	MinSize    uint64
 	StartBlock uint64
 	PrivKey    string
 }
@@ -81,6 +82,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		/* Optional Flags */
 		MaxSize:             ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
+		MinSize:             ctx.GlobalUint64(flags.MinHeaderBatchSizeFlag.Name),
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
 		LogTerminal:         ctx.GlobalBool(flags.LogTerminalFlag.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),

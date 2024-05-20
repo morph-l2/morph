@@ -56,7 +56,7 @@ func Main() func(ctx *cli.Context) error {
 		log.Info("Staking oracle started")
 
 		<-(chan struct{})(nil)
-
+		log.Info("staking oracle stoped")
 		return nil
 	}
 }
@@ -66,6 +66,8 @@ type Oracle struct {
 	l1Client            *ethclient.Client
 	l2Client            *ethclient.Client
 	l2Staking           *bindings.L2Staking
+	sequencer           *bindings.Sequencer
+	gov                 *bindings.Gov
 	rollup              *bindings.Rollup
 	record              *bindings.Record
 	TmClient            *tmhttp.HTTP
@@ -79,6 +81,7 @@ type Oracle struct {
 	lastRewardStartTime int64
 	privKey             *ecdsa.PrivateKey
 	isFinalized         bool
+	rollupEpochMaxBlock uint64
 }
 
 func NewOracle(cfg *config.Config) (*Oracle, error) {
@@ -144,6 +147,14 @@ func NewOracle(cfg *config.Config) (*Oracle, error) {
 	if err != nil {
 		panic(err)
 	}
+	sequencer, err := bindings.NewSequencer(predeploys.SequencerAddr, l2Client)
+	if err != nil {
+		panic(err)
+	}
+	gov, err := bindings.NewGov(predeploys.GovAddr, l2Client)
+	if err != nil {
+		panic(err)
+	}
 	hex := strings.TrimPrefix(cfg.PrivKey, "0x")
 	privKey, err := crypto.HexToECDSA(hex)
 	if err != nil {
@@ -151,16 +162,19 @@ func NewOracle(cfg *config.Config) (*Oracle, error) {
 	}
 
 	return &Oracle{
-		l1Client:    l1Client,
-		l2Client:    l2Client,
-		rollup:      rollup,
-		l2Staking:   l2Staking,
-		record:      record,
-		TmClient:    tmClient,
-		cfg:         cfg,
-		rewardEpoch: defaultRewardEpoch,
-		privKey:     privKey,
-		ctx:         context.TODO(),
+		l1Client:            l1Client,
+		l2Client:            l2Client,
+		rollup:              rollup,
+		l2Staking:           l2Staking,
+		record:              record,
+		sequencer:           sequencer,
+		gov:                 gov,
+		TmClient:            tmClient,
+		cfg:                 cfg,
+		rewardEpoch:         defaultRewardEpoch,
+		privKey:             privKey,
+		ctx:                 context.TODO(),
+		rollupEpochMaxBlock: cfg.MaxSize,
 	}, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 	"sort"
 	"time"
@@ -19,12 +20,49 @@ import (
 )
 
 var (
-	RollupEpochTopic     = "RollupEpochUpdated(uint256, uint256)"
-	RollupEpochTopicHash = crypto.Keccak256Hash([]byte(RollupEpochTopic))
-
+	RollupEpochTopic             = "RollupEpochUpdated(uint256, uint256)"
+	RollupEpochTopicHash         = crypto.Keccak256Hash([]byte(RollupEpochTopic))
 	SequencerSetUpdatedTopic     = "SequencerSetUpdated(address[], uint256)"
 	SequencerSetUpdatedTopicHash = crypto.Keccak256Hash([]byte(SequencerSetUpdatedTopic))
 )
+
+type SequencerSetUpdateEpoch struct {
+	Submitters []common.Address
+	StartTime  *big.Int
+	EndTime    *big.Int
+	EndBlock   *big.Int
+}
+
+func (o *Oracle) generateRollupEpoch(index, startTime, rollupEpoch, updateTime, endBlock, endBlockTime, nextUpdateTime int64, sequencerSets []common.Address) ([]bindings.IRecordRollupEpochInfo, error) {
+	var rollupEpochInfos []bindings.IRecordRollupEpochInfo
+	if startTime == 0 {
+		startTime = updateTime
+	}
+	log.Info("generate rollup epoch", "startTime", startTime, "endBlockTime", endBlockTime)
+	for {
+		endTime := startTime + rollupEpoch
+		if endTime > nextUpdateTime {
+			endTime = nextUpdateTime
+		}
+		rollupEpochInfo := bindings.IRecordRollupEpochInfo{
+			Index:     big.NewInt(index),
+			Submitter: sequencerSets[(endTime-updateTime)/rollupEpoch%int64(len(sequencerSets))],
+			StartTime: big.NewInt(startTime),
+			EndTime:   big.NewInt(endTime),
+			EndBlock:  big.NewInt(endBlock),
+		}
+		if endTime > endBlockTime {
+			break
+		}
+		rollupEpochInfos = append(rollupEpochInfos, rollupEpochInfo)
+		if endTime == endBlockTime {
+			break
+		}
+		startTime = endTime
+		index++
+	}
+	return rollupEpochInfos, nil
+}
 
 func (o *Oracle) recordRollupEpoch() error {
 	epochIndex, err := o.record.NextRollupEpochIndex(nil)
@@ -35,34 +73,97 @@ func (o *Oracle) recordRollupEpoch() error {
 	if err != nil {
 		return err
 	}
-	// TODO
 	startBlock := rollupEpoch.EndBlock.Uint64()
-
-	var rollupEpochInfos []bindings.IRecordRollupEpochInfo
-	for {
-		blockNumber, err := o.l2Client.BlockNumber(o.ctx)
-		if err != nil {
-			return err
-		}
-		if startBlock >= blockNumber {
-			log.Info("latest block small than startBlock", "startBlock", startBlock, "latestBlock", blockNumber)
-			time.Sleep(defaultSleepTime)
-			continue
-		}
-		endBlock := startBlock + o.cfg.MaxSize
-		if endBlock > blockNumber {
-			endBlock = blockNumber
-		}
-		rollupEpochInfos, err = o.GetRollupEpoch(startBlock, endBlock, rollupEpoch.EndTime.Uint64(), rollupEpoch.Index.Uint64())
-		if err != nil {
-			return err
-		}
-		if len(rollupEpochInfos) != 0 {
-			break
-		}
-		log.Info("rollup epoch infos length is zero", "startBlock", startBlock, "endBlock", endBlock)
-		startBlock = endBlock + 1
+	blockNumber, err := o.l2Client.BlockNumber(o.ctx)
+	if err != nil {
+		return err
 	}
+	if startBlock+o.cfg.MinSize >= blockNumber {
+		log.Info("too few blocks are newer than startBlock", "startBlock", startBlock, "latestBlock", blockNumber, "minSize", o.cfg.MinSize)
+		time.Sleep(defaultSleepTime)
+		return nil
+	}
+	endBlock := startBlock + o.rollupEpochMaxBlock
+	if endBlock > blockNumber {
+		endBlock = blockNumber
+	}
+	log.Info("record rollup epoch info start", "startBlock", startBlock, "endBlock", endBlock, "nextEpochIndex", epochIndex, "lastEpochInfo", rollupEpoch)
+	setsEpochs, err := o.GetSequencerSetsEpoch(startBlock, endBlock)
+	if err != nil {
+		return err
+	}
+	var rollupEpochInfos []bindings.IRecordRollupEpochInfo
+	if len(setsEpochs) != 0 {
+		for _, setsEpoch := range setsEpochs {
+			updateTime, err := o.GetUpdateTime(setsEpoch.EndBlock.Int64() - 1)
+			if err != nil {
+
+			}
+			epochTime, err := o.gov.RollupEpoch(&bind.CallOpts{
+				BlockNumber: big.NewInt(setsEpoch.EndBlock.Int64() - 1),
+			})
+			if err != nil {
+
+			}
+			epochs, err := o.generateRollupEpoch(epochIndex.Int64()+int64(len(rollupEpochInfos)), rollupEpoch.EndTime.Int64(), epochTime.Int64(), updateTime, setsEpoch.EndBlock.Int64(), setsEpoch.EndTime.Int64(), setsEpoch.EndTime.Int64(), setsEpoch.Submitters)
+			if err != nil {
+
+			}
+			rollupEpochInfos = append(rollupEpochInfos, epochs...)
+		}
+	} else {
+		updateTime, err := o.GetUpdateTime(int64(endBlock))
+		if err != nil {
+			return fmt.Errorf("get update time error:%v", err)
+		}
+		epochTime, err := o.gov.RollupEpoch(&bind.CallOpts{
+			BlockNumber: big.NewInt(int64(endBlock)),
+		})
+		if err != nil {
+			return fmt.Errorf("get rollup epoch time error:%v", err)
+		}
+		header, err := o.l2Client.HeaderByNumber(o.ctx, big.NewInt(int64(endBlock)))
+		if err != nil {
+			return fmt.Errorf("get header by number error:%v", err)
+		}
+		sets, err := o.sequencer.GetSequencerSet2(&bind.CallOpts{
+			BlockNumber: big.NewInt(int64(endBlock)),
+		})
+		if err != nil {
+			return fmt.Errorf("get sequencer set error:%v", err)
+		}
+		epochs, err := o.generateRollupEpoch(epochIndex.Int64(), rollupEpoch.EndTime.Int64(), epochTime.Int64(), updateTime, int64(endBlock), int64(header.Time), math.MaxInt64, sets)
+		if err != nil {
+			return fmt.Errorf("gernerate rollup epoch info error:%v", err)
+		}
+		rollupEpochInfos = append(rollupEpochInfos, epochs...)
+	}
+	if len(rollupEpochInfos) == 0 {
+		log.Info("rollup epoch infos length is zero", "startBlock", startBlock, "endBlock", endBlock)
+		time.Sleep(defaultSleepTime)
+		return nil
+	}
+	log.Info("submit rollup epoch infos", "startBlock", startBlock, "endBlock", endBlock, "infoLength", len(rollupEpochInfos))
+	err = o.submitRollupEpoch(rollupEpochInfos)
+	if err != nil {
+		if len(rollupEpochInfos) > 50 {
+			if o.cfg.MinSize*2 <= o.rollupEpochMaxBlock {
+				o.rollupEpochMaxBlock -= o.cfg.MinSize
+			} else {
+				o.rollupEpochMaxBlock = o.rollupEpochMaxBlock / 2
+			}
+		}
+		return fmt.Errorf("submit rollup epoch info error:%v,rollupEpochMaxBlock:%v", err, o.rollupEpochMaxBlock)
+	}
+	if o.rollupEpochMaxBlock+o.cfg.MinSize <= o.cfg.MaxSize {
+		o.rollupEpochMaxBlock += o.cfg.MinSize
+	}
+
+	log.Info("submit rollup epoch info success", "rollupEpochMaxBlock", o.rollupEpochMaxBlock)
+	return nil
+}
+
+func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) error {
 	chainId, err := o.l2Client.ChainID(o.ctx)
 	if err != nil {
 		return err
@@ -71,22 +172,50 @@ func (o *Oracle) recordRollupEpoch() error {
 	if err != nil {
 		return err
 	}
-	tx, err := o.record.RecordRollupEpochs(opts, rollupEpochInfos)
+	tx, err := o.record.RecordRollupEpochs(opts, epochs)
 	if err != nil {
 		return err
 	}
+	log.Info("RecordRollupEpochs success", "txHash", tx.Hash())
 	log.Info("send record rollup epoch tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
-	receipt, err := o.l2Client.TransactionReceipt(o.ctx, tx.Hash())
+	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {
 		return fmt.Errorf("receipt record rollup epochs error:%v", err)
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("record rollup epochs not success")
 	}
+	log.Info("wait receipt success", "txHash", tx.Hash())
 	return nil
 }
 
-func (o *Oracle) GetRollupEpoch(start, end uint64, lastTime uint64, lastIndex uint64) ([]bindings.IRecordRollupEpochInfo, error) {
+func (o *Oracle) GetUpdateTime(blockNumber int64) (int64, error) {
+	updateTime, err := o.sequencer.UpdateTime(&bind.CallOpts{
+		BlockNumber: big.NewInt(blockNumber),
+	})
+	if err != nil {
+		return 0, err
+	}
+	epochUpdateTime, err := o.gov.RollupEpochUpdateTime(&bind.CallOpts{
+		BlockNumber: big.NewInt(blockNumber),
+	})
+	if err != nil {
+		return 0, err
+	}
+	header, err := o.l2Client.HeaderByNumber(o.ctx, big.NewInt(1))
+	if err != nil {
+		return 0, err
+	}
+	if updateTime.Cmp(epochUpdateTime) <= 0 {
+		updateTime = epochUpdateTime
+	}
+	if updateTime.Uint64() <= header.Time {
+		updateTime = big.NewInt(int64(header.Time))
+	}
+	return updateTime.Int64(), nil
+}
+
+func (o *Oracle) GetSequencerSetsEpoch(start, end uint64) ([]SequencerSetUpdateEpoch, error) {
 	rollupEpochLogs, err := o.fetchRollupEpochLog(o.ctx, start, end)
 	if err != nil {
 		return nil, err
@@ -104,32 +233,31 @@ func (o *Oracle) GetRollupEpoch(start, end uint64, lastTime uint64, lastIndex ui
 	}
 	sortedBlocks := removeDuplicatesAndSort(epochBlock)
 	sort.Ints(sortedBlocks)
-	//var latestIndex uint64 // TODO
-	//var lastTime uint64
-	var epochInfos []bindings.IRecordRollupEpochInfo
+	var setsEpochInfos []SequencerSetUpdateEpoch
 	for _, eb := range sortedBlocks {
-		lastIndex += 1
 		header, err := o.l2Client.HeaderByNumber(o.ctx, big.NewInt(int64(eb)))
 		if err != nil {
 
 		}
-		epochInfo := bindings.IRecordRollupEpochInfo{
-			Index: big.NewInt(int64(lastIndex)),
-
-			//Submitter common.Address
-			StartTime: big.NewInt(int64(lastTime)),
-			EndTime:   big.NewInt(int64(header.Time)),
+		sequencerSets, err := o.sequencer.GetSequencerSet2(&bind.CallOpts{
+			BlockNumber: big.NewInt(int64(eb - 1)),
+		})
+		if err != nil {
+			return nil, err
 		}
-		lastTime = header.Time
-		epochInfos = append(epochInfos, epochInfo)
+		lastTime, err := o.GetUpdateTime(header.Number.Int64() - 1)
+		if err != nil {
+			return nil, err
+		}
+		epochInfo := SequencerSetUpdateEpoch{
+			Submitters: sequencerSets,
+			StartTime:  big.NewInt(lastTime),
+			EndTime:    big.NewInt(int64(header.Time)),
+			EndBlock:   header.Number,
+		}
+		setsEpochInfos = append(setsEpochInfos, epochInfo)
 	}
-	// TODO delete
-	log.Info("epoch info", "epochInfo", epochInfos)
-	return epochInfos, nil
-}
-
-func GetEpochBlock() (*big.Int, error) {
-	return big.NewInt(0), nil
+	return setsEpochInfos, nil
 }
 
 func (o *Oracle) fetchRollupEpochLog(ctx context.Context, start, end uint64) ([]types.Log, error) {

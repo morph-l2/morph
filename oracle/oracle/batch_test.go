@@ -28,14 +28,21 @@ func TestLastFinalizedBatchIndex(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println("bs=", bs)
 
+	lastBatchIndex, err := o.rollup.LastCommittedBatchIndex(nil)
+	require.NoError(t, err)
+	fmt.Println("latestBatchIndex", lastBatchIndex)
+
 }
 
 func TestFetchRollupLog(t *testing.T) {
 	o := testNewOracleClient(t)
-	rLogs, err := o.fetchRollupLog(o.ctx, 1, 200)
+	//rLogs, err := o.fetchRollupLog(o.ctx, 1, 200)
+	//fmt.Println("lastFinalized:", len(rLogs))
+	//require.NoError(t, err)
+	//fmt.Println(o.cfg.RollupAddr)
+	epoch, err := o.gov.RollupEpoch(nil)
 	require.NoError(t, err)
-	fmt.Println(o.cfg.RollupAddr)
-	fmt.Println("lastFinalized:", len(rLogs))
+	fmt.Println("epoch:", epoch)
 }
 
 func TestOracle_GetNextBatchSubmissionIndex(t *testing.T) {

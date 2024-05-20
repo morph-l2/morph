@@ -57,6 +57,13 @@ var (
 		EnvVar: prefixEnvVar("MAX_HEADER_BATCH_SIZE"),
 	}
 
+	MinHeaderBatchSizeFlag = cli.Uint64Flag{
+		Name:   "min-header-batch-size",
+		Usage:  "The maximum number of headers to request as a batch",
+		Value:  50,
+		EnvVar: prefixEnvVar("MIN_HEADER_BATCH_SIZE"),
+	}
+
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log-level",
 		Usage:  "The lowest log level that will be output",
@@ -129,6 +136,7 @@ var optionalFlags = []cli.Flag{
 	LogFileMaxAgeFlag,
 	LogCompressFlag,
 	MaxHeaderBatchSizeFlag,
+	MinHeaderBatchSizeFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
