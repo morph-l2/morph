@@ -140,9 +140,7 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 				return nil, nil, fmt.Errorf("wrong L2Sequencer infos config: inconsistent number")
 			}
 			addresses := make([]common.Address, len(config.L2StakingAddresses))
-			for i, addr := range config.L2StakingAddresses {
-				addresses[i] = addr
-			}
+			copy(addresses, config.L2StakingAddresses)
 			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
 			if err != nil {
 				return nil, nil, err

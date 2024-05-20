@@ -13,11 +13,9 @@ library Constants {
      *         CrossDomainMessenger contracts before an actual sender is set. This value is
      *         non-zero to reduce the gas cost of message passing transactions.
      */
-    address internal constant DEFAULT_XDOMAIN_MESSAGE_SENDER =
-        0x000000000000000000000000000000000000dEaD;
+    address internal constant DEFAULT_XDOMAIN_MESSAGE_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /// @notice The address for dropping message.
     /// @dev The first 20 bytes of keccak("drop")
-    address internal constant DROP_XDOMAIN_MESSAGE_SENDER =
-        0x6f297C61B5C92eF107fFD30CD56AFFE5A273e841;
+    address internal constant DROP_XDOMAIN_MESSAGE_SENDER = 0x6f297C61B5C92eF107fFD30CD56AFFE5A273e841;
 }

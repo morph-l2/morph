@@ -5,8 +5,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {IL2Staking} from "./IL2Staking.sol";
-import {IRecord} from "./IRecord.sol";
 import {IDistribute} from "./IDistribute.sol";
 import {IMorphToken} from "../system/IMorphToken.sol";
 
@@ -16,9 +14,6 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /*************
      * Constants *
      *************/
-
-    /// @notice reward epoch, seconds of one day (3600 * 24)
-    uint256 private constant REWARD_EPOCH = 86400;
 
     /// @notice MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
@@ -37,13 +32,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     uint256 private mintedEpochCount;
 
     /// @notice distribution info, delete after all claimed
-    mapping(address delegatee => mapping(uint256 epochIndex => Distribution))
-        private distributions;
+    mapping(address delegatee => mapping(uint256 epochIndex => Distribution)) private distributions;
 
-    /// @notice delegatee's unclaimed commission
-    mapping(address delegatee => uint256 epochIndex)
-        public
-        override unclaimedCommission;
+    /// @notice the next epoch to claim commission for a delegatee
+    mapping(address delegatee => uint256 epochIndex) public override nextEpochToClaimCommission;
 
     /// @notice delegator's unclaimed reward
     mapping(address delegator => Unclaimed) private unclaimed;
@@ -54,19 +46,13 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
     /// @notice Ensures that the caller message from l2 staking contract.
     modifier onlyL2StakingContract() {
-        require(
-            _msgSender() == L2_STAKING_CONTRACT,
-            "only l2 staking contract allowed"
-        );
+        require(_msgSender() == L2_STAKING_CONTRACT, "only l2 staking contract allowed");
         _;
     }
 
     /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
-        require(
-            _msgSender() == RECORD_CONTRACT,
-            "only record contract allowed"
-        );
+        require(_msgSender() == RECORD_CONTRACT, "only record contract allowed");
 
         _;
     }
@@ -143,14 +129,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         distributions[delegatee][effectiveEpoch].remainsNumber = remainsNumber;
 
         // not start reward yet, or delegate and undelegation within the same epoch, remove unclaim info
-        if (
-            effectiveEpoch == 0 ||
-            unclaimed[delegator].unclaimedStart[delegatee] == effectiveEpoch
-        ) {
+        if (effectiveEpoch == 0 || unclaimed[delegator].unclaimedStart[delegatee] == effectiveEpoch) {
             // update distribution info
-            distributions[delegatee][effectiveEpoch].delegators.remove(
-                delegator
-            );
+            distributions[delegatee][effectiveEpoch].delegators.remove(delegator);
             delete distributions[delegatee][effectiveEpoch].amounts[delegator];
 
             // update unclaimed info
@@ -181,16 +162,13 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
 
         require(
-            delegatorRewards.length == sequencers.length &&
-                commissions.length == sequencers.length,
+            delegatorRewards.length == sequencers.length && commissions.length == sequencers.length,
             "invalid data length"
         );
 
         for (uint256 i = 0; i < sequencers.length; i++) {
-            distributions[sequencers[i]][epochIndex]
-                .delegatorRewardAmount = delegatorRewards[i];
-            distributions[sequencers[i]][epochIndex]
-                .commissionAmount = commissions[i];
+            distributions[sequencers[i]][epochIndex].delegatorRewardAmount = delegatorRewards[i];
+            distributions[sequencers[i]][epochIndex].commissionAmount = commissions[i];
         }
     }
 
@@ -201,16 +179,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ///
     ///  If targetEpochIndex is zero, claim up to latest mint epoch,
     ///  otherwise it must be greater than the last claimed epoch index.
-    function claim(
-        address delegatee,
-        address delegator,
-        uint256 targetEpochIndex
-    ) external onlyL2StakingContract {
-        require(mintedEpochCount != 0, "not mint yet");
-        uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
-            endEpochIndex = mintedEpochCount - 1;
-        }
+    function claim(address delegatee, address delegator, uint256 targetEpochIndex) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not minted yet");
+        uint256 endEpochIndex = (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount - 1)
+            ? mintedEpochCount - 1
+            : targetEpochIndex;
         uint256 reward = _claim(delegatee, delegator, endEpochIndex);
         if (reward > 0) {
             _transfer(delegator, reward);
@@ -223,15 +196,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ///
     ///  If targetEpochIndex is zero, claim up to latest mint epoch,
     ///  otherwise it must be greater than the last claimed epoch index.
-    function claimAll(
-        address delegator,
-        uint256 targetEpochIndex
-    ) external onlyL2StakingContract {
-        require(mintedEpochCount != 0, "not mint yet");
-        uint256 endEpochIndex = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
-            endEpochIndex = mintedEpochCount - 1;
-        }
+    function claimAll(address delegator, uint256 targetEpochIndex) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not minted yet");
+        uint256 endEpochIndex = (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount - 1)
+            ? mintedEpochCount - 1
+            : targetEpochIndex;
         uint256 reward;
         for (uint256 i = 0; i < unclaimed[delegator].delegatees.length(); i++) {
             address delegatee = unclaimed[delegator].delegatees.at(i);
@@ -239,7 +208,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 unclaimed[delegator].delegatees.contains(delegatee) &&
                 unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex
             ) {
-                reward += _claim(delegatee, delegator, targetEpochIndex);
+                reward += _claim(delegatee, delegator, endEpochIndex);
             }
         }
         if (reward > 0) {
@@ -250,21 +219,14 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @dev claim commission reward
     /// @param delegatee         delegatee address
     /// @param targetEpochIndex  the epoch index that the user wants to claim up to
-    function claimCommission(
-        address delegatee,
-        uint256 targetEpochIndex
-    ) external onlyL2StakingContract {
-        require(mintedEpochCount != 0, "not mint yet");
-        uint256 end = targetEpochIndex;
-        if (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount) {
-            end = mintedEpochCount - 1;
-        }
-        require(
-            unclaimedCommission[delegatee] <= end,
-            "all commission claimed"
-        );
+    function claimCommission(address delegatee, uint256 targetEpochIndex) external onlyL2StakingContract {
+        require(mintedEpochCount != 0, "not minted yet");
+        uint256 end = (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount - 1)
+            ? mintedEpochCount - 1
+            : targetEpochIndex;
+        require(nextEpochToClaimCommission[delegatee] <= end, "all commission claimed");
         uint256 commission;
-        for (uint256 i = unclaimedCommission[delegatee]; i <= end; i++) {
+        for (uint256 i = nextEpochToClaimCommission[delegatee]; i <= end; i++) {
             commission += distributions[delegatee][i].commissionAmount;
             distributions[delegatee][i].commissionAmount = 0;
             // if all delegators claimed, delete distribution
@@ -275,7 +237,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         if (commission > 0) {
             _transfer(delegatee, commission);
         }
-        unclaimedCommission[delegatee] = end + 1;
+        nextEpochToClaimCommission[delegatee] = end + 1;
 
         emit CommissionClaimed(delegatee, end, commission);
     }
@@ -287,30 +249,19 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @notice query unclaimed morph reward on a delegatee
     /// @param delegatee     delegatee address
     /// @param delegator     delegatee address
-    function queryUnclaimed(
-        address delegatee,
-        address delegator
-    ) external view returns (uint256 reward) {
+    function queryUnclaimed(address delegatee, address delegator) external view returns (uint256 reward) {
         uint256 totalAmount;
         uint256 delegatorAmount;
-        uint start = unclaimed[delegator].unclaimedStart[delegatee];
+        uint256 start = unclaimed[delegator].unclaimedStart[delegatee];
         for (uint256 i = start; i < mintedEpochCount; i++) {
             if (distributions[delegatee][i].amounts[delegator] > 0) {
-                delegatorAmount = distributions[delegatee][i].amounts[
-                    delegator
-                ];
+                delegatorAmount = distributions[delegatee][i].amounts[delegator];
             }
             if (distributions[delegatee][i].delegationAmount > 0) {
                 totalAmount = distributions[delegatee][i].delegationAmount;
             }
-            reward +=
-                (distributions[delegatee][i].delegatorRewardAmount *
-                    delegatorAmount) /
-                totalAmount;
-            if (
-                unclaimed[delegator].undelegated[delegatee] &&
-                unclaimed[delegator].unclaimedEnd[delegatee] == i
-            ) {
+            reward += (distributions[delegatee][i].delegatorRewardAmount * delegatorAmount) / totalAmount;
+            if (unclaimed[delegator].undelegated[delegatee] && unclaimed[delegator].unclaimedEnd[delegatee] == i) {
                 break;
             }
         }
@@ -322,69 +273,36 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
     /// @notice transfer morph token
     function _transfer(address _to, uint256 _amount) internal {
-        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(
-            _to
-        );
+        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        require(
-            _amount > 0 && balanceAfter - balanceBefore == _amount,
-            "morph token transfer failed"
-        );
+        require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
     }
 
     /// @notice claim delegator morph reward
-    function _claim(
-        address delegatee,
-        address delegator,
-        uint256 endEpochIndex
-    ) internal returns (uint256 reward) {
-        require(
-            unclaimed[delegator].delegatees.contains(delegatee),
-            "no remaining reward"
-        );
-        require(
-            unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex,
-            "all reward claimed"
-        );
+    function _claim(address delegatee, address delegator, uint256 endEpochIndex) internal returns (uint256 reward) {
+        require(unclaimed[delegator].delegatees.contains(delegatee), "no remaining reward");
+        require(unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex, "all reward claimed");
 
-        for (
-            uint256 i = unclaimed[delegator].unclaimedStart[delegatee];
-            i <= endEpochIndex;
-            i++
-        ) {
+        for (uint256 i = unclaimed[delegator].unclaimedStart[delegatee]; i <= endEpochIndex; i++) {
             // compute delegator epoch reward
             reward +=
-                (distributions[delegatee][i].delegatorRewardAmount *
-                    distributions[delegatee][i].amounts[delegator]) /
+                (distributions[delegatee][i].delegatorRewardAmount * distributions[delegatee][i].amounts[delegator]) /
                 distributions[delegatee][i].delegationAmount;
 
             // if claimed end epoch is reached, next distribution has been updated when undelegate
-            if (
-                !unclaimed[delegator].undelegated[delegatee] ||
-                unclaimed[delegator].unclaimedEnd[delegatee] != i
-            ) {
+            if (!unclaimed[delegator].undelegated[delegatee] || unclaimed[delegator].unclaimedEnd[delegatee] != i) {
                 // if delegator has not finished the claim and distribution not contains the delegator's info in next epoch,
                 // migrate delegator info to next epoch.
-                if (
-                    !distributions[delegatee][i + 1].delegators.contains(
-                        delegator
-                    )
-                ) {
+                if (!distributions[delegatee][i + 1].delegators.contains(delegator)) {
                     distributions[delegatee][i + 1].delegators.add(delegator);
-                    distributions[delegatee][i + 1].amounts[
-                        delegator
-                    ] = distributions[delegatee][i].amounts[delegator];
+                    distributions[delegatee][i + 1].amounts[delegator] = distributions[delegatee][i].amounts[delegator];
                 }
 
                 // if next distribution is empty, migrate distribution to next epoch
                 if (distributions[delegatee][i + 1].delegationAmount == 0) {
-                    distributions[delegatee][i + 1]
-                        .delegationAmount = distributions[delegatee][i]
-                        .delegationAmount;
-                    distributions[delegatee][i + 1]
-                        .remainsNumber = distributions[delegatee][i]
-                        .remainsNumber;
+                    distributions[delegatee][i + 1].delegationAmount = distributions[delegatee][i].delegationAmount;
+                    distributions[delegatee][i + 1].remainsNumber = distributions[delegatee][i].remainsNumber;
                 }
             }
 
@@ -398,10 +316,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             }
 
             // if undelegated, remove delegator unclaimed info after claimed all
-            if (
-                unclaimed[delegator].undelegated[delegatee] &&
-                unclaimed[delegator].unclaimedEnd[delegatee] == i
-            ) {
+            if (unclaimed[delegator].undelegated[delegatee] && unclaimed[delegator].unclaimedEnd[delegatee] == i) {
                 unclaimed[delegator].delegatees.remove(delegatee);
                 delete unclaimed[delegator].undelegated[delegatee];
                 delete unclaimed[delegator].unclaimedStart[delegatee];

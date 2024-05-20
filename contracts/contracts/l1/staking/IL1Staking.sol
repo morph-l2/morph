@@ -48,10 +48,7 @@ interface IL1Staking {
     /// @notice gas limit remove stakers updated
     /// @param oldGasLimit    old gas limit
     /// @param newGasLimit    new gas limit
-    event GasLimitRemoveStakersUpdated(
-        uint256 oldGasLimit,
-        uint256 newGasLimit
-    );
+    event GasLimitRemoveStakersUpdated(uint256 oldGasLimit, uint256 newGasLimit);
 
     /// @notice reward percentage updated
     /// @param oldPercentage    old percentage

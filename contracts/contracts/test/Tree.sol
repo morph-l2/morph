@@ -11,10 +11,9 @@ contract TestTree is CommonTest {
         }
     }
 
-    function test_tree() public {
+    function test_tree_succeeds() public {
         for (uint64 i = 1; i < 1025; i = i * i + i) {
-            (bytes32 leafHash, bytes32[32] memory wdProof, ) = ffi
-                .getProveWithdrawalCheckProof(i);
+            (bytes32 leafHash, bytes32[32] memory wdProof, ) = ffi.getProveWithdrawalCheckProof(i);
             bytes32 root = getTreeRoot();
             verifyMerkleProof(leafHash, wdProof, i, root);
         }

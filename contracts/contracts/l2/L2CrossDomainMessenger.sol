@@ -13,10 +13,7 @@ import {IL2CrossDomainMessenger} from "./IL2CrossDomainMessenger.sol";
 /// @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
 ///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
 ///         level message passing contracts.
-contract L2CrossDomainMessenger is
-    CrossDomainMessenger,
-    IL2CrossDomainMessenger
-{
+contract L2CrossDomainMessenger is CrossDomainMessenger, IL2CrossDomainMessenger {
     /*************
      * Variables *
      *************/
@@ -83,27 +80,15 @@ contract L2CrossDomainMessenger is
             "Caller is not L1CrossDomainMessenger"
         );
 
-        bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(_from, _to, _value, _nonce, _message)
-        );
+        bytes32 _xDomainCalldataHash = keccak256(_encodeXDomainCalldata(_from, _to, _value, _nonce, _message));
 
-        require(
-            !isL1MessageExecuted[_xDomainCalldataHash],
-            "Message was already successfully executed"
-        );
+        require(!isL1MessageExecuted[_xDomainCalldataHash], "Message was already successfully executed");
 
         _executeMessage(_from, _to, _value, _message, _xDomainCalldataHash);
     }
 
-    function messageNonce()
-        external
-        view
-        override(ICrossDomainMessenger, CrossDomainMessenger)
-        returns (uint256)
-    {
-        return
-            L2ToL1MessagePasser(Predeploys.L2_TO_L1_MESSAGE_PASSER)
-                .leafNodesCount();
+    function messageNonce() external view override(ICrossDomainMessenger, CrossDomainMessenger) returns (uint256) {
+        return L2ToL1MessagePasser(Predeploys.L2_TO_L1_MESSAGE_PASSER).leafNodesCount();
     }
 
     /**********************
@@ -115,37 +100,20 @@ contract L2CrossDomainMessenger is
     /// @param _value The amount of ether passed when call target contract.
     /// @param _message The content of the message.
     /// @param _gasLimit Optional gas limit to complete the message relay on corresponding chain.
-    function _sendMessage(
-        address _to,
-        uint256 _value,
-        bytes memory _message,
-        uint256 _gasLimit
-    ) internal nonReentrant {
+    function _sendMessage(address _to, uint256 _value, bytes memory _message, uint256 _gasLimit) internal nonReentrant {
         require(msg.value == _value, "msg.value mismatch");
 
         address messagePasser = Predeploys.L2_TO_L1_MESSAGE_PASSER;
         uint256 _nonce = L2ToL1MessagePasser(messagePasser).leafNodesCount();
-        bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(_msgSender(), _to, _value, _nonce, _message)
-        );
+        bytes32 _xDomainCalldataHash = keccak256(_encodeXDomainCalldata(_msgSender(), _to, _value, _nonce, _message));
 
         // normally this won't happen, since each message has different nonce, but just in case.
-        require(
-            messageSendTimestamp[_xDomainCalldataHash] == 0,
-            "Duplicated message"
-        );
+        require(messageSendTimestamp[_xDomainCalldataHash] == 0, "Duplicated message");
         messageSendTimestamp[_xDomainCalldataHash] = block.timestamp;
 
         L2ToL1MessagePasser(messagePasser).appendMessage(_xDomainCalldataHash);
 
-        emit SentMessage(
-            _msgSender(),
-            _to,
-            _value,
-            _nonce,
-            _gasLimit,
-            _message
-        );
+        emit SentMessage(_msgSender(), _to, _value, _nonce, _gasLimit, _message);
     }
 
     /// @dev Internal function to execute a L1 => L2 message.
@@ -162,10 +130,7 @@ contract L2CrossDomainMessenger is
         bytes32 _xDomainCalldataHash
     ) internal {
         // @note check more `_to` address to avoid attack in the future when we add more gateways.
-        require(
-            _to != Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            "Forbid to call l2 to l1 message passer"
-        );
+        require(_to != Predeploys.L2_TO_L1_MESSAGE_PASSER, "Forbid to call l2 to l1 message passer");
         _validateTargetAddress(_to);
 
         // @note This usually will never happen, just in case.

@@ -43,26 +43,17 @@ interface IGov {
     /// @notice proposal interval updated
     /// @param oldProposalInterval    old proposal interval
     /// @param newProposalInterval    new proposal interval
-    event ProposalIntervalUpdated(
-        uint256 oldProposalInterval,
-        uint256 newProposalInterval
-    );
+    event ProposalIntervalUpdated(uint256 oldProposalInterval, uint256 newProposalInterval);
 
     /// @notice batch block interval updated
     /// @param oldBatchBlockInterval    old batch block interval
     /// @param newBatchBlockInterval    new batch block interval
-    event BatchBlockIntervalUpdated(
-        uint256 oldBatchBlockInterval,
-        uint256 newBatchBlockInterval
-    );
+    event BatchBlockIntervalUpdated(uint256 oldBatchBlockInterval, uint256 newBatchBlockInterval);
 
     /// @notice batch max bytes updated
     /// @param oldBatchMaxBytes     old batch max bytes
     /// @param newBatchMaxBytes     new batch max bytes
-    event BatchMaxBytesUpdated(
-        uint256 oldBatchMaxBytes,
-        uint256 newBatchMaxBytes
-    );
+    event BatchMaxBytesUpdated(uint256 oldBatchMaxBytes, uint256 newBatchMaxBytes);
 
     /// @notice batch timeout updated
     /// @param oldBatchTimeout  old batch timeout
@@ -102,23 +93,16 @@ interface IGov {
     function currentProposalID() external view returns (uint256);
 
     /// @notice whether the proposal can be approved
-    function isProposalCanBeApproved(
-        uint256 proposalID
-    ) external view returns (bool);
+    function isProposalCanBeApproved(uint256 proposalID) external view returns (bool);
 
     /// @notice proposal information.
     /// @param proposalID  proposal ID
-    function proposalInfos(
-        uint256 proposalID
-    ) external view returns (uint256 endTimestamp, bool approved);
+    function proposalInfos(uint256 proposalID) external view returns (uint256 endTimestamp, bool approved);
 
     /// @notice return is voted
     /// @param proposalID  proposal ID
     /// @param voter       voter
-    function isVoted(
-        uint256 proposalID,
-        address voter
-    ) external view returns (bool voted);
+    function isVoted(uint256 proposalID, address voter) external view returns (bool voted);
 
     /*****************************
      * Public Mutating Functions *

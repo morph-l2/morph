@@ -18,11 +18,7 @@ import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
  *         for sending and receiving data on the L1 side. Users are encouraged to use this
  *         interface instead of interacting with lower-level contracts directly.
  */
-contract L1CrossDomainMessenger is
-    IL1CrossDomainMessenger,
-    CrossDomainMessenger,
-    Verify
-{
+contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger, Verify {
     /***********
      * Structs *
      ***********/
@@ -85,22 +81,11 @@ contract L1CrossDomainMessenger is
     /// @param _feeVault The address of fee vault, which will be used to collect relayer fee.
     /// @param _rollup The address of rollup contract.
     /// @param _messageQueue The address of L1MessageQueue contract.
-    function initialize(
-        address _feeVault,
-        address _rollup,
-        address _messageQueue
-    ) public initializer {
-        if (
-            _rollup == address(0) ||
-            _messageQueue == address(0) ||
-            _feeVault == address(0)
-        ) {
+    function initialize(address _feeVault, address _rollup, address _messageQueue) public initializer {
+        if (_rollup == address(0) || _messageQueue == address(0) || _feeVault == address(0)) {
             revert ErrZeroAddress();
         }
-        CrossDomainMessenger.__Messenger_init(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            _feeVault
-        );
+        CrossDomainMessenger.__Messenger_init(Predeploys.L2_CROSS_DOMAIN_MESSENGER, _feeVault);
 
         rollup = _rollup;
         messageQueue = _messageQueue;
@@ -148,20 +133,12 @@ contract L1CrossDomainMessenger is
         _validateTargetAddress(_to);
 
         // @note This usually will never happen, just in case.
-        require(
-            _from != xDomainMessageSender,
-            "Messenger: Invalid message sender"
-        );
+        require(_from != xDomainMessageSender, "Messenger: Invalid message sender");
 
-        bytes32 _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(_from, _to, _value, _nonce, _message)
-        );
+        bytes32 _xDomainCalldataHash = keccak256(_encodeXDomainCalldata(_from, _to, _value, _nonce, _message));
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
-        require(
-            !finalizedWithdrawals[_xDomainCalldataHash],
-            "Messenger: withdrawal has already been finalized"
-        );
+        require(!finalizedWithdrawals[_xDomainCalldataHash], "Messenger: withdrawal has already been finalized");
 
         address _rollup = rollup;
         // prove message
@@ -175,12 +152,7 @@ contract L1CrossDomainMessenger is
             // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
             // be relayed on L1.
             require(
-                verifyMerkleProof(
-                    _xDomainCalldataHash,
-                    _withdrawalProof,
-                    _nonce,
-                    _withdrawalRoot
-                ),
+                verifyMerkleProof(_xDomainCalldataHash, _withdrawalProof, _nonce, _withdrawalRoot),
                 "Messenger: invalid withdrawal inclusion proof"
             );
         }
@@ -215,28 +187,15 @@ contract L1CrossDomainMessenger is
         // will revert with "Message was already successfully executed".
         address _messageQueue = messageQueue;
         address _counterpart = counterpart;
-        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
-            _from,
-            _to,
-            _value,
-            _messageNonce,
-            _message
-        );
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(_from, _to, _value, _messageNonce, _message);
         bytes32 _xDomainCalldataHash = keccak256(_xDomainCalldata);
 
-        require(
-            messageSendTimestamp[_xDomainCalldataHash] > 0,
-            "Provided message has not been enqueued"
-        );
+        require(messageSendTimestamp[_xDomainCalldataHash] > 0, "Provided message has not been enqueued");
         // cannot replay dropped message
-        require(
-            !isL1MessageDropped[_xDomainCalldataHash],
-            "Message already dropped"
-        );
+        require(!isL1MessageDropped[_xDomainCalldataHash], "Message already dropped");
 
         // compute and deduct the messaging fee to fee vault.
-        uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_from, _newGasLimit);
+        uint256 _fee = IL1MessageQueue(_messageQueue).estimateCrossDomainMessageFee(_from, _newGasLimit);
 
         // charge relayer fee
         require(msg.value >= _fee, "Insufficient msg.value for fee");
@@ -246,13 +205,8 @@ contract L1CrossDomainMessenger is
         }
 
         // enqueue the new transaction
-        uint256 _nextQueueIndex = IL1MessageQueue(_messageQueue)
-            .nextCrossDomainMessageIndex();
-        IL1MessageQueue(_messageQueue).appendCrossDomainMessage(
-            _counterpart,
-            _newGasLimit,
-            _xDomainCalldata
-        );
+        uint256 _nextQueueIndex = IL1MessageQueue(_messageQueue).nextCrossDomainMessageIndex();
+        IL1MessageQueue(_messageQueue).appendCrossDomainMessage(_counterpart, _newGasLimit, _xDomainCalldata);
 
         ReplayState memory _replayState = replayStates[_xDomainCalldataHash];
         // update the replayed message chain.
@@ -267,10 +221,7 @@ contract L1CrossDomainMessenger is
         _replayState.lastIndex = uint128(_nextQueueIndex);
 
         // update replay times
-        require(
-            _replayState.times < maxReplayTimes,
-            "Exceed maximum replay times"
-        );
+        require(_replayState.times < maxReplayTimes, "Exceed maximum replay times");
         unchecked {
             _replayState.times += 1;
         }
@@ -309,24 +260,12 @@ contract L1CrossDomainMessenger is
         address _messageQueue = messageQueue;
 
         // check message exists
-        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
-            _from,
-            _to,
-            _value,
-            _messageNonce,
-            _message
-        );
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(_from, _to, _value, _messageNonce, _message);
         bytes32 _xDomainCalldataHash = keccak256(_xDomainCalldata);
-        require(
-            messageSendTimestamp[_xDomainCalldataHash] > 0,
-            "Provided message has not been enqueued"
-        );
+        require(messageSendTimestamp[_xDomainCalldataHash] > 0, "Provided message has not been enqueued");
 
         // check message not dropped
-        require(
-            !isL1MessageDropped[_xDomainCalldataHash],
-            "Message already dropped"
-        );
+        require(!isL1MessageDropped[_xDomainCalldataHash], "Message already dropped");
 
         // check message is finalized
         uint256 _lastIndex = replayStates[_xDomainCalldataHash].lastIndex;
@@ -359,9 +298,7 @@ contract L1CrossDomainMessenger is
     /// @notice Update max replay times.
     /// @dev This function can only called by contract owner.
     /// @param _newMaxReplayTimes The new max replay times.
-    function updateMaxReplayTimes(
-        uint256 _newMaxReplayTimes
-    ) external onlyOwner {
+    function updateMaxReplayTimes(uint256 _newMaxReplayTimes) external onlyOwner {
         require(_newMaxReplayTimes > 0, "replay times must be greater than 0");
         uint256 _oldMaxReplayTimes = maxReplayTimes;
         maxReplayTimes = _newMaxReplayTimes;
@@ -384,19 +321,11 @@ contract L1CrossDomainMessenger is
         address _counterpart = counterpart; // gas saving
 
         // compute the actual cross domain message calldata.
-        uint256 _messageNonce = IL1MessageQueue(_messageQueue)
-            .nextCrossDomainMessageIndex();
-        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
-            _msgSender(),
-            _to,
-            _value,
-            _messageNonce,
-            _message
-        );
+        uint256 _messageNonce = IL1MessageQueue(_messageQueue).nextCrossDomainMessageIndex();
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(_msgSender(), _to, _value, _messageNonce, _message);
 
         // compute and deduct the messaging fee to fee vault.
-        uint256 _fee = IL1MessageQueue(_messageQueue)
-            .estimateCrossDomainMessageFee(_msgSender(), _gasLimit);
+        uint256 _fee = IL1MessageQueue(_messageQueue).estimateCrossDomainMessageFee(_msgSender(), _gasLimit);
         require(msg.value >= _fee + _value, "Insufficient msg.value");
         if (_fee > 0) {
             (bool _success, ) = feeVault.call{value: _fee}("");
@@ -404,30 +333,16 @@ contract L1CrossDomainMessenger is
         }
 
         // append message to L1MessageQueue
-        IL1MessageQueue(_messageQueue).appendCrossDomainMessage(
-            _counterpart,
-            _gasLimit,
-            _xDomainCalldata
-        );
+        IL1MessageQueue(_messageQueue).appendCrossDomainMessage(_counterpart, _gasLimit, _xDomainCalldata);
 
         // record the message hash for future use.
         bytes32 _xDomainCalldataHash = keccak256(_xDomainCalldata);
 
         // normally this won't happen, since each message has different nonce, but just in case.
-        require(
-            messageSendTimestamp[_xDomainCalldataHash] == 0,
-            "Duplicated message"
-        );
+        require(messageSendTimestamp[_xDomainCalldataHash] == 0, "Duplicated message");
         messageSendTimestamp[_xDomainCalldataHash] = block.timestamp;
 
-        emit SentMessage(
-            _msgSender(),
-            _to,
-            _value,
-            _messageNonce,
-            _gasLimit,
-            _message
-        );
+        emit SentMessage(_msgSender(), _to, _value, _messageNonce, _gasLimit, _message);
 
         // refund fee to `_refundAddress`
         unchecked {
@@ -439,12 +354,7 @@ contract L1CrossDomainMessenger is
         }
     }
 
-    function messageNonce()
-        external
-        view
-        override(ICrossDomainMessenger, CrossDomainMessenger)
-        returns (uint256)
-    {
+    function messageNonce() external view override(ICrossDomainMessenger, CrossDomainMessenger) returns (uint256) {
         return IL1MessageQueue(messageQueue).nextCrossDomainMessageIndex();
     }
 }

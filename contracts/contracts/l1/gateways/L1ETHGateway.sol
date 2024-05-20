@@ -29,11 +29,7 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
     /// @param _counterpart The address of L2ETHGateway in L2.
     /// @param _router The address of L1GatewayRouter.
     /// @param _messenger The address of L1CrossDomainMessenger.
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         require(_router != address(0), "zero router address");
         GatewayBase._initialize(_counterpart, _router, _messenger);
     }
@@ -43,19 +39,12 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
      *****************************/
 
     /// @inheritdoc IL1ETHGateway
-    function depositETH(
-        uint256 _amount,
-        uint256 _gasLimit
-    ) external payable override {
+    function depositETH(uint256 _amount, uint256 _gasLimit) external payable override {
         _deposit(_msgSender(), _amount, new bytes(0), _gasLimit);
     }
 
     /// @inheritdoc IL1ETHGateway
-    function depositETH(
-        address _to,
-        uint256 _amount,
-        uint256 _gasLimit
-    ) external payable override {
+    function depositETH(address _to, uint256 _amount, uint256 _gasLimit) external payable override {
         _deposit(_to, _amount, new bytes(0), _gasLimit);
     }
 
@@ -89,20 +78,12 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
     }
 
     /// @inheritdoc IMessageDropCallback
-    function onDropMessage(
-        bytes calldata _message
-    ) external payable virtual onlyInDropContext nonReentrant {
+    function onDropMessage(bytes calldata _message) external payable virtual onlyInDropContext nonReentrant {
         // _message should start with 0x232e8748  =>  finalizeDepositETH(address,address,uint256,bytes)
-        require(
-            bytes4(_message[0:4]) == IL2ETHGateway.finalizeDepositETH.selector,
-            "invalid selector"
-        );
+        require(bytes4(_message[0:4]) == IL2ETHGateway.finalizeDepositETH.selector, "invalid selector");
 
         // decode (receiver, amount)
-        (address _receiver, , uint256 _amount, ) = abi.decode(
-            _message[4:],
-            (address, address, uint256, bytes)
-        );
+        (address _receiver, , uint256 _amount, ) = abi.decode(_message[4:], (address, address, uint256, bytes));
 
         require(_amount == msg.value, "msg.value mismatch");
 
@@ -138,10 +119,7 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
         // @note no rate limit here, since ETH is limited in messenger
 
         // 2. Generate message passed to L1CrossDomainMessenger.
-        bytes memory _message = abi.encodeCall(
-            IL2ETHGateway.finalizeDepositETH,
-            (_from, _to, _amount, _data)
-        );
+        bytes memory _message = abi.encodeCall(IL2ETHGateway.finalizeDepositETH, (_from, _to, _amount, _data));
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
         IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(

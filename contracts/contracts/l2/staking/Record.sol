@@ -4,12 +4,9 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
-import {Types} from "../../libraries/common/Types.sol";
 import {IMorphToken} from "../system/IMorphToken.sol";
 import {IL2Staking} from "./IL2Staking.sol";
-import {ISequencer} from "./ISequencer.sol";
 import {IDistribute} from "./IDistribute.sol";
-import {IGov} from "./IGov.sol";
 import {IRecord} from "./IRecord.sol";
 
 contract Record is IRecord, OwnableUpgradeable {
@@ -93,14 +90,8 @@ contract Record is IRecord, OwnableUpgradeable {
     /// @notice Initializer.
     /// @param _oracle                      oracle address
     /// @param _nextBatchSubmissionIndex    next batch submission index
-    function initialize(
-        address _oracle,
-        uint256 _nextBatchSubmissionIndex
-    ) public initializer {
-        require(
-            _nextBatchSubmissionIndex != 0,
-            "invalid next batch submission index"
-        );
+    function initialize(address _oracle, uint256 _nextBatchSubmissionIndex) public initializer {
+        require(_nextBatchSubmissionIndex != 0, "invalid next batch submission index");
         require(_oracle != address(0), "invalid oracle address");
         __Ownable_init();
         oracle = _oracle;
@@ -120,24 +111,17 @@ contract Record is IRecord, OwnableUpgradeable {
 
     /// @notice set latest block
     /// @param _latestBlock   latest block
-    function setLatestRewardEpochBlock(
-        uint256 _latestBlock
-    ) external onlyOracle {
+    function setLatestRewardEpochBlock(uint256 _latestBlock) external onlyOracle {
         require(latestRewardEpochBlock == 0, "already set");
         require(_latestBlock > 0, "invalid latest block");
         latestRewardEpochBlock = _latestBlock;
     }
 
     /// @notice record batch submissions
-    function recordFinalizedBatchSubmissions(
-        BatchSubmission[] calldata _batchSubmissions
-    ) external onlyOracle {
+    function recordFinalizedBatchSubmissions(BatchSubmission[] calldata _batchSubmissions) external onlyOracle {
         require(_batchSubmissions.length > 0, "empty batch submissions");
         for (uint256 i = 0; i < _batchSubmissions.length; i++) {
-            require(
-                _batchSubmissions[i].index == nextBatchSubmissionIndex + i,
-                "invalid index"
-            );
+            require(_batchSubmissions[i].index == nextBatchSubmissionIndex + i, "invalid index");
             // TODO: check more
             batchSubmissions[_batchSubmissions[i].index] = BatchSubmission(
                 _batchSubmissions[i].index,
@@ -148,23 +132,15 @@ contract Record is IRecord, OwnableUpgradeable {
                 _batchSubmissions[i].rollupBlock
             );
         }
-        emit BatchSubmissionsUploaded(
-            nextBatchSubmissionIndex,
-            _batchSubmissions.length
-        );
+        emit BatchSubmissionsUploaded(nextBatchSubmissionIndex, _batchSubmissions.length);
         nextBatchSubmissionIndex += _batchSubmissions.length;
     }
 
     /// @notice record epochs
-    function recordRollupEpochs(
-        RollupEpochInfo[] calldata _rollupEpochs
-    ) external onlyOracle {
+    function recordRollupEpochs(RollupEpochInfo[] calldata _rollupEpochs) external onlyOracle {
         require(_rollupEpochs.length > 0, "empty rollup epochs");
         for (uint256 i = 0; i < _rollupEpochs.length; i++) {
-            require(
-                _rollupEpochs[i].index == nextRollupEpochIndex + i,
-                "invalid index"
-            );
+            require(_rollupEpochs[i].index == nextRollupEpochIndex + i, "invalid index");
             // TODO: check more
             rollupEpochs[_rollupEpochs[i].index] = RollupEpochInfo(
                 _rollupEpochs[i].index,
@@ -179,19 +155,14 @@ contract Record is IRecord, OwnableUpgradeable {
     }
 
     /// @notice record epochs
-    function recordRewardEpochs(
-        RewardEpochInfo[] calldata _rewardEpochs
-    ) external onlyOracle {
+    function recordRewardEpochs(RewardEpochInfo[] calldata _rewardEpochs) external onlyOracle {
         require(_rewardEpochs.length > 0, "empty reward epochs");
         require(latestRewardEpochBlock > 0, "start block should be set");
         require(
-            nextRewardEpochIndex + _rewardEpochs.length - 1 <
-                IL2Staking(L2_STAKING_CONTRACT).currentEpoch(),
-            "future data cannot be uploaded"
+            nextRewardEpochIndex + _rewardEpochs.length - 1 < IL2Staking(L2_STAKING_CONTRACT).currentEpoch(),
+            "unfinished epochs cannot be uploaded"
         );
-        IMorphToken(MORPH_TOKEN_CONTRACT).mintInflations(
-            nextRewardEpochIndex + _rewardEpochs.length - 1
-        );
+        IMorphToken(MORPH_TOKEN_CONTRACT).mintInflations(nextRewardEpochIndex + _rewardEpochs.length - 1);
 
         uint256 totalBlocks;
         for (uint256 i = 0; i < _rewardEpochs.length; i++) {
@@ -215,32 +186,22 @@ contract Record is IRecord, OwnableUpgradeable {
                 _rewardEpochs[i].sequencerCommissions
             );
 
-            uint256 inflationAmount = IMorphToken(MORPH_TOKEN_CONTRACT)
-                .inflation(index);
+            uint256 inflationAmount = IMorphToken(MORPH_TOKEN_CONTRACT).inflation(index);
             uint256 blockCount;
             uint256 ratioSum;
             uint256[] memory delegatorRewards = new uint256[](dataLen);
             uint256[] memory commissions = new uint256[](dataLen);
             for (uint256 j = 0; j < dataLen; j++) {
-                require(
-                    _rewardEpochs[i].sequencerCommissions[j] <= 20,
-                    "invalid sequencers commission"
-                );
+                require(_rewardEpochs[i].sequencerCommissions[j] <= 20, "invalid sequencers commission");
                 ratioSum += _rewardEpochs[i].sequencerRatios[j];
                 blockCount += _rewardEpochs[i].sequencerBlocks[j];
 
                 // compute rewards per sequencer
-                uint256 reward = (inflationAmount *
-                    _rewardEpochs[i].sequencerRatios[j]) / PRECISION;
-                commissions[j] =
-                    (reward * _rewardEpochs[i].sequencerCommissions[j]) /
-                    100;
+                uint256 reward = (inflationAmount * _rewardEpochs[i].sequencerRatios[j]) / PRECISION;
+                commissions[j] = (reward * _rewardEpochs[i].sequencerCommissions[j]) / 100;
                 delegatorRewards[j] = reward - commissions[j];
             }
-            require(
-                blockCount == _rewardEpochs[i].blockCount,
-                "invalid sequencers blocks"
-            );
+            require(blockCount == _rewardEpochs[i].blockCount, "invalid sequencers blocks");
             require(ratioSum <= PRECISION, "invalid sequencers ratios");
 
             // update sequencers reward data
@@ -264,10 +225,7 @@ contract Record is IRecord, OwnableUpgradeable {
     /// @notice getBatchSubmissions
     /// @param start start index
     /// @param end   end index
-    function getBatchSubmissions(
-        uint256 start,
-        uint256 end
-    ) external view returns (BatchSubmission[] memory res) {
+    function getBatchSubmissions(uint256 start, uint256 end) external view returns (BatchSubmission[] memory res) {
         require(end >= start, "invalid index");
         res = new BatchSubmission[](end - start + 1);
         for (uint256 i = start; i <= end; i++) {
@@ -278,10 +236,7 @@ contract Record is IRecord, OwnableUpgradeable {
     /// @notice get rollup epochs
     /// @param start start index
     /// @param end   end index
-    function getRollupEpochs(
-        uint256 start,
-        uint256 end
-    ) external view returns (RollupEpochInfo[] memory res) {
+    function getRollupEpochs(uint256 start, uint256 end) external view returns (RollupEpochInfo[] memory res) {
         require(end >= start, "invalid index");
         res = new RollupEpochInfo[](end - start + 1);
         for (uint256 i = start; i <= end; i++) {
@@ -292,10 +247,7 @@ contract Record is IRecord, OwnableUpgradeable {
     /// @notice get reward epochs
     /// @param start start index
     /// @param end   end index
-    function getRewardEpochs(
-        uint256 start,
-        uint256 end
-    ) external view returns (RewardEpochInfo[] memory res) {
+    function getRewardEpochs(uint256 start, uint256 end) external view returns (RewardEpochInfo[] memory res) {
         require(end >= start, "invalid index");
         res = new RewardEpochInfo[](end - start + 1);
         for (uint256 i = start; i <= end; i++) {

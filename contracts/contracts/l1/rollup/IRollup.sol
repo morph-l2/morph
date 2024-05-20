@@ -122,12 +122,7 @@ interface IRollup {
     /// @param batchHash    The hash of the batch
     /// @param stateRoot    The state root on layer 2 after this batch.
     /// @param withdrawRoot The merkle root on layer2 after this batch.
-    event FinalizeBatch(
-        uint256 indexed batchIndex,
-        bytes32 indexed batchHash,
-        bytes32 stateRoot,
-        bytes32 withdrawRoot
-    );
+    event FinalizeBatch(uint256 indexed batchIndex, bytes32 indexed batchHash, bytes32 stateRoot, bytes32 withdrawRoot);
 
     /// @notice Emitted when owner updates the proofWindow parameter.
     /// @param oldWindow    The old proofWindow.
@@ -147,38 +142,24 @@ interface IRollup {
     /// @notice Emitted when the address of rollup verifier is updated.
     /// @param oldVerifier  The address of old rollup verifier.
     /// @param newVerifier  The address of new rollup verifier.
-    event UpdateVerifier(
-        address indexed oldVerifier,
-        address indexed newVerifier
-    );
+    event UpdateVerifier(address indexed oldVerifier, address indexed newVerifier);
 
     /// @notice Emitted when the value of `maxNumTxInChunk` is updated.
     /// @param oldMaxNumTxInChunk   The old value of `maxNumTxInChunk`.
     /// @param newMaxNumTxInChunk   The new value of `maxNumTxInChunk`.
-    event UpdateMaxNumTxInChunk(
-        uint256 oldMaxNumTxInChunk,
-        uint256 newMaxNumTxInChunk
-    );
+    event UpdateMaxNumTxInChunk(uint256 oldMaxNumTxInChunk, uint256 newMaxNumTxInChunk);
 
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex       The index of the batch.
     /// @param challenger       The address of challenger.
     /// @param challengeDeposit The deposit of challenger.
-    event ChallengeState(
-        uint64 indexed batchIndex,
-        address indexed challenger,
-        uint256 challengeDeposit
-    );
+    event ChallengeState(uint64 indexed batchIndex, address indexed challenger, uint256 challengeDeposit);
 
     /// @notice Emitted when the result of Challenge is updated.
     /// @param batchIndex   The index of the batch.
     /// @param winner       The address of winner.
     /// @param res          The result of challenge.
-    event ChallengeRes(
-        uint64 indexed batchIndex,
-        address indexed winner,
-        string indexed res
-    );
+    event ChallengeRes(uint64 indexed batchIndex, address indexed winner, string indexed res);
 
     /*************************
      * Public View Functions *
@@ -192,21 +173,15 @@ interface IRollup {
 
     /// @notice Return the batch hash of a committed batch.
     /// @param batchIndex The index of the batch.
-    function committedBatches(
-        uint256 batchIndex
-    ) external view returns (bytes32);
+    function committedBatches(uint256 batchIndex) external view returns (bytes32);
 
     /// @notice Return the state root of a committed batch.
     /// @param batchIndex The index of the batch.
-    function finalizedStateRoots(
-        uint256 batchIndex
-    ) external view returns (bytes32);
+    function finalizedStateRoots(uint256 batchIndex) external view returns (bytes32);
 
     /// @notice Return the the committed batch of withdrawalRoot.
     /// @param withdrawalRoot The withdrawal root.
-    function withdrawalRoots(
-        bytes32 withdrawalRoot
-    ) external view returns (bool);
+    function withdrawalRoots(bytes32 withdrawalRoot) external view returns (bool);
 
     /// @notice Return whether the batch is finalized by batch index.
     /// @param batchIndex The index of the batch.
