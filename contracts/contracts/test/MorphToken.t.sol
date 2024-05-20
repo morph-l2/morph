@@ -149,6 +149,29 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
+    function test_transferFrom_reverts() public {
+        hevm.prank(multisig);
+        bool isApprove = morphToken.approve(alice, 100 ether);
+        assert(isApprove);
+
+        hevm.startPrank(alice);
+        hevm.expectRevert("insufficient allowance");
+        morphToken.transferFrom(multisig, bob, 200 ether);
+        hevm.stopPrank();
+    }
+
+    function test_transferFrom_succeeds() public {
+        hevm.prank(multisig);
+        bool isApprove = morphToken.approve(alice, 100 ether);
+        assert(isApprove);
+
+        uint256 beforeBalance = morphToken.balanceOf(multisig);
+        hevm.prank(alice);
+        assert(morphToken.transferFrom(multisig, bob, 5 ether));
+        uint256 afterBalance = morphToken.balanceOf(multisig);
+        assertEq(beforeBalance - afterBalance, 5 ether);
+    }
+
 
     function test_balanceOf_succeeds() public {
         assertEq(morphToken.balanceOf(multisig), 1000000000 ether);
