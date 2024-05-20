@@ -71,31 +71,8 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			break
 		}
 		startBlock = endBlock + 1
-		//var latest uint64
-		//for {
-		//	header, err := o.l1Client.HeaderByNumber(o.ctx, nil)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("get latest header error:%v", err)
-		//	}
-		//	latest = header.Number.Uint64()
-		//	if latest > startBlock {
-		//		break
-		//	}
-		//	time.Sleep(defaultSleepTime)
-		//}
-		//
-		//endBlock = startBlock + o.cfg.MaxSize
-		//if endBlock > latest {
-		//	endBlock = latest
-		//}
 	}
-	fmt.Println("len rlogs", len(rLogs))
 
-	//lastBatchIndex,err:= o.rollup.LastCommittedBatchIndex(nil)
-	//if err != nil {
-	//	return nil,err
-	//}
-	//o.l2Client.GetRollupBatchByIndex(o.ctx,)
 	var recordBatchSubmissions []bindings.IRecordBatchSubmission
 	for _, lg := range rLogs {
 		tx, pending, err := o.l1Client.TransactionByHash(ctx, lg.TxHash)
@@ -127,16 +104,6 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
 			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
-				//fmt.Println("rollupCommitBatch.BatchIndex.Uint64() == 0")
-				//recordBatchSubmission := bindings.IRecordBatchSubmission{
-				//	Index:       rollupCommitBatch.BatchIndex,
-				//	Submitter:   msg.From(),
-				//	StartBlock:  big.NewInt(0),
-				//	EndBlock:    big.NewInt(0),
-				//	RollupTime:  big.NewInt(int64(header.Time)),
-				//	RollupBlock: big.NewInt(int64(lg.BlockNumber)),
-				//}
-				//recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
 				continue
 			}
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
@@ -172,10 +139,6 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 		if err = batchData.ParseBatch(batch); err != nil {
 			return nil, fmt.Errorf("parse batch error:%v", err)
 		}
-
-		//if rollupCommitBatch.BatchIndex.Uint64() != highestBatchIndex+1 {
-		//	return nil, fmt.Errorf("invalid batch,batch index discontinuity or batch storage blockNumber too small,bs.BlockNumber:%v,HighestBatch.BlockNumber:%v,bs.BatchIndex:%v,HighestBatch.BatchIndex:%v,txHash:%v", lg.BlockNumber, HighestBatch.BlockNumber, rollupCommitBatch.BatchIndex.Uint64(), HighestBatch.BatchIndex, lg.TxHash)
-		//}
 		log.Info("received new batch", "batch_index", rollupCommitBatch.BatchIndex.Uint64())
 		recordBatchSubmission := bindings.IRecordBatchSubmission{
 			Index:       rollupCommitBatch.BatchIndex,
@@ -242,7 +205,6 @@ func (o *Oracle) submitRecord() error {
 		log.Error("get batch submission failed", "error", err)
 		return err
 	}
-	fmt.Println("batchSubmissions", batchSubmissions)
 	chainId, err := o.l2Client.ChainID(o.ctx)
 	if err != nil {
 		log.Error("get chain id failed", "error", err)
