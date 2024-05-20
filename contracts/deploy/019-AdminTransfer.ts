@@ -49,6 +49,7 @@ export const adminTransferByProxyStorageName = async (
     console.log(`admin transfer successful `)
     return ''
 }
+
 export const AdminTransfer = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
@@ -64,13 +65,14 @@ export const AdminTransfer = async (
     const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
     const L1StandardERC20GatewayProxyStorageName = ProxyStorageName.L1StandardERC20GatewayProxyStorageName
+    const L1CustomERC20GatewayProxyStorageName = ProxyStorageName.L1CustomERC20GatewayProxyStorageName
     const L1ERC721GatewayProxyStorageName = ProxyStorageName.L1ERC721GatewayProxyStorageName
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
     // const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
     const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
 
     // ************************ messenger contracts admin change ************************
-    // L1CrossDomainMessengerProxy admin change 
+    // L1CrossDomainMessengerProxy admin change
     let err = await adminTransferByProxyStorageName(hre, path, deployer, L1CrossDomainMessengerStorageName)
     if (err != '') {
         return err
@@ -109,12 +111,17 @@ export const AdminTransfer = async (
         return err
     }
 
-    // L1ETHGatewayProxy admin change
+    // L1StandardERC20GatewayProxy admin change
     err = await adminTransferByProxyStorageName(hre, path, deployer, L1StandardERC20GatewayProxyStorageName)
     if (err != '') {
         return err
     }
 
+    // L1CustomERC20GatewayProxy admin change
+    err = await adminTransferByProxyStorageName(hre, path, deployer, L1CustomERC20GatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
     // L1ERC721GatewayProxy admin change
     err = await adminTransferByProxyStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
     if (err != '') {

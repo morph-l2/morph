@@ -238,47 +238,42 @@ export const GatewayInit = async (
         console.log('L1StandardERC20Gateway upgrade success')
     }
 
-
     // L1CustomERC20Gateway init
     const IL1CustomERC20GatewayProxyAddressProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1CustomERC20GatewayProxyAddress, deployer)
     if (
         (await IL1CustomERC20GatewayProxyAddressProxy.implementation()).toLocaleLowerCase() !== L1CustomERC20GatewayImplAddress.toLocaleLowerCase()
     ) {
         console.log('Upgrading the L1CustomERC20Gateway proxy...')
-        const counterpart: string = predeploys
+        const counterpart: string = predeploys.L2CustomERC20Gateway
 
         if (!ethers.utils.isAddress(counterpart)
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
-            || !ethers.utils.isAddress(l2TokenImplementation)
-            || !ethers.utils.isAddress(l2TokenFactory)
         ) {
             console.error('please check your address')
             return ''
         }
 
         // Upgrade and initialize the proxy.
-        await IL1StandardERC20GatewayProxy.connect(deployer).upgradeToAndCall(
-            L1StandardERC20GatewayImplAddress,
-            L1StandardERC20GatewayFactory.interface.encodeFunctionData('initialize', [
+        await IL1CustomERC20GatewayProxyAddressProxy.connect(deployer).upgradeToAndCall(
+            L1CustomERC20GatewayImplAddress,
+            L1CustomERC20GatewayFactory.interface.encodeFunctionData('initialize', [
                 counterpart,
                 L1GatewayRouterProxyAddress,
                 L1CrossDomainMessengerProxyAddress,
-                l2TokenImplementation,
-                l2TokenFactory
             ])
         )
         await awaitCondition(
             async () => {
                 return (
-                    (await IL1StandardERC20GatewayProxy.implementation()).toLocaleLowerCase() === L1StandardERC20GatewayImplAddress.toLocaleLowerCase()
+                    (await IL1CustomERC20GatewayProxyAddressProxy.implementation()).toLocaleLowerCase() === L1CustomERC20GatewayImplAddress.toLocaleLowerCase()
                 )
             },
             3000,
             1000
         )
         const contractTmp = new ethers.Contract(
-            L1StandardERC20GatewayProxyAddress,
-            L1StandardERC20GatewayFactory.interface,
+            L1CustomERC20GatewayProxyAddress,
+            L1CustomERC20GatewayFactory.interface,
             deployer,
         )
         await assertContractVariable(
@@ -296,17 +291,7 @@ export const GatewayInit = async (
             'messenger',
             L1CrossDomainMessengerProxyAddress
         )
-        await assertContractVariable(
-            contractTmp,
-            'l2TokenImplementation',
-            l2TokenImplementation
-        )
-        await assertContractVariable(
-            contractTmp,
-            'l2TokenFactory',
-            l2TokenFactory
-        )
-        console.log('L1StandardERC20Gateway upgrade success')
+        console.log('L1CustomERC20Gateway upgrade success')
     }
 
     // L1ERC721Gateway init
