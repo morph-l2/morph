@@ -21,7 +21,7 @@
                 "maxLength": 60
             }
         ],
-        "custom-errors": "off",
+        "gas-custom-errors": "off",
         "no-empty-blocks": "off",
         "max-states-count": "off"
     }
