@@ -216,9 +216,19 @@ contract MorphTokenTest is L2StakingBaseTest {
         assertEq(morphToken.inflationRatesCount(), 1);
     }
 
-    function test_inflationRate_succeeds() public {
+    function test_epochInflationRates_succeeds() public {
         uint256 count = morphToken.inflationRatesCount();
         assertEq(morphToken.epochInflationRates(count - 1).rate, 1596535874529);
+    }
+
+    function test_inflation_succeeds() public {
+        hevm.startPrank(Predeploys.RECORD);
+        uint256 beforeTotal = morphToken.totalSupply();
+        hevm.warp(block.timestamp + rewardStartTime * 2);
+        morphToken.mintInflations(0);
+        uint256 afterTotal = morphToken.totalSupply();
+        assertEq(afterTotal - beforeTotal, morphToken.inflation(0));
+        hevm.stopPrank();
     }
 
     function test_inflationMintedEpochs_succeeds() public {
