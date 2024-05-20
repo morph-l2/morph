@@ -243,6 +243,20 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
+    function test_transfer_reverts() public {
+        hevm.prank(address(0));
+        hevm.expectRevert("transfer from the zero address");
+        morphToken.transfer(alice, 10 ether);
+
+        hevm.startPrank(multisig);
+        hevm.expectRevert("transfer to the zero address");
+        morphToken.transfer(address(0), 10 ether);
+
+        hevm.expectRevert("transfer amount exceeds balance");
+        morphToken.transfer(alice, type(uint256).max);
+        hevm.stopPrank();
+    }
+
     function test_transfer_succeeds() public {
         hevm.startPrank(multisig);
         bool success = morphToken.transfer(alice, 10000000 ether);
