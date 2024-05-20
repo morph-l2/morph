@@ -102,7 +102,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
-    function test_mintInflations_reverts() public {
+    function test_mintInflations_check_reverts() public {
         hevm.startPrank(Predeploys.RECORD);
         uint256 beforeTotal = morphToken.totalSupply();
         hevm.warp(block.timestamp + rewardStartTime * 2);
@@ -128,7 +128,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
-    function test_approve_reverts() public {
+    function test_approve_check_reverts() public {
         hevm.startPrank(address(0));
         hevm.expectRevert("approve from the zero address");
         morphToken.approve(alice, 100 ether);
@@ -149,7 +149,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
-    function test_transferFrom_reverts() public {
+    function test_transferFrom_check_reverts() public {
         hevm.prank(multisig);
         bool isApprove = morphToken.approve(alice, 100 ether);
         assert(isApprove);
@@ -172,7 +172,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         assertEq(beforeBalance - afterBalance, 5 ether);
     }
 
-    function test_increaseAllowance_reverts() public {
+    function test_increaseAllowance_check_reverts() public {
         hevm.startPrank(address(0));
         hevm.expectRevert("approve from the zero address");
         morphToken.increaseAllowance(alice, 100 ether);
@@ -192,7 +192,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
-    function test_decreaseAllowance_reverts() public {
+    function test_decreaseAllowance_check_reverts() public {
         hevm.startPrank(multisig);
         assert(morphToken.approve(alice, 200 ether));
         hevm.expectRevert("decreased allowance below zero");
@@ -243,7 +243,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         hevm.stopPrank();
     }
 
-    function test_transfer_reverts() public {
+    function test_transfer_check_reverts() public {
         hevm.prank(address(0));
         hevm.expectRevert("transfer from the zero address");
         morphToken.transfer(alice, 10 ether);
