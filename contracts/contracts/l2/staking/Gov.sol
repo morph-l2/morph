@@ -254,8 +254,8 @@ contract Gov is IGov, OwnableUpgradeable {
             delete proposalData[i];
             delete proposalInfos[i];
             delete votes[i];
-            undeletedProposalStart = proposalID;
         }
+        undeletedProposalStart = proposalID;
 
         emit ProposalExecuted(proposalID, batchBlockInterval, batchMaxBytes, batchTimeout, maxChunks, rollupEpoch);
     }
