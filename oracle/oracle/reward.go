@@ -280,7 +280,7 @@ func (o *Oracle) setStartBlock() {
 		if err != nil {
 			panic(err)
 		}
-		rewardStart, err := o.l2Staking.RewardStart(&bind.CallOpts{
+		rewardStart, err := o.l2Staking.RewardStarted(&bind.CallOpts{
 			BlockNumber: header.Number,
 		})
 		if err != nil {
