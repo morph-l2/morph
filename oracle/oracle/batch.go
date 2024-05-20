@@ -225,7 +225,6 @@ func (o *Oracle) submitRecord() error {
 		return err
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		// TODO
 		return fmt.Errorf("record batch not success")
 	}
 	return nil
