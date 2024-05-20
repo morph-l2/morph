@@ -31,9 +31,15 @@ run: build init
 
 clean:
 	rm -r build
+.PHONY: clean
 
 test:
-	go test -v ./...
+	go test -v -race -coverprofile=coverage.txt -covermode=atomic -p 1 ./...
+.PHONY: test
+
+lint:
+	golangci-lint run --out-format=tab --timeout 10m
+.PHONY: lint
 
 devnet-up:
 	cd ops-morph && docker compose up -d sequencer_node

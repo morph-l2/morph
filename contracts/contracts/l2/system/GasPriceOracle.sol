@@ -56,10 +56,7 @@ contract GasPriceOracle is Ownable {
     /*//////////////////////////////////////////////////////////////
                              ALLOWLIST
     //////////////////////////////////////////////////////////////*/
-    function setAllowList(
-        address[] memory user,
-        bool[] memory val
-    ) external onlyOwner {
+    function setAllowList(address[] memory user, bool[] memory val) external onlyOwner {
         require(user.length == val.length, "INVALID_INPUT");
 
         for (uint256 i = 0; i < user.length; i++) {
@@ -76,11 +73,7 @@ contract GasPriceOracle is Ownable {
 
     modifier onlyAllowed() {
         // solhint-disable-next-line avoid-tx-origin
-        require(
-            owner() == msg.sender ||
-                (allowListEnabled && isAllowed[msg.sender]),
-            "not allowed"
-        );
+        require(owner() == msg.sender || (allowListEnabled && isAllowed[msg.sender]), "not allowed");
         _;
     }
 

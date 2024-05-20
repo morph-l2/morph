@@ -14,14 +14,10 @@ import {IMorphERC1155} from "../../libraries/token/IMorphERC1155.sol";
 /// @notice The `L2ERC1155Gateway` is used to withdraw ERC1155 compatible NFTs on layer 2 and
 /// finalize deposit the NFTs from layer 1.
 /// @dev The withdrawn NFTs tokens will be burned directly. On finalizing deposit, the corresponding
-/// NFT will be minted and transfered to the recipient.
+/// NFT will be minted and transferred to the recipient.
 ///
 /// This will be changed if we have more specific scenarios.
-contract L2ERC1155Gateway is
-    ERC1155HolderUpgradeable,
-    GatewayBase,
-    IL2ERC1155Gateway
-{
+contract L2ERC1155Gateway is ERC1155HolderUpgradeable, GatewayBase, IL2ERC1155Gateway {
     /**********
      * Events *
      **********/
@@ -30,11 +26,7 @@ contract L2ERC1155Gateway is
     /// @param l2Token The address of corresponding ERC1155 token in layer 2.
     /// @param oldL1Token The address of the old corresponding ERC1155 token in layer 1.
     /// @param newL1Token The address of the new corresponding ERC1155 token in layer 1.
-    event UpdateTokenMapping(
-        address indexed l2Token,
-        address indexed oldL1Token,
-        address indexed newL1Token
-    );
+    event UpdateTokenMapping(address indexed l2Token, address indexed oldL1Token, address indexed newL1Token);
 
     /*************
      * Variables *
@@ -51,10 +43,7 @@ contract L2ERC1155Gateway is
         _disableInitializers();
     }
 
-    function initialize(
-        address _counterpart,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _messenger) external initializer {
         ERC1155HolderUpgradeable.__ERC1155Holder_init();
         ERC1155ReceiverUpgradeable.__ERC1155Receiver_init();
 
@@ -93,13 +82,7 @@ contract L2ERC1155Gateway is
         uint256[] calldata _amounts,
         uint256 _gasLimit
     ) external payable override {
-        _batchWithdrawERC1155(
-            _token,
-            _msgSender(),
-            _tokenIds,
-            _amounts,
-            _gasLimit
-        );
+        _batchWithdrawERC1155(_token, _msgSender(), _tokenIds, _amounts, _gasLimit);
     }
 
     /// @inheritdoc IL2ERC1155Gateway
@@ -127,14 +110,7 @@ contract L2ERC1155Gateway is
 
         IMorphERC1155(_l2Token).mint(_to, _tokenId, _amount, "");
 
-        emit FinalizeDepositERC1155(
-            _l1Token,
-            _l2Token,
-            _from,
-            _to,
-            _tokenId,
-            _amount
-        );
+        emit FinalizeDepositERC1155(_l1Token, _l2Token, _from, _to, _tokenId, _amount);
     }
 
     /// @inheritdoc IL2ERC1155Gateway
@@ -151,14 +127,7 @@ contract L2ERC1155Gateway is
 
         IMorphERC1155(_l2Token).batchMint(_to, _tokenIds, _amounts, "");
 
-        emit FinalizeBatchDepositERC1155(
-            _l1Token,
-            _l2Token,
-            _from,
-            _to,
-            _tokenIds,
-            _amounts
-        );
+        emit FinalizeBatchDepositERC1155(_l1Token, _l2Token, _from, _to, _tokenIds, _amounts);
     }
 
     /************************
@@ -168,10 +137,7 @@ contract L2ERC1155Gateway is
     /// @notice Update layer 2 to layer 1 token mapping.
     /// @param _l2Token The address of corresponding ERC1155 token on layer 2.
     /// @param _l1Token The address of ERC1155 token on layer 1.
-    function updateTokenMapping(
-        address _l2Token,
-        address _l1Token
-    ) external onlyOwner {
+    function updateTokenMapping(address _l2Token, address _l1Token) external onlyOwner {
         require(_l1Token != address(0), "token address cannot be 0");
 
         address _oldL1Token = tokenMapping[_l2Token];
@@ -214,12 +180,7 @@ contract L2ERC1155Gateway is
         );
 
         // 3. Send message to L2MorphMessenger.
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            counterpart,
-            0,
-            _message,
-            _gasLimit
-        );
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
 
         emit WithdrawERC1155(_l1Token, _token, _sender, _to, _tokenId, _amount);
     }
@@ -259,20 +220,8 @@ contract L2ERC1155Gateway is
         );
 
         // 3. Send message to L2MorphMessenger.
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            counterpart,
-            0,
-            _message,
-            _gasLimit
-        );
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
 
-        emit BatchWithdrawERC1155(
-            _l1Token,
-            _token,
-            _sender,
-            _to,
-            _tokenIds,
-            _amounts
-        );
+        emit BatchWithdrawERC1155(_l1Token, _token, _sender, _to, _tokenIds, _amounts);
     }
 }

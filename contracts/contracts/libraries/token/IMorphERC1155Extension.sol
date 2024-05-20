@@ -16,12 +16,7 @@ interface IMorphERC1155Extension {
     /// @param _tokenId The token id to mint.
     /// @param _amount The amount of token to mint.
     /// @param _data The data passed to recipient
-    function mint(
-        address _to,
-        uint256 _tokenId,
-        uint256 _amount,
-        bytes memory _data
-    ) external;
+    function mint(address _to, uint256 _tokenId, uint256 _amount, bytes memory _data) external;
 
     /// @notice Burn some token from account.
     /// @dev Gateway Utilities, only gateway contract can call
@@ -48,9 +43,5 @@ interface IMorphERC1155Extension {
     /// @param _from The address of account to burn token.
     /// @param _tokenIds The list of token ids to burn.
     /// @param _amounts The list of corresponding amount of token to burn.
-    function batchBurn(
-        address _from,
-        uint256[] calldata _tokenIds,
-        uint256[] calldata _amounts
-    ) external;
+    function batchBurn(address _from, uint256[] calldata _tokenIds, uint256[] calldata _amounts) external;
 }

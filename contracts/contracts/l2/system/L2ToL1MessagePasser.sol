@@ -2,7 +2,6 @@
 pragma solidity =0.8.24;
 
 import {Tree} from "../../libraries/common/Tree.sol";
-import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 
 /**
@@ -20,11 +19,7 @@ contract L2ToL1MessagePasser is Tree {
     /// @param index The index of the corresponding message.
     /// @param messageHash The hash of the corresponding message.
     /// @param rootHash The hash of the tree root after append the message.
-    event AppendMessage(
-        uint256 indexed index,
-        bytes32 indexed messageHash,
-        bytes32 indexed rootHash
-    );
+    event AppendMessage(uint256 indexed index, bytes32 indexed messageHash, bytes32 indexed rootHash);
 
     /*************
      * Variables *
@@ -45,10 +40,7 @@ contract L2ToL1MessagePasser is Tree {
     /// @notice Sends a message from L2 to L1.
     /// @param _messageHash  the message hash to append in tree.
     function appendMessage(bytes32 _messageHash) external returns (bytes32) {
-        require(
-            msg.sender == Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            "only messenger"
-        );
+        require(msg.sender == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "only messenger");
 
         _appendMessageHash(_messageHash);
         messageRoot = getTreeRoot();

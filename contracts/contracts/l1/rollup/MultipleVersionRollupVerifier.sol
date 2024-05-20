@@ -17,11 +17,7 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
     /// @param version The version of the verifier.
     /// @param startBatchIndex The start batch index when the verifier will be used.
     /// @param verifier The address of new verifier.
-    event UpdateVerifier(
-        uint256 version,
-        uint256 startBatchIndex,
-        address verifier
-    );
+    event UpdateVerifier(uint256 version, uint256 startBatchIndex, address verifier);
 
     /**********
      * Errors *
@@ -89,19 +85,14 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
      *************************/
 
     /// @notice Return the number of legacy verifiers.
-    function legacyVerifiersLength(
-        uint256 _version
-    ) external view returns (uint256) {
+    function legacyVerifiersLength(uint256 _version) external view returns (uint256) {
         return legacyVerifiers[_version].length;
     }
 
     /// @notice Compute the verifier should be used for specific batch.
     /// @param _version The version of verifier to query.
     /// @param _batchIndex The batch index to query.
-    function getVerifier(
-        uint256 _version,
-        uint256 _batchIndex
-    ) public view returns (address) {
+    function getVerifier(uint256 _version, uint256 _batchIndex) public view returns (address) {
         // Normally, we will use the latest verifier.
         Verifier memory _verifier = latestVerifier[_version];
 
@@ -143,17 +134,11 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
     /// @notice Update the address of zkevm verifier.
     /// @param _startBatchIndex The start batch index when the verifier will be used.
     /// @param _verifier The address of new verifier.
-    function updateVerifier(
-        uint256 _version,
-        uint64 _startBatchIndex,
-        address _verifier
-    ) external onlyOwner {
-        if (_startBatchIndex <= IRollup(rollup).lastFinalizedBatchIndex())
-            revert ErrorStartBatchIndexFinalized();
+    function updateVerifier(uint256 _version, uint64 _startBatchIndex, address _verifier) external onlyOwner {
+        if (_startBatchIndex <= IRollup(rollup).lastFinalizedBatchIndex()) revert ErrorStartBatchIndexFinalized();
 
         Verifier memory _latestVerifier = latestVerifier[_version];
-        if (_startBatchIndex < _latestVerifier.startBatchIndex)
-            revert ErrorStartBatchIndexTooSmall();
+        if (_startBatchIndex < _latestVerifier.startBatchIndex) revert ErrorStartBatchIndexTooSmall();
         if (_verifier == address(0)) revert ErrorZeroAddress();
 
         if (_latestVerifier.startBatchIndex < _startBatchIndex) {

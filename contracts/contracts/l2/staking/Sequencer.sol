@@ -3,7 +3,6 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
 import {ISequencer} from "./ISequencer.sol";
 
@@ -78,9 +77,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
      ************************/
 
     /// @notice update sequencer set. If new sequencer set is nil, layer2 will stop producing blocks
-    function updateSequencerSet(
-        address[] calldata newSequencerSet
-    ) public onlyL2StakingContract {
+    function updateSequencerSet(address[] calldata newSequencerSet) public onlyL2StakingContract {
         // sequencerSet changes will take effect after two blocks
         // The current block height +2 can only be greater than or equal to the last record
         if ((block.number + 2) > blockHeight2) {
@@ -101,14 +98,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
         // update SEQUENCER_VERIFY_HASH
         // ************************************************
         sequencerSetVerifyHash = keccak256(
-            abi.encode(
-                blockHeight0,
-                sequencerSet0,
-                blockHeight1,
-                sequencerSet1,
-                blockHeight2,
-                sequencerSet2
-            )
+            abi.encode(blockHeight0, sequencerSet0, blockHeight1, sequencerSet1, blockHeight2, sequencerSet2)
         );
 
         emit SequencerSetUpdated(newSequencerSet, block.number + 2);
@@ -188,15 +178,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
 
     /// @notice get the encoded sequencer set bytes
     function getSequencerSetBytes() external view returns (bytes memory) {
-        return
-            abi.encode(
-                blockHeight0,
-                sequencerSet0,
-                blockHeight1,
-                sequencerSet1,
-                blockHeight2,
-                sequencerSet2
-            );
+        return abi.encode(blockHeight0, sequencerSet0, blockHeight1, sequencerSet1, blockHeight2, sequencerSet2);
     }
 
     /**********************
@@ -204,10 +186,7 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
      **********************/
 
     /// @notice whether the address is the address list
-    function _contains(
-        address[] memory addressList,
-        address addr
-    ) internal pure returns (bool) {
+    function _contains(address[] memory addressList, address addr) internal pure returns (bool) {
         for (uint256 i = 0; i < addressList.length; i++) {
             if (addr == addressList[i]) {
                 return true;

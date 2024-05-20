@@ -2,8 +2,6 @@
 
 pragma solidity ^0.8.16;
 
-import {IL1MessageQueue} from "./IL1MessageQueue.sol";
-
 interface IL1MessageQueueWithGasPriceOracle {
     /**********
      * Events *
@@ -17,10 +15,7 @@ interface IL1MessageQueueWithGasPriceOracle {
     /// @notice Emitted when owner updates whitelist checker contract.
     /// @param _oldWhitelistChecker The address of old whitelist checker contract.
     /// @param _newWhitelistChecker The address of new whitelist checker contract.
-    event UpdateWhitelistChecker(
-        address indexed _oldWhitelistChecker,
-        address indexed _newWhitelistChecker
-    );
+    event UpdateWhitelistChecker(address indexed _oldWhitelistChecker, address indexed _newWhitelistChecker);
 
     /*************************
      * Public View Functions *

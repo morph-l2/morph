@@ -51,40 +51,26 @@ interface IDistribute {
     /// @param delegatee    delegatee
     /// @param upToEpoch    up to epoch index
     /// @param amount       amount
-    event RewardClaimed(
-        address indexed delegator,
-        address indexed delegatee,
-        uint256 upToEpoch,
-        uint256 amount
-    );
+    event RewardClaimed(address indexed delegator, address indexed delegatee, uint256 upToEpoch, uint256 amount);
 
     /// @notice commission claimed
     /// @param delegatee    delegatee
     /// @param upToEpoch    up to epoch index
     /// @param amount       amount
-    event CommissionClaimed(
-        address indexed delegatee,
-        uint256 upToEpoch,
-        uint256 amount
-    );
+    event CommissionClaimed(address indexed delegatee, uint256 upToEpoch, uint256 amount);
 
     /*************************
      * Public View Functions *
      *************************/
 
-    /// @dev return delegatee unclaimed epoch index
+    /// @dev return the next epoch to claim commission for a delegatee
     /// @param delegatee    delegatee
-    function unclaimedCommission(
-        address delegatee
-    ) external view returns (uint256);
+    function nextEpochToClaimCommission(address delegatee) external view returns (uint256);
 
     /// @notice query unclaimed morph reward on a delegatee
     /// @param delegatee     delegatee address
     /// @param delegator     delegatee address
-    function queryUnclaimed(
-        address delegatee,
-        address delegator
-    ) external view returns (uint256);
+    function queryUnclaimed(address delegatee, address delegator) external view returns (uint256);
 
     /*****************************
      * Public Mutating Functions *
@@ -149,17 +135,10 @@ interface IDistribute {
     ///
     /// If targetEpochIndex is zero, claim up to latest mint epoch,
     /// otherwise it must be greater than the last claimed epoch index.
-    function claim(
-        address delegatee,
-        address delegator,
-        uint256 targetEpochIndex
-    ) external;
+    function claim(address delegatee, address delegator, uint256 targetEpochIndex) external;
 
     /// @dev claim commission reward
     /// @param delegatee         delegatee address
     /// @param targetEpochIndex  the epoch index that the user wants to claim up to
-    function claimCommission(
-        address delegatee,
-        uint256 targetEpochIndex
-    ) external;
+    function claimCommission(address delegatee, uint256 targetEpochIndex) external;
 }

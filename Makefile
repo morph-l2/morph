@@ -1,41 +1,37 @@
-.PHONY: update format
+################## update dependencies ####################
 
 ETHEREUM_TAG=v1.10.14-0.20240429050506-03fd4c3e771d
 TENDERMINT_TAG=v0.2.0-beta.0.20240513090937-03bf2a578b48
-BTCD_TAG=v0.20.1-beta
 
 update:
 	go work sync
 
 	cd $(PWD)/bindings/ && \
-		sed -i '' '8s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
-		sed -i '' '9s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '10s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/contracts/ && \
-		sed -i '' '8s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
-		sed -i '' '9s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '10s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/node/ && \
-		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/ops/l2-genesis/ && \
-		sed -i '' '8s/.*/	github.com\/btcsuite\/btcd => github.com\/btcsuite\/btcd ${BTCD_TAG}/' go.mod && \
-		sed -i '' '9s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '10s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 	cd $(PWD)/ops/tools/ && \
-		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/oracle/ && \
-		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 	cd $(PWD)/tx-submitter/ && \
-		sed -i '' '8s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '9s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
+		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
+		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
 		go mod tidy
 .PHONY: update
 
@@ -44,25 +40,44 @@ submodules:
 	git submodule update --remote 
 .PHONY: submodules
 
-lint: lint-go lint-contracts
+################## bindings ####################
+
+bindings:
+	make -C bindings all
+.PHONY: bindings
+
+################## lint code ####################
+
+lint: lint-sol lint-go
 .PHONY: lint
 
+lint-sol:
+	make -C contracts lint-sol
+.PHONY: lint-sol
+
 lint-go:
-	cd $(PWD)/bindings/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/contracts/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/node/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/ops/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/ops/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/oracle/ && golangci-lint run --out-format=tab --timeout 10m
-	cd $(PWD)/tx-submitter/ && golangci-lint run --out-format=tab --timeout 10m
+	make -C bindings lint
+	make -C contracts lint-go
+	make -C node lint
+	make -C ops/l2-genesis lint
+	make -C ops/tools lint
+	make -C oracle lint
+	make -C tx-submitter lint
 .PHONY: lint-go
 
-# npm install --global --save-dev solhint
-lint-contracts:
-	solhint $$(find contracts -name '*.sol' -not -path '**/@openzeppelin/**')
-.PHONY: lint-contracts
+################## format code ####################
 
-format: ## format the code
+fmt: fmt-sol fmt-go
+.PHONY: fmt
+
+# npm install --global --save-dev prettier-plugin-solidity
+fmt-sol:
+	find ./contracts/ -name '*.sol' -type f -not -path "**/node_modules*" | xargs misspell -w
+	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
+.PHONY: fmt-sol
+
+# go get -u github.com/client9/misspell/cmd/misspell
+fmt-go:
 	go work sync
 	cd $(PWD)/bindings/ && go mod tidy
 	cd $(PWD)/contracts/ && go mod tidy
@@ -71,11 +86,12 @@ format: ## format the code
 	cd $(PWD)/ops/tools/ && go mod tidy
 	cd $(PWD)/oracle/ && go mod tidy
 	cd $(PWD)/tx-submitter/ && go mod tidy
-
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs gofmt -w -s
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs misspell -w
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs goimports -w -local $(PWD)/
-.PHONY: format
+.PHONY: fmt-go
+
+################## docker build ####################
 
 docker-build:
 	cd ops/docker && docker compose build
@@ -121,8 +137,6 @@ devnet-l1:
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
 .PHONY: devnet-logs
-
-
 
 # tx-submitter
 SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)

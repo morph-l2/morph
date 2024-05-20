@@ -45,11 +45,7 @@ interface IL1ERC20Gateway {
     /// @param token The address of the token in L1.
     /// @param recipient The address of receiver in L1.
     /// @param amount The amount of token refunded to receiver.
-    event RefundERC20(
-        address indexed token,
-        address indexed recipient,
-        uint256 amount
-    );
+    event RefundERC20(address indexed token, address indexed recipient, uint256 amount);
 
     /*************************
      * Public View Functions *
@@ -57,9 +53,7 @@ interface IL1ERC20Gateway {
 
     /// @notice Return the corresponding l2 token address given l1 token address.
     /// @param _l1Token The address of l1 token.
-    function getL2ERC20Address(
-        address _l1Token
-    ) external view returns (address);
+    function getL2ERC20Address(address _l1Token) external view returns (address);
 
     /*****************************
      * Public Mutating Functions *
@@ -70,11 +64,7 @@ interface IL1ERC20Gateway {
     /// @param _token The address of token in L1.
     /// @param _amount The amount of token to transfer.
     /// @param _gasLimit Gas limit required to complete the deposit on L2.
-    function depositERC20(
-        address _token,
-        uint256 _amount,
-        uint256 _gasLimit
-    ) external payable;
+    function depositERC20(address _token, uint256 _amount, uint256 _gasLimit) external payable;
 
     /// @notice Deposit some token to a recipient's account on L2.
     /// @dev Make this function payable to send relayer fee in Ether.
@@ -82,12 +72,7 @@ interface IL1ERC20Gateway {
     /// @param _to The address of recipient's account on L2.
     /// @param _amount The amount of token to transfer.
     /// @param _gasLimit Gas limit required to complete the deposit on L2.
-    function depositERC20(
-        address _token,
-        address _to,
-        uint256 _amount,
-        uint256 _gasLimit
-    ) external payable;
+    function depositERC20(address _token, address _to, uint256 _amount, uint256 _gasLimit) external payable;
 
     /// @notice Deposit some token to a recipient's account on L2 and call.
     /// @dev Make this function payable to send relayer fee in Ether.
