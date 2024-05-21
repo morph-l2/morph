@@ -214,7 +214,7 @@ def devnet_deploy(paths, args):
         env_content = envfile.readlines()
         for line in env_content:
             line = line.strip()
-            if line and not line.startswith('#'):  # 忽略空行和注释行
+            if line and not line.startswith('#'):
                 key, value = line.split('=')
                 env_data[key.strip()] = value.strip()
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
@@ -231,6 +231,8 @@ def devnet_deploy(paths, args):
 
     log.info('Bringing up L2.')
 
+
+
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
                  '-d'], check=False, cwd=paths.ops_dir,
                 env={
@@ -243,7 +245,7 @@ def devnet_deploy(paths, args):
                     'GENESIS_FILE_PATH': '/genesis.json',
                     'L1_ETH_RPC': 'http://l1:8545',
                     'L1_BEACON_CHAIN_RPC': 'http://beacon-chain:3500',
-                    'BUILD_GETH': build_geth_target
+                    'BUILD_GETH': build_geth_target,  
                 })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
