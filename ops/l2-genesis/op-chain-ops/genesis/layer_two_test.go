@@ -51,7 +51,7 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		L2StakingUnDelegatedLockEpochs: 1,
 		L2StakingRewardStartTime:       uint64(time.Now().Unix()),
 
-		GovProposalInterval:   1000,
+		GovVotingDuration:     1000,
 		GovBatchBlockInterval: 20,
 		GovBatchMaxBytes:      124928,
 		GovRollupEpoch:        600,

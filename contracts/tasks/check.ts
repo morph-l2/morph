@@ -62,14 +62,13 @@ task("check-l2-status")
 
         const govFactory = await hre.ethers.getContractFactory('Gov')
         const govContract = govFactory.attach(predeploys.Gov)
-        const proposalInterval = await govContract.proposalInterval()
+        const votingDuration = await govContract.votingDuration()
         const batchBlockInterval = await govContract.batchBlockInterval()
         const batchMaxBytes = await govContract.batchMaxBytes()
         const batchTimeout = await govContract.batchTimeout()
         const rollupEpoch = await govContract.rollupEpoch()
         const maxChunks = await govContract.maxChunks()
-        console.log(`Gov params check \n proposalInterval ${proposalInterval} \n batchMaxBytes ${batchMaxBytes} \n batchBlockInterval ${batchBlockInterval} \n batchTimeout ${batchTimeout} \n rollupEpoch ${rollupEpoch} \n maxChunks ${maxChunks}`)
-
+        console.log(`Gov params check \n votingDuration ${votingDuration} \n batchMaxBytes ${batchMaxBytes} \n batchBlockInterval ${batchBlockInterval} \n batchTimeout ${batchTimeout} \n rollupEpoch ${rollupEpoch} \n maxChunks ${maxChunks}`)
 
         const ethgwFactory = await hre.ethers.getContractFactory('L2ETHGateway')
         const ethgwContract = ethgwFactory.attach(predeploys.L2ETHGateway)

@@ -50,7 +50,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     address public oracleAddress = address(1000);
     uint256 public nextBatchSubmissionIndex = 1;
 
-    uint256 public constant PROPOSAL_INTERVAL = 1000;
+    uint256 public constant VOTING_DURATION = 1000;
     uint256 public constant ROLLUP_EPOCH = 1000;
     uint256 public constant MAX_CHUNKS = 1000000000;
 
@@ -120,7 +120,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             abi.encodeCall(
                 Gov.initialize,
                 (
-                    PROPOSAL_INTERVAL, // _proposalInterval
+                    VOTING_DURATION, // _votingDuration
                     0, // _batchBlockInterval
                     0, // _batchMaxBytes
                     finalizationPeriodSeconds, // _batchTimeout

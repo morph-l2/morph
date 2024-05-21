@@ -43,11 +43,14 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice rollup epoch last modified timestamp
     uint256 public rollupEpochUpdateTime;
 
-    /// @notice proposal duration
-    uint256 public proposalInterval;
+    /// @notice proposal voting duration
+    uint256 public votingDuration;
 
-    /// @notice proposal id
+    /// @notice current proposal ID
     uint256 public override currentProposalID;
+
+    /// @notice the start index of undeleted proposals
+    uint256 private undeletedProposalStart;
 
     /// @notice proposal data
     mapping(uint256 proposalID => ProposalData) public proposalData;
@@ -65,13 +68,7 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice Ensures that the caller is a sequencer in the sequencer contract.
     modifier onlySequencer() {
         bool _in = ISequencer(SEQUENCER_CONTRACT).isSequencer(_msgSender());
-        require(_in, "only sequencer can propose");
-        _;
-    }
-
-    modifier proposalCheck(uint256 proposalID) {
-        require(!proposalInfos[proposalID].approved, "proposal already approved");
-        require(_proposalActive(proposalID), "proposal out of date");
+        require(_in, "only sequencer allowed");
         _;
     }
 
@@ -90,28 +87,28 @@ contract Gov is IGov, OwnableUpgradeable {
      ***************/
 
     /// @notice Initializer
-    /// @param _proposalInterval proposal interval
+    /// @param _votingDuration proposal interval
     /// @param _batchBlockInterval batch block interval
     /// @param _batchMaxBytes max batch bytes
     /// @param _batchTimeout batch timeout
     /// @param _maxChunks max chunks
     /// @param _rollupEpoch rollup epoch
     function initialize(
-        uint256 _proposalInterval,
+        uint256 _votingDuration,
         uint256 _batchBlockInterval,
         uint256 _batchMaxBytes,
         uint256 _batchTimeout,
         uint256 _maxChunks,
         uint256 _rollupEpoch
     ) public initializer {
-        require(_proposalInterval > 0, "invalid proposal interval");
+        require(_votingDuration > 0, "invalid proposal voting duration");
         require(_maxChunks > 0, "invalid max chunks");
         require(_rollupEpoch > 0, "invalid rollup epoch");
         require(_batchBlockInterval != 0 || _batchMaxBytes != 0 || _batchTimeout != 0, "invalid batch params");
 
         __Ownable_init();
 
-        proposalInterval = _proposalInterval;
+        votingDuration = _votingDuration;
         batchBlockInterval = _batchBlockInterval;
         batchMaxBytes = _batchMaxBytes;
         batchTimeout = _batchTimeout;
@@ -119,7 +116,7 @@ contract Gov is IGov, OwnableUpgradeable {
         rollupEpoch = _rollupEpoch;
         rollupEpochUpdateTime = block.timestamp;
 
-        emit ProposalIntervalUpdated(0, _proposalInterval);
+        emit VotingDurationUpdated(0, _votingDuration);
         emit BatchBlockIntervalUpdated(0, _batchBlockInterval);
         emit BatchMaxBytesUpdated(0, _batchMaxBytes);
         emit BatchTimeoutUpdated(0, _batchTimeout);
@@ -132,7 +129,7 @@ contract Gov is IGov, OwnableUpgradeable {
      ************************/
 
     /// @notice create a proposal
-    function createProposal(ProposalData calldata proposal) external onlySequencer {
+    function createProposal(ProposalData calldata proposal) external onlySequencer returns (uint256) {
         require(proposal.rollupEpoch != 0, "invalid rollup epoch");
         require(proposal.maxChunks > 0, "invalid max chunks");
         require(
@@ -142,61 +139,76 @@ contract Gov is IGov, OwnableUpgradeable {
 
         currentProposalID++;
         proposalData[currentProposalID] = proposal;
-        proposalInfos[currentProposalID] = ProposalInfo(
-            block.timestamp + proposalInterval, // end time
-            false // approved
+        proposalInfos[currentProposalID] = ProposalInfo(block.timestamp + votingDuration, false);
+
+        emit ProposalCreated(
+            currentProposalID,
+            _msgSender(),
+            proposal.batchBlockInterval,
+            proposal.batchMaxBytes,
+            proposal.batchTimeout,
+            proposal.maxChunks,
+            proposal.rollupEpoch
         );
+
+        return (currentProposalID);
     }
 
     /// @notice vote a proposal
-    function vote(uint256 proposalID) external onlySequencer proposalCheck(proposalID) {
-        require(!votes[proposalID].contains(_msgSender()), "sequencer already vote for this proposal");
+    function vote(uint256 proposalID) external onlySequencer {
+        require(proposalID <= currentProposalID, "invalid proposalID");
+        require(proposalID >= undeletedProposalStart, "proposal pruned");
+        uint256 expirationTime = proposalInfos[proposalID].expirationTime;
+        require(
+            !(proposalInfos[proposalID].executed || expirationTime == 0 || expirationTime < block.timestamp),
+            "voting has ended"
+        );
+        require(!votes[proposalID].contains(_msgSender()), "sequencer already voted for this proposal");
 
-        // update votes
         votes[proposalID].add(_msgSender());
-
-        // try execute proposal
-        if (_checkProposal(proposalID)) {
+        if (_checkPassed(proposalID)) {
             _executeProposal(proposalID);
         }
     }
 
-    function setProposalInterval(uint256 _proposalInterval) external onlyOwner {
-        require(_proposalInterval > 0 && _proposalInterval != proposalInterval, "invalid new proposal interval");
-        uint256 _oldProposalInterval = proposalInterval;
-        proposalInterval = _proposalInterval;
-        emit ProposalIntervalUpdated(_oldProposalInterval, _proposalInterval);
+    function setVotingDuration(uint256 _votingDuration) external onlyOwner {
+        require(_votingDuration > 0 && _votingDuration != votingDuration, "invalid new proposal voting duration");
+        uint256 _oldVotingDuration = votingDuration;
+        votingDuration = _votingDuration;
+        emit VotingDurationUpdated(_oldVotingDuration, _votingDuration);
     }
 
     /*****************************
      * Public Mutating Functions *
      *****************************/
 
-    /// @notice execute an approved proposal
-    function executeProposal(uint256 proposalID) external proposalCheck(proposalID) {
-        if (_checkProposal(proposalID)) {
-            _executeProposal(proposalID);
-        }
+    /// @notice execute a passed proposal
+    function executeProposal(uint256 proposalID) external {
+        (bool finished, bool passed, ) = proposalStatus(proposalID);
+        require(!finished, "voting has ended");
+        require(passed, "proposal has not been passed yet");
+
+        _executeProposal(proposalID);
     }
 
     /*************************
      * Public View Functions *
      *************************/
 
-    /// @notice whether the proposal can be approved
-    function isProposalCanBeApproved(uint256 proposalID) external view returns (bool) {
-        // already approved
-        if (proposalInfos[proposalID].approved) {
-            return false;
-        }
-        // out of date
-        if (!_proposalActive(proposalID)) {
-            return false;
-        }
-        return _checkProposal(proposalID);
+    /// @notice return proposal status. {finished, passed, executed}
+    function proposalStatus(uint256 proposalID) public view returns (bool, bool, bool) {
+        require(proposalID <= currentProposalID, "invalid proposalID");
+        require(proposalID >= undeletedProposalStart, "proposal pruned");
+        bool executed = proposalInfos[proposalID].executed;
+        uint256 expirationTime = proposalInfos[proposalID].expirationTime;
+        return (
+            executed || expirationTime == 0 || expirationTime < block.timestamp,
+            _checkPassed(proposalID),
+            executed
+        );
     }
 
-    /// @notice return is voted
+    /// @notice return whether the address has voted
     /// @param proposalID  proposal ID
     /// @param voter       voter
     function isVoted(uint256 proposalID, address voter) external view returns (bool) {
@@ -207,7 +219,7 @@ contract Gov is IGov, OwnableUpgradeable {
      * Internal Functions *
      **********************/
 
-    /// @notice execute an approved proposal
+    /// @notice execute a passed proposal
     function _executeProposal(uint256 proposalID) internal {
         if (batchBlockInterval != proposalData[proposalID].batchBlockInterval) {
             uint256 _oldValue = batchBlockInterval;
@@ -235,13 +247,21 @@ contract Gov is IGov, OwnableUpgradeable {
             rollupEpochUpdateTime = block.timestamp;
             emit RollupEpochUpdated(_oldValue, proposalData[proposalID].rollupEpoch);
         }
-        proposalInfos[proposalID].approved = true;
+        proposalInfos[proposalID].executed = true;
+
+        // when a proposal is passed, the previous proposals will be invalidated and deleted
+        for (uint256 i = undeletedProposalStart; i < proposalID; i++) {
+            delete proposalData[i];
+            delete proposalInfos[i];
+            delete votes[i];
+        }
+        undeletedProposalStart = proposalID;
 
         emit ProposalExecuted(proposalID, batchBlockInterval, batchMaxBytes, batchTimeout, maxChunks, rollupEpoch);
     }
 
-    /// @notice check whether proposal has been approved
-    function _checkProposal(uint256 proposalID) internal view returns (bool) {
+    /// @notice check whether the proposal has been passed
+    function _checkPassed(uint256 proposalID) internal view returns (bool) {
         // checking invalidate votes
         address[] memory latestSequencerSet = ISequencer(SEQUENCER_CONTRACT).getSequencerSet2();
         uint256 validVotes = 0;
@@ -251,10 +271,5 @@ contract Gov is IGov, OwnableUpgradeable {
             }
         }
         return validVotes > (latestSequencerSet.length * 2) / 3;
-    }
-
-    /// @notice check active
-    function _proposalActive(uint256 proposalID) internal view returns (bool) {
-        return proposalInfos[proposalID].endTime >= block.timestamp;
     }
 }

@@ -95,7 +95,7 @@ type DeployConfig struct {
 	L2BridgeFeeVaultRecipient common.Address `json:"l2BridgeFeeVaultRecipient"`
 
 	// Gov configs
-	GovProposalInterval   uint64 `json:"govProposalInterval"`
+	GovVotingDuration     uint64 `json:"govVotingDuration"`
 	GovBatchBlockInterval uint64 `json:"govBatchBlockInterval"`
 	GovBatchMaxBytes      uint64 `json:"govBatchMaxBytes"`
 	GovRollupEpoch        uint64 `json:"govRollupEpoch"`
@@ -334,8 +334,8 @@ func (d *DeployConfig) Check() error {
 	if d.L2BridgeFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("L2BridgeFeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
-	if d.GovProposalInterval <= 0 {
-		return fmt.Errorf("GovProposalInterval must be greater than 0: %w", ErrInvalidDeployConfig)
+	if d.GovVotingDuration <= 0 {
+		return fmt.Errorf("GovVotingDuration must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
 	if d.GovBatchBlockInterval <= 0 {
 		return fmt.Errorf("GovBatchBlockInterval must be greater than 0: %w", ErrInvalidDeployConfig)
@@ -443,7 +443,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["Gov"] = state.StorageValues{
 		"_initialized":       1,
 		"_initializing":      false,
-		"proposalInterval":   config.GovProposalInterval,
+		"votingDuration":     config.GovVotingDuration,
 		"batchBlockInterval": config.GovBatchBlockInterval,
 		"batchMaxBytes":      config.GovBatchMaxBytes,
 		"batchTimeout":       config.GovBatchTimeout,
