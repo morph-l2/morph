@@ -85,7 +85,7 @@ contract DistributeTest is L2StakingBaseTest {
 
     /**
      * @notice claim
-     * 1. normal clain
+     * 1. normal claim
      * 2. all reward claimed
      */
     function test_claim_succeeds() public {
@@ -121,6 +121,49 @@ contract DistributeTest is L2StakingBaseTest {
         hevm.expectRevert("all reward claimed");
         hevm.prank(address(l2Staking));
         distribute.claim(firstStaker, alice, 0);
+    }
+
+    /**
+     * @notice claim
+     * 1. normal claim
+     * 2. all reward claimed
+     * 3. target epoch index > minted_count - 1
+     */
+    function test_claim_works() public {
+        hevm.prank(address(l2Staking));
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+
+        _update_epoch_reward(0);
+
+        // mock inflation
+        hevm.prank(multisig);
+        morphToken.transfer(address(distribute), 100 ether);
+
+        uint256 reward = distribute.queryUnclaimed(firstStaker, alice);
+        assertEq(reward, mockReward);
+
+        uint256 target_epoch_index = 4;
+
+        // delegator claim
+        uint256 balanceBefore = morphToken.balanceOf(alice);
+        hevm.prank(address(l2Staking));
+        distribute.claim(firstStaker, alice, target_epoch_index);
+        uint256 balanceAfter = morphToken.balanceOf(alice);
+        assertEq(balanceAfter - balanceBefore, mockReward);
+
+        uint256 unclaimedCommissionEpoch = distribute.nextEpochToClaimCommission(firstStaker);
+        assertEq(unclaimedCommissionEpoch, 0);
+
+        // delegatee claimCommission
+        balanceBefore = morphToken.balanceOf(firstStaker);
+        hevm.prank(address(l2Staking));
+        distribute.claimCommission(firstStaker, target_epoch_index);
+        balanceAfter = morphToken.balanceOf(firstStaker);
+        assertEq(balanceAfter - balanceBefore, mockCommission);
+
+        hevm.expectRevert("all reward claimed");
+        hevm.prank(address(l2Staking));
+        distribute.claim(firstStaker, alice, target_epoch_index);
     }
 
     /**
