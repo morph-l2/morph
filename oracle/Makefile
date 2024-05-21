@@ -2,14 +2,12 @@
 
 GITCOMMIT := $(shell git rev-parse HEAD)
 GITDATE := $(shell git show -s --format='%ct')
-GITVERSION := $(shell git describe --tags --always --abbrev=12)
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
-LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
-staking-oracle:
+build:
 	env GO111MODULE=on go build -o build/bin/staking-oracle -v $(LDFLAGS) ./cmd/staking-oracle
 
 clean:
