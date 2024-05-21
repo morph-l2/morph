@@ -282,4 +282,52 @@ contract MorphTokenTest is L2StakingBaseTest {
 
         assertEq(morphToken.balanceOf(alice), 90 ether);
     }
+
+    function test_mintInflations_errEpochIndex_reverts() public {
+        uint256 morphBalance = 20 ether;
+
+        address firstStaker = address(uint160(beginSeq));
+        address secondStaker = address(uint160(beginSeq + 1));
+        address thirdStaker = address(uint160(beginSeq + 2));
+
+        hevm.startPrank(multisig);
+        morphToken.transfer(bob, morphBalance);
+        morphToken.transfer(alice, morphBalance);
+        hevm.stopPrank();
+
+        hevm.expectRevert("only record contract allowed");
+        hevm.prank(alice);
+        morphToken.mintInflations(0);
+
+        hevm.expectRevert("reward is not started yet");
+        hevm.prank(address(record));
+        morphToken.mintInflations(0);
+
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        uint256 time = REWARD_EPOCH;
+        hevm.warp(time);
+
+        // start reward
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        hevm.expectRevert("the specified time has not yet been reached");
+        hevm.prank(address(record));
+        morphToken.mintInflations(0);
+
+        // epoch update
+        hevm.warp(time * 2);
+        assertEq(l2Staking.currentEpoch(), 1);
+
+        hevm.prank(address(record));
+        hevm.expectEmit(true, true, false, true);
+        emit IMorphToken.InflationMinted(0, 159653587452900000000000);
+        morphToken.mintInflations(0);
+    }
 }
