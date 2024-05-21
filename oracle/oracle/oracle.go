@@ -62,14 +62,8 @@ type Oracle struct {
 	rollup              *bindings.Rollup
 	record              *bindings.Record
 	TmClient            *tmhttp.HTTP
-	cancel              context.CancelFunc
-	pollInterval        time.Duration
 	rewardEpoch         time.Duration
-	logProgressInterval time.Duration
-	stop                chan struct{}
 	cfg                 *config.Config
-	sequencerMap        map[string]common.Address
-	lastRewardStartTime int64
 	privKey             *ecdsa.PrivateKey
 	isFinalized         bool
 	rollupEpochMaxBlock uint64
@@ -201,14 +195,12 @@ func (o *Oracle) Start() {
 
 func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	t := time.NewTicker(time.Second)
-	receipt := new(types.Receipt)
-	var err error
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, errors.New("timeout")
 		case <-t.C:
-			receipt, err = o.l2Client.TransactionReceipt(o.ctx, txHash)
+			receipt, err := o.l2Client.TransactionReceipt(o.ctx, txHash)
 			if errors.Is(err, ethereum.NotFound) {
 				continue
 			}

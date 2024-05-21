@@ -97,17 +97,17 @@ func (o *Oracle) recordRollupEpoch() error {
 		for _, setsEpoch := range setsEpochs {
 			updateTime, err := o.GetUpdateTime(setsEpoch.EndBlock.Int64() - 1)
 			if err != nil {
-
+				return err
 			}
 			epochTime, err := o.gov.RollupEpoch(&bind.CallOpts{
 				BlockNumber: big.NewInt(setsEpoch.EndBlock.Int64() - 1),
 			})
 			if err != nil {
-
+				return err
 			}
 			epochs, err := o.generateRollupEpoch(epochIndex.Int64()+int64(len(rollupEpochInfos)), rollupEpoch.EndTime.Int64(), epochTime.Int64(), updateTime, setsEpoch.EndBlock.Int64(), setsEpoch.EndTime.Int64(), setsEpoch.EndTime.Int64(), setsEpoch.Submitters)
 			if err != nil {
-
+				return err
 			}
 			rollupEpochInfos = append(rollupEpochInfos, epochs...)
 		}
@@ -176,7 +176,6 @@ func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) err
 	if err != nil {
 		return err
 	}
-	log.Info("RecordRollupEpochs success", "txHash", tx.Hash())
 	log.Info("send record rollup epoch tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
 	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {
@@ -237,7 +236,7 @@ func (o *Oracle) GetSequencerSetsEpoch(start, end uint64) ([]SequencerSetUpdateE
 	for _, eb := range sortedBlocks {
 		header, err := o.l2Client.HeaderByNumber(o.ctx, big.NewInt(int64(eb)))
 		if err != nil {
-
+			return nil, err
 		}
 		sequencerSets, err := o.sequencer.GetSequencerSet2(&bind.CallOpts{
 			BlockNumber: big.NewInt(int64(eb - 1)),

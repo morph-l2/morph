@@ -74,6 +74,9 @@ func (o *Oracle) syncRewardEpoch() error {
 		return err
 	}
 	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
+	if err != nil {
+		return err
+	}
 	tx, err := o.record.RecordRewardEpochs(opts, []bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
 	if err != nil {
 		return fmt.Errorf("record reward epochs error:%v", err)
@@ -172,14 +175,6 @@ func (o *Oracle) getSequencerCommission(blockNumber *big.Int, address common.Add
 	}, address)
 }
 
-func (o *Oracle) getHeader(height int64) (*tmtypes.Header, error) {
-	headerResp, err := o.TmClient.Header(context.Background(), &height)
-	if err != nil {
-		return nil, err
-	}
-	return headerResp.Header, nil
-}
-
 // L2HeaderByNumberWithRetry retries getting headers.
 func (o *Oracle) L2HeaderByNumberWithRetry(height int64) (*tmtypes.Header, error) {
 	var res *tmtypes.Header
@@ -203,7 +198,7 @@ func (o *Oracle) getSequencer(proposerAddress tmtypes.Address, blockNumber *big.
 		return common.Address{}, err
 	}
 	for _, staker := range stakers {
-		if bytes.Compare(proposerAddress, ed25519.PubKey(staker.TmKey[:]).Address().Bytes()) == 0 {
+		if bytes.Equal(proposerAddress, ed25519.PubKey(staker.TmKey[:]).Address().Bytes()) {
 			return staker.Addr, nil
 		}
 	}
@@ -299,15 +294,18 @@ func (o *Oracle) setStartBlock() {
 	for {
 		header, err := o.l2Client.HeaderByNumber(o.ctx, nil)
 		if err != nil {
-
+			log.Error("query header by number failed", "error", err)
 		}
 		startTime, err := o.l2Staking.RewardStartTime(&bind.CallOpts{
 			BlockNumber: header.Number,
 		})
 		if err != nil {
-
+			log.Error("query reward start time failed", "error", err)
 		}
 		latestRewardEpochBlock, err := o.record.LatestRewardEpochBlock(nil)
+		if err != nil {
+			log.Error("query latest reward epoch block failed", "error", err)
+		}
 		if latestRewardEpochBlock.Uint64() != 0 {
 			break
 		}
@@ -331,6 +329,9 @@ func (o *Oracle) setStartBlock() {
 			continue
 		}
 		opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainID)
+		if err != nil {
+			log.Error(fmt.Sprintf("new opts error:%v", err))
+		}
 		nonce, err := o.l2Client.NonceAt(context.Background(), crypto.PubkeyToAddress(o.privKey.PublicKey), nil)
 		if err != nil {
 			return
