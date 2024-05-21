@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 
 	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/tx-submitter/iface"
@@ -15,6 +16,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/scroll-tech/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -75,12 +77,14 @@ func Main() func(ctx *cli.Context) error {
 			return err
 		}
 
+		l1RpcClient, err := rpc.Dial(cfg.L1EthRpc)
+		if err != nil {
+			return fmt.Errorf("failed to connect to L1 provider: %w", err)
+		}
 		// Connect to L1 and L2 providers. Perform these last since they are the
 		// most expensive.
-		l1Client, err := ethclient.DialContext(ctx, cfg.L1EthRpc)
-		if err != nil {
-			return err
-		}
+		l1Client := ethclient.NewClient(l1RpcClient)
+
 		// l2 rpcs
 		var l2Clients []iface.L2Client
 		for _, rpc := range cfg.L2EthRpcs {
@@ -142,6 +146,7 @@ func Main() func(ctx *cli.Context) error {
 		sr := services.NewRollup(
 			ctx,
 			m,
+			l1RpcClient,
 			l1Client,
 			l2Clients,
 			l1Rollup,
@@ -182,6 +187,13 @@ func Main() func(ctx *cli.Context) error {
 			"l1_sequencer_addr", cfg.L1SequencerAddress,
 		)
 		sr.Start()
+
+		// Catch CTRL-C to ensure a graceful shutdown.
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+
+		// Wait until the interrupt signal is received from an OS signal.
+		<-interrupt
 
 		return nil
 	}

@@ -215,12 +215,13 @@ def devnet_deploy(paths, args):
         env_content = envfile.readlines()
         for line in env_content:
             line = line.strip()
-            if line and not line.startswith('#'):  # 忽略空行和注释行
+            if line and not line.startswith('#'):
                 key, value = line.split('=')
                 env_data[key.strip()] = value.strip()
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
         env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueueWithGasPriceOracle']
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
+        env_data['MORPH_L1_SEQUENCER'] = addresses['Proxy__L1Sequencer']
         env_data['BUILD_GETH'] = build_geth_target
         env_data['RUST_LOG'] = rust_log_level
         envfile.seek(0)
@@ -231,18 +232,21 @@ def devnet_deploy(paths, args):
 
     log.info('Bringing up L2.')
 
+
+
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
                  '-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
+                    'MORPH_L1_SEQUENCER':addresses['Proxy__L1Sequencer'],
                     'PWD': paths.ops_dir,
                     'NODE_DATA_DIR': '/data',
                     'GETH_DATA_DIR': '/db',
                     'GENESIS_FILE_PATH': '/genesis.json',
                     'L1_ETH_RPC': 'http://l1:8545',
                     'L1_BEACON_CHAIN_RPC': 'http://beacon-chain:3500',
-                    'BUILD_GETH': build_geth_target
+                    'BUILD_GETH': build_geth_target,  
                 })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
