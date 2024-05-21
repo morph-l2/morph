@@ -108,7 +108,7 @@ library Predeploys {
     address internal constant L2_STAKING = 0x5300000000000000000000000000000000000015;
 
     /**
-    * @notice Address of the L2_Custom_ERC20_Gateway predeploy.
+     * @notice Address of the L2_CUSTOM_ERC20_GATEWAY predeploy.
      */
-    address internal constant L2_Custom_ERC20_Gateway = 0x5300000000000000000000000000000000000015;
+    address internal constant L2_CUSTOM_ERC20_GATEWAY = 0x5300000000000000000000000000000000000015;
 }

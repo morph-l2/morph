@@ -7,7 +7,7 @@ lint: lint-sol lint-go
 
 # npm install --global --save-dev solhint
 lint-sol:
-	solhint **/*.sol
+	find . -name '*.sol' | xargs solhint
 
 lint-go:
 	golangci-lint run --out-format=tab --timeout 10m
