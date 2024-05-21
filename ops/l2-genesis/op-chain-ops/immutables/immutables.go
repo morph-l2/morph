@@ -87,6 +87,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 			Name: "L2StandardERC20Gateway",
 		},
 		{
+			Name: "L2CustomERC20Gateway",
+		},
+		{
 			Name: "L2ERC721Gateway",
 		},
 		{
@@ -283,6 +286,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2ETHGateway(opts, backend)
 	case "L2StandardERC20Gateway":
 		_, tx, _, err = bindings.DeployL2StandardERC20Gateway(opts, backend)
+	case "L2CustomERC20Gateway":
+		_, tx, _, err = bindings.DeployL2CustomERC20Gateway(opts, backend)
 	case "L2ERC721Gateway":
 		_, tx, _, err = bindings.DeployL2ERC721Gateway(opts, backend)
 	case "L2ERC1155Gateway":

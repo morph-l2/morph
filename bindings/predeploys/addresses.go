@@ -24,6 +24,7 @@ const (
 	MorphToken                = "0x5300000000000000000000000000000000000013"
 	Distribute                = "0x5300000000000000000000000000000000000014"
 	L2Staking                 = "0x5300000000000000000000000000000000000015"
+	L2CustomERC20Gateway      = "0x5300000000000000000000000000000000000016"
 )
 
 var (
@@ -47,6 +48,7 @@ var (
 	MorphTokenAddr                = common.HexToAddress(MorphToken)
 	DistributeAddr                = common.HexToAddress(Distribute)
 	L2StakingAddr                 = common.HexToAddress(L2Staking)
+	L2CustomERC20GatewayAddr      = common.HexToAddress(L2CustomERC20Gateway)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -72,4 +74,5 @@ func init() {
 	Predeploys["L2TxFeeVault"] = &L2TxFeeVaultAddr
 	Predeploys["L2WETHGateway"] = &L2WETHGatewayAddr
 	Predeploys["L2WETH"] = &L2WETHAddr
+	Predeploys["L2CustomERC20Gateway"] = &L2CustomERC20GatewayAddr
 }
