@@ -15,7 +15,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
-	"morph-l2/morph-deployer/op-chain-ops/deployer"
+	"morph-l2/morph-deployer/morph-chain-ops/deployer"
 )
 
 // ImmutableValues represents the values to be set in immutable code.

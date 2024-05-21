@@ -10,8 +10,8 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
-	"morph-l2/morph-deployer/op-chain-ops/immutables"
-	"morph-l2/morph-deployer/op-chain-ops/state"
+	"morph-l2/morph-deployer/morph-chain-ops/immutables"
+	"morph-l2/morph-deployer/morph-chain-ops/state"
 )
 
 // UntouchableCodeHashes contains code hashes of all the contracts

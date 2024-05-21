@@ -8,21 +8,22 @@ import { predeploys } from "../src/constants";
 
 task("check-l2")
     .setAction(async (taskArgs, hre) => {
-        let ContractAddresss = []
+        let ContractAddresses = []
         let keys = Object.keys(predeploys);
 
         keys.forEach((key) => {
-            ContractAddresss.push(predeploys[key])
+            ContractAddresses.push(predeploys[key])
         });
         const ProxyFactoryName = 'ITransparentUpgradeableProxy'
-        for (let i = 0; i < ContractAddresss.length; i++) {
+        for (let i = 0; i < ContractAddresses.length; i++) {
             if (
-                ContractAddresss[i].toLocaleLowerCase() === predeploys.MorphStandardERC20.toLocaleLowerCase()
-                || ContractAddresss[i].toLocaleLowerCase() === predeploys.L2WETH.toLocaleLowerCase()
+                ContractAddresses[i].toLocaleLowerCase() === predeploys.MorphStandardERC20.toLocaleLowerCase()
+                || ContractAddresses[i].toLocaleLowerCase() === predeploys.L2WETH.toLocaleLowerCase()
+                || ContractAddresses[i].toLocaleLowerCase() === predeploys.MorphToken.toLocaleLowerCase()
             ) {
                 continue
             }
-            const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresss[i])
+            const proxy = await hre.ethers.getContractAt(ProxyFactoryName, ContractAddresses[i])
             const temp = new ethers.Contract(
                 proxy.address,
                 proxy.interface,
@@ -72,40 +73,45 @@ task("check-l2-status")
 
         const ethgwFactory = await hre.ethers.getContractFactory('L2ETHGateway')
         const ethgwContract = ethgwFactory.attach(predeploys.L2ETHGateway)
+        owner = await ethgwContract.owner()
         let router = await ethgwContract.router()
         let messenger = await ethgwContract.messenger()
         let counterpart = await ethgwContract.counterpart()
-        console.log(`L2ETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
+        console.log(`L2ETHGateway params check \n owner ${owner} \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const wethgwFactory = await hre.ethers.getContractFactory('L2WETHGateway')
         const wethgwContract = wethgwFactory.attach(predeploys.L2WETHGateway)
+        owner = await wethgwContract.owner()
         router = await wethgwContract.router()
         messenger = await wethgwContract.messenger()
         counterpart = await wethgwContract.counterpart()
-        console.log(`L2WETHGateway params check \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
+        console.log(`L2WETHGateway params check \n owner ${owner} \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const cdmFactory = await hre.ethers.getContractFactory('L2CrossDomainMessenger')
         const cdmContract = cdmFactory.attach(predeploys.L2CrossDomainMessenger)
+        owner = await cdmContract.owner()
         let paused = await cdmContract.paused()
         let xDomainMessageSender = await cdmContract.xDomainMessageSender()
         counterpart = await cdmContract.counterpart()
         let feeVault = await cdmContract.feeVault()
-        console.log(`L2CrossDomainMessenger params check \n paused ${paused == false} \n xDomainMessageSender ${xDomainMessageSender} \n counterpart ${counterpart} \n feeVault ${feeVault}`)
+        console.log(`L2CrossDomainMessenger params check \n owner ${owner} \n paused ${paused == false} \n xDomainMessageSender ${xDomainMessageSender} \n counterpart ${counterpart} \n feeVault ${feeVault}`)
 
         const segwFactory = await hre.ethers.getContractFactory('L2StandardERC20Gateway')
         const segwContract = segwFactory.attach(predeploys.L2StandardERC20Gateway)
         const tokenFactory = await segwContract.tokenFactory()
+        owner = await segwContract.owner()
         router = await segwContract.router()
         messenger = await segwContract.messenger()
         counterpart = await segwContract.counterpart()
-        console.log(`L2StandardERC20Gateway params check \n tokenFactory ${tokenFactory == predeploys.MorphStandardERC20Factory} \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
+        console.log(`L2StandardERC20Gateway params check \n owner ${owner} \n tokenFactory ${tokenFactory == predeploys.MorphStandardERC20Factory} \n router ${router == predeploys.L2GatewayRouter} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const gw721Factory = await hre.ethers.getContractFactory('L2ERC721Gateway')
         const gw721Contract = gw721Factory.attach(predeploys.L2ERC721Gateway)
+        owner = await gw721Contract.owner()
         router = await gw721Contract.router()
         messenger = await gw721Contract.messenger()
         counterpart = await gw721Contract.counterpart()
-        console.log(`L2ERC721Gateway params check \n tokenFactory ${router == ethers.constants.AddressZero} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
+        console.log(`L2ERC721Gateway params check \n owner ${owner} \n tokenFactory ${router == ethers.constants.AddressZero} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const txFeeFactory = await hre.ethers.getContractFactory('L2TxFeeVault')
         const txFeeContract = txFeeFactory.attach(predeploys.L2TxFeeVault)
@@ -121,10 +127,11 @@ task("check-l2-status")
 
         const gw1155Factory = await hre.ethers.getContractFactory('L2ERC1155Gateway')
         const gw1155Contract = gw1155Factory.attach(predeploys.L2ERC1155Gateway)
+        owner = await gw1155Contract.owner()
         router = await gw1155Contract.router()
         messenger = await gw1155Contract.messenger()
         counterpart = await gw1155Contract.counterpart()
-        console.log(`L2ERC1155Gateway params check \n tokenFactory ${router == ethers.constants.AddressZero} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
+        console.log(`L2ERC1155Gateway params check \n owner ${owner} \n tokenFactory ${router == ethers.constants.AddressZero} \n messenger ${messenger == predeploys.L2CrossDomainMessenger} \n counterpart ${counterpart}`)
 
         const ms20Factory = await hre.ethers.getContractFactory('MorphStandardERC20')
         const ms20Contract = ms20Factory.attach(predeploys.MorphStandardERC20)
