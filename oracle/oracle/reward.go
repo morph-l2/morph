@@ -8,6 +8,10 @@ import (
 	"sort"
 	"time"
 
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/derivation"
+	"morph-l2/oracle/backoff"
+
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -15,9 +19,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 	tmtypes "github.com/tendermint/tendermint/types"
-	"morph-l2/bindings/bindings"
-	"morph-l2/node/derivation"
-	"morph-l2/oracle/backoff"
 )
 
 func (o *Oracle) getBlockTimeAndNumber(isFinalized bool) (uint64, *big.Int, error) {

@@ -10,6 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/oracle/config"
+
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -19,9 +23,6 @@ import (
 	tmhttp "github.com/tendermint/tendermint/rpc/client/http"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"morph-l2/bindings/bindings"
-	"morph-l2/bindings/predeploys"
-	"morph-l2/oracle/config"
 )
 
 const (

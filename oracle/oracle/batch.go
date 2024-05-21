@@ -7,6 +7,9 @@ import (
 	"math/big"
 	"time"
 
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/derivation"
+
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -15,8 +18,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
-	"morph-l2/bindings/bindings"
-	"morph-l2/node/derivation"
 )
 
 var (
@@ -108,9 +109,6 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			}
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
 			return nil, err
-		}
-		if err != nil {
-			return nil, fmt.Errorf("unpack commitBatch error:%v", err)
 		}
 		rollupBatchData := args[0].(struct {
 			Version                uint8     "json:\"version\""

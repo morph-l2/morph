@@ -9,14 +9,15 @@ import (
 	"sort"
 	"time"
 
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/log"
-	"morph-l2/bindings/bindings"
-	"morph-l2/bindings/predeploys"
 )
 
 var (
