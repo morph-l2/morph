@@ -5,7 +5,6 @@ GITDATE := $(shell git show -s --format='%ct')
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
-LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 build:
