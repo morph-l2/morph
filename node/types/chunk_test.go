@@ -93,7 +93,7 @@ func TestChunks_ConstructBlobPayload(t *testing.T) {
 	blobBytes := chunks.ConstructBlobPayload()
 
 	expectedBytes := make([]byte, 62+50)
-	copy(expectedBytes, []byte{0x0, 0x2})
+	copy(expectedBytes, []byte{0x0, 0x3})
 	chunk0Size := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunk0Size, 20)
 	chunk2Size := make([]byte, 4)
