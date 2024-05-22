@@ -60,6 +60,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 		}
 		if startBlock >= header.Number.Uint64() {
 			time.Sleep(defaultSleepTime)
+			continue
 		}
 		if endBlock >= header.Number.Uint64() {
 			endBlock = header.Number.Uint64()
