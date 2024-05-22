@@ -1,18 +1,20 @@
 package types
 
 import (
+	"encoding/binary"
 	"math/big"
 	"testing"
 
-	"github.com/scroll-tech/go-ethereum/core/types"
-
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+	"github.com/tendermint/tendermint/libs/rand"
 )
 
 func TestChunks_Append(t *testing.T) {
 	chunks := NewChunks()
-	require.True(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	appended := chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	require.True(t, appended)
 
 	blockContext := []byte("123")
 	txPayloads := []byte("abc")
@@ -22,9 +24,9 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, 1, chunks.data[0].blockNum)
 	require.EqualValues(t, blockContext, chunks.data[0].blockContext)
 	require.EqualValues(t, txPayloads, chunks.data[0].txsPayload)
-	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes))
-	require.EqualValues(t, txHashes[0], chunks.data[0].txHashes[0])
-	require.EqualValues(t, txHashes[1], chunks.data[0].txHashes[1])
+	require.EqualValues(t, len(txHashes), len(chunks.data[0].l1TxHashes)/32)
+	require.EqualValues(t, txHashes[0].Bytes(), chunks.data[0].l1TxHashes[0:32])
+	require.EqualValues(t, txHashes[1].Bytes(), chunks.data[0].l1TxHashes[32:])
 	require.EqualValues(t, 1, chunks.BlockNum())
 	require.EqualValues(t, 1, chunks.ChunkNum())
 
@@ -35,7 +37,7 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, 2, chunks.data[0].blockNum)
 	require.EqualValues(t, append(blockContext, blockContext1...), chunks.data[0].blockContext)
 	require.EqualValues(t, append(txPayloads, txPayloads1...), chunks.data[0].txsPayload)
-	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes))
+	require.EqualValues(t, len(txHashes), len(chunks.data[0].l1TxHashes)/32)
 	require.EqualValues(t, 2, chunks.BlockNum())
 	require.EqualValues(t, 1, chunks.ChunkNum())
 
@@ -51,27 +53,55 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, append(txPayloads, txPayloads1...), chunks.data[0].txsPayload)
 	require.EqualValues(t, blockContext2, chunks.data[1].blockContext)
 	require.EqualValues(t, txPayloads2, chunks.data[1].txsPayload)
-	require.EqualValues(t, len(txHashes), len(chunks.data[0].txHashes))
-	require.EqualValues(t, len(txHashes2), len(chunks.data[1].txHashes))
-	require.EqualValues(t, txHashes2[0], chunks.data[1].txHashes[0])
+	require.EqualValues(t, len(txHashes), len(chunks.data[0].l1TxHashes)/32)
+	require.EqualValues(t, len(txHashes2), len(chunks.data[1].l1TxHashes)/32)
+	require.EqualValues(t, txHashes2[0].Bytes(), chunks.data[1].l1TxHashes[0:32])
 	require.EqualValues(t, 3, chunks.BlockNum())
 	require.EqualValues(t, 2, chunks.ChunkNum())
-	require.EqualValues(t, 2+len(blockContext)+len(blockContext1)+len(blockContext2)+len(txPayloads)+len(txPayloads1)+len(txPayloads2), chunks.size)
 
 	for i := 0; i < 98; i++ {
 		chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
 	}
 	// 99 blocks in 2nd chunk
 	require.EqualValues(t, 2, chunks.ChunkNum())
-	require.False(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	require.False(t, appended)
 	// 100 blocks in 2nd chunk
 	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
 	require.EqualValues(t, 2, chunks.ChunkNum())
 
-	require.True(t, chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}}))
+	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	require.True(t, appended)
 	// append chunk to 3 chunks totally
 	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
 	require.EqualValues(t, 3, chunks.ChunkNum())
+}
+
+func TestChunks_ConstructBlobPayload(t *testing.T) {
+	chunks := NewChunks()
+	txsPayload0 := rand.Bytes(20)
+	// 1st chunk has 10 length of tx payload
+	chunks.Append(nil, txsPayload0, nil, types.RowConsumption{{"a", 1_000_000}})
+
+	// 2nd chunk has empty txs
+	chunks.Append(nil, nil, nil, types.RowConsumption{{"a", 1_000_000}})
+
+	txsPayload1 := rand.Bytes(30)
+	// 3rd chunk has 30 length of tx payload
+	chunks.Append(nil, txsPayload1, nil, types.RowConsumption{{"a", 1_000_000}})
+
+	blobBytes := chunks.ConstructBlobPayload()
+
+	expectedBytes := make([]byte, 62+50)
+	copy(expectedBytes, []byte{0x0, 0x3})
+	chunk0Size := make([]byte, 4)
+	binary.BigEndian.PutUint32(chunk0Size, 20)
+	chunk2Size := make([]byte, 4)
+	binary.BigEndian.PutUint32(chunk2Size, 30)
+	copy(expectedBytes[2:], chunk0Size)
+	copy(expectedBytes[10:], chunk2Size)
+	copy(expectedBytes[62:], append(txsPayload0, txsPayload1...))
+	require.EqualValues(t, expectedBytes, blobBytes)
 }
 
 func TestChunk_accumulateRowUsages(t *testing.T) {

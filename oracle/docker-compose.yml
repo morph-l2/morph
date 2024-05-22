@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+
+  staking-oracle:
+    image: morph-staking-oracle
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Note that you must index goerli with INDEXER_BEDROCK=false first, then
+      # reindex with INDEXER_BEDROCK=true or seed the database
+      - INDEXER_BEDROCK=${INDEXER_BEDROCK_GOERLI:-true}
+      - INDEXER_METRICS_SERVER_ENABLE=true
+      - INDEXER_BUILD_ENV=${INDEXER_BUILD_ENV:-development}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-db_username}
+      - DB_PASSWORD=${DB_PASSWORD:-db_password}
+      - DB_NAME=${DB_NAME:-db_name}
+      - DB_HOST=${DB_HOST:-postgres}
+      - INDEXER_CHAIN_ID=${INDEXER_CHAIN_ID:-900}
+      - INDEXER_L1_ETH_RPC=http://host.docker.internal:9545
+      - INDEXER_L2_ETH_RPC=http://host.docker.internal:8545
+      - INDEXER_START_BLOCK_NUMBER=0
+      - INDEXER_REST_HOSTNAME=0.0.0.0
+      - INDEXER_REST_PORT=8080
+      - INDEXER_L1_CONF_DEPTH=1
+      - INDEXER_L2_CONF_DEPTH=1
+      - INDEXER_NETWORK=devnet
+      - INDEXER_LOG_FILENAME=indexer.log
+      - INDEXER_LOG_FILE_MAX_SIZE=100 #MB
+      - INDEXER_LOG_FILE_MAX_AGE=7 #day
+      - INDEXER_LOG_COMPRESS=true
+      - INDEXER_DB_RESET=false
+      - INDEXER_L1_ETH_GATEWAY=0x8a791620dd6260079bf849dc5567adc3f2fdc318
+      - INDEXER_L1_STANDARD_ERC20_GATEWAY=0x610178da211fef7d417bc0e6fed39f05609ad788
+      - INDEXER_L1_WARP_ETH_GATEWAY=0x9a676e781a523b5d0c0e43731313a708cb607508
+      - INDEXER_L1_MESSAGE_QUEUE=0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+      - INDEXER_ROLLUP=0xa513e6e4b8f2a923d98304ec87f64353c4d5c853
+      - INDEXER_L1_CROSS_DOMAIN_MESSENGER=0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+    ports:
+      - 6060:6060

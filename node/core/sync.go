@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/morph-l2/node/db"
-	"github.com/morph-l2/node/sync"
 	"github.com/urfave/cli"
+
+	"morph-l2/node/db"
+	"morph-l2/node/sync"
 )
 
 func NewSyncer(ctx *cli.Context, home string, config *Config) (*sync.Syncer, error) {

@@ -1,35 +1,44 @@
 name: Contracts
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'contracts/**'
-  pull_request:
-    paths:
-      - 'contracts/**'
+    push:
+        branches:
+            - main
+        paths:
+            - "contracts/**"
+            - "ops/l2-genesis/**"
+            - ".github/workflows/contracts.yaml"
+    pull_request:
+        paths:
+            - "contracts/**"
+            - "ops/l2-genesis/**"
+            - ".github/workflows/contracts.yaml"
 
 defaults:
-  run:
-    working-directory: 'contracts'
+    run:
+        working-directory: "contracts"
 
 jobs:
-  tests:
-    runs-on: ubuntu-latest
-    env:
-      FORCE_COLOR: 1
-      GAS: true
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 16.x
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
-      - name: Run build
-        run: yarn && yarn build
-      - name: Run tests
-        run: yarn test
+    tests:
+        runs-on: ubuntu-latest
+        env:
+            FORCE_COLOR: 1
+            GAS: true
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18.x
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
+            - name: Install Foundry
+              uses: foundry-rs/foundry-toolchain@v1
+              with:
+                  version: nightly
+            - name: Run build
+              run: yarn && yarn build
+            - name: Run tests
+              run: yarn test

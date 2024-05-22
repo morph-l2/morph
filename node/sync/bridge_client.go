@@ -4,20 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/morph-l2/bindings/bindings"
-	nodecommon "github.com/morph-l2/node/common"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+
+	"morph-l2/bindings/bindings"
+	nodecommon "morph-l2/node/common"
+	"morph-l2/node/types"
 )
 
 type BridgeClient struct {
 	l1Client           *ethclient.Client
-	filter             *bindings.L1MessageQueueFilterer
+	filter             *bindings.L1MessageQueueWithGasPriceOracleFilterer
 	morphPortalAddress common.Address
 	confirmations      rpc.BlockNumber
 	logger             tmlog.Logger
@@ -25,7 +26,7 @@ type BridgeClient struct {
 
 func NewBridgeClient(l1Client *ethclient.Client, l1MessageQueueAddress common.Address, confirmations rpc.BlockNumber, logger tmlog.Logger) (*BridgeClient, error) {
 	logger = logger.With("module", "bridge")
-	filter, err := bindings.NewL1MessageQueueFilterer(l1MessageQueueAddress, l1Client)
+	filter, err := bindings.NewL1MessageQueueWithGasPriceOracleFilterer(l1MessageQueueAddress, l1Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize NewMorphPortalFilterer, err = %w", err)
 	}

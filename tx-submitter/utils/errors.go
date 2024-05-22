@@ -1,6 +1,11 @@
 package utils
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
+
+var ErrExceedFeeLimit = errors.New("exceed fee limit")
 
 // ErrStringMatch returns true if err.Error() is a substring in target.Error() or if both are nil.
 // It can accept nil errors without issue.

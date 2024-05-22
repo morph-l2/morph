@@ -14,6 +14,7 @@ services:
       - "6060:6060"
     environment:
       - GAS_ORACLE_L1_RPC=${L1_RPC}
+      - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_RPC}
       - GAS_ORACLE_L2_RPC=${L2_RPC}
       - GAS_THRESHOLD=${GAS_THRESHOLD}
       - INTERVAL=${INTERVAL}
@@ -24,4 +25,4 @@ services:
       - TXN_PER_BLOCK=${TXN_PER_BLOCK}
       - TXN_PER_BATCH=${TXN_PER_BATCH}
       - L1_ROLLUP=${L1_ROLLUP}
-    
+      - OVERHEAD_SWITCH=${OVERHEAD_SWITCH} #false

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
@@ -12,11 +12,7 @@ contract TransferReentrantToken is MockERC20 {
     bytes private data;
     bool private isBeforeCall;
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals
-    ) MockERC20(_name, _symbol, _decimals) {}
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) MockERC20(_name, _symbol, _decimals) {}
 
     function setReentrantCall(
         address _target,
@@ -30,11 +26,7 @@ contract TransferReentrantToken is MockERC20 {
         isBeforeCall = _isBeforeCall;
     }
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public virtual override returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
         if (isBeforeCall && target != address(0)) {
             // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = target.call{value: value}(data);

@@ -40,8 +40,8 @@ def main():
     args = parser.parse_args()
 
     polyrepo_dir = os.path.abspath(args.polyrepo_dir)
-    L2_dir = pjoin(polyrepo_dir, 'ops', 'L2-genesis')
-    devnet_dir = pjoin(polyrepo_dir, 'ops', 'L2-genesis', '.devnet')
+    L2_dir = pjoin(polyrepo_dir, 'ops', 'l2-genesis')
+    devnet_dir = pjoin(polyrepo_dir, 'ops', 'l2-genesis', '.devnet')
     ops_dir = pjoin(polyrepo_dir, 'ops', 'docker')
     contracts_dir = pjoin(polyrepo_dir, 'contracts')
 
@@ -74,6 +74,10 @@ def main():
 
 def devnet_l1(paths, result=None):
     log.info('Starting L1.')
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build', '--no-cache', 'l1'], check=False,
+                cwd=paths.ops_dir, env={
+            'PWD': paths.ops_dir
+        })
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], check=False,
                 cwd=paths.ops_dir, env={
             'PWD': paths.ops_dir
@@ -88,7 +92,7 @@ def devnet_l1(paths, result=None):
 
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
     deploy_config = read_json(devnet_cfg_orig)
-    for sequencer in deploy_config['l2SequencerAddresses']:
+    for sequencer in deploy_config['l2StakingAddresses']:
         result = run_command_capture_output(
             ['cast', 'balance', sequencer, '--rpc-url', 'http://127.0.0.1:9545'])
         log.info(f"Account {sequencer}, Balance: {result.stdout}", )
@@ -128,6 +132,9 @@ def devnet_deploy(paths, args):
     log.info(f'Removing contracts deployment file: {paths.deployment_dir}...')
     run_command(['rm', '-f', paths.deployment_dir], env={}, cwd=paths.contracts_dir)
     log.info('Deploying L1 Proxy contracts...')
+    run_command([
+        'yarn', 'build'
+    ], env={}, cwd=paths.contracts_dir)
     run_command([
         'npx', 'hardhat', 'deploy', '--network', 'l1', '--storagepath', paths.deployment_dir
     ], env={}, cwd=paths.contracts_dir)
@@ -177,19 +184,18 @@ def devnet_deploy(paths, args):
     log.info('Passing L1 contracts address:', addresses)
 
     log.info('Do Staking Sequencer...')
-    deploy_config['l2SequencerAddresses']
-    deploy_config['l2SequencerPks']
-    deploy_config['l2SequencerTmKeys']
-    deploy_config['l2SequencerBlsKeys']
+    deploy_config['l2StakingAddresses']
+    deploy_config['l2StakingPks']
+    deploy_config['l2StakingTmKeys']
+    deploy_config['l2StakingBlsKeys']
     for i in range(4):
-        run_command(['cast', 'send', addresses['Proxy__Staking'],
-                     'register(bytes32,bytes memory,uint32)',
-                     deploy_config['l2SequencerTmKeys'][i],
-                     deploy_config['l2SequencerBlsKeys'][i],
-                     '5000000',
+        run_command(['cast', 'send', addresses['Proxy__L1Staking'],
+                     'register(bytes32,bytes memory)',
+                     deploy_config['l2StakingTmKeys'][i],
+                     deploy_config['l2StakingBlsKeys'][i],
                      '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '2ether',
-                     '--private-key', deploy_config['l2SequencerPks'][i]
+                     '--value', '1ether',
+                     '--private-key', deploy_config['l2StakingPks'][i]
                      ])
 
     build_geth_target = 'l2-geth'
@@ -212,12 +218,11 @@ def devnet_deploy(paths, args):
                 key, value = line.split('=')
                 env_data[key.strip()] = value.strip()
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
-        env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueue']
+        env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueueWithGasPriceOracle']
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
-        # env_data['MORPH_STANDARD_BRIDGE'] = addresses['Proxy__L1StandardBridge']
-        env_data['MORPH_ADDRESS_MANAGER'] = addresses['Impl__AddressManager']
         env_data['BUILD_GETH'] = build_geth_target
         env_data['RUST_LOG'] = rust_log_level
+        env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
         envfile.seek(0)
         for key, value in env_data.items():
             envfile.write(f'{key}={value}\n')
@@ -227,25 +232,17 @@ def devnet_deploy(paths, args):
     log.info('Bringing up L2.')
 
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
-                 'node-0',
-                 'node-1',
-                 'node-2',
-                 'node-3',
-                 'sentry-node-0',
-                 'validator_node',
-                 'tx-submitter',
-                 'gas-price-oracle',
                  '-d'], check=False, cwd=paths.ops_dir,
                 env={
-                    'MORPH_PORTAL': addresses['Proxy__L1MessageQueue'],
+                    'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
-                    # 'MORPH_STANDARD_BRIDGE': addresses['Proxy__L1StandardBridge'],
-                    'MORPH_ADDRESS_MANAGER': addresses['Impl__AddressManager'],
+                    'MORPH_L1STAKING': addresses['Proxy__L1Staking'],
                     'PWD': paths.ops_dir,
                     'NODE_DATA_DIR': '/data',
                     'GETH_DATA_DIR': '/db',
                     'GENESIS_FILE_PATH': '/genesis.json',
                     'L1_ETH_RPC': 'http://l1:8545',
+                    'L1_BEACON_CHAIN_RPC': 'http://beacon-chain:3500',
                     'BUILD_GETH': build_geth_target
                 })
     wait_up(8545)

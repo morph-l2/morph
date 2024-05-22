@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math/big"
 
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -87,8 +88,9 @@ type WrappedBlock struct {
 	NextL1MessageIndex uint64               `json:"nextL1MessageIndex"`
 	Hash               common.Hash          `json:"hash"`
 
-	CollectedL1Messages []L1Message `json:"l1Messages" rlp:"optional"`
-	BaseFee             *big.Int    `json:"baseFeePerGas"  rlp:"optional"`
+	CollectedL1TxHashes []common.Hash               `json:"l1TxHashes" rlp:"optional"`
+	SkippedL1Txs        []*types.SkippedTransaction `json:"skippedL1Txs" rlp:"optional"`
+	BaseFee             *big.Int                    `json:"baseFeePerGas"  rlp:"optional"`
 }
 
 func (wb *WrappedBlock) MarshalBinary() ([]byte, error) {
@@ -117,4 +119,30 @@ func (wb *WrappedBlock) BlockContextBytes(txsNum, l1MsgNum int) []byte {
 	copy(blsBytes[58:60], Uint16ToBigEndianBytes(uint16(l1MsgNum)))
 
 	return blsBytes
+}
+
+func (wb *WrappedBlock) DecodeBlockContext(bc []byte) (uint16, uint16, error) {
+	reader := bytes.NewReader(bc)
+	bsBaseFee := make([]byte, 32)
+	if err := binary.Read(reader, binary.BigEndian, &wb.Number); err != nil {
+		return 0, 0, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &wb.Timestamp); err != nil {
+		return 0, 0, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &bsBaseFee); err != nil {
+		return 0, 0, err
+	}
+	wb.BaseFee = new(big.Int).SetBytes(bsBaseFee)
+	if err := binary.Read(reader, binary.BigEndian, &wb.GasLimit); err != nil {
+		return 0, 0, err
+	}
+	var txsNum, l1MsgNum uint16
+	if err := binary.Read(reader, binary.BigEndian, &txsNum); err != nil {
+		return 0, 0, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &l1MsgNum); err != nil {
+		return 0, 0, err
+	}
+	return txsNum, l1MsgNum, nil
 }

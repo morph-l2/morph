@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity =0.8.24;
 
 contract MockTree {
     error MerkleTreeFull();
@@ -19,14 +19,10 @@ contract MockTree {
         bytes32 currentZeroHashHeight = 0;
 
         for (uint256 height = 0; height < _TREE_DEPTH; height++) {
-            if (((size >> height) & 1) == 1)
-                node = keccak256(abi.encodePacked(_branch[height], node));
-            else
-                node = keccak256(abi.encodePacked(node, currentZeroHashHeight));
+            if (((size >> height) & 1) == 1) node = keccak256(abi.encodePacked(_branch[height], node));
+            else node = keccak256(abi.encodePacked(node, currentZeroHashHeight));
 
-            currentZeroHashHeight = keccak256(
-                abi.encodePacked(currentZeroHashHeight, currentZeroHashHeight)
-            );
+            currentZeroHashHeight = keccak256(abi.encodePacked(currentZeroHashHeight, currentZeroHashHeight));
         }
         return node;
     }
@@ -62,8 +58,7 @@ contract MockTree {
         bytes32 node = leafHash;
 
         for (uint256 height = 0; height < _TREE_DEPTH; height++) {
-            if (((index >> height) & 1) == 1)
-                node = keccak256(abi.encodePacked(smtProof[height], node));
+            if (((index >> height) & 1) == 1) node = keccak256(abi.encodePacked(smtProof[height], node));
             else node = keccak256(abi.encodePacked(node, smtProof[height]));
         }
 

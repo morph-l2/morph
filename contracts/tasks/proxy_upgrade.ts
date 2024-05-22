@@ -29,7 +29,7 @@ task("upgradeProxyWithPorxyAdmin")
     .addParam("proxyaddr")
     .addParam("newimpladdr")
     .setAction(async (taskArgs, hre) => {
-        const ProxyAdminFactory = await hre.ethers.getContractFactory('ProxyAdmin')
+        const ProxyAdminFactory = await hre.ethers.getContractAt('TransparentUpgradeableProxy', taskArgs.proxyadminaddr)
         const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadminaddr)
 
         const ProxyFactory = await hre.ethers.getContractFactory('Proxy')
@@ -98,43 +98,6 @@ task("upgradeMorphPortalImpl")
         );
         await morphportalNewImpl.deployed()
         console.log("new morphportalNewImpl contract address: ", morphportalNewImpl.address)
-    })
-
-/*
-Proxy__Staking
-
-yarn hardhat upgradeStakingImpl --network l1 
-
-yarn hardhat upgradeProxy --proxyaddr 0x5fc8d32690cc91d4c39d9d3abcbd16989f875707 --newimpladdr 0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154 --network l1
-*/
-task("upgradeStakingImpl")
-    .setAction(async (taskArgs, hre) => {
-        const StakingFactory = await hre.ethers.getContractFactory("Staking");
-        const stakingNewImpl = await StakingFactory.deploy();
-        await stakingNewImpl.deployed()
-        console.log("new stakingNewImpl contract address: ", stakingNewImpl.address)
-    })
-
-/*
-Proxy__L1Sequencer
-
-cast call 0x0165878a594ca255338adfa4d48449f69242eb8f "MESSENGER()(address)" --rpc-url http://127.0.0.1:9545  
-0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
-
-yarn hardhat upgradeL1SequencerImpl --l1cdmproxyaddr 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 --network l1 
-
-yarn hardhat upgradeProxy --proxyaddr 0x0165878a594ca255338adfa4d48449f69242eb8f --newimpladdr 0xCD8a1C3ba11CF5ECfa6267617243239504a98d90 --network l1
-*/
-task("upgradeL1SequencerImpl")
-    .addParam("l1cdmproxyaddr")
-    .setAction(async (taskArgs, hre) => {
-        const chainid = taskArgs.chainid
-        const l1cdmproxyaddr = taskArgs.l1cdmproxyaddr
-
-        const L1SequencerFactory = await hre.ethers.getContractFactory("L1Sequencer");
-        const L1SequencerNewImpl = await L1SequencerFactory.deploy(l1cdmproxyaddr);
-        await L1SequencerNewImpl.deployed()
-        console.log("new L1SequencerNewImpl contract address: ", L1SequencerNewImpl.address)
     })
 
 /*
@@ -269,15 +232,24 @@ yarn hardhat upgradeRollupImpl --chainid 53077 --l1cdmproxyaddr 0xCf7Ed3AccA5a46
 
 yarn hardhat upgradeProxy --proxyaddr 0xb7f8bc63bbcad18155201308c8f3540b07f84f5e --newimpladdr 0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f --network l1
 */
-task("upgradeRollupImpl")
+task("upgradeRollupProxy")
+    .addParam("proxyadminaddr")
+    .addParam("rollupproxyaddr")
     .addParam("chainid")
-    .addParam("l1cdmproxyaddr")
     .setAction(async (taskArgs, hre) => {
-        const chainid = taskArgs.chainid
-        const l1cdmproxyaddr = taskArgs.l1cdmproxyaddr
-
+        const ProxyAdminFactory = await hre.ethers.getContractFactory('ProxyAdmin')
+        const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadminaddr)
+        // upgrade
+        const chainID = taskArgs.chainid
         const RollupFactory = await hre.ethers.getContractFactory("Rollup");
-        const rollupNewImpl = await RollupFactory.deploy(chainid, l1cdmproxyaddr);
+        const rollupNewImpl = await RollupFactory.deploy(chainID);
         await rollupNewImpl.deployed()
         console.log("new rollupNewImpl contract address: ", rollupNewImpl.address)
+        if (!hre.ethers.utils.isAddress(taskArgs.rollupproxyaddr) || !hre.ethers.utils.isAddress(rollupNewImpl.address)) {
+            console.log(`not address ${taskArgs.rollupproxyaddr} ${rollupNewImpl.address}`)
+            return
+        }
+        const res = await proxyAdmin.upgrade(taskArgs.rollupproxyaddr, rollupNewImpl.address)
+        const rec = await res.wait()
+        console.log(`upgrade rollup ${rec.status === 1}`)
     })

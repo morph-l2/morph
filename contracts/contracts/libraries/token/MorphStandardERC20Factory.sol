@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -22,10 +22,7 @@ contract MorphStandardERC20Factory is Ownable, IMorphStandardERC20Factory {
     }
 
     /// @inheritdoc IMorphStandardERC20Factory
-    function computeL2TokenAddress(
-        address _gateway,
-        address _l1Token
-    ) external view returns (address) {
+    function computeL2TokenAddress(address _gateway, address _l1Token) external view returns (address) {
         // In StandardERC20Gateway, all corresponding l2 tokens are depoyed by Create2 with salt,
         // we can calculate the l2 address directly.
         bytes32 _salt = _getSalt(_gateway, _l1Token);
@@ -35,10 +32,7 @@ contract MorphStandardERC20Factory is Ownable, IMorphStandardERC20Factory {
 
     /// @inheritdoc IMorphStandardERC20Factory
     /// @dev This function should only be called by owner to avoid DDoS attack on StandardTokenBridge.
-    function deployL2Token(
-        address _gateway,
-        address _l1Token
-    ) external onlyOwner returns (address) {
+    function deployL2Token(address _gateway, address _l1Token) external onlyOwner returns (address) {
         bytes32 _salt = _getSalt(_gateway, _l1Token);
 
         address _l2Token = Clones.cloneDeterministic(implementation, _salt);
@@ -48,16 +42,7 @@ contract MorphStandardERC20Factory is Ownable, IMorphStandardERC20Factory {
         return _l2Token;
     }
 
-    function _getSalt(
-        address _gateway,
-        address _l1Token
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    _gateway,
-                    keccak256(abi.encodePacked(_l1Token))
-                )
-            );
+    function _getSalt(address _gateway, address _l1Token) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_gateway, keccak256(abi.encodePacked(_l1Token))));
     }
 }

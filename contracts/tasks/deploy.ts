@@ -7,17 +7,19 @@ import { task } from "hardhat/config";
 
 import {
     deployProxyAdmin,
-    deployLibAddressManager,
+    deployEmptyContract,
     deployZkEvmVerifierV1,
     deployContractProxys,
     deployContractImpls,
     MessengerInit,
     RollupInit,
-    StakingInit,
     GatewayInit,
+    StakingInit,
+    AdminTransfer,
+    ContractInit,
+    StakingRegister,
 } from '../deploy/index'
 import { ethers } from "ethers";
-import StakingRegister from "../deploy/019-StakingRegister";
 
 task("deploy")
     .addParam('storagepath')
@@ -35,9 +37,9 @@ task("deploy")
             console.log('Deploy deployProxyAdmin failed, err: ', err)
             return
         }
-        console.log('\n---------------------------------- deploy  LibAddressManager ----------------------------------')
-        // Lib_AddressManager
-        err = await deployLibAddressManager(hre, stroagePath, deployer)
+        console.log('\n---------------------------------- deploy  EmptyContract ----------------------------------')
+        // EmptyContract
+        err = await deployEmptyContract(hre, stroagePath, deployer)
         if (err != '') {
             console.log('Deploy address manager failed, err: ', err)
             return
@@ -100,6 +102,19 @@ task("initialize")
             console.log('Staking init failed, err: ', err)
             return
         }
+        console.log('\n---------------------------------- Admin Transfer ----------------------------------')
+        err = await AdminTransfer(hre, stroagePath, deployer, config)
+        if (err != '') {
+            console.log('OwnerTransfer failed, err: ', err)
+            return
+        }
+        console.log('\n---------------------------------- Contract Init ----------------------------------')
+        err = await ContractInit(hre, stroagePath, deployer, config)
+        if (err != '') {
+            console.log('ContractInit failed, err: ', err)
+            return
+        }
+        // todo transfer contract owner 
     });
 
 task("fund")
@@ -136,9 +151,8 @@ task("register")
         let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
         for (let i = 0; i < l2SequencerPkList.length; i++) {
             let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
-            console.log(`sequencer-${i}:` + await sequencer.getAddress() + ', Balance: ' + await sequencer.getBalance())
-
             console.log(`\n---------------------------------- register  sequencer-${i} ----------------------------------`)
+            console.log(`sequencer-${i}:` + await sequencer.getAddress() + ', Balance: ' + await sequencer.getBalance())
             let err = await StakingRegister(hre, stroagePath, sequencer, config.l2SequencerTmKeys[i], config.l2SequencerBlsKeys[i])
             if (err != '') {
                 console.log(`Deploy Staking Sequencer-${i} failed, err: `, err)

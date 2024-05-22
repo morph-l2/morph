@@ -6,13 +6,13 @@ import fs from "fs";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storge } from "../src/deploy-utils";
+import { assertContractVariable, storage } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
 } from "./types"
-import {hexlify} from "ethers/lib/utils";
+import { hexlify } from "ethers/lib/utils";
 
 export const deployZkEvmVerifierV1 = async (
     hre: HardhatRuntimeEnvironment,
@@ -23,7 +23,7 @@ export const deployZkEvmVerifierV1 = async (
     const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
     const implStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
     const network = hre.network.name
-    const bytecode = hexlify(fs.readFileSync(`./contracts/libraries/verifier/plonk-verifier/${network}/plonk_verifier_0.5.1.bin`));
+    const bytecode = hexlify(fs.readFileSync(`./contracts/libraries/verifier/plonk-verifier/${network}/plonk_verifier_0.10.3.bin`));
     const tx = await deployer.sendTransaction({ data: bytecode });
     const receipt = await tx.wait();
     console.log("%s=%s ; TX_HASH: %s", "plonk_verifier.bin", receipt.contractAddress.toLocaleLowerCase(), tx.hash);
@@ -33,10 +33,10 @@ export const deployZkEvmVerifierV1 = async (
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", implStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
     // check params
-    await assertContractVariable(contract, 'plonkVerifier', receipt.contractAddress)
-    const blockNumber =  await hre.ethers.provider.getBlockNumber()
+    await assertContractVariable(contract, 'PLONK_VERIFIER', receipt.contractAddress)
+    const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storge(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await storage(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

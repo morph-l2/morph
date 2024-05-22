@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, getContractAddressByName, awaitCondition, storge } from "../src/deploy-utils";
+import { assertContractVariable, getContractAddressByName, awaitCondition } from "../src/deploy-utils";
 import { ethers } from 'ethers'
 
 import {
@@ -24,57 +24,64 @@ export const StakingInit = async (
     const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
-    // Sequencer config
-    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStroageName)
-    const L1SequencerImplAddress = getContractAddressByName(path, ImplStorageName.L1SequencerStorageName)
-    const L1SequencerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Sequencer)
-
     // Staking config
-    const StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.StakingProxyStroageName)
-    const StakingImplAddress = getContractAddressByName(path, ImplStorageName.StakingStorageName)
-    const StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.Staking)
+    const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
+    const L1StakingImplAddress = getContractAddressByName(path, ImplStorageName.L1StakingStorageName)
+    const L1StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Staking)
 
-    const L1SequencerProxy = new ethers.Contract(
-        L1SequencerProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
+    const IL1StakingProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1StakingProxyAddress, deployer)
     if (
-        (await L1SequencerProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== L1SequencerImplAddress.toLocaleLowerCase()
+        (await IL1StakingProxy.implementation()).toLocaleLowerCase() !== L1StakingImplAddress.toLocaleLowerCase()
     ) {
-        console.log('Upgrading the L1Sequencer proxy...')
-        if (!ethers.utils.isAddress(RollupProxyAddress)
-            || !ethers.utils.isAddress(StakingProxyAddress)
+        console.log('Upgrading the Staking proxy...')
+        const admin: string = configTmp.contractAdmin
+        const stakingChallengerRewardPercentage: number = configTmp.stakingChallengerRewardPercentage
+        const limit: number = configTmp.stakingMinDeposit
+        const lock: number = configTmp.stakingLockNumber
+        const gasLimitAdd: number = configTmp.stakingCrossChainGaslimitAdd
+        const gasLimitRemove: number = configTmp.stakingCrossChainGaslimitRemove
+
+        if (!ethers.utils.isAddress(admin)
+            || lock <= 0
+            || limit <= 0
+            || gasLimitAdd <= 0
+            || gasLimitRemove <= 0
+            || stakingChallengerRewardPercentage > 100
+            || stakingChallengerRewardPercentage <= 0
         ) {
             console.error('please check your address')
             return ''
         }
+
         // Upgrade and initialize the proxy.
-        await L1SequencerProxy.connect(deployer).upgradeToAndCall(
-            L1SequencerImplAddress,
-            L1SequencerFactory.interface.encodeFunctionData('initialize', [
-                StakingProxyAddress,
-                RollupProxyAddress
+        await IL1StakingProxy.upgradeToAndCall(
+            L1StakingImplAddress,
+            L1StakingFactory.interface.encodeFunctionData('initialize', [
+                RollupProxyAddress,
+                hre.ethers.utils.parseEther(limit.toString()),
+                hre.ethers.utils.parseEther(lock.toString()),
+                stakingChallengerRewardPercentage,
+                gasLimitAdd,
+                gasLimitRemove,
             ])
         )
+
         await awaitCondition(
             async () => {
                 return (
-                    (await L1SequencerProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === L1SequencerImplAddress.toLocaleLowerCase()
+                    (await IL1StakingProxy.implementation()).toLocaleLowerCase() === L1StakingImplAddress.toLocaleLowerCase()
                 )
             },
             3000,
             1000
         )
+
         const contractTmp = new ethers.Contract(
-            L1SequencerProxyAddress,
-            L1SequencerFactory.interface,
+            L1StakingProxyAddress,
+            L1StakingFactory.interface,
             deployer,
         )
+
         await assertContractVariable(
             contractTmp,
             'rollupContract',
@@ -82,104 +89,28 @@ export const StakingInit = async (
         )
         await assertContractVariable(
             contractTmp,
-            'stakingContract',
-            StakingProxyAddress
-        )
-        console.log('L1SequencerProxy upgrade success')
-    }
-
-
-    const StakingProxy = new ethers.Contract(
-        StakingProxyAddress,
-        ProxyFactory.interface,
-        deployer.provider,
-    )
-    if (
-        (await StakingProxy.callStatic.implementation({
-            from: ethers.constants.AddressZero,
-        })).toLocaleLowerCase() !== StakingImplAddress.toLocaleLowerCase()
-    ) {
-        console.log('Upgrading the Staking proxy...')
-        const admin: string = configTmp.contractAdmin
-        const sequencerSize: number = configTmp.stakingSequencerSize
-        const limit: number = configTmp.stakingMinDeposit
-        const lock: number = configTmp.stakingLockNumber
-
-        if (!ethers.utils.isAddress(admin)
-            || !ethers.utils.isAddress(L1SequencerProxyAddress)
-            || sequencerSize == 0
-            || lock == 0
-            || limit == 0
-        ) {
-            console.error('please check your address')
-            return ''
-        }
-
-        // Upgrade and initialize the proxy.
-        await StakingProxy.connect(deployer).upgradeToAndCall(
-            StakingImplAddress,
-            StakingFactory.interface.encodeFunctionData('initialize', [
-                admin,
-                L1SequencerProxyAddress,
-                sequencerSize,
-                limit,
-                hre.ethers.utils.parseEther(lock.toString()),
-            ])
-        )
-        await awaitCondition(
-            async () => {
-                return (
-                    (await StakingProxy.callStatic.implementation({
-                        from: ethers.constants.AddressZero,
-                    })).toLocaleLowerCase() === StakingImplAddress.toLocaleLowerCase()
-                )
-            },
-            3000,
-            1000
-        )
-
-        const whiteListAdd = configTmp.l2SequencerAddresses
-
-        const contractTmp = new ethers.Contract(
-            StakingProxyAddress,
-            StakingFactory.interface,
-            deployer,
-        )
-        // set sequencer to white list
-        await contractTmp.updateWhitelist(whiteListAdd, [])
-        for (let i = 0; i < configTmp.l2SequencerAddresses.length; i++) {
-            // Wait for the transaction to execute properly.
-            await awaitCondition(
-                async () => {
-                    return (
-                        await contractTmp.whitelist(configTmp.l2SequencerAddresses[i]) === true
-                    )
-                },
-                3000,
-                1000
-            )
-            console.log(`address ${configTmp.l2SequencerAddresses[i]} is in white list`)
-        }
-
-        await assertContractVariable(
-            contractTmp,
-            'sequencerContract',
-            L1SequencerProxyAddress
+            'rewardPercentage',
+            stakingChallengerRewardPercentage
         )
         await assertContractVariable(
             contractTmp,
-            'sequencersSize',
-            sequencerSize
+            'stakingValue',
+            hre.ethers.utils.parseEther(limit.toString())
         )
         await assertContractVariable(
             contractTmp,
-            'limit',
-            limit
+            'withdrawalLockBlocks',
+            hre.ethers.utils.parseEther(lock.toString())
         )
         await assertContractVariable(
             contractTmp,
-            'lock',
-            hre.ethers.utils.parseEther(lock.toString()),
+            'gasLimitAddStaker',
+            gasLimitAdd
+        )
+        await assertContractVariable(
+            contractTmp,
+            'gasLimitRemoveStakers',
+            gasLimitRemove
         )
         await assertContractVariable(
             contractTmp,

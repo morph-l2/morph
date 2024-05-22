@@ -6,17 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/tx-submitter/iface"
-	"github.com/morph-l2/tx-submitter/metrics"
-	"github.com/morph-l2/tx-submitter/utils"
-
+	"github.com/holiman/uint256"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/consensus/misc/eip4844"
 	"github.com/scroll-tech/go-ethereum/core"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
@@ -25,6 +23,11 @@ import (
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/tendermint/tendermint/blssignatures"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/metrics"
+	"morph-l2/tx-submitter/utils"
 )
 
 const (
@@ -33,51 +36,116 @@ const (
 	minFinalizeNum = 2              // min finalize num from contract
 )
 
-type SR struct {
-	L1Client       iface.Client
-	L2Clients      []iface.L2Client
-	Rollup         iface.IRollup
-	L2Submitter    iface.ISubmitter
-	rollupAddr     common.Address
+type Rollup struct {
+	ctx     context.Context
+	metrics *metrics.Metrics
+
+	L1Client  iface.Client
+	L2Clients []iface.L2Client
+	Rollup    iface.IRollup
+
+	Staking iface.IL1Staking
+
+	chainId    *big.Int
+	privKey    *ecdsa.PrivateKey
+	rollupAddr common.Address
+	abi        *abi.ABI
+
 	secondInterval time.Duration
-	ctx            context.Context
-	chainId        *big.Int
-	privKey        *ecdsa.PrivateKey
-	metrics        *metrics.Metrics
-	abi            *abi.ABI
-	batchPool      map[uint64]bindings.IRollupBatchData
 	txTimout       time.Duration
 	Finalize       bool
 	MaxFinalizeNum uint64
 	PriorityRollup bool
+
+	// tx cfg
+	txFeeLimit uint64
 }
 
-func NewSR(ctx context.Context, l1 iface.Client, l2 []iface.L2Client, rollup iface.IRollup, interval time.Duration, chainId *big.Int, priKey *ecdsa.PrivateKey, rollupAddr common.Address, metrics *metrics.Metrics, abi *abi.ABI, txTimeout time.Duration, maxBlock, minBlock uint64, l2Submitter iface.ISubmitter, finalize bool, maxFinalizeNum uint64, priorityRollup bool) *SR {
+func NewRollup(
+	ctx context.Context,
+	metrics *metrics.Metrics,
+	l1 iface.Client,
+	l2Clients []iface.L2Client,
+	rollup iface.IRollup,
+	staking iface.IL1Staking,
+	chainId *big.Int,
+	priKey *ecdsa.PrivateKey,
+	rollupAddr common.Address,
+	abi *abi.ABI,
+	cfg utils.Config,
+) *Rollup {
 
-	return &SR{
-		ctx:            ctx,
-		L1Client:       l1,
-		L2Clients:      l2,
-		Rollup:         rollup,
-		secondInterval: interval,
-		privKey:        priKey,
-		chainId:        chainId,
-		rollupAddr:     rollupAddr,
-		metrics:        metrics,
-		abi:            abi,
-		batchPool:      make(map[uint64]bindings.IRollupBatchData),
-		txTimout:       txTimeout,
-		L2Submitter:    l2Submitter,
-		Finalize:       finalize,
-		MaxFinalizeNum: maxFinalizeNum,
-		PriorityRollup: priorityRollup,
+	return &Rollup{
+		ctx:     ctx,
+		metrics: metrics,
+
+		L1Client:  l1,
+		Rollup:    rollup,
+		Staking:   staking,
+		L2Clients: l2Clients,
+
+		privKey:    priKey,
+		chainId:    chainId,
+		rollupAddr: rollupAddr,
+		abi:        abi,
+
+		secondInterval: cfg.PollInterval,
+		txTimout:       cfg.TxTimeout,
+		Finalize:       cfg.Finalize,
+		MaxFinalizeNum: cfg.MaxFinalizeNum,
+		PriorityRollup: cfg.PriorityRollup,
+
+		txFeeLimit: cfg.TxFeeLimit,
 	}
 }
 
-func (sr *SR) Start() {
-	// block node startup during initial sync and print some helpful logs
-	t := time.NewTicker(sr.secondInterval)
-	defer t.Stop()
+func (sr *Rollup) Start() {
+
+	// metrics
+	metrics_query_tick := time.NewTicker(time.Second * 5)
+	defer metrics_query_tick.Stop()
+	go func() {
+
+		for {
+			select {
+			case <-sr.ctx.Done():
+				return
+			case <-metrics_query_tick.C:
+				// get last finalized
+				lastFinalized, err := sr.Rollup.LastFinalizedBatchIndex(nil)
+				if err != nil {
+					log.Error("get last finalized error", "error", err)
+					continue
+				}
+				// get last committed
+				lastCommited, err := sr.Rollup.LastCommittedBatchIndex(nil)
+				if err != nil {
+					log.Error("get last committed error", "error", err)
+					continue
+				}
+				sr.metrics.SetLastFinalizedBatchIndex(lastFinalized.Uint64())
+				sr.metrics.SetLastCommittedBatchIndex(lastCommited.Uint64())
+
+				// get balacnce of wallet
+				balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
+				if err != nil {
+					log.Error("get wallet balance error", "error", err)
+					continue
+				}
+				// balance to eth
+				balanceEth := new(big.Rat).SetFrac(balance, big.NewInt(params.Ether))
+
+				// parse float64 from string
+				balanceEthFloat, err := strconv.ParseFloat(balanceEth.FloatString(18), 64)
+				if err != nil {
+					log.Warn("parse balance to float error", "error", err)
+					continue
+				}
+
+				sr.metrics.SetWalletBalance(balanceEthFloat)
+			}
+		}
+	}()
 
 	for {
 		if err := sr.rollup(); err != nil {
@@ -87,19 +155,16 @@ func (sr *SR) Start() {
 			time.Sleep(2 * time.Second)
 			log.Error("rollup failed,wait for the next try", "error", err)
 		}
-		// call finalize
 		if sr.Finalize {
 			if err := sr.finalize(); err != nil {
 				log.Error("finalize failed", "error", err)
 			}
-		} else {
-			log.Info("finalize is disabled")
+			time.Sleep(5 * time.Second)
 		}
-
 	}
 }
 
-func (sr *SR) finalize() error {
+func (sr *Rollup) finalize() error {
 	log.Info("check finalize")
 	// get last finalized
 	lastFinalized, err := sr.Rollup.LastFinalizedBatchIndex(nil)
@@ -112,52 +177,29 @@ func (sr *SR) finalize() error {
 		return fmt.Errorf("get last committed error:%v", err)
 	}
 
-	// check if need to finalize
-	// get last
-	period, err := sr.Rollup.FINALIZATIONPERIODSECONDS(nil)
+	target := new(big.Int).Add(lastFinalized, big.NewInt(1))
+	if target.Cmp(lastCommited) > 0 {
+		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommited.Uint64())
+		return nil
+	}
+	// in challenge window
+	inWindow, err := sr.Rollup.BatchInsideChallengeWindow(nil, target)
 	if err != nil {
-		return fmt.Errorf("get finalization period error:%v", err)
+		return fmt.Errorf("get batch inside challenge window error:%v", err)
 	}
-	periodU64 := period.Uint64()
-	var finalizeIndex uint64
-
-	for i := lastCommited.Uint64(); i > lastFinalized.Uint64(); i-- {
-		committedBatch, err := sr.Rollup.CommittedBatchStores(nil, big.NewInt(int64(i)))
-		if err != nil {
-			return fmt.Errorf("get committed batch error:%v", err)
-		}
-		// timestamp
-		timestamp := uint64(time.Now().Unix())
-		if committedBatch.OriginTimestamp.Uint64()+periodU64 < timestamp {
-			finalizeIndex = i
-			break
-		}
-	}
-
-	if finalizeIndex == 0 {
-		log.Info("no need to finalize")
+	if inWindow {
+		log.Info("batch inside challenge window, wait for the next turn")
 		return nil
 	}
-
-	finalizeCnt := finalizeIndex - lastFinalized.Uint64()
-	if finalizeCnt < minFinalizeNum {
-		log.Info(fmt.Sprintf("no need to finalize, finalize num < %d", minFinalizeNum))
-		return nil
-	}
-	// finalize up to 5 batch
-	if finalizeCnt > sr.MaxFinalizeNum {
-		finalizeCnt = sr.MaxFinalizeNum
-	}
-	// send tx
-	// update gas limit
+	// finalize
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
 	if err != nil {
 		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
 	}
 	opts.NoSend = true
-	tx, err := sr.Rollup.FinalizeBatchsByNum(opts, big.NewInt(int64(finalizeCnt)))
+	tx, err := sr.Rollup.FinalizeBatch(opts, target)
 	if err != nil {
-		return fmt.Errorf("craft FinalizeBatchsByNum tx failed:%v", err)
+		return fmt.Errorf("craft FinalizeBatch tx failed:%v", err)
 	}
 	if uint64(tx.Size()) > txMaxSize {
 		return core.ErrOversizedData
@@ -170,52 +212,109 @@ func (sr *SR) finalize() error {
 	if err != nil {
 		return fmt.Errorf("sign tx error:%v", err)
 	}
-	if err := sr.L1Client.SendTransaction(context.Background(), newSignedTx); err != nil {
-		if err.Error() != "already known" {
-			return fmt.Errorf("SendTransaction error:%v", err.Error())
+
+	var receipt *types.Receipt
+	err = sr.SendTx(newSignedTx)
+	if err != nil {
+		log.Info("send tx error", "error", err.Error())
+		// ErrReplaceUnderpriced,ErrAlreadyKnown
+		if utils.ErrStringMatch(err, core.ErrReplaceUnderpriced) ||
+			utils.ErrStringMatch(err, core.ErrAlreadyKnown) {
+			receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+			if err != nil {
+				return fmt.Errorf("replace tx error:%v", err)
+			} else {
+				log.Info("replace tx success")
+			}
+		} else if utils.ErrStringMatch(err, core.ErrGasLimit) { // ErrGasLimit
+			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "finalize_index", target)
+			return fmt.Errorf("send tx error:%v", err.Error())
+		} else if utils.ErrStringMatch(err, core.ErrNonceTooLow) { //ErrNonceTooLow
+			return fmt.Errorf("send tx error:%v", err.Error())
+		} else {
+			return fmt.Errorf("send tx error:%v", err.Error())
+		}
+	} else {
+		log.Info("tx sent",
+			// for business
+			"finalize_index", target,
+			// tx
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+		)
+	}
+
+	// wait receipt
+	if receipt == nil {
+		receipt, err = sr.waitReceiptWithTimeout(sr.txTimout, newSignedTx.Hash())
+		if err != nil {
+			log.Error("wait receipt error", "error", err.Error())
+			if utils.ErrStringMatch(err, errors.New("timeout")) {
+				receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+				if err != nil {
+					return fmt.Errorf("replace tx error:%v", err)
+				} else {
+					log.Info("replace tx success")
+				}
+			} else {
+				return fmt.Errorf("wait receipt error:%v", err)
+			}
 		}
 	}
-	// wait receipt
-	receipt, err := sr.waitReceiptWithTimeOut(sr.txTimout, newSignedTx.Hash())
-	if err != nil {
-		return fmt.Errorf("wait receipt error:%v", err)
-	}
+
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		log.Error("finalize tx failed", "tx_hash", newSignedTx.Hash().String(), "finalize_cnt", finalizeCnt, "gas_used", receipt.GasUsed)
+		log.Error("finalize tx failed",
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
+			"finalize_index", target,
+			// receipt info
+			"gas_used", receipt.GasUsed,
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+		)
 		return fmt.Errorf("tx failed")
 	} else {
+
+		gasFee := newSignedTx.GasPrice().Uint64() * receipt.GasUsed
+		gasFeeEther := new(big.Rat).SetFrac(big.NewInt(int64(gasFee)), big.NewInt(params.Ether))
 		log.Info("finalize tx success",
-			"tx_hash", newSignedTx.Hash().String(),
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
+			"finalize_index", target,
+			// receipt info
 			"gas_used", receipt.GasUsed,
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
 			"gas_price", newSignedTx.GasPrice().String(),
-			"gas_fee", new(big.Int).Mul(newSignedTx.GasPrice(), big.NewInt(int64(receipt.GasUsed))).String(),
-			"last_finalized_before", lastFinalized.Uint64(),
-			"last_commited_before", lastCommited.Uint64(),
-			"finalize_cnt", finalizeCnt,
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"gas_fee", gasFeeEther.FloatString(18),
 		)
 	}
 	return nil
 
 }
 
-func (sr *SR) rollup() error {
-
-	if sr.PriorityRollup {
-		log.Info("priority rollup is enabled")
-	} else {
-		// is the turn of the submitter
-		nextSubmitter, _, _, err := sr.L2Submitter.GetNextSubmitter(nil)
-		if err != nil {
-			return fmt.Errorf("get next submitter error:%v", err)
-		}
-
-		if nextSubmitter.Hex() == sr.walletAddr() {
-			log.Info("submitter is me, start to submit")
-		} else {
-			log.Info("submitter is not me, wait for the next turn")
-			return nil
-		}
-	}
+func (sr *Rollup) rollup() error {
 
 	nonce, err := sr.L1Client.NonceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
 	if err != nil {
@@ -223,14 +322,14 @@ func (sr *SR) rollup() error {
 	}
 	batchIndex, err := sr.Rollup.LastCommittedBatchIndex(nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("get last committed batch index error:%v", err)
 	}
 
 	index := batchIndex.Uint64() + 1
 	log.Info("batch info", "last_commit_batch", batchIndex.Uint64(), "batch_will_get", index)
 	batch, err := GetRollupBatchByIndex(index, sr.L2Clients)
 	if err != nil {
-		return err
+		return fmt.Errorf("get rollup batch by index err:%v", err)
 	}
 
 	// check if the batch is valid
@@ -240,13 +339,6 @@ func (sr *SR) rollup() error {
 		return nil
 	}
 
-	// log batch
-	// batchJson, err := json.Marshal(batch)
-	// if err != nil {
-	// 	return err
-	// }
-	// log.Info("batch info", "batch_index", index, "batch_json", string(batchJson))
-
 	if len(batch.Signatures) == 0 {
 		log.Info("length of batch signature is empty, wait for the next turn")
 		time.Sleep(time.Second * 3)
@@ -254,14 +346,15 @@ func (sr *SR) rollup() error {
 	}
 
 	var chunks [][]byte
+	// var blobChunk []byte
 	for _, chunk := range batch.Chunks {
 		chunks = append(chunks, chunk)
 	}
-	signature, err := sr.aggregateSignatures(batch.Signatures)
+	signature, err := sr.aggregateSignatures(batch)
 	if err != nil {
 		return err
 	}
-	rollupBatch := bindings.IRollupBatchData{
+	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:                uint8(batch.Version),
 		ParentBatchHeader:      batch.ParentBatchHeader,
 		Chunks:                 chunks,
@@ -269,10 +362,7 @@ func (sr *SR) rollup() error {
 		PrevStateRoot:          batch.PrevStateRoot,
 		PostStateRoot:          batch.PostStateRoot,
 		WithdrawalRoot:         batch.WithdrawRoot,
-		Signature:              *signature,
 	}
-
-	var signedTx *types.Transaction
 
 	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
 	if err != nil {
@@ -281,54 +371,197 @@ func (sr *SR) rollup() error {
 
 	opts.NoSend = true
 	opts.Nonce = big.NewInt(int64(nonce))
-	signedTx, err = sr.Rollup.CommitBatch(opts, rollupBatch, 1000)
-	if err != nil {
-		return fmt.Errorf("craft CommitBatch tx failed:%v", err)
-	}
-	if uint64(signedTx.Size()) > txMaxSize {
-		return core.ErrOversizedData
+
+	var tx *types.Transaction
+	// blob tx
+	if batch.Sidecar.Blobs == nil || len(batch.Sidecar.Blobs) == 0 {
+		tx, err = sr.Rollup.CommitBatch(opts, rollupBatch, *signature)
+		if err != nil {
+			return fmt.Errorf("craft commitBatch tx failed:%v", err)
+		}
+	} else {
+		// tip and cap
+		tip, gasFeeCap, blobFee, err := sr.GetGasTipAndCap()
+		if err != nil {
+			return fmt.Errorf("get gas tip and cap error:%v", err)
+		}
+		// calldata encode
+		calldata, err := sr.abi.Pack("commitBatch", rollupBatch, *signature)
+		if err != nil {
+			return fmt.Errorf("pack calldata error:%v", err)
+		}
+		// estimate gas
+		gas, err := sr.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
+			From:      opts.From,
+			To:        &sr.rollupAddr,
+			GasFeeCap: gasFeeCap,
+			GasTipCap: tip,
+			Data:      calldata,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to estimate gas: %w", err)
+		}
+
+		versionedHashes := make([]common.Hash, 0)
+		for _, commit := range batch.Sidecar.Commitments {
+			versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
+		}
+		tx = types.NewTx(&types.BlobTx{
+			ChainID:    uint256.MustFromBig(sr.chainId),
+			Nonce:      nonce,
+			GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
+			GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
+			Gas:        gas,
+			To:         sr.rollupAddr,
+			Value:      uint256.NewInt(0),
+			Data:       calldata,
+			BlobFeeCap: uint256.MustFromBig(blobFee),
+			BlobHashes: versionedHashes,
+			Sidecar: &types.BlobTxSidecar{
+				Blobs:       batch.Sidecar.Blobs,
+				Commitments: batch.Sidecar.Commitments,
+				Proofs:      batch.Sidecar.Proofs,
+			},
+		})
 	}
 
-	newTx, err := UpdateGasLimit(signedTx)
+	// add a buffer to the gas limit
+	newTx, err := UpdateGasLimit(tx)
 	if err != nil {
-		return fmt.Errorf("update gas limit error:%v", err)
+		return fmt.Errorf("update gaslimit error:%v", err)
 	}
-	newSignedTx, err := opts.Signer(opts.From, newTx)
-	if err != nil {
-		return fmt.Errorf("sign tx error:%v", err)
-	}
-	if err := sr.L1Client.SendTransaction(context.Background(), newSignedTx); err != nil {
-		if err.Error() != "already known" {
-			return fmt.Errorf("SendTransaction error:%v", err.Error())
+
+	var newSignedTx *types.Transaction
+	if tx.Type() == types.BlobTxType {
+		newSignedTx, err = types.SignTx(newTx, types.NewLondonSignerWithEIP4844(sr.chainId), sr.privKey)
+		if err != nil {
+			return fmt.Errorf("sign tx error:%v", err)
+		}
+	} else {
+		newSignedTx, err = opts.Signer(opts.From, newTx)
+		if err != nil {
+			return fmt.Errorf("sign tx error:%v", err)
 		}
 	}
 
-	// wait receipt
-	receipt, err := sr.waitReceiptWithTimeOut(sr.txTimout, newSignedTx.Hash())
+	tx_send_time := time.Now().Unix()
+	var receipt *types.Receipt
+	err = sr.SendTx(newSignedTx)
 	if err != nil {
-		return fmt.Errorf("wait receipt error:%v", err)
+		log.Info("send tx error", "error", err.Error())
+
+		// ErrReplaceUnderpriced,ErrAlreadyKnown
+		if utils.ErrStringMatch(err, core.ErrReplaceUnderpriced) ||
+			utils.ErrStringMatch(err, core.ErrAlreadyKnown) {
+			receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+			if err != nil {
+				return fmt.Errorf("replace tx error:%v", err)
+			} else {
+				log.Info("replace tx success")
+			}
+		} else if utils.ErrStringMatch(err, core.ErrGasLimit) { // ErrGasLimit
+			log.Error("tx exceeds block gas limit", "gas", newSignedTx.Gas(), "chunks_len", len(batch.Chunks))
+			return fmt.Errorf("send tx error:%v", err.Error())
+		} else if utils.ErrStringMatch(err, core.ErrNonceTooLow) { //ErrNonceTooLow
+			return fmt.Errorf("send tx error:%v", err.Error())
+		} else {
+			return fmt.Errorf("send tx error:%v", err.Error())
+		}
+	} else {
+		log.Info("tx sent",
+			// for business
+			"batch_index", index,
+			"chunks_len", len(batch.Chunks),
+			// tx
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"blob_fee_cap", newSignedTx.BlobGasFeeCap(),
+			"blob_gas", newSignedTx.BlobGas(),
+		)
 	}
+
+	// wait receipt
+	if receipt == nil {
+		receipt, err = sr.waitReceiptWithTimeout(sr.txTimout, newSignedTx.Hash())
+		if err != nil {
+			log.Error("wait receipt error", "error", err.Error())
+
+			if utils.ErrStringMatch(err, errors.New("timeout")) {
+				receipt, newSignedTx, err = sr.replaceTx(newSignedTx)
+				if err != nil {
+					return fmt.Errorf("replace tx error:%v", err)
+				} else {
+					log.Info("replace tx success")
+				}
+			} else {
+				return fmt.Errorf("wait receipt error:%v", err)
+			}
+		}
+	}
+
+	tx_receipt_time := time.Now().Unix()
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		log.Error("rollup tx failed", "tx_hash", newSignedTx.Hash().String(), "batch_index", index, "chunks_size", len(batch.Chunks))
+		log.Error("rollup tx failed",
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
+			"batch_index", index,
+			"chunks_len", len(batch.Chunks),
+			// receipt info
+			"gas_used", receipt.GasUsed,
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
+			"gas_price", newSignedTx.GasPrice().String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"tx_included_time", tx_receipt_time-tx_send_time,
+		)
 		return fmt.Errorf("tx failed")
 	} else {
+
+		gasFee := newSignedTx.GasPrice().Uint64() * receipt.GasUsed
+		gasFeeEther := new(big.Rat).SetFrac(big.NewInt(int64(gasFee)), big.NewInt(params.Ether))
 		log.Info("rollup tx success",
-			"tx_hash", newSignedTx.Hash().String(),
+			//block info
+			"block_number", receipt.BlockNumber.Uint64(),
+			// for business
 			"batch_index", index,
-			"chunks_size", len(batch.Chunks),
+			"chunks_len", len(batch.Chunks),
+			// receipt info
 			"gas_used", receipt.GasUsed,
+			"tx_hash", newSignedTx.Hash().String(),
+			// tx info
+			"tx_hash", newSignedTx.Hash().String(),
+			"type", newSignedTx.Type(),
+			"gas", newSignedTx.Gas(),
+			"nonce", newSignedTx.Nonce(),
+			"size", newSignedTx.Size(),
 			"gas_price", newSignedTx.GasPrice().String(),
-			"gas_fee", new(big.Int).Mul(newSignedTx.GasPrice(), big.NewInt(int64(receipt.GasUsed))).String(),
+			"tip", newSignedTx.GasTipCap().String(),
+			"fee_cap", newSignedTx.GasFeeCap().String(),
+			"gas_fee", gasFeeEther.FloatString(18),
+			"tx_included_time", tx_receipt_time-tx_send_time,
 		)
 	}
 	return nil
 }
 
-func (sr *SR) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindings.IRollupBatchSignature, error) {
+func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
+	blsSignatures := batch.Signatures
 	if len(blsSignatures) == 0 {
 		return nil, fmt.Errorf("invalid batch signature")
 	}
-	signers := make([]*big.Int, len(blsSignatures))
+	signers := make([]common.Address, len(blsSignatures))
 	sigs := make([]blssignatures.Signature, 0)
 	for i, bz := range blsSignatures {
 		if len(bz.Signature) > 0 {
@@ -337,27 +570,37 @@ func (sr *SR) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindi
 				return nil, err
 			}
 			sigs = append(sigs, sig)
-			signers[i] = big.NewInt(int64(bz.Signer))
+			signers[i] = bz.Signer
 		}
 	}
 	aggregatedSig := blssignatures.AggregateSignatures(sigs)
 	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
-	rollupBatchSignature := bindings.IRollupBatchSignature{
-		Version:   big.NewInt(int64(blsSignatures[0].Version)),
-		Signers:   signers,
-		Signature: blsSignature,
+	// abi pack
+	AddressArr, _ := abi.NewType("address[]", "", nil)
+	args := abi.Arguments{
+		{Type: AddressArr, Name: "stakeAddresses"},
 	}
-	return &rollupBatchSignature, nil
+	bsSigner, err := args.Pack(&signers)
+	if err != nil {
+		return nil, fmt.Errorf("pack signers error:%v", err)
+	}
+
+	sigData := bindings.IRollupBatchSignatureInput{
+		SignedSequencers: bsSigner,
+		SequencerSets:    batch.CurrentSequencerSetBytes,
+		Signature:        blsSignature,
+	}
+	return &sigData, nil
 }
 
-func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
+func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	tip, err := sr.L1Client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	head, err := sr.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	var gasFeeCap *big.Int
 	if head.BaseFee != nil {
@@ -368,25 +611,49 @@ func (sr *SR) GetGasTipAndCap() (*big.Int, *big.Int, error) {
 	} else {
 		gasFeeCap = new(big.Int).Set(tip)
 	}
-	return tip, gasFeeCap, nil
+
+	// calc blob fee cap
+	var blobFee *big.Int
+	if head.ExcessBlobGas != nil {
+		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+	}
+	return tip, gasFeeCap, blobFee, nil
 }
 
-func (sr *SR) waitReceiptWithTimeOut(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
+func (sr *Rollup) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
+	t := time.NewTicker(time.Second)
+	receipt := new(types.Receipt)
+	var err error
+	for range t.C {
+		receipt, err = sr.L1Client.TransactionReceipt(context.Background(), txHash)
+		if errors.Is(err, ethereum.NotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if receipt != nil {
+			t.Stop()
+			break
+		}
+	}
+	return receipt, nil
+}
+
+func (sr *Rollup) waitReceiptWithTimeout(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
 	ctx, cancel := context.WithTimeout(sr.ctx, time)
 	defer cancel()
 	return sr.waitReceiptWithCtx(ctx, txHash)
 }
 
-func (sr *SR) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	t := time.NewTicker(time.Second)
-	receipt := new(types.Receipt)
-	var err error
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, errors.New("timeout")
 		case <-t.C:
-			receipt, err = sr.L1Client.TransactionReceipt(context.Background(), txHash)
+			receipt, err := sr.L1Client.TransactionReceipt(context.Background(), txHash)
 			if errors.Is(err, ethereum.NotFound) {
 				continue
 			}
@@ -404,65 +671,21 @@ func (sr *SR) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*type
 }
 
 // Init is run before the submitter to check whether the submitter can be started
-func (sr *SR) Init() error {
-	// check whether the submitter is staked
-	isSequencer, err := sr.Rollup.IsSequencer(
-		&bind.CallOpts{
-			Pending: false,
-			Context: context.Background(),
-		},
-		crypto.PubkeyToAddress(sr.privKey.PublicKey),
-	)
+func (sr *Rollup) Init() error {
 
+	isStaker, err := sr.IsStaker()
 	if err != nil {
-		return err
-	}
-	if !isSequencer {
-		return fmt.Errorf("this account is not sequencer")
-	}
-	minDeposit, err := sr.Rollup.MINDEPOSIT(nil)
-	if err != nil {
-		return fmt.Errorf("query min deposit error:%v", err)
+		return fmt.Errorf("check if this account is sequencer error:%v", err)
 	}
 
-	depositAmt, err := sr.Rollup.Deposits(nil, crypto.PubkeyToAddress(sr.privKey.PublicKey))
-	if err != nil {
-		return err
+	if !isStaker {
+		return fmt.Errorf("this account is not staker, can not rollup")
 	}
-	if depositAmt.Cmp(minDeposit) < 0 {
-		// make sure the wallet balance is enough
-		balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
-		if err != nil {
-			return err
-		}
-		log.Info("wallet info", "balance", new(big.Int).Div(balance, big.NewInt(params.Ether)).String())
-		value := big.NewInt(0).Sub(minDeposit, depositAmt)
-		if balance.Cmp(big.NewInt(0).Sub(minDeposit, depositAmt)) < 1 {
-			return errors.New("balance not enough for staking")
-		}
-		// try to stake
-		log.Info("submitter is not staked, try to stake")
-		opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
-		if err != nil {
-			return err
-		}
 
-		opts.Value = value // 1 ether
-		tx, err := sr.Rollup.Stake(opts)
-		if err != nil {
-			return err
-		}
-
-		receipt, err := bind.WaitMined(context.Background(), sr.L1Client, tx)
-		if err != nil {
-			return err
-		}
-		log.Info("stake success", "tx_hash", receipt.TxHash.String())
-	}
 	return nil
 }
 
-func (sr *SR) walletAddr() string {
+func (sr *Rollup) walletAddr() string {
 	return crypto.PubkeyToAddress(sr.privKey.PublicKey).Hex()
 }
 
@@ -493,7 +716,7 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 
 		newTx = types.NewTx(&types.LegacyTx{
 			Nonce:    tx.Nonce(),
-			GasPrice: tx.GasPrice(),
+			GasPrice: big.NewInt(tx.GasPrice().Int64()),
 			Gas:      newGasLimit,
 			To:       tx.To(),
 			Value:    tx.Value(),
@@ -502,15 +725,197 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 	} else if tx.Type() == types.DynamicFeeTxType {
 		newTx = types.NewTx(&types.DynamicFeeTx{
 			Nonce:     tx.Nonce(),
-			GasTipCap: tx.GasTipCap(),
-			GasFeeCap: tx.GasFeeCap(),
+			GasTipCap: big.NewInt(tx.GasTipCap().Int64()),
+			GasFeeCap: big.NewInt(tx.GasFeeCap().Int64()),
 			Gas:       newGasLimit,
 			To:        tx.To(),
 			Value:     tx.Value(),
 			Data:      tx.Data(),
 		})
+	} else if tx.Type() == types.BlobTxType {
+		newTx = types.NewTx(&types.BlobTx{
+			ChainID:    uint256.MustFromBig(tx.ChainId()),
+			Nonce:      tx.Nonce(),
+			GasTipCap:  uint256.MustFromBig(big.NewInt(tx.GasTipCap().Int64())),
+			GasFeeCap:  uint256.MustFromBig(big.NewInt(tx.GasFeeCap().Int64())),
+			Gas:        newGasLimit,
+			To:         *tx.To(),
+			Value:      uint256.MustFromBig(tx.Value()),
+			Data:       tx.Data(),
+			BlobFeeCap: uint256.MustFromBig(tx.BlobGasFeeCap()),
+			BlobHashes: tx.BlobHashes(),
+			Sidecar:    tx.BlobTxSidecar(),
+		})
+
 	} else {
 		return nil, fmt.Errorf("unknown tx type:%v", tx.Type())
 	}
 	return newTx, nil
+}
+
+// send tx to l1 with business logic check
+func (r *Rollup) SendTx(tx *types.Transaction) error {
+
+	// judge tx info is valid
+	if tx == nil {
+		return errors.New("nil tx")
+	}
+	return sendTx(r.L1Client, r.txFeeLimit, tx)
+
+}
+
+// send tx to l1 with business logic check
+func sendTx(client iface.Client, txFeeLimit uint64, tx *types.Transaction) error {
+	// fee limit
+	if txFeeLimit > 0 {
+		var fee uint64
+		// calc tx gas fee
+		if tx.Type() == types.BlobTxType {
+			// blob fee
+			fee = tx.BlobGasFeeCap().Uint64() * tx.BlobGas()
+			// tx fee
+			fee += tx.GasPrice().Uint64() * tx.Gas()
+		} else {
+			fee = tx.GasPrice().Uint64() * tx.Gas()
+		}
+
+		if fee > txFeeLimit {
+			return fmt.Errorf("%v:limit=%v,but got=%v", utils.ErrExceedFeeLimit, txFeeLimit, fee)
+		}
+	}
+
+	return client.SendTransaction(context.Background(), tx)
+}
+
+func (sr *Rollup) replaceTx(tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
+	if tx == nil {
+		return nil, nil, errors.New("nil tx")
+	}
+
+	// for sign
+	opts, err := bind.NewKeyedTransactorWithChainID(sr.privKey, sr.chainId)
+	if err != nil {
+		return nil, nil, fmt.Errorf("new keyedTransaction with chain id error:%v", err)
+	}
+
+	// try 10 times
+	for i := 0; i < 10; i++ {
+
+		// replaced tx info
+		log.Info("replaced tx",
+			"tx_hash", tx.Hash().String(),
+			"gas_fee_cap", tx.GasFeeCap().String(),
+			"gas_tip", tx.GasTipCap().String(),
+			"blob_fee_cap", tx.BlobGasFeeCap().String(),
+			"gas", tx.Gas(),
+			"nonce", tx.Nonce(),
+		)
+
+		tip, gasFeeCap, blobFeeCap, err := sr.GetGasTipAndCap()
+		if err != nil {
+			log.Error("get tip and cap", "err", err)
+		}
+
+		// bump tip & feeCap
+		bumpedFeeCap := calcThresholdValue(tx.GasFeeCap(), tx.Type() == types.BlobTxType)
+		bumpedTip := calcThresholdValue(tx.GasTipCap(), tx.Type() == types.BlobTxType)
+
+		// if bumpedTip > tip
+		if bumpedTip.Cmp(tip) > 0 {
+			tip = bumpedTip
+			gasFeeCap = bumpedFeeCap
+		}
+		if tx.Type() == types.BlobTxType {
+			bumpedBlobFeeCap := calcBlobFeeCap(tx.BlobGasFeeCap())
+			if bumpedBlobFeeCap.Cmp(blobFeeCap) > 0 {
+				blobFeeCap = bumpedBlobFeeCap
+			}
+		}
+
+		var newTx *types.Transaction
+		switch tx.Type() {
+		case types.DynamicFeeTxType:
+			newTx = types.NewTx(&types.DynamicFeeTx{
+				To:        tx.To(),
+				Nonce:     tx.Nonce(),
+				GasFeeCap: gasFeeCap,
+				GasTipCap: tip,
+				Gas:       tx.Gas(),
+				Value:     tx.Value(),
+				Data:      tx.Data(),
+			})
+		case types.BlobTxType:
+
+			newTx = types.NewTx(&types.BlobTx{
+				ChainID:    uint256.MustFromBig(tx.ChainId()),
+				Nonce:      tx.Nonce(),
+				GasTipCap:  uint256.MustFromBig(tip),
+				GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+				Gas:        tx.Gas(),
+				To:         *tx.To(),
+				Value:      uint256.MustFromBig(tx.Value()),
+				Data:       tx.Data(),
+				BlobFeeCap: uint256.MustFromBig(blobFeeCap),
+				BlobHashes: tx.BlobHashes(),
+				Sidecar:    tx.BlobTxSidecar(),
+			})
+
+		default:
+			return nil, nil, fmt.Errorf("replace unknown tx type:%v", tx.Type())
+
+		}
+
+		log.Info("new tx info",
+			"tx_type", newTx.Type(),
+			"gas_tip", tip.String(), //todo: convert to gwei
+			"gas_fee_cap", gasFeeCap.String(), //todo: convert to gwei
+			"blob_fee_cap", blobFeeCap.String(), //todo: convert to gwei
+		)
+		// sign tx
+		opts.Nonce = big.NewInt(int64(newTx.Nonce()))
+		newTx, err = opts.Signer(opts.From, newTx)
+		if err != nil {
+			return nil, nil, err
+		}
+		// send tx
+		err = sr.SendTx(newTx)
+		if err != nil { // tx rejected
+			log.Error("send replace tx", "err", err)
+			// if not underprice return
+
+			if !utils.ErrStringMatch(err, core.ErrReplaceUnderpriced) {
+				return nil, nil, fmt.Errorf("send tx in replace error:%v", err.Error())
+			}
+		} else { // tx into mempool
+			receipt, err := sr.waitReceiptWithTimeout(sr.txTimout, newTx.Hash())
+			if err != nil {
+				log.Error("wait replaced tx receipt", "err", err)
+				if err.Error() == "timeout" {
+					log.Error("wait receipt timeout",
+						"turns", i,
+						"tip", tip,
+						"gas_fee_cap", gasFeeCap,
+					)
+				} else {
+					return nil, nil, err
+				}
+			} else {
+				return receipt, newTx, nil
+			}
+		}
+
+		// update tx in next turn
+		tx = newTx
+
+	}
+	return nil, nil, errors.New("replace tx failed after try 10 times")
+}
+
+func (r *Rollup) IsStaker() (bool, error) {
+
+	isStaker, err := r.Staking.IsStaker(nil, common.HexToAddress(r.walletAddr()))
+	if err != nil {
+		return false, fmt.Errorf("failed to get staker info:%v", err)
+	}
+	return isStaker, nil
 }

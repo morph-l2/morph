@@ -8,21 +8,24 @@ import (
 	"os"
 	"strings"
 
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/node/flags"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	tmconfig "github.com/tendermint/tendermint/config"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/urfave/cli"
+	"gopkg.in/natefinch/lumberjack.v2"
+
+	"morph-l2/bindings/predeploys"
+	"morph-l2/node/flags"
+	"morph-l2/node/types"
 )
 
 type Config struct {
 	L2                            *types.L2Config `json:"l2"`
 	L2CrossDomainMessengerAddress common.Address  `json:"cross_domain_messenger_address"`
-	L2SequencerAddress            common.Address  `json:"l2_sequencer_address"`
-	L2GovAddress                  common.Address  `json:"l2_gov_address"`
+	SequencerAddress              common.Address  `json:"sequencer_address"`
+	GovAddress                    common.Address  `json:"gov_address"`
+	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
 	DevSequencer                  bool            `json:"dev_sequencer"`
 	Logger                        tmlog.Logger    `json:"logger"`
@@ -34,16 +37,42 @@ func DefaultConfig() *Config {
 		Logger:                        tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		MaxL1MessageNumPerBlock:       100,
 		L2CrossDomainMessengerAddress: predeploys.L2CrossDomainMessengerAddr,
-		L2SequencerAddress:            predeploys.L2SequencerAddr,
-		L2GovAddress:                  predeploys.GovAddr,
+		SequencerAddress:              predeploys.SequencerAddr,
+		GovAddress:                    predeploys.GovAddr,
+		L2StakingAddress:              predeploys.L2StakingAddr,
 	}
 }
 
 func (c *Config) SetCliContext(ctx *cli.Context) error {
 	// logger setting
-	logger := tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))
+	output := io.Writer(os.Stderr)
+	if ctx.GlobalIsSet(flags.LogFilename.Name) {
+		logFilename := ctx.GlobalString(flags.LogFilename.Name)
+		f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+		if err != nil {
+			return fmt.Errorf("wrong log.filename set: %d", err)
+		}
+		f.Close()
+		maxSize := ctx.GlobalInt(flags.LogFileMaxSize.Name)
+		if maxSize < 1 {
+			return fmt.Errorf("wrong log.maxsize set: %d", maxSize)
+		}
+		maxAge := ctx.GlobalInt(flags.LogFileMaxAge.Name)
+		if maxAge < 1 {
+			return fmt.Errorf("wrong log.maxage set: %d", maxAge)
+		}
+		logFile := &lumberjack.Logger{
+			Filename: logFilename,
+			MaxSize:  maxSize, // megabytes
+			MaxAge:   maxAge,  // days
+			Compress: ctx.GlobalBool(flags.LogCompress.Name),
+		}
+		output = io.MultiWriter(output, logFile)
+	}
+
+	logger := tmlog.NewTMLogger(tmlog.NewSyncWriter(output))
 	if format := ctx.GlobalString(flags.LogFormat.Name); len(format) > 0 && format == tmconfig.LogFormatJSON {
-		logger = tmlog.NewTMJSONLogger(tmlog.NewSyncWriter(os.Stdout))
+		logger = tmlog.NewTMJSONLogger(tmlog.NewSyncWriter(output))
 	}
 
 	logLevel := "info"
@@ -101,16 +130,16 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if ctx.GlobalIsSet(flags.L2SequencerAddr.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.L2SequencerAddr.Name))
-		c.L2SequencerAddress = addr
-		if len(c.L2SequencerAddress.Bytes()) == 0 {
+		c.SequencerAddress = addr
+		if len(c.SequencerAddress.Bytes()) == 0 {
 			return errors.New("invalid L2SequencerAddr")
 		}
 	}
 
 	if ctx.GlobalIsSet(flags.GovAddr.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.GovAddr.Name))
-		c.L2GovAddress = addr
-		if len(c.L2GovAddress.Bytes()) == 0 {
+		c.GovAddress = addr
+		if len(c.GovAddress.Bytes()) == 0 {
 			return errors.New("invalid GovAddr")
 		}
 	}

@@ -3,27 +3,29 @@ package tx_summitter
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
-
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/tx-submitter/iface"
-	"github.com/morph-l2/tx-submitter/metrics"
-	"github.com/morph-l2/tx-submitter/services"
-	"github.com/morph-l2/tx-submitter/utils"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/urfave/cli"
+	"gopkg.in/natefinch/lumberjack.v2"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/metrics"
+	"morph-l2/tx-submitter/services"
+	"morph-l2/tx-submitter/utils"
 )
 
 // Main is the entrypoint into the batch submitter service. This method returns
 // a closure that executes the service and blocks until the service exits. The
 // use of a closure allows the parameters bound to the top-level main package,
 // e.g. GitVersion, to be captured and used once the function is executed.
-func Main(gitCommit string) func(ctx *cli.Context) error {
+func Main() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		cfg, err := NewConfig(cliCtx)
+		cfg, err := utils.NewConfig(cliCtx)
 		if err != nil {
 			return err
 		}
@@ -34,7 +36,31 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		// Set up our logging. If Sentry is enabled, we will use our custom log
 		// handler that logs to stdout and forwards any error messages to Sentry
 		// for collection. Otherwise, logs will only be posted to stdout.
-		logHandler := log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+		output := io.Writer(os.Stdout)
+		if cfg.LogFilename != "" {
+			f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+			if err != nil {
+				return fmt.Errorf("wrong log.filename set: %d", err)
+			}
+			f.Close()
+
+			if cfg.LogFileMaxSize < 1 {
+				return fmt.Errorf("wrong log.maxsize set: %d", cfg.LogFileMaxSize)
+			}
+
+			if cfg.LogFileMaxAge < 1 {
+				return fmt.Errorf("wrong log.maxage set: %d", cfg.LogFileMaxAge)
+			}
+			logFile := &lumberjack.Logger{
+				Filename: cfg.LogFilename,
+				MaxSize:  cfg.LogFileMaxSize, // megabytes
+				MaxAge:   cfg.LogFileMaxAge,  // days
+				Compress: cfg.LogCompress,
+			}
+			output = io.MultiWriter(output, logFile)
+		}
+
+		logHandler := log.StreamHandler(output, log.TerminalFormat(false))
 
 		logLevel, err := log.LvlFromString(cfg.LogLevel)
 		if err != nil {
@@ -44,7 +70,6 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 		// Parse sequencer private key and rollup contract address.
-
 		privKey, rollupAddr, err := utils.ParsePkAndWallet(cfg.PrivateKey, cfg.RollupAddress)
 		if err != nil {
 			return err
@@ -75,21 +100,32 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		rollup, err := bindings.NewRollup(*rollupAddr, l1Client)
+		l1Rollup, err := bindings.NewRollup(*rollupAddr, l1Client)
 		if err != nil {
 			return err
 		}
 		m := metrics.NewMetrics()
 		abi, _ := bindings.RollupMetaData.GetAbi()
 
-		//
-		submitterAddr := common.HexToAddress(cfg.SubmitterAddress)
-		l2Submitter, err := bindings.NewSubmitter(submitterAddr, l2Clients[0])
+		// l1 staking
+		l1Staking, err := bindings.NewL1Staking(common.HexToAddress(cfg.L1StakingAddress), l1Client)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to connect to l1 staking contract")
 		}
 
-		sr := services.NewSR(ctx, l1Client, l2Clients, rollup, cfg.PollInterval, chainID, privKey, *rollupAddr, m, abi, cfg.TxTimeout, cfg.MaxBlock, cfg.MinBlock, l2Submitter, cfg.Finalize, cfg.MaxFinalizeNum, cfg.PriorityRollup)
+		sr := services.NewRollup(
+			ctx,
+			m,
+			l1Client,
+			l2Clients,
+			l1Rollup,
+			l1Staking,
+			chainID,
+			privKey,
+			*rollupAddr,
+			abi,
+			cfg,
+		)
 		if err := sr.Init(); err != nil {
 			return err
 		}
@@ -102,10 +138,20 @@ func Main(gitCommit string) func(ctx *cli.Context) error {
 						log.Error("metrics server failed to start", "err", err)
 					}
 				}()
-				log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 			}
+			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
+		log.Info("starting tx submitter",
+			"l1_rpc", cfg.L1EthRpc,
+			"l2_rpcs", cfg.L2EthRpcs,
+			"rollup_addr", rollupAddr.Hex(),
+			"chainid", chainID.String(),
+			"submitter_addr", cfg.SubmitterAddress,
+			"sequencer_addr", cfg.SequencerAddress,
+			"finalize_enable", cfg.Finalize,
+			"priority_rollup_enable", cfg.PriorityRollup,
+		)
 		sr.Start()
 
 		return nil

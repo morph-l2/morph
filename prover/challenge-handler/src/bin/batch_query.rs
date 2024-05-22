@@ -3,8 +3,7 @@ use dotenv::dotenv;
 use env_logger::Env;
 use ethers::prelude::*;
 use ethers::signers::Wallet;
-use ethers::{abi::AbiDecode, prelude::*};
-use serde::{Deserialize, Serialize};
+use ethers::abi::AbiDecode;
 use std::env::var;
 use std::error::Error;
 use std::ops::Mul;
@@ -29,7 +28,6 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         .expect("Cannot detect TARGET_BATCH env var")
         .parse()
         .expect("Cannot parse TARGET_BATCH env var");
-
 
     let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc)?;
     let l1_signer = Arc::new(SignerMiddleware::new(

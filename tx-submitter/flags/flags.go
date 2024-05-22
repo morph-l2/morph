@@ -32,12 +32,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPCS"),
 	}
-	RollupAddressFlag = cli.StringFlag{
-		Name:     "rollup-address",
-		Usage:    "Address of the rollup contract",
-		Required: true,
-		EnvVar:   prefixEnvVar("ROLLUP_ADDRESS"),
-	}
 
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -47,35 +41,13 @@ var (
 		EnvVar:   prefixEnvVar("POLL_INTERVAL"),
 	}
 
-	SafeMinimumEtherBalanceFlag = cli.Uint64Flag{
-		Name:     "safe-minimum-ether-balance",
-		Usage:    "Safe minimum amount of ether the batch submitter key should hold before it starts to log errors",
-		Required: true,
-		EnvVar:   prefixEnvVar("SAFE_MINIMUM_ETHER_BALANCE"),
-	}
-
-	/* Optional Flags */
-
-	LogLevelFlag = cli.StringFlag{
-		Name:   "log-level",
-		Usage:  "The lowest log level that will be output",
-		Value:  "info",
-		EnvVar: prefixEnvVar("LOG_LEVEL"),
-	}
-
 	PrivateKeyFlag = cli.StringFlag{
-		Name:   "private-key",
-		Usage:  "The private key to use for sending to the rollup contract",
-		EnvVar: prefixEnvVar("L1_PRIVATE_KEY"),
-	}
-
-	NetworkTimeoutFlag = cli.DurationFlag{
-		Name:     "network-timeout",
-		Usage:    "Timeout for network requests",
-		Value:    10,
-		EnvVar:   prefixEnvVar("NETWORK_TIMEOUT"),
+		Name:     "private-key",
+		Usage:    "The private key to use for sending to the rollup contract",
+		EnvVar:   prefixEnvVar("L1_PRIVATE_KEY"),
 		Required: true,
 	}
+
 	TxTimeoutFlag = cli.DurationFlag{
 		Name:     "tx-timeout",
 		Usage:    "Timeout for transaction submission",
@@ -83,20 +55,19 @@ var (
 		EnvVar:   prefixEnvVar("TX_TIMEOUT"),
 		Required: true,
 	}
-	BatchBuildTimeoutFlag = cli.DurationFlag{
-		Name: "batch-build-timeout",
-		Usage: "Maximum amount of time that we will wait before " +
-			"submitting an under-sized batch",
-		Value:    60,
-		EnvVar:   prefixEnvVar("MAX_BATCH_BUILD_TIME"),
+
+	// L1 Address
+	RollupAddressFlag = cli.StringFlag{
+		Name:     "rollup-address",
+		Usage:    "Address of the rollup contract",
 		Required: true,
+		EnvVar:   prefixEnvVar("ROLLUP_ADDRESS"),
 	}
-	MaxTxSizeFlag = cli.Uint64Flag{
-		Name:     "max-tx-size",
-		Usage:    "Maximum byte of data that can be submitted in a single transaction",
-		Value:    123 * 1014,
-		EnvVar:   prefixEnvVar("MAX_TX_SIZE"),
+	L1StakingAddressFlag = cli.StringFlag{
+		Name:     "l1-staking-address",
+		Usage:    "Address of the staking contract",
 		Required: true,
+		EnvVar:   prefixEnvVar("L1_STAKING_ADDRESS"),
 	}
 
 	// finalize flags
@@ -122,6 +93,27 @@ var (
 		Required: true,
 	}
 
+	// L2 contract
+	SubmitterAddressFlag = cli.StringFlag{
+		Name:     "submitter-address",
+		Usage:    "Address of the submitter contract",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_SUBMITTER_ADDRESS"),
+	}
+	L2SequencerAddressFlag = cli.StringFlag{
+		Name:     "l2-sequencer",
+		Usage:    "Address of the sequencer contract",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_SEQUENCER_ADDRESS"),
+	}
+
+	/* Optional Flags */
+	LogLevelFlag = cli.StringFlag{
+		Name:   "log-level",
+		Usage:  "The lowest log level that will be output",
+		Value:  "info",
+		EnvVar: prefixEnvVar("LOG_LEVEL"),
+	}
 	// metrics
 	MetricsServerEnable = cli.BoolFlag{
 		Name:   "metrics-server-enable",
@@ -139,12 +131,37 @@ var (
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
 
-	// L2 contract
-	SubmitterAddressFlag = cli.StringFlag{
-		Name:     "submitter-address",
-		Usage:    "Address of the submitter contract",
+	// tx fee limit
+	TxFeeLimitFlag = cli.Uint64Flag{
+		Name:     "tx-fee-limit",
+		Usage:    "The maximum fee for a transaction",
+		Value:    5e17, //0.5eth
+		EnvVar:   prefixEnvVar("TX_FEE_LIMIT"),
 		Required: true,
-		EnvVar:   prefixEnvVar("L2_SUBMITTER_ADDRESS"),
+	}
+
+	// log to file
+	LogFilename = cli.StringFlag{
+		Name:   "log.filename",
+		Usage:  "The target file for writing logs, backup log files will be retained in the same directory.",
+		EnvVar: prefixEnvVar("LOG_FILENAME"),
+	}
+	LogFileMaxSize = cli.IntFlag{
+		Name:   "log.maxsize",
+		Usage:  "The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes. It is used only when log.filename is provided.",
+		Value:  100,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_SIZE"),
+	}
+	LogFileMaxAge = cli.IntFlag{
+		Name:   "log.maxage",
+		Usage:  "The maximum number of days to retain old log files based on the timestamp encoded in their filename. It defaults to 30 days. It is used only when log.filename is provided.",
+		Value:  30,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_AGE"),
+	}
+	LogCompress = cli.BoolFlag{
+		Name:   "log.compress",
+		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
+		EnvVar: prefixEnvVar("LOG_COMPRESS"),
 	}
 )
 
@@ -154,23 +171,27 @@ var requiredFlags = []cli.Flag{
 	L2EthRpcsFlag,
 	RollupAddressFlag,
 	PollIntervalFlag,
-	SafeMinimumEtherBalanceFlag,
-	NetworkTimeoutFlag,
 	TxTimeoutFlag,
-	BatchBuildTimeoutFlag,
-	MaxTxSizeFlag,
-	SubmitterAddressFlag,
 	FinalizeFlag,
 	MaxFinalizeNumFlag,
 	PriorityRollupFlag,
+	SubmitterAddressFlag,
+	L2SequencerAddressFlag,
+	PrivateKeyFlag,
+	TxFeeLimitFlag,
+	L1StakingAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
 	LogLevelFlag,
-	PrivateKeyFlag,
 	MetricsServerEnable,
 	MetricsHostname,
 	MetricsPort,
+
+	LogFilename,
+	LogFileMaxSize,
+	LogFileMaxAge,
+	LogCompress,
 }
 
 // Flags contains the list of configuration options available to the binary.

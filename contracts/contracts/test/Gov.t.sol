@@ -1,236 +1,528 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity =0.8.24;
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
+import {IGov} from "../l2/staking/IGov.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {Gov} from "../L2/staking/Gov.sol";
 
-contract L2GovTest is L2StakingBaseTest {
+contract GovTest is L2StakingBaseTest {
     function setUp() public virtual override {
         super.setUp();
-
-        // set to L2Sequencer
-        hevm.mockCall(
-            address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
-            abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
-        );
-
-        Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](
-            SEQUENCER_SIZE
-        );
-
-        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            address user = address(uint160(beginSeq + i));
-            Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
-                user
-            );
-            sequencerBLSKeys.push(sequencerInfo.blsKey);
-            sequencerInfos[i] = sequencerInfo;
-        }
-        version++;
-        hevm.prank(address(l2CrossDomainMessenger));
-        // updateSequencers
-        l2Sequencer.updateSequencers(version, sequencerInfos);
-        assertEq(l2Sequencer.currentVersion(), version);
-        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(l2Sequencer.sequencerAddresses(i), sequencerInfos[i].addr);
-
-            (address user, bytes32 tmKey, bytes memory blsKey) = l2Sequencer
-                .sequencerInfos(i);
-            assertEq(user, sequencerInfos[i].addr);
-            assertEq(tmKey, sequencerInfos[i].tmKey);
-            assertBytesEq(blsKey, sequencerInfos[i].blsKey);
-        }
     }
 
-    function testProposal() external {
-        Gov.ProposalData memory proposal = Gov.ProposalData(
+    /**
+     * @notice initialize: re-initialize
+     */
+    function test_initialize_paramsCheck_reverts() public {
+        hevm.expectRevert("Initializable: contract is already initialized");
+        hevm.prank(multisig);
+        gov.initialize(0, 0, 0, 0, 0, 0);
+
+        // reset initialize
+        hevm.store(address(gov), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        hevm.expectRevert("invalid proposal voting duration");
+        hevm.prank(multisig);
+        gov.initialize(0, 0, 0, 0, 0, 0);
+
+        hevm.expectRevert("invalid max chunks");
+        hevm.prank(multisig);
+        gov.initialize(1, 0, 0, 0, 0, 0);
+
+        hevm.expectRevert("invalid rollup epoch");
+        hevm.prank(multisig);
+        gov.initialize(1, 0, 0, 0, 1, 0);
+
+        // _batchBlockInterval
+        hevm.expectRevert("invalid batch params");
+        hevm.prank(multisig);
+        gov.initialize(1, 0, 0, 0, 1, 1);
+    }
+
+    /**
+     * @notice create a proposal
+     */
+    function test_createProposal_succeeds() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
-            FINALIZATION_PERIOD_SECONDS, // batchTimeout
-            ROLLUP_EPOCH, // rollupEpoch
-            MAX_CHUNKS // maxChunks
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
         );
 
         address user = address(uint160(beginSeq));
-        hevm.prank(address(user));
-        l2Gov.propose(proposal);
+        uint256 nextProposalID = gov.currentProposalID() + 1;
+        hevm.expectEmit(true, true, true, true);
+        emit IGov.ProposalCreated(nextProposalID, user, 0, 0, finalizationPeriodSeconds, MAX_CHUNKS, ROLLUP_EPOCH);
+        hevm.startPrank(address(user));
+        uint256 proposalID = gov.createProposal(proposal);
+        uint256 currentProposalID = gov.currentProposalID();
+        assertEq(proposalID, nextProposalID);
+        assertEq(proposalID, currentProposalID);
         (
             uint256 batchBlockInterval_,
             uint256 batchMaxBytes_,
             uint256 batchTimeout_,
-            uint256 rollupEpoch_,
-            uint256 maxChunks_
-        ) = l2Gov.proposalData(version);
+            uint256 maxChunks_,
+            uint256 rollupEpoch_
+        ) = gov.proposalData(proposalID);
+        hevm.stopPrank();
         assertEq(batchBlockInterval_, proposal.batchBlockInterval);
         assertEq(batchMaxBytes_, proposal.batchMaxBytes);
         assertEq(batchTimeout_, proposal.batchTimeout);
         assertEq(rollupEpoch_, proposal.rollupEpoch);
         assertEq(maxChunks_, proposal.maxChunks);
-        (
-            bool active_,
-            uint256 endTime_,
-            uint256 seqsVersion_,
-            uint256 votes_
-        ) = l2Gov.proposalInfos(version);
-        assertTrue(active_);
-        assertEq(block.timestamp + PROPOSAL_INTERVAL, endTime_);
-        assertEq(version, seqsVersion_);
-        assertEq(0, votes_);
+
+        uint256 expirationTime;
+        bool finished;
+        bool passed;
+        bool executed;
+
+        (expirationTime, executed) = gov.proposalInfos(proposalID);
+        assertFalse(executed);
+        assertEq(block.timestamp + VOTING_DURATION, expirationTime);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertFalse(finished);
+        assertFalse(passed);
+        assertFalse(executed);
     }
 
-    function testVote() external {
-        Gov.ProposalData memory proposal = Gov.ProposalData(
+    /**
+     * @notice vote a proposal
+     */
+    function test_vote_succeeds() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
             0, // batchMaxBytes
-            FINALIZATION_PERIOD_SECONDS, // batchTimeout
-            ROLLUP_EPOCH, // rollupEpoch
-            MAX_CHUNKS // maxChunks
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
         );
 
-        // proposal
+        // create proposal
         address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        l2Gov.propose(proposal);
+        uint256 proposalID = gov.createProposal(proposal);
+        hevm.stopPrank();
+
+        uint256 voteCnt = 0;
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             user = address(uint160(beginSeq + i));
             hevm.prank(address(user));
-            l2Gov.vote(version);
-            (, , , uint256 votes_) = l2Gov.proposalInfos(version);
-            assertTrue(l2Gov.votes(version, i));
-            assertEq(i + 1, votes_);
+
+            voteCnt++;
+            if (voteCnt > ((SEQUENCER_SIZE * 2) / 3)) {
+                hevm.expectEmit(true, true, true, true);
+                emit IGov.ProposalExecuted(proposalID, 0, 0, finalizationPeriodSeconds, MAX_CHUNKS, ROLLUP_EPOCH);
+            }
+            gov.vote(proposalID);
+            hevm.stopPrank();
+            assertTrue(gov.isVoted(proposalID, user));
         }
-    }
-}
 
-contract L2GovVoteTest is L2StakingBaseTest {
-    Gov.ProposalData public proposal;
+        uint256 expirationTime;
+        bool finished;
+        bool passed;
+        bool executed;
 
-    function setUp() public virtual override {
-        super.setUp();
-
-        // set to L2Sequencer
-        hevm.mockCall(
-            address(l2Sequencer.messenger()),
-            abi.encodeWithSelector(
-                ICrossDomainMessenger.xDomainMessageSender.selector
-            ),
-            abi.encode(address(l2Sequencer.OTHER_SEQUENCER()))
-        );
-
-        Types.SequencerInfo[] memory sequencerInfos = new Types.SequencerInfo[](
-            SEQUENCER_SIZE
-        );
-
-        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            address user = address(uint160(beginSeq + i));
-            Types.SequencerInfo memory sequencerInfo = ffi.generateStakingInfo(
-                user
-            );
-            sequencerBLSKeys.push(sequencerInfo.blsKey);
-            sequencerInfos[i] = sequencerInfo;
-        }
-        version++;
-        hevm.prank(address(l2CrossDomainMessenger));
-        // updateSequencers
-        l2Sequencer.updateSequencers(version, sequencerInfos);
-        assertEq(l2Sequencer.currentVersion(), version);
-        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
-            assertEq(l2Sequencer.sequencerAddresses(i), sequencerInfos[i].addr);
-
-            (address user, bytes32 tmKey, bytes memory blsKey) = l2Sequencer
-                .sequencerInfos(i);
-            assertEq(user, sequencerInfos[i].addr);
-            assertEq(tmKey, sequencerInfos[i].tmKey);
-            assertBytesEq(blsKey, sequencerInfos[i].blsKey);
-        }
-        // proposal version 1
-        proposal = Gov.ProposalData(
-            0, // batchBlockInterval
-            0, // batchMaxBytes
-            FINALIZATION_PERIOD_SECONDS, // batchTimeout
-            ROLLUP_EPOCH, // rollupEpoch
-            MAX_CHUNKS // maxChunks
-        );
-        address userBegin = address(uint160(beginSeq));
-        hevm.prank(address(userBegin));
-        l2Gov.propose(proposal);
-
-        // proposal version 2
-        version++;
-        hevm.prank(address(l2CrossDomainMessenger));
-        l2Sequencer.updateSequencers(version, sequencerInfos);
-        assertEq(l2Sequencer.currentVersion(), version);
-        userBegin = address(uint160(beginSeq));
-        hevm.prank(address(userBegin));
-        l2Gov.propose(proposal);
-
-        // proposal version 3
-        version++;
-        hevm.prank(address(l2CrossDomainMessenger));
-        l2Sequencer.updateSequencers(version, sequencerInfos);
-        assertEq(l2Sequencer.currentVersion(), version);
+        (expirationTime, executed) = gov.proposalInfos(proposalID);
+        assertTrue(executed);
+        assertEq(block.timestamp + VOTING_DURATION, expirationTime);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertTrue(finished);
+        assertTrue(passed);
+        assertTrue(executed);
     }
 
-    function test_vote_version_endTime() external {
-        // check proposal
-        uint256 checkVersion = 1;
-        uint256 secVersion = 2;
+    /**
+     * @notice passed by more than 2/3 of the valid votes
+     */
+    function test_proposalExecute_succeeds() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            1, // batchBlockInterval
+            1, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
 
-        (
-            uint256 batchBlockInterval_,
-            uint256 batchMaxBytes_,
-            uint256 batchTimeout_,
-            uint256 rollupEpoch_,
-            uint256 maxChunks_
-        ) = l2Gov.proposalData(checkVersion);
-        assertEq(batchBlockInterval_, proposal.batchBlockInterval);
-        assertEq(batchMaxBytes_, proposal.batchMaxBytes);
-        assertEq(batchTimeout_, proposal.batchTimeout);
-        assertEq(rollupEpoch_, proposal.rollupEpoch);
-        assertEq(maxChunks_, proposal.maxChunks);
-        (
-            bool active_,
-            uint256 endTime_,
-            uint256 seqsVersion_,
-            uint256 votes_
-        ) = l2Gov.proposalInfos(checkVersion);
-        assertTrue(active_);
-        assertEq(block.timestamp + PROPOSAL_INTERVAL, endTime_);
-        assertEq(checkVersion, seqsVersion_);
-        assertEq(0, votes_);
-
-        // revert with proposal inactive
-        hevm.expectRevert("proposal inactive");
+        // create proposal
         address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        l2Gov.vote(version);
+        uint256 proposalID = gov.createProposal(proposal);
+        hevm.stopPrank();
 
-        // revert with version mismatch
-        hevm.expectRevert("version mismatch");
-        hevm.prank(address(user));
-        l2Gov.vote(secVersion);
+        for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
+            user = address(uint160(beginSeq + i));
+            hevm.prank(address(user));
+            gov.vote(proposalID);
+            hevm.stopPrank();
+            assertTrue(gov.isVoted(proposalID, user));
+        }
 
-        // revert with time end
-        user = address(uint160(beginSeq));
-        hevm.prank(address(user));
-        l2Gov.propose(proposal);
-        hevm.expectRevert("time end");
-        hevm.warp(block.timestamp + PROPOSAL_INTERVAL + 100);
-        hevm.prank(address(user));
-        l2Gov.vote(version);
+        bool finished;
+        bool passed;
+        bool executed;
 
-        // revert with sequencer already vote for this proposal
-        hevm.warp(block.timestamp - PROPOSAL_INTERVAL);
+        (, executed) = gov.proposalInfos(proposalID);
+        assertFalse(executed);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertFalse(finished);
+        assertFalse(passed);
+        assertFalse(executed);
+
+        hevm.prank(address(multisig));
+        // decrease sequencer size
+        l2Staking.updateSequencerSetMaxSize(SEQUENCER_SIZE - 1);
+
+        (, executed) = gov.proposalInfos(proposalID);
+        assertFalse(executed);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertFalse(finished);
+        assertTrue(passed);
+        assertFalse(executed);
+
+        gov.executeProposal(proposalID);
+        hevm.stopPrank();
+
+        (, executed) = gov.proposalInfos(proposalID);
+        assertTrue(executed);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertTrue(finished);
+        assertTrue(passed);
+        assertTrue(executed);
+
+        hevm.expectRevert("voting has ended");
         hevm.prank(address(user));
-        l2Gov.vote(version);
-        hevm.expectRevert("sequencer already vote for this proposal");
+        gov.vote(proposalID);
+        hevm.stopPrank();
+
+        assertEq(gov.batchBlockInterval(), 1);
+        assertEq(gov.batchMaxBytes(), 1);
+        assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
+        assertEq(gov.maxChunks(), MAX_CHUNKS);
+        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
+    }
+
+    /**
+     * @notice passed by more than 2/3 of the valid votes
+     * 1. remove all old sequencer which vote a proposal
+     * 2. add new sequencer and vote, more thran 2 / 3, the proposal passed
+     */
+    function test_executeWithNewSequencers_succeeds() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        address user = address(uint160(beginSeq));
         hevm.prank(address(user));
-        l2Gov.vote(version);
+        uint256 proposalID = gov.createProposal(proposal);
+        hevm.stopPrank();
+
+        for (uint256 i = 0; i < SEQUENCER_SIZE - 1; i++) {
+            user = address(uint160(beginSeq + i));
+            hevm.prank(address(user));
+            gov.vote(proposalID);
+            hevm.stopPrank();
+            assertTrue(gov.isVoted(proposalID, user));
+        }
+
+        bool finished;
+        bool passed;
+        bool executed;
+
+        (, executed) = gov.proposalInfos(proposalID);
+        assertFalse(executed);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertFalse(finished);
+        assertFalse(passed);
+        assertFalse(executed);
+
+        // update new sequencer
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+            l2Staking.addStaker(stakerInfo);
+        }
+
+        // remove old sequencer
+        address[] memory removed = new address[](SEQUENCER_SIZE);
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address staker = address(uint160(beginSeq + i));
+            removed[i] = staker;
+        }
+        l2Staking.removeStakers(removed);
+        hevm.stopPrank();
+
+        (, executed) = gov.proposalInfos(proposalID);
+        assertFalse(executed);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertFalse(finished);
+        assertFalse(passed);
+        assertFalse(executed);
+
+        // invalide votes
+        for (uint256 i = 0; i < removed.length - 1; i++) {
+            assertTrue(gov.isVoted(proposalID, removed[i]));
+        }
+
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            user = address(uint160(beginSeq + i));
+            hevm.prank(address(user));
+            gov.vote(proposalID);
+            hevm.stopPrank();
+            assertTrue(gov.isVoted(proposalID, user));
+        }
+
+        (, executed) = gov.proposalInfos(proposalID);
+        assertTrue(executed);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertTrue(finished);
+        assertTrue(passed);
+        assertTrue(executed);
+    }
+
+    /**
+     * @notice proposal is finished
+     */
+    function test_vote_expired_reverts() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        address user = address(uint160(beginSeq));
+        hevm.prank(address(user));
+        uint256 proposalID = gov.createProposal(proposal);
+        hevm.stopPrank();
+
+        hevm.warp(block.timestamp + VOTING_DURATION + 1);
+        hevm.expectRevert("voting has ended");
+        user = address(uint160(beginSeq + 1));
+        hevm.prank(address(user));
+        gov.vote(proposalID);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice sequencer already voted for this proposal
+     */
+    function test_vote_repeatVoting_reverts() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        address user = address(uint160(beginSeq));
+        hevm.prank(address(user));
+        uint256 proposalID = gov.createProposal(proposal);
+        hevm.stopPrank();
+
+        user = address(uint160(beginSeq + 1));
+        bool voted = gov.isVoted(proposalID, user);
+        assertFalse(voted);
+        hevm.prank(address(user));
+        gov.vote(proposalID);
+        hevm.stopPrank();
+        voted = gov.isVoted(proposalID, user);
+        assertTrue(voted);
+
+        hevm.expectRevert("sequencer already voted for this proposal");
+        hevm.prank(address(user));
+        gov.vote(proposalID);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice only sequenser is allowed to create proposal
+     */
+    function test_createProposal_onlySequencer_reverts() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        hevm.expectRevert("only sequencer allowed");
+        hevm.prank(alice);
+        gov.createProposal(proposal);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice vote: only sequencer allowed
+     */
+    function test_vote_onlySequencer_reverts() external {
+        uint256 proposalID = gov.currentProposalID();
+
+        hevm.expectRevert("only sequencer allowed");
+        hevm.prank(alice);
+        gov.vote(proposalID);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice setVotingDuration: check params
+     */
+    function test_setVotingDuration_succeeds() external {
+        hevm.expectRevert("Ownable: caller is not the owner");
+        hevm.prank(alice);
+        gov.setVotingDuration(0);
+        hevm.stopPrank();
+
+        hevm.expectRevert("invalid new proposal voting duration");
+        hevm.prank(multisig);
+        gov.setVotingDuration(0);
+        hevm.stopPrank();
+
+        uint256 oldVotingDuration = gov.votingDuration();
+        hevm.expectRevert("invalid new proposal voting duration");
+        hevm.prank(multisig);
+        gov.setVotingDuration(oldVotingDuration);
+        hevm.stopPrank();
+
+        uint256 newVotingDuration = 100;
+        hevm.prank(multisig);
+        gov.setVotingDuration(newVotingDuration);
+        assertEq(newVotingDuration, gov.votingDuration());
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice delete old data
+     */
+    function test_deleteOldData_succeeds() external {
+        IGov.ProposalData memory proposal0 = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        address user = address(uint160(beginSeq));
+        hevm.prank(address(user));
+        uint256 proposalID = gov.createProposal(proposal0);
+        assertEq(proposalID, 1);
+        hevm.stopPrank();
+
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            user = address(uint160(beginSeq + i));
+            hevm.prank(address(user));
+            gov.vote(proposalID);
+            hevm.stopPrank();
+            assertTrue(gov.isVoted(proposalID, user));
+        }
+
+        uint256 expirationTime;
+        bool finished;
+        bool passed;
+        bool executed;
+
+        (expirationTime, executed) = gov.proposalInfos(proposalID);
+        assertTrue(executed);
+        assertEq(block.timestamp + VOTING_DURATION, expirationTime);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertTrue(finished);
+        assertTrue(passed);
+        assertTrue(executed);
+
+        assertEq(gov.batchBlockInterval(), 0);
+        assertEq(gov.batchMaxBytes(), 0);
+        assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
+        assertEq(gov.maxChunks(), MAX_CHUNKS);
+        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
+
+        // undeletedProposalStart slot value is 109
+        bytes32 undeletedProposalStartBytes32 = hevm.load(address(gov), bytes32(uint256(109)));
+        uint256 undeletedProposalStart = uint256(undeletedProposalStartBytes32);
+
+        assertEq(undeletedProposalStart, gov.currentProposalID());
+
+        IGov.ProposalData memory proposal1 = IGov.ProposalData(
+            100, // batchBlockInterval
+            200, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // create proposal
+        hevm.prank(address(user));
+        proposalID = gov.createProposal(proposal1);
+        assertEq(proposalID, 2);
+        hevm.stopPrank();
+
+        // vote
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            user = address(uint160(beginSeq + i));
+            hevm.prank(address(user));
+            gov.vote(proposalID);
+            hevm.stopPrank();
+            assertTrue(gov.isVoted(proposalID, user));
+        }
+
+        (expirationTime, executed) = gov.proposalInfos(proposalID);
+        assertTrue(executed);
+        assertEq(block.timestamp + VOTING_DURATION, expirationTime);
+        (finished, passed, executed) = gov.proposalStatus(proposalID);
+        assertTrue(finished);
+        assertTrue(passed);
+        assertTrue(executed);
+
+        // undeletedProposalStart slot value is 109
+        undeletedProposalStartBytes32 = hevm.load(address(gov), bytes32(uint256(109)));
+        undeletedProposalStart = uint256(undeletedProposalStartBytes32);
+
+        assertEq(undeletedProposalStart, gov.currentProposalID());
+
+        // test old data
+        uint256 preProposalID = 1;
+        (expirationTime, executed) = gov.proposalInfos(preProposalID);
+        assertEq(expirationTime, 0);
+        assertFalse(executed);
+        (
+            uint256 batchBlockInterval,
+            uint256 batchMaxBytes,
+            uint256 batchTimeout,
+            uint256 maxChunks,
+            uint256 rollupEpoch
+        ) = gov.proposalData(preProposalID);
+        assertEq(batchBlockInterval, 0);
+        assertEq(batchMaxBytes, 0);
+        assertEq(batchTimeout, 0);
+        assertEq(maxChunks, 0);
+        assertEq(rollupEpoch, 0);
+
+        assertEq(gov.batchBlockInterval(), 100);
+        assertEq(gov.batchMaxBytes(), 200);
+        assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
+        assertEq(gov.maxChunks(), MAX_CHUNKS);
+        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
     }
 }

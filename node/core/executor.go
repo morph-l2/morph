@@ -5,12 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/node/sync"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -24,6 +20,10 @@ import (
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/sync"
+	"morph-l2/node/types"
 )
 
 type NewSyncerFunc func() (*sync.Syncer, error)
@@ -38,11 +38,12 @@ type Executor struct {
 	newSyncerFunc NewSyncerFunc
 	syncer        *sync.Syncer
 
-	govContract       *bindings.Gov
-	sequencerContract *bindings.L2Sequencer
+	govContract *bindings.Gov
+	sequencer   *bindings.Sequencer
+	l2Staking   *bindings.L2Staking
 
-	currentSequencerSet  *SequencerSetInfo
-	previousSequencerSet []SequencerSetInfo
+	currentSeqHash *[32]byte
+	valsByTmKey    map[[tmKeySize]byte]validatorInfo
 
 	nextValidators [][]byte
 	batchParams    tmproto.BatchParams
@@ -57,25 +58,11 @@ type Executor struct {
 	metrics *Metrics
 }
 
-func getNextL1MsgIndex(client *ethclient.Client, logger tmlog.Logger) (uint64, error) {
+func getNextL1MsgIndex(client *types.RetryableClient, logger tmlog.Logger) (uint64, error) {
 	currentHeader, err := client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return 0, err
 	}
-	if err != nil {
-		var count = 0
-		for err != nil && strings.Contains(err.Error(), "connection refused") {
-			time.Sleep(5 * time.Second)
-			count++
-			logger.Error("connection refused, try again", "retryCount", count)
-			currentHeader, err = client.HeaderByNumber(context.Background(), nil)
-		}
-		if err != nil {
-			logger.Error("failed to get currentHeader", "error", err)
-			return 0, fmt.Errorf("failed to get currentHeader, err: %v", err)
-		}
-	}
-
 	return currentHeader.NextL1MsgIndex, nil
 }
 
@@ -91,16 +78,22 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	index, err := getNextL1MsgIndex(eClient, logger)
+	l2Client := types.NewRetryableClient(aClient, eClient, config.Logger)
+	index, err := getNextL1MsgIndex(l2Client, logger)
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("obtained next L1Message index when initilize executor", "index", index)
 
-	sequencer, err := bindings.NewL2Sequencer(config.L2SequencerAddress, eClient)
+	sequencer, err := bindings.NewSequencer(config.SequencerAddress, eClient)
 	if err != nil {
 		return nil, err
 	}
-	gov, err := bindings.NewGov(config.L2GovAddress, eClient)
+	gov, err := bindings.NewGov(config.GovAddress, eClient)
+	if err != nil {
+		return nil, err
+	}
+	l2Staking, err := bindings.NewL2Staking(config.L2StakingAddress, eClient)
 	if err != nil {
 		return nil, err
 	}
@@ -114,10 +107,11 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		tmPubKeyBytes = tmPubKey.Bytes()
 	}
 	executor := &Executor{
-		l2Client:            types.NewRetryableClient(aClient, eClient, config.Logger),
+		l2Client:            l2Client,
 		bc:                  &Version1Converter{},
-		sequencerContract:   sequencer,
 		govContract:         gov,
+		sequencer:           sequencer,
+		l2Staking:           l2Staking,
 		tmPubKey:            tmPubKeyBytes,
 		nextL1MsgIndex:      index,
 		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
@@ -139,7 +133,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return executor, nil
 	}
 
-	if _, err = executor.updateSequencerSet(nil); err != nil {
+	if _, err = executor.updateSequencerSet(); err != nil {
 		return nil, err
 	}
 
@@ -159,6 +153,7 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 	l1Messages := e.l1MsgReader.ReadL1MessagesInRange(fromIndex, fromIndex+e.maxL1MsgNumPerBlock-1)
 	transactions := make(eth.Transactions, len(l1Messages))
 
+	var collectedL1TxHashes []common.Hash
 	if len(l1Messages) > 0 {
 		queueIndex := fromIndex
 		for i, l1Message := range l1Messages {
@@ -169,11 +164,15 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 				err = types.ErrInvalidL1MessageOrder
 				return
 			}
+			collectedL1TxHashes = append(collectedL1TxHashes, l1Message.L1TxHash)
 			queueIndex++
 		}
 		collectedL1Msgs = true
 	}
-
+	for _, tx := range transactions {
+		l1MsgTx := tx.AsL1MessageTx()
+		e.logger.Info("[debug]queueIndex in transactions: ", "queueIndex", l1MsgTx.QueueIndex, "gas", l1MsgTx.Gas, "hash", tx.Hash().String())
+	}
 	l2Block, err := e.l2Client.AssembleL2Block(context.Background(), big.NewInt(height), transactions)
 	if err != nil {
 		e.logger.Error("failed to assemble block", "height", height, "error", err)
@@ -196,7 +195,8 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 		RowConsumption:      l2Block.RowUsages,
 		NextL1MessageIndex:  l2Block.NextL1MessageIndex,
 		Hash:                l2Block.Hash,
-		CollectedL1Messages: l1Messages,
+		CollectedL1TxHashes: collectedL1TxHashes,
+		SkippedL1Txs:        l2Block.SkippedTxs,
 	}
 	blockMeta, err = wb.MarshalBinary()
 	txs = l2Block.Transactions
@@ -242,18 +242,19 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 		RowUsages:          wrappedBlock.RowConsumption,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
 		Hash:               wrappedBlock.Hash,
+		SkippedTxs:         wrappedBlock.SkippedL1Txs,
 
 		Transactions: txs,
 	}
-	if err := e.validateL1Messages(l2Block, wrappedBlock.CollectedL1Messages); err != nil {
-		if err != types.ErrQueryL1Message { // only do not return error if it is not ErrQueryL1Message error
+	if err = e.validateL1Messages(l2Block, wrappedBlock.CollectedL1TxHashes); err != nil {
+		if !errors.Is(err, types.ErrQueryL1Message) { // hide error if it is not ErrQueryL1Message
 			err = nil
 		}
 		return false, err
 	}
 	l2Block.WithdrawTrieRoot = wrappedBlock.WithdrawTrieRoot
 
-	validated, err := e.l2Client.ValidateL2Block(context.Background(), l2Block, L1MessagesToTxs(wrappedBlock.CollectedL1Messages))
+	validated, err := e.l2Client.ValidateL2Block(context.Background(), l2Block)
 	e.logger.Info("CheckBlockData response", "validated", validated, "error", err)
 	return validated, err
 }
@@ -309,6 +310,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		WithdrawTrieRoot:   wrappedBlock.WithdrawTrieRoot,
 		RowUsages:          wrappedBlock.RowConsumption,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
+		SkippedTxs:         wrappedBlock.SkippedL1Txs,
 		Hash:               wrappedBlock.Hash,
 
 		Transactions: txs,
@@ -318,7 +320,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		batchHash = new(common.Hash)
 		copy(batchHash[:], consensusData.BatchHash)
 	}
-	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash, L1MessagesToTxs(wrappedBlock.CollectedL1Messages))
+	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash)
 	if err != nil {
 		e.logger.Error("failed to NewL2Block", "error", err)
 		return nil, nil, err
@@ -330,7 +332,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	var newValidatorSet = consensusData.ValidatorSet
 	var newBatchParams *tmproto.BatchParams
 	if !e.devSequencer {
-		if newValidatorSet, err = e.updateSequencerSet(&l2Block.Number); err != nil {
+		if newValidatorSet, err = e.updateSequencerSet(); err != nil {
 			return nil, nil, err
 		}
 		if newBatchParams, err = e.batchParamsUpdates(l2Block.Number); err != nil {
@@ -393,15 +395,19 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 		return nil, nil, err
 	}
 	// fetch current sequencerSet info at certain height
-	sequencersInfo, err := e.sequencerContract.GetSequencerInfos(callOpts, false)
-	if err != nil {
-		e.logger.Error("failed to call GetSequencerInfos", "previous", false, "height", height, "err", err)
-		return nil, nil, err
-	}
-	newValidators, _, err := e.convertSequencerSet(sequencersInfo)
+	addrs, err := e.sequencer.GetSequencerSet2(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
+	stakesInfo, err := e.l2Staking.GetStakesInfo(callOpts, addrs)
+	if err != nil {
+		return nil, nil, err
+	}
+	newValidators := make([][]byte, len(addrs))
+	for i := range stakesInfo {
+		newValidators[i] = stakesInfo[i].TmKey[:]
+	}
+
 	return &tmproto.BatchParams{
 		BlocksInterval: batchBlockInterval.Int64(),
 		MaxBytes:       batchMaxBytes.Int64(),
@@ -412,12 +418,4 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 
 func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
-}
-
-func L1MessagesToTxs(l1Messages []types.L1Message) []eth.L1MessageTx {
-	txs := make([]eth.L1MessageTx, len(l1Messages))
-	for i, l1Message := range l1Messages {
-		txs[i] = l1Message.L1MessageTx
-	}
-	return txs
 }

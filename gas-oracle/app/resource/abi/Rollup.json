@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
   "contractName": "Rollup",
-  "sourceName": "contracts/L1/Rollup.sol",
+  "sourceName": "contracts/l1/Rollup.sol",
   "abi": [
     {
       "inputs": [

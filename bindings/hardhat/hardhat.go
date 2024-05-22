@@ -10,7 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
+
 	"github.com/scroll-tech/go-ethereum/common"
 )
 
@@ -103,7 +104,7 @@ func (h *Hardhat) initSingleDeployment() error {
 			return err
 		}
 		var results []map[string]interface{}
-		json.Unmarshal(file, &results)
+		_ = json.Unmarshal(file, &results)
 
 		for _, entry := range results {
 			var deployment Deployment
@@ -303,9 +304,6 @@ func (h *Hardhat) GetBuildInfo(name string) (*BuildInfo, error) {
 				return err
 			}
 			relPath := filepath.Join(filepath.Dir(name), debugFile.BuildInfo)
-			if err != nil {
-				return err
-			}
 			debugPath, _ := filepath.Abs(relPath)
 
 			buildInfoFile, err := os.ReadFile(debugPath)

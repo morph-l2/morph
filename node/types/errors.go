@@ -13,6 +13,8 @@ var (
 	// match the corresponding message in the node's local database.
 	ErrUnknownL1Message = errors.New("unknown L1 message")
 
+	ErrIncorrectL1TxHash = errors.New("incorrect L1 tx hash")
+
 	// ErrWrongNextL1MessageIndex is returned if the nextL1MessageIndex from the block <=
 	// the queueIndex of last involved L1 message tx in this block
 	ErrWrongNextL1MessageIndex = errors.New("wrong next L1 message queue index")
@@ -20,6 +22,8 @@ var (
 	ErrNotConfirmedBlock = errors.New("l1 block has not been considered to be confirmed")
 
 	ErrInvalidL1Message = errors.New("invalid L1 message")
+
+	ErrInvalidSkippedL1Message = errors.New("invalid skipped L1 message")
 
 	ErrQueryL1Message = errors.New("failed to query L1 message")
 

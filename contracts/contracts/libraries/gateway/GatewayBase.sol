@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.16;
+pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -12,11 +12,7 @@ import {Constants} from "../constants/Constants.sol";
 
 /// @title GatewayBase
 /// @notice The `GatewayBase` is a base contract for gateway contracts used in both in L1 and L2.
-abstract contract GatewayBase is
-    ReentrancyGuardUpgradeable,
-    OwnableUpgradeable,
-    IGateway
-{
+abstract contract GatewayBase is ReentrancyGuardUpgradeable, OwnableUpgradeable, IGateway {
     /*************
      * Variables *
      *************/
@@ -30,9 +26,6 @@ abstract contract GatewayBase is
     /// @inheritdoc IGateway
     address public override messenger;
 
-    /// @dev The storage slot used as token rate limiter contract, which is deprecated now.
-    address private __rateLimiter;
-
     /// @dev The storage slots for future usage.
     uint256[46] private __gap;
 
@@ -43,10 +36,7 @@ abstract contract GatewayBase is
     modifier onlyCallByCounterpart() {
         address _messenger = messenger; // gas saving
         require(_msgSender() == _messenger, "only messenger can call");
-        require(
-            counterpart == ICrossDomainMessenger(_messenger).xDomainMessageSender(),
-            "only call by counterpart"
-        );
+        require(counterpart == ICrossDomainMessenger(_messenger).xDomainMessageSender(), "only call by counterpart");
         _;
     }
 
@@ -54,8 +44,7 @@ abstract contract GatewayBase is
         address _messenger = messenger; // gas saving
         require(_msgSender() == _messenger, "only messenger can call");
         require(
-            Constants.DROP_XDOMAIN_MESSAGE_SENDER ==
-            ICrossDomainMessenger(_messenger).xDomainMessageSender(),
+            Constants.DROP_XDOMAIN_MESSAGE_SENDER == ICrossDomainMessenger(_messenger).xDomainMessageSender(),
             "only called in drop context"
         );
         _;
@@ -65,11 +54,7 @@ abstract contract GatewayBase is
      * Constructor *
      ***************/
 
-    function _initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) internal {
+    function _initialize(address _counterpart, address _router, address _messenger) internal {
         require(_counterpart != address(0), "zero counterpart address");
         require(_messenger != address(0), "zero messenger address");
 

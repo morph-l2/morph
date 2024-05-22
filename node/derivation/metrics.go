@@ -11,12 +11,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const MetricsSubsystem = "derivation"
+const (
+	metricsSubsystem = "derivation"
+	stateNormal      = 0
+	stateException   = 1
+)
 
 type Metrics struct {
-	L1SyncHeight   metrics.Gauge
-	RollupL2Height metrics.Gauge
-	DeriveL2Height metrics.Gauge
+	L1SyncHeight     metrics.Gauge
+	RollupL2Height   metrics.Gauge
+	DeriveL2Height   metrics.Gauge
+	BatchStatus      metrics.Gauge
+	LatestBatchIndex metrics.Gauge
+	SyncedBatchIndex metrics.Gauge
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -27,20 +34,38 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 	return &Metrics{
 		L1SyncHeight: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: MetricsSubsystem,
+			Subsystem: metricsSubsystem,
 			Name:      "l1_sync_height",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
 		RollupL2Height: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: MetricsSubsystem,
+			Subsystem: metricsSubsystem,
 			Name:      "rollup_l2_height",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
 		DeriveL2Height: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: MetricsSubsystem,
+			Subsystem: metricsSubsystem,
 			Name:      "derive_l2_height",
+			Help:      "",
+		}, labels).With(labelsAndValues...),
+		BatchStatus: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "batch_root_exception",
+			Help:      "",
+		}, labels).With(labelsAndValues...),
+		LatestBatchIndex: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "latest_batch_index",
+			Help:      "",
+		}, labels).With(labelsAndValues...),
+		SyncedBatchIndex: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "synced_batch_index",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
 	}
@@ -56,6 +81,18 @@ func (m *Metrics) SetL2DeriveHeight(height uint64) {
 
 func (m *Metrics) SetRollupL2Height(height uint64) {
 	m.RollupL2Height.Set(float64(height))
+}
+
+func (m *Metrics) SetBatchStatus(status uint64) {
+	m.BatchStatus.Set(float64(status))
+}
+
+func (m *Metrics) SetLatestBatchIndex(batchIndex uint64) {
+	m.LatestBatchIndex.Set(float64(batchIndex))
+}
+
+func (m *Metrics) SetSyncedBatchIndex(batchIndex uint64) {
+	m.SyncedBatchIndex.Set(float64(batchIndex))
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {

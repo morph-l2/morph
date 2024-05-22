@@ -66,6 +66,12 @@ var (
 		EnvVar: prefixEnvVar("L1_ETH_RPC"),
 	}
 
+	L1BeaconAddr = cli.StringFlag{
+		Name:   "l1.beaconrpc",
+		Usage:  "Address of L1 Beacon JSON-RPC endpoint to use (eth namespace required)",
+		EnvVar: prefixEnvVar("L1_ETH_BEACON_RPC"),
+	}
+
 	L1ChainID = cli.Uint64Flag{
 		Name:   "l1.chain-id",
 		Usage:  "L1 Chain ID",
@@ -215,6 +221,29 @@ var (
 		EnvVar: prefixEnvVar("LOG_FORMAT"),
 	}
 
+	LogFilename = cli.StringFlag{
+		Name:   "log.filename",
+		Usage:  "The target file for writing logs, backup log files will be retained in the same directory.",
+		EnvVar: prefixEnvVar("LOG_FILENAME"),
+	}
+	LogFileMaxSize = cli.IntFlag{
+		Name:   "log.maxsize",
+		Usage:  "The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes. It is used only when log.filename is provided.",
+		Value:  100,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_SIZE"),
+	}
+	LogFileMaxAge = cli.IntFlag{
+		Name:   "log.maxage",
+		Usage:  "The maximum number of days to retain old log files based on the timestamp encoded in their filename. It defaults to 30 days. It is used only when log.filename is provided.",
+		Value:  30,
+		EnvVar: prefixEnvVar("LOG_FILE_MAX_AGE"),
+	}
+	LogCompress = cli.BoolFlag{
+		Name:   "log.compress",
+		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
+		EnvVar: prefixEnvVar("LOG_COMPRESS"),
+	}
+
 	// metrics
 	MetricsServerEnable = cli.BoolFlag{
 		Name:   "metrics-server-enable",
@@ -276,10 +305,15 @@ var Flags = []cli.Flag{
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
+	L1BeaconAddr,
 
 	// logger
 	LogLevel,
 	LogFormat,
+	LogFilename,
+	LogFileMaxSize,
+	LogFileMaxAge,
+	LogCompress,
 
 	// metrics
 	MetricsServerEnable,

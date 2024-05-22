@@ -13,6 +13,7 @@ coverage.json
 .vscode
 contract-artifacts.ts
 yarn-error.log
+!yarn.lock
 .yarn/*
 !.yarn/releases
 !.yarn/plugins
@@ -42,6 +43,7 @@ coverage*
 *.log
 
 .devnet
+.gas-snapshot
 
 # Ignore local fuzzing results
 **/testdata/fuzz/
@@ -61,3 +63,5 @@ typechain-types
 ./src/deployFiles/*
 
 scripts/differential-testing/differential-testing
+
+package-lock.json

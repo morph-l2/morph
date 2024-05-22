@@ -5,8 +5,9 @@ import (
 	"math/big"
 	"time"
 
-	node "github.com/morph-l2/node/core"
 	"github.com/scroll-tech/go-ethereum/log"
+
+	node "morph-l2/node/core"
 )
 
 type Sequencer struct {
@@ -47,7 +48,7 @@ func (s *Sequencer) Start() {
 				log.Info("Not now: no txs found")
 				continue
 			}
-			pass, err := s.engine.L2Client().ValidateL2Block(context.Background(), l2Data, nil)
+			pass, err := s.engine.L2Client().ValidateL2Block(context.Background(), l2Data)
 			if err != nil {
 				log.Error("error validating block", "error", err)
 				continue
@@ -56,7 +57,7 @@ func (s *Sequencer) Start() {
 				log.Error("validating failed")
 				continue
 			}
-			if err := s.engine.L2Client().NewL2Block(context.Background(), l2Data, nil, nil); err != nil {
+			if err := s.engine.L2Client().NewL2Block(context.Background(), l2Data, nil); err != nil {
 				log.Error("error occurs when creating l2 block", "error", err)
 				continue
 			}
