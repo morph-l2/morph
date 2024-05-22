@@ -15,7 +15,7 @@ import (
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/hardhat"
-	"morph-l2/morph-deployer/op-chain-ops/genesis"
+	"morph-l2/morph-deployer/morph-chain-ops/genesis"
 	node "morph-l2/node/core"
 )
 
