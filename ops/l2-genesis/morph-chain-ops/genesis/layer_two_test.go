@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
@@ -14,7 +15,7 @@ import (
 
 func Test_BuildL2DeveloperGenesis(t *testing.T) {
 	address1 := common.BigToAddress(common.Big1)
-
+	startTime := uint64((time.Now().Unix()/86400 + 1) * 86400)
 	config := &DeployConfig{
 		L1ChainID: 900,
 		L2ChainID: 53077,
@@ -50,7 +51,10 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		// L2Staking configs
 		L2StakingSequencerMaxSize:      1,
 		L2StakingUnDelegatedLockEpochs: 1,
-		L2StakingRewardStartTime:       uint64(time.Now().Unix()),
+		L2StakingRewardStartTime:       startTime,
+		L2StakingAddresses:             []common.Address{common.HexToAddress("0x783698dCDEBdc96785c5c60ED96113612bA09c2b")},
+		L2StakingTmKeys:                []common.Hash{common.HexToHash("0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb")},
+		L2StakingBlsKeys:               []hexutil.Bytes{hexutil.MustDecode("0x00000000000000000000000000000000095ad465c2895ee825c7d4f1b60a18734db57d4108369e47c6e3a94ee15846f825c06dad5d98f503bd31ece1d9f94b11000000000000000000000000000000000c5d6ba04bc9b9674dd2acbfc5caed3976c1b8be2ec90a03d78dffe924648b4fba82225aff43c744310c6a60185b75ac000000000000000000000000000000000fce6be001c871a11b9db1c6c15f0a6999de5646941a74486206dc784f0b3ffe11799212f3f44ef754b4a0f1ecf85639000000000000000000000000000000000b2f06634e5ea719682c30911c94dfb560f0b7656b5c34a871ea035e3fe7b041885420f8fe1e251f1cce5cdb7514869e")},
 
 		GovVotingDuration:     1000,
 		GovBatchBlockInterval: 20,
