@@ -38,7 +38,7 @@ test:
 .PHONY: test
 
 lint:
-	golangci-lint run --out-format=tab --timeout 10m
+	GOBIN=$(PWD)/build/bin go run ../build/lint.go
 .PHONY: lint
 
 devnet-up:
