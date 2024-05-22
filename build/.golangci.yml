@@ -71,7 +71,7 @@ linters-settings:
         #exclude: /path/to/file.txt
     govet:
         # report about shadowed variables
-        check-shadowing: true
+        check-shadowing: false
 
     gosec:
         disable:

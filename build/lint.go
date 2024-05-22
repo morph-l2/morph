@@ -27,18 +27,28 @@ func goBin() string {
 	return os.Getenv("GOBIN")
 }
 
+var depth = flag.Int64("d", 0, "depth")
+
 func main() {
 	log.SetFlags(log.Lshortfile)
 
-	if _, err := os.Stat(filepath.Join("../build", "lint.go")); os.IsNotExist(err) {
-		log.Fatal("should run build from root dir")
-	}
+	flag.Parse()
 
-	lint()
+	if *depth == 2 {
+		if _, err := os.Stat(filepath.Join("../../build", "lint.go")); os.IsNotExist(err) {
+			log.Fatal("should run build from root dir")
+		}
+		lint(2)
+	} else {
+		if _, err := os.Stat(filepath.Join("../build", "lint.go")); os.IsNotExist(err) {
+			log.Fatal("should run build from root dir")
+		}
+		lint(0)
+	}
 }
 
 //nolint:gosec
-func lint() {
+func lint(depth int64) {
 	v := flag.Bool("v", false, "log verbosely")
 
 	// Make sure GOLANGCI is downloaded and available.
@@ -51,7 +61,12 @@ func lint() {
 	}
 
 	cmd = exec.Command(filepath.Join(goBin(), "golangci-lint"))
-	cmd.Args = append(cmd.Args, "run", "--config", "../build/.golangci.yml", "--timeout", "10m")
+
+	if depth == 2 {
+		cmd.Args = append(cmd.Args, "run", "--config", "../../build/.golangci.yml", "--timeout", "10m")
+	} else {
+		cmd.Args = append(cmd.Args, "run", "--config", "../build/.golangci.yml", "--timeout", "10m")
+	}
 
 	if *v {
 		cmd.Args = append(cmd.Args, "-v")

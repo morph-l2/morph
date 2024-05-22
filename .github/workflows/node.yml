@@ -5,10 +5,7 @@ on:
         branches:
             - main
         paths:
-            - "build/**"
-            - "bindings/**"
             - "node/**"
-            - "ops/l2-genesis/**"
             - ".github/workflows/node.yaml"
     pull_request:
         paths:
