@@ -2,6 +2,7 @@ package sync
 
 import (
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"

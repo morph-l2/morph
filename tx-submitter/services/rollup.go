@@ -620,26 +620,6 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	return tip, gasFeeCap, blobFee, nil
 }
 
-func (sr *Rollup) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
-	t := time.NewTicker(time.Second)
-	receipt := new(types.Receipt)
-	var err error
-	for range t.C {
-		receipt, err = sr.L1Client.TransactionReceipt(context.Background(), txHash)
-		if errors.Is(err, ethereum.NotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if receipt != nil {
-			t.Stop()
-			break
-		}
-	}
-	return receipt, nil
-}
-
 func (sr *Rollup) waitReceiptWithTimeout(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
 	ctx, cancel := context.WithTimeout(sr.ctx, time)
 	defer cancel()

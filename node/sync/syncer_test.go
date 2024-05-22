@@ -39,7 +39,7 @@ func TestSyncer_GetL1Message(t *testing.T) {
 	store := prepareDB(msg)
 	store.WriteLatestSyncedL1Height(100)
 	syncConfig := DefaultConfig()
-	syncConfig.SetCliContext(ctx)
+	_ = syncConfig.SetCliContext(ctx)
 	syncer, err := NewSyncer(context.Background(), store, syncConfig, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)))
 	require.NotNil(t, syncer)
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func prepareDB(msg types.L1Message) *db.Store {
 	db := db.NewMemoryStore()
 	msgs := make([]types.L1Message, 0)
 	msgs = append(msgs, msg)
-	db.WriteSyncedL1Messages(msgs, 0)
+	_ = db.WriteSyncedL1Messages(msgs, 0)
 	return db
 }
 
@@ -76,7 +76,7 @@ func PrepareContext() *cli.Context {
 	flagSet := flag.NewFlagSet("testApp", flag.ContinueOnError)
 	for k, v := range env {
 		flagSet.String(k, v, "param")
-		flagSet.Set(k, v)
+		_ = flagSet.Set(k, v)
 	}
 	ctx := cli.NewContext(nil, flagSet, nil)
 	return ctx

@@ -14,7 +14,6 @@ import (
 
 type Chunk struct {
 	blockContextes []*BlockContext
-	blockNum       int
 	Raw            *types.Chunk
 }
 
@@ -179,8 +178,4 @@ func (q *txQueue) dequeue(txNum int) (eth.Transactions, error) {
 	txs := q.txs[q.pointer : q.pointer+txNum]
 	q.pointer += txNum
 	return txs, nil
-}
-
-func (q *txQueue) isEmpty() bool {
-	return q.pointer == q.txs.Len()
 }

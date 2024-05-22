@@ -49,9 +49,6 @@ func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, method string) e
 		_ = resp.Body.Close()
 		return fmt.Errorf("failed request with status %d: %s", resp.StatusCode, string(errMsg))
 	}
-	if err != nil {
-		return fmt.Errorf("%w: json.Marshal failed", err)
-	}
 	if err := json.NewDecoder(resp.Body).Decode(dest); err != nil {
 		_ = resp.Body.Close()
 		return err
