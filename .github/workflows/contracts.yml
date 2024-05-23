@@ -19,34 +19,29 @@ defaults:
         working-directory: "contracts"
 
 jobs:
-    # check:
-    #     if: github.event.pull_request.draft == false
-    #     runs-on: ubuntu-latest
-    #     steps:
-    #         - name: Install Node
-    #           uses: actions/setup-node@v3
-    #           with:
-    #               node-version: 18.x
-    #         - name: Install Go
-    #           uses: actions/setup-go@v5
-    #           with:
-    #               go-version: 1.22.x
-    #         - name: Install Foundry
-    #           uses: foundry-rs/foundry-toolchain@v1
-    #           with:
-    #               version: nightly
-    #         - name: Checkout code
-    #           uses: actions/checkout@v3
-    #         - name: Run build
-    #           run: yarn && yarn build
-    #         - name: Lint
-    #           run: make lint
+    check:
+        if: github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18.x
+            - name: Install Solhint
+              run: yarn add solhint
+            - name: Lint
+              run: |
+                  yarn
+                  make lint-sol
+
     test:
         runs-on: ubuntu-latest
         env:
             FORCE_COLOR: 1
             GAS: true
         steps:
+            - uses: actions/checkout@v3
             - name: Install Node
               uses: actions/setup-node@v3
               with:
@@ -59,8 +54,6 @@ jobs:
               uses: foundry-rs/foundry-toolchain@v1
               with:
                   version: nightly
-            - name: Checkout code
-              uses: actions/checkout@v3
             - name: Run build
               run: yarn && yarn build
             - name: Run tests
