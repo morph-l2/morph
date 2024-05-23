@@ -22,7 +22,7 @@ export const deployContractProxyByStorageName = async (
     const ProxyFactoryName = ContractFactoryName.DefaultProxy
 
     const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
-    // TransparentUpgradeableProxy deploy with empthContract as impl, deployer as admin
+    // TransparentUpgradeableProxy deploy with emptyContract as impl, deployer as admin
     const proxy = await ProxyFactory.deploy(emptyContractImplAddr, await deployer.getAddress(), "0x")
     await proxy.deployed()
     console.log("%s=%s ; TX_HASH: %s", storageName, proxy.address.toLocaleLowerCase(), proxy.deployTransaction.hash);
