@@ -29,11 +29,9 @@ jobs:
               with:
                   node-version: 18.x
             - name: Install Solhint
-              run: yarn add solhint
+              run: npm install -g solhint
             - name: Lint
-              run: |
-                  yarn
-                  make lint-sol
+              run: make lint-sol
 
     test:
         runs-on: ubuntu-latest
