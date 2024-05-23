@@ -369,7 +369,6 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 			}
 			rollupData.chunks[index].blockContextes[bIndex].SafeL2Data.Transactions = append(encodeTransactions(l1Transactions), chunk.blockContextes[bIndex].SafeL2Data.Transactions...)
 		}
-
 	}
 	return nil
 }
@@ -378,9 +377,7 @@ func (d *Derivation) getL1Message(l1MessagePopped, l1MsgNum uint64) ([]types.L1M
 	if l1MsgNum == 0 {
 		return nil, nil
 	}
-	start := l1MessagePopped
-	end := l1MessagePopped + l1MsgNum - 1
-	return d.syncer.ReadL1MessagesInRange(start, end), nil
+	return d.syncer.ReadL1MessagesInRange(l1MessagePopped, l1MessagePopped+l1MsgNum-1), nil
 }
 
 func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {

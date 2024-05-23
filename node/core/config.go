@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/scroll-tech/go-ethereum/common"
@@ -48,11 +49,11 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	output := io.Writer(os.Stderr)
 	if ctx.GlobalIsSet(flags.LogFilename.Name) {
 		logFilename := ctx.GlobalString(flags.LogFilename.Name)
-		f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+		f, err := os.OpenFile(filepath.Clean(logFilename), os.O_CREATE|os.O_RDWR, os.FileMode(0600))
 		if err != nil {
 			return fmt.Errorf("wrong log.filename set: %d", err)
 		}
-		f.Close()
+		_ = f.Close()
 		maxSize := ctx.GlobalInt(flags.LogFileMaxSize.Name)
 		if maxSize < 1 {
 			return fmt.Errorf("wrong log.maxsize set: %d", maxSize)
@@ -94,7 +95,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	if fileName == "" {
 		return fmt.Errorf("file-name of jwt secret is empty")
 	}
-	if data, err := os.ReadFile(fileName); err == nil {
+	if data, err := os.ReadFile(filepath.Clean(fileName)); err == nil {
 		jwtSecret := common.FromHex(strings.TrimSpace(string(data)))
 		if len(jwtSecret) != 32 {
 			return fmt.Errorf("invalid jwt secret in path %s, not 32 hex-formatted bytes", fileName)

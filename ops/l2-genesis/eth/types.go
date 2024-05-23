@@ -214,7 +214,7 @@ func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {
 		GasUsed:       Uint64Quantity(bl.GasUsed()),
 		Timestamp:     Uint64Quantity(bl.Time()),
 		ExtraData:     bl.Extra(),
-		BaseFeePerGas: Uint256Quantity(*baseFee),
+		BaseFeePerGas: *baseFee,
 		BlockHash:     bl.Hash(),
 		Transactions:  opaqueTxs,
 	}, nil
