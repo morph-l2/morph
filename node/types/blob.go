@@ -45,37 +45,6 @@ func RetrieveBlobBytes(blob *kzg4844.Blob) ([]byte, error) {
 	return data, nil
 }
 
-func DecodeRawTxPayload(b *kzg4844.Blob) ([]byte, error) {
-	data, err := RetrieveBlobBytes(b)
-	if err != nil {
-		return nil, err
-	}
-
-	var offset uint32
-	var chunkIndex uint16
-	var payload []byte
-	for {
-		if offset >= MaxBlobBytesSize {
-			break
-		}
-		dataLen := binary.LittleEndian.Uint32(data[offset : offset+4])
-		remainingLen := MaxBlobBytesSize - offset - 4
-		if dataLen > remainingLen {
-			return nil, fmt.Errorf("decode error: dataLen is bigger than remainingLen. chunkIndex: %d, dataLen: %d, remaingLen: %d", chunkIndex, dataLen, remainingLen)
-		}
-		payload = append(payload, data[offset+4:offset+4+dataLen]...)
-
-		ret := (4 + dataLen) / 31
-		remainder := (4 + dataLen) % 31
-		if remainder > 0 {
-			ret += 1
-		}
-		offset += ret * 31
-		chunkIndex++
-	}
-	return payload, nil
-}
-
 func makeBCP(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, p kzg4844.Proof, err error) {
 	blob, err := MakeBlobCanonical(bz)
 	if err != nil {
@@ -175,6 +144,16 @@ func DecodeLegacyTxsFromBlob(b *kzg4844.Blob) (eth.Transactions, error) {
 	return decoded, nil
 }
 
+func CalculateChunkNum(nonEmptyChunkNum int) int {
+	chunkNum := 15
+	excess := int(nonEmptyChunkNum) - 15
+	if excess > 0 {
+		ret := (excess-1)/5 + 1
+		chunkNum = chunkNum + ret*5
+	}
+	return chunkNum
+}
+
 func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 	data, err := RetrieveBlobBytes(blob)
 	if err != nil {
@@ -185,8 +164,11 @@ func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 	if nonEmptyChunkNum == 0 {
 		return nil, nil
 	}
-	// skip metadata: 2bytes(chunkNum) + 15*4bytes(size per chunk)
-	reader := bytes.NewReader(data[62:])
+
+	chunkNum := CalculateChunkNum(int(nonEmptyChunkNum))
+
+	// skip metadata: 2bytes(nonEmptyChunkNum) + chunkNum*4bytes(size per chunk)
+	reader := bytes.NewReader(data[2+chunkNum*4:])
 	txs := make(eth.Transactions, 0)
 	for {
 		var (

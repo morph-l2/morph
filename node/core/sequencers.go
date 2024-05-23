@@ -117,6 +117,33 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 	return nextValidators, nil
 }
 
+func (e *Executor) initBatchParams() error {
+	var (
+		batchBlockInterval, batchTimeout, batchMaxChunks *big.Int
+		err                                              error
+	)
+	if batchBlockInterval, err = e.govContract.BatchBlockInterval(nil); err != nil {
+		return err
+	}
+	if batchTimeout, err = e.govContract.BatchTimeout(nil); err != nil {
+		return err
+	}
+	if batchMaxChunks, err = e.govContract.MaxChunks(nil); err != nil {
+		return err
+	}
+	e.logger.Info("batch params is initialized",
+		"batchBlockInterval", batchBlockInterval.Int64(),
+		"batchTimeout", batchTimeout.Int64(),
+		"batchMaxChunks", batchMaxChunks.Int64())
+	e.batchParams = &tmproto.BatchParams{
+		BlocksInterval: batchBlockInterval.Int64(),
+		Timeout:        time.Duration(batchTimeout.Int64() * int64(time.Second)),
+		MaxChunks:      batchMaxChunks.Int64(),
+	}
+	return nil
+
+}
+
 func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, error) {
 	var (
 		batchBlockInterval, batchTimeout, batchMaxChunks *big.Int

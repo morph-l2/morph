@@ -46,7 +46,7 @@ type Executor struct {
 	valsByTmKey    map[[tmKeySize]byte]validatorInfo
 
 	nextValidators [][]byte
-	batchParams    tmproto.BatchParams
+	batchParams    *tmproto.BatchParams
 	tmPubKey       []byte
 	isSequencer    bool
 	devSequencer   bool
@@ -131,6 +131,10 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		//executor.syncer.Start()
 		executor.l1MsgReader = executor.syncer
 		return executor, nil
+	}
+
+	if err = executor.initBatchParams(); err != nil {
+		return nil, err
 	}
 
 	if _, err = executor.updateSequencerSet(); err != nil {

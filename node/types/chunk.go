@@ -204,8 +204,11 @@ func (cks *Chunks) Encode() ([][]byte, error) {
 }
 
 func (cks *Chunks) ConstructBlobPayload() []byte {
+
+	chunksNum := CalculateChunkNum(len(cks.data))
+
 	// metadata consists of num_chunks (2 bytes) and chunki_size (4 bytes per chunk)
-	metadataLength := 2 + 15*4
+	metadataLength := 2 + chunksNum*4
 
 	// the raw (un-padded) blob payload
 	blobBytes := make([]byte, metadataLength)
