@@ -230,11 +230,7 @@ impl BeaconNode {
         let rt: Result<String, reqwest::Error> = match response {
             Ok(x) => x.text(),
             Err(e) => {
-                log::error!(
-                    "query beacon node error, slot =  {:#?}, error = {:#?}",
-                    slot,
-                    e
-                );
+                log::error!("query beacon node error, slot =  {:#?}, error = {:#?}", slot, e);
                 return None;
             }
         };
@@ -290,10 +286,7 @@ async fn test_query_execution_node() {
                     return;
                 }
             };
-            log::info!(
-                "blobVersionedHashes: {:#?}",
-                transaction["result"]["blobVersionedHashes"]
-            );
+            log::info!("blobVersionedHashes: {:#?}", transaction["result"]["blobVersionedHashes"]);
         }
         None => {
             log::error!("submitt prove task failed");
@@ -318,10 +311,7 @@ async fn test_query_block() {
 
     match rt {
         Some(info) => {
-            log::info!(
-                "transactions: {:#?}",
-                info["result"]["transactions"].as_array().unwrap()
-            );
+            log::info!("transactions: {:#?}", info["result"]["transactions"].as_array().unwrap());
         }
         None => {
             log::error!("query_block failed");
@@ -354,10 +344,7 @@ async fn test_query_beacon_node() {
                     return;
                 }
             };
-            log::info!(
-                "blobVersionedHashes: {:#?}",
-                transaction["data"][0]["kzg_commitment"]
-            );
+            log::info!("blobVersionedHashes: {:#?}", transaction["data"][0]["kzg_commitment"]);
         }
         None => {
             log::error!("submitt prove task failed");

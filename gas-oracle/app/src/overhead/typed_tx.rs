@@ -36,15 +36,11 @@ impl Decodable for TypedTransaction {
                 (first_byte, rlp.as_raw())
             } else {
                 let data = rlp.data()?;
-                let first = *data
-                    .first()
-                    .ok_or(rlp::DecoderError::Custom("empty slice"))?;
+                let first = *data.first().ok_or(rlp::DecoderError::Custom("empty slice"))?;
                 (first, data)
             };
 
-            let bytes = data
-                .get(1..)
-                .ok_or(rlp::DecoderError::Custom("no tx body"))?;
+            let bytes = data.get(1..).ok_or(rlp::DecoderError::Custom("no tx body"))?;
             rest = rlp::Rlp::new(bytes);
 
             tx_type = Some(U64::from_big_endian(&vec![first]));

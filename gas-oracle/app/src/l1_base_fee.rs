@@ -9,7 +9,7 @@ static DEFAULT_SCALAR: f64 = 1000000000.0;
 const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
 const MAX_SCALAR_RATIO: f64 = 100.0;
 
-pub struct BaseFee {
+pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
     l2_provider: Provider<Http>,
     l2_wallet: Address,
@@ -17,7 +17,7 @@ pub struct BaseFee {
     gas_threshold: u128,
 }
 
-impl BaseFee {
+impl BaseFeeUpdater {
     pub fn new(
         l1_provider: Provider<Http>,
         l2_provider: Provider<Http>,
@@ -25,13 +25,7 @@ impl BaseFee {
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         gas_threshold: u128,
     ) -> Self {
-        BaseFee {
-            l1_provider,
-            l2_provider,
-            l2_wallet,
-            l2_oracle,
-            gas_threshold,
-        }
+        BaseFeeUpdater { l1_provider, l2_provider, l2_wallet, l2_oracle, gas_threshold }
     }
 
     /// Update baseFee and scalar.
@@ -155,10 +149,7 @@ impl BaseFee {
             sleep(Duration::from_millis(6000)).await;
 
             let scalar_expect = (DEFAULT_SCALAR * scalar_ratio_from_l1).ceil() as u128;
-            let tx = self
-                .l2_oracle
-                .set_scalar(U256::from(scalar_expect))
-                .legacy();
+            let tx = self.l2_oracle.set_scalar(U256::from(scalar_expect)).legacy();
             let rt = tx.send().await;
             match rt {
                 Ok(info) => {

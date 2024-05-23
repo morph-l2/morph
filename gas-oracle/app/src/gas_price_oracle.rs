@@ -1,7 +1,7 @@
 use crate::abi::gas_price_oracle_abi::GasPriceOracle;
 use crate::abi::rollup_abi::Rollup;
-use crate::l1_base_fee::BaseFee;
-use crate::overhead::OverHead;
+use crate::l1_base_fee::BaseFeeUpdater;
+use crate::overhead::overhead::OverHeadUpdater;
 use ethers::prelude::*;
 use ethers::providers::{Http, Provider};
 use ethers::signers::Wallet;
@@ -40,9 +40,7 @@ impl Config {
                 .expect("OVERHEAD_THRESHOLD env")
                 .parse()?,
             interval: var("INTERVAL").expect("INTERVAL env").parse()?,
-            overhead_interval: var("OVERHEAD_INTERVAL")
-                .expect("OVERHEAD_INTERVAL env")
-                .parse()?,
+            overhead_interval: var("OVERHEAD_INTERVAL").expect("OVERHEAD_INTERVAL env").parse()?,
             l1_rollup_address: Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env"))?,
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
@@ -82,7 +80,8 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     let l1_rollup: Rollup<Provider<Http>> =
         Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
 
-    let base_fee = BaseFee::new(
+    // BaseFeeUpdater
+    let base_fee_updater = BaseFeeUpdater::new(
         l1_provider.clone(),
         l2_provider.clone(),
         l2_wallet_address,
@@ -90,8 +89,8 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
         config.gas_threshold,
     );
 
-    // let l1_rpc = config.l1_rpc.clone();
-    let mut overhead = OverHead::new(
+    // OverHeadUpdater
+    let mut overhead_updater = OverHeadUpdater::new(
         l1_provider.clone(),
         l2_oracle.clone(),
         l1_rollup,
@@ -118,7 +117,7 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
             sleep(Duration::from_millis(config.interval)).await;
 
             update_times += 1;
-            base_fee.update().await;
+            base_fee_updater.update().await;
 
             if update_times < config.overhead_interval {
                 // Waiting for the latest batch to be submitted.
@@ -126,7 +125,7 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
             }
             // Waiting for confirmation of the previous transaction.
             sleep(Duration::from_millis(8000)).await;
-            overhead.update().await;
+            overhead_updater.update().await;
             update_times = 0
         }
     });
@@ -152,35 +151,19 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
 
 fn register_metrics() {
     // l1 base fee.
-    REGISTRY
-        .register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee.clone()))
-        .unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee.clone())).unwrap();
     // l1 base fee on l2.
-    REGISTRY
-        .register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee_on_l2.clone()))
-        .unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee_on_l2.clone())).unwrap();
     // gas oracle owner balance.
-    REGISTRY
-        .register(Box::new(
-            ORACLE_SERVICE_METRICS.gas_oracle_owner_balance.clone(),
-        ))
-        .unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.gas_oracle_owner_balance.clone())).unwrap();
     // gas oracle overhead.
-    REGISTRY
-        .register(Box::new(ORACLE_SERVICE_METRICS.overhead.clone()))
-        .unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.overhead.clone())).unwrap();
     // scalar ratio.
-    REGISTRY
-        .register(Box::new(ORACLE_SERVICE_METRICS.scalar_ratio.clone()))
-        .unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.scalar_ratio.clone())).unwrap();
     // txn per batch.
-    REGISTRY
-        .register(Box::new(ORACLE_SERVICE_METRICS.txn_per_batch.clone()))
-        .unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.txn_per_batch.clone())).unwrap();
     // l1 prc.
-    REGISTRY
-        .register(Box::new(ORACLE_SERVICE_METRICS.l1_rpc_status.clone()))
-        .unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_rpc_status.clone())).unwrap();
 }
 
 async fn handle_metrics() -> String {
