@@ -26,6 +26,8 @@ import (
 	"morph-l2/node/types"
 )
 
+var stopAtHeight uint64 = 100000000
+
 type NewSyncerFunc func() (*sync.Syncer, error)
 
 type Executor struct {
@@ -56,6 +58,8 @@ type Executor struct {
 
 	logger  tmlog.Logger
 	metrics *Metrics
+
+	stopAt uint64
 }
 
 func getNextL1MsgIndex(client *types.RetryableClient, logger tmlog.Logger) (uint64, error) {
@@ -76,6 +80,15 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	eClient, err := ethclient.Dial(config.L2.EthAddr)
 	if err != nil {
 		return nil, err
+	}
+
+	curHeight, err := eClient.BlockNumber(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	if stopAtHeight <= curHeight+10 {
+		return nil, fmt.Errorf("stopAtHeight is too small, it should be greater than current height + 10. stopAtHeight: %d, currentHeight: %d", stopAtHeight, curHeight)
 	}
 
 	l2Client := types.NewRetryableClient(aClient, eClient, config.Logger)
@@ -121,6 +134,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		batchingCache:       NewBatchingCache(),
 		logger:              logger,
 		metrics:             PrometheusMetrics("morphnode"),
+		stopAt:              stopAtHeight,
 	}
 
 	if config.DevSequencer {
@@ -143,6 +157,11 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 var _ l2node.L2Node = (*Executor)(nil)
 
 func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byte, collectedL1Msgs bool, err error) {
+	if height > int64(e.stopAt) {
+		e.logger.Info("the chain executed the target height block, sleeping", "target height", e.stopAt)
+		time.Sleep(365 * 24 * time.Hour) // sleep forever
+	}
+
 	if e.l1MsgReader == nil {
 		err = fmt.Errorf("RequestBlockData is not alllowed to be called")
 		return

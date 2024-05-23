@@ -3,6 +3,8 @@ package node
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -189,6 +191,14 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		exceeded = true
 	}
 	e.logger.Info("CalculateCapWithProposalBlock response", "blobSizeWithCurBlock", blobSizeWithCurBlock, "exceeded", exceeded)
+
+	// make sure the block of height(stopAt - 1) occupies a whole batch which as our new genesis batch
+	// i.e. if e.stopAt = 101,
+	// 	block100 is a batch point indicates a batch formed by  ~ - block99,
+	// 	block101 is a batch point indicates a batch formed by only block100
+	if height == e.stopAt-1 || height == e.stopAt {
+		exceeded = true
+	}
 	return exceeded, int64(chunkNum), nil
 }
 
@@ -243,6 +253,27 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		e.logger.Info(fmt.Sprintf("===chunk%d: %x \n", i, chunk))
 	}
 	e.logger.Info(fmt.Sprintf("===blobBytes: %x \n", blobBytes))
+
+	height, err := heightFromBCBytes(e.batchingCache.currentBlockBytes)
+	if err != nil {
+		panic(err)
+	}
+	if height == e.stopAt {
+		if e.batchingCache.chunks.BlockNum() != 1 {
+			panic(fmt.Sprintf("should have only 1 block in this batch, now is %d", e.batchingCache.chunks.BlockNum()))
+		}
+		if e.batchingCache.chunks.TxPayloadSize() != 0 {
+			panic(fmt.Sprintf("should have only no transactions in this batch, now is %d", e.batchingCache.chunks.TxPayloadSize()))
+		}
+		if len(blobHashes) != 1 || blobHashes[0] != types.EmptyVersionedHash {
+			panic("the blob hash should be empty hash in this batch!")
+		}
+		batchHeaderJson, err := json.Marshal(&batchHeader)
+		if err != nil {
+			panic(err)
+		}
+		e.logger.Info("The batch header", "batch index", batchHeader.BatchIndex, "postStateRoot", e.batchingCache.postStateRoot.Hex(), "json format", string(batchHeaderJson), "encoded hex", hex.EncodeToString(batchHeader.Encode()))
+	}
 	return batchHash[:], e.batchingCache.sealedBatchHeader.Encode(), nil
 }
 

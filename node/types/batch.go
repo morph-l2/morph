@@ -23,7 +23,7 @@ type BatchHeader struct {
 	SkippedL1MessageBitmap hexutil.Bytes
 
 	//cache
-	EncodedBytes hexutil.Bytes
+	EncodedBytes hexutil.Bytes `json:"-"`
 }
 
 // Encode encodes the BatchHeader into RollupV2 BatchHeaderV0Codec Encoding.
