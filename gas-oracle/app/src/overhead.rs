@@ -13,7 +13,12 @@ use std::ops::Mul;
 use std::str::FromStr;
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
-const MAX_OVERHEAD: usize = 10000; // 937,500
+
+struct PrevRollupInfo {
+    gas_used: u128,
+    l2_data_gas_used: u64,
+    l2_txn: u64,
+}
 
 pub struct OverHead {
     l1_provider: Provider<Http>,
@@ -23,6 +28,8 @@ pub struct OverHead {
     execution_node: ExecutionNode,
     beacon_node: BeaconNode,
     overhead_switch: bool,
+    max_overhead: u128,
+    prev_rollup_info: Option<PrevRollupInfo>,
 }
 
 impl OverHead {
@@ -34,6 +41,7 @@ impl OverHead {
         l1_rpc: String,
         l1_beacon_rpc: String,
         overhead_switch: bool,
+        max_overhead: u128,
     ) -> Self {
         let execution_node = ExecutionNode { rpc_url: l1_rpc };
         let beacon_node = BeaconNode {
@@ -48,12 +56,14 @@ impl OverHead {
             execution_node,
             beacon_node,
             overhead_switch,
+            max_overhead,
+            prev_rollup_info: None,
         }
     }
 
     /// Update overhead
     /// Calculate the average cost of the latest roll up and set it to the GasPriceOrale contract on the L2 network.
-    pub async fn update(&self) {
+    pub async fn update(&mut self) {
         // Step1. fetch latest batches and calculate overhead.
         let latest = match self.l1_provider.get_block_number().await {
             Ok(bn) => bn,
@@ -67,58 +77,11 @@ impl OverHead {
         } else {
             latest
         };
-        let filter = self
-            .l1_rollup
-            .commit_batch_filter()
-            .filter
-            .from_block(start)
-            .address(self.l1_rollup.address());
 
-        let mut logs: Vec<Log> = match self.l1_provider.get_logs(&filter).await {
-            Ok(logs) => logs,
-            Err(e) => {
-                log::error!("overhead.l1_provider.get_logs error: {:#?}", e);
-                return;
-            }
-        };
-        log::debug!(
-            "overhead.l1_provider.submit_batches.get_logs.len ={:#?}",
-            logs.len()
-        );
-
-        logs.retain(|x| x.transaction_hash != None && x.block_number != None);
-        if logs.is_empty() {
-            log::warn!("rollup logs for the last 100 blocks of l1 is empty");
-            return;
-        }
-        logs.sort_by(|a, b| b.block_number.unwrap().cmp(&a.block_number.unwrap()));
-        let log = match logs.first() {
-            Some(log) => log,
-            None => {
-                log::info!("no submit batches logs, latest blocknum ={:#?}", latest);
-                return;
-            }
-        };
-
-        let current_rollup_l1_block = log.block_number.unwrap_or(U64::from(0)).as_u64();
-        if current_rollup_l1_block <= *PREV_ROLLUP_L1_BLOCK.lock().await {
-            log::info!(
-                "No new batch has been committed, latest blocknum ={:#?}",
-                latest
-            );
-            return;
-        }
-
-        let mut latest_overhead = match self
-            .overhead_inspect(log.transaction_hash.unwrap(), log.block_number.unwrap())
-            .await
-        {
+        let mut latest_overhead = match self.overhead_inspect(start.as_u64()).await {
             Some(overhead) => overhead,
             None => {
-                log::info!(
-                    "last_overhead is none, skip update, tx_hash ={:#?}",
-                    log.transaction_hash.unwrap()
-                );
+                log::warn!("last_overhead is none, skip update");
                 return;
             }
         };
@@ -137,7 +100,7 @@ impl OverHead {
         );
         ORACLE_SERVICE_METRICS.overhead.set(latest_overhead as i64);
 
-        latest_overhead = latest_overhead.min(MAX_OVERHEAD);
+        latest_overhead = latest_overhead.min(self.max_overhead as usize);
         let abs_diff = U256::from(latest_overhead).abs_diff(current_overhead);
         log::info!(
             "overhead actual_change = {:#?}, expected_change =  {:#?}",
@@ -161,15 +124,115 @@ impl OverHead {
                 Err(e) => log::error!("update overhead error: {:#?}", e),
             }
         }
-        *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
+        // *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
     }
 
-    async fn overhead_inspect(&self, tx_hash: TxHash, block_num: U64) -> Option<usize> {
-        let txn_per_batch_expect: u128 = var("TXN_PER_BATCH")
-            .expect("Cannot detect TXN_PER_BATCH env var")
-            .parse()
-            .expect("Cannot parse TXN_PER_BATCH env var");
+    async fn overhead_inspect(&mut self, start: u64) -> Option<usize> {
+        let filter = self
+            .l1_rollup
+            .commit_batch_filter()
+            .filter
+            .from_block(start)
+            .address(self.l1_rollup.address());
 
+        let mut logs: Vec<Log> = match self.l1_provider.get_logs(&filter).await {
+            Ok(logs) => logs,
+            Err(e) => {
+                log::error!("overhead.l1_provider.get_logs error: {:#?}", e);
+                return None;
+            }
+        };
+        log::debug!(
+            "overhead.l1_provider.submit_batches.get_logs.len ={:#?}",
+            logs.len()
+        );
+
+        logs.retain(|x| x.transaction_hash != None && x.block_number != None);
+        if logs.is_empty() {
+            log::warn!("rollup logs for the last 100 blocks of l1 is empty");
+            if self.prev_rollup_info.is_some() {
+                return self.overhead_with_prev_rollup().await;
+            }
+            return None;
+        }
+        logs.sort_by(|a, b| b.block_number.unwrap().cmp(&a.block_number.unwrap()));
+        let log = match logs.first() {
+            Some(log) => log,
+            None => {
+                log::info!("no submit batches logs, start blocknum ={:#?}", start);
+                return None;
+            }
+        };
+
+        let current_rollup_l1_block = log.block_number.unwrap_or(U64::from(0)).as_u64();
+        if current_rollup_l1_block <= *PREV_ROLLUP_L1_BLOCK.lock().await {
+            log::info!(
+                "No new batch has been committed, start blocknum ={:#?}",
+                start
+            );
+            if self.prev_rollup_info.is_some() {
+                return self.overhead_with_prev_rollup().await;
+            }
+            return None;
+        }
+
+        let latest_overhead = match self
+            .overhead_with_current_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
+            .await
+        {
+            Some(overhead) => overhead,
+            None => {
+                log::info!(
+                    "last_overhead is none, skip update, tx_hash ={:#?}",
+                    log.transaction_hash.unwrap()
+                );
+                return None;
+            }
+        };
+
+        Some(latest_overhead)
+    }
+
+    async fn overhead_with_prev_rollup(&mut self) -> Option<usize> {
+        let latest_block = match self.execution_node.query_block_by_num(0).await {
+            Some(r) => r,
+            None => {
+                log::error!("query_blob_tx_receipt err");
+                return None;
+            }
+        };
+
+        let excess_blob_gas = U256::from_str(
+            &latest_block["result"]["excessBlobGas"]
+                .as_str()
+                .unwrap_or("0x0"),
+        )
+        .unwrap_or(U256::from(0));
+
+        let blob_fee = calc_blob_gasprice(excess_blob_gas.as_u64());
+
+        let gas_price = self.l1_provider.get_gas_price().await.unwrap_or_default();
+
+        let prev_rollup = self.prev_rollup_info.as_ref().unwrap();
+
+        //Step4. Calculate overhead
+        let x: f64 = blob_fee as f64 / gas_price.as_u128() as f64;
+        let overhead = calc_tx_overhead(
+            prev_rollup.gas_used,
+            MAX_BLOB_TX_PAYLOAD_SIZE as f64,
+            x,
+            prev_rollup.l2_data_gas_used,
+            prev_rollup.l2_txn,
+        );
+
+        Some(overhead as usize)
+    }
+
+    async fn overhead_with_current_rollup(
+        &mut self,
+        tx_hash: TxHash,
+        block_num: U64,
+    ) -> Option<usize> {
         //Step1.  Get transaction
         let result = self.l1_provider.get_transaction(tx_hash).await;
         let tx = match result {
@@ -184,11 +247,7 @@ impl OverHead {
             }
         };
 
-        log::info!(
-            "rollup l1_tx hash: {:#?}, rollup l1_blocknum: {:#?}",
-            tx_hash,
-            block_num
-        );
+        log::info!("rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
 
         //Step2. Parse transaction data
         let data = tx.input;
@@ -284,26 +343,33 @@ impl OverHead {
 
         //Step4. Calculate overhead
         let x: f64 = blob_gas_price.as_u128() as f64 / effective_gas_price.as_u128() as f64;
-        let blob_gas_used = if l2_txn > 0 {
-            MAX_BLOB_TX_PAYLOAD_SIZE as f64
-        } else {
-            0.0
+
+        let overhead = calc_tx_overhead(
+            rollup_gas_used.as_u128(),
+            MAX_BLOB_TX_PAYLOAD_SIZE as f64,
+            x,
+            l2_data_gas,
+            l2_txn,
+        );
+
+        let _overhead_mainnet = calc_tx_overhead(
+            rollup_gas_used.as_u128(),
+            MAX_BLOB_TX_PAYLOAD_SIZE as f64,
+            1.0 / (8.0 * 10u128.pow(9) as f64),
+            l2_data_gas,
+            l2_txn,
+        );
+
+        let prev_rollup = PrevRollupInfo {
+            gas_used: rollup_gas_used.as_u128(),
+            l2_data_gas_used: l2_data_gas,
+            l2_txn: l2_txn,
         };
 
-        let mut sys_gas: u128 =
-            rollup_gas_used.as_u128() + 156400 + (blob_gas_used * x).ceil() as u128;
-        sys_gas = if sys_gas < l2_data_gas as u128 {
-            0u128
-        } else {
-            sys_gas - l2_data_gas as u128
-        };
-        let overhead = if l2_txn as u128 > txn_per_batch_expect {
-            sys_gas / l2_txn as u128
-        } else {
-            sys_gas / txn_per_batch_expect
-        };
+        self.prev_rollup_info = Some(prev_rollup);
 
-        let blob_fee_ratio = (blob_gas_used * blob_gas_price.as_u128() as f64).ceil()
+        let blob_fee_ratio = (MAX_BLOB_TX_PAYLOAD_SIZE as f64 * blob_gas_price.as_u128() as f64)
+            .ceil()
             / ((rollup_gas_used * effective_gas_price).as_usize() as f64);
 
         log::info!(
@@ -386,6 +452,36 @@ impl OverHead {
 
         Ok(Some(tx_payload_gas))
     }
+}
+
+fn calc_tx_overhead(
+    rollup_gas_used: u128,
+    blob_gas_used: f64,
+    x: f64,
+    l2_data_gas: u64,
+    l2_txn: u64,
+) -> u128 {
+    let txn_per_batch_expect: u128 = var("TXN_PER_BATCH")
+        .expect("Cannot detect TXN_PER_BATCH env var")
+        .parse()
+        .expect("Cannot parse TXN_PER_BATCH env var");
+
+    let mut sys_gas: u128 = rollup_gas_used + 156400 + (blob_gas_used * x).ceil() as u128;
+    sys_gas = if sys_gas < l2_data_gas as u128 {
+        log::info!(
+            "sys_gas - l2_data_gas: {:?}",
+            sys_gas.abs_diff(l2_data_gas.into())
+        );
+        0u128
+    } else {
+        sys_gas - l2_data_gas as u128
+    };
+    let overhead = if l2_txn as u128 > txn_per_batch_expect {
+        sys_gas / l2_txn as u128
+    } else {
+        sys_gas / txn_per_batch_expect
+    };
+    overhead
 }
 
 fn extract_tx_payload(
@@ -578,6 +674,39 @@ fn data_and_hashes_from_txs(txs: &[Value], target_tx: &Value) -> Vec<IndexedBlob
     hashes
 }
 
+/// Minimum gas price for data blobs.
+pub const MIN_BLOB_GASPRICE: u64 = 1;
+
+/// Controls the maximum rate of change for blob gas price.
+pub const BLOB_GASPRICE_UPDATE_FRACTION: u64 = 3338477;
+
+pub fn calc_blob_gasprice(excess_blob_gas: u64) -> u128 {
+    fake_exponential(
+        MIN_BLOB_GASPRICE,
+        excess_blob_gas,
+        BLOB_GASPRICE_UPDATE_FRACTION,
+    )
+}
+
+pub fn fake_exponential(factor: u64, numerator: u64, denominator: u64) -> u128 {
+    assert_ne!(denominator, 0, "attempt to divide by zero");
+    let factor = factor as u128;
+    let numerator = numerator as u128;
+    let denominator = denominator as u128;
+
+    let mut i = 1;
+    let mut output = 0;
+    let mut numerator_accum = factor * denominator;
+    while numerator_accum > 0 {
+        output += numerator_accum;
+
+        // Denominator is asserted as not zero at the start of the function.
+        numerator_accum = (numerator_accum * numerator) / (denominator * i);
+        i += 1;
+    }
+    output / denominator
+}
+
 #[tokio::test]
 async fn test_decode_transactions_from_blob() {
     use ethers::prelude::*;
@@ -660,7 +789,7 @@ async fn test_overhead_inspect() {
     let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
         GasPriceOracle::new(l2_oracle_address, l2_signer);
 
-    let overhead: OverHead = OverHead::new(
+    let mut overhead: OverHead = OverHead::new(
         l1_provider,
         l2_oracle,
         l1_rollup,
@@ -671,10 +800,11 @@ async fn test_overhead_inspect() {
             .parse()
             .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var"),
         false,
+        200000u128,
     );
 
     let latest_overhead = overhead
-        .overhead_inspect(
+        .overhead_with_current_rollup(
             TxHash::from_str(rollup_tx_hash).unwrap(),
             U64::from(rollup_tx_block_num),
         )

@@ -107,7 +107,11 @@ impl ExecutionNode {
     }
 
     pub async fn query_block_by_num(&self, num: u64) -> Option<Value> {
-        let params: serde_json::Value = json!([format!("0x{:X}", num), true]);
+        let params: serde_json::Value = if num == 0 {
+            json!([format!("0x{:X}", num), false])
+        } else {
+            json!(["latest", false])
+        };
         let rpc_url = self.rpc_url.clone();
         let rt = tokio::task::spawn_blocking(move || {
             Self::query_execution_node(

@@ -39,8 +39,8 @@ fn setup_logging() {
         .unwrap()
         .log_to_file(
             FileSpec::default()
-                .directory("/data/logs/morph-oracle")
-                .basename(LOG_FILE_BASENAME),
+            .directory("/data/logs/morph-gas-oracle")
+            .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)
         .duplicate_to_stdout(Duplicate::All)
