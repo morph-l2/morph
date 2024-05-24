@@ -90,7 +90,7 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		if err != nil {
 			return nil, fmt.Errorf("wrong log.filename set: %d", err)
 		}
-		f.Close()
+		_ = f.Close()
 
 		if cfg.LogFileMaxSize < 1 {
 			return nil, fmt.Errorf("wrong log.maxsize set: %d", cfg.LogFileMaxSize)

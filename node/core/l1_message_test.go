@@ -14,13 +14,6 @@ import (
 	"morph-l2/node/types"
 )
 
-func l1TxHashes(l1Messages []types.L1Message) (l1TxHashes []common.Hash) {
-	for _, l1Message := range l1Messages {
-		l1TxHashes = append(l1TxHashes, l1Message.L1TxHash)
-	}
-	return
-}
-
 func TestValidateL1Messages(t *testing.T) {
 	l1Reader := testL1MsgReader{}
 	l1Messages := make([]types.L1Message, 10)
