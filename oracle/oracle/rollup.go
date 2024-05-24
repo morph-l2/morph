@@ -156,6 +156,7 @@ func (o *Oracle) recordRollupEpoch() error {
 		}
 		return fmt.Errorf("submit rollup epoch info error:%v,rollupEpochMaxBlock:%v", err, o.rollupEpochMaxBlock)
 	}
+	o.metrics.SetRewardEpoch(rollupEpochInfos[len(rollupEpochInfos)-1].Index.Uint64())
 	if o.rollupEpochMaxBlock+o.cfg.MinSize <= o.cfg.MaxSize {
 		o.rollupEpochMaxBlock += o.cfg.MinSize
 	}

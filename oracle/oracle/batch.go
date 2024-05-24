@@ -60,6 +60,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 		}
 		if startBlock >= header.Number.Uint64() {
 			time.Sleep(defaultSleepTime)
+			continue
 		}
 		if endBlock >= header.Number.Uint64() {
 			endBlock = header.Number.Uint64()
@@ -225,5 +226,6 @@ func (o *Oracle) submitRecord() error {
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("record batch not success")
 	}
+	o.metrics.SetRewardEpoch(batchSubmissions[len(batchSubmissions)-1].Index.Uint64())
 	return nil
 }

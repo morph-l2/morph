@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
@@ -15,8 +16,8 @@ import (
 	"morph-l2/bindings/hardhat"
 	"morph-l2/bindings/predeploys"
 	"morph-l2/morph-deployer/eth"
-	"morph-l2/morph-deployer/op-chain-ops/immutables"
-	"morph-l2/morph-deployer/op-chain-ops/state"
+	"morph-l2/morph-deployer/morph-chain-ops/immutables"
+	"morph-l2/morph-deployer/morph-chain-ops/state"
 	"morph-l2/morph-deployer/rollup"
 )
 
@@ -252,7 +253,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
-	file, err := os.ReadFile(path)
+	file, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("deploy config at %s not found: %w", path, err)
 	}
@@ -317,12 +318,13 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 
 	imConfig := &immutables.InitConfig{
 		// MorphToken
+		MorphTokenOwner:              config.FinalSystemOwner,
 		MorphTokenName:               config.MorphTokenName,
 		MorphTokenSymbol:             config.MorphTokenSymbol,
 		MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
 		MorphTokenDailyInflationRate: config.MorphTokenDailyInflationRate,
 		// L2Staking
-		L2StakingAdmin:                config.FinalSystemOwner,
+		L2StakingOwner:                config.FinalSystemOwner,
 		L2StakingSequencersMaxSize:    config.L2StakingSequencerMaxSize,
 		L2StakingRewardStartTime:      config.L2StakingRewardStartTime,
 		L2StakingUnDelegateLockEpochs: config.L2StakingUnDelegatedLockEpochs,
@@ -456,6 +458,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["Gov"] = state.StorageValues{
 		"_initialized":       1,
 		"_initializing":      false,
+		"_owner":             config.FinalSystemOwner,
 		"votingDuration":     config.GovVotingDuration,
 		"batchBlockInterval": config.GovBatchBlockInterval,
 		"batchMaxBytes":      config.GovBatchMaxBytes,
@@ -509,6 +512,15 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1ETHGatewayProxy,
 	}
+	storage["L2WETHGateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"counterpart":   config.L1WETHGatewayProxy,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
 	storage["L2ERC721Gateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard
 		"_initialized":  1,
@@ -527,23 +539,9 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"counterpart":   config.L1ERC1155GatewayProxy,
 		"router":        common.BigToAddress(common.Big0),
 	}
-	storage["MorphStandardERC20"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"_name":         "Morph Standard ERC20",
-		"_symbol":       "Morph",
-		"decimals_":     18,
-		"gateway":       predeploys.L2StandardERC20GatewayAddr,
-		"counterpart":   common.BigToAddress(common.Big1),
-	}
 	storage["MorphStandardERC20Factory"] = state.StorageValues{
 		"_owner":         predeploys.L2StandardERC20GatewayAddr,
 		"implementation": predeploys.MorphStandardERC20Addr,
-	}
-	storage["L2WETHGateway"] = state.StorageValues{
-		"counterpart": config.L1WETHGatewayProxy,
-		"router":      predeploys.L2GatewayRouterAddr,
-		"messenger":   predeploys.L2CrossDomainMessengerAddr,
 	}
 	return storage, nil
 }

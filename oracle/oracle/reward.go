@@ -90,6 +90,7 @@ func (o *Oracle) syncRewardEpoch() error {
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("record reward epochs not success")
 	}
+	o.metrics.SetRewardEpoch(recordRewardEpochInfo.Index.Uint64())
 	return nil
 }
 

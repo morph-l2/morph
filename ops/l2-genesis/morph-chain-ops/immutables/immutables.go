@@ -15,7 +15,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
-	"morph-l2/morph-deployer/op-chain-ops/deployer"
+	"morph-l2/morph-deployer/morph-chain-ops/deployer"
 )
 
 // ImmutableValues represents the values to be set in immutable code.
@@ -130,7 +130,12 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 		return nil, nil, err
 	}
 	results := make(DeploymentResults)
+	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
+	if err != nil {
+		return nil, nil, err
+	}
 	var lastTx *types.Transaction
+	var transferTx *types.Transaction
 	for _, dep := range deployments {
 		results[dep.Name] = dep.Bytecode
 		switch dep.Name {
@@ -144,15 +149,15 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			}
 			addresses := make([]common.Address, len(config.L2StakingAddresses))
 			copy(addresses, config.L2StakingAddresses)
-			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
-			if err != nil {
-				return nil, nil, err
-			}
 			l2Sequencer, err := bindings.NewSequencer(dep.Address, backend)
 			if err != nil {
 				return nil, nil, err
 			}
 			lastTx, err = l2Sequencer.Initialize(opts, addresses)
+			if err != nil {
+				return nil, nil, err
+			}
+			transferTx, err = l2Sequencer.TransferOwnership(opts, config.L2StakingOwner)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -172,10 +177,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 					TmKey:  config.L2StakingTmKeys[i],
 				}
 			}
-			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
-			if err != nil {
-				return nil, nil, err
-			}
 			l2Staking, err := bindings.NewL2Staking(dep.Address, backend)
 			if err != nil {
 				return nil, nil, err
@@ -190,13 +191,13 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
+			transferTx, err = l2Staking.TransferOwnership(opts, config.L2StakingOwner)
+			if err != nil {
+				return nil, nil, err
+			}
 		case "MorphToken":
 			if config == nil || config.MorphTokenName == "" {
 				continue
-			}
-			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
-			if err != nil {
-				return nil, nil, err
 			}
 			morphToken, err := bindings.NewMorphToken(dep.Address, backend)
 			if err != nil {
@@ -212,12 +213,19 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
+			transferTx, err = morphToken.TransferOwnership(opts, config.MorphTokenOwner)
+			if err != nil {
+				return nil, nil, err
+			}
 		default:
 		}
 	}
 	slotResults := make(SlotResults)
 	if lastTx != nil {
 		backend.Commit()
+		if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
+			return nil, nil, err
+		}
 		if _, err = bind.WaitMined(context.Background(), backend, lastTx); err != nil {
 			return nil, nil, err
 		}

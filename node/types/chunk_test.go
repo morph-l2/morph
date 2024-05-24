@@ -13,13 +13,13 @@ import (
 
 func TestChunks_Append(t *testing.T) {
 	chunks := NewChunks()
-	appended := chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	appended := chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.True(t, appended)
 
 	blockContext := []byte("123")
 	txPayloads := []byte("abc")
 	txHashes := []common.Hash{common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(2))}
-	chunks.Append(blockContext, txPayloads, txHashes, types.RowConsumption{{"a", 1}, {"b", 2}})
+	chunks.Append(blockContext, txPayloads, txHashes, types.RowConsumption{{Name: "a", RowNumber: 1}, {Name: "b", RowNumber: 2}})
 	require.EqualValues(t, 1, len(chunks.data))
 	require.EqualValues(t, 1, chunks.data[0].blockNum)
 	require.EqualValues(t, blockContext, chunks.data[0].blockContext)
@@ -32,7 +32,7 @@ func TestChunks_Append(t *testing.T) {
 
 	blockContext1 := []byte("456")
 	txPayloads1 := []byte("def")
-	chunks.Append(blockContext1, txPayloads1, nil, types.RowConsumption{{"a", 999999}, {"b", 999998}})
+	chunks.Append(blockContext1, txPayloads1, nil, types.RowConsumption{{Name: "a", RowNumber: 999999}, {Name: "b", RowNumber: 999998}})
 	require.EqualValues(t, 1, len(chunks.data))
 	require.EqualValues(t, 2, chunks.data[0].blockNum)
 	require.EqualValues(t, append(blockContext, blockContext1...), chunks.data[0].blockContext)
@@ -45,7 +45,7 @@ func TestChunks_Append(t *testing.T) {
 	blockContext2 := []byte("789")
 	txPayloads2 := []byte("ghi")
 	txHashes2 := []common.Hash{common.BigToHash(big.NewInt(3))}
-	chunks.Append(blockContext2, txPayloads2, txHashes2, types.RowConsumption{{"a", 1}})
+	chunks.Append(blockContext2, txPayloads2, txHashes2, types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.EqualValues(t, 2, len(chunks.data))
 	require.EqualValues(t, 2, chunks.data[0].blockNum)
 	require.EqualValues(t, 1, chunks.data[1].blockNum)
@@ -60,20 +60,20 @@ func TestChunks_Append(t *testing.T) {
 	require.EqualValues(t, 2, chunks.ChunkNum())
 
 	for i := 0; i < 98; i++ {
-		chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
+		chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{Name: "a", RowNumber: 1}})
 	}
 	// 99 blocks in 2nd chunk
 	require.EqualValues(t, 2, chunks.ChunkNum())
-	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.False(t, appended)
 	// 100 blocks in 2nd chunk
-	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
+	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.EqualValues(t, 2, chunks.ChunkNum())
 
-	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{"a", 1}})
+	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.True(t, appended)
 	// append chunk to 3 chunks totally
-	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{"a", 1}})
+	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.EqualValues(t, 3, chunks.ChunkNum())
 }
 
@@ -81,14 +81,14 @@ func TestChunks_ConstructBlobPayload(t *testing.T) {
 	chunks := NewChunks()
 	txsPayload0 := rand.Bytes(20)
 	// 1st chunk has 10 length of tx payload
-	chunks.Append(nil, txsPayload0, nil, types.RowConsumption{{"a", 1_000_000}})
+	chunks.Append(nil, txsPayload0, nil, types.RowConsumption{{Name: "a", RowNumber: 1_000_000}})
 
 	// 2nd chunk has empty txs
-	chunks.Append(nil, nil, nil, types.RowConsumption{{"a", 1_000_000}})
+	chunks.Append(nil, nil, nil, types.RowConsumption{{Name: "a", RowNumber: 1_000_000}})
 
 	txsPayload1 := rand.Bytes(30)
 	// 3rd chunk has 30 length of tx payload
-	chunks.Append(nil, txsPayload1, nil, types.RowConsumption{{"a", 1_000_000}})
+	chunks.Append(nil, txsPayload1, nil, types.RowConsumption{{Name: "a", RowNumber: 1_000_000}})
 
 	blobBytes := chunks.ConstructBlobPayload()
 
@@ -106,15 +106,15 @@ func TestChunks_ConstructBlobPayload(t *testing.T) {
 
 func TestChunk_accumulateRowUsages(t *testing.T) {
 	chunk := new(Chunk)
-	rc := types.RowConsumption{{"a", 1}}
+	rc := types.RowConsumption{{Name: "a", RowNumber: 1}}
 	accRc, max := chunk.accumulateRowUsages(rc)
 	require.True(t, equalRc(rc, accRc))
 	require.EqualValues(t, 1, max)
 
-	chunk = NewChunk(nil, nil, nil, types.RowConsumption{{"a", 1}, {"b", 2}})
-	rc = types.RowConsumption{{"a", 3}}
+	chunk = NewChunk(nil, nil, nil, types.RowConsumption{{Name: "a", RowNumber: 1}, {Name: "b", RowNumber: 2}})
+	rc = types.RowConsumption{{Name: "a", RowNumber: 3}}
 	accRc, max = chunk.accumulateRowUsages(rc)
-	require.True(t, equalRc(types.RowConsumption{{"a", 4}, {"b", 2}}, accRc))
+	require.True(t, equalRc(types.RowConsumption{{Name: "a", RowNumber: 4}, {Name: "b", RowNumber: 2}}, accRc))
 	require.EqualValues(t, 4, max)
 }
 
