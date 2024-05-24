@@ -1,15 +1,21 @@
 use std::str::FromStr;
 
-use super::blob::PREV_ROLLUP_L1_BLOCK;
-use super::calculate::extract_txn_num;
-use super::calculate::{calc_blob_gasprice, calc_tx_overhead};
-use super::calculate::{data_and_hashes_from_txs, data_gas_cost, extract_tx_payload};
-use super::MAX_BLOB_TX_PAYLOAD_SIZE;
-use crate::abi::gas_price_oracle_abi::GasPriceOracle;
-use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
-use crate::metrics::ORACLE_SERVICE_METRICS;
-use ethers::utils::hex;
-use ethers::{abi::AbiDecode, prelude::*};
+use super::{
+    blob::PREV_ROLLUP_L1_BLOCK,
+    calculate::{
+        calc_blob_gasprice, calc_tx_overhead, data_and_hashes_from_txs, data_gas_cost,
+        extract_tx_payload, extract_txn_num,
+    },
+    MAX_BLOB_TX_PAYLOAD_SIZE,
+};
+use crate::{
+    abi::{
+        gas_price_oracle_abi::GasPriceOracle,
+        rollup_abi::{CommitBatchCall, Rollup},
+    },
+    metrics::ORACLE_SERVICE_METRICS,
+};
+use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use serde_json::Value;
 
 use super::blob_client::{BeaconNode, ExecutionNode};
@@ -24,7 +30,8 @@ struct PrevRollupInfo {
 // Main struct to manage overhead information
 pub struct OverHeadUpdater {
     l1_provider: Provider<Http>, // L1 provider for HTTP connections
-    l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>, // Oracle for L2 gas prices
+    l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>, /* Oracle for L2
+                                  * gas prices */
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
     overhead_threshold: u128,          // Threshold for overhead
     execution_node: ExecutionNode,     // Node for executing transactions
@@ -65,7 +72,8 @@ impl OverHeadUpdater {
     }
 
     /// Update overhead
-    /// Calculate the user's average cost of the latest rollup and set it to the GasPriceOrale contract on the L2 network.
+    /// Calculate the user's average cost of the latest rollup and set it to the GasPriceOrale
+    /// contract on the L2 network.
     pub async fn update(&mut self) {
         // Step1. fetch latest batches and calculate overhead.
         let latest = match self.l1_provider.get_block_number().await {
@@ -145,6 +153,7 @@ impl OverHeadUpdater {
         if logs.is_empty() {
             log::warn!("rollup logs for the last 100 blocks of l1 is empty");
             if self.prev_rollup_info.is_some() {
+                log::warn!("calculate overhead from prev rollup");
                 return self.calculate_from_prev_rollup().await;
             }
             return None;
@@ -323,14 +332,6 @@ impl OverHeadUpdater {
             l2_txn,
         );
 
-        let _overhead_mainnet = calc_tx_overhead(
-            rollup_gas_used.as_u128(),
-            MAX_BLOB_TX_PAYLOAD_SIZE as f64,
-            1.0 / (8.0 * 10u128.pow(9) as f64),
-            l2_data_gas,
-            l2_txn,
-        );
-
         let prev_rollup = PrevRollupInfo {
             gas_used: rollup_gas_used.as_u128(),
             l2_data_gas_used: l2_data_gas,
@@ -340,8 +341,8 @@ impl OverHeadUpdater {
         self.prev_rollup_info = Some(prev_rollup);
 
         let blob_fee_ratio = (MAX_BLOB_TX_PAYLOAD_SIZE as f64 * blob_gas_price.as_u128() as f64)
-            .ceil()
-            / ((rollup_gas_used * effective_gas_price).as_usize() as f64);
+            .ceil() /
+            ((rollup_gas_used * effective_gas_price).as_usize() as f64);
 
         log::info!(
             "lastest_overhead: {:?},  x:{:?}, l2_txn:{:?}, blob gasFee ratio: {:?}",
@@ -417,7 +418,7 @@ impl OverHeadUpdater {
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
 
         let tx_payload_gas = data_gas_cost(&tx_payload);
-        log::info!("tx_payload_in_blob gas: {}", tx_payload_gas);
+        log::info!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
 
         Ok(Some(tx_payload_gas))
     }
@@ -425,8 +426,7 @@ impl OverHeadUpdater {
 
 #[tokio::test]
 async fn test_overhead_inspect() {
-    use std::env::var;
-    use std::sync::Arc;
+    use std::{env::var, sync::Arc};
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     dotenv::dotenv().ok();

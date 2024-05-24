@@ -1,14 +1,23 @@
-use ethers::prelude::*;
-use ethers::utils::{hex, rlp};
+use ethers::{
+    prelude::*,
+    utils::{hex, rlp},
+};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::env::var;
-use std::ops::Mul;
-use std::str::FromStr;
+use std::{ops::Mul, str::FromStr};
 
-use super::blob::{kzg_to_versioned_hash, Blob};
-use super::typed_tx::TypedTransaction;
-use super::MAX_BLOB_TX_PAYLOAD_SIZE;
+use crate::read_env_var;
+
+use super::{
+    blob::{kzg_to_versioned_hash, Blob},
+    typed_tx::TypedTransaction,
+    MAX_BLOB_TX_PAYLOAD_SIZE,
+};
+
+lazy_static! {
+    pub static ref TXN_PER_BATCH: u64 = read_env_var("TXN_PER_BATCH", 50);
+}
 
 /// Calculate the transaction overhead for L2 tx.
 ///
@@ -21,14 +30,7 @@ pub(super) fn calc_tx_overhead(
     l2_data_gas: u64,
     l2_txn: u64,
 ) -> u128 {
-    // Retrieve the expected number of transactions per batch from an environment variable
-    let txn_per_batch_expect: u128 = var("TXN_PER_BATCH")
-        .expect("Cannot detect TXN_PER_BATCH env var")
-        .parse()
-        .expect("Cannot parse TXN_PER_BATCH env var");
-
     let mut sys_gas: u128 = rollup_gas_used + 156400 + (blob_gas_used * x).ceil() as u128;
-
     sys_gas = if sys_gas < l2_data_gas as u128 {
         // Log the difference if system gas is less than L2 data gas
         log::info!("sys_gas - l2_data_gas: {:?}", sys_gas.abs_diff(l2_data_gas.into()));
@@ -37,13 +39,7 @@ pub(super) fn calc_tx_overhead(
         sys_gas - l2_data_gas as u128
     };
 
-    let overhead = if l2_txn as u128 > txn_per_batch_expect {
-        sys_gas / l2_txn as u128
-    } else {
-        sys_gas / txn_per_batch_expect
-    };
-
-    overhead
+    sys_gas / l2_txn.max(*TXN_PER_BATCH) as u128
 }
 
 pub(super) fn extract_tx_payload(
@@ -252,9 +248,7 @@ pub(super) fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> 
 
 #[tokio::test]
 async fn test_decode_transactions_from_blob() {
-    use ethers::prelude::*;
-    use ethers::types::transaction::eip2718::TypedTransaction;
-    use ethers::utils::to_checksum;
+    use ethers::{prelude::*, types::transaction::eip2718::TypedTransaction, utils::to_checksum};
 
     let wallet: LocalWallet =
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap();

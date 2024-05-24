@@ -1,21 +1,23 @@
-use crate::abi::gas_price_oracle_abi::GasPriceOracle;
-use crate::abi::rollup_abi::Rollup;
-use crate::l1_base_fee::BaseFeeUpdater;
-use crate::overhead::overhead::OverHeadUpdater;
-use ethers::prelude::*;
-use ethers::providers::{Http, Provider};
-use ethers::signers::Wallet;
-use ethers::types::Address;
-use std::env::var;
-use std::time::Duration;
-use std::{error::Error, str::FromStr, sync::Arc};
+use crate::{
+    abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
+    l1_base_fee::BaseFeeUpdater,
+    overhead::overhead::OverHeadUpdater,
+    read_parse_env,
+};
+use ethers::{
+    prelude::*,
+    providers::{Http, Provider},
+    signers::Wallet,
+    types::Address,
+};
+use std::{env::var, error::Error, str::FromStr, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
 use axum::{routing::get, Router};
 use prometheus::{self, Encoder, TextEncoder};
 use tower_http::trace::TraceLayer;
 
-use crate::metrics::*;
+use crate::{metrics::*, read_env_var};
 use tokio::runtime::Runtime;
 
 struct Config {
@@ -28,44 +30,42 @@ struct Config {
     l1_rollup_address: Address,
     l2_oracle_address: Address,
     private_key: String,
+    l1_beacon_rpc: String,
+    overhead_switch: bool,
+    max_overhead: u128,
 }
 
 impl Config {
     fn new() -> Result<Self, Box<dyn Error>> {
+        let _: f64 = read_parse_env("TXN_PER_BLOCK");
+        let _: u64 = read_parse_env("TXN_PER_BATCH");
+
         Ok(Self {
             l1_rpc: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env"),
             l2_rpc: var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env"),
-            gas_threshold: var("GAS_THRESHOLD").expect("GAS_THRESHOLD env").parse()?,
-            overhead_threshold: var("OVERHEAD_THRESHOLD")
-                .expect("OVERHEAD_THRESHOLD env")
-                .parse()?,
-            interval: var("INTERVAL").expect("INTERVAL env").parse()?,
-            overhead_interval: var("OVERHEAD_INTERVAL").expect("OVERHEAD_INTERVAL env").parse()?,
+            gas_threshold: read_parse_env("GAS_THRESHOLD"),
+            overhead_threshold: read_parse_env("OVERHEAD_THRESHOLD"),
+            interval: read_parse_env("INTERVAL"),
+            overhead_interval: read_parse_env("OVERHEAD_INTERVAL"),
             l1_rollup_address: Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env"))?,
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
             )?,
             private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env"),
+            l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
+            overhead_switch: read_env_var("OVERHEAD_SWITCH", false),
+            max_overhead: read_env_var("MAX_OVERHEAD", 200000),
         })
     }
 }
 
 /// Update data of gasPriceOrale contract on L2 network.
 pub async fn update() -> Result<(), Box<dyn Error>> {
-    let _: f64 = var("TXN_PER_BLOCK")
-        .expect("Cannot detect TXN_PER_BLOCK env var")
-        .parse()
-        .expect("Cannot parse TXN_PER_BLOCK env var");
-    let _: f64 = var("TXN_PER_BATCH")
-        .expect("Cannot detect TXN_PER_BATCH env var")
-        .parse()
-        .expect("Cannot parse TXN_PER_BATCH env var");
-
     let config = Config::new()?;
 
     // Prepare signer.
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from(config.l1_rpc)?;
-    let l2_provider: Provider<Http> = Provider::<Http>::try_from(config.l2_rpc)?;
+    let l1_provider: Provider<Http> = Provider::<Http>::try_from(config.l1_rpc.clone())?;
+    let l2_provider: Provider<Http> = Provider::<Http>::try_from(config.l2_rpc.clone())?;
     let l2_signer = Arc::new(SignerMiddleware::new(
         l2_provider.clone(),
         Wallet::from_str(config.private_key.as_str())
@@ -80,7 +80,7 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     let l1_rollup: Rollup<Provider<Http>> =
         Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
 
-    // BaseFeeUpdater
+    // Create baseFeeUpdater
     let base_fee_updater = BaseFeeUpdater::new(
         l1_provider.clone(),
         l2_provider.clone(),
@@ -89,22 +89,16 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
         config.gas_threshold,
     );
 
-    // OverHeadUpdater
+    // Create overheadUpdater
     let mut overhead_updater = OverHeadUpdater::new(
         l1_provider.clone(),
         l2_oracle.clone(),
         l1_rollup,
         config.overhead_threshold,
-        var("GAS_ORACLE_L1_RPC")
-            .expect("Cannot detect GAS_ORACLE_L1_RPC env var")
-            .parse()
-            .expect("Cannot parse GAS_ORACLE_L1_RPC env var"),
-        var("GAS_ORACLE_L1_BEACON_RPC")
-            .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env var")
-            .parse()
-            .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var"),
-        read_env_var("OVERHEAD_SWITCH", false),
-        read_env_var("MAX_OVERHEAD", 200000),
+        config.l1_rpc.clone(),
+        config.l1_beacon_rpc,
+        config.overhead_switch,
+        config.max_overhead,
     );
 
     // Register metrics.
@@ -115,7 +109,6 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
         let mut update_times = 0;
         loop {
             sleep(Duration::from_millis(config.interval)).await;
-
             update_times += 1;
             base_fee_updater.update().await;
 
@@ -185,12 +178,6 @@ async fn handle_metrics() -> String {
             return String::from("");
         }
     }
-}
-
-pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
-    std::env::var(var_name)
-        .map(|s| s.parse::<T>().unwrap_or_else(|_| default.clone()))
-        .unwrap_or(default)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
