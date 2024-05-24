@@ -10,4 +10,5 @@ lint-sol:
 	find . -name '*.sol' | xargs solhint
 
 lint-go:
-	golangci-lint run --out-format=tab --timeout 10m
+	GOBIN=$(PWD)/build/bin go run ../build/lint.go
+
