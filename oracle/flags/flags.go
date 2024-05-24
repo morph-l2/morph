@@ -45,9 +45,10 @@ var (
 	}
 
 	RollupAddress = cli.StringFlag{
-		Name:   "rollup-address",
-		Usage:  "Address of the rollup",
-		EnvVar: prefixEnvVar("ROLLUP"),
+		Name:     "rollup-address",
+		Usage:    "Address of the rollup",
+		Required: true,
+		EnvVar:   prefixEnvVar("ROLLUP"),
 	}
 
 	MaxHeaderBatchSizeFlag = cli.Uint64Flag{

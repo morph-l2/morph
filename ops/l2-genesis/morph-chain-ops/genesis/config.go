@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
@@ -252,7 +253,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
-	file, err := os.ReadFile(path)
+	file, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("deploy config at %s not found: %w", path, err)
 	}

@@ -47,13 +47,11 @@ type Derivation struct {
 	l1BeaconClient        *L1BeaconClient
 	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
-	latestDerivation uint64
-	db               Database
+	db Database
 
 	cancel context.CancelFunc
 
 	fetchBlockRange     uint64
-	preBatchLastBlock   uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
 	stop                chan struct{}
@@ -166,8 +164,6 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		return
 	} else if latest-start >= d.fetchBlockRange {
 		end = start + d.fetchBlockRange
-	} else {
-		end = latest
 	}
 	d.logger.Info("derivation start pull rollupData form l1", "startBlock", start, "end", end)
 	logs, err := d.fetchRollupLog(ctx, start, end)
@@ -373,7 +369,6 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 			}
 			rollupData.chunks[index].blockContextes[bIndex].SafeL2Data.Transactions = append(encodeTransactions(l1Transactions), chunk.blockContextes[bIndex].SafeL2Data.Transactions...)
 		}
-
 	}
 	return nil
 }
@@ -382,9 +377,7 @@ func (d *Derivation) getL1Message(l1MessagePopped, l1MsgNum uint64) ([]types.L1M
 	if l1MsgNum == 0 {
 		return nil, nil
 	}
-	start := l1MessagePopped
-	end := l1MessagePopped + l1MsgNum - 1
-	return d.syncer.ReadL1MessagesInRange(start, end), nil
+	return d.syncer.ReadL1MessagesInRange(l1MessagePopped, l1MessagePopped+l1MsgNum-1), nil
 }
 
 func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {

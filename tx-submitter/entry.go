@@ -42,7 +42,7 @@ func Main() func(ctx *cli.Context) error {
 			if err != nil {
 				return fmt.Errorf("wrong log.filename set: %d", err)
 			}
-			f.Close()
+			_ = f.Close()
 
 			if cfg.LogFileMaxSize < 1 {
 				return fmt.Errorf("wrong log.maxsize set: %d", cfg.LogFileMaxSize)

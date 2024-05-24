@@ -26,7 +26,7 @@ test:
 	go test -v -race -coverprofile=coverage.txt -covermode=atomic -p 1 ./...
 
 lint:
-	golangci-lint run --out-format=tab --timeout 10m
+	GOBIN=$(PWD)/build/bin go run ../build/lint.go
 
 run: build
 	./tx-submitter \
