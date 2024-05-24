@@ -28,15 +28,15 @@ interface IL2GatewayRouter is IL2ETHGateway, IL2ERC20Gateway {
 
     /*************************
      * Public View Functions *
-    *************************/
+     *************************/
 
     /// @notice Return the corresponding gateway address for given token address.
     /// @param _token The address of token to query.
     function getERC20Gateway(address _token) external view returns (address);
 
     /*****************************
-    * Public Mutating Functions *
-    *****************************/
+     * Public Mutating Functions *
+     *****************************/
 
     /// @notice Request ERC20 token transfer from users to gateways.
     /// @param sender The address of sender to request fund.

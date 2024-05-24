@@ -36,8 +36,8 @@ contract L2GatewayRouter is OwnableUpgradeable, IL2GatewayRouter {
     address public gatewayInContext;
 
     /**********************
-    * Function Modifiers *
-    **********************/
+     * Function Modifiers *
+     **********************/
 
     modifier onlyNotInContext() {
         require(gatewayInContext == address(0), "Only not in context");
@@ -133,7 +133,7 @@ contract L2GatewayRouter is OwnableUpgradeable, IL2GatewayRouter {
         uint256 _amount,
         bytes memory _data,
         uint256 _gasLimit
-    ) public payable override onlyNotInContext{
+    ) public payable override onlyNotInContext {
         address _gateway = getERC20Gateway(_token);
         require(_gateway != address(0), "no gateway available");
 
@@ -163,7 +163,7 @@ contract L2GatewayRouter is OwnableUpgradeable, IL2GatewayRouter {
         uint256 _amount,
         bytes memory _data,
         uint256 _gasLimit
-    ) public payable override onlyNotInContext{
+    ) public payable override onlyNotInContext {
         address _gateway = ethGateway;
         require(_gateway != address(0), "eth gateway available");
 
