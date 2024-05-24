@@ -49,8 +49,6 @@ func Main() func(ctx *cli.Context) error {
 		o.Start()
 		log.Info("Staking oracle started")
 
-		m := metrics.NewMetrics("morphoracle")
-
 		if cfg.MetricsServerEnable {
 			go func() {
 				_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
