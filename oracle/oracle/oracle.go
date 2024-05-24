@@ -13,6 +13,7 @@ import (
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
 	"morph-l2/oracle/config"
+	"morph-l2/oracle/metrics"
 
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -38,7 +39,8 @@ func Main() func(ctx *cli.Context) error {
 			return err
 		}
 		log.Info("Initializing staking-oracle")
-		o, err := NewOracle(&cfg)
+		m := metrics.NewMetrics("morphoracle")
+		o, err := NewOracle(&cfg, m)
 		if err != nil {
 			log.Error("Unable to create staking-oracle", "error", err)
 			return err
@@ -47,6 +49,17 @@ func Main() func(ctx *cli.Context) error {
 		o.Start()
 		log.Info("Staking oracle started")
 
+		m := metrics.NewMetrics("morphoracle")
+
+		if cfg.MetricsServerEnable {
+			go func() {
+				_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
+				if err != nil {
+					log.Error("metrics server failed to start", "err", err)
+				}
+			}()
+			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
+		}
 		<-(chan struct{})(nil)
 		log.Info("staking oracle stoped")
 		return nil
@@ -68,9 +81,10 @@ type Oracle struct {
 	privKey             *ecdsa.PrivateKey
 	isFinalized         bool
 	rollupEpochMaxBlock uint64
+	metrics             *metrics.Metrics
 }
 
-func NewOracle(cfg *config.Config) (*Oracle, error) {
+func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	var logHandler log.Handler
 	output := io.Writer(os.Stderr)
 	if cfg.LogFilename != "" {
@@ -161,6 +175,7 @@ func NewOracle(cfg *config.Config) (*Oracle, error) {
 		privKey:             privKey,
 		ctx:                 context.TODO(),
 		rollupEpochMaxBlock: cfg.MaxSize,
+		metrics:             m,
 	}, nil
 }
 

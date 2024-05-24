@@ -226,5 +226,6 @@ func (o *Oracle) submitRecord() error {
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("record batch not success")
 	}
+	o.metrics.SetRewardEpoch(batchSubmissions[len(batchSubmissions)-1].Index.Uint64())
 	return nil
 }
