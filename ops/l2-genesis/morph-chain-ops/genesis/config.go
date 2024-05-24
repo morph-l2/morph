@@ -318,12 +318,13 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 
 	imConfig := &immutables.InitConfig{
 		// MorphToken
+		MorphTokenOwner:              config.FinalSystemOwner,
 		MorphTokenName:               config.MorphTokenName,
 		MorphTokenSymbol:             config.MorphTokenSymbol,
 		MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
 		MorphTokenDailyInflationRate: config.MorphTokenDailyInflationRate,
 		// L2Staking
-		L2StakingAdmin:                config.FinalSystemOwner,
+		L2StakingOwner:                config.FinalSystemOwner,
 		L2StakingSequencersMaxSize:    config.L2StakingSequencerMaxSize,
 		L2StakingRewardStartTime:      config.L2StakingRewardStartTime,
 		L2StakingUnDelegateLockEpochs: config.L2StakingUnDelegatedLockEpochs,
@@ -457,6 +458,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["Gov"] = state.StorageValues{
 		"_initialized":       1,
 		"_initializing":      false,
+		"_owner":             config.FinalSystemOwner,
 		"votingDuration":     config.GovVotingDuration,
 		"batchBlockInterval": config.GovBatchBlockInterval,
 		"batchMaxBytes":      config.GovBatchMaxBytes,
