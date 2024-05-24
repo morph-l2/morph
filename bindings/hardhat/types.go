@@ -60,7 +60,7 @@ type Log struct {
 // Artifact represents a hardhat compilation artifact
 // The Bytecode and DeployedBytecode are not guaranteed
 // to be hexutil.Bytes when there are link references.
-// In the future, custom json marshalling can be used
+// In the future, custom json marshaling can be used
 // to place the link reference values in the correct location.
 type Artifact struct {
 	Format                 string         `json:"_format"`

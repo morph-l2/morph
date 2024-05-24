@@ -103,7 +103,7 @@ func main() {
 		}
 		wdProof := smt.GetProofTreeByIndex(index)
 		wdRoot := smt.GetRoot()
-		leafHash := smt.Get(uint64(index))
+		leafHash := smt.Get(index)
 		// Pack the proof
 		Proof := struct {
 			WithdrawalHash  common.Hash

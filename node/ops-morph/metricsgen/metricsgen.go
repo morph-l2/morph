@@ -136,7 +136,7 @@ func main() {
 		log.Fatalf("Parsing file: %v", err)
 	}
 	out := filepath.Join(*dir, "metrics.gen.go")
-	f, err := os.Create(out)
+	f, err := os.Create(filepath.Clean(out))
 	if err != nil {
 		log.Fatalf("Opening file: %v", err)
 	}
