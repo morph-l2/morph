@@ -11,7 +11,7 @@ import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
-import "forge-std/console.sol";
+import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
 
 contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
     uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
@@ -67,7 +67,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
                 address(l1CrossDomainMessengerTemp),
                 abi.encodeCall(
                     l1CrossDomainMessengerTemp.initialize,
-                    (feeVault, rollup, address(0))
+                    (feeVault, address(0), messageQueue)
                 )
             );
 
@@ -78,42 +78,9 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
                 address(l1CrossDomainMessengerTemp),
                 abi.encodeCall(
                     l1CrossDomainMessengerTemp.initialize,
-                    (feeVault, address(0), messageQueue)
+                    (feeVault, rollup, address(0))
                 )
             );
-
-        // 这个跑不过 ！！！
-        // console.log(
-        //     "maxReplayTimes is xxxxxs",
-        //     l1CrossDomainMessengerTemp.maxReplayTimes()
-        // );
-        // // verify the event is triggered successfully. 这里需要修改
-        // hevm.expectEmit(false, false, false, true);
-        // emit IL1CrossDomainMessenger.UpdateMaxReplayTimes(3, _maxReplayTimes);
-
-        // ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
-        //     .upgradeToAndCall(
-        //         address(l1CrossDomainMessengerTemp),
-        //         abi.encodeCall(
-        //             l1CrossDomainMessengerTemp.initialize,
-        //             (
-        //                 l1FeeVault,
-        //                 address(l1CrossDomainMessengerProxyTemp),
-        //                 address(l1CrossDomainMessengerProxyTemp)
-        //             )
-        //         )
-        //     );
-        // console.log(
-        //     "l1CrossDomainMessengerTemp.feeVault is ",
-        //     l1CrossDomainMessengerTemp.feeVault()
-        // );
-        // // verify the state variable maxReplayTimes is initialized successfully.
-        // console.log(
-        //     "maxReplayTimes is ",
-        //     l1CrossDomainMessengerTemp.maxReplayTimes()
-        // );
-        // assertEq(l1CrossDomainMessengerTemp.maxReplayTimes(), 3);
-
         hevm.stopPrank();
     }
 
@@ -599,39 +566,6 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         // verify it throws a "Failed to refund the fee" error when the call fails.
         hevm.expectRevert("Failed to deduct the fee");
         (_success, ) = sender.call{value: gas}("");
-
-        console.log("_success is ", _success);
-
-        // 这个跑不过 ！！！
-        // 第一次调用 sendMessage
-        // console.log("Ginger");
-        // bytes32 _xDomainCalldataHash = keccak256(_xDomainCalldata);
-
-        // // 第二次调用 sendMessage，应该触发 "Duplicated message"
-        // console.log("first");
-        // console.log(
-        //     "the value is ",
-        //     messageSendTimestamp[_xDomainCalldataHash]
-        // );
-        // l1CrossDomainMessenger.sendMessage{value: value + fee}(
-        //     to,
-        //     value,
-        //     data,
-        //     gas
-        // );
-        // console.log(
-        //     "the value is 2nd",
-        //     messageSendTimestamp[_xDomainCalldataHash]
-        // );
-        // hevm.expectRevert("Duplicated message");
-
-        // console.log("2nd");
-        // l1CrossDomainMessenger.sendMessage{value: value + fee}(
-        //     to,
-        //     value,
-        //     data,
-        //     gas
-        // );
     }
 
     // Tests that the sendMessage function is able to send the same message twice.
@@ -643,8 +577,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         // send value zero
         uint256 value = 0;
-        uint256 nonce = l1MessageQueueWithGasPriceOracle
-            .nextCrossDomainMessageIndex();
+        uint256 nonce = l1CrossDomainMessenger.messageNonce();
         bytes memory _xDomainCalldata = _encodeXDomainCalldata(
             sender,
             to,
@@ -658,88 +591,64 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
-
-        console.log(
-            "after send message twice ,the nonce is ",
-            l1MessageQueueWithGasPriceOracle.nextCrossDomainMessageIndex()
-        );
-        assertEq(
-            nonce + 2,
-            l1MessageQueueWithGasPriceOracle.nextCrossDomainMessageIndex()
-        );
+        assertEq(nonce + 2, l1CrossDomainMessenger.messageNonce());
     }
 
-    function testDropMessage() external {
-        address counterpartGateway = l1ETHGateway.counterpart();
-        address from = address(this);
-        address to = address(bob);
-        bytes memory message = "";
-        hevm.deal(from, 10 ether);
-
-        // send value zero
-        uint256 value = 0;
-        uint256 nonce = l1MessageQueueWithGasPriceOracle
-            .nextCrossDomainMessageIndex();
-        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
-            from,
-            address(counterpartGateway),
-            value,
-            nonce,
-            message
+    function testDropMessage(
+        uint256 amount,
+        address recipient,
+        bytes memory dataToCall
+    ) public {
+        amount = bound(amount, 1, address(this).balance);
+        bytes memory message = abi.encodeCall(
+            IL2ETHGateway.finalizeDepositETH,
+            (address(this), recipient, amount, dataToCall)
         );
-        bytes32 _xDomainCalldataHash = keccak256(_xDomainCalldata);
 
         // verify it throws an error "Provided message has not been enqueued" when a message that was never enqueued.
         hevm.expectRevert("Provided message has not been enqueued");
-        l1CrossDomainMessenger.dropMessage(from, to, value, nonce, message);
-
-        l1CrossDomainMessenger.sendMessage{value: 100}(
+        l1CrossDomainMessenger.dropMessage(
+            address(l1ETHGateway),
             address(counterpartGateway),
-            value,
-            message,
-            defaultGasLimit,
-            refundAddress
+            amount,
+            0,
+            message
         );
 
-        assertTrue(
-            l1CrossDomainMessenger.messageSendTimestamp(_xDomainCalldataHash) >
-                0
+        l1ETHGateway.depositETHAndCall{value: amount}(
+            recipient,
+            amount,
+            dataToCall,
+            defaultGasLimit
         );
 
-        // replay the message first
-        l1CrossDomainMessenger.replayMessage{value: 1 ether}(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            defaultGasLimit,
-            refundAddress
-        );
-        (uint256 _replayTimes, uint256 _lastIndex) = l1CrossDomainMessenger
-            .replayStates(_xDomainCalldataHash);
-
+        // skip message 0
         hevm.startPrank(address(rollup));
         l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 
-        // cannot pass, need debug!!!!
-        // now drop the message, verify the message is marked as dropped
-        // l1CrossDomainMessenger.dropMessage(
-        //     from,
-        //     address(counterpartGateway),
-        //     value,
-        //     nonce,
-        //     message
-        // );
-        // assertTrue(
-        //     l1CrossDomainMessenger.isL1MessageDropped(_xDomainCalldataHash)
-        // );
+        // drop message 0
+        revertOnReceive = false;
+        uint256 balance = address(this).balance;
+        l1CrossDomainMessenger.dropMessage(
+            address(l1ETHGateway),
+            address(counterpartGateway),
+            amount,
+            0,
+            message
+        );
+        assertEq(balance + amount, address(this).balance);
 
-        // // verify the dropped message cannot be dropped again.
-        // hevm.expectRevert("Message already dropped");
-        // l1CrossDomainMessenger.dropMessage(from, to, value, nonce, message);
+        // verify the dropped message cannot be dropped again.
+        hevm.expectRevert("Message already dropped");
+        l1CrossDomainMessenger.dropMessage(
+            address(l1ETHGateway),
+            address(counterpartGateway),
+            amount,
+            0,
+            message
+        );
     }
 
     function testUpdateMaxReplayTimes(uint256 _maxReplayTimes) external {
