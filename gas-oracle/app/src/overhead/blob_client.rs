@@ -202,10 +202,10 @@ impl BeaconNode {
 
     fn query_beacon_node(l1_beacon_rpc: String, slot: &str, indexes: Vec<u64>) -> Option<String> {
         let client = reqwest::blocking::Client::new();
-        let mut url = l1_beacon_rpc.to_owned()
-            + "/eth/v1/beacon/blob_sidecars/"
-            + slot.to_string().as_str()
-            + "?";
+        let mut url = l1_beacon_rpc.to_owned() +
+            "/eth/v1/beacon/blob_sidecars/" +
+            slot.to_string().as_str() +
+            "?";
         for index in indexes {
             url = url + "indices=" + index.to_string().as_str() + "&";
         }

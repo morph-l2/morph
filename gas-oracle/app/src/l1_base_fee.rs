@@ -1,7 +1,6 @@
 use std::time::Duration;
 
-use crate::abi::gas_price_oracle_abi::GasPriceOracle;
-use crate::metrics::ORACLE_SERVICE_METRICS;
+use crate::{abi::gas_price_oracle_abi::GasPriceOracle, metrics::ORACLE_SERVICE_METRICS};
 use ethers::prelude::*;
 use tokio::time::sleep;
 

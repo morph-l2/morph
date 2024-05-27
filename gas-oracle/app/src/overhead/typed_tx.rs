@@ -63,8 +63,8 @@ impl Decodable for TypedTransaction {
                 // Legacy (0x00)
                 // use the original rlp
                 Ok(Self::Legacy(TransactionRequest::decode(rlp)?))
-            } // Ok(Self::Legacy(TransactionRequest::decode_signed_rlp(rlp).unwrap().0))
-              // tx.rlp_signed(signature)
+            } /* Ok(Self::Legacy(TransactionRequest::decode_signed_rlp(rlp).unwrap().0))
+               * tx.rlp_signed(signature) */
         }
     }
 }
