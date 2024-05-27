@@ -21,21 +21,18 @@ impl ExecutionNode {
             )
         })
         .await
-        .map_or_else(
-            |e| {
-                log::error!("query_blob_tx error: {:?}", e);
-                return None;
-            },
-            |v| v,
-        )?;
+        .unwrap_or_else(|e| {
+            log::error!("query_blob_tx error: {:?}", e);
+            None
+        })?;
 
         match serde_json::from_str::<Value>(&rt) {
-            Ok(parsed) => return Some(parsed),
+            Ok(parsed) => Some(parsed),
             Err(_) => {
                 log::error!("deserialize query_blob_tx failed, hash= {:?}", hash);
-                return None;
+                None
             }
-        };
+        }
     }
 
     pub async fn query_blob_tx_receipt(&self, hash: &str) -> Option<Value> {
@@ -56,18 +53,16 @@ impl ExecutionNode {
         .await;
 
         match rt {
-            Ok(Some(info)) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize query_blob_tx_receipt failed, hash= {:?}", hash);
-                        return None;
-                    }
-                };
-            }
+            Ok(Some(info)) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(_) => {
+                    log::error!("deserialize query_blob_tx_receipt failed, hash= {:?}", hash);
+                    None
+                }
+            },
             _ => {
                 log::error!("query_blob_tx_receipt failed");
-                return None;
+                None
             }
         }
     }
@@ -90,18 +85,16 @@ impl ExecutionNode {
         .await;
 
         match rt {
-            Ok(Some(info)) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize block failed, hash= {:?}", hash);
-                        return None;
-                    }
-                };
-            }
+            Ok(Some(info)) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(_) => {
+                    log::error!("deserialize block failed, hash= {:?}", hash);
+                    None
+                }
+            },
             _ => {
                 log::error!("query block failed");
-                return None;
+                None
             }
         }
     }
@@ -128,18 +121,16 @@ impl ExecutionNode {
         .unwrap();
 
         match rt {
-            Some(info) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize block failed, blockNum= {:?}", num);
-                        return None;
-                    }
-                };
-            }
+            Some(info) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(_) => {
+                    log::error!("deserialize block failed, blockNum= {:?}", num);
+                    None
+                }
+            },
             None => {
                 log::error!("query block failed");
-                return None;
+                None
             }
         }
     }
@@ -195,18 +186,16 @@ impl BeaconNode {
         .await;
 
         match rt {
-            Ok(Some(info)) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize blobSidecars from beacon failed",);
-                        return None;
-                    }
-                };
-            }
+            Ok(Some(info)) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(_) => {
+                    log::error!("deserialize blobSidecars from beacon failed",);
+                    None
+                }
+            },
             _ => {
                 log::error!("query blobSidecars from beacon node failed");
-                return None;
+                None
             }
         }
     }

@@ -83,6 +83,7 @@ pub fn kzg_to_versioned_hash(commitment: &[u8]) -> H256 {
 }
 
 #[test]
+#[allow(clippy::needless_range_loop)]
 fn test_decode_raw_tx_payload_success() {
     let mut raw_data = vec![];
     // Construct an effective Blob data

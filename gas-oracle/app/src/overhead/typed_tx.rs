@@ -5,8 +5,8 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(not(feature = "legacy"), serde(tag = "type"))]
-#[cfg_attr(feature = "legacy", serde(untagged))]
+// #[cfg_attr(not(feature = "legacy"), serde(tag = "type"))]
+// #[cfg_attr(feature = "legacy", serde(untagged))]
 pub enum TypedTransaction {
     // 0x00
     #[serde(rename = "0x00", alias = "0x0")]
@@ -43,7 +43,7 @@ impl Decodable for TypedTransaction {
             let bytes = data.get(1..).ok_or(rlp::DecoderError::Custom("no tx body"))?;
             rest = rlp::Rlp::new(bytes);
 
-            tx_type = Some(U64::from_big_endian(&vec![first]));
+            tx_type = Some(U64::from_big_endian(&[first]));
         }
 
         match tx_type {

@@ -43,6 +43,7 @@ pub struct OverHeadUpdater {
 
 impl OverHeadUpdater {
     // Constructor to initialize an OverHead object
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         l1_provider: Provider<Http>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
@@ -149,7 +150,7 @@ impl OverHeadUpdater {
         };
         log::debug!("overhead.l1_provider.submit_batches.get_logs.len ={:#?}", logs.len());
 
-        logs.retain(|x| x.transaction_hash != None && x.block_number != None);
+        logs.retain(|x| x.transaction_hash.is_some() && x.block_number.is_some());
         if logs.is_empty() {
             log::warn!("rollup logs for the last 100 blocks of l1 is empty");
             if self.prev_rollup_info.is_some() {
@@ -200,7 +201,7 @@ impl OverHeadUpdater {
         };
 
         let excess_blob_gas =
-            U256::from_str(&latest_block["result"]["excessBlobGas"].as_str().unwrap_or("0x0"))
+            U256::from_str(latest_block["result"]["excessBlobGas"].as_str().unwrap_or("0x0"))
                 .unwrap_or(U256::from(0));
 
         let blob_fee = calc_blob_gasprice(excess_blob_gas.as_u64());
@@ -290,7 +291,7 @@ impl OverHeadUpdater {
 
         // rollup_gas_used
         let rollup_gas_used =
-            U256::from_str(&blob_tx_receipt["result"]["gasUsed"].as_str().unwrap_or("0x0"))
+            U256::from_str(blob_tx_receipt["result"]["gasUsed"].as_str().unwrap_or("0x0"))
                 .unwrap_or(U256::from(0));
         log::info!("rollup_calldata_gas_used: {:?}", rollup_gas_used);
         if rollup_gas_used.is_zero() {
@@ -300,12 +301,12 @@ impl OverHeadUpdater {
 
         // blob_gas_price
         let blob_gas_price =
-            U256::from_str(&blob_tx_receipt["result"]["blobGasPrice"].as_str().unwrap_or("0x0"))
+            U256::from_str(blob_tx_receipt["result"]["blobGasPrice"].as_str().unwrap_or("0x0"))
                 .unwrap_or(U256::from(0));
 
         // effective_gas_price
         let effective_gas_price = U256::from_str(
-            &blob_tx_receipt["result"]["effectiveGasPrice"].as_str().unwrap_or("0x0"),
+            blob_tx_receipt["result"]["effectiveGasPrice"].as_str().unwrap_or("0x0"),
         )
         .unwrap_or(U256::from(0));
         log::info!(
@@ -380,7 +381,7 @@ impl OverHeadUpdater {
             .ok_or_else(|| "Failed to query blob block".to_string())?;
 
         let indexed_hashes = data_and_hashes_from_txs(
-            &blob_block["result"]["transactions"].as_array().unwrap_or(&Vec::<Value>::new()),
+            blob_block["result"]["transactions"].as_array().unwrap_or(&Vec::<Value>::new()),
             &blob_tx["result"],
         );
 

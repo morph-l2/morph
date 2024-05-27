@@ -44,7 +44,7 @@ pub(super) fn calc_tx_overhead(
 
 pub(super) fn extract_tx_payload(
     indexed_hashes: Vec<IndexedBlobHash>,
-    sidecars: &Vec<Value>,
+    sidecars: &[Value],
 ) -> Result<Vec<u8>, String> {
     let mut tx_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
@@ -122,11 +122,11 @@ pub(super) fn extract_txn_num(chunks: Vec<Bytes>) -> Option<u64> {
         log::error!("total_txn_in_batch < l1_txn_in_batch");
         return None;
     }
-    return Some((txn_in_batch - l1_txn_in_batch) as u64);
+    Some((txn_in_batch - l1_txn_in_batch) as u64)
 }
 
 pub(super) fn data_gas_cost(data: &[u8]) -> u64 {
-    if data.len() == 0 {
+    if data.is_empty() {
         return 0;
     }
     let (zeroes, ones) = zeroes_and_ones(data);
