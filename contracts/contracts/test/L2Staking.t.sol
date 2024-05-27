@@ -81,12 +81,14 @@ contract L2StakingTest is L2StakingBaseTest {
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
+        assertEq(SEQUENCER_SIZE, l2Staking.getStakerAddressesLength());
         hevm.startPrank(address(l2CrossDomainMessenger));
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2 + 1; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
             l2Staking.addStaker(stakerInfo);
         }
+        assertEq(7, l2Staking.getStakerAddressesLength());
         hevm.stopPrank();
         for (uint256 i = 0; i < SEQUENCER_SIZE * 2 + 1; i++) {
             address user = address(uint160(beginSeq + i));
