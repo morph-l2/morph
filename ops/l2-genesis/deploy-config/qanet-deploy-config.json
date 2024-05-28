@@ -27,6 +27,17 @@
   "govRollupEpoch": 100,
   "govBatchMaxChunks": 15,
 
+  "recordOracleAddress": "0x7161F66BDf7C980B61b426122BBEfff813c0cdF0",
+  "recordNextBatchSubmissionIndex": 1,
+
+  "morphTokenName": "Morph Token",
+  "morphTokenSymbol": "Morph",
+  "morphTokenInitialSupply": 1000000000,
+  "morphTokenDailyInflationRate": 1596535874529,
+
+  "l2StakingSequencerMaxSize": 4,
+  "l2StakingUnDelegatedLockEpochs": 2,
+  "l2StakingRewardStartTime": 1728000000,
   "l2SequencerAddresses": [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
     "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",
