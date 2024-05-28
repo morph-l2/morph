@@ -18,7 +18,6 @@ use prometheus::{self, Encoder, TextEncoder};
 use tower_http::trace::TraceLayer;
 
 use crate::{metrics::*, read_env_var};
-use tokio::runtime::Runtime;
 
 struct Config {
     l1_rpc: String,
@@ -63,48 +62,22 @@ impl Config {
 pub async fn update() -> Result<(), Box<dyn Error>> {
     let config = Config::new()?;
 
-    // Prepare signer.
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from(config.l1_rpc.clone())?;
-    let l2_provider: Provider<Http> = Provider::<Http>::try_from(config.l2_rpc.clone())?;
-    let l2_signer = Arc::new(SignerMiddleware::new(
-        l2_provider.clone(),
-        Wallet::from_str(config.private_key.as_str())
-            .unwrap()
-            .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
-    ));
-    let l2_wallet_address: Address = l2_signer.address();
+    let (base_fee_updater, overhead_updater) = prepare_updater(&config).await?;
 
-    // Prepare contract.
-    let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
-        GasPriceOracle::new(config.l2_oracle_address, l2_signer);
-    let l1_rollup: Rollup<Provider<Http>> =
-        Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
+    // Start Updater.
+    start_updater(config, base_fee_updater, overhead_updater).await;
 
-    // Create baseFeeUpdater
-    let base_fee_updater = BaseFeeUpdater::new(
-        l1_provider.clone(),
-        l2_provider.clone(),
-        l2_wallet_address,
-        l2_oracle.clone(),
-        config.gas_threshold,
-    );
+    // Start metric management.
+    metric_mng().await;
 
-    // Create overheadUpdater
-    let mut overhead_updater = OverHeadUpdater::new(
-        l1_provider.clone(),
-        l2_oracle.clone(),
-        l1_rollup,
-        config.overhead_threshold,
-        config.l1_rpc.clone(),
-        config.l1_beacon_rpc,
-        config.overhead_switch,
-        config.max_overhead,
-    );
+    Ok(())
+}
 
-    // Register metrics.
-    register_metrics();
-
-    // Update data of gasPriceOrale contract.
+async fn start_updater(
+    config: Config,
+    base_fee_updater: BaseFeeUpdater,
+    mut overhead_updater: OverHeadUpdater,
+) {
     tokio::spawn(async move {
         let mut update_times = 0;
         loop {
@@ -122,24 +95,61 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
             update_times = 0
         }
     });
+}
 
-    // Metrics serveice.
-    let runtime = Runtime::new().unwrap();
-    runtime
-        .spawn(async {
-            let metrics = Router::new()
-                .route("/metrics", get(handle_metrics))
-                .layer(TraceLayer::new_for_http());
+async fn prepare_updater(
+    config: &Config,
+) -> Result<(BaseFeeUpdater, OverHeadUpdater), Box<dyn Error>> {
+    let l1_provider: Provider<Http> = Provider::<Http>::try_from(config.l1_rpc.clone())?;
+    let l2_provider: Provider<Http> = Provider::<Http>::try_from(config.l2_rpc.clone())?;
+    let l2_signer = Arc::new(SignerMiddleware::new(
+        l2_provider.clone(),
+        Wallet::from_str(config.private_key.as_str())
+            .unwrap()
+            .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
+    ));
 
-            axum::Server::bind(&"0.0.0.0:6060".parse().unwrap())
-                .serve(metrics.into_make_service())
-                .await
-                .unwrap();
-        })
-        .await
-        .unwrap();
+    let l2_wallet_address: Address = l2_signer.address();
+    let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
+        GasPriceOracle::new(config.l2_oracle_address, l2_signer);
+    let l1_rollup: Rollup<Provider<Http>> =
+        Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
 
-    Ok(())
+    let base_fee_updater = BaseFeeUpdater::new(
+        l1_provider.clone(),
+        l2_provider.clone(),
+        l2_wallet_address,
+        l2_oracle.clone(),
+        config.gas_threshold,
+    );
+
+    let overhead_updater = OverHeadUpdater::new(
+        l1_provider.clone(),
+        l2_oracle.clone(),
+        l1_rollup,
+        config.overhead_threshold,
+        config.l1_rpc.clone(),
+        config.l1_beacon_rpc.clone(),
+        config.overhead_switch,
+        config.max_overhead,
+    );
+    Ok((base_fee_updater, overhead_updater))
+}
+
+async fn metric_mng() {
+    // Register metrics.
+    register_metrics();
+    let metric_address = read_env_var("GAS_ORACLE_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
+    tokio::spawn(async move {
+        let metrics =
+            Router::new().route("/metrics", get(handle_metrics)).layer(TraceLayer::new_for_http());
+        axum::Server::bind(&metric_address.parse().unwrap())
+            .serve(metrics.into_make_service())
+            .await
+            .unwrap();
+    })
+    .await
+    .unwrap();
 }
 
 fn register_metrics() {

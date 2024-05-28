@@ -87,7 +87,7 @@ impl OverHeadUpdater {
         let start = if latest > U64::from(100) {
             latest - U64::from(100) //100
         } else {
-            latest
+            U64::from(1)
         };
 
         let mut latest_overhead = match self.calculate_overhead(start.as_u64()).await {
@@ -400,7 +400,7 @@ impl OverHeadUpdater {
         let prev_beacon_root = match next_block["result"]["parentBeaconBlockRoot"].as_str() {
             Some(r) => r,
             None => {
-                log::error!("Next block not produce");
+                log::warn!("Next block not produce");
                 return Ok(None);
             } // Waiting for the next L1 block.
         };
@@ -415,6 +415,10 @@ impl OverHeadUpdater {
         let sidecars: &Vec<Value> = sidecars_rt["data"]
             .as_array()
             .ok_or_else(|| "query blob_sidecars empty".to_string())?;
+        if sidecars.is_empty() {
+            log::error!("query sidecars.is_empty: {:?}", sidecars_rt);
+            return Ok(None);
+        }
 
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
 

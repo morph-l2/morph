@@ -100,7 +100,7 @@ impl ExecutionNode {
     }
 
     pub async fn query_block_by_num(&self, num: u64) -> Option<Value> {
-        let params: serde_json::Value = if num == 0 {
+        let params: serde_json::Value = if num != 0 {
             json!([format!("0x{:X}", num), false])
         } else {
             json!(["latest", false])
@@ -188,8 +188,8 @@ impl BeaconNode {
         match rt {
             Ok(Some(info)) => match serde_json::from_str::<Value>(&info) {
                 Ok(parsed) => Some(parsed),
-                Err(_) => {
-                    log::error!("deserialize blobSidecars from beacon failed",);
+                Err(e) => {
+                    log::error!("deserialize blobSidecars from beacon failed: {:?}", e);
                     None
                 }
             },
@@ -209,8 +209,9 @@ impl BeaconNode {
         for index in indexes {
             url = url + "indices=" + index.to_string().as_str() + "&";
         }
+
         let response = client
-            .get(url)
+            .get(url.clone())
             .header(
                 reqwest::header::CONTENT_TYPE,
                 reqwest::header::HeaderValue::from_static("application/json"),
