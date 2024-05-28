@@ -134,10 +134,9 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             address(l2StakingImpl),
             abi.encodeCall(L2Staking.initialize, (SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos))
         );
-
         ITransparentUpgradeableProxy(address(morphTokenProxy)).upgradeToAndCall(
             address(morphTokenImpl),
-            abi.encodeCall(MorphToken.initialize, ("Morph", "MPH", 1000000000 ether, 1596535874529))
+            abi.encodeCall(MorphToken.initialize, ("Morph", "MPH", multisig, 1000000000 ether, 1596535874529))
         );
         ITransparentUpgradeableProxy(address(distributeProxy)).upgradeToAndCall(
             address(distributeImpl),
