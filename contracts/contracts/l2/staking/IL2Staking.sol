@@ -109,6 +109,9 @@ interface IL2Staking {
     /// @notice get stakers
     function getStakers() external view returns (Types.StakerInfo[] memory);
 
+    /// @notice get staker addresses length
+    function getStakerAddressesLength() external view returns (uint256);
+
     /*****************************
      * Public Mutating Functions *
      *****************************/
