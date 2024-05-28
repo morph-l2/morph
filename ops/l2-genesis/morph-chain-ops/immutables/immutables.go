@@ -207,13 +207,10 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 				opts,
 				config.MorphTokenName,
 				config.MorphTokenSymbol,
+				config.MorphTokenOwner,
 				new(big.Int).SetUint64(config.MorphTokenInitialSupply),
 				new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
 			)
-			if err != nil {
-				return nil, nil, err
-			}
-			transferTx, err = morphToken.TransferOwnership(opts, config.MorphTokenOwner)
 			if err != nil {
 				return nil, nil, err
 			}

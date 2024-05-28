@@ -64,6 +64,7 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		GovBatchMaxChunks:     15,
 
 		// MorphToken
+		MorphTokenOwner:              address1,
 		MorphTokenName:               "Morph Token",
 		MorphTokenSymbol:             "Morph",
 		MorphTokenInitialSupply:      1,

@@ -118,10 +118,11 @@ type DeployConfig struct {
 	RecordNextBatchSubmissionIndex uint64         `json:"recordNextBatchSubmissionIndex"`
 
 	// MorphToken configs
-	MorphTokenName               string `json:"morphTokenName"`
-	MorphTokenSymbol             string `json:"morphTokenSymbol"`
-	MorphTokenInitialSupply      uint64 `json:"morphTokenInitialSupply"`
-	MorphTokenDailyInflationRate uint64 `json:"morphTokenDailyInflationRate"`
+	MorphTokenOwner              common.Address `json:"morphTokenOwner"`
+	MorphTokenName               string         `json:"morphTokenName"`
+	MorphTokenSymbol             string         `json:"morphTokenSymbol"`
+	MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
+	MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
@@ -318,7 +319,7 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 
 	imConfig := &immutables.InitConfig{
 		// MorphToken
-		MorphTokenOwner:              config.FinalSystemOwner,
+		MorphTokenOwner:              config.MorphTokenOwner,
 		MorphTokenName:               config.MorphTokenName,
 		MorphTokenSymbol:             config.MorphTokenSymbol,
 		MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
@@ -390,6 +391,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L2StakingUnDelegatedLockEpochs <= 0 {
 		return fmt.Errorf("L2StakingUnDelegatedLockEpochs must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.MorphTokenOwner == (common.Address{}) {
+		return fmt.Errorf("MorphTokenOwner canot be nil: %w", ErrInvalidDeployConfig)
 	}
 	if d.MorphTokenName == "" {
 		return fmt.Errorf("MorphTokenName canot be nil: %w", ErrInvalidDeployConfig)
