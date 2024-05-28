@@ -27,8 +27,11 @@ const config = {
     batchHeader: '',
 
     // staking config
+    // staking Cross-Chain config
+    stakingCrossChainGaslimitAdd: 1000000,
+    stakingCrossChainGaslimitRemove: 8000000,
+
     // staking initialize config
-    stakingSequencerSize: 4,
     stakingLockNumber: 3,
     stakingMinDeposit: 1, // limit
     // register sequencers
