@@ -18,7 +18,7 @@
 
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
-  "gasPriceOracleOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
+  "gasPriceOracleOwner": "0x71612D2b36859fbad5865085be7c9dEB026bBCbC",
 
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 20,
@@ -32,6 +32,7 @@
 
   "morphTokenName": "Morph Token",
   "morphTokenSymbol": "Morph",
+  "morphTokenOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
   "morphTokenInitialSupply": 1000000000,
   "morphTokenDailyInflationRate": 1596535874529,
 
