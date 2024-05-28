@@ -4,11 +4,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/morph-l2/node/flags"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/rpc"
 	"github.com/urfave/cli"
+
+	"morph-l2/node/flags"
+	"morph-l2/node/types"
 )
 
 const (

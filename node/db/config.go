@@ -1,8 +1,9 @@
 package db
 
 import (
-	"github.com/morph-l2/node/flags"
 	"github.com/urfave/cli"
+
+	"morph-l2/node/flags"
 )
 
 type Config struct {

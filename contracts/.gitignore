@@ -43,6 +43,7 @@ coverage*
 *.log
 
 .devnet
+.gas-snapshot
 
 # Ignore local fuzzing results
 **/testdata/fuzz/

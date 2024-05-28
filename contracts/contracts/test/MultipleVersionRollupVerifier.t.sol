@@ -4,7 +4,7 @@ pragma solidity =0.8.24;
 
 import {DSTestPlus} from "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 
-import {MultipleVersionRollupVerifier} from "../L1/rollup/MultipleVersionRollupVerifier.sol";
+import {MultipleVersionRollupVerifier} from "../l1/rollup/MultipleVersionRollupVerifier.sol";
 import {MockRollup} from "../mock/MockRollup.sol";
 import {MockZkEvmVerifier} from "../mock/MockZkEvmVerifier.sol";
 
@@ -28,7 +28,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         verifier = new MultipleVersionRollupVerifier(_versions, _verifiers);
     }
 
-    function testInitialize(address _chain) external {
+    function test_initialize_reInit_reverts(address _chain) external {
         hevm.assume(_chain != address(0));
 
         // set by non-owner, should revert
@@ -47,7 +47,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         verifier.initialize(_chain);
     }
 
-    function testUpdateVerifier(address _newVerifier) external {
+    function test_updateVerifier_succeeds(address _newVerifier) external {
         verifier.initialize(address(rollup));
 
         hevm.assume(_newVerifier != address(0));
@@ -59,24 +59,18 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         hevm.stopPrank();
 
         // start batch index finalized, revert
-        hevm.expectRevert(
-            MultipleVersionRollupVerifier.ErrorStartBatchIndexFinalized.selector
-        );
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorStartBatchIndexFinalized.selector);
         verifier.updateVerifier(0, 0, address(1));
 
         // zero verifier address, revert
-        hevm.expectRevert(
-            MultipleVersionRollupVerifier.ErrorZeroAddress.selector
-        );
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorZeroAddress.selector);
         verifier.updateVerifier(0, 1, address(0));
 
         // change to random operator
         assertEq(verifier.legacyVerifiersLength(0), 0);
         verifier.updateVerifier(0, uint64(100), _newVerifier);
         assertEq(verifier.legacyVerifiersLength(0), 1);
-        (uint64 _startBatchIndex, address _verifier) = verifier.latestVerifier(
-            0
-        );
+        (uint64 _startBatchIndex, address _verifier) = verifier.latestVerifier(0);
         assertEq(_startBatchIndex, uint64(100));
         assertEq(_verifier, _newVerifier);
         (_startBatchIndex, _verifier) = verifier.legacyVerifiers(0, 0);
@@ -93,16 +87,11 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         assertEq(_verifier, address(v0));
 
         // start batch index too small, revert
-        hevm.expectRevert(
-            MultipleVersionRollupVerifier.ErrorStartBatchIndexTooSmall.selector
-        );
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorStartBatchIndexTooSmall.selector);
         verifier.updateVerifier(0, 99, _newVerifier);
     }
 
-    function testUpdateVerifierVersion(
-        uint256 version,
-        address _newVerifier
-    ) external {
+    function test_updateVerifierVersion_succeeds(uint256 version, address _newVerifier) external {
         verifier.initialize(address(rollup));
 
         hevm.assume(version != 0);
@@ -112,9 +101,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         assertEq(verifier.legacyVerifiersLength(version), 0);
         verifier.updateVerifier(version, 1, address(v0));
         assertEq(verifier.legacyVerifiersLength(version), 0);
-        (uint64 _startBatchIndex, address _verifier) = verifier.latestVerifier(
-            version
-        );
+        (uint64 _startBatchIndex, address _verifier) = verifier.latestVerifier(version);
         assertEq(_startBatchIndex, 1);
         assertEq(_verifier, address(v0));
 
@@ -125,15 +112,11 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         hevm.stopPrank();
 
         // start batch index finalized, revert
-        hevm.expectRevert(
-            MultipleVersionRollupVerifier.ErrorStartBatchIndexFinalized.selector
-        );
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorStartBatchIndexFinalized.selector);
         verifier.updateVerifier(version, 0, address(1));
 
         // zero verifier address, revert
-        hevm.expectRevert(
-            MultipleVersionRollupVerifier.ErrorZeroAddress.selector
-        );
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorZeroAddress.selector);
         verifier.updateVerifier(version, 1, address(0));
 
         // change to random operator
@@ -157,13 +140,11 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         assertEq(_verifier, address(v0));
 
         // start batch index too small, revert
-        hevm.expectRevert(
-            MultipleVersionRollupVerifier.ErrorStartBatchIndexTooSmall.selector
-        );
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorStartBatchIndexTooSmall.selector);
         verifier.updateVerifier(version, 99, _newVerifier);
     }
 
-    function testGetVerifier(uint256 version) external {
+    function test_getVerifier_succeeds(uint256 version) external {
         verifier.initialize(address(rollup));
         hevm.assume(version != 0);
 
@@ -181,7 +162,7 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         assertEq(verifier.getVerifier(version, 10000), address(v2));
     }
 
-    function testVerifyAggregateProof(uint256 version) external {
+    function test_verifyAggregateProof_succeeds(uint256 version) external {
         verifier.initialize(address(rollup));
         hevm.assume(version != 0);
 

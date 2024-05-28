@@ -1,0 +1,167 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity =0.8.24;
+
+import {AddressUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
+
+import {IL2ERC20Gateway, L2ERC20Gateway} from "./L2ERC20Gateway.sol";
+import {IL2CrossDomainMessenger} from "../IL2CrossDomainMessenger.sol";
+import {IL1ERC20Gateway} from "../../l1/gateways/IL1ERC20Gateway.sol";
+import {IMorphERC20Upgradeable} from "../../libraries/token/IMorphERC20Upgradeable.sol";
+import {MorphStandardERC20} from "../../libraries/token/MorphStandardERC20.sol";
+import {IMorphStandardERC20Factory} from "../../libraries/token/IMorphStandardERC20Factory.sol";
+import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
+
+/// @title L2StandardERC20Gateway
+/// @notice The `L2StandardERC20Gateway` is used to withdraw standard ERC20 tokens on layer 2 and
+/// finalize deposit the tokens from layer 1.
+/// @dev The withdrawn ERC20 tokens will be burned directly. On finalizing deposit, the corresponding
+/// token will be minted and transferred to the recipient. Any ERC20 that requires non-standard functionality
+/// should use a separate gateway.
+contract L2StandardERC20Gateway is L2ERC20Gateway {
+    using AddressUpgradeable for address;
+
+    /*************
+     * Variables *
+     *************/
+
+    /// @notice Mapping from l2 token address to l1 token address.
+    mapping(address => address) private tokenMapping;
+
+    /// @notice The address of MorphStandardERC20Factory.
+    address public tokenFactory;
+
+    /***************
+     * Constructor *
+     ***************/
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _counterpart,
+        address _router,
+        address _messenger,
+        address _tokenFactory
+    ) external initializer {
+        require(_router != address(0), "zero router address");
+        GatewayBase._initialize(_counterpart, _router, _messenger);
+
+        require(_tokenFactory != address(0), "zero token factory");
+        tokenFactory = _tokenFactory;
+    }
+
+    /*************************
+     * Public View Functions *
+     *************************/
+
+    /// @inheritdoc IL2ERC20Gateway
+    function getL1ERC20Address(address _l2Token) external view override returns (address) {
+        return tokenMapping[_l2Token];
+    }
+
+    /// @inheritdoc IL2ERC20Gateway
+    function getL2ERC20Address(address _l1Token) public view override returns (address) {
+        return IMorphStandardERC20Factory(tokenFactory).computeL2TokenAddress(address(this), _l1Token);
+    }
+
+    /*****************************
+     * Public Mutating Functions *
+     *****************************/
+
+    /// @inheritdoc IL2ERC20Gateway
+    function finalizeDepositERC20(
+        address _l1Token,
+        address _l2Token,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _data
+    ) external payable override onlyCallByCounterpart nonReentrant {
+        require(msg.value == 0, "nonzero msg.value");
+        require(_l1Token != address(0), "token address cannot be 0");
+
+        {
+            // avoid stack too deep
+            address _expectedL2Token = IMorphStandardERC20Factory(tokenFactory).computeL2TokenAddress(
+                address(this),
+                _l1Token
+            );
+            require(_l2Token == _expectedL2Token, "l2 token mismatch");
+        }
+
+        bool _hasMetadata;
+        (_hasMetadata, _data) = abi.decode(_data, (bool, bytes));
+
+        bytes memory _deployData;
+        bytes memory _callData;
+
+        if (_hasMetadata) {
+            (_callData, _deployData) = abi.decode(_data, (bytes, bytes));
+        } else {
+            require(tokenMapping[_l2Token] == _l1Token, "token mapping mismatch");
+            _callData = _data;
+        }
+
+        if (!_l2Token.isContract()) {
+            // first deposit, update mapping
+            tokenMapping[_l2Token] = _l1Token;
+
+            _deployL2Token(_deployData, _l1Token);
+        }
+
+        IMorphERC20Upgradeable(_l2Token).mint(_to, _amount);
+
+        _doCallback(_to, _callData);
+
+        emit FinalizeDepositERC20(_l1Token, _l2Token, _from, _to, _amount, _callData);
+    }
+
+    /**********************
+     * Internal Functions *
+     **********************/
+
+    /// @inheritdoc L2ERC20Gateway
+    function _withdraw(
+        address _token,
+        address _to,
+        uint256 _amount,
+        bytes memory _data,
+        uint256 _gasLimit
+    ) internal virtual override nonReentrant {
+        require(_amount > 0, "withdraw zero amount");
+
+        // 1. Extract real sender if this call is from L2GatewayRouter.
+        address _from = _msgSender();
+        if (router == _from) {
+            (_from, _data) = abi.decode(_data, (address, bytes));
+        }
+
+        address _l1Token = tokenMapping[_token];
+        require(_l1Token != address(0), "no corresponding l1 token");
+
+        // 2. Burn token.
+        IMorphERC20Upgradeable(_token).burn(_from, _amount);
+
+        // 3. Generate message passed to L1StandardERC20Gateway.
+        bytes memory _message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (_l1Token, _token, _from, _to, _amount, _data)
+        );
+
+        uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
+        // 4. send message to L2MorphMessenger
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
+
+        emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data, nonce);
+    }
+
+    function _deployL2Token(bytes memory _deployData, address _l1Token) internal {
+        address _l2Token = IMorphStandardERC20Factory(tokenFactory).deployL2Token(address(this), _l1Token);
+        (string memory _symbol, string memory _name, uint8 _decimals) = abi.decode(
+            _deployData,
+            (string, string, uint8)
+        );
+        MorphStandardERC20(_l2Token).initialize(_name, _symbol, _decimals, address(this), _l1Token);
+    }
+}

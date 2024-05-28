@@ -3,7 +3,7 @@ pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 
-import {IL1GatewayRouter} from "../L1/gateways/IL1GatewayRouter.sol";
+import {IL1GatewayRouter} from "../l1/gateways/IL1GatewayRouter.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {TransferReentrantToken} from "../mock/tokens/TransferReentrantToken.sol";
 
@@ -19,11 +19,11 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         hevm.stopPrank();
     }
 
-    function testOwnership() public {
+    function test_ownership_succeeds() public {
         assertEq(address(this), l1GatewayRouter.owner());
     }
 
-    function testSetDefaultERC20Gateway() public {
+    function test_setDefaultERC20Gateway_works() public {
         l1GatewayRouter.setDefaultERC20Gateway(address(0));
 
         // set by non-owner, should revert
@@ -34,25 +34,16 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
 
         // set by owner, should succeed
         hevm.expectEmit(true, true, false, true);
-        emit IL1GatewayRouter.SetDefaultERC20Gateway(
-            address(0),
-            address(l1StandardERC20Gateway)
-        );
+        emit IL1GatewayRouter.SetDefaultERC20Gateway(address(0), address(l1StandardERC20Gateway));
 
         assertEq(address(0), l1GatewayRouter.getERC20Gateway(address(l1Token)));
         assertEq(address(0), l1GatewayRouter.defaultERC20Gateway());
         l1GatewayRouter.setDefaultERC20Gateway(address(l1StandardERC20Gateway));
-        assertEq(
-            address(l1StandardERC20Gateway),
-            l1GatewayRouter.getERC20Gateway(address(l1Token))
-        );
-        assertEq(
-            address(l1StandardERC20Gateway),
-            l1GatewayRouter.defaultERC20Gateway()
-        );
+        assertEq(address(l1StandardERC20Gateway), l1GatewayRouter.getERC20Gateway(address(l1Token)));
+        assertEq(address(l1StandardERC20Gateway), l1GatewayRouter.defaultERC20Gateway());
     }
 
-    function testSetERC20Gateway() public {
+    function test_setERC20Gateway_works() public {
         l1GatewayRouter.setDefaultERC20Gateway(address(0));
 
         // length mismatch, should revert
@@ -70,52 +61,30 @@ contract L1GatewayRouterTest is L1GatewayBaseTest {
         _gateways[0] = address(l1StandardERC20Gateway);
 
         hevm.expectEmit(true, true, true, true);
-        emit IL1GatewayRouter.SetERC20Gateway(
-            address(l1Token),
-            address(0),
-            address(l1StandardERC20Gateway)
-        );
+        emit IL1GatewayRouter.SetERC20Gateway(address(l1Token), address(0), address(l1StandardERC20Gateway));
 
         assertEq(address(0), l1GatewayRouter.getERC20Gateway(address(l1Token)));
         l1GatewayRouter.setERC20Gateway(_tokens, _gateways);
-        assertEq(
-            address(l1StandardERC20Gateway),
-            l1GatewayRouter.getERC20Gateway(address(l1Token))
-        );
+        assertEq(address(l1StandardERC20Gateway), l1GatewayRouter.getERC20Gateway(address(l1Token)));
     }
 
-    function testFinalizeWithdrawERC20() public {
+    function test_finalizeWithdrawERC20_neverCalled_reverts() public {
         hevm.expectRevert("should never be called");
-        l1GatewayRouter.finalizeWithdrawERC20(
-            address(0),
-            address(0),
-            address(0),
-            address(0),
-            0,
-            ""
-        );
+        l1GatewayRouter.finalizeWithdrawERC20(address(0), address(0), address(0), address(0), 0, "");
     }
 
-    function testFinalizeWithdrawETH() public {
+    function test_finalizeWithdrawETH_neverCalled_reverts() public {
         hevm.expectRevert("should never be called");
         l1GatewayRouter.finalizeWithdrawETH(address(0), address(0), 0, "");
     }
 
-    function testRequestERC20(
-        address _sender,
-        address _token,
-        uint256 _amount
-    ) public {
+    function test_requestERC20_context_reverts(address _sender, address _token, uint256 _amount) public {
         hevm.expectRevert("Only in deposit context");
         l1GatewayRouter.requestERC20(_sender, _token, _amount);
     }
 
-    function testReentrant() public {
-        TransferReentrantToken reentrantToken = new TransferReentrantToken(
-            "Reentrant",
-            "R",
-            18
-        );
+    function test_reentrant_context_reverts() public {
+        TransferReentrantToken reentrantToken = new TransferReentrantToken("Reentrant", "R", 18);
         reentrantToken.mint(address(this), type(uint128).max);
         reentrantToken.approve(address(l1GatewayRouter), type(uint256).max);
 

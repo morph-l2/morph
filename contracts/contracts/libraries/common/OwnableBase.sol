@@ -10,10 +10,7 @@ abstract contract OwnableBase {
     /// @notice Emitted when owner is changed by current owner.
     /// @param _oldOwner The address of previous owner.
     /// @param _newOwner The address of new owner.
-    event OwnershipTransferred(
-        address indexed _oldOwner,
-        address indexed _newOwner
-    );
+    event OwnershipTransferred(address indexed _oldOwner, address indexed _newOwner);
 
     /*************
      * Variables *

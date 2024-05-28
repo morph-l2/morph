@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/bls12381"
 	"github.com/tendermint/tendermint/l2node"
 	tmtypes "github.com/tendermint/tendermint/types"
+
+	"morph-l2/node/types"
 )
 
 // MaxNumChunks is the maximum number of chunks that a batch can contain.
@@ -150,6 +151,9 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			return false, 0, err
 		}
 		e.batchingCache.prevStateRoot = header.Root
+
+		// initialize latest batch index
+		e.metrics.BatchIndex.Set(float64(e.batchingCache.parentBatchHeader.BatchIndex))
 	}
 
 	height, err := heightFromBCBytes(currentBlockBytes)
@@ -282,9 +286,10 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		}
 	}
 
+	currentIndex := e.batchingCache.parentBatchHeader.BatchIndex + 1
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
 		Version:                  0,
-		Index:                    e.batchingCache.parentBatchHeader.BatchIndex + 1,
+		Index:                    currentIndex,
 		Hash:                     e.batchingCache.sealedBatchHeader.Hash(),
 		ParentBatchHeader:        e.batchingCache.parentBatchHeader.Encode(),
 		CurrentSequencerSetBytes: sequencerBytes,
@@ -297,6 +302,9 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	}, batchSigs); err != nil {
 		return err
 	}
+
+	// update newest batch index
+	e.metrics.BatchIndex.Set(float64(currentIndex))
 
 	// commit sealed batch header; move current block into the next batch
 	e.batchingCache.parentBatchHeader = e.batchingCache.sealedBatchHeader
@@ -317,7 +325,7 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	e.batchingCache.chunks.Append(e.batchingCache.currentBlockContext, e.batchingCache.currentTxsPayload, e.batchingCache.currentL1TxsHashes, e.batchingCache.currentRowConsumption)
 	e.batchingCache.ClearCurrent()
 
-	e.logger.Info("Committed batch")
+	e.logger.Info("Committed batch", "batchIndex", currentIndex)
 	return nil
 }
 

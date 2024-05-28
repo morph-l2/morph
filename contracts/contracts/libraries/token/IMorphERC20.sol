@@ -10,6 +10,4 @@ import {IMorphERC20Extension} from "./IMorphERC20Extension.sol";
 // The recommended ERC20 implementation for bridge token.
 // deployed in L2 when original token is on L1
 // deployed in L1 when original token is on L2
-interface IMorphERC20 is IERC20, IERC20Permit, IMorphERC20Extension {
-
-}
+interface IMorphERC20 is IERC20, IERC20Permit, IMorphERC20Extension {}

@@ -11,16 +11,10 @@ interface IMorphStandardERC20Factory {
     /// @notice Compute the corresponding l2 token address given l1 token address.
     /// @param _gateway The address of gateway contract.
     /// @param _l1Token The address of l1 token.
-    function computeL2TokenAddress(
-        address _gateway,
-        address _l1Token
-    ) external view returns (address);
+    function computeL2TokenAddress(address _gateway, address _l1Token) external view returns (address);
 
     /// @notice Deploy the corresponding l2 token address given l1 token address.
     /// @param _gateway The address of gateway contract.
     /// @param _l1Token The address of l1 token.
-    function deployL2Token(
-        address _gateway,
-        address _l1Token
-    ) external returns (address);
+    function deployL2Token(address _gateway, address _l1Token) external returns (address);
 }

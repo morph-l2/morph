@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/vm"
@@ -44,9 +45,9 @@ func main() {
 
 	messageHash := crypto.Keccak256(message)
 	var err error
-	pubKeys := make([]blssignatures.PublicKey, n, n)
-	privKeys := make([]blssignatures.PrivateKey, n, n)
-	messageSigs := make([]blssignatures.Signature, n, n)
+	pubKeys := make([]blssignatures.PublicKey, n)
+	privKeys := make([]blssignatures.PrivateKey, n)
+	messageSigs := make([]blssignatures.Signature, n)
 	for i := 0; i < n; i++ {
 		pubKeys[i], privKeys[i], err = blssignatures.GenerateKeys()
 		if err != nil {
@@ -119,7 +120,7 @@ func main() {
 	costGas += bls12381Pairing.RequiredGas(rightBls12381PairingInput)
 
 	// e[message(point on g1) , agg public key(point on g2)] = e[agg sig(point on g1), one(point on g2)]
-	fmt.Println("verified via precompiled bytes, result: ", bytes.Compare(leftPairingResult, rightPairingResult) == 0)
+	fmt.Println("verified via precompiled bytes, result: ", bytes.Equal(leftPairingResult, rightPairingResult))
 	fmt.Println("total gas cost for verification: ", costGas)
 }
 

@@ -5,8 +5,9 @@ import (
 	"math/big"
 	"time"
 
-	node "github.com/morph-l2/node/core"
 	"github.com/scroll-tech/go-ethereum/log"
+
+	node "morph-l2/node/core"
 )
 
 type Sequencer struct {

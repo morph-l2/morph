@@ -6,15 +6,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/morph-l2/node/flags"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/rpc"
 	"github.com/urfave/cli"
+
+	"morph-l2/node/flags"
+	"morph-l2/node/types"
 )
 
 const (
@@ -105,7 +107,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	if fileName == "" {
 		return fmt.Errorf("file-name of jwt secret is empty")
 	}
-	if data, err := os.ReadFile(fileName); err == nil {
+	if data, err := os.ReadFile(filepath.Clean(fileName)); err == nil {
 		jwtSecret := common.FromHex(strings.TrimSpace(string(data)))
 		if len(jwtSecret) != 32 {
 			return fmt.Errorf("invalid jwt secret in path %s, not 32 hex-formatted bytes", fileName)

@@ -7,9 +7,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/node/sync"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -23,6 +20,10 @@ import (
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/sync"
+	"morph-l2/node/types"
 )
 
 type NewSyncerFunc func() (*sync.Syncer, error)
@@ -57,7 +58,7 @@ type Executor struct {
 	metrics *Metrics
 }
 
-func getNextL1MsgIndex(client *types.RetryableClient, logger tmlog.Logger) (uint64, error) {
+func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
 	currentHeader, err := client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return 0, err
@@ -78,7 +79,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	}
 
 	l2Client := types.NewRetryableClient(aClient, eClient, config.Logger)
-	index, err := getNextL1MsgIndex(l2Client, logger)
+	index, err := getNextL1MsgIndex(l2Client)
 	if err != nil {
 		return nil, err
 	}

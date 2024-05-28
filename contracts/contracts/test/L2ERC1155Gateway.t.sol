@@ -5,12 +5,9 @@ pragma solidity =0.8.24;
 import {MockERC1155} from "@rari-capital/solmate/src/test/utils/mocks/MockERC1155.sol";
 import {ERC1155TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC1155.sol";
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
-import {L1ERC1155Gateway} from "../L1/gateways/L1ERC1155Gateway.sol";
-import {L2ERC1155Gateway} from "../L2/gateways/L2ERC1155Gateway.sol";
+import {L2ERC1155Gateway} from "../l2/gateways/L2ERC1155Gateway.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
-import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 
 contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     uint256 private constant TOKEN_COUNT = 100;
@@ -31,11 +28,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         gateway = l2ERC1155Gateway;
         counterpart = gateway.counterpart();
 
-        hevm.store(
-            address(gateway),
-            bytes32(erc1155_messenger_slot),
-            bytes32(abi.encode(address(messenger)))
-        );
+        hevm.store(address(gateway), bytes32(erc1155_messenger_slot), bytes32(abi.encode(address(messenger))));
 
         // transfer ownership
         hevm.prank(multisig);
@@ -48,12 +41,12 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         token.setApprovalForAll(address(gateway), true);
     }
 
-    function testReinitilize() public {
+    function test_initilize_reInit_fails() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         gateway.initialize(address(1), address(messenger));
     }
 
-    function testUpdateTokenMappingFailed(address token1) public {
+    function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -65,10 +58,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         gateway.updateTokenMapping(token1, address(0));
     }
 
-    function testUpdateTokenMappingSuccess(
-        address token1,
-        address token2
-    ) public {
+    function test_updateTokenMapping_succeeds(address token1, address token2) public {
         if (token2 == address(0)) token2 = address(1);
 
         assertEq(gateway.tokenMapping(token1), address(0));
@@ -77,7 +67,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev failed to withdraw erc1155
-    function testWithdrawERC1155WithGatewayFailed(address to) public {
+    function test_withdrawERC1155WithGateway_zeroAmount_fails(address to) public {
         // token not support
         hevm.expectRevert("no corresponding l1 token");
         if (to == address(0)) {
@@ -96,130 +86,70 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev withdraw erc1155 without recipient
-    function testWithdrawERC1155WithGatewaySuccess(
-        uint256 tokenId,
-        uint256 amount
-    ) public {
+    function test_withdrawERC1155WithGateway_succeeds(uint256 tokenId, uint256 amount) public {
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         amount = bound(amount, 1, type(uint256).max);
         gateway.updateTokenMapping(address(token), address(token));
 
         gateway.withdrawERC1155(address(token), tokenId, amount, 0);
         assertEq(token.balanceOf(address(gateway), tokenId), 0);
-        assertEq(
-            token.balanceOf(address(this), tokenId),
-            type(uint256).max - amount
-        );
+        assertEq(token.balanceOf(address(this), tokenId), type(uint256).max - amount);
 
         // @todo check event
     }
 
     /// @dev withdraw erc1155 with recipient
-    function testWithdrawERC1155WithGatewaySuccess(
-        uint256 tokenId,
-        uint256 amount,
-        address to
-    ) public {
+    function test_withdrawERC1155WithGateway_succeeds(uint256 tokenId, uint256 amount, address to) public {
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         amount = bound(amount, 1, type(uint256).max);
         gateway.updateTokenMapping(address(token), address(token));
 
         gateway.withdrawERC1155(address(token), to, tokenId, amount, 0);
         assertEq(token.balanceOf(address(gateway), tokenId), 0);
-        assertEq(
-            token.balanceOf(address(this), tokenId),
-            type(uint256).max - amount
-        );
+        assertEq(token.balanceOf(address(this), tokenId), type(uint256).max - amount);
 
         // @todo check event
     }
 
     /// @dev failed to batch withdraw erc1155
-    function testBatchWithdrawERC1155WithGatewayFailed(address to) public {
+    function test_batchWithdrawERC1155WithGateway_zeroAmount_fails(address to) public {
         // no token to withdraw
         hevm.expectRevert("no token to withdraw");
         if (to == address(0)) {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                new uint256[](0),
-                new uint256[](0),
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), new uint256[](0), new uint256[](0), 0);
         } else {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                to,
-                new uint256[](0),
-                new uint256[](0),
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), to, new uint256[](0), new uint256[](0), 0);
         }
 
         // length mismatch
         hevm.expectRevert("length mismatch");
         if (to == address(0)) {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                new uint256[](1),
-                new uint256[](0),
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), new uint256[](1), new uint256[](0), 0);
         } else {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                to,
-                new uint256[](1),
-                new uint256[](0),
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), to, new uint256[](1), new uint256[](0), 0);
         }
 
         uint256[] memory amounts = new uint256[](1);
         // withdraw zero amount
         hevm.expectRevert("withdraw zero amount");
         if (to == address(0)) {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                new uint256[](1),
-                amounts,
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), new uint256[](1), amounts, 0);
         } else {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                to,
-                new uint256[](1),
-                amounts,
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), to, new uint256[](1), amounts, 0);
         }
 
         // token not support
         amounts[0] = 1;
         hevm.expectRevert("no corresponding l1 token");
         if (to == address(0)) {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                new uint256[](1),
-                amounts,
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), new uint256[](1), amounts, 0);
         } else {
-            gateway.batchWithdrawERC1155(
-                address(token),
-                to,
-                new uint256[](1),
-                amounts,
-                0
-            );
+            gateway.batchWithdrawERC1155(address(token), to, new uint256[](1), amounts, 0);
         }
     }
 
     /// @dev batch withdraw erc1155 without recipient
-    function testBatchWithdrawERC1155WithGatewaySuccess(
-        uint256 count,
-        uint256 amount
-    ) public {
+    function test_batchWithdrawERC1155WithGateway_succeeds(uint256 count, uint256 amount) public {
         count = bound(count, 1, TOKEN_COUNT);
         amount = bound(amount, 1, type(uint256).max);
         gateway.updateTokenMapping(address(token), address(token));
@@ -234,21 +164,14 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         gateway.batchWithdrawERC1155(address(token), _tokenIds, _amounts, 0);
         for (uint256 i = 0; i < count; i++) {
             assertEq(token.balanceOf(address(gateway), i), 0);
-            assertEq(
-                token.balanceOf(address(this), i),
-                type(uint256).max - amount
-            );
+            assertEq(token.balanceOf(address(this), i), type(uint256).max - amount);
         }
 
         // @todo check event
     }
 
     /// @dev batch withdraw erc1155 with recipient
-    function testBatchWithdrawERC1155WithGatewaySuccess(
-        uint256 count,
-        uint256 amount,
-        address to
-    ) public {
+    function test_batchWithdrawERC1155WithGateway_succeeds(uint256 count, uint256 amount, address to) public {
         count = bound(count, 1, TOKEN_COUNT);
         amount = bound(amount, 1, type(uint256).max);
         gateway.updateTokenMapping(address(token), address(token));
@@ -260,36 +183,20 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
             _amounts[i] = amount;
         }
 
-        gateway.batchWithdrawERC1155(
-            address(token),
-            to,
-            _tokenIds,
-            _amounts,
-            0
-        );
+        gateway.batchWithdrawERC1155(address(token), to, _tokenIds, _amounts, 0);
         for (uint256 i = 0; i < count; i++) {
             assertEq(token.balanceOf(address(gateway), i), 0);
-            assertEq(
-                token.balanceOf(address(this), i),
-                type(uint256).max - _amounts[i]
-            );
+            assertEq(token.balanceOf(address(this), i), type(uint256).max - _amounts[i]);
         }
 
         // @todo check event
     }
 
     /// @dev failed to finalize deposit erc1155
-    function testFinalizeDepositERC1155Failed() public {
+    function test_finalizeDepositERC1155_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
-        gateway.finalizeDepositERC1155(
-            address(0),
-            address(0),
-            address(0),
-            address(0),
-            0,
-            1
-        );
+        gateway.finalizeDepositERC1155(address(0), address(0), address(0), address(0), 0, 1);
 
         // should revert, called by messenger, xDomainMessageSender not set
         hevm.expectRevert("only call by counterpart");
@@ -314,12 +221,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev finalize deposit erc1155
-    function testFinalizeDepositERC1155(
-        address from,
-        address to,
-        uint256 tokenId,
-        uint256 amount
-    ) public {
+    function test_finalizeDepositERC1155_succeeds(address from, address to, uint256 tokenId, uint256 amount) public {
         hevm.assume(to != address(0));
         hevm.assume(to.code.length == 0);
 
@@ -340,7 +242,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
     }
 
     /// @dev failed to finalize batch deposit erc1155
-    function testFinalizeBatchDepositERC1155Failed() public {
+    function test_finalizeBatchDepositERC1155_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
         gateway.finalizeBatchDepositERC1155(
@@ -358,14 +260,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
             address(gateway),
             abi.encodeCall(
                 L2ERC1155Gateway.finalizeBatchDepositERC1155,
-                (
-                    address(0),
-                    address(0),
-                    address(0),
-                    address(0),
-                    new uint256[](0),
-                    new uint256[](0)
-                )
+                (address(0), address(0), address(0), address(0), new uint256[](0), new uint256[](0))
             )
         );
 
@@ -376,20 +271,13 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
             address(gateway),
             abi.encodeCall(
                 L2ERC1155Gateway.finalizeBatchDepositERC1155,
-                (
-                    address(0),
-                    address(0),
-                    address(0),
-                    address(0),
-                    new uint256[](0),
-                    new uint256[](0)
-                )
+                (address(0), address(0), address(0), address(0), new uint256[](0), new uint256[](0))
             )
         );
     }
 
     /// @dev finalize batch withdraw erc1155
-    function testFinalizeBatchWithdrawERC1155(
+    function test_finalizeBatchWithdrawERC1155_succeeds(
         address from,
         address to,
         uint256 count,

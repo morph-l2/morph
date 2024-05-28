@@ -6,17 +6,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/node/flags"
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	tmconfig "github.com/tendermint/tendermint/config"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"morph-l2/bindings/predeploys"
+	"morph-l2/node/flags"
+	"morph-l2/node/types"
 )
 
 type Config struct {
@@ -47,11 +49,11 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	output := io.Writer(os.Stderr)
 	if ctx.GlobalIsSet(flags.LogFilename.Name) {
 		logFilename := ctx.GlobalString(flags.LogFilename.Name)
-		f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+		f, err := os.OpenFile(filepath.Clean(logFilename), os.O_CREATE|os.O_RDWR, os.FileMode(0600))
 		if err != nil {
 			return fmt.Errorf("wrong log.filename set: %d", err)
 		}
-		f.Close()
+		_ = f.Close()
 		maxSize := ctx.GlobalInt(flags.LogFileMaxSize.Name)
 		if maxSize < 1 {
 			return fmt.Errorf("wrong log.maxsize set: %d", maxSize)
@@ -93,7 +95,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	if fileName == "" {
 		return fmt.Errorf("file-name of jwt secret is empty")
 	}
-	if data, err := os.ReadFile(fileName); err == nil {
+	if data, err := os.ReadFile(filepath.Clean(fileName)); err == nil {
 		jwtSecret := common.FromHex(strings.TrimSpace(string(data)))
 		if len(jwtSecret) != 32 {
 			return fmt.Errorf("invalid jwt secret in path %s, not 32 hex-formatted bytes", fileName)

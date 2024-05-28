@@ -1,15 +1,10 @@
-go 1.20
-
-replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240429050506-03fd4c3e771d
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.1.0-beta.0.20240417065957-8ff3c98baa2f
-)
+go 1.22
 
 use (
 	./bindings
 	./contracts
 	./node
-	./ops/L2-genesis
+	./ops/l2-genesis
 	./ops/tools
 	./oracle
 	./tx-submitter

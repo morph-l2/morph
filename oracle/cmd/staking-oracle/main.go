@@ -2,14 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/morph-l2/morph/oracle/flags"
-	"github.com/morph-l2/morph/oracle/oracle"
-
 	"os"
 
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/urfave/cli"
+
+	"morph-l2/oracle/flags"
+	"morph-l2/oracle/oracle"
 )
 
 var (

@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"github.com/morph-l2/bindings/ast"
-	"github.com/morph-l2/bindings/hardhat"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"morph-l2/bindings/ast"
+	"morph-l2/bindings/hardhat"
 )
 
 type flags struct {
@@ -79,7 +80,7 @@ func main() {
 
 		fname := filepath.Join(f.OutDir, strings.ToLower(name)+"_more.go")
 		outfile, err := os.OpenFile(
-			fname,
+			filepath.Clean(fname),
 			os.O_RDWR|os.O_CREATE|os.O_TRUNC,
 			0o600,
 		)
@@ -90,7 +91,7 @@ func main() {
 		if err := t.Execute(outfile, d); err != nil {
 			log.Fatalf("error writing template %s: %v", outfile.Name(), err)
 		}
-		outfile.Close()
+		_ = outfile.Close()
 		log.Printf("wrote file %s\n", outfile.Name())
 	}
 }
@@ -103,7 +104,7 @@ package {{.Package}}
 import (
 	"encoding/json"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
 )
 
 const {{.Name}}StorageLayoutJSON = "{{.StorageLayout}}"

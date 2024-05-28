@@ -9,6 +9,4 @@ import {IMorphERC1155Extension} from "./IMorphERC1155Extension.sol";
 // The recommended ERC1155 implementation for bridge token.
 // deployed in L2 when original token is on L1
 // deployed in L1 when original token is on L2
-interface IMorphERC1155 is IERC1155, IMorphERC1155Extension {
-
-}
+interface IMorphERC1155 is IERC1155, IMorphERC1155Extension {}
