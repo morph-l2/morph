@@ -1,0 +1,25 @@
+name: Prover
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "gas-roacle/**"
+            - ".github/workflows/gas-roacle.yaml"
+    pull_request:
+        paths:
+            - "gas-roacle/**"
+            - ".github/workflows/gas-roacle.yaml"
+
+defaults:
+    run:
+        working-directory: "gas-roacle"
+
+jobs:
+    check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Run build
+              run: make build
