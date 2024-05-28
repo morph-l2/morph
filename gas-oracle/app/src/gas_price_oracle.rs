@@ -188,6 +188,7 @@ async fn handle_metrics() -> String {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore]
 async fn test() -> Result<(), Box<dyn Error>> {
     println!("update");
     let result = update().await;

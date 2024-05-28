@@ -430,7 +430,8 @@ impl OverHeadUpdater {
 }
 
 #[tokio::test]
-async fn test_overhead_inspect() {
+#[ignore]
+async fn test_calculate_from_current_rollup() {
     use std::{env::var, sync::Arc};
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();

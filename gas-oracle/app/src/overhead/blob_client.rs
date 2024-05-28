@@ -242,6 +242,7 @@ impl BeaconNode {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_query_execution_node() {
     use std::env::var;
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -285,6 +286,7 @@ async fn test_query_execution_node() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_query_block() {
     use std::env::var;
 
@@ -310,6 +312,7 @@ async fn test_query_block() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_query_beacon_node() {
     use std::env::var;
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
