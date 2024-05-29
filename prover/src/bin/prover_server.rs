@@ -18,8 +18,8 @@ use log::Record;
 use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use zkevm_prover::prover::{prove_for_queue, ProveRequest};
-#[derive(Serialize, Deserialize, Debug)]
+use zkevm_prover::prover::{ProveRequest, Prover};
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProveResult {
     pub error_msg: String,
     pub error_code: String,
@@ -95,7 +95,8 @@ async fn metric_mng() {
 }
 
 async fn start_prover(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
-    prove_for_queue(task_queue).await;
+    let mut prover = Prover::new(task_queue);
+    prover.prove_for_queue().await;
 }
 
 async fn handle_metrics() -> String {
@@ -134,7 +135,11 @@ async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>
         Ok(req) => req,
         Err(_) => return String::from("deserialize proveRequest failed"),
     };
-    log::info!("recived prove request of batch_index: {:#?}", prove_request.batch_index);
+    log::info!(
+        "recived prove request of batch_index: {:#?}, shadow: {:#?}",
+        prove_request.batch_index,
+        prove_request.shadow.unwrap_or(false)
+    );
 
     // Verify block number is greater than 0
     if prove_request.chunks.len() == 0 {
@@ -194,7 +199,15 @@ async fn query_prove_result(batch_index: String) -> String {
 }
 
 async fn query_proof(batch_index: String) -> ProveResult {
-    let proof_dir: Result<fs::ReadDir, std::io::Error> = fs::read_dir(PROVER_PROOF_DIR.to_string());
+    let proof_dir = match fs::read_dir(PROVER_PROOF_DIR.to_string()) {
+        Ok(dir) => dir,
+        Err(_) => {
+            return ProveResult {
+                error_msg: "Read proof dir error".to_string(),
+                ..Default::default()
+            }
+        }
+    };
     let mut result = ProveResult {
         error_msg: String::new(),
         error_code: String::new(),
@@ -204,12 +217,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
     };
     log::info!("query proof of batch_index: {:#?}", batch_index);
 
-    if proof_dir.is_err() {
-        result.error_msg = String::from("Read proof dir error");
-        return result;
-    }
-
-    for entry in proof_dir.unwrap() {
+    for entry in proof_dir {
         let path = match entry {
             Ok(entry) => entry.path(),
             Err(_) => {
@@ -272,7 +280,6 @@ async fn query_proof(batch_index: String) -> ProveResult {
             break;
         }
     }
-
     return result;
 }
 
@@ -302,7 +309,7 @@ fn setup_logging() {
         .unwrap()
         .log_to_file(
             FileSpec::default()
-                .directory("/data/logs/morph-prover")
+                .directory(read_env_var("LOG_DIR", String::from("/data/logs/morph-prover")))
                 .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)

@@ -114,7 +114,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     // let min_gas_limit = param.min_gas_limit;
     // log::info!("batch inspect: min_gas_limit =  {:#?}", min_gas_limit);
 
-    let chunks: Vec<Bytes> = param.batch_data.chunks;
+    let chunks: Vec<Bytes> = param.batch_data_input.chunks;
 
     let chunk_with_blocks = decode_chunks(chunks).unwrap_or_default();
     log::info!("batch_index: {:#?},  decode_chunks_blocknum: {:#?}", batch_index, chunk_with_blocks);

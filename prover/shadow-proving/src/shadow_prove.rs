@@ -20,6 +20,7 @@ pub struct ProveRequest {
     pub batch_index: u64,
     pub chunks: Vec<Vec<u64>>,
     pub rpc: String,
+    pub shadow: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -110,8 +111,8 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
         // Query existing proof
         match query_proof(batch_index).await {
             Some(prove_result) => {
-                log::info!("query proof and prove state: {:?}", batch_index);
                 if !prove_result.proof_data.is_empty() {
+                    log::info!("query proof and prove state: {:?}", batch_index);
                     prove_state(batch_index, &l1_shadow_rollup).await;
                     break;
                 }
@@ -124,6 +125,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
             batch_index: batch_index,
             chunks: chunks.clone(),
             rpc: l2_rpc.to_owned(),
+            shadow: true,
         };
         let rt = tokio::task::spawn_blocking(move || util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch"))
             .await

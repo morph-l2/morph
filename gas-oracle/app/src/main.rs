@@ -1,4 +1,4 @@
-use app::gas_price_oracle;
+use app::{gas_price_oracle, read_env_var};
 use dotenv::dotenv;
 use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
 use log::Record;
@@ -39,7 +39,7 @@ fn setup_logging() {
         .unwrap()
         .log_to_file(
             FileSpec::default()
-                .directory("/data/logs/morph-oracle")
+                .directory(read_env_var("LOG_DIR", String::from("/data/logs/morph-gas-oracle")))
                 .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)

@@ -116,9 +116,9 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         METRICS.detected_batch_index.set(batch_index as i64);
         match query_proof(batch_index).await {
             Some(prove_result) => {
-                log::info!("query proof and prove state: {:#?}", batch_index);
                 if !prove_result.proof_data.is_empty() {
-                    prove_state(wallet_address, batch_index, &l1_rollup).await;
+                    log::info!("query proof and prove state: {:#?}", batch_index);
+                    prove_state(batch_index, &l1_rollup).await;
                     continue;
                 }
             }
@@ -158,7 +158,7 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
                 task_status::PROVING => log::info!("waiting for prev proof to be generated"),
                 task_status::PROVED => {
                     log::info!("proof already generated");
-                    prove_state(wallet_address, batch_index, &l1_rollup).await;
+                    prove_state(batch_index, &l1_rollup).await;
                     continue;
                 }
                 _ => {
@@ -181,7 +181,7 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
                 Some(prove_result) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
-                        prove_state(wallet_address, batch_index, &l1_rollup).await;
+                        prove_state(batch_index, &l1_rollup).await;
                         break;
                     }
                 }
@@ -194,7 +194,7 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
     }
 }
 
-async fn prove_state(wallet_address: Address, batch_index: u64, l1_rollup: &RollupType) -> bool {
+async fn prove_state(batch_index: u64, l1_rollup: &RollupType) -> bool {
     for _ in 0..MAX_RETRY_TIMES {
         sleep(Duration::from_secs(12)).await;
         let prove_result = match query_proof(batch_index).await {
@@ -211,7 +211,7 @@ async fn prove_state(wallet_address: Address, batch_index: u64, l1_rollup: &Roll
         let aggr_proof = Bytes::from(prove_result.proof_data);
         let kzg_data = Bytes::from(prove_result.blob_kzg);
 
-        let call = l1_rollup.prove_state(batch_index, wallet_address, aggr_proof, kzg_data, 10u32.pow(6));
+        let call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data);
         let rt = call.send().await;
         let pending_tx = match rt {
             Ok(pending_tx) => {
@@ -411,8 +411,6 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec
 
     //Step2. Parse transaction data
     let data = tx.input;
-    // log::debug!("batch inspect: tx.input =  {:#?}", data);
-
     if data.is_empty() {
         log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
         return None;
@@ -423,7 +421,7 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec
         log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
         return None;
     };
-    let chunks: Vec<Bytes> = param.batch_data.chunks;
+    let chunks: Vec<Bytes> = param.batch_data_input.chunks;
     return decode_chunks(chunks);
 }
 
@@ -454,9 +452,7 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
         chunk_with_blocks.push(chunk_bn);
     }
     METRICS.txn_len.set(txn_in_batch.into());
-    log::debug!("decode_chunks_blocknum: {:#?}", chunk_with_blocks);
-    log::info!("max_l2txn_in_chunk: {:#?}", max_txn_in_chunk);
-    log::info!("total_l2txn_in_batch: {:#?}", txn_in_batch);
+    log::info!("total_l2txn_in_batch: {:#?}, max_l2txn_in_chunk: {:#?}", txn_in_batch, max_txn_in_chunk);
     return Some(chunk_with_blocks);
 }
 
@@ -466,13 +462,13 @@ async fn test_decode_chunks() {
 
     use std::fs::File;
     use std::io::Read;
-    let mut file = File::open("./src/input.data").unwrap();
+    let mut file = File::open("./src/batch.json").unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     let input = Bytes::from_str(contents.as_str()).unwrap();
 
     let param = CommitBatchCall::decode(&input).unwrap();
-    let chunks: Vec<Bytes> = param.batch_data.chunks;
+    let chunks: Vec<Bytes> = param.batch_data_input.chunks;
     let rt = decode_chunks(chunks).unwrap();
     assert!(rt.len() == 11);
     assert!(rt.get(3).unwrap().len() == 2);

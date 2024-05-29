@@ -3,7 +3,7 @@
     "inputs": [
       {
         "internalType": "uint64",
-        "name": "_chainId",
+        "name": "_chainID",
         "type": "uint64"
       }
     ],
@@ -63,12 +63,6 @@
         "indexed": true,
         "internalType": "address",
         "name": "challenger",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "challengerReceiveAddress",
         "type": "address"
       },
       {
@@ -305,25 +299,12 @@
   },
   {
     "inputs": [],
-    "name": "FINALIZATION_PERIOD_SECONDS",
+    "name": "LAYER_2_CHAIN_ID",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "PROOF_WINDOW",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -345,12 +326,64 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "batchIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "batchBaseStore",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "batchHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "batchVersion",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "originTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "finalizeTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
-        "name": "",
+        "name": "owner",
         "type": "address"
       }
     ],
     "name": "batchChallengeReward",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "batchChallenged",
     "outputs": [
       {
         "internalType": "uint256",
@@ -375,6 +408,60 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "batchIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "batchDataStore",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "blobVersionedHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "l1DataHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "prevStateRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "postStateRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "withdrawalRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "l1MessagePopped",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalL1MessagePopped",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "skippedL1MessageBitmap",
+        "type": "bytes"
       }
     ],
     "stateMutability": "view",
@@ -440,14 +527,38 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "batchIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "batchSignatureStore",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "blsMsgHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "sequencerSetVerifyHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signedSequencers",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint64",
         "name": "batchIndex",
         "type": "uint64"
-      },
-      {
-        "internalType": "address",
-        "name": "challengerReceiver",
-        "type": "address"
       }
     ],
     "name": "challengeState",
@@ -459,7 +570,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "batchIndex",
         "type": "uint256"
       }
     ],
@@ -473,16 +584,6 @@
       {
         "internalType": "address",
         "name": "challenger",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "challengerReceiveAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "proverReceiveAddress",
         "type": "address"
       },
       {
@@ -510,7 +611,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      }
+    ],
     "name": "claimReward",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -554,132 +661,38 @@
             "internalType": "bytes32",
             "name": "withdrawalRoot",
             "type": "bytes32"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "version",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256[]",
-                "name": "signers",
-                "type": "uint256[]"
-              },
-              {
-                "internalType": "bytes",
-                "name": "signature",
-                "type": "bytes"
-              }
-            ],
-            "internalType": "struct IRollup.BatchSignature",
-            "name": "signature",
-            "type": "tuple"
           }
         ],
-        "internalType": "struct IRollup.BatchData",
-        "name": "batchData",
+        "internalType": "struct IRollup.BatchDataInput",
+        "name": "batchDataInput",
         "type": "tuple"
       },
       {
-        "internalType": "uint256",
-        "name": "version",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address[]",
-        "name": "sequencers",
-        "type": "address[]"
-      },
-      {
-        "internalType": "bytes",
-        "name": "signature",
-        "type": "bytes"
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "signedSequencers",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "sequencerSets",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IRollup.BatchSignatureInput",
+        "name": "batchSignatureInput",
+        "type": "tuple"
       }
     ],
     "name": "commitBatch",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "committedBatchStores",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "batchVersion",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "batchHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "originTimestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "finalizeTimestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "prevStateRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "postStateRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "withdrawalRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "l1DataHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "l1MessagePopped",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "totalL1MessagePopped",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "skippedL1MessageBitmap",
-        "type": "bytes"
-      },
-      {
-        "internalType": "uint256",
-        "name": "blockNumber",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "blobVersionedHash",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -702,6 +715,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "finalizationPeriodSeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -718,7 +744,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "batchIndex",
         "type": "uint256"
       }
     ],
@@ -726,7 +752,7 @@
     "outputs": [
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "stateRoot",
         "type": "bytes32"
       }
     ],
@@ -766,11 +792,6 @@
   },
   {
     "inputs": [
-      {
-        "internalType": "address",
-        "name": "_l1SequencerContract",
-        "type": "address"
-      },
       {
         "internalType": "address",
         "name": "_l1StakingContract",
@@ -830,7 +851,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "challengerAddress",
         "type": "address"
       }
     ],
@@ -838,21 +859,8 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "",
+        "name": "isChallenger",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "l1SequencerContract",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -892,32 +900,6 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "latestL2BlockNumber",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "layer2ChainId",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -976,16 +958,24 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "proofWindow",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint64",
         "name": "_batchIndex",
         "type": "uint64"
-      },
-      {
-        "internalType": "address",
-        "name": "_proverReceiveAddress",
-        "type": "address"
       },
       {
         "internalType": "bytes",
@@ -996,11 +986,6 @@
         "internalType": "bytes",
         "name": "_kzgDataProof",
         "type": "bytes"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_minGasLimit",
-        "type": "uint32"
       }
     ],
     "name": "proveState",
@@ -1154,7 +1139,7 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "withdrawalRoot",
         "type": "bytes32"
       }
     ],
@@ -1162,7 +1147,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "",
+        "name": "exist",
         "type": "bool"
       }
     ],
