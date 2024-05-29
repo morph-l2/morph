@@ -384,8 +384,7 @@ impl OverHeadUpdater {
             ))));
         }
 
-        let tx_payload = extract_tx_payload(indexed_hashes, sidecars)
-            .map_err(|e| OverHeadError::Error(anyhow!(e)))?;
+        let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
 
         let tx_payload_gas = data_gas_cost(&tx_payload);
         log::info!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
