@@ -478,6 +478,11 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return _stakers;
     }
 
+    /// @notice get staker addresses length
+    function getStakerAddressesLength() external view returns (uint256) {
+        return stakerAddresses.length;
+    }
+
     /**********************
      * Internal Functions *
      **********************/

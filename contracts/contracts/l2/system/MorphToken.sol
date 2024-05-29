@@ -82,6 +82,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     function initialize(
         string memory name_,
         string memory symbol_,
+        address _owner,
         uint256 initialSupply_,
         uint256 dailyInflationRate_
     ) public initializer {
@@ -89,8 +90,9 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
         _name = name_;
         _symbol = symbol_;
-        _mint(_msgSender(), initialSupply_);
+        _mint(_owner, initialSupply_);
         _epochInflationRates.push(EpochInflationRate(dailyInflationRate_, 0));
+        _transferOwnership(_owner);
 
         emit UpdateEpochInflationRate(dailyInflationRate_, 0);
     }

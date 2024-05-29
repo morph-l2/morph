@@ -26,6 +26,7 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+	_ = abi.ConvertType
 )
 
 // L1CustomERC20GatewayMetaData contains all meta data concerning the L1CustomERC20Gateway contract.
@@ -156,11 +157,11 @@ func NewL1CustomERC20GatewayFilterer(address common.Address, filterer bind.Contr
 
 // bindL1CustomERC20Gateway binds a generic wrapper to an already deployed contract.
 func bindL1CustomERC20Gateway(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := abi.JSON(strings.NewReader(L1CustomERC20GatewayABI))
+	parsed, err := L1CustomERC20GatewayMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
