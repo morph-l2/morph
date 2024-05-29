@@ -1,0 +1,3 @@
+{
+    "rust-analyzer.linkedProjects": ["gas-oracle/app/Cargo.toml", "prover/Cargo.toml"]
+}
