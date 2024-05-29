@@ -17,11 +17,6 @@ library Predeploys {
     address internal constant L2_GATEWAY_ROUTER = 0x5300000000000000000000000000000000000002;
 
     /**
-     * @notice Address of the SEQUENCER predeploy.
-     */
-    address internal constant SEQUENCER = 0x5300000000000000000000000000000000000003;
-
-    /**
      * @notice Address of the Gov predeploy.
      */
     address internal constant GOV = 0x5300000000000000000000000000000000000004;
@@ -110,5 +105,11 @@ library Predeploys {
     /**
      * @notice Address of the L2_CUSTOM_ERC20_GATEWAY predeploy.
      */
-    address internal constant L2_CUSTOM_ERC20_GATEWAY = 0x5300000000000000000000000000000000000015;
+    address internal constant L2_CUSTOM_ERC20_GATEWAY = 0x5300000000000000000000000000000000000016;
+
+    /**
+    * @notice Address of the SEQUENCER predeploy.
+     */
+    address internal constant SEQUENCER = 0x5300000000000000000000000000000000000017;
+
 }

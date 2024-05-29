@@ -335,7 +335,7 @@ task("withdraw-l2-eth")
 task("getSequencerAddresses")
     .setAction(async (taskArgs, hre) => {
         const factory = await hre.ethers.getContractFactory('Sequencer')
-        const contract = factory.attach('0x5300000000000000000000000000000000000003')
+        const contract = factory.attach('0x5300000000000000000000000000000000000017')
         const res = await contract.getCurrentSequencerSet()
 
         console.log(`getCurrentSequencerSet : ${res}`)
