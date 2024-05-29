@@ -639,7 +639,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Internal Functions *
      **********************/
 
-    /// @dev todo
+    /// @dev Internal function to verify the blob proof and zk proof.
     function _verifyProof(uint64 _batchIndex, bytes calldata _aggrProof, bytes calldata _kzgDataProof) private view {
         // Check validity of proof
         require(_aggrProof.length > 0, "Invalid aggregation proof");
@@ -667,7 +667,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchDataStore[_batchIndex].withdrawalRoot,
                 batchDataStore[_batchIndex].l1DataHash,
                 _kzgDataProof[0:64],
-                batchDataStore[_batchIndex].blobVersionedHash
+                batchDataStore[_batchIndex].blobVersionedHash,
+                batchSignatureStore[_batchIndex].sequencerSetVerifyHash
             )
         );
 
