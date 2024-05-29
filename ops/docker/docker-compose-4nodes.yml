@@ -673,6 +673,8 @@ services:
       - TXN_PER_BATCH=50
       - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - OVERHEAD_SWITCH=${OVERHEAD_SWITCH}
+      - MAX_OVERHEAD=${MAX_OVERHEAD}
+      
   staking-oracle:
     container_name: staking-oracle
     depends_on:

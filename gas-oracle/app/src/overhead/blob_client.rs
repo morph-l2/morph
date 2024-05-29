@@ -21,21 +21,18 @@ impl ExecutionNode {
             )
         })
         .await
-        .map_or_else(
-            |e| {
-                log::error!("query_blob_tx error: {:?}", e);
-                return None;
-            },
-            |v| v,
-        )?;
+        .unwrap_or_else(|e| {
+            log::error!("query_blob_tx error: {:?}", e);
+            None
+        })?;
 
         match serde_json::from_str::<Value>(&rt) {
-            Ok(parsed) => return Some(parsed),
+            Ok(parsed) => Some(parsed),
             Err(_) => {
                 log::error!("deserialize query_blob_tx failed, hash= {:?}", hash);
-                return None;
+                None
             }
-        };
+        }
     }
 
     pub async fn query_blob_tx_receipt(&self, hash: &str) -> Option<Value> {
@@ -56,18 +53,16 @@ impl ExecutionNode {
         .await;
 
         match rt {
-            Ok(Some(info)) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize query_blob_tx_receipt failed, hash= {:?}", hash);
-                        return None;
-                    }
-                };
-            }
+            Ok(Some(info)) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(_) => {
+                    log::error!("deserialize query_blob_tx_receipt failed, hash= {:?}", hash);
+                    None
+                }
+            },
             _ => {
                 log::error!("query_blob_tx_receipt failed");
-                return None;
+                None
             }
         }
     }
@@ -90,24 +85,26 @@ impl ExecutionNode {
         .await;
 
         match rt {
-            Ok(Some(info)) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize block failed, hash= {:?}", hash);
-                        return None;
-                    }
-                };
-            }
+            Ok(Some(info)) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(_) => {
+                    log::error!("deserialize block failed, hash= {:?}", hash);
+                    None
+                }
+            },
             _ => {
                 log::error!("query block failed");
-                return None;
+                None
             }
         }
     }
 
     pub async fn query_block_by_num(&self, num: u64) -> Option<Value> {
-        let params: serde_json::Value = json!([format!("0x{:X}", num), true]);
+        let params: serde_json::Value = if num != 0 {
+            json!([format!("0x{:X}", num), false])
+        } else {
+            json!(["latest", false])
+        };
         let rpc_url = self.rpc_url.clone();
         let rt = tokio::task::spawn_blocking(move || {
             Self::query_execution_node(
@@ -124,18 +121,16 @@ impl ExecutionNode {
         .unwrap();
 
         match rt {
-            Some(info) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize block failed, blockNum= {:?}", num);
-                        return None;
-                    }
-                };
-            }
+            Some(info) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(_) => {
+                    log::error!("deserialize block failed, blockNum= {:?}", num);
+                    None
+                }
+            },
             None => {
                 log::error!("query block failed");
-                return None;
+                None
             }
         }
     }
@@ -191,33 +186,32 @@ impl BeaconNode {
         .await;
 
         match rt {
-            Ok(Some(info)) => {
-                match serde_json::from_str::<Value>(&info) {
-                    Ok(parsed) => return Some(parsed),
-                    Err(_) => {
-                        log::error!("deserialize blobSidecars from beacon failed",);
-                        return None;
-                    }
-                };
-            }
+            Ok(Some(info)) => match serde_json::from_str::<Value>(&info) {
+                Ok(parsed) => Some(parsed),
+                Err(e) => {
+                    log::error!("deserialize blobSidecars from beacon failed: {:?}", e);
+                    None
+                }
+            },
             _ => {
                 log::error!("query blobSidecars from beacon node failed");
-                return None;
+                None
             }
         }
     }
 
     fn query_beacon_node(l1_beacon_rpc: String, slot: &str, indexes: Vec<u64>) -> Option<String> {
         let client = reqwest::blocking::Client::new();
-        let mut url = l1_beacon_rpc.to_owned()
-            + "/eth/v1/beacon/blob_sidecars/"
-            + slot.to_string().as_str()
-            + "?";
+        let mut url = l1_beacon_rpc.to_owned() +
+            "/eth/v1/beacon/blob_sidecars/" +
+            slot.to_string().as_str() +
+            "?";
         for index in indexes {
             url = url + "indices=" + index.to_string().as_str() + "&";
         }
+
         let response = client
-            .get(url)
+            .get(url.clone())
             .header(
                 reqwest::header::CONTENT_TYPE,
                 reqwest::header::HeaderValue::from_static("application/json"),
@@ -226,11 +220,7 @@ impl BeaconNode {
         let rt: Result<String, reqwest::Error> = match response {
             Ok(x) => x.text(),
             Err(e) => {
-                log::error!(
-                    "query beacon node error, slot =  {:#?}, error = {:#?}",
-                    slot,
-                    e
-                );
+                log::error!("query beacon node error, slot =  {:#?}, error = {:#?}", slot, e);
                 return None;
             }
         };
@@ -252,6 +242,7 @@ impl BeaconNode {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_query_execution_node() {
     use std::env::var;
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -286,10 +277,7 @@ async fn test_query_execution_node() {
                     return;
                 }
             };
-            log::info!(
-                "blobVersionedHashes: {:#?}",
-                transaction["result"]["blobVersionedHashes"]
-            );
+            log::info!("blobVersionedHashes: {:#?}", transaction["result"]["blobVersionedHashes"]);
         }
         None => {
             log::error!("submitt prove task failed");
@@ -298,6 +286,7 @@ async fn test_query_execution_node() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_query_block() {
     use std::env::var;
 
@@ -314,10 +303,7 @@ async fn test_query_block() {
 
     match rt {
         Some(info) => {
-            log::info!(
-                "transactions: {:#?}",
-                info["result"]["transactions"].as_array().unwrap()
-            );
+            log::info!("transactions: {:#?}", info["result"]["transactions"].as_array().unwrap());
         }
         None => {
             log::error!("query_block failed");
@@ -326,6 +312,7 @@ async fn test_query_block() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_query_beacon_node() {
     use std::env::var;
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -350,10 +337,7 @@ async fn test_query_beacon_node() {
                     return;
                 }
             };
-            log::info!(
-                "blobVersionedHashes: {:#?}",
-                transaction["data"][0]["kzg_commitment"]
-            );
+            log::info!("blobVersionedHashes: {:#?}", transaction["data"][0]["kzg_commitment"]);
         }
         None => {
             log::error!("submitt prove task failed");
