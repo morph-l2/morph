@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
@@ -15,8 +16,8 @@ import (
 	"morph-l2/bindings/hardhat"
 	"morph-l2/bindings/predeploys"
 	"morph-l2/morph-deployer/eth"
-	"morph-l2/morph-deployer/op-chain-ops/immutables"
-	"morph-l2/morph-deployer/op-chain-ops/state"
+	"morph-l2/morph-deployer/morph-chain-ops/immutables"
+	"morph-l2/morph-deployer/morph-chain-ops/state"
 	"morph-l2/morph-deployer/rollup"
 )
 
@@ -67,6 +68,8 @@ type DeployConfig struct {
 	L1GatewayRouterProxy common.Address `json:"l1GatewayRouterProxy"`
 	// L1StandardERC20Gateway proxy address on L1
 	L1StandardERC20GatewayProxy common.Address `json:"l1StandardERC20GatewayProxy"`
+	// L1CustomERC20GatewayProxy proxy address on L1
+	L1CustomERC20GatewayProxy common.Address `json:"l1CustomERC20GatewayProxy"`
 	// L1ETHGateway proxy address on L1
 	L1ETHGatewayProxy common.Address `json:"l1ETHGatewayProxy"`
 	// L1ERC721Gateway proxy address on L1
@@ -95,7 +98,7 @@ type DeployConfig struct {
 	L2BridgeFeeVaultRecipient common.Address `json:"l2BridgeFeeVaultRecipient"`
 
 	// Gov configs
-	GovProposalInterval   uint64 `json:"govProposalInterval"`
+	GovVotingDuration     uint64 `json:"govVotingDuration"`
 	GovBatchBlockInterval uint64 `json:"govBatchBlockInterval"`
 	GovBatchMaxBytes      uint64 `json:"govBatchMaxBytes"`
 	GovRollupEpoch        uint64 `json:"govRollupEpoch"`
@@ -115,10 +118,11 @@ type DeployConfig struct {
 	RecordNextBatchSubmissionIndex uint64         `json:"recordNextBatchSubmissionIndex"`
 
 	// MorphToken configs
-	MorphTokenName               string `json:"morphTokenName"`
-	MorphTokenSymbol             string `json:"morphTokenSymbol"`
-	MorphTokenInitialSupply      uint64 `json:"morphTokenInitialSupply"`
-	MorphTokenDailyInflationRate uint64 `json:"morphTokenDailyInflationRate"`
+	MorphTokenOwner              common.Address `json:"morphTokenOwner"`
+	MorphTokenName               string         `json:"morphTokenName"`
+	MorphTokenSymbol             string         `json:"morphTokenSymbol"`
+	MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
+	MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
@@ -166,6 +170,14 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 			return err
 		}
 		d.L1StandardERC20GatewayProxy = deployment.Address
+	}
+
+	if d.L1CustomERC20GatewayProxy == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Proxy__L1CustomERC20Gateway")
+		if err != nil {
+			return err
+		}
+		d.L1CustomERC20GatewayProxy = deployment.Address
 	}
 
 	if d.L1ETHGatewayProxy == (common.Address{}) {
@@ -242,7 +254,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
-	file, err := os.ReadFile(path)
+	file, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("deploy config at %s not found: %w", path, err)
 	}
@@ -275,6 +287,9 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	if config.L1StandardERC20GatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1StandardERC20GatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.L1CustomERC20GatewayProxy == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1CustomERC20GatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	if config.L1ETHGatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1ETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
@@ -304,12 +319,13 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 
 	imConfig := &immutables.InitConfig{
 		// MorphToken
+		MorphTokenOwner:              config.MorphTokenOwner,
 		MorphTokenName:               config.MorphTokenName,
 		MorphTokenSymbol:             config.MorphTokenSymbol,
 		MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
 		MorphTokenDailyInflationRate: config.MorphTokenDailyInflationRate,
 		// L2Staking
-		L2StakingAdmin:                config.FinalSystemOwner,
+		L2StakingOwner:                config.FinalSystemOwner,
 		L2StakingSequencersMaxSize:    config.L2StakingSequencerMaxSize,
 		L2StakingRewardStartTime:      config.L2StakingRewardStartTime,
 		L2StakingUnDelegateLockEpochs: config.L2StakingUnDelegatedLockEpochs,
@@ -334,8 +350,8 @@ func (d *DeployConfig) Check() error {
 	if d.L2BridgeFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("L2BridgeFeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
-	if d.GovProposalInterval <= 0 {
-		return fmt.Errorf("GovProposalInterval must be greater than 0: %w", ErrInvalidDeployConfig)
+	if d.GovVotingDuration <= 0 {
+		return fmt.Errorf("GovVotingDuration must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
 	if d.GovBatchBlockInterval <= 0 {
 		return fmt.Errorf("GovBatchBlockInterval must be greater than 0: %w", ErrInvalidDeployConfig)
@@ -375,6 +391,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L2StakingUnDelegatedLockEpochs <= 0 {
 		return fmt.Errorf("L2StakingUnDelegatedLockEpochs must be greater than 0: %w", ErrInvalidDeployConfig)
+	}
+	if d.MorphTokenOwner == (common.Address{}) {
+		return fmt.Errorf("MorphTokenOwner canot be nil: %w", ErrInvalidDeployConfig)
 	}
 	if d.MorphTokenName == "" {
 		return fmt.Errorf("MorphTokenName canot be nil: %w", ErrInvalidDeployConfig)
@@ -443,7 +462,8 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["Gov"] = state.StorageValues{
 		"_initialized":       1,
 		"_initializing":      false,
-		"proposalInterval":   config.GovProposalInterval,
+		"_owner":             config.FinalSystemOwner,
+		"votingDuration":     config.GovVotingDuration,
 		"batchBlockInterval": config.GovBatchBlockInterval,
 		"batchMaxBytes":      config.GovBatchMaxBytes,
 		"batchTimeout":       config.GovBatchTimeout,
@@ -472,23 +492,44 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_status":       1, // ReentrancyGuard
 		"_initialized":  1,
 		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
 		"tokenFactory":  predeploys.MorphStandardERC20FactoryAddr,
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1StandardERC20GatewayProxy,
 	}
+	storage["L2CustomERC20Gateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+		"counterpart":   config.L1CustomERC20GatewayProxy,
+	}
 	storage["L2ETHGateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard
 		"_initialized":  1,
 		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1ETHGatewayProxy,
+	}
+	storage["L2WETHGateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"counterpart":   config.L1WETHGatewayProxy,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L2ERC721Gateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard
 		"_initialized":  1,
 		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1ERC721GatewayProxy,
 		"router":        common.BigToAddress(common.Big0),
@@ -497,27 +538,14 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_status":       1, // ReentrancyGuard
 		"_initialized":  1,
 		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1ERC1155GatewayProxy,
 		"router":        common.BigToAddress(common.Big0),
 	}
-	storage["MorphStandardERC20"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"_name":         "Morph Standard ERC20",
-		"_symbol":       "Morph",
-		"decimals_":     18,
-		"gateway":       predeploys.L2StandardERC20GatewayAddr,
-		"counterpart":   common.BigToAddress(common.Big1),
-	}
 	storage["MorphStandardERC20Factory"] = state.StorageValues{
 		"_owner":         predeploys.L2StandardERC20GatewayAddr,
 		"implementation": predeploys.MorphStandardERC20Addr,
-	}
-	storage["L2WETHGateway"] = state.StorageValues{
-		"counterpart": config.L1WETHGatewayProxy,
-		"router":      predeploys.L2GatewayRouterAddr,
-		"messenger":   predeploys.L2CrossDomainMessengerAddr,
 	}
 	return storage, nil
 }

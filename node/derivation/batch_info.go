@@ -14,7 +14,6 @@ import (
 
 type Chunk struct {
 	blockContextes []*BlockContext
-	blockNum       int
 	Raw            *types.Chunk
 }
 
@@ -81,7 +80,6 @@ func (bi *BatchInfo) TxNum() uint64 {
 
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
-	//var rollupData BatchInfo
 	bi.root = batch.PostStateRoot
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.skippedL1MessageBitmap = new(big.Int).SetBytes(batch.SkippedL1MessageBitmap[:])
@@ -156,18 +154,6 @@ func encodeTransactions(txs []*eth.Transaction) [][]byte {
 	return enc
 }
 
-func decodeTransactions(txsBytes [][]byte) []*eth.Transaction {
-	var txs []*eth.Transaction
-	for _, txByte := range txsBytes {
-		var tx eth.Transaction
-		if err := tx.UnmarshalBinary(txByte); err != nil {
-			panic(err)
-		}
-		txs = append(txs, &tx)
-	}
-	return txs
-}
-
 type txQueue struct {
 	txs     eth.Transactions
 	pointer int
@@ -192,8 +178,4 @@ func (q *txQueue) dequeue(txNum int) (eth.Transactions, error) {
 	txs := q.txs[q.pointer : q.pointer+txNum]
 	q.pointer += txNum
 	return txs, nil
-}
-
-func (q *txQueue) isEmpty() bool {
-	return q.pointer == q.txs.Len()
 }

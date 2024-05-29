@@ -28,11 +28,7 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
     /// @param l1Token The address of ERC20 token in layer 1.
     /// @param oldL2Token The address of the old corresponding ERC20 token in layer 2.
     /// @param newL2Token The address of the new corresponding ERC20 token in layer 2.
-    event UpdateTokenMapping(
-        address indexed l1Token,
-        address indexed oldL2Token,
-        address indexed newL2Token
-    );
+    event UpdateTokenMapping(address indexed l1Token, address indexed oldL2Token, address indexed newL2Token);
 
     /*************
      * Variables *
@@ -53,11 +49,7 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
     /// @param _counterpart The address of L2CustomERC20Gateway in L2.
     /// @param _router The address of L1GatewayRouter.
     /// @param _messenger The address of L1CrossDomainMessenger.
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         require(_router != address(0), "zero router address");
 
         GatewayBase._initialize(_counterpart, _router, _messenger);
@@ -68,9 +60,7 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
      *************************/
 
     /// @inheritdoc IL1ERC20Gateway
-    function getL2ERC20Address(
-        address _l1Token
-    ) public view override returns (address) {
+    function getL2ERC20Address(address _l1Token) public view override returns (address) {
         return tokenMapping[_l1Token];
     }
 
@@ -81,10 +71,7 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
     /// @notice Update layer 1 to layer 2 token mapping.
     /// @param _l1Token The address of ERC20 token on layer 1.
     /// @param _l2Token The address of corresponding ERC20 token on layer 2.
-    function updateTokenMapping(
-        address _l1Token,
-        address _l2Token
-    ) external onlyOwner {
+    function updateTokenMapping(address _l1Token, address _l2Token) external onlyOwner {
         require(_l2Token != address(0), "token address cannot be 0");
 
         address _oldL2Token = tokenMapping[_l1Token];
@@ -112,11 +99,7 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
     }
 
     /// @inheritdoc L1ERC20Gateway
-    function _beforeDropMessage(
-        address,
-        address,
-        uint256
-    ) internal virtual override {
+    function _beforeDropMessage(address, address, uint256) internal virtual override {
         require(msg.value == 0, "nonzero msg.value");
     }
 
@@ -143,13 +126,7 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
         // 3. Send message to L1CrossDomainMessenger.
-        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            counterpart,
-            0,
-            _message,
-            _gasLimit,
-            _from
-        );
+        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit, _from);
 
         emit DepositERC20(_token, _l2Token, _from, _to, _amount, _data, nonce);
     }

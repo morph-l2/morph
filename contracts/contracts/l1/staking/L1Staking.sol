@@ -11,12 +11,7 @@ import {Staking} from "../../libraries/staking/Staking.sol";
 import {IL1Staking} from "./IL1Staking.sol";
 import {IL2Staking} from "../../l2/staking/IL2Staking.sol";
 
-contract L1Staking is
-    IL1Staking,
-    Staking,
-    OwnableUpgradeable,
-    ReentrancyGuardUpgradeable
-{
+contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     /*************
@@ -86,9 +81,7 @@ contract L1Staking is
      ***************/
 
     /// @param _messenger   Address of CrossDomainMessenger on this network.
-    constructor(
-        address payable _messenger
-    ) Staking(_messenger, payable(Predeploys.L2_STAKING)) {}
+    constructor(address payable _messenger) Staking(_messenger, payable(Predeploys.L2_STAKING)) {}
 
     /***************
      * Initializer *
@@ -114,10 +107,7 @@ contract L1Staking is
         require(_lockBlocks > 0, "invalid withdrawal lock blocks");
         require(_gasLimitAdd > 0, "invalid gas limit add staker");
         require(_gasLimitRemove > 0, "invalid gas limit remove stakers");
-        require(
-            _rewardPercentage > 0 && _rewardPercentage <= 100,
-            "invalid challenger reward percentage"
-        );
+        require(_rewardPercentage > 0 && _rewardPercentage <= 100, "invalid challenger reward percentage");
 
         __Ownable_init();
         __ReentrancyGuard_init();
@@ -139,10 +129,7 @@ contract L1Staking is
      ************************/
 
     /// @notice update whitelist
-    function updateWhitelist(
-        address[] calldata add,
-        address[] calldata remove
-    ) external onlyOwner {
+    function updateWhitelist(address[] calldata add, address[] calldata remove) external onlyOwner {
         for (uint256 i = 0; i < add.length; i++) {
             require(!removedList[add[i]], "in removed list");
             whitelist[add[i]] = true;
@@ -156,10 +143,7 @@ contract L1Staking is
     /// @notice register staker
     /// @param tmKey     tendermint pubkey
     /// @param blsKey    bls pubkey
-    function register(
-        bytes32 tmKey,
-        bytes memory blsKey
-    ) external payable inWhitelist(_msgSender()) {
+    function register(bytes32 tmKey, bytes memory blsKey) external payable inWhitelist(_msgSender()) {
         require(stakers[_msgSender()].addr == address(0), "already registered");
         require(tmKey != 0 && !tmKeys[tmKey], "invalid tendermint pubkey");
         require(blsKey.length == 256 && !blsKeys[blsKey], "invalid bls pubkey");
@@ -195,9 +179,7 @@ contract L1Staking is
     }
 
     /// @notice challenger win, slash sequencers
-    function slash(
-        address[] memory sequencers
-    ) external onlyRollupContract nonReentrant returns (uint256) {
+    function slash(address[] memory sequencers) external onlyRollupContract nonReentrant returns (uint256) {
         uint256 valueSum;
         for (uint256 i = 0; i < sequencers.length; i++) {
             if (withdrawals[sequencers[i]] > 0) {
@@ -212,6 +194,7 @@ contract L1Staking is
                 delete whitelist[sequencers[i]];
                 removedList[sequencers[i]] = true;
             }
+            delete stakers[sequencers[i]];
         }
 
         uint256 reward = (valueSum * rewardPercentage) / 100;
@@ -229,9 +212,7 @@ contract L1Staking is
 
     /// @notice claim slash remaining
     /// @param receiver  receiver address
-    function claimSlashRemaining(
-        address receiver
-    ) external onlyOwner nonReentrant {
+    function claimSlashRemaining(address receiver) external onlyOwner nonReentrant {
         uint256 _slashRemaining = slashRemaining;
         _transfer(receiver, slashRemaining);
         slashRemaining = 0;
@@ -241,10 +222,7 @@ contract L1Staking is
     /// @notice update gas limit of add staker
     /// @param _gasLimitAdd       cross-chain gas limit add staker
     function updateGasLimitAddStaker(uint256 _gasLimitAdd) external onlyOwner {
-        require(
-            _gasLimitAdd > 0 && _gasLimitAdd != gasLimitAddStaker,
-            "invalid new gas limit"
-        );
+        require(_gasLimitAdd > 0 && _gasLimitAdd != gasLimitAddStaker, "invalid new gas limit");
         uint256 _oldGasLimitAddStaker = gasLimitAddStaker;
         gasLimitAddStaker = _gasLimitAdd;
         emit GasLimitAddStakerUpdated(_oldGasLimitAddStaker, _gasLimitAdd);
@@ -252,13 +230,8 @@ contract L1Staking is
 
     /// @notice update gas limit of remove stakers
     /// @param _gasLimitRemove    cross-chain gas limit remove stakers
-    function updateGasLimitRemoveStakers(
-        uint256 _gasLimitRemove
-    ) external onlyOwner {
-        require(
-            _gasLimitRemove > 0 && _gasLimitRemove != gasLimitRemoveStakers,
-            "invalid new gas limit"
-        );
+    function updateGasLimitRemoveStakers(uint256 _gasLimitRemove) external onlyOwner {
+        require(_gasLimitRemove > 0 && _gasLimitRemove != gasLimitRemoveStakers, "invalid new gas limit");
         uint256 _oldGasLimitRemove = gasLimitRemoveStakers;
         gasLimitRemoveStakers = _gasLimitRemove;
         emit GasLimitRemoveStakersUpdated(_oldGasLimitRemove, _gasLimitRemove);
@@ -266,13 +239,9 @@ contract L1Staking is
 
     /// @notice update reward percentage
     /// @param _rewardPercentage       percentage awarded to challenger
-    function updateRewardPercentage(
-        uint256 _rewardPercentage
-    ) external onlyOwner {
+    function updateRewardPercentage(uint256 _rewardPercentage) external onlyOwner {
         require(
-            _rewardPercentage > 0 &&
-                _rewardPercentage <= 100 &&
-                _rewardPercentage != rewardPercentage,
+            _rewardPercentage > 0 && _rewardPercentage <= 100 && _rewardPercentage != rewardPercentage,
             "invalid reward percentage"
         );
         uint256 _oldRewardPercentage = rewardPercentage;
@@ -291,6 +260,7 @@ contract L1Staking is
         require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
 
         delete withdrawals[_msgSender()];
+        delete stakers[_msgSender()];
         emit Claimed(_msgSender(), receiver);
 
         _transfer(receiver, stakingValue);

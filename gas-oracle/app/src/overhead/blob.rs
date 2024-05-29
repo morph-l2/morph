@@ -35,9 +35,7 @@ impl Blob {
 
         let chunks_len = u16::from_be_bytes(data[0..2].try_into().unwrap()); // size of num_valid_chunks is 2bytes.
         if chunks_len > 15 {
-            return Err(BlobError::InvalidData {
-                num_valid_chunks: chunks_len,
-            });
+            return Err(BlobError::InvalidData { num_valid_chunks: chunks_len });
         }
 
         let mut data_size: u32 = 0;
@@ -53,22 +51,14 @@ impl Blob {
 
 #[derive(Debug)]
 pub enum BlobError {
-    InvalidBlob {
-        high_order_byte: u8,
-        field_element: usize,
-    },
-    InvalidData {
-        num_valid_chunks: u16,
-    },
+    InvalidBlob { high_order_byte: u8, field_element: usize },
+    InvalidData { num_valid_chunks: u16 },
 }
 
 impl fmt::Display for BlobError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BlobError::InvalidBlob {
-                high_order_byte,
-                field_element,
-            } => write!(
+            BlobError::InvalidBlob { high_order_byte, field_element } => write!(
                 f,
                 "Invalid blob, found non-zero high order byte {:x} of field element {}",
                 high_order_byte, field_element
@@ -93,6 +83,7 @@ pub fn kzg_to_versioned_hash(commitment: &[u8]) -> H256 {
 }
 
 #[test]
+#[allow(clippy::needless_range_loop)]
 fn test_decode_raw_tx_payload_success() {
     let mut raw_data = vec![];
     // Construct an effective Blob data

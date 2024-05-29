@@ -80,7 +80,7 @@ func main() {
 
 		fname := filepath.Join(f.OutDir, strings.ToLower(name)+"_more.go")
 		outfile, err := os.OpenFile(
-			fname,
+			filepath.Clean(fname),
 			os.O_RDWR|os.O_CREATE|os.O_TRUNC,
 			0o600,
 		)
@@ -91,7 +91,7 @@ func main() {
 		if err := t.Execute(outfile, d); err != nil {
 			log.Fatalf("error writing template %s: %v", outfile.Name(), err)
 		}
-		outfile.Close()
+		_ = outfile.Close()
 		log.Printf("wrote file %s\n", outfile.Name())
 	}
 }

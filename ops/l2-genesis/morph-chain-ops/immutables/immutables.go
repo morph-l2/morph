@@ -15,7 +15,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
-	"morph-l2/morph-deployer/op-chain-ops/deployer"
+	"morph-l2/morph-deployer/morph-chain-ops/deployer"
 )
 
 // ImmutableValues represents the values to be set in immutable code.
@@ -87,6 +87,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 			Name: "L2StandardERC20Gateway",
 		},
 		{
+			Name: "L2CustomERC20Gateway",
+		},
+		{
 			Name: "L2ERC721Gateway",
 		},
 		{
@@ -127,7 +130,12 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 		return nil, nil, err
 	}
 	results := make(DeploymentResults)
+	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
+	if err != nil {
+		return nil, nil, err
+	}
 	var lastTx *types.Transaction
+	var transferTx *types.Transaction
 	for _, dep := range deployments {
 		results[dep.Name] = dep.Bytecode
 		switch dep.Name {
@@ -140,18 +148,16 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 				return nil, nil, fmt.Errorf("wrong L2Sequencer infos config: inconsistent number")
 			}
 			addresses := make([]common.Address, len(config.L2StakingAddresses))
-			for i, addr := range config.L2StakingAddresses {
-				addresses[i] = addr
-			}
-			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
-			if err != nil {
-				return nil, nil, err
-			}
+			copy(addresses, config.L2StakingAddresses)
 			l2Sequencer, err := bindings.NewSequencer(dep.Address, backend)
 			if err != nil {
 				return nil, nil, err
 			}
 			lastTx, err = l2Sequencer.Initialize(opts, addresses)
+			if err != nil {
+				return nil, nil, err
+			}
+			transferTx, err = l2Sequencer.TransferOwnership(opts, config.L2StakingOwner)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -171,10 +177,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 					TmKey:  config.L2StakingTmKeys[i],
 				}
 			}
-			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
-			if err != nil {
-				return nil, nil, err
-			}
 			l2Staking, err := bindings.NewL2Staking(dep.Address, backend)
 			if err != nil {
 				return nil, nil, err
@@ -189,13 +191,13 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
+			transferTx, err = l2Staking.TransferOwnership(opts, config.L2StakingOwner)
+			if err != nil {
+				return nil, nil, err
+			}
 		case "MorphToken":
 			if config == nil || config.MorphTokenName == "" {
 				continue
-			}
-			opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, deployer.ChainID)
-			if err != nil {
-				return nil, nil, err
 			}
 			morphToken, err := bindings.NewMorphToken(dep.Address, backend)
 			if err != nil {
@@ -205,6 +207,7 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 				opts,
 				config.MorphTokenName,
 				config.MorphTokenSymbol,
+				config.MorphTokenOwner,
 				new(big.Int).SetUint64(config.MorphTokenInitialSupply),
 				new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
 			)
@@ -217,6 +220,9 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 	slotResults := make(SlotResults)
 	if lastTx != nil {
 		backend.Commit()
+		if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
+			return nil, nil, err
+		}
 		if _, err = bind.WaitMined(context.Background(), backend, lastTx); err != nil {
 			return nil, nil, err
 		}
@@ -285,6 +291,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2ETHGateway(opts, backend)
 	case "L2StandardERC20Gateway":
 		_, tx, _, err = bindings.DeployL2StandardERC20Gateway(opts, backend)
+	case "L2CustomERC20Gateway":
+		_, tx, _, err = bindings.DeployL2CustomERC20Gateway(opts, backend)
 	case "L2ERC721Gateway":
 		_, tx, _, err = bindings.DeployL2ERC721Gateway(opts, backend)
 	case "L2ERC1155Gateway":

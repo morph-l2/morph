@@ -12,7 +12,7 @@ import {IMorphERC20Upgradeable} from "../../libraries/token/IMorphERC20Upgradeab
 /// @notice The `L2ERC20Gateway` is used to withdraw custom ERC20 compatible tokens on layer 2 and
 /// finalize deposit the tokens from layer 1.
 /// @dev The withdrawn tokens tokens will be burned directly. On finalizing deposit, the corresponding
-/// tokens will be minted and transfered to the recipient.
+/// tokens will be minted and transferred to the recipient.
 contract L2CustomERC20Gateway is L2ERC20Gateway {
     /**********
      * Events *
@@ -22,11 +22,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
     /// @param l2Token The address of corresponding ERC20 token in layer 2.
     /// @param oldL1Token The address of the old corresponding ERC20 token in layer 1.
     /// @param newL1Token The address of the new corresponding ERC20 token in layer 1.
-    event UpdateTokenMapping(
-        address indexed l2Token,
-        address indexed oldL1Token,
-        address indexed newL1Token
-    );
+    event UpdateTokenMapping(address indexed l2Token, address indexed oldL1Token, address indexed newL1Token);
 
     /*************
      * Variables *
@@ -43,11 +39,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
         _disableInitializers();
     }
 
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         require(_router != address(0), "zero router address");
 
         GatewayBase._initialize(_counterpart, _router, _messenger);
@@ -58,9 +50,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
      *************************/
 
     /// @inheritdoc IL2ERC20Gateway
-    function getL1ERC20Address(
-        address _l2Token
-    ) external view override returns (address) {
+    function getL1ERC20Address(address _l2Token) external view override returns (address) {
         return tokenMapping[_l2Token];
     }
 
@@ -90,14 +80,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
 
         _doCallback(_to, _data);
 
-        emit FinalizeDepositERC20(
-            _l1Token,
-            _l2Token,
-            _from,
-            _to,
-            _amount,
-            _data
-        );
+        emit FinalizeDepositERC20(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
     /************************
@@ -107,10 +90,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
     /// @notice Update layer 2 to layer 1 token mapping.
     /// @param _l2Token The address of corresponding ERC20 token on layer 2.
     /// @param _l1Token The address of ERC20 token on layer 1.
-    function updateTokenMapping(
-        address _l2Token,
-        address _l1Token
-    ) external onlyOwner {
+    function updateTokenMapping(address _l2Token, address _l1Token) external onlyOwner {
         require(_l1Token != address(0), "token address cannot be 0");
 
         address _oldL1Token = tokenMapping[_l2Token];
@@ -153,12 +133,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
 
         uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
         // 4. send message to L2MorphMessenger
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            counterpart,
-            0,
-            _message,
-            _gasLimit
-        );
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
 
         emit WithdrawERC20(_l1Token, _token, _from, _to, _amount, _data, nonce);
     }

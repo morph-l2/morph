@@ -18,15 +18,27 @@
 
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
-  "gasPriceOracleOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
+  "gasPriceOracleOwner": "0x71612D2b36859fbad5865085be7c9dEB026bBCbC",
 
-  "govProposalInterval": 1000,
+  "govVotingDuration": 1000,
   "govBatchBlockInterval": 20,
   "govBatchMaxBytes": 124928,
   "govBatchTimeout": 600,
   "govRollupEpoch": 100,
   "govBatchMaxChunks": 15,
 
+  "recordOracleAddress": "0x7161F66BDf7C980B61b426122BBEfff813c0cdF0",
+  "recordNextBatchSubmissionIndex": 1,
+
+  "morphTokenName": "Morph Token",
+  "morphTokenSymbol": "Morph",
+  "morphTokenOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
+  "morphTokenInitialSupply": 1000000000,
+  "morphTokenDailyInflationRate": 1596535874529,
+
+  "l2StakingSequencerMaxSize": 4,
+  "l2StakingUnDelegatedLockEpochs": 2,
+  "l2StakingRewardStartTime": 1728000000,
   "l2SequencerAddresses": [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
     "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",

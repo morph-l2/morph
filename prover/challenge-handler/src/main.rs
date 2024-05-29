@@ -95,7 +95,7 @@ fn setup_logging() {
         .unwrap()
         .log_to_file(
             FileSpec::default()
-                .directory("/data/logs/morph-challenge-handler")
+                .directory(read_env_var("LOG_DIR", String::from("/data/logs/morph-challenge-handler")))
                 .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)

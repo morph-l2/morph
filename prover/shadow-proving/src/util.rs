@@ -48,6 +48,7 @@ async fn test_call_prover() {
         batch_index: 12,
         chunks: vec![vec![1], vec![2]],
         rpc: "http://localhost:3030".to_string(),
+        shadow: false,
     };
 
     let rt = tokio::task::spawn_blocking(move || call_prover("1".to_string(), "/query_proof"))

@@ -10,8 +10,8 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
-	"morph-l2/morph-deployer/op-chain-ops/immutables"
-	"morph-l2/morph-deployer/op-chain-ops/state"
+	"morph-l2/morph-deployer/morph-chain-ops/immutables"
+	"morph-l2/morph-deployer/morph-chain-ops/state"
 )
 
 // UntouchableCodeHashes contains code hashes of all the contracts
@@ -171,7 +171,10 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 	}
 
-	if name == "Sequencer" || name == "MorphToken" || name == "L2Staking" || name == "L2WETH" {
+	if name == "Sequencer" ||
+		name == "MorphToken" ||
+		name == "L2Staking" ||
+		name == "L2WETH" {
 		// set slots directly
 		if slots, ok := slotResults[name]; ok {
 			for slotK, slotV := range slots {

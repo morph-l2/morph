@@ -1,28 +1,20 @@
+.PHONY: staking-oracle build clean test lint
+
 GITCOMMIT := $(shell git rev-parse HEAD)
 GITDATE := $(shell git show -s --format='%ct')
-GITVERSION := $(shell cat package.json | jq .version)
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
-LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
-
-staking-oracle:
+build:
 	env GO111MODULE=on go build -o build/bin/staking-oracle -v $(LDFLAGS) ./cmd/staking-oracle
 
 clean:
 	rm -r build
 
 test:
-	go test -v ./...
+	go test -v -race -coverprofile=coverage.txt -covermode=atomic -p 1 ./...
 
 lint:
-	golangci-lint run ./...
-
-.PHONY: \
-	staking-oracle \
-	build \
-	clean \
-	test \
-	lint
+	GOBIN=$(PWD)/build/bin go run ../build/lint.go

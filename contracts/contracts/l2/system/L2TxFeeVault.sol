@@ -49,26 +49,17 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Emits each time the owner updates the address of `messenger`.
     /// @param oldMessenger The address of old messenger.
     /// @param newMessenger The address of new messenger.
-    event UpdateMessenger(
-        address indexed oldMessenger,
-        address indexed newMessenger
-    );
+    event UpdateMessenger(address indexed oldMessenger, address indexed newMessenger);
 
     /// @notice Emits each time the owner updates the address of `recipient`.
     /// @param oldRecipient The address of old recipient.
     /// @param newRecipient The address of new recipient.
-    event UpdateRecipient(
-        address indexed oldRecipient,
-        address indexed newRecipient
-    );
+    event UpdateRecipient(address indexed oldRecipient, address indexed newRecipient);
 
     /// @notice Emits each time the owner updates the value of `minWithdrawAmount`.
     /// @param oldMinWithdrawAmount The value of old `minWithdrawAmount`.
     /// @param newMinWithdrawAmount The value of new `minWithdrawAmount`.
-    event UpdateMinWithdrawAmount(
-        uint256 oldMinWithdrawAmount,
-        uint256 newMinWithdrawAmount
-    );
+    event UpdateMinWithdrawAmount(uint256 oldMinWithdrawAmount, uint256 newMinWithdrawAmount);
 
     /*************
      * Variables *
@@ -93,11 +84,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @param _owner               The owner of the contract.
     /// @param _recipient           Wallet that will receive the fees on L1.
     /// @param _minWithdrawalAmount Minimum balance before a withdrawal can be triggered.
-    constructor(
-        address _owner,
-        address _recipient,
-        uint256 _minWithdrawalAmount
-    ) {
+    constructor(address _owner, address _recipient, uint256 _minWithdrawalAmount) {
         _transferOwnership(_owner);
 
         minWithdrawAmount = _minWithdrawalAmount;
@@ -113,17 +100,14 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Triggers a withdrawal of funds to the L1 fee wallet.
     /// @param _value The amount of ETH to withdraw.
-    function withdraw(uint256 _value) public {
+    function withdraw(uint256 _value) public onlyOwner {
         require(
             _value >= minWithdrawAmount,
             "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
 
         uint256 _balance = address(this).balance;
-        require(
-            _value <= _balance,
-            "FeeVault: insufficient balance to withdraw"
-        );
+        require(_value <= _balance, "FeeVault: insufficient balance to withdraw");
 
         unchecked {
             totalProcessed += _value;
@@ -141,7 +125,7 @@ contract L2TxFeeVault is OwnableBase {
     }
 
     /// @notice Triggers a withdrawal of all available funds to the L1 fee wallet.
-    function withdraw() external {
+    function withdraw() external onlyOwner {
         uint256 value = address(this).balance;
         withdraw(value);
     }
@@ -170,15 +154,10 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Update the minimum withdraw amount.
     /// @param _newMinWithdrawAmount The minimum withdraw amount to update.
-    function updateMinWithdrawAmount(
-        uint256 _newMinWithdrawAmount
-    ) external onlyOwner {
+    function updateMinWithdrawAmount(uint256 _newMinWithdrawAmount) external onlyOwner {
         uint256 _oldMinWithdrawAmount = minWithdrawAmount;
         minWithdrawAmount = _newMinWithdrawAmount;
 
-        emit UpdateMinWithdrawAmount(
-            _oldMinWithdrawAmount,
-            _newMinWithdrawAmount
-        );
+        emit UpdateMinWithdrawAmount(_oldMinWithdrawAmount, _newMinWithdrawAmount);
     }
 }

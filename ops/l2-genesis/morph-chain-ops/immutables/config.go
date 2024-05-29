@@ -6,13 +6,14 @@ import (
 
 type InitConfig struct {
 	// MorphToken
-	MorphTokenName               string `json:"morphTokenName"`
-	MorphTokenSymbol             string `json:"morphTokenSymbol"`
-	MorphTokenInitialSupply      uint64 `json:"morphTokenInitialSupply"`
-	MorphTokenDailyInflationRate uint64 `json:"morphTokenDailyInflationRate"`
+	MorphTokenOwner              common.Address `json:"morphTokenOwner"`
+	MorphTokenName               string         `json:"morphTokenName"`
+	MorphTokenSymbol             string         `json:"morphTokenSymbol"`
+	MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
+	MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
 
 	// L2Staking
-	L2StakingAdmin                common.Address   `json:"l2StakingAdmin"`
+	L2StakingOwner                common.Address   `json:"l2StakingOwner"`
 	L2StakingSequencersMaxSize    uint64           `json:"l2StakingSequencersMaxSize"`
 	L2StakingUnDelegateLockEpochs uint64           `json:"l2StakingUnDelegateLockEpochs"`
 	L2StakingRewardStartTime      uint64           `json:"l2StakingRewardStartTime"`

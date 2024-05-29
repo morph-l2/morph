@@ -5,8 +5,8 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(not(feature = "legacy"), serde(tag = "type"))]
-#[cfg_attr(feature = "legacy", serde(untagged))]
+// #[cfg_attr(not(feature = "legacy"), serde(tag = "type"))]
+// #[cfg_attr(feature = "legacy", serde(untagged))]
 pub enum TypedTransaction {
     // 0x00
     #[serde(rename = "0x00", alias = "0x0")]
@@ -36,18 +36,14 @@ impl Decodable for TypedTransaction {
                 (first_byte, rlp.as_raw())
             } else {
                 let data = rlp.data()?;
-                let first = *data
-                    .first()
-                    .ok_or(rlp::DecoderError::Custom("empty slice"))?;
+                let first = *data.first().ok_or(rlp::DecoderError::Custom("empty slice"))?;
                 (first, data)
             };
 
-            let bytes = data
-                .get(1..)
-                .ok_or(rlp::DecoderError::Custom("no tx body"))?;
+            let bytes = data.get(1..).ok_or(rlp::DecoderError::Custom("no tx body"))?;
             rest = rlp::Rlp::new(bytes);
 
-            tx_type = Some(U64::from_big_endian(&vec![first]));
+            tx_type = Some(U64::from_big_endian(&[first]));
         }
 
         match tx_type {
@@ -67,8 +63,8 @@ impl Decodable for TypedTransaction {
                 // Legacy (0x00)
                 // use the original rlp
                 Ok(Self::Legacy(TransactionRequest::decode(rlp)?))
-            } // Ok(Self::Legacy(TransactionRequest::decode_signed_rlp(rlp).unwrap().0))
-              // tx.rlp_signed(signature)
+            } /* Ok(Self::Legacy(TransactionRequest::decode_signed_rlp(rlp).unwrap().0))
+               * tx.rlp_signed(signature) */
         }
     }
 }
