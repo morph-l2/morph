@@ -1,10 +1,13 @@
 use std::str::FromStr;
 
 pub mod abi;
+mod error;
 pub mod gas_price_oracle;
 mod l1_base_fee;
 mod metrics;
 mod overhead;
+
+pub use error::*;
 
 pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
     std::env::var(var_name)

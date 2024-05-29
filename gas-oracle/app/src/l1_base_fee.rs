@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use crate::{abi::gas_price_oracle_abi::GasPriceOracle, metrics::ORACLE_SERVICE_METRICS};
+use eyre::anyhow;
+
+use crate::{
+    abi::gas_price_oracle_abi::GasPriceOracle, metrics::ORACLE_SERVICE_METRICS, OracleError,
+};
 use ethers::prelude::*;
 use tokio::time::sleep;
 
@@ -29,16 +33,18 @@ impl BaseFeeUpdater {
 
     /// Update baseFee and scalar.
     /// Set the gas data of L1 network to the GasPriceOrale contract on L2.
-    pub async fn update(&self) {
+    pub async fn update(&self) -> Result<(), OracleError> {
         // Step1. get l1 data.
-        let (l1_base_fee, l1_gas_price) = match query_l1_base_fee(&self.l1_provider).await {
-            (Some(base), Some(price)) => (base, price),
-            _ => return,
-        };
+        let (l1_base_fee, l1_gas_price) = query_l1_base_fee(&self.l1_provider).await?;
+        let l1_base_fee = l1_base_fee.unwrap_or_default();
+        let l1_gas_price = l1_gas_price.unwrap_or_default();
+
         if l1_base_fee.is_zero() || l1_gas_price.is_zero() {
-            log::error!("current ethereum baseFee or gas_price is zero");
-            return;
+            return Err(OracleError::L1BaseFeeError(anyhow!(format!(
+                "current ethereum baseFee or gas_price is zero"
+            ))));
         }
+
         #[rustfmt::skip]
         log::debug!("current ethereum baseFee is: {:#?}, gas_price is: {:#?}", l1_base_fee, l1_gas_price);
         ORACLE_SERVICE_METRICS.l1_base_fee.set(
@@ -49,20 +55,17 @@ impl BaseFeeUpdater {
         );
 
         // Step2. get l2 data.
-        let base_fee_on_l2: U256 = match self.l2_oracle.l_1_base_fee().await {
-            Ok(fee) => fee,
-            Err(e) => {
-                log::error!("Failed to query query_l1_base_fee on l2: {:#?}", e);
-                return;
-            }
-        };
-        let scalar: U256 = match self.l2_oracle.scalar().await {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("Failed to query scalar on l2: {:#?}", e);
-                return;
-            }
-        };
+        let base_fee_on_l2: U256 = self.l2_oracle.l_1_base_fee().await.map_err(|e| {
+            OracleError::L1BaseFeeError(anyhow!(format!(
+                "Failed to query query_l1_base_fee on l2: {:#?}",
+                e
+            )))
+        })?;
+
+        let scalar: U256 = self.l2_oracle.scalar().await.map_err(|e| {
+            OracleError::L1BaseFeeError(anyhow!(format!("Failed to query scalar on l2: {:#?}", e)))
+        })?;
+
         #[rustfmt::skip]
         log::info!("current l1BaseFee on l2 is: {:#?}, scalar is: {:#?}", base_fee_on_l2, scalar);
         ORACLE_SERVICE_METRICS.l1_base_fee_on_l2.set(
@@ -72,25 +75,25 @@ impl BaseFeeUpdater {
                 .unwrap_or(0.0),
         );
 
-        let _ = match self.update_base_fee(l1_base_fee, base_fee_on_l2).await {
-            Ok(()) => self.update_scalar(l1_gas_price, l1_base_fee, scalar).await,
-            Err(_) => return,
-        };
+        self.update_base_fee(l1_base_fee, base_fee_on_l2).await?;
+        self.update_scalar(l1_gas_price, l1_base_fee, scalar).await?;
 
         // Step4. Record wallet balance.
-        let balance = match self.l2_provider.get_balance(self.l2_wallet, None).await {
-            Ok(b) => b,
-            Err(e) => {
-                log::error!("l2_wallet.get_balance error: {:#?}", e);
-                return;
-            }
-        };
+        let balance = self.l2_provider.get_balance(self.l2_wallet, None).await.map_err(|e| {
+            OracleError::L1BaseFeeError(anyhow!(format!("l2_wallet.get_balance error: {:#?}", e)))
+        })?;
+
         ORACLE_SERVICE_METRICS
             .gas_oracle_owner_balance
             .set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+        Ok(())
     }
 
-    async fn update_base_fee(&self, mut l1_base_fee: U256, base_fee_on_l2: U256) -> Result<(), ()> {
+    async fn update_base_fee(
+        &self,
+        mut l1_base_fee: U256,
+        base_fee_on_l2: U256,
+    ) -> Result<(), OracleError> {
         l1_base_fee = l1_base_fee.min(U256::from(MAX_BASE_FEE));
 
         let actual_change = l1_base_fee.as_u128().abs_diff(base_fee_on_l2.as_u128());
@@ -111,8 +114,10 @@ impl BaseFeeUpdater {
                     log::info!("tx of set_l1_base_fee has been sent: {:#?}", info.tx_hash());
                 }
                 Err(e) => {
-                    log::error!("set_l1_base_fee error: {:#?}", e);
-                    return Err(());
+                    return Err(OracleError::L1BaseFeeError(anyhow!(format!(
+                        "set_l1_base_fee error: {:#?}",
+                        e
+                    ))));
                 }
             }
         }
@@ -125,10 +130,9 @@ impl BaseFeeUpdater {
         l1_gas_price: U256,
         l1_base_fee: U256,
         current_scalar: U256,
-    ) -> Result<(), ()> {
+    ) -> Result<(), OracleError> {
         if l1_gas_price < l1_base_fee {
-            log::warn!("l1_gas_price < l1_base_fee");
-            return Err(());
+            return Err(OracleError::L1BaseFeeError(anyhow!("l1_gas_price < l1_base_fee")));
         }
         let mut scalar_ratio_from_l1 = l1_gas_price.as_u128() as f64 / l1_base_fee.as_u128() as f64;
         scalar_ratio_from_l1 = scalar_ratio_from_l1.min(MAX_SCALAR_RATIO);
@@ -157,8 +161,10 @@ impl BaseFeeUpdater {
                     ORACLE_SERVICE_METRICS.scalar_ratio.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
                 }
                 Err(e) => {
-                    log::error!("set scalar error: {:#?}", e);
-                    return Err(());
+                    return Err(OracleError::L1BaseFeeError(anyhow!(format!(
+                        "set scalar error: {:#?}",
+                        e
+                    ))));
                 }
             }
         }
@@ -166,31 +172,36 @@ impl BaseFeeUpdater {
     }
 }
 
-async fn query_l1_base_fee(l1_provider: &Provider<Http>) -> (Option<U256>, Option<U256>) {
+async fn query_l1_base_fee(
+    l1_provider: &Provider<Http>,
+) -> Result<(Option<U256>, Option<U256>), OracleError> {
     let l1_base_fee = match l1_provider.get_block(BlockNumber::Latest).await {
         Ok(ob) => {
             ORACLE_SERVICE_METRICS.l1_rpc_status.set(1);
             if let Some(b) = ob {
                 b.base_fee_per_gas
             } else {
-                log::error!("Block missing base fee per gas");
-                None
+                return Err(OracleError::L1BaseFeeError(anyhow!("Block missing base fee per gas")))
             }
         }
         Err(e) => {
-            log::error!("Failed to query l1_base_fee_per_gas: {:#?}", e);
             ORACLE_SERVICE_METRICS.l1_rpc_status.set(2);
-            None
+            return Err(OracleError::L1BaseFeeError(anyhow!(format!(
+                "Failed to query l1_base_fee_per_gas: {:#?}",
+                e
+            ))))
         }
     };
     let gas_price = match l1_provider.get_gas_price().await {
         Ok(gp) => Some(gp),
         Err(e) => {
-            log::error!("Failed to query l1_gas_price: {:#?}", e);
             ORACLE_SERVICE_METRICS.l1_rpc_status.set(2);
-            None
+            return Err(OracleError::L1BaseFeeError(anyhow!(format!(
+                "Failed to query l1_gas_price: {:#?}",
+                e
+            ))))
         }
     };
 
-    (l1_base_fee, gas_price)
+    Ok((l1_base_fee, gas_price))
 }
