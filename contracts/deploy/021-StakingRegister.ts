@@ -10,7 +10,7 @@ import { ethers } from 'ethers'
 import {
     ProxyStorageName,
     ContractFactoryName,
-} from "./types"
+} from "../src/types"
 
 const two = BigInt(2)
 const gwei = BigInt(1e9)

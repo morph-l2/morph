@@ -10,7 +10,7 @@ import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
-} from "./types"
+} from "../src/types"
 
 export const deployContractProxyByStorageName = async (
     hre: HardhatRuntimeEnvironment,
@@ -45,7 +45,7 @@ export const deployContractProxyByStorageName = async (
     return ''
 }
 
-export const deployContractProxys = async (
+export const deployContractProxies = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
@@ -162,4 +162,4 @@ export const deployContractProxys = async (
     return ''
 }
 
-export default deployContractProxys
+export default deployContractProxies
