@@ -1,11 +1,13 @@
-use std::str::FromStr;
+use eyre::anyhow;
+use std::{str::FromStr, time::Duration};
+use tokio::time::sleep;
 
 use super::{
-    blob::PREV_ROLLUP_L1_BLOCK,
     calculate::{
         calc_blob_gasprice, calc_tx_overhead, data_and_hashes_from_txs, data_gas_cost,
         extract_tx_payload, extract_txn_num,
     },
+    error::OverHeadError,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
 use crate::{
@@ -75,15 +77,14 @@ impl OverHeadUpdater {
     /// Update overhead
     /// Calculate the user's average cost of the latest rollup and set it to the GasPriceOrale
     /// contract on the L2 network.
-    pub async fn update(&mut self) {
+    pub async fn update(&mut self) -> Result<(), OverHeadError> {
         // Step1. fetch latest batches and calculate overhead.
-        let latest = match self.l1_provider.get_block_number().await {
-            Ok(bn) => bn,
-            Err(e) => {
-                log::error!("overhead.l1_provider.get_block_number error: {:#?}", e);
-                return;
-            }
-        };
+        let latest = self.l1_provider.get_block_number().await.map_err(|e| {
+            OverHeadError::Error(anyhow!(format!(
+                "overhead.l1_provider.get_block_number error: {:#?}",
+                e
+            )))
+        })?;
         let start = if latest > U64::from(100) {
             latest - U64::from(100) //100
         } else {
@@ -91,21 +92,17 @@ impl OverHeadUpdater {
         };
 
         let mut latest_overhead = match self.calculate_overhead(start.as_u64()).await {
-            Some(overhead) => overhead,
-            None => {
-                log::warn!("last_overhead is none, skip update");
-                return;
+            Ok(Some(overhead)) => overhead,
+            Ok(None) => {
+                return Ok(());
             }
+            Err(e) => return Err(e),
         };
 
         // Step2. fetch current overhead on l2.
-        let current_overhead = match self.l2_oracle.overhead().await {
-            Ok(ov) => ov,
-            Err(e) => {
-                log::error!("query l2_oracle.overhead error: {:#?}", e);
-                return;
-            }
-        };
+        let current_overhead = self.l2_oracle.overhead().await.map_err(|e| {
+            OverHeadError::Error(anyhow!(format!("query l2_oracle.overhead error: {:#?}", e)))
+        })?;
         log::info!("current overhead on l2 is: {:#?}", current_overhead.as_u128());
         ORACLE_SERVICE_METRICS.overhead.set(latest_overhead as i64);
 
@@ -118,7 +115,12 @@ impl OverHeadUpdater {
         );
 
         if abs_diff < U256::from(self.overhead_threshold) {
-            return;
+            log::info!(
+                "overhead update abort, diff: {:?} < overhead_threshold: {:?}",
+                abs_diff,
+                self.overhead_threshold
+            );
+            return Ok(())
         }
 
         // Step3. update overhead
@@ -130,10 +132,11 @@ impl OverHeadUpdater {
                 Err(e) => log::error!("update overhead error: {:#?}", e),
             }
         }
-        // *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
+
+        Ok(())
     }
 
-    async fn calculate_overhead(&mut self, start: u64) -> Option<usize> {
+    async fn calculate_overhead(&mut self, start: u64) -> Result<Option<usize>, OverHeadError> {
         let filter = self
             .l1_rollup
             .commit_batch_filter()
@@ -141,64 +144,48 @@ impl OverHeadUpdater {
             .from_block(start)
             .address(self.l1_rollup.address());
 
-        let mut logs: Vec<Log> = match self.l1_provider.get_logs(&filter).await {
-            Ok(logs) => logs,
-            Err(e) => {
-                log::error!("overhead.l1_provider.get_logs error: {:#?}", e);
-                return None;
-            }
-        };
+        let mut logs = self.l1_provider.get_logs(&filter).await.map_err(|e| {
+            OverHeadError::Error(anyhow!(format!("overhead.l1_provider.get_logs error: {:#?}", e)))
+        })?;
+
         log::debug!("overhead.l1_provider.submit_batches.get_logs.len ={:#?}", logs.len());
 
         logs.retain(|x| x.transaction_hash.is_some() && x.block_number.is_some());
         if logs.is_empty() {
             log::warn!("rollup logs for the last 100 blocks of l1 is empty");
             if self.prev_rollup_info.is_some() {
-                log::warn!("calculate overhead from prev rollup");
+                log::info!("calculate overhead from prev rollup");
                 return self.calculate_from_prev_rollup().await;
             }
-            return None;
+            log::warn!(
+                "rollup logs for the last 100 blocks of l1 is empty and prev_rollup_info is none, skip update"
+            );
+            return Ok(None);
         }
 
-        let log = match logs.iter().max_by_key(|log| log.block_number.unwrap()) {
-            Some(log) => log,
-            None => {
-                log::info!("no submit batches logs, start blocknum ={:#?}", start);
-                return None;
-            }
-        };
+        let log = logs.iter().max_by_key(|log| log.block_number.unwrap()).ok_or_else(|| {
+            OverHeadError::Error(anyhow!(format!(
+                "no submit batches logs, start blocknum ={:#?}",
+                start
+            )))
+        })?;
 
-        let current_rollup_l1_block = log.block_number.unwrap_or(U64::from(0)).as_u64();
-        if current_rollup_l1_block <= *PREV_ROLLUP_L1_BLOCK.lock().await {
-            log::info!("No new batch has been committed, start blocknum ={:#?}", start);
-            return None;
-        }
-
-        let latest_overhead = match self
+        let latest_overhead = self
             .calculate_from_current_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
             .await
-        {
-            Some(overhead) => overhead,
-            None => {
+            .map_err(|e| {
                 log::info!(
                     "last_overhead is none, skip update, tx_hash ={:#?}",
                     log.transaction_hash.unwrap()
                 );
-                return None;
-            }
-        };
+                e
+            })?;
 
-        Some(latest_overhead)
+        Ok(Some(latest_overhead))
     }
 
-    async fn calculate_from_prev_rollup(&mut self) -> Option<usize> {
-        let latest_block = match self.execution_node.query_block_by_num(0).await {
-            Some(r) => r,
-            None => {
-                log::error!("query_blob_tx_receipt err");
-                return None;
-            }
-        };
+    async fn calculate_from_prev_rollup(&mut self) -> Result<Option<usize>, OverHeadError> {
+        let latest_block = self.execution_node.query_block_by_num(0).await?;
 
         let excess_blob_gas =
             U256::from_str(latest_block["result"]["excessBlobGas"].as_str().unwrap_or("0x0"))
@@ -220,83 +207,74 @@ impl OverHeadUpdater {
             prev_rollup.l2_txn,
         );
 
-        Some(overhead as usize)
+        Ok(Some(overhead as usize))
     }
 
     async fn calculate_from_current_rollup(
         &mut self,
         tx_hash: TxHash,
         block_num: U64,
-    ) -> Option<usize> {
+    ) -> Result<usize, OverHeadError> {
         //Step1.  Get transaction
-        let result = self.l1_provider.get_transaction(tx_hash).await;
-        let tx = match result {
-            Ok(Some(tx)) => tx,
-            Ok(None) => {
-                log::error!("l1_provider.get_transaction is none");
-                return None;
-            }
-            Err(e) => {
-                log::error!("l1_provider.get_transaction err: {:#?}", e);
-                return None;
-            }
-        };
+        let tx = self
+            .l1_provider
+            .get_transaction(tx_hash)
+            .await
+            .map_err(|e| {
+                OverHeadError::Error(anyhow!(format!("l1_provider.get_transaction err: {:#?}", e)))
+            })?
+            .ok_or_else(|| {
+                OverHeadError::Error(anyhow!(format!(
+                    "ll1_provider.get_transaction is none, tx_hash= {:#?}",
+                    tx_hash
+                )))
+            })?;
 
         log::info!("rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
 
         //Step2. Parse transaction data
         let data = tx.input;
         if data.is_empty() {
-            log::warn!("overhead_inspect tx.input is empty, tx_hash =  {:#?}", tx_hash);
-            return None;
+            return Err(OverHeadError::Error(anyhow!(format!(
+                "overhead_inspect tx.input is empty, tx_hash= {:#?}",
+                tx_hash
+            ))));
         }
-        let param = match CommitBatchCall::decode(&data) {
-            Ok(_param) => _param,
-            Err(e) => {
-                log::error!(
-                    "overhead_inspect decode tx.input error, tx_hash =  {:#?}, err= {:#?}",
-                    tx_hash,
-                    e
-                );
-                return None;
-            }
-        };
+        let param = CommitBatchCall::decode(&data).map_err(|e| {
+            OverHeadError::Error(anyhow!(format!(
+                "overhead_inspect decode tx.input error, tx_hash= {:#?}, err= {:#?}",
+                tx_hash, e
+            )))
+        })?;
+
         let chunks: Vec<Bytes> = param.batch_data_input.chunks;
         let l2_txn = extract_txn_num(chunks).unwrap_or(0);
 
         //Step3. Calculate l2 data gas
-        let l2_data_gas = match self
+        let l2_data_gas = self
             .calculate_l2_data_gas_from_blob(tx_hash, tx.block_hash.unwrap(), block_num, l2_txn)
             .await
-        {
-            Ok(Some(value)) => value,
-            Ok(None) => return None, // Waiting for the next L1 block.
-            Err(e) => {
+            .map_err(|e| {
                 log::error!("calculate_l2_data_gas_from_blob error: {:#?}", e);
-                return None;
-            }
-        };
+                e
+            })?;
 
-        let blob_tx_receipt = match self
+        let blob_tx_receipt = self
             .execution_node
             .query_blob_tx_receipt(hex::encode_prefixed(tx_hash).as_str())
-            .await
-        {
-            Some(r) => r,
-            None => {
-                log::error!("query_blob_tx_receipt err");
-                return None;
-            }
-        };
+            .await?;
 
         // rollup_gas_used
         let rollup_gas_used =
             U256::from_str(blob_tx_receipt["result"]["gasUsed"].as_str().unwrap_or("0x0"))
                 .unwrap_or(U256::from(0));
         log::info!("rollup_calldata_gas_used: {:?}", rollup_gas_used);
+
         if rollup_gas_used.is_zero() {
-            log::error!("blob tx calldata gas_used is None or 0, tx_hash = {:#?}", tx_hash);
-            return None;
+            return Err(OverHeadError::Error(anyhow!(format!(
+                "blob tx calldata gas_used is None or 0, tx_hash = {:#?}",
+                tx_hash
+            ))));
         }
 
         // blob_gas_price
@@ -315,11 +293,10 @@ impl OverHeadUpdater {
             effective_gas_price
         );
         if effective_gas_price.is_zero() {
-            log::error!(
+            return Err(OverHeadError::Error(anyhow!(format!(
                 "blob tx calldata effective_gas_price is None or 0, tx_hash = {:#?}",
                 tx_hash
-            );
-            return None;
+            ))));
         }
 
         //Step4. Calculate overhead
@@ -355,7 +332,7 @@ impl OverHeadUpdater {
 
         // Set metric
         ORACLE_SERVICE_METRICS.txn_per_batch.set(l2_txn as f64);
-        Some(overhead as usize)
+        Ok(overhead as usize)
     }
 
     async fn calculate_l2_data_gas_from_blob(
@@ -364,21 +341,15 @@ impl OverHeadUpdater {
         block_hash: TxHash,
         block_num: U64,
         l2_txn: u64,
-    ) -> Result<Option<u64>, String> {
+    ) -> Result<u64, OverHeadError> {
         if l2_txn == 0 {
-            return Ok(Some(0));
+            return Ok(0);
         }
-        let blob_tx = self
-            .execution_node
-            .query_blob_tx(hex::encode_prefixed(tx_hash).as_str())
-            .await
-            .ok_or_else(|| "Failed to query blob tx".to_string())?;
+        let blob_tx =
+            self.execution_node.query_blob_tx(hex::encode_prefixed(tx_hash).as_str()).await?;
 
-        let blob_block = self
-            .execution_node
-            .query_block(hex::encode_prefixed(block_hash).as_str())
-            .await
-            .ok_or_else(|| "Failed to query blob block".to_string())?;
+        let blob_block =
+            self.execution_node.query_block(hex::encode_prefixed(block_hash).as_str()).await?;
 
         let indexed_hashes = data_and_hashes_from_txs(
             blob_block["result"]["transactions"].as_array().unwrap_or(&Vec::<Value>::new()),
@@ -387,37 +358,30 @@ impl OverHeadUpdater {
 
         if indexed_hashes.is_empty() {
             log::info!("No blob in this batch, batchTxHash ={:#?}", tx_hash);
-            return Ok(Some(0));
+            return Ok(0);
         }
 
-        let next_block_num = block_num + 1;
-        let next_block = self
-            .execution_node
-            .query_block_by_num(next_block_num.as_u64())
-            .await
-            .ok_or_else(|| format!("Failed to query block {}", next_block_num))?;
+        //Waiting for the next L1 block to be produced.
+        sleep(Duration::from_secs(12)).await;
+        let next_block = self.execution_node.query_block_by_num((block_num + 1).as_u64()).await?;
 
-        let prev_beacon_root = match next_block["result"]["parentBeaconBlockRoot"].as_str() {
-            Some(r) => r,
-            None => {
-                log::warn!("Next block not produce");
-                return Ok(None);
-            } // Waiting for the next L1 block.
-        };
+        let prev_beacon_root = next_block["result"]["parentBeaconBlockRoot"]
+            .as_str()
+            .ok_or_else(|| OverHeadError::Error(anyhow!("Next block not produce")))?;
 
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
-        let sidecars_rt = self
-            .beacon_node
-            .query_sidecars(prev_beacon_root.to_string(), indexes)
-            .await
-            .ok_or_else(|| "Failed to query side car".to_string())?;
+        let sidecars_rt =
+            self.beacon_node.query_sidecars(prev_beacon_root.to_string(), indexes).await?;
 
         let sidecars: &Vec<Value> = sidecars_rt["data"]
             .as_array()
-            .ok_or_else(|| "query blob_sidecars empty".to_string())?;
+            .ok_or_else(|| OverHeadError::Error(anyhow!("query blob_sidecars empty")))?;
+
         if sidecars.is_empty() {
-            log::error!("query sidecars.is_empty: {:?}", sidecars_rt);
-            return Ok(None);
+            return Err(OverHeadError::Error(anyhow!(format!(
+                "query sidecars.is_empty: {:?}",
+                sidecars_rt
+            ))));
         }
 
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
@@ -425,7 +389,7 @@ impl OverHeadUpdater {
         let tx_payload_gas = data_gas_cost(&tx_payload);
         log::info!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
 
-        Ok(Some(tx_payload_gas))
+        Ok(tx_payload_gas)
     }
 }
 

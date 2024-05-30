@@ -2,6 +2,7 @@ use ethers::{
     prelude::*,
     utils::{hex, rlp},
 };
+use eyre::anyhow;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -11,6 +12,7 @@ use crate::read_env_var;
 
 use super::{
     blob::{kzg_to_versioned_hash, Blob},
+    error::OverHeadError,
     typed_tx::TypedTransaction,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
@@ -45,17 +47,17 @@ pub(super) fn calc_tx_overhead(
 pub(super) fn extract_tx_payload(
     indexed_hashes: Vec<IndexedBlobHash>,
     sidecars: &[Value],
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, OverHeadError> {
     let mut tx_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
             sidecar["index"].as_str().unwrap_or("1000").parse::<u64>().unwrap_or(1000) == i_h.index
         }) {
-            let kzg_commitment = sidecar["kzg_commitment"]
-                .as_str()
-                .ok_or_else(|| "Failed to fetch kzg commitment from blob".to_string())?;
+            let kzg_commitment = sidecar["kzg_commitment"].as_str().ok_or_else(|| {
+                OverHeadError::CalculateError(anyhow!("Failed to fetch kzg commitment from blob"))
+            })?;
             let decoded_commitment: Vec<u8> =
-                hex::decode(kzg_commitment).map_err(|e| e.to_string())?;
+                hex::decode(kzg_commitment).map_err(|e| OverHeadError::CalculateError(e.into()))?;
             let actual_versioned_hash = kzg_to_versioned_hash(&decoded_commitment);
 
             if i_h.hash != actual_versioned_hash {
@@ -65,28 +67,45 @@ pub(super) fn extract_tx_payload(
                     i_h.index,
                     actual_versioned_hash
                 );
-                return Err("Invalid versionedHash for Blob".to_string());
+
+                return Err(OverHeadError::CalculateError(anyhow!(format!(
+                    "Invalid versionedHash for Blob, expected hash {:?} for blob at index {:?} but got {:?}",
+                    i_h.hash, i_h.index, actual_versioned_hash
+                ))));
             }
 
-            let encoded_blob = sidecar["blob"]
-                .as_str()
-                .ok_or_else(|| format!("Missing blob value in blob_hash: {:?}", i_h.hash))?;
+            let encoded_blob = sidecar["blob"].as_str().ok_or_else(|| {
+                OverHeadError::CalculateError(anyhow!(format!(
+                    "Missing blob value in blob_hash: {:?}",
+                    i_h.hash
+                )))
+            })?;
             let decoded_blob = hex::decode(encoded_blob).map_err(|e| {
-                format!("Failed to decode blob, blob_hash: {:?}, err: {}", i_h.hash, e)
+                OverHeadError::CalculateError(anyhow!(format!(
+                    "Failed to decode blob, blob_hash: {:?}, err: {}",
+                    i_h.hash, e
+                )))
             })?;
 
             if decoded_blob.len() != MAX_BLOB_TX_PAYLOAD_SIZE {
-                return Err("Invalid length for Blob".to_string());
+                return Err(OverHeadError::CalculateError(anyhow!("Invalid length for Blob")));
             }
 
             let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
             let blob_struct = Blob(blob_array);
-            let mut decoded_payload = blob_struct
-                .decode_raw_tx_payload()
-                .map_err(|e| format!("Failed to decode blob tx payload: {}", e))?;
+            let mut decoded_payload = blob_struct.decode_raw_tx_payload().map_err(|e| {
+                OverHeadError::CalculateError(anyhow!(format!(
+                    "Failed to decode blob tx payload: {}",
+                    e
+                )))
+            })?;
+
             tx_payload.append(&mut decoded_payload);
         } else {
-            return Err(format!("no blob in response matches desired index: {}", i_h.index));
+            return Err(OverHeadError::CalculateError(anyhow!(format!(
+                "no blob in response matches desired index: {}",
+                i_h.index
+            ))));
         }
     }
     Ok(tx_payload)
