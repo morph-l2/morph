@@ -75,6 +75,14 @@ impl BatchSyncer {
             }
         };
 
+        let batch_signature = match self.l1_rollup.batch_signature_store(U256::from(batch_info.batch_index)).await {
+            Ok(value) => value,
+            Err(msg) => {
+                log::error!("query batch_signature_store error: {:?}", msg);
+                return Ok(None);
+            }
+        };
+
         // Prepare shadow batch
         let shadow_tx = self.l1_shadow_rollup.commit_batch(
             batch_info.batch_index,
@@ -84,6 +92,7 @@ impl BatchSyncer {
                 withdrawal_root: batch_store.4,
                 data_hash: batch_store.1,
                 blob_versioned_hash: batch_store.0,
+                sequencer_set_verify_hash: batch_signature.1,
             },
         );
         let rt = shadow_tx.send().await;
