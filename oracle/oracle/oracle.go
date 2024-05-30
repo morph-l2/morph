@@ -48,7 +48,6 @@ func Main() func(ctx *cli.Context) error {
 		log.Info("Starting staking-oracle")
 		o.Start()
 		log.Info("Staking oracle started")
-
 		if cfg.MetricsServerEnable {
 			go func() {
 				_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)

@@ -181,51 +181,46 @@ func (o *Oracle) LastBatchIndex(opts *bind.CallOpts) (*big.Int, error) {
 func (o *Oracle) submitRecord() error {
 	nextBatchSubmissionIndex, err := o.GetNextBatchSubmissionIndex()
 	if err != nil {
-		log.Error("get next batch submission index failed ", "error", err)
-		return err
+		return fmt.Errorf("get next batch submission index failed:%v", err)
 	}
+	o.metrics.SetBatchEpoch(nextBatchSubmissionIndex.Uint64() - 1)
 	lastBatchIndex, err := o.LastBatchIndex(nil)
 	if err != nil {
-		log.Error("get last finalized batch index failed ", "error", err)
-		return err
+		return fmt.Errorf("get last finalized batch index error:%v", err)
 	}
 	if nextBatchSubmissionIndex.Cmp(lastBatchIndex) > 0 {
 		log.Info("already newest batch submission...", "lastBatchIndex", lastBatchIndex, "nextBatchSubmissionIndex", nextBatchSubmissionIndex)
 		time.Sleep(defaultSleepTime)
-		return err
+		return nil
 	}
 	start, err := o.GetStartBlock(nextBatchSubmissionIndex)
 	if err != nil {
 		log.Error("get pre batch rollup block number failed", "error", err)
-		return err
+		return fmt.Errorf("get pre batch rollup block number error:%v", err)
 	}
 	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start)
 	if err != nil {
-		log.Error("get batch submission failed", "error", err)
-		return err
+		return fmt.Errorf("get batch submission error:%v", err)
 	}
 	chainId, err := o.l2Client.ChainID(o.ctx)
 	if err != nil {
-		log.Error("get chain id failed", "error", err)
-		return err
+		return fmt.Errorf("get chain id error:%v", err)
 	}
 	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
 	if err != nil {
-		log.Error("new keyed transaction failed", "error", err)
+		return fmt.Errorf("new keyed transaction error:%v", err)
 	}
 	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
 	if err != nil {
-		log.Error("record finalized batch failed", "error", err)
-		return err
+		return fmt.Errorf("record finalized batch error:%v", err)
 	}
 	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {
 		log.Error("tx receipt failed", "error", err)
-		return err
+		return fmt.Errorf("wait tx receipt error:%v", err)
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("record batch not success")
 	}
-	o.metrics.SetRewardEpoch(batchSubmissions[len(batchSubmissions)-1].Index.Uint64())
 	return nil
 }
