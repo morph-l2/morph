@@ -67,7 +67,7 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		MorphTokenOwner:              address1,
 		MorphTokenName:               "Morph Token",
 		MorphTokenSymbol:             "Morph",
-		MorphTokenInitialSupply:      1,
+		MorphTokenInitialSupply:      1000000000,
 		MorphTokenDailyInflationRate: 1,
 
 		FundDevAccounts: true,
