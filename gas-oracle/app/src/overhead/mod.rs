@@ -1,6 +1,7 @@
 mod blob;
 mod blob_client;
 mod calculate;
+mod error;
 mod typed_tx;
 
 #[allow(clippy::module_inception)]

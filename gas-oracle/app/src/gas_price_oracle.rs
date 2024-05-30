@@ -65,10 +65,12 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     let (base_fee_updater, overhead_updater) = prepare_updater(&config).await?;
 
     // Start Updater.
-    start_updater(config, base_fee_updater, overhead_updater).await;
+    let updater = start_updater(config, base_fee_updater, overhead_updater);
 
     // Start metric management.
-    metric_mng().await;
+    let metric = metric_mng();
+
+    tokio::join!(updater, metric);
 
     Ok(())
 }
@@ -83,7 +85,11 @@ async fn start_updater(
         loop {
             sleep(Duration::from_millis(config.interval)).await;
             update_times += 1;
-            base_fee_updater.update().await;
+
+            let _ = base_fee_updater
+                .update()
+                .await
+                .map_err(|e| log::error!("base_fee_updater err: {:?}", e));
 
             if update_times < config.overhead_interval {
                 // Waiting for the latest batch to be submitted.
@@ -91,7 +97,10 @@ async fn start_updater(
             }
             // Waiting for confirmation of the previous transaction.
             sleep(Duration::from_millis(8000)).await;
-            overhead_updater.update().await;
+            let _ = overhead_updater
+                .update()
+                .await
+                .map_err(|e| log::error!("overhead_updater err: {:?}", e));
             update_times = 0
         }
     });

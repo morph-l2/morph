@@ -33,7 +33,7 @@
   "morphTokenName": "Morph Token",
   "morphTokenSymbol": "Morph",
   "morphTokenOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  "morphTokenInitialSupply": 100,
+  "morphTokenInitialSupply": 1000000000,
   "morphTokenDailyInflationRate": 1,
 
   "l2StakingSequencerMaxSize": 4,
