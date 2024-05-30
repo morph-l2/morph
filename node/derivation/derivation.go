@@ -388,7 +388,10 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 			}
 			if blockData.SafeL2Data.Number <= latestBlockNumber {
 				d.logger.Info("new L2 Data block number less than latestBlockNumber", "safeL2DataNumber", blockData.SafeL2Data.Number, "latestBlockNumber", latestBlockNumber)
-				lastHeader, err = d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(latestBlockNumber)))
+				lastHeader, err = d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockData.SafeL2Data.Number)))
+				if err != nil {
+					return nil, fmt.Errorf("query header by number error:%v", err)
+				}
 				continue
 			}
 			err = func() error {
