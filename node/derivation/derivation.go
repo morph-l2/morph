@@ -235,13 +235,11 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		} else {
 			d.metrics.SetBatchStatus(stateNormal)
 		}
-		d.db.WriteLatestDerivationL1Height(lg.BlockNumber)
-		d.metrics.SetL1SyncHeight(lg.BlockNumber)
-		d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", lg.BlockNumber)
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)
 	d.metrics.SetL1SyncHeight(end)
+	d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", end)
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
