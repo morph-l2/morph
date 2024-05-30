@@ -39,7 +39,7 @@ func (o *Oracle) generateRollupEpoch(index, startTime, rollupEpoch, updateTime, 
 	if startTime == 0 {
 		startTime = updateTime
 	}
-	log.Info("generate rollup epoch", "startTime", startTime, "endBlockTime", endBlockTime)
+	epochsStart := startTime
 	for {
 		endTime := startTime + rollupEpoch
 		if endTime > nextUpdateTime {
@@ -55,6 +55,12 @@ func (o *Oracle) generateRollupEpoch(index, startTime, rollupEpoch, updateTime, 
 		if endTime > endBlockTime {
 			break
 		}
+		// TODO
+		if o.rollupEpochMaxBlock == 1 && len(rollupEpochInfos) >= 50 {
+			rollupEpochInfo.EndBlock = big.NewInt(endBlock - 1)
+			rollupEpochInfos = append(rollupEpochInfos, rollupEpochInfo)
+			break
+		}
 		rollupEpochInfos = append(rollupEpochInfos, rollupEpochInfo)
 		if endTime == endBlockTime {
 			break
@@ -62,6 +68,7 @@ func (o *Oracle) generateRollupEpoch(index, startTime, rollupEpoch, updateTime, 
 		startTime = endTime
 		index++
 	}
+	log.Info("generate rollup epoch", "startTime", epochsStart, "endBlockTime", endBlockTime, "epochLength", len(rollupEpochInfos))
 	return rollupEpochInfos, nil
 }
 
@@ -70,6 +77,7 @@ func (o *Oracle) recordRollupEpoch() error {
 	if err != nil {
 		return err
 	}
+	o.metrics.SetRollupEpoch(epochIndex.Uint64() - 1)
 	rollupEpoch, err := o.record.RollupEpochs(nil, new(big.Int).Sub(epochIndex, big.NewInt(1)))
 	if err != nil {
 		return err
@@ -94,13 +102,14 @@ func (o *Oracle) recordRollupEpoch() error {
 		return err
 	}
 	var rollupEpochInfos []bindings.IRecordRollupEpochInfo
+	var epochTime *big.Int
 	if len(setsEpochs) != 0 {
 		for _, setsEpoch := range setsEpochs {
 			updateTime, err := o.GetUpdateTime(setsEpoch.EndBlock.Int64() - 1)
 			if err != nil {
 				return err
 			}
-			epochTime, err := o.gov.RollupEpoch(&bind.CallOpts{
+			epochTime, err = o.gov.RollupEpoch(&bind.CallOpts{
 				BlockNumber: big.NewInt(setsEpoch.EndBlock.Int64() - 1),
 			})
 			if err != nil {
@@ -117,7 +126,7 @@ func (o *Oracle) recordRollupEpoch() error {
 		if err != nil {
 			return fmt.Errorf("get update time error:%v", err)
 		}
-		epochTime, err := o.gov.RollupEpoch(&bind.CallOpts{
+		epochTime, err = o.gov.RollupEpoch(&bind.CallOpts{
 			BlockNumber: big.NewInt(int64(endBlock)),
 		})
 		if err != nil {
@@ -140,7 +149,7 @@ func (o *Oracle) recordRollupEpoch() error {
 		rollupEpochInfos = append(rollupEpochInfos, epochs...)
 	}
 	if len(rollupEpochInfos) == 0 {
-		log.Info("rollup epoch infos length is zero", "startBlock", startBlock, "endBlock", endBlock)
+		log.Info("rollup epoch infos length is zero", "startBlock", startBlock, "endBlock", endBlock, "rollupEpochMaxBlock", o.rollupEpochMaxBlock, "epochTime", epochTime)
 		time.Sleep(defaultSleepTime)
 		return nil
 	}
@@ -156,7 +165,6 @@ func (o *Oracle) recordRollupEpoch() error {
 		}
 		return fmt.Errorf("submit rollup epoch info error:%v,rollupEpochMaxBlock:%v", err, o.rollupEpochMaxBlock)
 	}
-	o.metrics.SetRewardEpoch(rollupEpochInfos[len(rollupEpochInfos)-1].Index.Uint64())
 	if o.rollupEpochMaxBlock+o.cfg.MinSize <= o.cfg.MaxSize {
 		o.rollupEpochMaxBlock += o.cfg.MinSize
 	}

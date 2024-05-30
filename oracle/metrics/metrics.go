@@ -13,8 +13,6 @@ import (
 
 const (
 	metricsSubsystem = "staking_oracle"
-	stateNormal      = 0
-	stateException   = 1
 )
 
 type Metrics struct {
