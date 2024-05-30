@@ -385,12 +385,12 @@ impl OverHeadUpdater {
 
         let next_block = self
             .l1_provider
-            .get_block_with_txs(BlockNumber::Number(block_num + 1))
+            .get_block(BlockNumber::Number(block_num + 1))
             .await
             .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
                 OverHeadError::Error(anyhow!(format!(
-                    "l1 get block return none, block_num: {:#?}",
+                    "l1 get next block return none, block_num: {:#?}",
                     block_num + 1
                 )))
             })?;
