@@ -1,12 +1,9 @@
-use std::time::Duration;
-
 use eyre::anyhow;
 
 use crate::{
     abi::gas_price_oracle_abi::GasPriceOracle, metrics::ORACLE_SERVICE_METRICS, OracleError,
 };
 use ethers::prelude::*;
-use tokio::time::sleep;
 
 static DEFAULT_SCALAR: f64 = 1000000000.0;
 const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
@@ -109,9 +106,10 @@ impl BaseFeeUpdater {
             // Set l1_base_fee for l2.
             let tx = self.l2_oracle.set_l1_base_fee(l1_base_fee).legacy();
             let rt = tx.send().await;
-            match rt {
-                Ok(info) => {
-                    log::info!("tx of set_l1_base_fee has been sent: {:#?}", info.tx_hash());
+            let pending_tx = match rt {
+                Ok(pending) => {
+                    log::info!("tx of set_l1_base_fee has been sent: {:#?}", pending.tx_hash());
+                    pending
                 }
                 Err(e) => {
                     return Err(OracleError::L1BaseFeeError(anyhow!(format!(
@@ -119,7 +117,13 @@ impl BaseFeeUpdater {
                         e
                     ))));
                 }
-            }
+            };
+            pending_tx.await.map_err(|e| {
+                OracleError::L1BaseFeeError(anyhow!(format!(
+                    "set_l1_base_fee check_receipt error: {:#?}",
+                    e
+                )))
+            })?;
         }
 
         Ok(())
@@ -136,6 +140,8 @@ impl BaseFeeUpdater {
         }
         let mut scalar_ratio_from_l1 = l1_gas_price.as_u128() as f64 / l1_base_fee.as_u128() as f64;
         scalar_ratio_from_l1 = scalar_ratio_from_l1.min(MAX_SCALAR_RATIO);
+        #[rustfmt::skip]
+        ORACLE_SERVICE_METRICS.scalar_ratio.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
 
         let scalar_ratio_from_l2 = current_scalar.as_u128() as f64 / DEFAULT_SCALAR;
         let scalar_diff = scalar_ratio_from_l1 - scalar_ratio_from_l2;
@@ -149,16 +155,13 @@ impl BaseFeeUpdater {
 
         if scalar_diff.abs() * 100.0 > self.gas_threshold as f64 {
             // Set scalar for l2.
-            sleep(Duration::from_millis(6000)).await;
-
             let scalar_expect = (DEFAULT_SCALAR * scalar_ratio_from_l1).ceil() as u128;
             let tx = self.l2_oracle.set_scalar(U256::from(scalar_expect)).legacy();
             let rt = tx.send().await;
-            match rt {
-                Ok(info) => {
-                    log::info!("tx of set_scalar has been sent: {:#?}", info.tx_hash());
-                    #[rustfmt::skip]
-                    ORACLE_SERVICE_METRICS.scalar_ratio.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
+            let pending_tx = match rt {
+                Ok(pending) => {
+                    log::info!("tx of set_scalar has been sent: {:#?}", pending.tx_hash());
+                    pending
                 }
                 Err(e) => {
                     return Err(OracleError::L1BaseFeeError(anyhow!(format!(
@@ -166,7 +169,13 @@ impl BaseFeeUpdater {
                         e
                     ))));
                 }
-            }
+            };
+            pending_tx.await.map_err(|e| {
+                OracleError::L1BaseFeeError(anyhow!(format!(
+                    "set_scalar check_receipt error: {:#?}",
+                    e
+                )))
+            })?;
         }
         Ok(())
     }

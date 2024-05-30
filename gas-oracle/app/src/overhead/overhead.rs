@@ -1,8 +1,8 @@
 use eyre::anyhow;
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
+use tokio::time::sleep;
 
 use super::{
-    blob::PREV_ROLLUP_L1_BLOCK,
     calculate::{
         calc_blob_gasprice, calc_tx_overhead, data_and_hashes_from_txs, data_gas_cost,
         extract_tx_payload, extract_txn_num,
@@ -91,7 +91,13 @@ impl OverHeadUpdater {
             U64::from(1)
         };
 
-        let mut latest_overhead = self.calculate_overhead(start.as_u64()).await?;
+        let mut latest_overhead = match self.calculate_overhead(start.as_u64()).await {
+            Ok(Some(overhead)) => overhead,
+            Ok(None) => {
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
 
         // Step2. fetch current overhead on l2.
         let current_overhead = self.l2_oracle.overhead().await.map_err(|e| {
@@ -109,10 +115,12 @@ impl OverHeadUpdater {
         );
 
         if abs_diff < U256::from(self.overhead_threshold) {
-            return Err(OverHeadError::Error(anyhow!(format!(
-                "update abort, diff: {:?} < overhead_threshold: {:?}",
-                abs_diff, self.overhead_threshold
-            ))));
+            log::info!(
+                "overhead update abort, diff: {:?} < overhead_threshold: {:?}",
+                abs_diff,
+                self.overhead_threshold
+            );
+            return Ok(())
         }
 
         // Step3. update overhead
@@ -124,12 +132,11 @@ impl OverHeadUpdater {
                 Err(e) => log::error!("update overhead error: {:#?}", e),
             }
         }
-        // *PREV_ROLLUP_L1_BLOCK.lock().await = current_rollup_l1_block;
 
         Ok(())
     }
 
-    async fn calculate_overhead(&mut self, start: u64) -> Result<usize, OverHeadError> {
+    async fn calculate_overhead(&mut self, start: u64) -> Result<Option<usize>, OverHeadError> {
         let filter = self
             .l1_rollup
             .commit_batch_filter()
@@ -147,12 +154,13 @@ impl OverHeadUpdater {
         if logs.is_empty() {
             log::warn!("rollup logs for the last 100 blocks of l1 is empty");
             if self.prev_rollup_info.is_some() {
-                log::warn!("calculate overhead from prev rollup");
+                log::info!("calculate overhead from prev rollup");
                 return self.calculate_from_prev_rollup().await;
             }
-            return Err(OverHeadError::Error(anyhow!(
-                "rollup logs for the last 100 blocks of l1 is empty and prev_rollup_info is none"
-            )));
+            log::warn!(
+                "rollup logs for the last 100 blocks of l1 is empty and prev_rollup_info is none, skip update"
+            );
+            return Ok(None);
         }
 
         let log = logs.iter().max_by_key(|log| log.block_number.unwrap()).ok_or_else(|| {
@@ -161,14 +169,6 @@ impl OverHeadUpdater {
                 start
             )))
         })?;
-
-        let current_rollup_l1_block = log.block_number.unwrap_or(U64::from(0)).as_u64();
-        if current_rollup_l1_block <= *PREV_ROLLUP_L1_BLOCK.lock().await {
-            return Err(OverHeadError::Error(anyhow!(format!(
-                "No new batch has been committed, start blocknum ={:#?}",
-                start
-            ))));
-        }
 
         let latest_overhead = self
             .calculate_from_current_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
@@ -181,10 +181,10 @@ impl OverHeadUpdater {
                 e
             })?;
 
-        Ok(latest_overhead)
+        Ok(Some(latest_overhead))
     }
 
-    async fn calculate_from_prev_rollup(&mut self) -> Result<usize, OverHeadError> {
+    async fn calculate_from_prev_rollup(&mut self) -> Result<Option<usize>, OverHeadError> {
         let latest_block = self.execution_node.query_block_by_num(0).await?;
 
         let excess_blob_gas =
@@ -207,7 +207,7 @@ impl OverHeadUpdater {
             prev_rollup.l2_txn,
         );
 
-        Ok(overhead as usize)
+        Ok(Some(overhead as usize))
     }
 
     async fn calculate_from_current_rollup(
@@ -361,10 +361,10 @@ impl OverHeadUpdater {
             return Ok(0);
         }
 
-        let next_block_num = block_num + 1;
-        let next_block = self.execution_node.query_block_by_num(next_block_num.as_u64()).await?;
+        //Waiting for the next L1 block to be produced.
+        sleep(Duration::from_secs(12)).await;
+        let next_block = self.execution_node.query_block_by_num((block_num + 1).as_u64()).await?;
 
-        // Waiting for the next L1 block.
         let prev_beacon_root = next_block["result"]["parentBeaconBlockRoot"]
             .as_str()
             .ok_or_else(|| OverHeadError::Error(anyhow!("Next block not produce")))?;

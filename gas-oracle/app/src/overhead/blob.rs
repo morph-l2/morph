@@ -1,15 +1,9 @@
-use lazy_static::lazy_static;
 use std::fmt;
-use tokio::sync::Mutex;
 
 use ethers::{
     core::k256::sha2::{Digest, Sha256},
     types::H256,
 };
-
-lazy_static! {
-    pub static ref PREV_ROLLUP_L1_BLOCK: Mutex<u64> = Mutex::new(0);
-}
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
 
