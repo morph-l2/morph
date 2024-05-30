@@ -226,8 +226,10 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 	slotResults := make(SlotResults)
 	if lastTx != nil {
 		backend.Commit()
-		if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
-			return nil, nil, err
+		if transferTx != nil {
+			if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
+				return nil, nil, err
+			}
 		}
 		if _, err = bind.WaitMined(context.Background(), backend, lastTx); err != nil {
 			return nil, nil, err
