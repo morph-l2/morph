@@ -25,6 +25,8 @@ var (
 	RollupEpochTopicHash         = crypto.Keccak256Hash([]byte(RollupEpochTopic))
 	SequencerSetUpdatedTopic     = "SequencerSetUpdated(address[], uint256)"
 	SequencerSetUpdatedTopicHash = crypto.Keccak256Hash([]byte(SequencerSetUpdatedTopic))
+
+	MaxEpochCount = 50
 )
 
 type SequencerSetUpdateEpoch struct {
@@ -56,7 +58,7 @@ func (o *Oracle) generateRollupEpoch(index, startTime, rollupEpoch, updateTime, 
 			break
 		}
 		// TODO
-		if o.rollupEpochMaxBlock == 1 && len(rollupEpochInfos) >= 50 {
+		if o.rollupEpochMaxBlock == 1 && len(rollupEpochInfos) >= MaxEpochCount {
 			rollupEpochInfo.EndBlock = big.NewInt(endBlock - 1)
 			rollupEpochInfos = append(rollupEpochInfos, rollupEpochInfo)
 			break
