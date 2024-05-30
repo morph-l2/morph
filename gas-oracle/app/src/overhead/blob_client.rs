@@ -1,127 +1,7 @@
 use eyre::anyhow;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use super::error::*;
-
-pub struct ExecutionNode {
-    pub rpc_url: String,
-}
-
-impl ExecutionNode {
-    pub async fn query_blob_tx(&self, hash: &str) -> Result<Value, OverHeadError> {
-        let params: serde_json::Value = json!([hash]);
-        let rpc_url = self.rpc_url.clone();
-
-        tokio::task::spawn_blocking(move || {
-            Self::query_execution_node(
-                rpc_url,
-                &json!({
-                    "jsonrpc": "2.0",
-                    "method": "eth_getTransactionByHash",
-                    "params": params,
-                    "id": 1,
-                }),
-            )
-        })
-        .await
-        .expect("Tokio spawn blocking issue with query_blob_tx")
-    }
-
-    pub async fn query_blob_tx_receipt(&self, hash: &str) -> Result<Value, OverHeadError> {
-        let params: serde_json::Value = json!([hash]);
-        let rpc_url = self.rpc_url.clone();
-
-        tokio::task::spawn_blocking(move || {
-            Self::query_execution_node(
-                rpc_url,
-                &json!({
-                    "jsonrpc": "2.0",
-                    "method": "eth_getTransactionReceipt",
-                    "params": params,
-                    "id": 1,
-                }),
-            )
-        })
-        .await
-        .expect("Tokio spawn blocking issue with query_blob_tx_receipt")
-    }
-
-    pub async fn query_block(&self, hash: &str) -> Result<Value, OverHeadError> {
-        let params: serde_json::Value = json!([hash, true]);
-        let rpc_url = self.rpc_url.clone();
-
-        tokio::task::spawn_blocking(move || {
-            Self::query_execution_node(
-                rpc_url,
-                &json!({
-                    "jsonrpc": "2.0",
-                    "method": "eth_getBlockByHash",
-                    "params": params,
-                    "id": 1,
-                }),
-            )
-        })
-        .await
-        .expect("Tokio spawn blocking issue with query_block")
-    }
-
-    pub async fn query_block_by_num(&self, num: u64) -> Result<Value, OverHeadError> {
-        let params: serde_json::Value = if num != 0 {
-            json!([format!("0x{:X}", num), false])
-        } else {
-            json!(["latest", false])
-        };
-        let rpc_url = self.rpc_url.clone();
-        tokio::task::spawn_blocking(move || {
-            Self::query_execution_node(
-                rpc_url,
-                &json!({
-                    "jsonrpc": "2.0",
-                    "method": "eth_getBlockByNumber",
-                    "params": params,
-                    "id": 1,
-                }),
-            )
-        })
-        .await
-        .expect("Tokio spawn blocking issue with query_block_by_num")
-    }
-
-    fn query_execution_node(
-        rpc_url: String,
-        param: &serde_json::Value,
-    ) -> Result<Value, OverHeadError> {
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .post(rpc_url)
-            .header(
-                reqwest::header::CONTENT_TYPE,
-                reqwest::header::HeaderValue::from_static("application/json"),
-            )
-            .json(param)
-            .send();
-
-        match response {
-            Ok(rs) => match rs.text() {
-                Ok(r) => serde_json::from_str::<Value>(&r).map_err(|e| {
-                    OverHeadError::ExecutionNodeError(anyhow!(
-                        "deserialize response failed, params= {:#?}, err: {:#?}",
-                        param,
-                        e
-                    ))
-                }),
-                Err(e) => Err(OverHeadError::ExecutionNodeError(anyhow!(format!(
-                    "fetch l1 execution node res_txt error, param= {:#?}, error = {:#?}",
-                    param, e
-                )))),
-            },
-            Err(e) => Err(OverHeadError::ExecutionNodeError(anyhow!(format!(
-                "call l1 execution node error, param= {:#?}, error = {:#?}",
-                param, e
-            )))),
-        }
-    }
-}
 
 pub struct BeaconNode {
     pub rpc_url: String,
@@ -188,73 +68,8 @@ impl BeaconNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethers::prelude::*;
     use std::env::var;
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_query_execution_node() {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-        dotenv::dotenv().ok();
-
-        let params: serde_json::Value =
-            json!(["0x0037beafe424df970b35eb7eb5fadb5f34c16159f6ec58818947444b10e43cdd"]);
-
-        let rpc_url: String =
-            var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env var not found");
-
-        let rt = tokio::task::spawn_blocking(move || {
-            ExecutionNode::query_execution_node(
-                rpc_url,
-                &json!({
-                    "jsonrpc": "2.0",
-                    "method": "eth_getTransactionByHash",
-                    "params": params,
-                    "id": 1,
-                }),
-            )
-        })
-        .await
-        .unwrap();
-
-        match rt {
-            Ok(transaction) => {
-                log::info!(
-                    "blobVersionedHashes: {:#?}",
-                    transaction["result"]["blobVersionedHashes"]
-                );
-            }
-            Err(e) => {
-                log::error!("{:?}", e);
-            }
-        }
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_query_block() {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-        dotenv::dotenv().ok();
-
-        let execution_node = ExecutionNode {
-            rpc_url: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env var not found"),
-        };
-
-        let rt = execution_node
-            .query_block("0x1f4b9b40ff7eba7c4cbf48c1a03551c25bb23ac69963016a72c9069db5ca00db")
-            .await;
-
-        match rt {
-            Ok(info) => {
-                log::info!(
-                    "transactions: {:#?}",
-                    info["result"]["transactions"].as_array().unwrap()
-                );
-            }
-            Err(e) => {
-                log::error!("{:?}", e);
-            }
-        }
-    }
 
     #[tokio::test]
     #[ignore]
@@ -279,5 +94,55 @@ mod tests {
                 log::error!("{:?}", e);
             }
         }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_blob_tx() {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+        dotenv::dotenv().ok();
+
+        let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("Cannot detect GAS_ORACLE_L1_RPC env var");
+        let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
+
+        // blob tx
+        let tx_hash = "0x0037beafe424df970b35eb7eb5fadb5f34c16159f6ec58818947444b10e43cdd"
+            .parse::<H256>()
+            .unwrap();
+        let transaction = l1_provider.get_transaction(tx_hash).await.unwrap().unwrap();
+        let tx_blob_versioned_hashes = transaction
+            .other
+            .get_with("blobVersionedHashes", serde_json::from_value::<Vec<H256>>)
+            .unwrap_or(Ok(Vec::<H256>::new()))
+            .unwrap_or_default();
+        assert!(!tx_blob_versioned_hashes.is_empty());
+
+        let receipt = l1_provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+        let blob_gas_price = receipt
+            .other
+            .get_with("blobGasPrice", serde_json::from_value::<U256>)
+            .unwrap_or(Ok(U256::zero()))
+            .unwrap_or_default();
+        assert!(!blob_gas_price.is_zero());
+
+        // legacy tx
+        let tx_hash = "0xd29de24c7447fb6bf4664586b5ee9c146d72e6bad74b2e9003ed5f7da80ccf51"
+            .parse::<H256>()
+            .unwrap();
+        let transaction = l1_provider.get_transaction(tx_hash).await.unwrap().unwrap();
+        let tx_blob_versioned_hashes = transaction
+            .other
+            .get_with("blobVersionedHashes", serde_json::from_value::<Vec<H256>>)
+            .unwrap_or(Ok(Vec::<H256>::new()))
+            .unwrap_or_default();
+        assert!(tx_blob_versioned_hashes.is_empty());
+
+        let receipt = l1_provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+        let blob_gas_price = receipt
+            .other
+            .get_with("blobGasPrice", serde_json::from_value::<U256>)
+            .unwrap_or(Ok(U256::zero()))
+            .unwrap_or_default();
+        assert!(blob_gas_price.is_zero());
     }
 }

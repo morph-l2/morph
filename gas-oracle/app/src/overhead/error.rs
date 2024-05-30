@@ -7,6 +7,4 @@ pub enum OverHeadError {
     CalculateError(eyre::Error),
     #[error("{0}")]
     BeaconNodeError(eyre::Error),
-    #[error("{0}")]
-    ExecutionNodeError(eyre::Error),
 }

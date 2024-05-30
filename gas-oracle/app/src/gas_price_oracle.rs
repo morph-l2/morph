@@ -137,7 +137,6 @@ async fn prepare_updater(
         l2_oracle.clone(),
         l1_rollup,
         config.overhead_threshold,
-        config.l1_rpc.clone(),
         config.l1_beacon_rpc.clone(),
         config.overhead_switch,
         config.max_overhead,
