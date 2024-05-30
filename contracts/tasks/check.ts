@@ -228,8 +228,9 @@ task("check-l2-status")
         name = await morphTokenContract.name()
         symbol = await morphTokenContract.symbol()
         let totalSupply = await morphTokenContract.totalSupply()
+        let balances = await morphTokenContract.balanceOf(owner)
         console.log(`MorphToken params check \n owner ${owner} \n l2Staking ${l2StakingAddr == predeploys.L2Staking} \n distribute ${distributeAddr == predeploys.Distribute} \n record ${recordAddr == predeploys.Record}`)
-        console.log(` name ${name} \n symbol ${symbol} \n totalSupply ${totalSupply}`)
+        console.log(` name ${name} \n symbol ${symbol} \n totalSupply ${totalSupply} \n balances ${balances}`)
         console.log('-----------------------------------\n')
     });
 
@@ -335,7 +336,7 @@ task("withdraw-l2-eth")
 task("getSequencerAddresses")
     .setAction(async (taskArgs, hre) => {
         const factory = await hre.ethers.getContractFactory('Sequencer')
-        const contract = factory.attach('0x5300000000000000000000000000000000000003')
+        const contract = factory.attach('0x5300000000000000000000000000000000000017')
         const res = await contract.getCurrentSequencerSet()
 
         console.log(`getCurrentSequencerSet : ${res}`)
