@@ -14,6 +14,7 @@ import "./tasks/overflow_test"
 import "./tasks/check"
 import "./tasks/query"
 import "./tasks/proxy_upgrade"
+import "./tasks/staking_upgrade"
 import "./src/plugin"
 import * as process from "process";
 
@@ -66,7 +67,7 @@ module.exports = {
         },
         l1: {
             url: "http://localhost:9545",
-            chainId: 900,
+            chainId: 31337,
             gas: 'auto',
             gasPrice: 'auto',
             accounts: [DEPLOYER_PK]

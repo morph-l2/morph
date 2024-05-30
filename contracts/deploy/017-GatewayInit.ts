@@ -13,7 +13,7 @@ import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
-} from "./types"
+} from "../src/types"
 
 export const GatewayInit = async (
     hre: HardhatRuntimeEnvironment,

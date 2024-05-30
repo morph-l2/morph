@@ -10,7 +10,7 @@ import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
-} from "./types"
+} from "../src/types"
 
 export const deployProxyAdmin = async (
     hre: HardhatRuntimeEnvironment,
@@ -25,7 +25,7 @@ export const deployProxyAdmin = async (
     const contract = await Factory.deploy()
     await contract.deployed()
     console.log("%s=%s ; TX_HASH: %s", ProxyAdminImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-    // check params then storge
+    // check params then storage
     await assertContractVariable(contract, 'owner', await deployer.getAddress())
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
