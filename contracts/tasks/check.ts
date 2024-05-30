@@ -257,8 +257,8 @@ task("deposit-l1-gateway-eth")
         const Factory = await hre.ethers.getContractFactory('L1ETHGateway')
         const contract = Factory.attach("0x2279b7a0a67db372996a5fab50d91eaa73d2ebe6")
         const res = await contract["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 110000, { value: hre.ethers.utils.parseEther('1.1') })
-        const recipet = await res.wait()
-        console.log(`Deposit status ${recipet.status == 1}`)
+        const rec = await res.wait()
+        console.log(`Deposit status ${rec.status == 1}`)
     });
 
 task("deploy-token")
