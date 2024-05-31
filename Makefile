@@ -22,7 +22,7 @@ docker-build:
 .PHONY: docker-build
 
 base-image:
-	cd ops/docker && docker build -t morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 . -f go-rust-builder.Dockerfile
+	cd ops/docker && docker build -t morph/go-rust-builder:go-1.20-rust-nightly-2023-12-03 . -f go-rust-builder.Dockerfile
 .PHONY: base-image
 
 ################## devnet 4 nodes ####################
