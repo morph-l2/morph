@@ -2,8 +2,10 @@ package immutables
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
@@ -203,12 +205,16 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
+			initSupply, success := new(big.Int).SetString(strconv.FormatUint(config.MorphTokenInitialSupply, 10)+"000000000000000000", 10)
+			if !success {
+				return nil, nil, errors.New("MorphTokenInitialSupply convert failed")
+			}
 			lastTx, err = morphToken.Initialize(
 				opts,
 				config.MorphTokenName,
 				config.MorphTokenSymbol,
 				config.MorphTokenOwner,
-				new(big.Int).SetUint64(config.MorphTokenInitialSupply),
+				initSupply,
 				new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
 			)
 			if err != nil {
@@ -220,8 +226,10 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 	slotResults := make(SlotResults)
 	if lastTx != nil {
 		backend.Commit()
-		if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
-			return nil, nil, err
+		if transferTx != nil {
+			if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
+				return nil, nil, err
+			}
 		}
 		if _, err = bind.WaitMined(context.Background(), backend, lastTx); err != nil {
 			return nil, nil, err

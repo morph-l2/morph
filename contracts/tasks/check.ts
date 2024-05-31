@@ -228,8 +228,9 @@ task("check-l2-status")
         name = await morphTokenContract.name()
         symbol = await morphTokenContract.symbol()
         let totalSupply = await morphTokenContract.totalSupply()
+        let balances = await morphTokenContract.balanceOf(owner)
         console.log(`MorphToken params check \n owner ${owner} \n l2Staking ${l2StakingAddr == predeploys.L2Staking} \n distribute ${distributeAddr == predeploys.Distribute} \n record ${recordAddr == predeploys.Record}`)
-        console.log(` name ${name} \n symbol ${symbol} \n totalSupply ${totalSupply}`)
+        console.log(` name ${name} \n symbol ${symbol} \n totalSupply ${totalSupply} \n balances ${balances}`)
         console.log('-----------------------------------\n')
     });
 
@@ -256,8 +257,8 @@ task("deposit-l1-gateway-eth")
         const Factory = await hre.ethers.getContractFactory('L1ETHGateway')
         const contract = Factory.attach("0x2279b7a0a67db372996a5fab50d91eaa73d2ebe6")
         const res = await contract["depositETH(uint256,uint256)"](hre.ethers.utils.parseEther('1'), 110000, { value: hre.ethers.utils.parseEther('1.1') })
-        const recipet = await res.wait()
-        console.log(`Deposit status ${recipet.status == 1}`)
+        const rec = await res.wait()
+        console.log(`Deposit status ${rec.status == 1}`)
     });
 
 task("deploy-token")
@@ -335,7 +336,7 @@ task("withdraw-l2-eth")
 task("getSequencerAddresses")
     .setAction(async (taskArgs, hre) => {
         const factory = await hre.ethers.getContractFactory('Sequencer')
-        const contract = factory.attach('0x5300000000000000000000000000000000000003')
+        const contract = factory.attach('0x5300000000000000000000000000000000000017')
         const res = await contract.getCurrentSequencerSet()
 
         console.log(`getCurrentSequencerSet : ${res}`)

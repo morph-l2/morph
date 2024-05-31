@@ -353,11 +353,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         lastCommittedBatchIndex = _batchIndex;
 
-        require(
-            _checkSequencerSetVerifyHash(batchDataInput, batchSignatureStore[_batchIndex].sequencerSetVerifyHash),
-            "the sequencer set verification failed"
-        );
-
         // verify bls signature
         require(
             IL1Staking(l1StakingContract).verifySignature(
@@ -654,7 +649,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Internal Functions *
      **********************/
 
-    /// @dev todo
+    /// @dev Internal function to verify the blob proof and zk proof.
     function _verifyProof(uint64 _batchIndex, bytes calldata _aggrProof, bytes calldata _kzgDataProof) private view {
         // Check validity of proof
         require(_aggrProof.length > 0, "Invalid aggregation proof");
@@ -682,7 +677,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchDataStore[_batchIndex].withdrawalRoot,
                 batchDataStore[_batchIndex].l1DataHash,
                 _kzgDataProof[0:64],
-                batchDataStore[_batchIndex].blobVersionedHash
+                batchDataStore[_batchIndex].blobVersionedHash,
+                batchSignatureStore[_batchIndex].sequencerSetVerifyHash
             )
         );
 
@@ -700,15 +696,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     ) internal pure returns (bytes32) {
         // TODO compute bls message hash
         return bytes32(0);
-    }
-
-    /// @dev Internal function to compute BLS msg hash
-    function _checkSequencerSetVerifyHash(
-        BatchDataInput calldata, // batchDataInput
-        bytes32 // sequencerSetVerifyHash
-    ) internal pure returns (bool) {
-        // TODO check sequencerSetVerifyHash in batch
-        return true;
     }
 
     /// @dev todo

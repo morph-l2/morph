@@ -12,7 +12,7 @@ import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
-} from "./types"
+} from "../src/types"
 import { predeploys } from "../src";
 
 export const MessengerInit = async (

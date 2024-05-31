@@ -8,8 +8,7 @@ import {IZkEvmVerifier} from "./libs/IZkEvmVerifier.sol";
 /// @notice This contract maintains data for shadow rollup.
 contract ShadowRollup is Ownable {
     /// Scalar field modulus of BLS12-381
-    uint256 constant BLS_MODULUS =
-        52435875175126190479447740508185965837690552500527637822603658699938581184513;
+    uint256 constant BLS_MODULUS = 52435875175126190479447740508185965837690552500527637822603658699938581184513;
 
     /// @dev Address of the point evaluation precompile used for EIP-4844 blob verification.
     address internal constant POINT_EVALUATION_PRECOMPILE_ADDR = address(0x0A);
@@ -26,6 +25,7 @@ contract ShadowRollup is Ownable {
         bytes32 withdrawalRoot;
         bytes32 dataHash;
         bytes32 blobVersionedHash;
+        bytes32 sequencerSetVerifyHash;
     }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -45,20 +45,13 @@ contract ShadowRollup is Ownable {
     ///
     /// @param _batchIndex The index of batch
     /// @param _batchData The batch data
-    function commitBatch(
-        uint64 _batchIndex,
-        BatchStore calldata _batchData
-    ) external {
+    function commitBatch(uint64 _batchIndex, BatchStore calldata _batchData) external {
         committedBatchStores[_batchIndex] = _batchData;
     }
 
     // proveState proves a batch by submitting a proof.
     // _kzgData: [y(32) | commitment(48) | proof(48)]
-    function proveState(
-        uint64 _batchIndex,
-        bytes calldata _aggrProof,
-        bytes calldata _kzgDataProof
-    ) external {
+    function proveState(uint64 _batchIndex, bytes calldata _aggrProof, bytes calldata _kzgDataProof) external {
         // Check validity of proof
         require(_aggrProof.length > 0, "Invalid aggregation proof");
 
@@ -67,13 +60,9 @@ contract ShadowRollup is Ownable {
 
         // Calls the point evaluation precompile and verifies the output
         {
-            (bool success, bytes memory data) = POINT_EVALUATION_PRECOMPILE_ADDR
-                .staticcall(
-                    abi.encodePacked(
-                        committedBatchStores[_batchIndex].blobVersionedHash,
-                        _kzgDataProof
-                    )
-                );
+            (bool success, bytes memory data) = POINT_EVALUATION_PRECOMPILE_ADDR.staticcall(
+                abi.encodePacked(committedBatchStores[_batchIndex].blobVersionedHash, _kzgDataProof)
+            );
             // We verify that the point evaluation precompile call was successful by testing the latter 32 bytes of the
             // response is equal to BLS_MODULUS as defined in https://eips.ethereum.org/EIPS/eip-4844#point-evaluation-precompile
             require(success, "failed to call point evaluation precompile");
@@ -89,7 +78,8 @@ contract ShadowRollup is Ownable {
                 committedBatchStores[_batchIndex].withdrawalRoot,
                 committedBatchStores[_batchIndex].dataHash,
                 _kzgDataProof[0:64],
-                committedBatchStores[_batchIndex].blobVersionedHash
+                committedBatchStores[_batchIndex].blobVersionedHash,
+                committedBatchStores[_batchIndex].sequencerSetVerifyHash
             )
         );
 

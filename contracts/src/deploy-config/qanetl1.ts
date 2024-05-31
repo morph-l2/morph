@@ -35,6 +35,7 @@ const config = {
     // staking initialize config
     stakingLockNumber: 3,
     stakingMinDeposit: 1, // limit
+    stakingChallengerRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [
         "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",

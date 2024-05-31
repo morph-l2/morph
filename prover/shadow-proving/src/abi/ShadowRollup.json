@@ -67,6 +67,11 @@
             "internalType": "bytes32",
             "name": "blobVersionedHash",
             "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "sequencerSetVerifyHash",
+            "type": "bytes32"
           }
         ],
         "internalType": "struct ShadowRollup.BatchStore",
@@ -112,6 +117,11 @@
       {
         "internalType": "bytes32",
         "name": "blobVersionedHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "sequencerSetVerifyHash",
         "type": "bytes32"
       }
     ],

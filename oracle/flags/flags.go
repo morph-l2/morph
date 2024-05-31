@@ -138,6 +138,9 @@ var optionalFlags = []cli.Flag{
 	LogCompressFlag,
 	MaxHeaderBatchSizeFlag,
 	MinHeaderBatchSizeFlag,
+	MetricsServerEnableFlag,
+	MetricsHostnameFlag,
+	MetricsPortFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

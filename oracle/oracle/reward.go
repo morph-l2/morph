@@ -58,6 +58,7 @@ func (o *Oracle) syncRewardEpoch() error {
 	if err != nil {
 		return err
 	}
+	o.metrics.SetRewardEpoch(startRewardEpochIndex.Uint64() - 1)
 	startHeight, err := o.getNextHeight()
 	if err != nil {
 		return err
@@ -90,7 +91,6 @@ func (o *Oracle) syncRewardEpoch() error {
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("record reward epochs not success")
 	}
-	o.metrics.SetRewardEpoch(recordRewardEpochInfo.Index.Uint64())
 	return nil
 }
 

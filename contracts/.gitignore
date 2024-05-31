@@ -19,6 +19,7 @@ yarn-error.log
 !.yarn/plugins
 .pnp.*
 deployFile.json
+newFile.json
 
 dist
 artifacts
