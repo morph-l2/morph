@@ -76,7 +76,10 @@ func (r *Rotator) UpdateState(clients []iface.L2Client) error {
 // GetCurrentSubmitter returns the current sequencer that should be submitting
 func (r *Rotator) CurrentSubmitter(clients []iface.L2Client) (*common.Address, error) {
 
-	r.UpdateState(clients)
+	err := r.UpdateState(clients)
+	if err != nil {
+		return nil, fmt.Errorf("update state err: %w", err)
+	}
 
 	if len(r.GetSequencerSet()) == 0 {
 		return nil, fmt.Errorf("GetCurrentSubmitter: sequencer set is empty")
