@@ -180,9 +180,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes calldata _batchHeader,
         bytes32 _postStateRoot
     ) external onlyOwner {
-        // check genesis batch index >= 0
-        require(_batchIndex >= 0, "batch index must >= 0");
-
         // check genesis batch header length
         require(_postStateRoot != bytes32(0), "zero state root");
 
