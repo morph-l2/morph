@@ -284,7 +284,14 @@ impl OverHeadUpdater {
             .other
             .get_with("blobGasPrice", serde_json::from_value::<U256>)
             .unwrap_or(Ok(U256::zero()))
-            .unwrap_or_default();
+            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?;
+
+        if blob_gas_price.is_zero() {
+            return Err(OverHeadError::Error(anyhow!(format!(
+                "blob tx blob_gas_price is none or 0, tx_hash = {:#?}",
+                tx_hash
+            ))));
+        }
 
         // effective_gas_price
         let effective_gas_price = blob_tx_receipt.effective_gas_price.unwrap_or_default();
