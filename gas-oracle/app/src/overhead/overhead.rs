@@ -231,7 +231,7 @@ impl OverHeadUpdater {
                 )))
             })?;
 
-        log::info!("rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
+        log::info!("hit self rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
 
         //Step2. Parse transaction data
         let data = tx.input;
@@ -267,18 +267,16 @@ impl OverHeadUpdater {
             .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
                 OverHeadError::Error(anyhow!(format!(
-                    "l1 get transaction receipt is none, tx_hash= {:#?}",
+                    "l1 get transaction receipt return none, tx_hash= {:#?}",
                     tx_hash
                 )))
             })?;
 
         // rollup_gas_used
         let rollup_gas_used = blob_tx_receipt.gas_used.unwrap_or_default();
-        log::info!("rollup_calldata_gas_used: {:?}", rollup_gas_used);
-
         if rollup_gas_used.is_zero() {
             return Err(OverHeadError::Error(anyhow!(format!(
-                "blob tx calldata gas_used is None or 0, tx_hash = {:#?}",
+                "blob tx calldata gas_used is none or 0, tx_hash = {:#?}",
                 tx_hash
             ))));
         }
@@ -292,14 +290,9 @@ impl OverHeadUpdater {
 
         // effective_gas_price
         let effective_gas_price = blob_tx_receipt.effective_gas_price.unwrap_or_default();
-        log::info!(
-            "blob_gas_price: {:?}, calldata_gas_price: {:?}",
-            blob_gas_price,
-            effective_gas_price
-        );
         if effective_gas_price.is_zero() {
             return Err(OverHeadError::Error(anyhow!(format!(
-                "blob tx calldata effective_gas_price is None or 0, tx_hash = {:#?}",
+                "blob tx calldata effective_gas_price is none or 0, tx_hash = {:#?}",
                 tx_hash
             ))));
         }
@@ -328,7 +321,12 @@ impl OverHeadUpdater {
             ((rollup_gas_used * effective_gas_price).as_usize() as f64);
 
         log::info!(
-            "lastest_overhead: {:?},  x:{:?}, l2_txn:{:?}, blob gasFee ratio: {:?}",
+            "rollup blob tx: {:?} in block: {:?}, tx_gas_used: {:?}, blob_gas_price: {:?}, effective_gas_price: {:?}, lastest_overhead: {:?}, x: {:?}, l2_txn: {:?}, blob_fee_ratio: {}",
+            tx_hash,
+            block_num,
+            rollup_gas_used,
+            blob_gas_price,
+            effective_gas_price,
             overhead,
             x,
             l2_txn,
@@ -368,15 +366,14 @@ impl OverHeadUpdater {
             .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
                 OverHeadError::Error(anyhow!(format!(
-                    "l1 get block return none, block_num: {:#?}",
+                    "l1 get block info return none, block_num: {:#?}",
                     block_num
                 )))
             })?;
 
         let indexed_hashes = data_and_hashes_from_txs(&blob_block.transactions, &blob_tx);
-
         if indexed_hashes.is_empty() {
-            log::info!("No blob in this batch, batchTxHash ={:#?}", tx_hash);
+            log::info!("no blob in this batch, batch_tx_hash: {:#?}", tx_hash);
             return Ok(0);
         }
 
@@ -391,7 +388,7 @@ impl OverHeadUpdater {
                     break beacon_blk_root;
                 } else {
                     return Err(OverHeadError::Error(anyhow!(format!(
-                        "Next block info's pre_beacon_root is none, block number: {:?}",
+                        "next block info's pre_beacon_root is none, block number: {:?}",
                         next_block_num
                     ))));
                 }
@@ -400,14 +397,14 @@ impl OverHeadUpdater {
                 sleep(Duration::from_secs(3)).await;
 
                 log::warn!(
-                    "Request next block info, retry times= {:?}, block number: {:?}",
+                    "request next block info, retry times= {:?}, block number: {:?}",
                     retry_times,
                     next_block_num
                 );
                 continue;
             } else {
                 return Err(OverHeadError::Error(anyhow!(format!(
-                    "Maximum number of requests next block info reached: {:?}, block number:{:?}",
+                    "maximum number of requests next block info reached: {:?}, block number:{:?}",
                     retry_times, next_block_num
                 ))));
             }
@@ -419,21 +416,23 @@ impl OverHeadUpdater {
             .query_sidecars(hex::encode_prefixed(prev_beacon_root), indexes)
             .await?;
 
-        let sidecars: &Vec<Value> = sidecars_rt["data"]
-            .as_array()
-            .ok_or_else(|| OverHeadError::Error(anyhow!("query blob_sidecars empty")))?;
+        let sidecars: &Vec<Value> = sidecars_rt["data"].as_array().ok_or_else(|| {
+            OverHeadError::Error(anyhow!(format!(
+                "blob_sidecars is none, blk_num: {:?}, blk_root: {:?}",
+                block_num, prev_beacon_root
+            )))
+        })?;
 
         if sidecars.is_empty() {
             return Err(OverHeadError::Error(anyhow!(format!(
-                "query sidecars.is_empty: {:?}",
-                sidecars_rt
+                "blob_sidecars is empty, blk_num: {:?}, blk_root: {:?}",
+                block_num, prev_beacon_root
             ))));
         }
 
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
-
         let tx_payload_gas = data_gas_cost(&tx_payload);
-        log::info!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
+        log::debug!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
 
         Ok(tx_payload_gas)
     }
