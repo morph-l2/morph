@@ -67,7 +67,7 @@ module.exports = {
         },
         l1: {
             url: "http://localhost:9545",
-            chainId: 900,
+            chainId: 31337,
             gas: 'auto',
             gasPrice: 'auto',
             accounts: [DEPLOYER_PK]
