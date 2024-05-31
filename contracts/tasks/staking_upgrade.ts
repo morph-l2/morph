@@ -13,19 +13,18 @@ task("rollup-deploy-init")
     .addParam("newpath")
     .setAction(async (taskArgs, hre) => {
         // deploy config
-        const ProxyFactoryName = ContractFactoryName.DefaultProxy
-        const IProxyFactoryName = ContractFactoryName.DefaultProxyInterface
-        const RollupFactoryName = ContractFactoryName.Rollup
-
-        const RollupImplStorageName = ImplStorageName.RollupStorageName
-        const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
         const storagePath = taskArgs.storagepath
         const newPath = taskArgs.newpath
         const config = hre.deployConfig
-        const chainId = 53077
-
-        const EmptyContractAddr = getContractAddressByName(storagePath, ImplStorageName.EmptyContract)
+        const chainId = config.l2ChainID
         const deployer = hre.ethers.provider.getSigner()
+        
+        const ProxyFactoryName = ContractFactoryName.DefaultProxy
+        const IProxyFactoryName = ContractFactoryName.DefaultProxyInterface
+        const RollupFactoryName = ContractFactoryName.Rollup
+        const RollupImplStorageName = ImplStorageName.RollupStorageName
+        const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
+        const EmptyContractAddr = getContractAddressByName(storagePath, ImplStorageName.EmptyContract)
 
         const RollupFactory = await hre.ethers.getContractFactory(RollupFactoryName)
         const rollupNewImpl = await RollupFactory.deploy(chainId)
@@ -221,12 +220,176 @@ task("rollup-deploy-init")
         }
     })
 
+task("l1mq-upgrade")
+    .addParam("storagepath")
+    .addParam("newpath")
+    .setAction(async (taskArgs, hre) => {
+        // deploy config
+        const storagePath = taskArgs.storagepath
+        const newPath = taskArgs.newpath
+
+        const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
+        const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
+        )
+        const L1CrossDomainMessengerProxyAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.L1CrossDomainMessengerProxyStorageName
+        )
+        const EnforcedTxGatewayAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.EnforcedTxGatewayProxyStorageName
+        )
+        const ProxyAdminAddress = getContractAddressByName(storagePath, ImplStorageName.ProxyAdmin)
+
+        // deploy L1MessageQueueWithGasPriceOracle impl
+        {
+            const NewRollupProxyAddress = getContractAddressByName(newPath, ProxyStorageName.RollupProxyStorageName)
+
+            const Factory = await hre.ethers.getContractFactory(L1MessageQueueWithGasPriceOracleFactoryName)
+            const contract = await Factory.deploy(
+                L1CrossDomainMessengerProxyAddress,
+                NewRollupProxyAddress,
+                EnforcedTxGatewayAddress
+            )
+            await contract.deployed()
+            console.log(
+                "%s=%s ; TX_HASH: %s",
+                ImplStorageName.L1MessageQueueWithGasPriceOracle,
+                contract.address.toLocaleLowerCase(),
+                contract.deployTransaction.hash
+            )
+            const blockNumber = await hre.ethers.provider.getBlockNumber()
+            console.log("BLOCK_NUMBER: %s", blockNumber)
+            const err = await storage(
+                newPath,
+                ImplStorageName.L1MessageQueueWithGasPriceOracle,
+                contract.address.toLocaleLowerCase(),
+                blockNumber || 0
+            )
+            if (err != "") {
+                return err
+            }
+        }
+
+        // L1MessageQueueWithGasPriceOracle proxy upgrade
+        {
+            const L1MessageQueueWithGasPriceOracleNewImplAddress = getContractAddressByName(
+                newPath,
+                ImplStorageName.L1MessageQueueWithGasPriceOracle
+            )
+
+            const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+            const proxyAdmin = ProxyAdminFactory.attach(ProxyAdminAddress)
+            const res = await proxyAdmin.upgrade(
+                L1MessageQueueWithGasPriceOracleProxyAddress,
+                L1MessageQueueWithGasPriceOracleNewImplAddress
+            )
+            const rec = await res.wait()
+            console.log(`upgrade l1MessageQueueWithGasPriceOracle.rollup ${rec.status === 1}`)
+        }
+    })
+
 task("l1cdm-upgrade")
     .addParam("storagepath")
     .addParam("newpath")
     .setAction(async (taskArgs, hre) => {
-          // deploy config
-          const ProxyFactoryName = ContractFactoryName.DefaultProxy
-          const IProxyFactoryName = ContractFactoryName.DefaultProxyInterface
+        // deploy config
+        const storagePath = taskArgs.storagepath
+        const newPath = taskArgs.newpath
 
+        const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
+        const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
+        const ProxyAdminAddress = getContractAddressByName(storagePath, ImplStorageName.ProxyAdmin)
+        const L1CrossDomainMessengerProxyAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.L1CrossDomainMessengerProxyStorageName
+        )
+
+        // deploy l1CrossDomainMessenger impl
+        {
+            const Factory = await hre.ethers.getContractFactory(L1CrossDomainMessengerFactoryName)
+            const contract = await Factory.deploy()
+            await contract.deployed()
+            console.log(
+                "%s=%s ; TX_HASH: %s",
+                L1CrossDomainMessengerImplStorageName,
+                contract.address.toLocaleLowerCase(),
+                contract.deployTransaction.hash
+            )
+            const blockNumber = await hre.ethers.provider.getBlockNumber()
+            console.log("BLOCK_NUMBER: %s", blockNumber)
+            const err = await storage(
+                newPath,
+                L1CrossDomainMessengerImplStorageName,
+                contract.address.toLocaleLowerCase(),
+                blockNumber || 0
+            )
+            if (err != "") {
+                return err
+            }
+        }
+
+        // l1CrossDomainMessenger proxy upgrade
+        {
+            const L1CrossDomainMessengerNewImplAddress = getContractAddressByName(
+                newPath,
+                L1CrossDomainMessengerImplStorageName
+            )
+            const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+            const proxyAdmin = ProxyAdminFactory.attach(ProxyAdminAddress)
+            const res = await proxyAdmin.upgrade(
+                L1CrossDomainMessengerProxyAddress,
+                L1CrossDomainMessengerNewImplAddress
+            )
+            const rec = await res.wait()
+            console.log(`upgrade l1CrossDomainMessenger ${rec.status === 1}`)
+        }
+
+        // l1CrossDomainMessenger update Rollup address
+        {
+            const NewRollupProxyAddress = getContractAddressByName(newPath, ProxyStorageName.RollupProxyStorageName)
+
+            const L1CDMFactory = await hre.ethers.getContractFactory(L1CrossDomainMessengerFactoryName)
+            const l1CrossDomainMessenger = L1CDMFactory.attach(L1CrossDomainMessengerProxyAddress)
+            const res = await l1CrossDomainMessenger.updateRollup(NewRollupProxyAddress)
+            const rec = await res.wait()
+            console.log(`update l1CrossDomainMessenger.rollup ${rec.status === 1}`)
+        }
+    })
+
+task("check-params")
+    .addParam("storagepath")
+    .addParam("newpath")
+    .setAction(async (taskArgs, hre) => {
+        const storagePath = taskArgs.storagepath
+        const newPath = taskArgs.newpath
+
+        const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
+        )
+        const L1CrossDomainMessengerProxyAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.L1CrossDomainMessengerProxyStorageName
+        )
+        const RollupNewProxyAddress = getContractAddressByName(newPath, ProxyStorageName.RollupProxyStorageName)
+
+        const L1CDMFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1CrossDomainMessenger)
+        const l1CrossDomainMessenger = L1CDMFactory.attach(L1CrossDomainMessengerProxyAddress)
+        let res = await l1CrossDomainMessenger.rollup()
+        assert(
+            RollupNewProxyAddress.toLowerCase() === res.toLowerCase(),
+            `l1CrossDomainMessenger assert rollup address assert failed, expect ${RollupNewProxyAddress}, actual ${res}`
+        )
+
+        const L1MQFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1MessageQueueWithGasPriceOracle)
+        const l1mq = L1MQFactory.attach(L1MessageQueueWithGasPriceOracleProxyAddress)
+        res = await l1mq.ROLLUP_CONTRACT()
+        assert(
+            RollupNewProxyAddress.toLowerCase() === res.toLowerCase(),
+            `l1mq assert rollup address assert failed, expect ${RollupNewProxyAddress}, actual ${res}`
+        )
+        console.log("Check new rollup address success")
     })
