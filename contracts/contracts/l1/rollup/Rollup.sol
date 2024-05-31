@@ -700,7 +700,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes calldata sequencerSets,
         uint256 blockHeight
     ) internal pure returns (address[] memory) {
-        // TODO require submitter was in valid sequencer set after BLS was implementated
+        // TODO require submitter was in valid sequencer set after BLS was implemented
         (
             ,
             address[] memory sequencerSet0,

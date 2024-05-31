@@ -206,7 +206,7 @@ task("rollup-deploy-init")
                 console.error("please check your address")
                 return ""
             }
-            let res = await Rollup.importGenesisBatch(batchIndex,batchHeader, genesisStateRoot)
+            let res = await Rollup.importGenesisBatch(batchIndex, batchHeader, genesisStateRoot)
             let rec = await res.wait()
             console.log(
                 `importGenesisBatch(%s, %s) ${rec.status == 1 ? "success" : "failed"}`,
@@ -219,4 +219,14 @@ task("rollup-deploy-init")
             const batch = await Rollup.batchBaseStore(0)
             assert(batch.batchHash.toLowerCase() != "", `[FATAL] import genesis batch failed`)
         }
+    })
+
+task("l1cdm-upgrade")
+    .addParam("storagepath")
+    .addParam("newpath")
+    .setAction(async (taskArgs, hre) => {
+          // deploy config
+          const ProxyFactoryName = ContractFactoryName.DefaultProxy
+          const IProxyFactoryName = ContractFactoryName.DefaultProxyInterface
+
     })
