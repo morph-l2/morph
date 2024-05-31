@@ -380,24 +380,38 @@ impl OverHeadUpdater {
             return Ok(0);
         }
 
-        //Waiting for the next L1 block to be produced.
-        sleep(Duration::from_secs(12)).await;
+        // Waiting for the next L1 block to be produced.
+        let next_block_num = block_num + 1;
+        // Max delay 5 * 3 = 15 secs
+        let mut retry_times = 5;
+        let prev_beacon_root = loop {
+            let blk_info = self.l1_provider.get_block(BlockNumber::Number(next_block_num)).await;
+            if let Ok(Some(info)) = blk_info {
+                if let Some(beacon_blk_root) = info.parent_beacon_block_root {
+                    break beacon_blk_root;
+                } else {
+                    return Err(OverHeadError::Error(anyhow!(format!(
+                        "Next block info's pre_beacon_root is none, block number: {:?}",
+                        next_block_num
+                    ))));
+                }
+            } else if retry_times > 0 {
+                retry_times -= 1;
+                sleep(Duration::from_secs(3)).await;
 
-        let next_block = self
-            .l1_provider
-            .get_block(BlockNumber::Number(block_num + 1))
-            .await
-            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
-            .ok_or_else(|| {
-                OverHeadError::Error(anyhow!(format!(
-                    "l1 get next block return none, block_num: {:#?}",
-                    block_num + 1
-                )))
-            })?;
-
-        let prev_beacon_root = next_block
-            .parent_beacon_block_root
-            .ok_or_else(|| OverHeadError::Error(anyhow!("Next block not produce")))?;
+                log::warn!(
+                    "Request next block info, retry times= {:?}, block number: {:?}",
+                    retry_times,
+                    next_block_num
+                );
+                continue;
+            } else {
+                return Err(OverHeadError::Error(anyhow!(format!(
+                    "Maximum number of requests next block info reached: {:?}, block number:{:?}",
+                    retry_times, next_block_num
+                ))));
+            }
+        };
 
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
         let sidecars_rt = self
