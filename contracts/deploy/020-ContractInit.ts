@@ -63,7 +63,7 @@ export const ContractInit = async (
             console.error('please check your address')
             return ''
         }
-        let res = await Rollup.importGenesisBatch(batchHeader, genesisStateRoot)
+        let res = await Rollup.importGenesisBatch(0,batchHeader, genesisStateRoot)
         let rec = await res.wait()
         console.log(`importGenesisBatch(%s, %s) ${rec.status == 1 ? "success" : "failed"}`, batchHeader, genesisStateRoot)
         res = await Rollup.addChallenger(challenger)

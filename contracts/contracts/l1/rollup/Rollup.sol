@@ -178,8 +178,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function importGenesisBatch(
         uint256 _batchIndex,
         bytes calldata _batchHeader,
-        bytes32 _postStateRoot,
-        bytes32 _withdrawalRoot
+        bytes32 _postStateRoot
     ) external onlyOwner {
         // check genesis batch index >= 0
         require(_batchIndex >= 0, "batch index must >= 0");
@@ -219,7 +218,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             _l1DataHash,
             bytes32(0),
             _postStateRoot,
-            _withdrawalRoot,
+            bytes32(0),
             0,
             0,
             bytes("0x")
