@@ -206,8 +206,8 @@ task("rollup-deploy-init")
                 console.error("please check your address")
                 return ""
             }
-            const res = await Rollup.importGenesisBatch(batchIndex,batchHeader, genesisStateRoot)
-            const rec = await res.wait()
+            let res = await Rollup.importGenesisBatch(batchIndex,batchHeader, genesisStateRoot)
+            let rec = await res.wait()
             console.log(
                 `importGenesisBatch(%s, %s) ${rec.status == 1 ? "success" : "failed"}`,
                 batchHeader,
