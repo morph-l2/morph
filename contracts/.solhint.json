@@ -1,0 +1,28 @@
+{
+    "extends": "solhint:recommended",
+    "rules": {
+        "max-line-length": [
+            "error",
+            200
+        ],
+        "avoid-suicide": "error",
+        "no-console": "error",
+        "const-name-snakecase": "error",
+        "contract-name-camelcase": "error",
+        "func-visibility": [
+            "warn",
+            {
+                "ignoreConstructors": true
+            }
+        ],
+        "reason-string": [
+            "warn",
+            {
+                "maxLength": 60
+            }
+        ],
+        "gas-custom-errors": "off",
+        "no-empty-blocks": "off",
+        "max-states-count": "off"
+    }
+}

@@ -1,5 +1,5 @@
 # Build libzkp dependency
-FROM morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as chef
+FROM scrolltech/go-rust-builder:go-1.21-rust-nightly-2023-12-03-arm64 as chef
 WORKDIR /app
 
 FROM chef as planner
@@ -16,7 +16,7 @@ COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp .
 RUN cargo build --release
 RUN find ./ | grep libzktrie.so | xargs -I{} cp {} /app/target/release/
 
-FROM morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as go-rust-builder
+FROM scrolltech/go-rust-builder:go-1.21-rust-nightly-2023-12-03-arm64 as go-rust-builder
 
 COPY ./go-ethereum /go-ethereum
 COPY --from=zkp-builder /app/target/release/libzkp.so /usr/local/lib/
@@ -45,7 +45,7 @@ EXPOSE 8545 8546 8551 30303 30303/udp
 
 
 # Build libzkp dependency
-FROM scrolltech/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as chef-x86
+FROM scrolltech/go-rust-builder:go-1.21-rust-nightly-2023-12-03-amd64 as chef-x86
 WORKDIR app
 
 FROM chef-x86 as planner-x86
@@ -62,7 +62,7 @@ RUN cargo build --release
 RUN find ./ | grep libzktrie.so | xargs -I{} cp {} /app/target/release/
 
 # Build Geth in a stock Go builder container
-FROM scrolltech/go-rust-builder:go-1.19-rust-nightly-2022-12-10 as builder-x86
+FROM scrolltech/go-rust-builder:go-1.21-rust-nightly-2023-12-03-amd64 as builder-x86
 
 ADD ./go-ethereum /go-ethereum
 COPY --from=zkp-builder-x86 /app/target/release/libzkp.so /usr/local/lib/
@@ -88,7 +88,7 @@ EXPOSE 8545 8546 8551 30303 30303/udp
 
 
 # Build Geth in a stock Go builder container
-FROM golang:1.20-alpine as builder
+FROM golang:1.22-alpine as builder
 RUN apk add --no-cache gcc musl-dev linux-headers git make
 COPY ./go-ethereum /go-ethereum
 RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth

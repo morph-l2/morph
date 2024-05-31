@@ -4,10 +4,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/morph-l2/node/types"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+
+	"morph-l2/node/types"
 )
 
 func TestLatestSyncedL1Height(t *testing.T) {

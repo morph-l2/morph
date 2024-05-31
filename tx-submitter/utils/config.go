@@ -3,8 +3,9 @@ package utils
 import (
 	"time"
 
-	"github.com/morph-l2/tx-submitter/flags"
 	"github.com/urfave/cli"
+
+	"morph-l2/tx-submitter/flags"
 )
 
 type Config struct {

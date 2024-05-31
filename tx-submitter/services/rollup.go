@@ -9,11 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/tx-submitter/iface"
-	"github.com/morph-l2/tx-submitter/metrics"
-	"github.com/morph-l2/tx-submitter/utils"
-
 	"github.com/holiman/uint256"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
@@ -28,6 +23,11 @@ import (
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/tendermint/tendermint/blssignatures"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/metrics"
+	"morph-l2/tx-submitter/utils"
 )
 
 const (
@@ -189,7 +189,7 @@ func (sr *Rollup) finalize() error {
 		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommited.Uint64())
 		return nil
 	}
-	// in challange window
+	// in challenge window
 	inWindow, err := sr.Rollup.BatchInsideChallengeWindow(nil, target)
 	if err != nil {
 		return fmt.Errorf("get batch inside challenge window error:%v", err)
@@ -422,10 +422,6 @@ func (sr *Rollup) rollup() error {
 
 	opts.NoSend = true
 	opts.Nonce = big.NewInt(int64(nonce))
-
-	if err != nil {
-		return fmt.Errorf("dial ethclient error:%v", err)
-	}
 
 	var tx *types.Transaction
 	// blob tx
@@ -675,26 +671,6 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	return tip, gasFeeCap, blobFee, nil
 }
 
-func (sr *Rollup) waitForReceipt(txHash common.Hash) (*types.Receipt, error) {
-	t := time.NewTicker(time.Second)
-	receipt := new(types.Receipt)
-	var err error
-	for range t.C {
-		receipt, err = sr.L1Client.TransactionReceipt(context.Background(), txHash)
-		if errors.Is(err, ethereum.NotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if receipt != nil {
-			t.Stop()
-			break
-		}
-	}
-	return receipt, nil
-}
-
 func (sr *Rollup) waitReceiptWithTimeout(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
 	ctx, cancel := context.WithTimeout(sr.ctx, time)
 	defer cancel()
@@ -703,14 +679,12 @@ func (sr *Rollup) waitReceiptWithTimeout(time time.Duration, txHash common.Hash)
 
 func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	t := time.NewTicker(time.Second)
-	receipt := new(types.Receipt)
-	var err error
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, errors.New("timeout")
 		case <-t.C:
-			receipt, err = sr.L1Client.TransactionReceipt(context.Background(), txHash)
+			receipt, err := sr.L1Client.TransactionReceipt(context.Background(), txHash)
 			if errors.Is(err, ethereum.NotFound) {
 				continue
 			}

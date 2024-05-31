@@ -45,9 +45,24 @@ var (
 	}
 
 	RollupAddress = cli.StringFlag{
-		Name:   "rollup-address",
-		Usage:  "Address of the rollup",
-		EnvVar: prefixEnvVar("ROLLUP"),
+		Name:     "rollup-address",
+		Usage:    "Address of the rollup",
+		Required: true,
+		EnvVar:   prefixEnvVar("ROLLUP"),
+	}
+
+	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
+		Name:   "max-header-batch-size",
+		Usage:  "The maximum number of headers to request as a batch",
+		Value:  1000,
+		EnvVar: prefixEnvVar("MAX_HEADER_BATCH_SIZE"),
+	}
+
+	MinHeaderBatchSizeFlag = cli.Uint64Flag{
+		Name:   "min-header-batch-size",
+		Usage:  "The maximum number of headers to request as a batch",
+		Value:  50,
+		EnvVar: prefixEnvVar("MIN_HEADER_BATCH_SIZE"),
 	}
 
 	LogLevelFlag = cli.StringFlag{
@@ -121,6 +136,11 @@ var optionalFlags = []cli.Flag{
 	LogFileMaxSizeFlag,
 	LogFileMaxAgeFlag,
 	LogCompressFlag,
+	MaxHeaderBatchSizeFlag,
+	MinHeaderBatchSizeFlag,
+	MetricsServerEnableFlag,
+	MetricsHostnameFlag,
+	MetricsPortFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

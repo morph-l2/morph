@@ -1,0 +1,27 @@
+name: Gas-oracle
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "gas-oracle/**"
+            - ".github/workflows/gas-oracle.yaml"
+    pull_request:
+        paths:
+            - "gas-oracle/**"
+            - ".github/workflows/gas-oracle.yaml"
+
+defaults:
+    run:
+        working-directory: "gas-oracle"
+
+jobs:
+    check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Run build
+              run: make build
+            - name: Run tests
+              run: make test

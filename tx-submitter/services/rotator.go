@@ -6,7 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/iface"
+
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/log"
 )

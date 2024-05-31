@@ -3,10 +3,11 @@ package iface
 import (
 	"math/big"
 
-	"github.com/morph-l2/bindings/bindings"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
+
+	"morph-l2/bindings/bindings"
 )
 
 type IRollup interface {

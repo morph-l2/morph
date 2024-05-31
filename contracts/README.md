@@ -6,33 +6,33 @@ This package contains the smart contracts that compose the on-chain component.
 
 ### Contracts deployed to L1
 
-| Name                                                                                     | Proxy Type                                                              | Description                                                                                         |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [`L1CrossDomainMessenger`](../../specs/messengers.md)                                    | [`ResolvedDelegateProxy`](./contracts/legacy/ResolvedDelegateProxy.sol) | High-level interface for sending messages to and receiving messages from M                   |
-| [`L1StandardBridge`](../../specs/bridges.md)                                             | [`L1ChugSplashProxy`](./contracts/legacy/L1ChugSplashProxy.sol)         | Standardized system for transfering ERC20 tokens to/from Mo r p h                                   |
-| [`Rollup`](../../specs/proposals.md#rollup.sol)             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Stores commitments to the state of Morph which can be used by contracts on L1 to access L2 state |
-| [`MorphPortal`](../../specs/deposits.md#deposit-contract)                             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Low-level message passing interface                                                                 |
+| Name                                                                               | Proxy Type                                                              | Description                                                                                      |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`L1CrossDomainMessenger`](../../specs/messengers.md)                              | [`ResolvedDelegateProxy`](./contracts/legacy/ResolvedDelegateProxy.sol) | High-level interface for sending messages to and receiving messages from M                       |
+| [`L1StandardBridge`](../../specs/bridges.md)                                       | [`L1ChugSplashProxy`](./contracts/legacy/L1ChugSplashProxy.sol)         | Standardized system for transfering ERC20 tokens to/from Mo r p h                                |
+| [`Rollup`](../../specs/proposals.md#rollup.sol)                                    | [`Proxy`](./contracts/universal/Proxy.sol)                              | Stores commitments to the state of Morph which can be used by contracts on L1 to access L2 state |
+| [`MorphPortal`](../../specs/deposits.md#deposit-contract)                          | [`Proxy`](./contracts/universal/Proxy.sol)                              | Low-level message passing interface                                                              |
 | [`MorphMintableERC20Factory`](../../specs/predeploys.md#morphmintableerc20factory) | [`Proxy`](./contracts/universal/Proxy.sol)                              | Deploys standard `MorphMintableERC20` tokens that are compatible with either `StandardBridge`    |
-| [`ProxyAdmin`](../../specs/TODO)                                                         | -                                                                       | Contract that can upgrade L1 contracts                                                              |
+| [`ProxyAdmin`](../../specs/TODO)                                                   | -                                                                       | Contract that can upgrade L1 contracts                                                           |
 
 ### Contracts deployed to L2
 
-| Name                                                                                     | Proxy Type                                 | Description                                                                                      |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [`GasPriceOracle`](../../specs/predeploys.md#ovm_gaspriceoracle)                         | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L2 gas price configuration values                                                         |
-| [`L1Block`](../../specs/predeploys.md#l1block)                                           | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L1 block context information (e.g., latest known L1 block hash)                           |
-| [`L2CrossDomainMessenger`](../../specs/predeploys.md#l2crossdomainmessenger)             | [`Proxy`](./contracts/universal/Proxy.sol) | High-level interface for sending messages to and receiving messages from L1                      |
-| [`L2StandardBridge`](../../specs/predeploys.md#l2standardbridge)                         | [`Proxy`](./contracts/universal/Proxy.sol) | Standardized system for transferring ERC20 tokens to/from L1                                     |
-| [`L2ToL1MessagePasser`](../../specs/predeploys.md#ovm_l2tol1messagepasser)               | [`Proxy`](./contracts/universal/Proxy.sol) | Low-level message passing interface                                                              |
-| [`SequencerFeeVault`](../../specs/predeploys.md#sequencerfeevault)                       | [`Proxy`](./contracts/universal/Proxy.sol) | Vault for L2 transaction fees                                                                    |
+| Name                                                                               | Proxy Type                                 | Description                                                                                   |
+| ---------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| [`GasPriceOracle`](../../specs/predeploys.md#ovm_gaspriceoracle)                   | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L2 gas price configuration values                                                      |
+| [`L1Block`](../../specs/predeploys.md#l1block)                                     | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L1 block context information (e.g., latest known L1 block hash)                        |
+| [`L2CrossDomainMessenger`](../../specs/predeploys.md#l2crossdomainmessenger)       | [`Proxy`](./contracts/universal/Proxy.sol) | High-level interface for sending messages to and receiving messages from L1                   |
+| [`L2StandardBridge`](../../specs/predeploys.md#l2standardbridge)                   | [`Proxy`](./contracts/universal/Proxy.sol) | Standardized system for transferring ERC20 tokens to/from L1                                  |
+| [`L2ToL1MessagePasser`](../../specs/predeploys.md#ovm_l2tol1messagepasser)         | [`Proxy`](./contracts/universal/Proxy.sol) | Low-level message passing interface                                                           |
+| [`SequencerFeeVault`](../../specs/predeploys.md#sequencerfeevault)                 | [`Proxy`](./contracts/universal/Proxy.sol) | Vault for L2 transaction fees                                                                 |
 | [`MorphMintableERC20Factory`](../../specs/predeploys.md#morphmintableerc20factory) | [`Proxy`](./contracts/universal/Proxy.sol) | Deploys standard `MorphMintableERC20` tokens that are compatible with either `StandardBridge` |
-| [`L2ProxyAdmin`](../../specs/TODO)                                                       | -                                          | Contract that can upgrade L2 contracts when sent a transaction from L1                           |
+| [`L2ProxyAdmin`](../../specs/TODO)                                                 | -                                          | Contract that can upgrade L2 contracts when sent a transaction from L1                        |
 
 ### Legacy and deprecated contracts
 
 | Name                                                            | Location | Proxy Type                                 | Description                                                                           |
 | --------------------------------------------------------------- | -------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| [`AddressManager`](contracts/deployment/AddressManager.solol)       | L1       | -                                          | Legacy upgrade mechanism (unused in Bedrock)                                          |
+| [`AddressManager`](contracts/deployment/AddressManager.solol)   | L1       | -                                          | Legacy upgrade mechanism (unused in Bedrock)                                          |
 | [`DeployerWhitelist`](./contracts/legacy/DeployerWhitelist.sol) | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for managing allowed deployers (unused since EVM Equivalence upgrade) |
 | [`L1BlockNumber`](./contracts/legacy/L1BlockNumber.sol)         | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for accessing latest known L1 block number, replaced by `L1Block`     |
 
@@ -52,9 +52,11 @@ We work on this repository with a combination of [Hardhat](https://hardhat.org) 
 
 1. Install Foundry by following [the instructions located here](https://getfoundry.sh/).
    A specific version must be used.
+
    ```shell
    foundryup -C da2392e58bb8a7fefeba46b40c4df1afad8ccd22
    ```
+
 2. Install node modules with yarn (v1) and Node.js (16+):
 
    ```shell
@@ -67,17 +69,17 @@ We work on this repository with a combination of [Hardhat](https://hardhat.org) 
 yarn build
 ```
 
-### Tests
+### Test
 
 ```shell
 yarn test
 ```
 
-#### Running Echidna tests
+#### Running Echidna Tests
 
 You must have [Echidna](https://github.com/crytic/echidna) installed.
 
-Contracts targetted for Echidna testing are located in `./contracts/echidna`
+Contracts targetted for Echidna testing are located in `./contracts/echidna`.
 Each target contract is tested with a separate yarn command, for example:
 
 ```shell
@@ -90,8 +92,7 @@ yarn echidna:aliasing
 
 1. Create or modify a file `<network-name>.ts` inside of the [`deploy-config`](./deploy-config/) folder.
 2. Fill out this file according to the `deployConfigSpec` located inside of the [`hardhat.config.ts](./hardhat.config.ts)
-3. Optionally: Run `npx hardhat generate-deploy-config --network <network-name>` to generate the associated JSON
-   file. This is required if using `op-chain-ops`.
+3. Optionally: Run `npx hardhat generate-deploy-config --network <network-name>` to generate the associated JSON file. This is required if using `op-chain-ops`.
 
 #### Execution
 
@@ -109,13 +110,13 @@ To lock a contract variable, add it to the `layout-lock.json` file which has the
 
 ```json
 {
-  "MyContractName": {
-    "myVariableName": {
-      "slot": 1,
-      "offset": 0,
-      "length": 32
+    "MyContractName": {
+        "myVariableName": {
+            "slot": 1,
+            "offset": 0,
+            "length": 32
+        }
     }
-  }
 }
 ```
 
@@ -177,6 +178,8 @@ Unless explicitly discussed otherwise, you MUST include the following basic upgr
 3. Include a function `initialize` with the modifier `reinitializer(VERSION)`.
 4. In the `constructor`, set any `immutable` variables and call the `initialize` function for setting mutables.
 
+Where basic functionality is already supported by an existing contract in the OpenZeppelin library, we should default to using the Upgradeable version of that contract.
+
 ### Versioning
 
 All (non-library and non-abstract) contracts MUST extend the `Semver` base contract which exposes a `version()` function that returns a semver-compliant version string.
@@ -193,11 +196,6 @@ After the initial Bedrock upgrade, contracts MUST use the following versioning s
 
 We have made an exception to the `Semver` rule for the `WETH` contract to avoid making changes to a well-known, simple, and recognizable contract.
 
-### Dependencies
-
-Where basic functionality is already supported by an existing contract in the OpenZeppelin library,
-we should default to using the Upgradeable version of that contract.
-
 ### Tests
 
 Tests are written using Foundry.
@@ -206,7 +204,7 @@ All test contracts and functions should be organized and named according to the 
 
 These guidelines are also encoded in a script which can be run with:
 
-```
+```shell
 ts-node scripts/forge-test-names.ts
 ```
 
@@ -215,8 +213,7 @@ _Note: This is a work in progress, not all test files are compliant with these g
 #### Organizing Principles
 
 - Solidity `contract`s are used to organize the test suite similar to how mocha uses describe.
-- Every non-trivial state changing function should have a separate contract for happy and sad path
-  tests. This helps to make it very obvious where there are not yet sad path tests.
+- Every non-trivial state changing function should have a separate contract for happy and sad path tests. This helps to make it very obvious where there are not yet sad path tests.
 - Simpler functions like getters and setters are grouped together into test contracts.
 
 #### Test function naming convention
@@ -243,7 +240,6 @@ Test contracts should be named one of the following according to their use:
 - `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
 - `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
 
-## Withdrawaing From Fee Vaults
+## Withdrawing From Fee Vaults
 
-See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes
-instructions on how to run it. `foundry` is required.
+See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes instructions on how to run it. `foundry` is required.

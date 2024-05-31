@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
 )
 
 const TransparentUpgradeableProxyStorageLayoutJSON = "{\"storage\":null,\"types\":{}}"

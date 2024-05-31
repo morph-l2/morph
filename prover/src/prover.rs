@@ -21,6 +21,7 @@ use std::iter::repeat;
 use std::time::{Duration, Instant};
 use std::{sync::Arc, thread};
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use zkevm_circuits::witness::Block;
 
 const BLOB_DATA_SIZE: usize = 4096 * 32;
@@ -31,139 +32,166 @@ pub struct ProveRequest {
     pub batch_index: u64,
     pub chunks: Vec<Vec<u64>>,
     pub rpc: String,
+    pub shadow: Option<bool>,
 }
 
-/// Processes prove requests from a queue.
-pub async fn prove_for_queue(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) {
-    let mut chunk_prover = ChunkProver::from_dirs(PROVER_PARAMS_DIR.as_str(), SCROLL_PROVER_ASSETS_DIR.as_str());
-    log::info!("Waiting for prove request");
-    loop {
-        thread::sleep(Duration::from_millis(12000));
+pub struct Prover {
+    prove_queue: Arc<Mutex<Vec<ProveRequest>>>,
+    chunk_prover: ChunkProver,
+}
 
-        // Step1. Get request from queue
-        let (batch_index, chunks) = match prove_queue.lock().await.pop() {
-            Some(req) => {
-                log::info!(
-                    "received prove request, batch index = {:#?}, chunks len = {:#?}",
-                    req.batch_index,
-                    req.chunks.len()
-                );
-                log::debug!(">>chunks details = {:#?}", req.chunks);
-                (req.batch_index, req.chunks.clone())
-            }
-            None => {
-                log::info!("no prove request");
-                continue;
-            }
-        };
+impl Prover {
+    pub fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Self {
+        let chunk_prover = ChunkProver::from_dirs(PROVER_PARAMS_DIR.as_str(), SCROLL_PROVER_ASSETS_DIR.as_str());
+        Self {
+            prove_queue,
+            chunk_prover,
+        }
+    }
 
-        // Step2. Fetch trace
-        let provider = match Provider::try_from(PROVER_L2_RPC.as_str()) {
-            Ok(provider) => provider,
-            Err(e) => {
-                log::error!("Failed to init provider: {:#?}", e);
+    /// Processes prove requests from a queue.
+    pub async fn prove_for_queue(&mut self) {
+        log::info!("Waiting for prove request");
+        loop {
+            thread::sleep(Duration::from_millis(12000));
+
+            // Step1. Get request from queue
+            let (batch_index, chunks) = match self.prove_queue.lock().await.pop() {
+                Some(req) => {
+                    log::info!(
+                        "received prove request, batch index = {:#?}, chunks len = {:#?}",
+                        req.batch_index,
+                        req.chunks.len()
+                    );
+                    log::debug!(">>chunks details = {:#?}", req.chunks);
+                    (req.batch_index, req.chunks.clone())
+                }
+                None => {
+                    log::info!("no prove request");
+                    continue;
+                }
+            };
+
+            // Step2. Fetch trace
+            let provider = match Provider::try_from(PROVER_L2_RPC.as_str()) {
+                Ok(provider) => provider,
+                Err(e) => {
+                    log::error!("Failed to init provider: {:#?}", e);
+                    PROVE_RESULT.set(2);
+                    continue;
+                }
+            };
+            log::info!("Requesting trace of batch: {:#?}", batch_index);
+            let chunk_traces = match get_chunk_traces(batch_index, chunks, provider).await {
+                Some(chunk_traces) => chunk_traces,
+                None => vec![],
+            };
+            if chunk_traces.is_empty() {
                 PROVE_RESULT.set(2);
                 continue;
             }
-        };
-        log::info!("Requesting trace of batch: {:#?}", batch_index);
-        let chunk_traces = match get_chunk_traces(batch_index, chunks, provider).await {
-            Some(chunk_traces) => chunk_traces,
-            None => vec![],
-        };
-        if chunk_traces.is_empty() {
+
+            // Step3. Generate evm proof
+            self.generate_proof(batch_index, chunk_traces).await;
+        }
+    }
+
+    /// Generate EVM Proof for block trace.
+    async fn generate_proof(&mut self, batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>) {
+        let start = Instant::now();
+
+        let proof_path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+        fs::create_dir_all(proof_path.clone()).unwrap();
+
+        if let Err(err_str) = compute_and_save_kzg(&chunk_traces, batch_index, &proof_path) {
+            log::error!(
+                "compute_and_save_kzg of batch = {:#?} error: {:#?}",
+                batch_index,
+                err_str
+            );
             PROVE_RESULT.set(2);
-            continue;
+            return;
         }
 
-        // Step3. Generate evm proof
-        generate_proof(batch_index, chunk_traces, &mut chunk_prover).await;
-    }
-}
-
-/// Generate EVM Proof for block trace.
-async fn generate_proof(batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>, chunk_prover: &mut ChunkProver) {
-    let start = Instant::now();
-
-    let proof_path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
-    fs::create_dir_all(proof_path.clone()).unwrap();
-
-    if let Err(err_str) = compute_and_save_kzg(&chunk_traces, batch_index, &proof_path) {
-        log::error!(
-            "compute_and_save_kzg of batch = {:#?} error: {:#?}",
-            batch_index,
-            err_str
-        );
-        PROVE_RESULT.set(2);
-        return;
-    }
-
-    let mut chunk_hashes_proofs: Vec<(ChunkHash, ChunkProof)> = vec![];
-    for (index, chunk_trace) in chunk_traces.iter().enumerate() {
-        let chunk_witness = match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
-            Ok(_witness) => _witness,
-            Err(e) => {
-                log::error!("convert trace to witness of batch = {:#?} error: {:#?}", batch_index, e);
-                PROVE_RESULT.set(2);
-                return;
-            }
-        };
-        let chunk_hash = ChunkHash::from_witness_block(&chunk_witness, false);
-
-        log::info!(
-            ">>Starting chunk prove, batchIndex = {:#?}, chunkIndex = {:#?}",
-            batch_index,
-            index
-        );
-        // Start chunk prove
-        let chunk_proof: ChunkProof =
-            match chunk_prover.gen_chunk_proof(chunk_trace.to_vec(), None, None, Some(proof_path.as_str())) {
-                Ok(proof) => {
-                    log::info!(">>chunk_{:#?} prove complate, batch index = {:#?}", index, batch_index);
-                    proof
-                }
+        let mut chunk_hashes_proofs: Vec<(ChunkHash, ChunkProof)> = vec![];
+        for (index, chunk_trace) in chunk_traces.iter().enumerate() {
+            let chunk_witness = match chunk_trace_to_witness_block(chunk_trace.to_vec()) {
+                Ok(_witness) => _witness,
                 Err(e) => {
-                    log::error!("chunk in batch_{:#?} prove err: {:#?}", batch_index, e);
+                    log::error!("convert trace to witness of batch = {:#?} error: {:#?}", batch_index, e);
                     PROVE_RESULT.set(2);
                     return;
                 }
             };
+            let chunk_hash = ChunkHash::from_witness_block(&chunk_witness, false);
 
-        //save chunk.protocol
-        let protocol = &chunk_proof.protocol;
-        let mut params_file = File::create(SCROLL_PROVER_ASSETS_DIR.to_string() + "/chunk.protocol").unwrap();
-        params_file.write_all(&protocol[..]).unwrap();
+            log::info!(
+                ">>Starting chunk prove, batchIndex = {:#?}, chunkIndex = {:#?}",
+                batch_index,
+                index
+            );
+            // Start chunk prove
+            let chunk_proof: ChunkProof =
+                match self
+                    .chunk_prover
+                    .gen_chunk_proof(chunk_trace.to_vec(), None, None, Some(proof_path.as_str()))
+                {
+                    Ok(proof) => {
+                        log::info!(">>chunk_{:#?} prove complate, batch index = {:#?}", index, batch_index);
+                        proof
+                    }
+                    Err(e) => {
+                        log::error!("chunk in batch_{:#?} prove err: {:#?}", batch_index, e);
+                        PROVE_RESULT.set(2);
+                        return;
+                    }
+                };
 
-        chunk_hashes_proofs.push((chunk_hash, chunk_proof));
-    }
-    if chunk_hashes_proofs.len() != chunk_traces.len() {
-        log::error!("chunk proofs len err, batchIndex = {:#?} ", batch_index);
-        return;
-    }
+            //save chunk.protocol
+            let protocol = &chunk_proof.protocol;
+            let mut params_file = File::create(SCROLL_PROVER_ASSETS_DIR.to_string() + "/chunk.protocol").unwrap();
+            params_file.write_all(&protocol[..]).unwrap();
+            chunk_hashes_proofs.push((chunk_hash, chunk_proof));
 
-    log::info!(">>Starting batch prove, batch index = {:#?}", batch_index);
-    let mut batch_prover = BatchProver::from_dirs(PROVER_PARAMS_DIR.as_str(), SCROLL_PROVER_ASSETS_DIR.as_str());
-    let batch_proof = batch_prover.gen_agg_evm_proof(chunk_hashes_proofs, None, Some(proof_path.clone().as_str()));
-
-    // Start batch prove
-    match batch_proof {
-        Ok(proof) => {
-            log::info!(">>batch prove complate, batch index = {:#?}", batch_index);
-            PROVE_RESULT.set(1);
-            // let params: ParamsKZG<Bn256> = prover::utils::load_params("params_dir", 26, None).unwrap();
-            if GENERATE_EVM_VERIFIER.to_owned() {
-                generate_evm_verifier(batch_prover, proof);
+            // Check high-priority request
+            let queue_lock = match timeout(Duration::from_secs(2), self.prove_queue.lock()).await {
+                Ok(queue_lock) => queue_lock,
+                Err(_) => continue,
+            };
+            if queue_lock.last().is_some() && queue_lock.last().unwrap().shadow.unwrap_or(false) == false {
+                // First handle the high-priority request
+                log::info!("Received high-priority request, End the current task");
+                return;
             }
         }
-        Err(e) => {
-            PROVE_RESULT.set(2);
-            log::error!("batch_{:#?} prove err: {:#?}", batch_index, e);
+        if chunk_hashes_proofs.len() != chunk_traces.len() {
+            log::error!("chunk proofs len err, batchIndex = {:#?} ", batch_index);
+            return;
         }
+
+        log::info!(">>Starting batch prove, batch index = {:#?}", batch_index);
+        let mut batch_prover = BatchProver::from_dirs(PROVER_PARAMS_DIR.as_str(), SCROLL_PROVER_ASSETS_DIR.as_str());
+        let batch_proof = batch_prover.gen_agg_evm_proof(chunk_hashes_proofs, None, Some(proof_path.clone().as_str()));
+
+        // Start batch prove
+        match batch_proof {
+            Ok(proof) => {
+                log::info!(">>batch prove complate, batch index = {:#?}", batch_index);
+                PROVE_RESULT.set(1);
+                if GENERATE_EVM_VERIFIER.to_owned() {
+                    generate_evm_verifier(batch_prover, proof);
+                }
+            }
+            Err(e) => {
+                PROVE_RESULT.set(2);
+                log::error!("batch_{:#?} prove err: {:#?}", batch_index, e);
+            }
+        }
+        let duration = start.elapsed();
+        let minutes = duration.as_secs() / 60;
+        PROVE_TIME.set(minutes.try_into().unwrap());
+        return;
     }
-    let duration = start.elapsed();
-    let minutes = duration.as_secs() / 60;
-    PROVE_TIME.set(minutes.try_into().unwrap());
-    return;
 }
 
 fn compute_and_save_kzg(
@@ -360,5 +388,5 @@ async fn test_generate_proof() {
     log::info!("Loading traces from file successful");
 
     log::info!("Starting generate proof");
-    generate_proof(17, chunk_traces, &mut chunk_prover).await;
+    // generate_proof(17, chunk_traces, &mut chunk_prover).await;
 }

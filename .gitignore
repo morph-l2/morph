@@ -7,14 +7,18 @@
 # MacOS
 .DS_Store
 
+coverage.txt
+
 contracts/yarn.lock
 */build
 
-ops/L2-genesis/.devnet
-ops/L2-genesis/.qanet
-ops/L2-genesis/.testnet
-ops/L2-genesis/.holesky
-ops/L2-genesis/.morphtestnet
+build/bin
+
+ops/l2-genesis/.devnet
+ops/l2-genesis/.qanet
+ops/l2-genesis/.testnet
+ops/l2-genesis/.holesky
+ops/l2-genesis/.morphtestnet
 ops/devnet-morph/devnet/__pycache__
 contracts/qanetL1.json
 contracts/holesky.json

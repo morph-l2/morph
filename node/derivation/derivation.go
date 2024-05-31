@@ -9,11 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/bindings/predeploys"
-	"github.com/morph-l2/node/sync"
-	"github.com/morph-l2/node/types"
-	"github.com/morph-l2/node/validator"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -25,6 +20,12 @@ import (
 	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
 	"github.com/scroll-tech/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/bindings/predeploys"
+	"morph-l2/node/sync"
+	"morph-l2/node/types"
+	"morph-l2/node/validator"
 )
 
 var (
@@ -46,13 +47,11 @@ type Derivation struct {
 	l1BeaconClient        *L1BeaconClient
 	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
-	latestDerivation uint64
-	db               Database
+	db Database
 
 	cancel context.CancelFunc
 
 	fetchBlockRange     uint64
-	preBatchLastBlock   uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
 	stop                chan struct{}
@@ -165,8 +164,6 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		return
 	} else if latest-start >= d.fetchBlockRange {
 		end = start + d.fetchBlockRange
-	} else {
-		end = latest
 	}
 	d.logger.Info("derivation start pull rollupData form l1", "startBlock", start, "end", end)
 	logs, err := d.fetchRollupLog(ctx, start, end)
@@ -238,13 +235,11 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		} else {
 			d.metrics.SetBatchStatus(stateNormal)
 		}
-		d.db.WriteLatestDerivationL1Height(lg.BlockNumber)
-		d.metrics.SetL1SyncHeight(lg.BlockNumber)
-		d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", lg.BlockNumber)
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)
 	d.metrics.SetL1SyncHeight(end)
+	d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", end)
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
@@ -372,7 +367,6 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 			}
 			rollupData.chunks[index].blockContextes[bIndex].SafeL2Data.Transactions = append(encodeTransactions(l1Transactions), chunk.blockContextes[bIndex].SafeL2Data.Transactions...)
 		}
-
 	}
 	return nil
 }
@@ -381,9 +375,7 @@ func (d *Derivation) getL1Message(l1MessagePopped, l1MsgNum uint64) ([]types.L1M
 	if l1MsgNum == 0 {
 		return nil, nil
 	}
-	start := l1MessagePopped
-	end := l1MessagePopped + l1MsgNum - 1
-	return d.syncer.ReadL1MessagesInRange(start, end), nil
+	return d.syncer.ReadL1MessagesInRange(l1MessagePopped, l1MessagePopped+l1MsgNum-1), nil
 }
 
 func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
@@ -396,7 +388,10 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 			}
 			if blockData.SafeL2Data.Number <= latestBlockNumber {
 				d.logger.Info("new L2 Data block number less than latestBlockNumber", "safeL2DataNumber", blockData.SafeL2Data.Number, "latestBlockNumber", latestBlockNumber)
-				lastHeader, err = d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(latestBlockNumber)))
+				lastHeader, err = d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockData.SafeL2Data.Number)))
+				if err != nil {
+					return nil, fmt.Errorf("query header by number error:%v", err)
+				}
 				continue
 			}
 			err = func() error {

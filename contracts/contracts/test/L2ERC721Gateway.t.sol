@@ -4,12 +4,9 @@ pragma solidity =0.8.24;
 
 import {MockERC721} from "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
 
-import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
-import {L1ERC721Gateway} from "../L1/gateways/L1ERC721Gateway.sol";
-import {L2ERC721Gateway} from "../L2/gateways/L2ERC721Gateway.sol";
+import {L2ERC721Gateway} from "../l2/gateways/L2ERC721Gateway.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
-import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 
 contract L2ERC721GatewayTest is L2GatewayBaseTest {
     uint256 private constant TOKEN_COUNT = 100;
@@ -30,11 +27,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         gateway = l2ERC721Gateway;
         counterpart = gateway.counterpart();
 
-        hevm.store(
-            address(gateway),
-            bytes32(erc721_messenger_slot),
-            bytes32(abi.encode(address(messenger)))
-        );
+        hevm.store(address(gateway), bytes32(erc721_messenger_slot), bytes32(abi.encode(address(messenger))));
 
         // transfer ownership
         hevm.prank(multisig);
@@ -48,7 +41,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         token.mint(address(mockRecipient), NOT_OWNED_TOKEN_ID);
     }
 
-    function testUpdateTokenMappingFailed(address token1) public {
+    function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert("Ownable: caller is not the owner");
@@ -60,10 +53,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         gateway.updateTokenMapping(token1, address(0));
     }
 
-    function testUpdateTokenMappingSuccess(
-        address token1,
-        address token2
-    ) public {
+    function test_updateTokenMapping_succeeds(address token1, address token2) public {
         if (token2 == address(0)) token2 = address(1);
 
         assertEq(gateway.tokenMapping(token1), address(0));
@@ -72,7 +62,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev failed to withdraw erc721
-    function testWithdrawERC721WithGatewayFailed(address to) public {
+    function test_withdrawERC721WithGateway_onlyHolder_fails(address to) public {
         // token not support
         hevm.expectRevert("no corresponding l1 token");
         if (to == address(0)) {
@@ -92,7 +82,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev withdraw erc721 without recipient
-    function testWithdrawERC721WithGatewaySuccess(uint256 tokenId) public {
+    function test_withdrawERC721WithGateway_succeeds(uint256 tokenId) public {
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         gateway.updateTokenMapping(address(token), address(token));
 
@@ -105,10 +95,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev withdraw erc721 with recipient
-    function testWithdrawERC721WithGatewaySuccess(
-        uint256 tokenId,
-        address to
-    ) public {
+    function test_withdrawERC721WithGateway_succeeds(uint256 tokenId, address to) public {
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         gateway.updateTokenMapping(address(token), address(token));
 
@@ -121,18 +108,13 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev failed to batch withdraw erc721
-    function testBatchWithdrawERC721WithGatewayFailed(address to) public {
+    function test_batchWithdrawERC721WithGateway_noneToken_fails(address to) public {
         // token not support
         hevm.expectRevert("no corresponding l1 token");
         if (to == address(0)) {
             gateway.batchWithdrawERC721(address(token), new uint256[](1), 0);
         } else {
-            gateway.batchWithdrawERC721(
-                address(token),
-                to,
-                new uint256[](1),
-                0
-            );
+            gateway.batchWithdrawERC721(address(token), to, new uint256[](1), 0);
         }
 
         // no token to withdraw
@@ -140,12 +122,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         if (to == address(0)) {
             gateway.batchWithdrawERC721(address(token), new uint256[](0), 0);
         } else {
-            gateway.batchWithdrawERC721(
-                address(token),
-                to,
-                new uint256[](0),
-                0
-            );
+            gateway.batchWithdrawERC721(address(token), to, new uint256[](0), 0);
         }
 
         // token not owned
@@ -161,7 +138,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev batch withdraw erc721 without recipient
-    function testBatchWithdrawERC721WithGatewaySuccess(uint256 count) public {
+    function test_batchWithdrawERC721WithGateway_succeeds(uint256 count) public {
         count = bound(count, 1, TOKEN_COUNT);
         gateway.updateTokenMapping(address(token), address(token));
 
@@ -181,10 +158,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev batch withdraw erc721 with recipient
-    function testBatchWithdrawERC721WithGatewaySuccess(
-        uint256 count,
-        address to
-    ) public {
+    function test_batchWithdrawERC721WithGateway_succeeds(uint256 count, address to) public {
         count = bound(count, 1, TOKEN_COUNT);
         gateway.updateTokenMapping(address(token), address(token));
 
@@ -204,25 +178,16 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     }
 
     /// @dev failed to finalize withdraw erc721
-    function testFinalizeDepositERC721Failed() public {
+    function test_finalizeDepositERC721_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
-        gateway.finalizeDepositERC721(
-            address(0),
-            address(0),
-            address(0),
-            address(0),
-            0
-        );
+        gateway.finalizeDepositERC721(address(0), address(0), address(0), address(0), 0);
 
         // should revert, called by messenger, xDomainMessageSender not set
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeCall(
-                L2ERC721Gateway.finalizeDepositERC721,
-                (address(0), address(0), address(0), address(0), 0)
-            )
+            abi.encodeCall(L2ERC721Gateway.finalizeDepositERC721, (address(0), address(0), address(0), address(0), 0))
         );
 
         // should revert, called by messenger, xDomainMessageSender set wrong
@@ -230,19 +195,12 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         hevm.expectRevert("only call by counterpart");
         messenger.callTarget(
             address(gateway),
-            abi.encodeCall(
-                L2ERC721Gateway.finalizeDepositERC721,
-                (address(0), address(0), address(0), address(0), 0)
-            )
+            abi.encodeCall(L2ERC721Gateway.finalizeDepositERC721, (address(0), address(0), address(0), address(0), 0))
         );
     }
 
     /// @dev finalize withdraw erc721
-    function testFinalizeDepositERC721(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public {
+    function test_finalizeDepositERC721_succeeds(address from, address to, uint256 tokenId) public {
         hevm.assume(to != address(0));
         hevm.assume(to.code.length == 0);
 
@@ -253,26 +211,17 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         messenger.setXDomainMessageSender(address(counterpart));
         messenger.callTarget(
             address(gateway),
-            abi.encodeCall(
-                L2ERC721Gateway.finalizeDepositERC721,
-                (address(token), address(token), from, to, tokenId)
-            )
+            abi.encodeCall(L2ERC721Gateway.finalizeDepositERC721, (address(token), address(token), from, to, tokenId))
         );
         assertEq(token.balanceOf(to), 1);
         assertEq(token.ownerOf(tokenId), to);
     }
 
     /// @dev failed to finalize batch withdraw erc721
-    function testFinalizeBatchDepositERC721Failed() public {
+    function test_finalizeBatchDepositERC721_counterErr_fails() public {
         // should revert, called by non-messenger
         hevm.expectRevert("only messenger can call");
-        gateway.finalizeBatchDepositERC721(
-            address(0),
-            address(0),
-            address(0),
-            address(0),
-            new uint256[](0)
-        );
+        gateway.finalizeBatchDepositERC721(address(0), address(0), address(0), address(0), new uint256[](0));
 
         // should revert, called by messenger, xDomainMessageSender not set
         hevm.expectRevert("only call by counterpart");
@@ -280,13 +229,7 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
             address(gateway),
             abi.encodeCall(
                 L2ERC721Gateway.finalizeBatchDepositERC721,
-                (
-                    address(0),
-                    address(0),
-                    address(0),
-                    address(0),
-                    new uint256[](0)
-                )
+                (address(0), address(0), address(0), address(0), new uint256[](0))
             )
         );
 
@@ -297,23 +240,13 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
             address(gateway),
             abi.encodeCall(
                 L2ERC721Gateway.finalizeBatchDepositERC721,
-                (
-                    address(0),
-                    address(0),
-                    address(0),
-                    address(0),
-                    new uint256[](0)
-                )
+                (address(0), address(0), address(0), address(0), new uint256[](0))
             )
         );
     }
 
     /// @dev finalize batch withdraw erc721
-    function testFinalizeBatchDepositERC721(
-        address from,
-        address to,
-        uint256 count
-    ) public {
+    function test_finalizeBatchDepositERC721_succeeds(address from, address to, uint256 count) public {
         if (to == address(0)) to = address(1);
         if (to == address(mockRecipient)) to = address(1);
         if (to == address(this)) to = address(1);

@@ -10,7 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/morph-l2/bindings/solc"
+	"morph-l2/bindings/solc"
+
 	"github.com/scroll-tech/go-ethereum/common"
 )
 
@@ -98,12 +99,12 @@ func (h *Hardhat) initSingleDeployment() error {
 	knownDeployments := make(map[string]string)
 
 	for _, deploymentPath := range h.DeploymentPaths {
-		file, err := os.ReadFile(deploymentPath)
+		file, err := os.ReadFile(filepath.Clean(deploymentPath))
 		if err != nil {
 			return err
 		}
 		var results []map[string]interface{}
-		json.Unmarshal(file, &results)
+		_ = json.Unmarshal(file, &results)
 
 		for _, entry := range results {
 			var deployment Deployment
@@ -151,7 +152,7 @@ func (h *Hardhat) initDeployments() error {
 			}
 
 			name := filepath.Join(deploymentPath, h.network, path)
-			file, err := os.ReadFile(name)
+			file, err := os.ReadFile(filepath.Clean(name))
 			if err != nil {
 				return err
 			}
@@ -200,7 +201,7 @@ func (h *Hardhat) initArtifacts() error {
 			if strings.HasSuffix(name, ".dbg.json") {
 				return nil
 			}
-			file, err := os.ReadFile(name)
+			file, err := os.ReadFile(filepath.Clean(name))
 			if err != nil {
 				return err
 			}
@@ -294,7 +295,7 @@ func (h *Hardhat) GetBuildInfo(name string) (*BuildInfo, error) {
 				return nil
 			}
 
-			file, err := os.ReadFile(name)
+			file, err := os.ReadFile(filepath.Clean(name))
 			if err != nil {
 				return err
 			}
@@ -303,12 +304,9 @@ func (h *Hardhat) GetBuildInfo(name string) (*BuildInfo, error) {
 				return err
 			}
 			relPath := filepath.Join(filepath.Dir(name), debugFile.BuildInfo)
-			if err != nil {
-				return err
-			}
 			debugPath, _ := filepath.Abs(relPath)
 
-			buildInfoFile, err := os.ReadFile(debugPath)
+			buildInfoFile, err := os.ReadFile(filepath.Clean(debugPath))
 			if err != nil {
 				return err
 			}

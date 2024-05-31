@@ -6,17 +6,17 @@ import (
 	"io"
 	"os"
 
-	"github.com/morph-l2/bindings/bindings"
-	"github.com/morph-l2/tx-submitter/iface"
-	"github.com/morph-l2/tx-submitter/metrics"
-	"github.com/morph-l2/tx-submitter/services"
-	"github.com/morph-l2/tx-submitter/utils"
-
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/metrics"
+	"morph-l2/tx-submitter/services"
+	"morph-l2/tx-submitter/utils"
 )
 
 // Main is the entrypoint into the batch submitter service. This method returns
@@ -42,7 +42,7 @@ func Main() func(ctx *cli.Context) error {
 			if err != nil {
 				return fmt.Errorf("wrong log.filename set: %d", err)
 			}
-			f.Close()
+			_ = f.Close()
 
 			if cfg.LogFileMaxSize < 1 {
 				return fmt.Errorf("wrong log.maxsize set: %d", cfg.LogFileMaxSize)

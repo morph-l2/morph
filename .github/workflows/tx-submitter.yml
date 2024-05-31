@@ -1,31 +1,48 @@
 name: Tx-submitter
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'tx-submitter/**'
-      - '.github/workflows/tx-submitter.yaml'
-  pull_request:
-    paths:
-      - 'tx-submitter/**'
-      - '.github/workflows/tx-submitter.yaml'
+    push:
+        branches:
+            - main
+        paths:
+            - "tx-submitter/**"
+            - ".github/workflows/tx-submitter.yaml"
+    pull_request:
+        paths:
+            - "build/**"
+            - "bindings/**"
+            - "node/**"
+            - "ops/l2-genesis/**"
+            - "tx-submitter/**"
+            - ".github/workflows/tx-submitter.yaml"
 
 defaults:
-  run:
-    working-directory: 'tx-submitter'
+    run:
+        working-directory: "tx-submitter"
 
 jobs:
-  tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-        go-version: 1.20.x
-      - name: Run build
-        run: make build
-      - name: Run tests
-        run: make test
+    check:
+        if: github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
+            - name: Lint
+              run: |
+                  rm -rf $HOME/.cache/golangci-lint
+                  make lint
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
+            - name: Run build
+              run: make build
+            - name: Run tests
+              run: make test
