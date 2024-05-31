@@ -17,7 +17,7 @@ use crate::{
     },
     metrics::ORACLE_SERVICE_METRICS,
 };
-use ethers::{abi::AbiDecode, prelude::*};
+use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use serde_json::Value;
 
 use super::blob_client::BeaconNode;
@@ -400,8 +400,10 @@ impl OverHeadUpdater {
             .ok_or_else(|| OverHeadError::Error(anyhow!("Next block not produce")))?;
 
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
-        let sidecars_rt =
-            self.beacon_node.query_sidecars(prev_beacon_root.to_string(), indexes).await?;
+        let sidecars_rt = self
+            .beacon_node
+            .query_sidecars(hex::encode_prefixed(prev_beacon_root), indexes)
+            .await?;
 
         let sidecars: &Vec<Value> = sidecars_rt["data"]
             .as_array()
