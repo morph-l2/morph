@@ -1,7 +1,6 @@
+use super::error::*;
 use eyre::anyhow;
 use serde_json::Value;
-
-use super::error::*;
 
 pub struct BeaconNode {
     pub rpc_url: String,
@@ -68,8 +67,35 @@ impl BeaconNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethers::prelude::*;
+    use ethers::{prelude::*, utils::hex};
     use std::env::var;
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_query_beacon_node_sidecars() {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+        dotenv::dotenv().ok();
+
+        let rpc_url = var("GAS_ORACLE_L1_BEACON_RPC").expect("GAS_ORACLE_L1_BEACON_RPC env emmpty");
+        let blk_number = U64::from(1644796);
+
+        let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env empty");
+        let l1_provider = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
+
+        let blk_info =
+            l1_provider.get_block(BlockNumber::Number(blk_number + 1)).await.unwrap().unwrap();
+        let pre_beacon_root = blk_info.parent_beacon_block_root.unwrap();
+
+        let beacon_node = BeaconNode { rpc_url };
+
+        let sidecars =
+            beacon_node.query_sidecars(hex::encode_prefixed(pre_beacon_root), vec![0]).await;
+
+        assert!(sidecars.is_ok());
+
+        let sidecars = sidecars.unwrap();
+        assert!(!sidecars["data"][0]["kzg_commitment"].is_null());
+    }
 
     #[tokio::test]
     #[ignore]
@@ -77,18 +103,17 @@ mod tests {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
         dotenv::dotenv().ok();
 
-        let rpc_url: String =
-            var("GAS_ORACLE_L1_BEACON_RPC").expect("GAS_ORACLE_L1_BEACON_RPC env var not found");
+        let rpc_url = var("GAS_ORACLE_L1_BEACON_RPC").expect("GAS_ORACLE_L1_BEACON_RPC env emmpty");
 
         let rt = tokio::task::spawn_blocking(move || {
             BeaconNode::query_beacon_node(rpc_url, "1053668", vec![0])
         })
         .await
-        .unwrap();
+        .expect("Tokio spawn blocking issue with query_beacon_node");
 
         match rt {
             Ok(transaction) => {
-                log::info!("blobVersionedHashes: {:#?}", transaction["data"][0]["kzg_commitment"]);
+                log::info!("kzg_commitment: {:#?}", transaction["data"][0]["kzg_commitment"]);
             }
             Err(e) => {
                 log::error!("{:?}", e);
@@ -102,8 +127,8 @@ mod tests {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
         dotenv::dotenv().ok();
 
-        let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("Cannot detect GAS_ORACLE_L1_RPC env var");
-        let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
+        let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env empty");
+        let l1_provider = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
 
         // blob tx
         let tx_hash = "0x0037beafe424df970b35eb7eb5fadb5f34c16159f6ec58818947444b10e43cdd"

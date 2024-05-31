@@ -1,8 +1,8 @@
 use eyre::anyhow;
-use std::time::Duration;
-use tokio::time::sleep;
+use tokio::time::{sleep, Duration};
 
 use super::{
+    blob_client::BeaconNode,
     calculate::{
         calc_blob_gasprice, calc_tx_overhead, data_and_hashes_from_txs, data_gas_cost,
         extract_tx_payload, extract_txn_num,
@@ -19,8 +19,6 @@ use crate::{
 };
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use serde_json::Value;
-
-use super::blob_client::BeaconNode;
 
 // Information about the previous rollup
 struct PrevRollupInfo {
@@ -431,6 +429,7 @@ impl OverHeadUpdater {
         }
 
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
+
         let tx_payload_gas = data_gas_cost(&tx_payload);
         log::debug!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
 
@@ -449,55 +448,52 @@ mod tests {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
         dotenv::dotenv().ok();
 
-        let rollup_tx_hash = "0x87b09de64fd9c433226a0c683a3b3c1d1e8ab3fa24f3213fa63e2931f205f8d8";
-        let rollup_tx_block_num = 1489357;
-        log::info!("rollup_tx_block_num: {:#?}", rollup_tx_block_num);
+        let rollup_tx_hash = "0x87b09de64fd9c433226a0c683a3b3c1d1e8ab3fa24f3213fa63e2931f205f8d8"
+            .parse::<H256>()
+            .unwrap();
+        let rollup_tx_block_num = U64::from(1489357);
 
-        let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("Cannot detect GAS_ORACLE_L1_RPC env var");
-        let l2_rpc = var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env");
+        let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env empty");
+        let l2_rpc = var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env empty");
         let overhead_threshold =
-            var("OVERHEAD_THRESHOLD").expect("OVERHEAD_THRESHOLD env").parse().unwrap();
+            var("OVERHEAD_THRESHOLD").expect("OVERHEAD_THRESHOLD env empty").parse().unwrap();
         let l1_rollup_address =
-            Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env")).unwrap();
+            Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env empty")).unwrap();
         let l2_oracle_address =
-            Address::from_str(&var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"))
+            Address::from_str(&var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env empty"))
                 .unwrap();
-        let private_key = var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env");
+        let private_key =
+            var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env empty");
 
-        let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
-        let l1_rollup: Rollup<Provider<Http>> =
-            Rollup::new(l1_rollup_address, Arc::new(l1_provider.clone()));
+        let l1_provider = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
+        let l1_rollup_contract = Rollup::new(l1_rollup_address, Arc::new(l1_provider.clone()));
 
-        let l2_provider: Provider<Http> = Provider::<Http>::try_from(l2_rpc).unwrap();
+        let l2_provider = Provider::<Http>::try_from(l2_rpc).unwrap();
         let l2_signer = Arc::new(SignerMiddleware::new(
             l2_provider.clone(),
             Wallet::from_str(private_key.as_str())
                 .unwrap()
                 .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
         ));
-        let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
-            GasPriceOracle::new(l2_oracle_address, l2_signer);
+
+        let l2_oracle_contract = GasPriceOracle::new(l2_oracle_address, l2_signer);
 
         let mut overhead: OverHeadUpdater = OverHeadUpdater::new(
             l1_provider,
-            l2_oracle,
-            l1_rollup,
+            l2_oracle_contract,
+            l1_rollup_contract,
             overhead_threshold,
             var("GAS_ORACLE_L1_BEACON_RPC")
-                .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env var")
+                .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env empty")
                 .parse()
-                .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var"),
+                .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var empty"),
             false,
             200000u128,
         );
 
-        let latest_overhead = overhead
-            .calculate_from_current_rollup(
-                TxHash::from_str(rollup_tx_hash).unwrap(),
-                U64::from(rollup_tx_block_num),
-            )
-            .await;
-        println!("latest_overhead: {:?}", latest_overhead);
-        return;
+        let latest_overhead =
+            overhead.calculate_from_current_rollup(rollup_tx_hash, rollup_tx_block_num).await;
+
+        log::info!("latest_overhead: {:#?}", latest_overhead);
     }
 }
