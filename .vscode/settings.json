@@ -2,28 +2,5 @@
     "rust-analyzer.linkedProjects": [
         "gas-oracle/app/Cargo.toml",
         "prover/Cargo.toml"
-    ],
-    "cSpell.words": [
-        "blobhash",
-        "calldataload",
-        "ethgw",
-        "inheritdoc",
-        "Keccak",
-        "Merkle",
-        "mload",
-        "mstore",
-        "nomiclabs",
-        "Pausable",
-        "predeploys",
-        "proxied",
-        "Rollup",
-        "segw",
-        "solhint",
-        "staticcall",
-        "struct",
-        "Structs",
-        "undelegate",
-        "wethgw",
-        "XDOMAIN"
     ]
 }
