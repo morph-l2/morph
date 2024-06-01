@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -23,7 +24,7 @@ type Client interface {
 
 type L1Client interface {
 	Client
-	PendingTransactionCount(ctx context.Context) (uint, error)
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
 }
 
 type L2Client interface {
