@@ -18,7 +18,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
     address refundAddress = address(2048);
     L1CrossDomainMessenger l1CrossDomainMessengerTemp;
 
-    address counterpartGateway;
+    address counterpartGateway; 
 
     function setUp() public virtual override {
         super.setUp();
@@ -30,11 +30,14 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         address rollup = address(1);
         address messageQueue = address(1);
 
-        // verify the initialize only can be called once.
+        // Verify that the initialize function can only be called once.
+        // Since the initialize function is already called in L1MessageBaseTest,
+        // calling it again should trigger an error message.
+        // Use expectRevert to catch and assert the error message as expected.
         hevm.expectRevert("Initializable: contract is already initialized");
         l1CrossDomainMessenger.initialize(address(1), address(1), address(1));
 
-        // verify the state variable maxReplayTimes is initialized successfully.
+        // Verify the state variable maxReplayTimes is initialized successfully.
         assertEq(l1CrossDomainMessenger.maxReplayTimes(), 3);
 
         // deploy proxy
@@ -49,7 +52,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         hevm.startPrank(multisig);
 
-        // verify it throws a custom error ErrZeroAddress() when the feeVault is equal to zero address.
+        // Verify it throws a custom error ErrZeroAddress() when feeVault is set to the zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
         ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
             .upgradeToAndCall(
@@ -60,7 +63,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
                 )
             );
 
-        // verify it throws a custom error ErrZeroAddress() when the rollup is equal to zero address.
+        // Verify it throws a custom error ErrZeroAddress() when rollup is set to the zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
         ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
             .upgradeToAndCall(
@@ -71,7 +74,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
                 )
             );
 
-        // verify it throws a custom error ErrZeroAddress() when the messageQueue is equal to zero address.
+        // Verify it throws a custom error ErrZeroAddress() when messageQueue is set to the zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
         ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
             .upgradeToAndCall(
@@ -79,6 +82,19 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
                 abi.encodeCall(
                     l1CrossDomainMessengerTemp.initialize,
                     (feeVault, rollup, address(0))
+                )
+            );
+
+        // Verify that the UpdateMaxReplayTimes event is emitted successfully.
+        hevm.expectEmit(false, false, false, true);
+        emit IL1CrossDomainMessenger.UpdateMaxReplayTimes(0, 3);
+
+        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
+            .upgradeToAndCall(
+                address(l1CrossDomainMessengerTemp),
+                abi.encodeCall(
+                    l1CrossDomainMessengerTemp.initialize,
+                    (l1FeeVault, address(l1CrossDomainMessengerProxyTemp), address(l1CrossDomainMessengerProxyTemp))
                 )
             );
         hevm.stopPrank();
@@ -115,11 +131,11 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
             wdRoot
         );
 
-        // verify the event is emitted successfully.
+        // Verify the RelayedMessage event is emitted successfully.
         hevm.expectEmit(true, true, true, true);
         emit ICrossDomainMessenger.RelayedMessage(_xDomainCalldataHash);
 
-        // mock call rollup withdrawal root submitted success
+        // Mock the rollup contract to simulate successful submission of the withdrawal root.
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
             abi.encodeCall(IRollup.withdrawalRoots, (wdRoot)),
