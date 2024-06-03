@@ -175,7 +175,6 @@ var (
 		Name:   "validator.privateKey",
 		Usage:  "Private Key corresponding to SUBSIDY Owner",
 		EnvVar: prefixEnvVar("VALIDATOR_PRIVATE_KEY"),
-		Value:  "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 	}
 
 	// derivation
