@@ -124,6 +124,43 @@ contract Gov is IGov, OwnableUpgradeable {
         emit RollupEpochUpdated(0, _rollupEpoch);
     }
 
+    /// @notice Initializer
+    /// @param _votingDuration proposal interval
+    /// @param _batchBlockInterval batch block interval
+    /// @param _batchMaxBytes max batch bytes
+    /// @param _batchTimeout batch timeout
+    /// @param _maxChunks max chunks
+    /// @param _rollupEpoch rollup epoch
+    function initializeV2(
+        uint256 _votingDuration,
+        uint256 _batchBlockInterval,
+        uint256 _batchMaxBytes,
+        uint256 _batchTimeout,
+        uint256 _maxChunks,
+        uint256 _rollupEpoch
+    ) public reinitializer(2) {
+        require(_votingDuration > 0, "invalid proposal voting duration");
+        require(_maxChunks > 0, "invalid max chunks");
+        require(_rollupEpoch > 0, "invalid rollup epoch");
+        require(_batchBlockInterval != 0 || _batchMaxBytes != 0 || _batchTimeout != 0, "invalid batch params");
+
+        __Ownable_init();
+
+        votingDuration = _votingDuration;
+        batchBlockInterval = _batchBlockInterval;
+        batchMaxBytes = _batchMaxBytes;
+        batchTimeout = _batchTimeout;
+        maxChunks = _maxChunks;
+        rollupEpoch = _rollupEpoch;
+        rollupEpochUpdateTime = block.timestamp;
+
+        emit VotingDurationUpdated(0, _votingDuration);
+        emit BatchBlockIntervalUpdated(0, _batchBlockInterval);
+        emit BatchMaxBytesUpdated(0, _batchMaxBytes);
+        emit BatchTimeoutUpdated(0, _batchTimeout);
+        emit MaxChunksUpdated(0, _maxChunks);
+        emit RollupEpochUpdated(0, _rollupEpoch);
+    }
     /************************
      * Restricted Functions *
      ************************/

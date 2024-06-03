@@ -2,6 +2,7 @@ import "@nomiclabs/hardhat-web3"
 import "@nomiclabs/hardhat-ethers"
 import "@nomiclabs/hardhat-waffle"
 
+import fs from "fs";
 import assert from "assert"
 import { task } from "hardhat/config"
 import { ethers } from "ethers"
@@ -634,3 +635,107 @@ task("check-params")
 // yarn hardhat check-params --storagepath ./deployFile.json --newpath ./newFile.json --network l1 && \
 // yarn hardhat l1staking-deploy-init --storagepath ./deployFile.json --newpath ./newFile.json --network l1 && \
 // yarn hardhat register --storagepath ./newFile.json --network l1
+
+// immutable upgrade test
+task("impl-test")
+    .setAction(async (taskArgs, hre) => {
+        const deployer = hre.ethers.provider.getSigner()
+        const V1Factory =await hre.ethers.getContractFactory("TestUpgradeV1")
+        const V2Factory =await hre.ethers.getContractFactory("TestUpgradeV2")
+
+        const v1Impl = await V1Factory.deploy()
+        await v1Impl.deployed()
+        const v2Impl = await V2Factory.deploy()
+        await v2Impl.deployed()
+        console.log(`V1 and V2 impl deploy success and v1: ${v1Impl.address} , v2: ${v2Impl.address}`)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = await ProxyAdminFactory.deploy()
+        await proxyAdmin.deployed()
+        const ProxyFactory =await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
+        const proxy = await ProxyFactory.deploy(v1Impl.address, await deployer.getAddress(), "0x")
+        await proxy.deployed()
+        const IProxyContract = await hre.ethers.getContractAt(
+            ContractFactoryName.DefaultProxyInterface,
+            proxy.address,
+            deployer
+        )
+
+        // transfer owner to proxy admin
+        {
+            const res = await IProxyContract.changeAdmin(proxyAdmin.address)
+            const rec = await res.wait()
+            console.log(`proxy admin change to proxy admin ${rec.status === 1}`)
+        }
+
+        const consoleParams = async (factory) => {
+            const contractTmp = new ethers.Contract(
+                proxy.address,
+                factory.interface,
+                hre.ethers.provider,
+            )
+            let va = await contractTmp.va({from: hre.ethers.constants.AddressZero})
+            let vb = await contractTmp.vb({from: hre.ethers.constants.AddressZero})
+            let vc = await contractTmp.vc({from: hre.ethers.constants.AddressZero})
+            let version = await contractTmp.version({from: hre.ethers.constants.AddressZero})
+            console.log(`va ${va} ; vb ${vb} ; vc ${vc} ; version ${version}`)
+        }
+        let contract = new ethers.Contract(
+            proxy.address,
+            V1Factory.interface,
+            deployer,
+        )
+        let res = await contract.setVersion(100)
+        let rec = await res.wait()
+        console.log(`update version to 100 ${rec.status === 1}`)
+        await consoleParams(V1Factory)
+
+        // upgrade
+        {
+            const res = await proxyAdmin.upgrade(proxy.address,v2Impl.address)
+            const rec = await res.wait()
+            console.log(`upgrade to v2 impl ${rec.status === 1}`)
+        }
+        contract = new ethers.Contract(
+            proxy.address,
+            V2Factory.interface,
+            deployer,
+        )
+        res = await contract.setVersion(101)
+        rec = await res.wait()
+        console.log(`update version to 101 ${rec.status === 1}`)
+         res = await contract.setOtherVersion(99)
+        rec = await res.wait()
+        console.log(`update otherVersion to 99 ${rec.status === 1}`)
+        console.log("upgrade success")
+        await consoleParams(V2Factory)
+    })
+
+// ------------------------------------ L2 Upgrade ------------------------------------
+task("gov-upgrade")
+    .addParam("l2config")
+    .setAction(async (taskArgs, hre) => {
+        const data = fs.readFileSync(taskArgs.l2config);
+        // @ts-ignore
+        const l2Config = JSON.parse(data);
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const GovFactory = await hre.ethers.getContractFactory("Gov")
+        const newGovImpl = await GovFactory.deploy()
+        await newGovImpl.deployed()
+        const res = await proxyAdmin.upgradeAndCall(
+            predeploys.Gov,
+            newGovImpl.address,
+            GovFactory.interface.encodeFunctionData('initializeV2', [
+                l2Config.govVotingDuration,
+                l2Config.govBatchBlockInterval,
+                l2Config.govBatchMaxBytes,
+                l2Config.govBatchTimeout,
+                l2Config.govBatchMaxChunks,
+                l2Config.govRollupEpoch,
+            ])
+        )
+        const rec = await res.wait()
+        console.log(`gov upgrade ${rec.status === 1}`)
+    })
