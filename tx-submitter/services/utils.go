@@ -18,7 +18,6 @@ const (
 var priceBumpPercent = big.NewInt(100 + priceBump)
 var blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
 var oneHundred = big.NewInt(100)
-var two = big.NewInt(2)
 
 var blobCommitmentVersionKZG uint8 = 0x01
 
@@ -41,8 +40,4 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 	threshold := new(big.Int).Mul(percent, x)
 	threshold = threshold.Div(threshold, oneHundred)
 	return threshold
-}
-
-func calcBlobFeeCap(blobFee *big.Int) *big.Int {
-	return new(big.Int).Mul(blobFee, two)
 }
