@@ -325,7 +325,7 @@ func (sr *Rollup) finalize() error {
 		return fmt.Errorf("get last finalized error:%v", err)
 	}
 	// get last committed
-	lastCommited, err := sr.Rollup.LastCommittedBatchIndex(nil)
+	lastCommitted, err := sr.Rollup.LastCommittedBatchIndex(nil)
 	if err != nil {
 		return fmt.Errorf("get last committed error:%v", err)
 	}
@@ -335,14 +335,14 @@ func (sr *Rollup) finalize() error {
 		target = new(big.Int).Add(lastFinalized, big.NewInt(1))
 	}
 
-	if target.Cmp(lastCommited) > 0 {
-		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommited.Uint64())
+	if target.Cmp(lastCommitted) > 0 {
+		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommitted.Uint64())
 		return nil
 	}
 
 	log.Info("finalize info",
-		"lastFianlzied", lastFinalized,
-		"lastCommited", lastCommited,
+		"last_fianlzied", lastFinalized,
+		"last_committed", lastCommitted,
 		"finalize_index", target,
 	)
 
@@ -357,7 +357,7 @@ func (sr *Rollup) finalize() error {
 		return nil
 	}
 
-	// in challange window
+	// in challenge window
 	inWindow, err := sr.Rollup.BatchInsideChallengeWindow(nil, target)
 	if err != nil {
 		return fmt.Errorf("get batch inside challenge window error:%v", err)
@@ -422,7 +422,7 @@ func (sr *Rollup) finalize() error {
 
 	log.Info("finalize tx info",
 		"batch_index", target,
-		"last_commited", lastCommited,
+		"last_committed", lastCommitted,
 		"last_finalized", lastFinalized,
 		"hash", signedTx.Hash().String(),
 		"type", signedTx.Type(),
@@ -527,7 +527,7 @@ func (sr *Rollup) rollup() error {
 
 	log.Info("batch info", "last_commit_batch", batchIndex-1, "batch_will_get", batchIndex)
 	if sr.pendingTxs.ExistedIndex(batchIndex) {
-		log.Info("batch index already commited", "index", batchIndex)
+		log.Info("batch index already committed", "index", batchIndex)
 		return nil
 	}
 
