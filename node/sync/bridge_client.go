@@ -53,7 +53,7 @@ func (c *BridgeClient) L1Messages(ctx context.Context, from, to uint64) ([]types
 	txs := make([]types.L1Message, 0)
 	for it.Next() {
 		event := it.Event
-		c.logger.Debug("Received new L1 QueueTransaction event", "event", event)
+		c.logger.Info("Received new L1 QueueTransaction event", "event", event)
 
 		if !event.GasLimit.IsUint64() {
 			return nil, fmt.Errorf("invalid QueueTransaction event: QueueIndex = %v, GasLimit = %v", event.QueueIndex, event.GasLimit)

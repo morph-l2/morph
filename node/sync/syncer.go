@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -57,6 +58,12 @@ func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Lo
 	}
 	metrics := PrometheusMetrics("morphnode")
 	metrics.SyncedL1Height.Set(float64(*latestSynced))
+
+	configBz, err := json.Marshal(config)
+	if err != nil {
+		panic(err)
+	}
+	logger.Info("print syncer config", "config", string(configBz))
 
 	ctx, cancel := context.WithCancel(ctx)
 	return &Syncer{
@@ -151,7 +158,7 @@ func (s *Syncer) fetchL1Messages() {
 		}
 
 		if len(l1Messages) > 0 {
-			s.logger.Debug("Received new L1 events", "fromBlock", from, "toBlock", to, "count", len(l1Messages))
+			s.logger.Info("Received new L1 events", "fromBlock", from, "toBlock", to, "count", len(l1Messages))
 			if err = s.db.WriteSyncedL1Messages(l1Messages, to); err != nil {
 				// crash on database error
 				s.logger.Error("failed to write L1 messages to database", "err", err)
