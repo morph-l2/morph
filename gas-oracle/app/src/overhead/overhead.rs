@@ -326,10 +326,11 @@ impl OverHeadUpdater {
             ((rollup_gas_used * effective_gas_price).as_usize() as f64);
 
         log::info!(
-            "rollup blob tx: {:?} in block: {:?}, tx_gas_used: {:?}, blob_gas_price: {:?}, effective_gas_price: {:?}, lastest_overhead: {:?}, x: {:?}, l2_txn: {:?}, blob_fee_ratio: {}",
+            "rollup blob tx: {:?} in block: {:?}, rollup_gas_used: {:?}, sum(tx_data_gas):{:?}, blob_gas_price: {:?}, effective_gas_price: {:?}, lastest_overhead: {:?}, x: {:?}, l2_txn: {:?}, blob_fee_ratio: {}",
             tx_hash,
             block_num,
             rollup_gas_used,
+            l2_data_gas,
             blob_gas_price,
             effective_gas_price,
             overhead,
@@ -438,7 +439,6 @@ impl OverHeadUpdater {
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
 
         let tx_payload_gas = data_gas_cost(&tx_payload);
-        log::debug!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
 
         Ok(tx_payload_gas)
     }
