@@ -479,7 +479,7 @@ func (sr *Rollup) rollup() error {
 		)
 
 		if cur.Hex() == sr.walletAddr() {
-			left := int64(end) - time.Now().Unix()
+			left := end - time.Now().Unix()
 			if left < rotatorBuff {
 				log.Info("rollup time not enough, wait next turn", "left", left)
 				return nil
@@ -765,36 +765,6 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
 	}
 	return tip, gasFeeCap, blobFee, nil
-}
-
-func (sr *Rollup) waitReceiptWithTimeout(time time.Duration, txHash common.Hash) (*types.Receipt, error) {
-	ctx, cancel := context.WithTimeout(sr.ctx, time)
-	defer cancel()
-	return sr.waitReceiptWithCtx(ctx, txHash)
-}
-
-func (sr *Rollup) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
-	t := time.NewTicker(time.Second)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, errors.New("timeout")
-		case <-t.C:
-			receipt, err := sr.L1Client.TransactionReceipt(context.Background(), txHash)
-			if errors.Is(err, ethereum.NotFound) {
-				continue
-			}
-			if err != nil {
-				return nil, err
-			}
-			if receipt != nil {
-				t.Stop()
-				return receipt, nil
-			}
-		}
-
-	}
-
 }
 
 // Init is run before the submitter to check whether the submitter can be started
