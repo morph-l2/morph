@@ -109,8 +109,8 @@ async fn start_updater(
 async fn prepare_updater(
     config: &Config,
 ) -> Result<(BaseFeeUpdater, OverHeadUpdater), Box<dyn Error>> {
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from(config.l1_rpc.clone())?;
-    let l2_provider: Provider<Http> = Provider::<Http>::try_from(config.l2_rpc.clone())?;
+    let l1_provider = Provider::<Http>::try_from(config.l1_rpc.clone())?;
+    let l2_provider = Provider::<Http>::try_from(config.l2_rpc.clone())?;
     let l2_signer = Arc::new(SignerMiddleware::new(
         l2_provider.clone(),
         Wallet::from_str(config.private_key.as_str())
@@ -118,11 +118,9 @@ async fn prepare_updater(
             .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
     ));
 
-    let l2_wallet_address: Address = l2_signer.address();
-    let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
-        GasPriceOracle::new(config.l2_oracle_address, l2_signer);
-    let l1_rollup: Rollup<Provider<Http>> =
-        Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
+    let l2_wallet_address = l2_signer.address();
+    let l2_oracle = GasPriceOracle::new(config.l2_oracle_address, l2_signer);
+    let l1_rollup = Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
 
     let base_fee_updater = BaseFeeUpdater::new(
         l1_provider.clone(),
@@ -137,7 +135,6 @@ async fn prepare_updater(
         l2_oracle.clone(),
         l1_rollup,
         config.overhead_threshold,
-        config.l1_rpc.clone(),
         config.l1_beacon_rpc.clone(),
         config.overhead_switch,
         config.max_overhead,
@@ -196,17 +193,18 @@ async fn handle_metrics() -> String {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore]
-async fn test() -> Result<(), Box<dyn Error>> {
-    println!("update");
-    let result = update().await;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    match result {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            println!("exec error:");
-            Err(e)
-        }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore]
+    async fn test_start_update() {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+        dotenv::dotenv().ok();
+
+        let result = update().await;
+
+        assert!(result.is_ok());
     }
 }
