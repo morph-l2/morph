@@ -7,6 +7,7 @@ import { task } from "hardhat/config"
 import { ethers } from "ethers"
 import { assertContractVariable, getContractAddressByName, awaitCondition, storage } from "../src/deploy-utils"
 import { ImplStorageName, ProxyStorageName, ContractFactoryName } from "../src/types"
+import { predeploys } from "../src"
 
 task("rollup-deploy-init")
     .addParam("storagepath")
@@ -18,7 +19,7 @@ task("rollup-deploy-init")
         const config = hre.deployConfig
         const chainId = config.l2ChainID
         const deployer = hre.ethers.provider.getSigner()
-        
+
         const ProxyFactoryName = ContractFactoryName.DefaultProxy
         const IProxyFactoryName = ContractFactoryName.DefaultProxyInterface
         const RollupFactoryName = ContractFactoryName.Rollup
@@ -190,7 +191,7 @@ task("rollup-deploy-init")
             console.log(`admin transfer successful`)
         }
 
-        // ------------------ rollup init -----------------
+        // ------------------ rollup import genesis batch -----------------
         {
             const Rollup = await hre.ethers.getContractAt(ContractFactoryName.Rollup, proxy.address, deployer)
             // import genesis batch
@@ -359,6 +360,232 @@ task("l1cdm-upgrade")
         }
     })
 
+
+task("l1staking-deploy-init")
+    .addParam("storagepath")
+    .addParam("newpath")
+    .setAction(async (taskArgs, hre) => {
+        // deploy config
+        const storagePath = taskArgs.storagepath
+        const newPath = taskArgs.newpath
+        const config = hre.deployConfig
+        const deployer = hre.ethers.provider.getSigner()
+
+        const ProxyFactoryName = ContractFactoryName.DefaultProxy
+        const L1StakingProxyStorageName = ProxyStorageName.L1StakingProxyStorageName
+        const WhitelistImplAddress = getContractAddressByName(storagePath, ImplStorageName.Whitelist)
+        const EmptyContractAddr = getContractAddressByName(storagePath, ImplStorageName.EmptyContract)
+        const L1CrossDomainMessengerProxyAddress = getContractAddressByName(storagePath, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
+
+        // deploy L1Staking proxy
+        {
+            const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
+            // TransparentUpgradeableProxy deploy with emptyContract as impl, deployer as admin
+            const proxy = await ProxyFactory.deploy(EmptyContractAddr, await deployer.getAddress(), "0x")
+            await proxy.deployed()
+            const blockNumber = await hre.ethers.provider.getBlockNumber()
+            const err = await storage(newPath, L1StakingProxyStorageName, proxy.address.toLocaleLowerCase(), blockNumber || 0)
+            if (err != "") {
+                console.log(`deploy L1Staking proxy failed ${err}`)
+                return err
+            }
+            console.log(`L1Staking proxy deploy at ${proxy.address}`)
+        }
+
+        // deploy impl
+        {
+            const Factory = await hre.ethers.getContractFactory(ContractFactoryName.L1Staking)
+            const contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress)
+            await contract.deployed()
+            console.log("%s=%s ; TX_HASH: %s", ImplStorageName.L1StakingStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+            await assertContractVariable(
+                contract,
+                'MESSENGER',
+                L1CrossDomainMessengerProxyAddress
+            )
+            await assertContractVariable(
+                contract,
+                'OTHER_STAKING',
+                predeploys.L2Staking.toLowerCase()
+            )
+            const blockNumber = await hre.ethers.provider.getBlockNumber()
+            console.log("BLOCK_NUMBER: %s", blockNumber)
+            const err = await storage(newPath, ImplStorageName.L1StakingStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+            if (err != '') {
+                console.log(`deploy L1Staking implemention failed ${err}`)
+                return err
+            }
+        }
+
+        // upgrade
+        {
+            const RollupProxyAddress = getContractAddressByName(newPath, ProxyStorageName.RollupProxyStorageName)
+            // Staking config
+            const L1StakingProxyAddress = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
+            const L1StakingImplAddress = getContractAddressByName(newPath, ImplStorageName.L1StakingStorageName)
+            const L1StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Staking)
+            const IL1StakingProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1StakingProxyAddress, deployer)
+
+            console.log('Upgrading the Staking proxy...')
+            const admin: string = config.contractAdmin
+            const stakingChallengerRewardPercentage: number = config.stakingChallengerRewardPercentage
+            const limit: number = config.stakingMinDeposit
+            const lock: number = config.stakingLockNumber
+            const gasLimitAdd: number = config.stakingCrossChainGaslimitAdd
+            const gasLimitRemove: number = config.stakingCrossChainGaslimitRemove
+
+            if (!ethers.utils.isAddress(admin)
+                || lock <= 0
+                || limit <= 0
+                || gasLimitAdd <= 0
+                || gasLimitRemove <= 0
+                || stakingChallengerRewardPercentage > 100
+                || stakingChallengerRewardPercentage <= 0
+            ) {
+                console.error('please check your address')
+                return ''
+            }
+
+            // Upgrade and initialize the proxy.
+            await IL1StakingProxy.upgradeToAndCall(
+                L1StakingImplAddress,
+                L1StakingFactory.interface.encodeFunctionData('initialize', [
+                    RollupProxyAddress,
+                    hre.ethers.utils.parseEther(limit.toString()),
+                    hre.ethers.utils.parseEther(lock.toString()),
+                    stakingChallengerRewardPercentage,
+                    gasLimitAdd,
+                    gasLimitRemove,
+                ])
+            )
+
+            await awaitCondition(
+                async () => {
+                    return (
+                        (await IL1StakingProxy.implementation()).toLocaleLowerCase() === L1StakingImplAddress.toLocaleLowerCase()
+                    )
+                },
+                3000,
+                1000
+            )
+
+            const contractTmp = new ethers.Contract(
+                L1StakingProxyAddress,
+                L1StakingFactory.interface,
+                deployer,
+            )
+
+            await assertContractVariable(
+                contractTmp,
+                'rollupContract',
+                RollupProxyAddress
+            )
+            await assertContractVariable(
+                contractTmp,
+                'rewardPercentage',
+                stakingChallengerRewardPercentage
+            )
+            await assertContractVariable(
+                contractTmp,
+                'stakingValue',
+                hre.ethers.utils.parseEther(limit.toString())
+            )
+            await assertContractVariable(
+                contractTmp,
+                'withdrawalLockBlocks',
+                hre.ethers.utils.parseEther(lock.toString())
+            )
+            await assertContractVariable(
+                contractTmp,
+                'gasLimitAddStaker',
+                gasLimitAdd
+            )
+            await assertContractVariable(
+                contractTmp,
+                'gasLimitRemoveStakers',
+                gasLimitRemove
+            )
+            await assertContractVariable(
+                contractTmp,
+                'owner',
+                await deployer.getAddress(),
+            )
+            // Wait for the transaction to execute properly.
+            console.log('StakingProxy upgrade success')
+        }
+
+        // ------------------ Admin transfer -----------------
+        {
+            const L1StakingProxyAddress = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
+            const deployerAddr = (await deployer.getAddress()).toLocaleLowerCase()
+            const ProxyAdminImplAddr = getContractAddressByName(storagePath, ImplStorageName.ProxyAdmin)
+            const IProxyContract = await hre.ethers.getContractAt(
+                ContractFactoryName.DefaultProxyInterface,
+                L1StakingProxyAddress,
+                deployer
+            )
+            {
+                const implAddr = (await IProxyContract.implementation()).toLocaleLowerCase()
+                const admin = (await IProxyContract.admin()).toLocaleLowerCase()
+                if (implAddr === EmptyContractAddr.toLocaleLowerCase()) {
+                    return `Proxy implementation address ${implAddr} should not be empty contract address ${EmptyContractAddr}`
+                }
+                if (admin !== deployerAddr) {
+                    return `Proxy admin address ${admin} should deployer address ${deployerAddr}`
+                }
+            }
+            console.log(`change L1Staking admin transfer from ${deployerAddr} to ProxyAdmin ${ProxyAdminImplAddr}`)
+            const res = await IProxyContract.changeAdmin(ProxyAdminImplAddr)
+            await res.wait()
+            await assertContractVariable(
+                IProxyContract,
+                "admin",
+                ProxyAdminImplAddr,
+                ProxyAdminImplAddr // caller
+            )
+            console.log(`admin transfer successful`)
+        }
+
+        // set L1Staking address to gasPriceOracle whitelist
+        {
+            const L1StakingProxyAddress = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
+            const WhitelistCheckerImpl = await hre.ethers.getContractAt(ContractFactoryName.Whitelist, WhitelistImplAddress, deployer)
+            let addList = [L1StakingProxyAddress]
+            const res = await WhitelistCheckerImpl.updateWhitelistStatus(addList, true)
+            await res.wait()
+            for (let i = 0; i < addList.length; i++) {
+                let res = await WhitelistCheckerImpl.isSenderAllowed(addList[i])
+                if (res != true) {
+                    console.error('whitelist check failed')
+                    return ''
+                }
+            }
+            console.log(`add ${addList} to whitelist success`)
+        }
+
+        // set staker whitelist
+        {
+            const L1StakingProxyAddress = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
+            const L1Staking = await hre.ethers.getContractAt(ContractFactoryName.L1Staking, L1StakingProxyAddress, deployer)
+            const whiteListAdd = config.l2SequencerAddresses
+            // set sequencer to white list
+            await L1Staking.updateWhitelist(whiteListAdd, [])
+            for (let i = 0; i < config.l2SequencerAddresses.length; i++) {
+                // Wait for the transaction to execute properly.
+                await awaitCondition(
+                    async () => {
+                        return (
+                            await L1Staking.whitelist(config.l2SequencerAddresses[i]) === true
+                        )
+                    },
+                    3000,
+                    1000
+                )
+                console.log(`address ${config.l2SequencerAddresses[i]} is in white list`)
+            }
+        }
+    })
+
 task("check-params")
     .addParam("storagepath")
     .addParam("newpath")
@@ -393,3 +620,17 @@ task("check-params")
         )
         console.log("Check new rollup address success")
     })
+
+// test command
+// rm -rf ./deployFile.json && \                                                                            
+// yarn hardhat deploy --storagepath ./deployFile.json --network l1 && \
+// yarn hardhat initialize  --storagepath ./deployFile.json --network l1 && \
+// yarn hardhat fund --network l1 && \
+// yarn hardhat register --storagepath ./deployFile.json --network l1 && \
+// rm -rf ./newFile.json && \
+// yarn hardhat rollup-deploy-init --storagepath ./deployFile.json --newpath ./newFile.json --network l1 && \
+// yarn hardhat l1mq-upgrade --storagepath ./deployFile.json --newpath ./newFile.json --network l1 && \
+// yarn hardhat l1cdm-upgrade --storagepath ./deployFile.json --newpath ./newFile.json --network l1 && \
+// yarn hardhat check-params --storagepath ./deployFile.json --newpath ./newFile.json --network l1 && \
+// yarn hardhat l1staking-deploy-init --storagepath ./deployFile.json --newpath ./newFile.json --network l1 && \
+// yarn hardhat register --storagepath ./newFile.json --network l1
