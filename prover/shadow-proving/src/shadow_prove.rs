@@ -109,62 +109,65 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
         );
 
         // Query existing proof
-        if let Some(prove_result) = query_proof(batch_index).await {
-            if !prove_result.proof_data.is_empty() {
-                log::info!("query proof and prove state: {:?}", batch_index);
-                prove_state(batch_index, l1_shadow_rollup).await;
-                break;
-            }
-        }
-    }
-
-    // Request the proverServer to prove.
-    let request = ProveRequest {
-        batch_index,
-        chunks: chunks.clone(),
-        rpc: l2_rpc.to_owned(),
-        shadow: true,
-    };
-    let rt = tokio::task::spawn_blocking(move || util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch"))
-        .await
-        .unwrap();
-
-    match rt {
-        Some(info) => match info.as_str() {
-            task_status::STARTED => log::info!("successfully submitted prove task, waiting for proof to be generated"),
-            task_status::PROVING => log::info!("waiting for prev proof to be generated"),
-            task_status::PROVED => {
-                log::info!("proof already generated");
-                prove_state(batch_index, l1_shadow_rollup).await;
-                break;
-            }
-            _ => {
-                log::error!("submit prove task failed: {:#?}", info);
-                continue;
-            }
-        },
-        None => {
-            log::error!("submit prove task failed");
-            continue;
-        }
-    }
-
-    // Step5. query proof and prove onchain state.
-    let mut max_waiting_time: usize = 4800 * chunks_len + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
-    while max_waiting_time > 300 {
-        sleep(Duration::from_secs(300)).await;
-        max_waiting_time -= 300; // Query results every 5 minutes.
         match query_proof(batch_index).await {
             Some(prove_result) => {
-                log::debug!("query proof and prove state: {:#?}", batch_index);
                 if !prove_result.proof_data.is_empty() {
-                    prove_state(batch_index, l1_shadow_rollup).await;
-                    return;
+                    log::info!("query proof and prove state: {:?}", batch_index);
+                    prove_state(batch_index, &l1_shadow_rollup).await;
+                    break;
                 }
             }
+            None => (),
+        }
+
+        // Request the proverServer to prove.
+        let request = ProveRequest {
+            batch_index: batch_index,
+            chunks: chunks.clone(),
+            rpc: l2_rpc.to_owned(),
+            shadow: true,
+        };
+        let rt = tokio::task::spawn_blocking(move || util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch"))
+            .await
+            .unwrap();
+
+        match rt {
+            Some(info) => match info.as_str() {
+                task_status::STARTED => log::info!("successfully submitted prove task, waiting for proof to be generated"),
+                task_status::PROVING => log::info!("waiting for prev proof to be generated"),
+                task_status::PROVED => {
+                    log::info!("proof already generated");
+                    prove_state(batch_index, &l1_shadow_rollup).await;
+                    break;
+                }
+                _ => {
+                    log::error!("submit prove task failed: {:#?}", info);
+                    continue;
+                }
+            },
             None => {
-                log::error!("prover status unknown, resubmit task");
-                break;
+                log::error!("submit prove task failed");
+                continue;
+            }
+        }
+
+        // Step5. query proof and prove onchain state.
+        let mut max_waiting_time: usize = 4800 * chunks_len + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
+        while max_waiting_time > 300 {
+            sleep(Duration::from_secs(300)).await;
+            max_waiting_time -= 300; // Query results every 5 minutes.
+            match query_proof(batch_index).await {
+                Some(prove_result) => {
+                    log::debug!("query proof and prove state: {:#?}", batch_index);
+                    if !prove_result.proof_data.is_empty() {
+                        prove_state(batch_index, &l1_shadow_rollup).await;
+                        return;
+                    }
+                }
+                None => {
+                    log::error!("prover status unknown, resubmit task");
+                    break;
+                }
             }
         }
     }
@@ -199,9 +202,12 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
             Err(err) => {
                 log::error!("send tx of prove_state error: {:#?}", err);
                 METRICS.shadow_verify_result.set(2);
-                if let ContractError::Revert(data) = err {
-                    let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));
-                    log::error!("send tx of prove_state error, msg: {:#?}", msg);
+                match err {
+                    ContractError::Revert(data) => {
+                        let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));
+                        log::error!("send tx of prove_state error, msg: {:#?}", msg);
+                    }
+                    _ => (),
                 }
                 continue;
             }
@@ -226,7 +232,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
             Err(error) => log::error!("provider error: {:?}", error),
         }
     }
-    false
+    return false;
 }
 
 /**
@@ -254,5 +260,5 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
         }
     };
 
-    Some(prove_result)
+    return Some(prove_result);
 }
