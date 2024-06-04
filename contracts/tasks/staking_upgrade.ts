@@ -754,5 +754,127 @@ task("distribute-deploy")
             DistributeFactory.interface.encodeFunctionData('initialize', [])
         )
         const rec = await res.wait()
-        console.log(`gov upgrade ${rec.status === 1}, new impl ${distribute.address}`)
+        console.log(`distribute upgrade ${rec.status === 1}, new impl ${distribute.address}`)
+    })
+
+task("morph-token-deploy")
+    .addParam("l2config")
+    .setAction(async (taskArgs, hre) => {
+        const data = fs.readFileSync(taskArgs.l2config);
+        // @ts-ignore
+        const l2Config = JSON.parse(data);
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const MorphTokenFactory = await hre.ethers.getContractFactory("MorphToken")
+        const morphToken = await MorphTokenFactory.deploy()
+        await morphToken.deployed()
+
+        const res = await proxyAdmin.upgradeAndCall(
+            predeploys.MorphToken,
+            morphToken.address,
+            MorphTokenFactory.interface.encodeFunctionData('initialize', [
+                l2Config.morphTokenName,
+                l2Config.morphTokenSymbol,
+                l2Config.morphTokenOwner,
+                l2Config.morphTokenInitialSupply,
+                l2Config.morphTokenDailyInflationRate,
+            ])
+        )
+        const rec = await res.wait()
+        console.log(`morphToken upgrade ${rec.status === 1}, new impl ${morphToken.address}`)
+    })
+
+task("sequencer-deploy")
+    .addParam("l2config")
+    .setAction(async (taskArgs, hre) => {
+        const data = fs.readFileSync(taskArgs.l2config);
+        // @ts-ignore
+        const l2Config = JSON.parse(data);
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const SequencerFactory = await hre.ethers.getContractFactory("Sequencer")
+        const sequencer = await SequencerFactory.deploy()
+        await sequencer.deployed()
+
+        // l2Config
+        let addresses = []
+        for (let i=0;i<l2Config.l2StakingAddresses.length;i++){
+            addresses.push(l2Config.l2StakingAddresses[i])
+        }
+        const res = await proxyAdmin.upgradeAndCall(
+            predeploys.Sequencer,
+            sequencer.address,
+            SequencerFactory.interface.encodeFunctionData(
+                'initialize',
+                [addresses])
+        )
+        const rec = await res.wait()
+        console.log(`sequencer upgrade ${rec.status === 1}, new impl ${sequencer.address}`)
+    })
+
+task("record-deploy")
+    .addParam("l2config")
+    .setAction(async (taskArgs, hre) => {
+        const data = fs.readFileSync(taskArgs.l2config);
+        // @ts-ignore
+        const l2Config = JSON.parse(data);
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const RecordFactory = await hre.ethers.getContractFactory("Record")
+        const record = await RecordFactory.deploy()
+        await record.deployed()
+        const res = await proxyAdmin.upgradeAndCall(
+            predeploys.Record,
+            record.address,
+            RecordFactory.interface.encodeFunctionData('initialize', [
+                l2Config.recordOracleAddress,
+                l2Config.recordNextBatchSubmissionIndex,
+            ])
+        )
+        const rec = await res.wait()
+        console.log(`Record upgrade ${rec.status === 1}, new impl ${record.address}`)
+    })
+
+task("l2-staking-deploy")
+    .addParam("newpath")
+    .addParam("l2config")
+    .setAction(async (taskArgs, hre) => {
+        const newPath = taskArgs.newpath
+        const data = fs.readFileSync(taskArgs.l2config);
+        // @ts-ignore
+        const l2Config = JSON.parse(data);
+        const L1StakingProxyAddr = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const L2StakingFactory = await hre.ethers.getContractFactory("L2Staking")
+        const staking = await L2StakingFactory.deploy(L1StakingProxyAddr)
+        await staking.deployed()
+
+        let infos = []
+        for (let i=0;i<l2Config.l2StakingAddresses.length;i++){
+            let info = {
+                addr: l2Config.l2StakingAddresses[i],
+                tmKey: l2Config.l2StakingTmKeys[i],
+                blsKey: l2Config.l2StakingBlsKeys[i],
+            }
+            infos.push(info)
+        }
+        const res = await proxyAdmin.upgradeAndCall(
+            predeploys.L2Staking,
+            staking.address,
+            L2StakingFactory.interface.encodeFunctionData('initialize', [
+                l2Config.l2StakingSequencerMaxSize,
+                l2Config.l2StakingUnDelegatedLockEpochs,
+                l2Config.l2StakingRewardStartTime,
+                infos,
+            ])
+        )
+        const rec = await res.wait()
+        console.log(`L2Staking upgrade ${rec.status === 1}, new impl ${staking.address}`)
     })
