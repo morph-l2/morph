@@ -80,6 +80,7 @@ contract Gov is IGov, OwnableUpgradeable {
     constructor() {
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
         SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
+        _disableInitializers();
     }
 
     /***************

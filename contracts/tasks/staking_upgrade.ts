@@ -739,3 +739,20 @@ task("gov-upgrade")
         const rec = await res.wait()
         console.log(`gov upgrade ${rec.status === 1}`)
     })
+
+task("distribute-deploy")
+    .setAction(async (taskArgs, hre) => {
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const DistributeFactory = await hre.ethers.getContractFactory("Distribute")
+        const distribute = await DistributeFactory.deploy()
+        await distribute.deployed()
+        const res = await proxyAdmin.upgradeAndCall(
+            predeploys.Distribute,
+            distribute.address,
+            DistributeFactory.interface.encodeFunctionData('initialize', [])
+        )
+        const rec = await res.wait()
+        console.log(`gov upgrade ${rec.status === 1}, new impl ${distribute.address}`)
+    })
