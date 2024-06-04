@@ -82,13 +82,10 @@ async fn handle_metrics() -> String {
 
     // Encode metrics to send.
     match encoder.encode(&metric_families, &mut buffer) {
-        Ok(()) => {
-            let output = String::from_utf8(buffer.clone()).unwrap();
-            return output;
-        }
+        Ok(()) => String::from_utf8(buffer.clone()).unwrap(),
         Err(e) => {
             log::error!("encode metrics error: {:#?}", e);
-            return String::from("");
+            String::from("")
         }
     }
 }

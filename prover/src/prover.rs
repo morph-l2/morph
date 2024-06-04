@@ -91,6 +91,8 @@ impl Prover {
                 continue;
             }
 
+            save_trace(101, &chunk_traces);
+
             // Step3. Generate evm proof
             self.generate_proof(batch_index, chunk_traces).await;
         }
@@ -158,7 +160,7 @@ impl Prover {
                 Ok(queue_lock) => queue_lock,
                 Err(_) => continue,
             };
-            if queue_lock.last().is_some() && queue_lock.last().unwrap().shadow.unwrap_or(false) == false {
+            if queue_lock.last().is_some() && !queue_lock.last().unwrap().shadow.unwrap_or(false) {
                 // First handle the high-priority request
                 log::info!("Received high-priority request, End the current task");
                 return;
@@ -190,15 +192,10 @@ impl Prover {
         let duration = start.elapsed();
         let minutes = duration.as_secs() / 60;
         PROVE_TIME.set(minutes.try_into().unwrap());
-        return;
     }
 }
 
-fn compute_and_save_kzg(
-    chunk_traces: &Vec<Vec<BlockTrace>>,
-    batch_index: u64,
-    proof_path: &String,
-) -> Result<(), String> {
+fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, proof_path: &str) -> Result<(), String> {
     // Sequencer trace to witness.
     let mut blocks: Vec<Block<Fr>> = vec![];
     for trace in chunk_traces {
@@ -214,7 +211,7 @@ fn compute_and_save_kzg(
     // Witness to chunkhash
     let mut chunk_hashes: Vec<ChunkHash> = blocks
         .iter()
-        .map(|block| ChunkHash::from_witness_block(&block, false))
+        .map(|block| ChunkHash::from_witness_block(block, false))
         .collect();
 
     if chunk_hashes.is_empty() {
@@ -236,7 +233,7 @@ fn compute_and_save_kzg(
     log::debug!(
         "prev_state_root of batch_{:?} = {:#?}",
         batch_index,
-        hex::encode(&chunk_hashes[0].prev_state_root)
+        hex::encode(chunk_hashes[0].prev_state_root)
     );
 
     let blob = BatchHash::construct(&chunk_hashes).blob_assignments();
@@ -261,7 +258,7 @@ fn compute_and_save_kzg(
     log::info!(
         "=========> blob_versioned_hash of batch_{:?} = {:#?}",
         batch_index,
-        hex::encode(&versioned_hash)
+        hex::encode(versioned_hash)
     );
     let mut z = [0u8; 32];
     challenge.to_big_endian(&mut z);
@@ -295,7 +292,7 @@ fn compute_and_save_kzg(
     blob_kzg.extend_from_slice(commitment.as_slice());
     blob_kzg.extend_from_slice(proof.as_slice());
 
-    let mut params_file = File::create(format!("{}/blob_kzg.data", proof_path.as_str())).unwrap();
+    let mut params_file = File::create(format!("{}/blob_kzg.data", proof_path)).unwrap();
     match params_file.write_all(&blob_kzg[..]) {
         Ok(()) => (),
         Err(e) => {
@@ -371,22 +368,21 @@ fn load_trace(batch_index: u64) -> Vec<Vec<BlockTrace>> {
     let reader = BufReader::new(file);
 
     let chunk_traces: Vec<Vec<BlockTrace>> = serde_json::from_reader(reader).unwrap();
-    return chunk_traces;
+    chunk_traces
 }
 
 #[tokio::test]
 async fn test_generate_proof() {
     use dotenv::dotenv;
-
     dotenv().ok();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
-    let mut chunk_prover = ChunkProver::from_dirs(PROVER_PARAMS_DIR.as_str(), SCROLL_PROVER_ASSETS_DIR.as_str());
-    log::info!("Chunk_prover initialized");
+    let queue: Arc<Mutex<Vec<ProveRequest>>> = Arc::new(Mutex::new(Vec::new()));
+    let mut prover = Prover::new(queue);
 
     let chunk_traces = load_trace(17);
     log::info!("Loading traces from file successful");
 
     log::info!("Starting generate proof");
-    // generate_proof(17, chunk_traces, &mut chunk_prover).await;
+    prover.generate_proof(17, chunk_traces).await;
 }
