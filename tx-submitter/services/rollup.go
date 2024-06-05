@@ -203,16 +203,16 @@ func (sr *Rollup) ProcessTx() error {
 
 		rtx := txRecord.tx
 		method := utils.ParseMethod(rtx, sr.abi)
-		log.Info("process tx", "txHash", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
+		log.Info("process tx", "hash", rtx.Hash().String(), "nonce", rtx.Nonce(), "method", method)
 		// query tx
 		_, ispending, err := sr.L1Client.TransactionByHash(context.Background(), txRecord.tx.Hash())
 		if err != nil {
 			if !utils.ErrStringMatch(err, ethereum.NotFound) {
-				return fmt.Errorf("query tx  error:%w, tx: %s, nonce: %d", err, rtx.Hash().Hex(), rtx.Nonce())
+				return fmt.Errorf("query tx  error:%w, tx: %s, nonce: %d", err, rtx.Hash().String(), rtx.Nonce())
 			}
 			sr.pendingTxs.IncQueryTimes(rtx.Hash()) // not found in mempool, increase query times
 		} else {
-			log.Info("query tx success", "txhash", rtx.Hash().Hex(), "pending", ispending)
+			log.Info("query tx success", "hash", rtx.Hash().Hex(), "pending", ispending)
 		}
 
 		// exist in mempool
@@ -224,7 +224,7 @@ func (sr *Rollup) ProcessTx() error {
 					log.Error("resubmit tx", "error", err, "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce())
 					return fmt.Errorf("resubmit tx error:%w", err)
 				} else {
-					log.Info("replace success", "old tx", rtx.Hash().Hex(), "new tx", newtx.Hash(), "nonce", rtx.Nonce())
+					log.Info("replace success", "old_tx", rtx.Hash().Hex(), "new_tx", newtx.Hash().String(), "nonce", rtx.Nonce())
 					sr.pendingTxs.Remove(rtx.Hash())
 					sr.pendingTxs.Add(*newtx)
 				}
@@ -232,7 +232,7 @@ func (sr *Rollup) ProcessTx() error {
 		} else { // not in mempool
 			receipt, err := sr.L1Client.TransactionReceipt(context.Background(), rtx.Hash())
 			if err != nil {
-				log.Error("query tx receipt error", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "error", err)
+				log.Error("query tx receipt error", "tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
 				if !utils.ErrStringMatch(err, ethereum.NotFound) {
 					return err
 				}
@@ -240,16 +240,16 @@ func (sr *Rollup) ProcessTx() error {
 				// sr.pendingTxs.txinfos
 				if txRecord.queryTimes >= 5 {
 					log.Warn("tx discarded",
-						"hash", rtx.Hash().Hex(),
+						"hash", rtx.Hash().String(),
 						"nonce", rtx.Nonce(),
 						"query_times", txRecord.queryTimes,
 					)
 					replacedtx, err := sr.ReSubmitTx(true, &rtx)
 					if err != nil {
-						log.Error("resend discarded tx", "old_tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "error", err)
+						log.Error("resend discarded tx", "old_tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
 						if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
 							log.Info("discarded tx removed",
-								"hash", rtx.Hash().Hex(),
+								"hash", rtx.Hash().String(),
 								"nonce", rtx.Nonce(),
 								"method", method,
 							)
@@ -261,9 +261,9 @@ func (sr *Rollup) ProcessTx() error {
 						sr.pendingTxs.Remove(rtx.Hash())
 					}
 					sr.pendingTxs.Add(*replacedtx)
-					log.Info("resend discarded tx", "old tx", rtx.Hash().Hex(), "new tx", replacedtx.Hash().Hex(), "nonce", replacedtx.Nonce())
+					log.Info("resend discarded tx", "old_tx", rtx.Hash().String(), "new_tx", replacedtx.Hash().String(), "nonce", replacedtx.Nonce())
 				} else {
-					log.Info("tx is not found, neither in mempool nor in block", "hash", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "query_times", txRecord.queryTimes)
+					log.Info("tx is not found, neither in mempool nor in block", "hash", rtx.Hash().String(), "nonce", rtx.Nonce(), "query_times", txRecord.queryTimes)
 				}
 			} else {
 				logs := utils.ParseBusinessInfo(rtx, sr.abi)
