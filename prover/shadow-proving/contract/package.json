@@ -7,14 +7,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NomicFoundation/hardhat-boilerplate.git"
+    "url": "git+https://github.com/morph-l2/morph.git"
   },
-  "author": "Nomic Foundation",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/NomicFoundation/hardhat-boilerplate/issues"
+    "url": "https://github.com/morph-l2/morph/issues"
   },
-  "homepage": "https://github.com/NomicFoundation/hardhat-boilerplate#readme",
+  "homepage": "https://github.com/morph-l2/morph/tree/main/prover/shadow-proving/contract#readme",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.0",
     "@openzeppelin/contracts": "^4.4.0",
