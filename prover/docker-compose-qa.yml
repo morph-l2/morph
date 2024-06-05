@@ -15,7 +15,7 @@ services:
       - PROVER_L2_RPC=${L2_RPC}
       - PROVER_PARAMS_DIR=${PARAMS}
       - PROVER_PROOF_DIR=${PROOF}
-      - COINBASE="0xfabb0ac9d68b0b445fb7357272ff202c5651694a" #genesis.feeVaultAddress
+      - COINBASE="0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792" #genesis.feeVaultAddress
       - SCROLL_PROVER_ASSETS_DIR=${CONFIGS}
       - GENERATE_EVM_VERIFIER=false
       - CHAIN_ID=${L2_CHAIN_ID}
