@@ -243,6 +243,13 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         emit RewardStartTimeUpdated(_oldTime, _rewardStartTime);
     }
 
+    function updateRewardStartTimeNew(uint256 _rewardStartTime) external onlyOwner {
+
+        uint256 _oldTime = rewardStartTime;
+        rewardStartTime = _rewardStartTime;
+        emit RewardStartTimeUpdated(_oldTime, _rewardStartTime);
+    }
+
     /// @notice start reward
     function startReward() external onlyOwner {
         require(block.timestamp >= rewardStartTime, "can't start before reward start time");

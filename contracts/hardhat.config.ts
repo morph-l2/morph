@@ -15,6 +15,7 @@ import "./tasks/check"
 import "./tasks/query"
 import "./tasks/proxy_upgrade"
 import "./tasks/staking_upgrade"
+import "./tasks/new_proxy_upgrade"
 import "./src/plugin"
 import * as process from "process";
 
@@ -32,8 +33,10 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(async (_, __, runSuper
     return paths.filter((p: string) => !p.endsWith(".t.sol")).filter((p: string) => !p.includes("test/mocks"));
 });
 
-const DEPLOYER_PK = process.env.DEPLOYER_PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-const QA_URL = process.env.QA_RPC_URL || 'http://127.0.0.1:8545'
+const L1_DEPLOYER_PK = process.env.DEPLOYER_PRIVATE_KEY || '0xc3b334eb3bf42f27c1100f36179395662cc7661a210597e26e158cd373f2d982'
+const L2_DEPLOYER_PK = process.env.DEPLOYER_PRIVATE_KEY || '0x2035516063ca7724d93e1bfaa01137457355f8e9e1d6cf28cff84def7a478c18'
+const QA_L1_URL = process.env.QA_L1_RPC_URL || 'http://l2-qa-morph-l1-geth.bitkeep.tools'
+const QA_L2_URL = process.env.QA_L2_RPC_URL || 'http://l2-qa-morph-sentry-0.bitkeep.tools'
 const SEPOLIA_URL = process.env.SEPOLIA_RPC_URL || 'http://127.0.0.1:8545'
 const HOLESKY_URL = process.env.HOLESKY_RPC_URL || 'http://127.0.0.1:8545'
 
@@ -70,35 +73,42 @@ module.exports = {
             chainId: 900,
             gas: 'auto',
             gasPrice: 'auto',
-            accounts: [DEPLOYER_PK]
+            accounts: [L1_DEPLOYER_PK]
         },
         l2: {
             url: "http://localhost:8545",
             chainId: 53077,
             gas: 'auto',
             gasPrice: 'auto',
-            accounts: [DEPLOYER_PK]
+            accounts: [L2_DEPLOYER_PK]
         },
         qanetl1: {
-            url: QA_URL,
+            url: QA_L1_URL,
             chainId: 900,
             gas: 'auto',
             gasPrice: 'auto',
-            accounts: [DEPLOYER_PK]
+            accounts: [L1_DEPLOYER_PK]
+        },
+        qanetl2: {
+            url: QA_L2_URL,
+            chainId: 53077,
+            gas: 'auto',
+            gasPrice: 'auto',
+            accounts: [L2_DEPLOYER_PK]
         },
         sepolia: {
             url: SEPOLIA_URL,
             chainId: 11155111,
             gas: 'auto',
             gasPrice: 'auto',
-            accounts: [DEPLOYER_PK]
+            accounts: [L1_DEPLOYER_PK]
         },
         holesky: {
             url: HOLESKY_URL,
             chainId: 17000,
             gas: 'auto',
             gasPrice: 'auto',
-            accounts: [DEPLOYER_PK]
+            accounts: [L1_DEPLOYER_PK]
         }
     },
     foundry: {
