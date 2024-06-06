@@ -1,12 +1,14 @@
 package services
 
 import (
-	"bytes"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/morph-l2/bindings/bindings"
 	"github.com/morph-l2/tx-submitter/utils"
+
+	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 )
@@ -23,8 +25,11 @@ type PendingTxs struct {
 
 	txinfos map[common.Hash]TxInfo
 	pnonce  uint64 // pending nonce
-	pindex  uint64 // pending batch index
 
+	failedIndex *uint64
+	pindex      uint64 // pending batch index
+
+	pfinalize       uint64
 	commitBatchId   []byte
 	finalizeBatchId []byte
 }
@@ -44,18 +49,41 @@ func (pt *PendingTxs) Add(tx types.Transaction) {
 		sendTime: uint64(time.Now().Unix()),
 		tx:       tx,
 	}
-
-	// rollup tx: commitBatch
-	if len(tx.Data()) > 0 && bytes.Equal(tx.Data()[:4], pt.commitBatchId) {
-		pt.pindex = utils.ParseParentBatchIndex(tx.Data()) + 1
-	}
-	pt.pnonce = tx.Nonce()
 }
 
 func (pt *PendingTxs) Remove(txHash common.Hash) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
 	delete(pt.txinfos, txHash)
+}
+
+func (pt *PendingTxs) Recover(txs []types.Transaction, a *abi.ABI) {
+	// restore state from mempool
+	if len(txs) > 0 {
+		var pbindex, pfindex uint64
+
+		for _, tx := range txs {
+			pt.Add(tx)
+
+			method := utils.ParseMethod(tx, a)
+			if method == "commitBatch" {
+
+				index := utils.ParseParentBatchIndex(tx.Data())
+				if index > pbindex {
+					pbindex = index
+				}
+			} else if method == "finalizeBatch" {
+				findex := utils.ParseFBatchIndex(tx.Data())
+				if findex > pfindex {
+					pfindex = findex
+				}
+			}
+		}
+
+		pt.SetPindex(pbindex)
+		pt.SetPFinalize(pfindex)
+		pt.SetNonce(txs[len(txs)-1].Nonce())
+	}
 }
 
 func (pt *PendingTxs) GetAll() []TxInfo {
@@ -80,4 +108,79 @@ func (pt *PendingTxs) Get(txHash common.Hash) (TxInfo, bool) {
 	defer pt.mu.Unlock()
 	tx, ok := pt.txinfos[txHash]
 	return tx, ok
+}
+
+func (pt *PendingTxs) IncQueryTimes(txHash common.Hash) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	pt.txinfos[txHash] = TxInfo{tx: pt.txinfos[txHash].tx, queryTimes: pt.txinfos[txHash].queryTimes + 1, sendTime: pt.txinfos[txHash].sendTime}
+}
+
+func (pt *PendingTxs) SetFailedStatus(index uint64) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
+	// failed index must be less than pindex
+	if pt.failedIndex != nil || index >= pt.pindex {
+		return
+	}
+
+	pt.failedIndex = &index
+}
+func (pt *PendingTxs) SetPindex(index uint64) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
+	pt.pindex = index
+}
+
+func (pt *PendingTxs) SetNonce(nonce uint64) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	pt.pnonce = nonce
+}
+
+func (pt *PendingTxs) SetPFinalize(finalize uint64) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	pt.pfinalize = finalize
+}
+
+func (pt *PendingTxs) RemoveRollupRestriction() {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
+	pt.failedIndex = nil
+}
+
+func (pt *PendingTxs) HaveFailed() bool {
+	return pt.failedIndex != nil
+}
+
+func (pt *PendingTxs) ExistedIndex(index uint64) bool {
+
+	txs := pt.GetAll()
+
+	abi, _ := bindings.RollupMetaData.GetAbi()
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	for i := len(txs) - 1; i >= 0; i-- {
+		tx := txs[i].tx
+		if utils.ParseMethod(tx, abi) == "commitBatch" {
+			pindex := utils.ParseParentBatchIndex(tx.Data()) + 1
+			if index == pindex {
+				return true
+			}
+
+		}
+
+	}
+	return false
+
+}
+
+func (pt *PendingTxs) ResetFailedIndex(index uint64) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	pt.failedIndex = &index
 }

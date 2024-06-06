@@ -31,6 +31,7 @@ type IRollup interface {
 		BlobVersionedHash      [32]byte
 	}, error)
 	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
+	BatchExist(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 }
 
 // IL2Submitter is the interface for the submitter on L2
