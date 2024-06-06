@@ -14,3 +14,11 @@ func TestParseBatchIndex(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, ParseParentBatchIndex(bs), 4793)
 }
+
+func TestParseNonce(t *testing.T) {
+	str := "nonce too low: next nonce 2420, tx nonce 2419"
+
+	n1, n2, err := ParseNonce(str)
+	require.NoError(t, err)
+	require.EqualValues(t, n1, 2420, n2, 2419)
+}
