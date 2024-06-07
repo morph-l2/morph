@@ -1,8 +1,8 @@
 use crate::{
     abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
     l1_base_fee::BaseFeeUpdater,
-    overhead::overhead::OverHeadUpdater,
     read_parse_env,
+    scalar::l1_scalar::ScalarUpdater,
 };
 use ethers::{
     prelude::*,
@@ -22,16 +22,13 @@ use crate::{metrics::*, read_env_var};
 struct Config {
     l1_rpc: String,
     l2_rpc: String,
-    gas_threshold: u128,
-    overhead_threshold: u128,
+    gas_threshold: u64,
     interval: u64,
     overhead_interval: u64,
     l1_rollup_address: Address,
     l2_oracle_address: Address,
     private_key: String,
     l1_beacon_rpc: String,
-    overhead_switch: bool,
-    max_overhead: u128,
 }
 
 impl Config {
@@ -43,7 +40,6 @@ impl Config {
             l1_rpc: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env"),
             l2_rpc: var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env"),
             gas_threshold: read_parse_env("GAS_THRESHOLD"),
-            overhead_threshold: read_parse_env("OVERHEAD_THRESHOLD"),
             interval: read_parse_env("INTERVAL"),
             overhead_interval: read_parse_env("OVERHEAD_INTERVAL"),
             l1_rollup_address: Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env"))?,
@@ -52,8 +48,6 @@ impl Config {
             )?,
             private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env"),
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
-            overhead_switch: read_env_var("OVERHEAD_SWITCH", false),
-            max_overhead: read_env_var("MAX_OVERHEAD", 200000),
         })
     }
 }
@@ -78,7 +72,7 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
 async fn start_updater(
     config: Config,
     base_fee_updater: BaseFeeUpdater,
-    mut overhead_updater: OverHeadUpdater,
+    mut overhead_updater: ScalarUpdater,
 ) {
     tokio::spawn(async move {
         let mut update_times = 0;
@@ -108,7 +102,7 @@ async fn start_updater(
 
 async fn prepare_updater(
     config: &Config,
-) -> Result<(BaseFeeUpdater, OverHeadUpdater), Box<dyn Error>> {
+) -> Result<(BaseFeeUpdater, ScalarUpdater), Box<dyn Error>> {
     let l1_provider = Provider::<Http>::try_from(config.l1_rpc.clone())?;
     let l2_provider = Provider::<Http>::try_from(config.l2_rpc.clone())?;
     let l2_signer = Arc::new(SignerMiddleware::new(
@@ -130,14 +124,12 @@ async fn prepare_updater(
         config.gas_threshold,
     );
 
-    let overhead_updater = OverHeadUpdater::new(
+    let overhead_updater = ScalarUpdater::new(
         l1_provider.clone(),
         l2_oracle.clone(),
         l1_rollup,
-        config.overhead_threshold,
         config.l1_beacon_rpc.clone(),
-        config.overhead_switch,
-        config.max_overhead,
+        config.gas_threshold,
     );
     Ok((base_fee_updater, overhead_updater))
 }

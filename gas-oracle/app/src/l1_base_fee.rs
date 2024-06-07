@@ -1,9 +1,9 @@
-use eyre::anyhow;
-
 use crate::{
-    abi::gas_price_oracle_abi::GasPriceOracle, metrics::ORACLE_SERVICE_METRICS, OracleError,
+    abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, metrics::ORACLE_SERVICE_METRICS,
+    OracleError,
 };
 use ethers::prelude::*;
+use eyre::anyhow;
 
 static DEFAULT_SCALAR: f64 = 1000000000.0;
 const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
@@ -14,7 +14,7 @@ pub struct BaseFeeUpdater {
     l2_provider: Provider<Http>,
     l2_wallet: Address,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    gas_threshold: u128,
+    gas_threshold: u64,
 }
 
 impl BaseFeeUpdater {
@@ -23,7 +23,7 @@ impl BaseFeeUpdater {
         l2_provider: Provider<Http>,
         l2_wallet: Address,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
-        gas_threshold: u128,
+        gas_threshold: u64,
     ) -> Self {
         BaseFeeUpdater { l1_provider, l2_provider, l2_wallet, l2_oracle, gas_threshold }
     }
@@ -32,18 +32,17 @@ impl BaseFeeUpdater {
     /// Set the gas data of L1 network to the GasPriceOrale contract on L2.
     pub async fn update(&self) -> Result<(), OracleError> {
         // Step1. get l1 data.
-        let (l1_base_fee, l1_gas_price) = query_l1_base_fee(&self.l1_provider).await?;
-        let l1_base_fee = l1_base_fee.unwrap_or_default();
-        let l1_gas_price = l1_gas_price.unwrap_or_default();
+        let (l1_base_fee, l1_blob_base_fee, l1_gas_price) =
+            query_l1_base_fee(&self.l1_provider).await?;
 
-        if l1_base_fee.is_zero() || l1_gas_price.is_zero() {
+        if l1_base_fee.is_zero() || l1_blob_base_fee.is_zero() || l1_gas_price.is_zero() {
             return Err(OracleError::L1BaseFeeError(anyhow!(format!(
-                "current ethereum baseFee or gas_price is zero"
+                "current l1 baseFee or l1_blob_base_fee or gas_price is zero/none"
             ))));
         }
 
         #[rustfmt::skip]
-        log::debug!("current ethereum baseFee is: {:#?}, gas_price is: {:#?}", l1_base_fee, l1_gas_price);
+        log::debug!("current ethereum baseFee is: {:#?}, l1_blob_base_fee is {:#?}, gas_price is: {:#?}", l1_base_fee,l1_blob_base_fee,l1_gas_price);
         ORACLE_SERVICE_METRICS.l1_base_fee.set(
             ethers::utils::format_units(l1_base_fee, "gwei")
                 .unwrap_or(String::from("0"))
@@ -59,6 +58,10 @@ impl BaseFeeUpdater {
             )))
         })?;
 
+        let blob_fee_on_l2: U256 = self.l2_oracle.l_1_blob_base_fee().await.map_err(|e| {
+            OracleError::L1BaseFeeError(anyhow!(format!("Failed to query scalar on l2: {:#?}", e)))
+        })?;
+
         let scalar: U256 = self.l2_oracle.scalar().await.map_err(|e| {
             OracleError::L1BaseFeeError(anyhow!(format!("Failed to query scalar on l2: {:#?}", e)))
         })?;
@@ -72,7 +75,7 @@ impl BaseFeeUpdater {
                 .unwrap_or(0.0),
         );
 
-        self.update_base_fee(l1_base_fee, base_fee_on_l2).await?;
+        self.update_base_fee(l1_base_fee, l1_blob_base_fee, blob_fee_on_l2, base_fee_on_l2).await?;
         self.update_scalar(l1_gas_price, l1_base_fee, scalar).await?;
 
         // Step4. Record wallet balance.
@@ -89,20 +92,62 @@ impl BaseFeeUpdater {
     async fn update_base_fee(
         &self,
         mut l1_base_fee: U256,
+        mut l1_blob_base_fee: U256,
+        blob_fee_on_l2: U256,
         base_fee_on_l2: U256,
     ) -> Result<(), OracleError> {
-        l1_base_fee = l1_base_fee.min(U256::from(MAX_BASE_FEE));
+        l1_base_fee = l1_base_fee.min(MAX_BASE_FEE.into());
+        l1_blob_base_fee = l1_blob_base_fee.min(MAX_BASE_FEE.into());
 
-        let actual_change = l1_base_fee.as_u128().abs_diff(base_fee_on_l2.as_u128());
-        let expected_change = base_fee_on_l2.as_u128() * self.gas_threshold / 100;
+        // update_base_fee
+        let actual_change = l1_blob_base_fee.abs_diff(blob_fee_on_l2);
+        let expected_change = blob_fee_on_l2 * self.gas_threshold / 100;
+        log::info!(
+            "blob_fee actual_change: {:#?}, expected_change: {:#?}",
+            actual_change,
+            expected_change
+        );
+
+        if !l1_blob_base_fee.is_zero() && actual_change > expected_change {
+            // Update calldata basefee and blob baseFee
+            let tx = self
+                .l2_oracle
+                .set_l1_base_fee_and_blob_base_fee(l1_base_fee, l1_blob_base_fee)
+                .legacy();
+            let rt = tx.send().await;
+            let pending_tx = match rt {
+                Ok(pending) => {
+                    log::info!(
+                        "tx of set_l1_base_fee_and_blob_base_fee has been sent: {:#?}",
+                        pending.tx_hash()
+                    );
+                    pending
+                }
+                Err(e) => {
+                    return Err(OracleError::L1BaseFeeError(anyhow!(format!(
+                        "set_l1_base_fee_and_blob_base_fee error: {:#?}",
+                        e
+                    ))));
+                }
+            };
+            pending_tx.await.map_err(|e| {
+                OracleError::L1BaseFeeError(anyhow!(format!(
+                    "set_l1_base_fee_and_blob_base_fee check_receipt error: {:#?}",
+                    e
+                )))
+            })?;
+            return Ok(());
+        }
+
+        // Only update calldata basefee.
+        let actual_change = l1_base_fee.as_u64().abs_diff(base_fee_on_l2.as_u64());
+        let expected_change = base_fee_on_l2.as_u64() * self.gas_threshold / 100;
         log::info!(
             "l1BaseFee actual_change: {:#?}, expected_change: {:#?}",
             actual_change,
             expected_change
         );
-
-        //min gas price
-        if l1_base_fee > U256::from(0) && actual_change > expected_change {
+        if !l1_base_fee.is_zero() && actual_change > expected_change {
             // Set l1_base_fee for l2.
             let tx = self.l2_oracle.set_l1_base_fee(l1_base_fee).legacy();
             let rt = tx.send().await;
@@ -183,26 +228,23 @@ impl BaseFeeUpdater {
 
 async fn query_l1_base_fee(
     l1_provider: &Provider<Http>,
-) -> Result<(Option<U256>, Option<U256>), OracleError> {
-    let l1_base_fee = match l1_provider.get_block(BlockNumber::Latest).await {
-        Ok(ob) => {
-            ORACLE_SERVICE_METRICS.l1_rpc_status.set(1);
-            if let Some(b) = ob {
-                b.base_fee_per_gas
-            } else {
-                return Err(OracleError::L1BaseFeeError(anyhow!("Block missing base fee per gas")))
-            }
-        }
-        Err(e) => {
-            ORACLE_SERVICE_METRICS.l1_rpc_status.set(2);
-            return Err(OracleError::L1BaseFeeError(anyhow!(format!(
-                "Failed to query l1_base_fee_per_gas: {:#?}",
-                e
-            ))))
-        }
-    };
+) -> Result<(U256, U256, U256), OracleError> {
+    let latest_block = l1_provider
+        .get_block(BlockNumber::Latest)
+        .await
+        .map_err(|e| OracleError::L1BaseFeeError(anyhow!(format!("{:#?}", e))))?
+        .ok_or_else(|| {
+            OracleError::L1BaseFeeError(anyhow!(format!("l1 latest block info is none.")))
+        })?;
+
+    let l1_base_fee = latest_block.base_fee_per_gas.unwrap_or_default();
+
+    let excess_blob_gas = latest_block.excess_blob_gas.unwrap_or_default();
+
+    let latest_blob_fee = calc_blob_basefee(excess_blob_gas.as_u64());
+
     let gas_price = match l1_provider.get_gas_price().await {
-        Ok(gp) => Some(gp),
+        Ok(gp) => gp,
         Err(e) => {
             ORACLE_SERVICE_METRICS.l1_rpc_status.set(2);
             return Err(OracleError::L1BaseFeeError(anyhow!(format!(
@@ -212,5 +254,5 @@ async fn query_l1_base_fee(
         }
     };
 
-    Ok((l1_base_fee, gas_price))
+    Ok((l1_base_fee, U256::from(latest_blob_fee), gas_price))
 }

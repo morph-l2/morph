@@ -12,7 +12,7 @@ use crate::read_env_var;
 
 use super::{
     blob::{kzg_to_versioned_hash, Blob},
-    error::OverHeadError,
+    error::ScalarError,
     typed_tx::TypedTransaction,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
@@ -21,43 +21,20 @@ lazy_static! {
     pub static ref TXN_PER_BATCH: u64 = read_env_var("TXN_PER_BATCH", 50);
 }
 
-/// Calculate the transaction overhead for L2 tx.
-///
-/// # Returns
-/// The calculated overhead as a u128 value.
-pub(super) fn calc_tx_overhead(
-    rollup_gas_used: u128,
-    blob_gas_used: f64,
-    x: f64,
-    l2_data_gas: u64,
-    l2_txn: u64,
-) -> u128 {
-    let mut sys_gas: u128 = rollup_gas_used + 156400 + (blob_gas_used * x).ceil() as u128;
-    sys_gas = if sys_gas < l2_data_gas as u128 {
-        // Log the difference if system gas is less than L2 data gas
-        log::info!("sys_gas - l2_data_gas: {:?}", sys_gas.abs_diff(l2_data_gas.into()));
-        0u128
-    } else {
-        sys_gas - l2_data_gas as u128
-    };
-
-    sys_gas / l2_txn.max(*TXN_PER_BATCH) as u128
-}
-
 pub(super) fn extract_tx_payload(
     indexed_hashes: Vec<IndexedBlobHash>,
     sidecars: &[Value],
-) -> Result<Vec<u8>, OverHeadError> {
+) -> Result<Vec<u8>, ScalarError> {
     let mut tx_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
             sidecar["index"].as_str().unwrap_or("1000").parse::<u64>().unwrap_or(1000) == i_h.index
         }) {
             let kzg_commitment = sidecar["kzg_commitment"].as_str().ok_or_else(|| {
-                OverHeadError::CalculateError(anyhow!("Failed to fetch kzg commitment from blob"))
+                ScalarError::CalculateError(anyhow!("Failed to fetch kzg commitment from blob"))
             })?;
             let decoded_commitment: Vec<u8> =
-                hex::decode(kzg_commitment).map_err(|e| OverHeadError::CalculateError(e.into()))?;
+                hex::decode(kzg_commitment).map_err(|e| ScalarError::CalculateError(e.into()))?;
             let actual_versioned_hash = kzg_to_versioned_hash(&decoded_commitment);
 
             if i_h.hash != actual_versioned_hash {
@@ -68,33 +45,33 @@ pub(super) fn extract_tx_payload(
                     actual_versioned_hash
                 );
 
-                return Err(OverHeadError::CalculateError(anyhow!(format!(
+                return Err(ScalarError::CalculateError(anyhow!(format!(
                     "Invalid versionedHash for Blob, expected hash {:?} for blob at index {:?} but got {:?}",
                     i_h.hash, i_h.index, actual_versioned_hash
                 ))));
             }
 
             let encoded_blob = sidecar["blob"].as_str().ok_or_else(|| {
-                OverHeadError::CalculateError(anyhow!(format!(
+                ScalarError::CalculateError(anyhow!(format!(
                     "Missing blob value in blob_hash: {:?}",
                     i_h.hash
                 )))
             })?;
             let decoded_blob = hex::decode(encoded_blob).map_err(|e| {
-                OverHeadError::CalculateError(anyhow!(format!(
+                ScalarError::CalculateError(anyhow!(format!(
                     "Failed to decode blob, blob_hash: {:?}, err: {}",
                     i_h.hash, e
                 )))
             })?;
 
             if decoded_blob.len() != MAX_BLOB_TX_PAYLOAD_SIZE {
-                return Err(OverHeadError::CalculateError(anyhow!("Invalid length for Blob")));
+                return Err(ScalarError::CalculateError(anyhow!("Invalid length for Blob")));
             }
 
             let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
             let blob_struct = Blob(blob_array);
             let mut decoded_payload = blob_struct.decode_raw_tx_payload().map_err(|e| {
-                OverHeadError::CalculateError(anyhow!(format!(
+                ScalarError::CalculateError(anyhow!(format!(
                     "Failed to decode blob tx payload: {}",
                     e
                 )))
@@ -102,7 +79,7 @@ pub(super) fn extract_tx_payload(
 
             tx_payload.append(&mut decoded_payload);
         } else {
-            return Err(OverHeadError::CalculateError(anyhow!(format!(
+            return Err(ScalarError::CalculateError(anyhow!(format!(
                 "no blob in response matches desired index: {}",
                 i_h.index
             ))));
@@ -214,34 +191,6 @@ pub(super) fn data_and_hashes_from_txs(
     hashes
 }
 
-/// Minimum gas price for data blobs.
-pub const MIN_BLOB_GASPRICE: u64 = 1;
-
-/// Controls the maximum rate of change for blob gas price.
-pub const BLOB_GASPRICE_UPDATE_FRACTION: u64 = 3338477;
-
-pub(super) fn calc_blob_gasprice(excess_blob_gas: u64) -> u128 {
-    fake_exponential(MIN_BLOB_GASPRICE, excess_blob_gas, BLOB_GASPRICE_UPDATE_FRACTION)
-}
-
-fn fake_exponential(factor: u64, numerator: u64, denominator: u64) -> u128 {
-    assert_ne!(denominator, 0, "attempt to divide by zero");
-    let factor = factor as u128;
-    let numerator = numerator as u128;
-    let denominator = denominator as u128;
-
-    let mut i = 1;
-    let mut output = 0;
-    let mut numerator_accum = factor * denominator;
-    while numerator_accum > 0 {
-        output += numerator_accum;
-
-        // Denominator is asserted as not zero at the start of the function.
-        numerator_accum = (numerator_accum * numerator) / (denominator * i);
-        i += 1;
-    }
-    output / denominator
-}
 
 #[allow(dead_code)]
 pub(super) fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {

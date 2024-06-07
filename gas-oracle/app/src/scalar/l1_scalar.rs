@@ -3,11 +3,8 @@ use tokio::time::{sleep, Duration};
 
 use super::{
     blob_client::BeaconNode,
-    calculate::{
-        calc_blob_gasprice, calc_tx_overhead, data_and_hashes_from_txs, data_gas_cost,
-        extract_tx_payload, extract_txn_num,
-    },
-    error::OverHeadError,
+    calculate::{data_and_hashes_from_txs, data_gas_cost, extract_tx_payload, extract_txn_num},
+    error::ScalarError,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
 use crate::{
@@ -16,65 +13,54 @@ use crate::{
         rollup_abi::{CommitBatchCall, Rollup},
     },
     metrics::ORACLE_SERVICE_METRICS,
+    read_env_var,
 };
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
+use lazy_static::lazy_static;
 use serde_json::Value;
 
-// Information about the previous rollup
-struct PrevRollupInfo {
-    gas_used: u128,        // Exec layer gas used
-    l2_data_gas_used: u64, // Gas used by L2txn data
-    l2_txn: u64,           // Number of L2 transactions
+const PRECISION: u64 = 10u64.pow(9);
+const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 7);
+const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 4);
+const FINALIZE_BATCH_GAS_USED: u64 = 156400;
+
+lazy_static! {
+    pub static ref TXN_PER_BATCH: u64 = read_env_var("TXN_PER_BATCH", 50);
 }
 
 // Main struct to manage overhead information
-pub struct OverHeadUpdater {
+pub struct ScalarUpdater {
     l1_provider: Provider<Http>, // L1 provider for HTTP connections
-    l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>, /* Oracle for L2
-                                  * gas prices */
+    l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>, // L2 gasPrice Oracle
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
-    overhead_threshold: u128,          // Threshold for overhead
-    beacon_node: BeaconNode,           // Beacon node for blockchain
-    overhead_switch: bool,             // Flag to enable/disable overhead calculations
-    max_overhead: u128,                // Maximum allowable overhead
-    prev_rollup_info: Option<PrevRollupInfo>, // Optional info about the previous rollup
+    beacon_node: BeaconNode,     // Beacon node for blockchain
+    gas_threshold: u64,
 }
 
-impl OverHeadUpdater {
+impl ScalarUpdater {
     // Constructor to initialize an OverHead object
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         l1_provider: Provider<Http>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         l1_rollup: Rollup<Provider<Http>>,
-        overhead_threshold: u128,
         l1_beacon_rpc: String,
-        overhead_switch: bool,
-        max_overhead: u128,
+        gas_threshold: u64,
     ) -> Self {
         // Create beacon nodes with provided RPC URLs
         let beacon_node = BeaconNode { rpc_url: l1_beacon_rpc };
 
         // Return a new OverHead instance with initialized values
-        OverHeadUpdater {
-            l1_provider,
-            l2_oracle,
-            l1_rollup,
-            overhead_threshold,
-            beacon_node,
-            overhead_switch,
-            max_overhead,
-            prev_rollup_info: None, // Initialize with no previous rollup info
-        }
+        Self { l1_provider, l2_oracle, l1_rollup, beacon_node, gas_threshold }
     }
 
-    /// Update overhead
+    /// Update commitScalar and blobScalar.
     /// Calculate the user's average cost of the latest rollup and set it to the GasPriceOrale
     /// contract on the L2 network.
-    pub async fn update(&mut self) -> Result<(), OverHeadError> {
-        // Step1. fetch latest batches and calculate overhead.
+    pub async fn update(&mut self) -> Result<(), ScalarError> {
+        // Step1. fetch latest batches and calculate scalar.
         let latest = self.l1_provider.get_block_number().await.map_err(|e| {
-            OverHeadError::Error(anyhow!(format!(
+            ScalarError::Error(anyhow!(format!(
                 "overhead.l1_provider.get_block_number error: {:#?}",
                 e
             )))
@@ -85,52 +71,100 @@ impl OverHeadUpdater {
             U64::from(1)
         };
 
-        let mut latest_overhead = match self.calculate_overhead(start.as_u64()).await {
-            Ok(Some(overhead)) => overhead,
+        let (mut commit_scalar, mut blob_scalar) = match self.calculate_scalar(start.as_u64()).await
+        {
+            Ok(Some(scalar)) => scalar,
             Ok(None) => {
                 return Ok(());
             }
             Err(e) => return Err(e),
         };
 
-        // Step2. fetch current overhead on l2.
-        let current_overhead = self.l2_oracle.overhead().await.map_err(|e| {
-            OverHeadError::Error(anyhow!(format!("query l2_oracle.overhead error: {:#?}", e)))
+        // Step2. fetch current scalar on l2.
+        let current_commit_scalar: U256 = self.l2_oracle.commit_scalar().await.map_err(|e| {
+            ScalarError::Error(anyhow!(format!("query l2_oracle.commit_scalar error: {:#?}", e)))
         })?;
-        log::info!("current overhead on l2 is: {:#?}", current_overhead.as_u128());
-        ORACLE_SERVICE_METRICS.overhead.set(latest_overhead as i64);
 
-        latest_overhead = latest_overhead.min(self.max_overhead as usize);
-        let abs_diff = U256::from(latest_overhead).abs_diff(current_overhead);
-        log::info!(
-            "overhead actual_change = {:#?}, expected_change =  {:#?}",
-            abs_diff,
-            self.overhead_threshold
-        );
+        let current_blob_scalar: U256 = self.l2_oracle.blob_scalar().await.map_err(|e| {
+            ScalarError::Error(anyhow!(format!("query l2_oracle.blob_scalar error: {:#?}", e)))
+        })?;
 
-        if abs_diff < U256::from(self.overhead_threshold) {
-            log::info!(
-                "overhead update abort, diff: {:?} < overhead_threshold: {:?}",
-                abs_diff,
-                self.overhead_threshold
-            );
-            return Ok(())
+        ORACLE_SERVICE_METRICS.overhead.set(current_commit_scalar.as_u64() as i64);
+
+        log::info!("latest commit_scalar: {:?}, latest blob_scalar: {:?}, current_commit_scalar on l2 is: {:?}, current_commit_scalar on l2 is: {:?}", 
+        commit_scalar, blob_scalar, current_commit_scalar.as_u64(), current_blob_scalar.as_u64());
+
+        commit_scalar = commit_scalar.min(MAX_COMMIT_SCALAR);
+        blob_scalar = blob_scalar.min(MAX_BLOB_SCALAR);
+
+        // Step3. set on L2chain
+        if self.check_threshold_reached(commit_scalar, current_commit_scalar.as_u64()) {
+            // Update commit_scalar
+            let tx = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).legacy();
+            let rt = tx.send().await;
+            let pending_tx = match rt {
+                Ok(pending) => {
+                    log::info!("tx of set_commit_scalar has been sent: {:#?}", pending.tx_hash());
+                    pending
+                }
+                Err(e) => {
+                    return Err(ScalarError::Error(anyhow!(format!(
+                        "set_commit_scalar error: {:#?}",
+                        e
+                    ))));
+                }
+            };
+            pending_tx.await.map_err(|e| {
+                ScalarError::Error(anyhow!(format!(
+                    "set_commit_scalar check_receipt error: {:#?}",
+                    e
+                )))
+            })?;
         }
 
-        // Step3. update overhead
-        if self.overhead_switch {
-            let tx = self.l2_oracle.set_overhead(U256::from(latest_overhead)).legacy();
+        if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64()) {
+            // Update blob_scalar
+            let tx = self.l2_oracle.set_blob_scalar(U256::from(commit_scalar)).legacy();
             let rt = tx.send().await;
-            match rt {
-                Ok(info) => log::info!("tx of set_overhead has been sent: {:?}", info.tx_hash()),
-                Err(e) => log::error!("update overhead error: {:#?}", e),
-            }
+            let pending_tx = match rt {
+                Ok(pending) => {
+                    log::info!("tx of set_blob_scalar has been sent: {:#?}", pending.tx_hash());
+                    pending
+                }
+                Err(e) => {
+                    return Err(ScalarError::Error(anyhow!(format!(
+                        "set_blob_scalar error: {:#?}",
+                        e
+                    ))));
+                }
+            };
+            pending_tx.await.map_err(|e| {
+                ScalarError::Error(anyhow!(format!(
+                    "set_blob_scalar check_receipt error: {:#?}",
+                    e
+                )))
+            })?;
         }
 
         Ok(())
     }
 
-    async fn calculate_overhead(&mut self, start: u64) -> Result<Option<usize>, OverHeadError> {
+    fn check_threshold_reached(&mut self, latest: u64, current: u64) -> bool {
+        let actual_change = latest.abs_diff(current);
+        let expected_change = current * self.gas_threshold / 100;
+        if actual_change < expected_change {
+            log::info!(
+                "scalar update abort, actual_change: {:?} < expected_change: {:?}, threshold = {:?}%",
+                actual_change,
+                expected_change,
+                self.gas_threshold
+            );
+            return false;
+        }
+        true
+    }
+
+    async fn calculate_scalar(&mut self, start: u64) -> Result<Option<(u64, u64)>, ScalarError> {
         let filter = self
             .l1_rollup
             .commit_batch_filter()
@@ -139,91 +173,53 @@ impl OverHeadUpdater {
             .address(self.l1_rollup.address());
 
         let mut logs = self.l1_provider.get_logs(&filter).await.map_err(|e| {
-            OverHeadError::Error(anyhow!(format!("overhead.l1_provider.get_logs error: {:#?}", e)))
+            ScalarError::Error(anyhow!(format!("overhead.l1_provider.get_logs error: {:#?}", e)))
         })?;
 
         log::debug!("overhead.l1_provider.submit_batches.get_logs.len ={:#?}", logs.len());
 
         logs.retain(|x| x.transaction_hash.is_some() && x.block_number.is_some());
         if logs.is_empty() {
-            log::warn!("rollup logs for the last 100 blocks of l1 is empty");
-            if self.prev_rollup_info.is_some() {
-                log::info!("calculate overhead from prev rollup");
-                return self.calculate_from_prev_rollup().await;
-            }
-            log::warn!(
-                "rollup logs for the last 100 blocks of l1 is empty and prev_rollup_info is none, skip update"
-            );
+            log::warn!("rollup logs for the last 100 blocks of l1 is empty, skip update");
             return Ok(None);
         }
 
         let log = logs.iter().max_by_key(|log| log.block_number.unwrap()).ok_or_else(|| {
-            OverHeadError::Error(anyhow!(format!(
+            ScalarError::Error(anyhow!(format!(
                 "no submit batches logs, start blocknum ={:#?}",
                 start
             )))
         })?;
 
-        let latest_overhead = self
-            .calculate_from_current_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
+        let (commit_scalar, blob_scalar) = self
+            .calculate_from_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
             .await
             .map_err(|e| {
                 log::info!(
-                    "last_overhead is none, skip update, tx_hash ={:#?}",
+                    "scalar is none, skip update, tx_hash ={:#?}",
                     log.transaction_hash.unwrap()
                 );
                 e
             })?;
 
-        Ok(Some(latest_overhead))
+        Ok(Some((commit_scalar, blob_scalar)))
     }
 
-    async fn calculate_from_prev_rollup(&mut self) -> Result<Option<usize>, OverHeadError> {
-        let latest_block = self
-            .l1_provider
-            .get_block(BlockNumber::Latest)
-            .await
-            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
-            .ok_or_else(|| {
-                OverHeadError::Error(anyhow!(format!("l1 latest block info is none.")))
-            })?;
-
-        let excess_blob_gas = latest_block.excess_blob_gas.unwrap_or_default();
-
-        let blob_fee = calc_blob_gasprice(excess_blob_gas.as_u64());
-
-        let gas_price = self.l1_provider.get_gas_price().await.unwrap_or_default();
-
-        let prev_rollup = self.prev_rollup_info.as_ref().unwrap();
-
-        //Step4. Calculate overhead
-        let x: f64 = blob_fee as f64 / gas_price.as_u128() as f64;
-        let overhead = calc_tx_overhead(
-            prev_rollup.gas_used,
-            MAX_BLOB_TX_PAYLOAD_SIZE as f64,
-            x,
-            prev_rollup.l2_data_gas_used,
-            prev_rollup.l2_txn,
-        );
-
-        Ok(Some(overhead as usize))
-    }
-
-    async fn calculate_from_current_rollup(
+    async fn calculate_from_rollup(
         &mut self,
         tx_hash: TxHash,
         block_num: U64,
-    ) -> Result<usize, OverHeadError> {
+    ) -> Result<(u64, u64), ScalarError> {
         //Step1.  Get transaction
         let tx = self
             .l1_provider
             .get_transaction(tx_hash)
             .await
             .map_err(|e| {
-                OverHeadError::Error(anyhow!(format!("l1_provider.get_transaction err: {:#?}", e)))
+                ScalarError::Error(anyhow!(format!("l1_provider.get_transaction err: {:#?}", e)))
             })?
             .ok_or_else(|| {
-                OverHeadError::Error(anyhow!(format!(
+                ScalarError::Error(anyhow!(format!(
                     "ll1_provider.get_transaction is none, tx_hash= {:#?}",
                     tx_hash
                 )))
@@ -234,13 +230,13 @@ impl OverHeadUpdater {
         //Step2. Parse transaction data
         let data = tx.input;
         if data.is_empty() {
-            return Err(OverHeadError::Error(anyhow!(format!(
+            return Err(ScalarError::Error(anyhow!(format!(
                 "overhead_inspect tx.input is empty, tx_hash= {:#?}",
                 tx_hash
             ))));
         }
         let param = CommitBatchCall::decode(&data).map_err(|e| {
-            OverHeadError::Error(anyhow!(format!(
+            ScalarError::Error(anyhow!(format!(
                 "overhead_inspect decode tx.input error, tx_hash= {:#?}, err= {:#?}",
                 tx_hash, e
             )))
@@ -262,9 +258,9 @@ impl OverHeadUpdater {
             .l1_provider
             .get_transaction_receipt(tx_hash)
             .await
-            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
+            .map_err(|e| ScalarError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
-                OverHeadError::Error(anyhow!(format!(
+                ScalarError::Error(anyhow!(format!(
                     "l1 get transaction receipt return none, tx_hash= {:#?}",
                     tx_hash
                 )))
@@ -273,75 +269,31 @@ impl OverHeadUpdater {
         // rollup_gas_used
         let rollup_gas_used = blob_tx_receipt.gas_used.unwrap_or_default();
         if rollup_gas_used.is_zero() {
-            return Err(OverHeadError::Error(anyhow!(format!(
+            return Err(ScalarError::Error(anyhow!(format!(
                 "blob tx calldata gas_used is none or 0, tx_hash = {:#?}",
                 tx_hash
             ))));
         }
 
-        // blob_gas_price
-        let blob_gas_price = blob_tx_receipt
-            .other
-            .get_with("blobGasPrice", serde_json::from_value::<U256>)
-            .unwrap_or(Ok(U256::zero()))
-            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?;
-
-        if blob_gas_price.is_zero() {
-            return Err(OverHeadError::Error(anyhow!(format!(
-                "blob tx blob_gas_price is none or 0, tx_hash = {:#?}",
-                tx_hash
-            ))));
-        }
-
-        // effective_gas_price
-        let effective_gas_price = blob_tx_receipt.effective_gas_price.unwrap_or_default();
-        if effective_gas_price.is_zero() {
-            return Err(OverHeadError::Error(anyhow!(format!(
-                "blob tx calldata effective_gas_price is none or 0, tx_hash = {:#?}",
-                tx_hash
-            ))));
-        }
-
-        //Step4. Calculate overhead
-        let x: f64 = blob_gas_price.as_u128() as f64 / effective_gas_price.as_u128() as f64;
-
-        let overhead = calc_tx_overhead(
-            rollup_gas_used.as_u128(),
-            MAX_BLOB_TX_PAYLOAD_SIZE as f64,
-            x,
-            l2_data_gas,
-            l2_txn,
-        );
-
-        let prev_rollup = PrevRollupInfo {
-            gas_used: rollup_gas_used.as_u128(),
-            l2_data_gas_used: l2_data_gas,
-            l2_txn,
-        };
-
-        self.prev_rollup_info = Some(prev_rollup);
-
-        let blob_fee_ratio = (MAX_BLOB_TX_PAYLOAD_SIZE as f64 * blob_gas_price.as_u128() as f64)
-            .ceil() /
-            ((rollup_gas_used * effective_gas_price).as_usize() as f64);
+        //Step4. Calculate scalar
+        let commit_scalar =
+            rollup_gas_used.as_u64() + FINALIZE_BATCH_GAS_USED / l2_txn.max(*TXN_PER_BATCH);
+        let blob_scalar = l2_data_gas / MAX_BLOB_TX_PAYLOAD_SIZE as u64;
 
         log::info!(
-            "rollup blob tx: {:?} in block: {:?}, rollup_gas_used: {:?}, sum(tx_data_gas):{:?}, blob_gas_price: {:?}, effective_gas_price: {:?}, lastest_overhead: {:?}, x: {:?}, l2_txn: {:?}, blob_fee_ratio: {}",
+            "rollup blob tx: {:?} in block: {:?}, rollup_gas_used: {:?}, sum(tx_data_gas):{:?},  commit_scalar: {:?}, blob_scalar: {:?}, l2_txn: {:?}",
             tx_hash,
             block_num,
             rollup_gas_used,
             l2_data_gas,
-            blob_gas_price,
-            effective_gas_price,
-            overhead,
-            x,
-            l2_txn,
-            format!("{:.5}", blob_fee_ratio)
+            commit_scalar,
+            blob_scalar,
+            l2_txn
         );
 
         // Set metric
         ORACLE_SERVICE_METRICS.txn_per_batch.set(l2_txn as f64);
-        Ok(overhead as usize)
+        Ok((commit_scalar * PRECISION, blob_scalar * PRECISION))
     }
 
     async fn calculate_l2_data_gas_from_blob(
@@ -349,7 +301,7 @@ impl OverHeadUpdater {
         tx_hash: TxHash,
         block_num: U64,
         l2_txn: u64,
-    ) -> Result<u64, OverHeadError> {
+    ) -> Result<u64, ScalarError> {
         if l2_txn == 0 {
             return Ok(0);
         }
@@ -357,9 +309,9 @@ impl OverHeadUpdater {
             .l1_provider
             .get_transaction(tx_hash)
             .await
-            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
+            .map_err(|e| ScalarError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
-                OverHeadError::Error(anyhow!(format!(
+                ScalarError::Error(anyhow!(format!(
                     "l1 get transaction return none, tx_hash: {:#?}",
                     tx_hash
                 )))
@@ -369,9 +321,9 @@ impl OverHeadUpdater {
             .l1_provider
             .get_block_with_txs(BlockNumber::Number(block_num))
             .await
-            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
+            .map_err(|e| ScalarError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
-                OverHeadError::Error(anyhow!(format!(
+                ScalarError::Error(anyhow!(format!(
                     "l1 get block info return none, block_num: {:#?}",
                     block_num
                 )))
@@ -393,7 +345,7 @@ impl OverHeadUpdater {
                 if let Some(beacon_blk_root) = info.parent_beacon_block_root {
                     break beacon_blk_root;
                 } else {
-                    return Err(OverHeadError::Error(anyhow!(format!(
+                    return Err(ScalarError::Error(anyhow!(format!(
                         "next block info's pre_beacon_root is none, block number: {:?}",
                         next_block_num
                     ))));
@@ -409,7 +361,7 @@ impl OverHeadUpdater {
                 );
                 continue;
             } else {
-                return Err(OverHeadError::Error(anyhow!(format!(
+                return Err(ScalarError::Error(anyhow!(format!(
                     "maximum number of requests next block info reached: {:?}, block number:{:?}",
                     retry_times, next_block_num
                 ))));
@@ -423,14 +375,14 @@ impl OverHeadUpdater {
             .await?;
 
         let sidecars: &Vec<Value> = sidecars_rt["data"].as_array().ok_or_else(|| {
-            OverHeadError::Error(anyhow!(format!(
+            ScalarError::Error(anyhow!(format!(
                 "blob_sidecars is none, blk_num: {:?}, blk_root: {:?}",
                 block_num, prev_beacon_root
             )))
         })?;
 
         if sidecars.is_empty() {
-            return Err(OverHeadError::Error(anyhow!(format!(
+            return Err(ScalarError::Error(anyhow!(format!(
                 "blob_sidecars is empty, blk_num: {:?}, blk_root: {:?}",
                 block_num, prev_beacon_root
             ))));
@@ -462,8 +414,7 @@ mod tests {
 
         let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env empty");
         let l2_rpc = var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env empty");
-        let overhead_threshold =
-            var("OVERHEAD_THRESHOLD").expect("OVERHEAD_THRESHOLD env empty").parse().unwrap();
+        let gas_threshold = var("GAS_THRESHOLD").expect("GAS_THRESHOLD env empty").parse().unwrap();
         let l1_rollup_address =
             Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env empty")).unwrap();
         let l2_oracle_address =
@@ -485,21 +436,19 @@ mod tests {
 
         let l2_oracle_contract = GasPriceOracle::new(l2_oracle_address, l2_signer);
 
-        let mut overhead: OverHeadUpdater = OverHeadUpdater::new(
+        let mut overhead: ScalarUpdater = ScalarUpdater::new(
             l1_provider,
             l2_oracle_contract,
             l1_rollup_contract,
-            overhead_threshold,
             var("GAS_ORACLE_L1_BEACON_RPC")
                 .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env empty")
                 .parse()
                 .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var empty"),
-            false,
-            200000u128,
+            gas_threshold,
         );
 
         let latest_overhead =
-            overhead.calculate_from_current_rollup(rollup_tx_hash, rollup_tx_block_num).await;
+            overhead.calculate_from_rollup(rollup_tx_hash, rollup_tx_block_num).await;
 
         log::info!("latest_overhead: {:#?}", latest_overhead);
     }

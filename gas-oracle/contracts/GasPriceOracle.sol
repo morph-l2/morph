@@ -18,6 +18,12 @@ contract GasPriceOracle is Ownable {
     uint256 public overhead;
     // Value to scale the fee up by
     uint256 public scalar;
+
+    uint256 public l1BlobBaseFee;
+
+    uint256 public commitScalar;
+
+    uint256 public blobScalar;
     // Enable permission list
     bool public allowListEnabled;
     // Address list with permission to update price oracle.
@@ -92,5 +98,25 @@ contract GasPriceOracle is Ownable {
     function setScalar(uint256 _scalar) external onlyAllowed {
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
+    }
+
+    function setL1BaseFeeAndBlobBaseFee(
+        uint256 _l1BaseFee,
+        uint256 _l1BlobBaseFee
+    ) external onlyAllowed {
+        l1BaseFee = _l1BaseFee;
+        l1BlobBaseFee = _l1BlobBaseFee;
+    }
+
+    /// Allows the owner to modify the commit scalar.
+    /// @param _scalar New scalar
+    function setCommitScalar(uint256 _scalar) external onlyAllowed {
+        commitScalar = _scalar;
+    }
+
+    /// Allows the owner to modify the blob scalar.
+    /// @param _scalar New scalar
+    function setBlobScalar(uint256 _scalar) external onlyAllowed {
+        blobScalar = _scalar;
     }
 }
