@@ -9,6 +9,7 @@ import { ethers } from "ethers"
 import { assertContractVariable, getContractAddressByName, awaitCondition, storage } from "../src/deploy-utils"
 import { ImplStorageName, ProxyStorageName, ContractFactoryName } from "../src/types"
 import { predeploys } from "../src"
+import { hexlify } from "ethers/lib/utils";
 
 task("rollup-deploy-init")
     .addParam("storagepath")
@@ -57,8 +58,32 @@ task("rollup-deploy-init")
 
         // ------------------ deploy MultipleVersionRollupVerifier -----------------
         {
+            // deploy ZkEvmVerifierV1
+            const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
+            const implStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
+            const network = hre.network.name
+            const bytecode = hexlify(fs.readFileSync(`./contracts/libraries/verifier/plonk-verifier/${network}/plonk_verifier_0.10.3.bin`));
+            const tx = await deployer.sendTransaction({ data: bytecode });
+            const receipt = await tx.wait();
+            console.log("%s=%s ; TX_HASH: %s", "plonk_verifier.bin", receipt.contractAddress.toLocaleLowerCase(), tx.hash);
+
+            const Factory = await hre.ethers.getContractFactory(ZkEvmVerifierV1ContractFactoryName)
+            const contract = await Factory.deploy(receipt.contractAddress)
+            await contract.deployed()
+            console.log("%s=%s ; TX_HASH: %s", implStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+            // check params
+            await assertContractVariable(contract, 'PLONK_VERIFIER', receipt.contractAddress)
+            let blockNumber = await hre.ethers.provider.getBlockNumber()
+            console.log("BLOCK_NUMBER: %s", blockNumber)
+            let err = await storage(newPath, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+            if (err != '') {
+                return err
+            }
+
+
+           // deploy MultipleVersionRollupVerifier
             const ZkEvmVerifierV1Address = getContractAddressByName(
-                storagePath,
+                newPath,
                 ImplStorageName.ZkEvmVerifierV1StorageName
             )
             const MultipleVersionRollupVerifierFactoryName = ContractFactoryName.MultipleVersionRollupVerifier
@@ -640,8 +665,8 @@ task("check-params")
 task("impl-test")
     .setAction(async (taskArgs, hre) => {
         const deployer = hre.ethers.provider.getSigner()
-        const V1Factory =await hre.ethers.getContractFactory("TestUpgradeV1")
-        const V2Factory =await hre.ethers.getContractFactory("TestUpgradeV2")
+        const V1Factory = await hre.ethers.getContractFactory("TestUpgradeV1")
+        const V2Factory = await hre.ethers.getContractFactory("TestUpgradeV2")
 
         const v1Impl = await V1Factory.deploy()
         await v1Impl.deployed()
@@ -652,7 +677,7 @@ task("impl-test")
         const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
         const proxyAdmin = await ProxyAdminFactory.deploy()
         await proxyAdmin.deployed()
-        const ProxyFactory =await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
+        const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
         const proxy = await ProxyFactory.deploy(v1Impl.address, await deployer.getAddress(), "0x")
         await proxy.deployed()
         const IProxyContract = await hre.ethers.getContractAt(
@@ -674,10 +699,10 @@ task("impl-test")
                 factory.interface,
                 hre.ethers.provider,
             )
-            let va = await contractTmp.va({from: hre.ethers.constants.AddressZero})
-            let vb = await contractTmp.vb({from: hre.ethers.constants.AddressZero})
-            let vc = await contractTmp.vc({from: hre.ethers.constants.AddressZero})
-            let version = await contractTmp.version({from: hre.ethers.constants.AddressZero})
+            let va = await contractTmp.va({ from: hre.ethers.constants.AddressZero })
+            let vb = await contractTmp.vb({ from: hre.ethers.constants.AddressZero })
+            let vc = await contractTmp.vc({ from: hre.ethers.constants.AddressZero })
+            let version = await contractTmp.version({ from: hre.ethers.constants.AddressZero })
             console.log(`va ${va} ; vb ${vb} ; vc ${vc} ; version ${version}`)
         }
         let contract = new ethers.Contract(
@@ -692,7 +717,7 @@ task("impl-test")
 
         // upgrade
         {
-            const res = await proxyAdmin.upgrade(proxy.address,v2Impl.address)
+            const res = await proxyAdmin.upgrade(proxy.address, v2Impl.address)
             const rec = await res.wait()
             console.log(`upgrade to v2 impl ${rec.status === 1}`)
         }
@@ -704,7 +729,7 @@ task("impl-test")
         res = await contract.setVersion(101)
         rec = await res.wait()
         console.log(`update version to 101 ${rec.status === 1}`)
-         res = await contract.setOtherVersion(99)
+        res = await contract.setOtherVersion(99)
         rec = await res.wait()
         console.log(`update otherVersion to 99 ${rec.status === 1}`)
         console.log("upgrade success")
@@ -800,7 +825,7 @@ task("sequencer-deploy")
 
         // l2Config
         let addresses = []
-        for (let i=0;i<l2Config.l2StakingAddresses.length;i++){
+        for (let i = 0; i < l2Config.l2StakingAddresses.length; i++) {
             addresses.push(l2Config.l2StakingAddresses[i])
         }
         const res = await proxyAdmin.upgradeAndCall(
@@ -857,7 +882,7 @@ task("l2-staking-deploy")
         await staking.deployed()
 
         let infos = []
-        for (let i=0;i<l2Config.l2StakingAddresses.length;i++){
+        for (let i = 0; i < l2Config.l2StakingAddresses.length; i++) {
             let info = {
                 addr: l2Config.l2StakingAddresses[i],
                 tmKey: l2Config.l2StakingTmKeys[i],
