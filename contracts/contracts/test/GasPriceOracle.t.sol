@@ -24,7 +24,7 @@ contract GasPriceOracleTest is Test {
      * @notice upgrade to new implementation
      */
     function test_upgradeToNewImplementation_succeeds() public {
-        string memory MORPH_HOLESKY_RPC_URL = vm.envString("HOLESKY_RPC_URL");
+        string memory MORPH_HOLESKY_RPC_URL = vm.envOr("HOLESKY_RPC_URL", string(""));
         bytes memory testUrl = bytes(MORPH_HOLESKY_RPC_URL);
         if (testUrl.length != 0) {
             uint256 morphTestnetFork = vm.createFork(MORPH_HOLESKY_RPC_URL);
@@ -89,9 +89,8 @@ contract GasPriceOracleTest is Test {
         _gasPriceOracle.setCommitScalar(1000);
         assertEq(_gasPriceOracle.commitScalar(), 1000);
 
-        address newOp = address(300);
         address[] memory allowList = new address[](1);
-        allowList[0] = newOp;
+        allowList[0] = alice;
 
         bool[] memory allowed = new bool[](1);
         allowed[0] = true;
@@ -99,7 +98,7 @@ contract GasPriceOracleTest is Test {
         _gasPriceOracle.setAllowList(allowList, allowed);
 
         assertTrue(_gasPriceOracle.isAllowed(bob));
-        assertTrue(_gasPriceOracle.isAllowed(newOp));
+        assertTrue(_gasPriceOracle.isAllowed(alice));
     }
 
     /**
@@ -207,47 +206,94 @@ contract GasPriceOracleTest is Test {
         assertEq(1, gasPriceOracle.scalar());
     }
 
-    // /**
-    //  * @notice getL1GasUsed
-    //  */
-    // function test_getL1GasUsed_works() public {
-    //     uint256 overhead = gasPriceOracle.overhead();
+    /**
+     * @notice setL1BaseFeeAndBlobBaseFee
+     */
+    function test_setL1BaseFeeAndBlobBaseFee_works() public {
+        vm.expectRevert(bytes4(keccak256("ErrCallerNotAllowed()")));
+        vm.prank(alice);
+        gasPriceOracle.setL1BaseFeeAndBlobBaseFee(100, 200);
 
-    //     bytes memory data = hex"0000";
-    //     uint256 expected = overhead + 4 * 2 + (16 * 4);
-    //     uint256 gasUsed = gasPriceOracle.getL1GasUsed(data);
-    //     assertEq(gasUsed, expected);
+        vm.prank(multisig);
+        gasPriceOracle.setL1BaseFeeAndBlobBaseFee(100, 200);
+        assertEq(100, gasPriceOracle.l1BaseFee());
+        assertEq(200, gasPriceOracle.l1BlobBaseFee());
+    }
 
-    //     data = hex"0001";
-    //     expected = overhead + 4 + 16 + (16 * 4);
-    //     gasUsed = gasPriceOracle.getL1GasUsed(data);
-    //     assertEq(gasUsed, expected);
+    /**
+     * @notice setCommitScalar
+     */
+    function test_setCommitScalar_works() public {
+        vm.expectRevert(bytes4(keccak256("ErrCallerNotAllowed()")));
+        vm.prank(alice);
+        gasPriceOracle.setCommitScalar(100);
 
-    //     data = hex"0101";
-    //     expected = overhead + 16 + 16 + (16 * 4);
-    //     gasUsed = gasPriceOracle.getL1GasUsed(data);
-    //     assertEq(gasUsed, expected);
-    // }
+        vm.prank(multisig);
+        vm.expectRevert(bytes4(keccak256("ErrExceedMaxCommitScalar()")));
+        gasPriceOracle.setCommitScalar(10 ** 9 * 1e9 + 1);
 
-    // /**
-    //  * @notice getL1Fee
-    //  */
-    // function test_getL1Fee_works() public {
-    //     bytes memory data = hex"0101";
-    //     uint256 expected = gasPriceOracle.overhead() + 16 + 16 + (16 * 4);
-    //     uint256 gasUsed = gasPriceOracle.getL1GasUsed(data);
-    //     assertEq(gasUsed, expected);
+        vm.prank(multisig);
+        gasPriceOracle.setCommitScalar(100);
+        assertEq(100, gasPriceOracle.commitScalar());
+    }
 
-    //     vm.prank(multisig);
-    //     gasPriceOracle.setL1BaseFee(100);
-    //     assertEq(100, gasPriceOracle.l1BaseFee());
+    /**
+     * @notice setBlobScalar
+     */
+    function test_setBlobScalar_works() public {
+        vm.expectRevert(bytes4(keccak256("ErrCallerNotAllowed()")));
+        vm.prank(alice);
+        gasPriceOracle.setBlobScalar(100);
 
-    //     vm.prank(multisig);
-    //     gasPriceOracle.setScalar(5e9);
-    //     assertEq(5e9, gasPriceOracle.scalar());
+        vm.prank(multisig);
+        vm.expectRevert(bytes4(keccak256("ErrExceedMaxBlobScalar()")));
+        gasPriceOracle.setBlobScalar(10 ** 9 * 1e9 + 1);
 
-    //     uint256 l1Fee = gasPriceOracle.getL1Fee(data);
-    //     expected = (gasPriceOracle.l1BaseFee() * gasUsed * gasPriceOracle.scalar()) / 1e9;
-    //     assertEq(l1Fee, expected);
-    // }
+        vm.prank(multisig);
+        gasPriceOracle.setBlobScalar(100);
+        assertEq(100, gasPriceOracle.blobScalar());
+    }
+
+    /**
+     * @notice getL1GasUsed
+     */
+    function test_getL1GasUsed_works() public {
+        uint256 overhead = gasPriceOracle.overhead();
+
+        bytes memory data = hex"0000";
+        uint256 expected = overhead + 4 * 2 + (16 * 4);
+        uint256 gasUsed = gasPriceOracle.getL1GasUsed(data);
+        assertEq(gasUsed, expected);
+
+        data = hex"0001";
+        expected = overhead + 4 + 16 + (16 * 4);
+        gasUsed = gasPriceOracle.getL1GasUsed(data);
+        assertEq(gasUsed, expected);
+
+        data = hex"0101";
+        expected = overhead + 16 + 16 + (16 * 4);
+        gasUsed = gasPriceOracle.getL1GasUsed(data);
+        assertEq(gasUsed, expected);
+    }
+
+    /**
+     * @notice getL1Fee
+     */
+    function test_getL1Fee_works() public {
+        bytes memory data = hex"0101";
+
+        uint256 commitScalar = 200;
+        uint256 l1BaseFee = 8 gwei;
+        uint256 blobScalar = 400;
+        uint256 l1BlobBaseFee = 50 gwei;
+        vm.startPrank(multisig);
+        gasPriceOracle.setL1BaseFeeAndBlobBaseFee(l1BaseFee, l1BlobBaseFee);
+        gasPriceOracle.setCommitScalar(commitScalar);
+        gasPriceOracle.setBlobScalar(blobScalar);
+
+        uint256 expectedFee = (commitScalar * l1BaseFee + blobScalar * data.length * l1BlobBaseFee) / 1e9;
+
+        uint256 l1DataFee = gasPriceOracle.getL1Fee(data);
+        assertEq(expectedFee, l1DataFee);
+    }
 }

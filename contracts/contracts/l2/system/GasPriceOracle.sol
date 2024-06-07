@@ -55,7 +55,7 @@ contract GasPriceOracle is Ownable {
     uint256 public l1BlobBaseFee;
     /// commit scalar
     uint256 public commitScalar;
-    /// bloc scalar
+    /// blob scalar
     uint256 public blobScalar;
 
     /*//////////////////////////////////////////////////////////////
@@ -106,9 +106,7 @@ contract GasPriceOracle is Ownable {
                              ALLOWLIST
     //////////////////////////////////////////////////////////////*/
     function setAllowList(address[] memory user, bool[] memory val) external onlyOwner {
-        if (user.length != val.length) {
-            revert ErrDifferentLength();
-        }
+        if (user.length != val.length) revert ErrDifferentLength();
 
         for (uint256 i = 0; i < user.length; i++) {
             isAllowed[user[i]] = val[i];
@@ -117,9 +115,8 @@ contract GasPriceOracle is Ownable {
     }
 
     function setAllowListEnabled(bool _allowListEnabled) external onlyOwner {
-        if (_allowListEnabled == allowListEnabled) {
-            revert ErrSettintSameValue();
-        }
+        if (_allowListEnabled == allowListEnabled) revert ErrSettintSameValue();
+
         allowListEnabled = _allowListEnabled;
         emit AllowListEnabledUpdated(_allowListEnabled);
     }
