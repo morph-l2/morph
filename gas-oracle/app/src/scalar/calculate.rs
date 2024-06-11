@@ -121,32 +121,6 @@ pub(super) fn extract_txn_num(chunks: Vec<Bytes>) -> Option<u64> {
     Some((txn_in_batch - l1_txn_in_batch) as u64)
 }
 
-pub(super) fn data_gas_cost(data: &[u8]) -> u64 {
-    if data.is_empty() {
-        return 0;
-    }
-    let (zeroes, ones) = zeroes_and_ones(data);
-    // 4 Paid for every zero byte of data or code for a transaction.
-    // 16 Paid for every non-zero byte of data or code for a transaction.
-    let zeroes_gas = zeroes * 4;
-    let ones_gas = ones * 16;
-    zeroes_gas + ones_gas
-}
-
-fn zeroes_and_ones(data: &[u8]) -> (u64, u64) {
-    let mut zeroes = 0;
-    let mut ones = 0;
-
-    for &byt in data {
-        if byt == 0 {
-            zeroes += 1;
-        } else {
-            ones += 1;
-        }
-    }
-    (zeroes, ones)
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 struct BlockInfo {
     block_number: U256,
@@ -190,7 +164,6 @@ pub(super) fn data_and_hashes_from_txs(
     }
     hashes
 }
-
 
 #[allow(dead_code)]
 pub(super) fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {

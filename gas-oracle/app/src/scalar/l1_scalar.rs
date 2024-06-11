@@ -3,7 +3,7 @@ use tokio::time::{sleep, Duration};
 
 use super::{
     blob_client::BeaconNode,
-    calculate::{data_and_hashes_from_txs, data_gas_cost, extract_tx_payload, extract_txn_num},
+    calculate::{data_and_hashes_from_txs, extract_tx_payload, extract_txn_num},
     error::ScalarError,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
@@ -91,7 +91,7 @@ impl ScalarUpdater {
 
         ORACLE_SERVICE_METRICS.overhead.set(current_commit_scalar.as_u64() as i64);
 
-        log::info!("latest commit_scalar: {:?}, latest blob_scalar: {:?}, current_commit_scalar on l2 is: {:?}, current_commit_scalar on l2 is: {:?}", 
+        log::info!("latest commit_scalar: {:?}, latest blob_scalar: {:?}, current_commit_scalar on l2 is: {:?}, current_blob_scalar on l2 is: {:?}", 
         commit_scalar, blob_scalar, current_commit_scalar.as_u64(), current_blob_scalar.as_u64());
 
         commit_scalar = commit_scalar.min(MAX_COMMIT_SCALAR);
@@ -124,7 +124,7 @@ impl ScalarUpdater {
 
         if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64()) {
             // Update blob_scalar
-            let tx = self.l2_oracle.set_blob_scalar(U256::from(commit_scalar)).legacy();
+            let tx = self.l2_oracle.set_blob_scalar(U256::from(blob_scalar)).legacy();
             let rt = tx.send().await;
             let pending_tx = match rt {
                 Ok(pending) => {
@@ -246,11 +246,11 @@ impl ScalarUpdater {
         let l2_txn = extract_txn_num(chunks).unwrap_or(0);
 
         //Step3. Calculate l2 data gas
-        let l2_data_gas = self
-            .calculate_l2_data_gas_from_blob(tx_hash, block_num, l2_txn)
+        let l2_data_len = self
+            .calculate_l2_data_len_from_blob(tx_hash, block_num, l2_txn)
             .await
             .map_err(|e| {
-                log::error!("calculate_l2_data_gas_from_blob error: {:#?}", e);
+                log::error!("calculate_l2_data_len_from_blob error: {:#?}", e);
                 e
             })?;
 
@@ -276,27 +276,31 @@ impl ScalarUpdater {
         }
 
         //Step4. Calculate scalar
-        let commit_scalar =
-            rollup_gas_used.as_u64() + FINALIZE_BATCH_GAS_USED / l2_txn.max(*TXN_PER_BATCH);
-        let blob_scalar = l2_data_gas / MAX_BLOB_TX_PAYLOAD_SIZE as u64;
+        let commit_scalar = (rollup_gas_used.as_u64() + FINALIZE_BATCH_GAS_USED) * PRECISION /
+            l2_txn.max(*TXN_PER_BATCH);
+        let blob_scalar = if l2_data_len > 0 {
+            MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
+        } else {
+            MAX_BLOB_SCALAR
+        };
 
         log::info!(
-            "rollup blob tx: {:?} in block: {:?}, rollup_gas_used: {:?}, sum(tx_data_gas):{:?},  commit_scalar: {:?}, blob_scalar: {:?}, l2_txn: {:?}",
+            "rollup blob tx: {:?} in block: {:?}, rollup_gas_used: {:?}, l2_txn: {:?}, l2_data_len:{:?}, commit_scalar: {:.4}g, blob_scalar: {:.4}g",
             tx_hash,
             block_num,
             rollup_gas_used,
-            l2_data_gas,
-            commit_scalar,
-            blob_scalar,
-            l2_txn
+            l2_txn,
+            l2_data_len,
+            commit_scalar as f64/PRECISION as f64,
+            blob_scalar as f64/PRECISION as f64,
         );
 
         // Set metric
         ORACLE_SERVICE_METRICS.txn_per_batch.set(l2_txn as f64);
-        Ok((commit_scalar * PRECISION, blob_scalar * PRECISION))
+        Ok((commit_scalar, blob_scalar))
     }
 
-    async fn calculate_l2_data_gas_from_blob(
+    async fn calculate_l2_data_len_from_blob(
         &self,
         tx_hash: TxHash,
         block_num: U64,
@@ -390,9 +394,7 @@ impl ScalarUpdater {
 
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
 
-        let tx_payload_gas = data_gas_cost(&tx_payload);
-
-        Ok(tx_payload_gas)
+        Ok(tx_payload.len() as u64)
     }
 }
 
