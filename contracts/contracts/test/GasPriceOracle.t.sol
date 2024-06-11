@@ -16,6 +16,12 @@ contract GasPriceOracleTest is Test {
     address internal alice = address(500);
     address internal bob = address(200);
 
+    uint256 private constant PRECISION = 1e9;
+    uint256 private constant MAX_OVERHEAD = 30000000 / 16;
+    uint256 private constant MAX_SCALAR = 1000 * PRECISION;
+    uint256 private constant MAX_COMMIT_SCALAR = 10 ** 9 * PRECISION;
+    uint256 private constant MAX_BLOB_SCALAR = 10 ** 9 * PRECISION;
+
     function setUp() public virtual {
         gasPriceOracle = new GasPriceOracle(multisig);
     }
@@ -279,19 +285,25 @@ contract GasPriceOracleTest is Test {
     /**
      * @notice getL1Fee
      */
-    function test_getL1Fee_works() public {
-        bytes memory data = hex"0101";
+    function test_getL1Fee_works(
+        uint256 l1BaseFee,
+        uint256 l1BlobBaseFee,
+        uint256 commitScalar,
+        uint256 blobScalar,
+        bytes memory data
+    ) public {
+        l1BaseFee = bound(l1BaseFee, 0, 20000 gwei); // max 20k gwei
+        l1BlobBaseFee = bound(l1BlobBaseFee, 0, 20000 gwei); // max 20k gwei
+        commitScalar = bound(commitScalar, 0, MAX_COMMIT_SCALAR);
+        blobScalar = bound(blobScalar, 0, MAX_BLOB_SCALAR);
 
-        uint256 commitScalar = 200;
-        uint256 l1BaseFee = 8 gwei;
-        uint256 blobScalar = 400;
-        uint256 l1BlobBaseFee = 50 gwei;
         vm.startPrank(multisig);
         gasPriceOracle.setL1BaseFeeAndBlobBaseFee(l1BaseFee, l1BlobBaseFee);
         gasPriceOracle.setCommitScalar(commitScalar);
         gasPriceOracle.setBlobScalar(blobScalar);
+        vm.stopPrank();
 
-        uint256 expectedFee = (commitScalar * l1BaseFee + blobScalar * data.length * l1BlobBaseFee) / 1e9;
+        uint256 expectedFee = (commitScalar * l1BaseFee + blobScalar * data.length * l1BlobBaseFee) / PRECISION;
 
         uint256 l1DataFee = gasPriceOracle.getL1Fee(data);
         assertEq(expectedFee, l1DataFee);
