@@ -2,6 +2,7 @@
 pragma solidity =0.8.24;
 
 import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
@@ -11,6 +12,7 @@ import {L1WETHGateway} from "../l1/gateways/L1WETHGateway.sol";
 import {IL2ERC20Gateway} from "../l2/gateways/IL2ERC20Gateway.sol";
 import {IL1ERC20Gateway} from "../l1/gateways/IL1ERC20Gateway.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
+import {Constants} from "../libraries/constants/Constants.sol";
 
 contract L1WETHGatewayTest is L1GatewayBaseTest {
     WETH private l1weth;
@@ -42,6 +44,103 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         l1weth.deposit{value: address(this).balance / 2}();
         l1weth.approve(address(gateway), type(uint256).max);
         l1weth.approve(address(router), type(uint256).max);
+    }
+
+    function test_initialize_revert() public {
+        // Verify initialize can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        gateway.initialize(address(1), address(1), address(1));
+
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for L1WETHGateway.
+        TransparentUpgradeableProxy l1WETHGatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L1WETHGateway contract.
+        L1WETHGateway l1WETHGatewayImplTemp = new L1WETHGateway(address(l1weth), address(l2weth));
+        
+        // Expect revert due to zero router address.
+        hevm.expectRevert("zero router address");
+        ITransparentUpgradeableProxy(address(l1WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(l1WETHGatewayImplTemp),
+            abi.encodeCall(
+                L1WETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0), // _router
+                    address(NON_ZERO_ADDRESS) // _messenger
+                )
+            )
+        );
+        
+        // Expect revert due to zero counterpart address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l1WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(l1WETHGatewayImplTemp),
+            abi.encodeCall(
+                L1WETHGateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(NON_ZERO_ADDRESS), // _router
+                    address(NON_ZERO_ADDRESS) // _messenger
+                )
+            )
+        );
+
+        // Expect revert due to zero messenger address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l1WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(l1WETHGatewayImplTemp),
+            abi.encodeCall(
+                L1WETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(NON_ZERO_ADDRESS), // _router
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_succeed() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for the L1WETHGateway.
+        TransparentUpgradeableProxy l1WETHGatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L1WETHGateway contract.
+        L1WETHGateway l1WETHGatewayImplTemp = new L1WETHGateway(address(l1weth), address(l2weth));
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l1WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(l1WETHGatewayImplTemp),
+            abi.encodeCall(
+                L1WETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l1GatewayRouter), // _router
+                    address(l1CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Cast the proxy contract address to the L1WETHGateway contract type to call its methods.
+        L1WETHGateway l1WETHGatewayTemp = L1WETHGateway(payable(address(l1WETHGatewayProxyTemp)));
+        hevm.stopPrank();
+        
+        // Verify the counterpart, router and messenger are initialized successfully.
+        assertEq(l1WETHGatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l1WETHGatewayTemp.router(), address(l1GatewayRouter));
+        assertEq(l1WETHGatewayTemp.messenger(), address(l1CrossDomainMessenger));
     }
 
     function test_directTransferETH_onlyWeth_fails(uint256 amount) public {
@@ -240,6 +339,80 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         assertEq(messengerBalance - amount, address(l1CrossDomainMessenger).balance);
         assertEq(recipientBalance + amount, l1weth.balanceOf(address(recipient)));
         assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(keccak256(xDomainCalldata)));
+    }
+
+    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_revert() public{
+        address recipient = address(2048);
+        address _from = address(counterpartGateway);
+
+        // Assign 10 ether to the required address.
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);   
+
+        // Start simulating the calls as l1CrossDomainMessenger.
+        hevm.startPrank(address(l1CrossDomainMessenger));
+
+        // Simulate the xDomainMessageSender as the counterpartGateway.
+        hevm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeWithSignature("xDomainMessageSender()"),
+            abi.encode(_from)
+        );
+
+        // Expect revert due to msg.value mismatch.
+        hevm.expectRevert("msg.value mismatch");
+        l1WETHGateway.finalizeWithdrawERC20{value: 1}(address(l1weth), address(l2weth), _from, recipient, 2, "");
+        
+        // Expect revert due to l1 token is not WETH.
+        hevm.expectRevert("l1 token not WETH");
+        l1WETHGateway.finalizeWithdrawERC20{value: 1}(address(1), address(l2weth), _from, recipient, 1, "");
+
+        // Expect revert due to l2 token is not WETH.
+        hevm.expectRevert("l2 token not WETH");
+        l1WETHGateway.finalizeWithdrawERC20{value: 1}(address(l1weth), address(1), _from, recipient, 1, "");
+        
+        hevm.stopPrank();
+    }
+
+    function test_onDropMessage_beforeDropMessage_revert() public {
+        uint256 amount = 1000;
+        
+        // Assign 10 ether to l1CrossDomainMessenger.
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);   
+
+        // Deposit some tokens to L1WETHGateway.
+        l1WETHGateway.depositERC20(address(l1weth), amount, defaultGasLimit);
+
+        // Create a message with the valid selector and set the sender as address(this).
+        bytes memory data = new bytes(0);
+        bytes memory message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (address(l1weth), l1WETHGateway.getL2ERC20Address(address(l1weth)), address(this), address(this), amount, data)
+        );
+
+        hevm.startPrank(address(l1CrossDomainMessenger));
+
+        // Simulate the xDomainMessageSender as the DROP_XDOMAIN_MESSAGE_SENDER.
+        hevm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeWithSignature("xDomainMessageSender()"),
+            abi.encode(Constants.DROP_XDOMAIN_MESSAGE_SENDER)
+        );
+
+        // Expect revert due to non-zero msg.value.
+        hevm.expectRevert("msg.value mismatch");
+        l1WETHGateway.onDropMessage{value: 1}(message);
+
+        // Update message to test token not being WETH.
+        message = abi.encodeCall(
+            IL2ERC20Gateway.finalizeDepositERC20,
+            (address(1), address(l2weth), address(this), address(this), amount, data)
+        );
+
+        // Expect revert due to token is not WETH.
+        hevm.expectRevert("token not WETH");
+        l1WETHGateway.onDropMessage{value: amount}(message);
+
+        hevm.stopPrank();
     }
 
     function _depositERC20(bool useRouter, uint256 amount, uint256 gasLimit, uint256 feePerGas) private {
