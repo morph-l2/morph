@@ -9,6 +9,7 @@ import { ethers } from "ethers"
 import { assertContractVariable, getContractAddressByName, awaitCondition, storage } from "../src/deploy-utils"
 import { ImplStorageName, ProxyStorageName, ContractFactoryName } from "../src/types"
 import { predeploys } from "../src"
+import { hexlify } from "ethers/lib/utils";
 
 task("rollup-deploy-init")
     .addParam("storagepath")
@@ -57,8 +58,32 @@ task("rollup-deploy-init")
 
         // ------------------ deploy MultipleVersionRollupVerifier -----------------
         {
+            // deploy ZkEvmVerifierV1
+            const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
+            const ZkEvmVerifierV1ImplStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
+            const network = hre.network.name
+            const bytecode = hexlify(fs.readFileSync(`./contracts/libraries/verifier/plonk-verifier/${network}/plonk_verifier_0.10.3.bin`));
+            const tx = await deployer.sendTransaction({ data: bytecode });
+            const receipt = await tx.wait();
+            console.log("%s=%s ; TX_HASH: %s", "plonk_verifier.bin", receipt.contractAddress.toLocaleLowerCase(), tx.hash);
+
+            const Factory = await hre.ethers.getContractFactory(ZkEvmVerifierV1ContractFactoryName)
+            const contract = await Factory.deploy(receipt.contractAddress)
+            await contract.deployed()
+            console.log("%s=%s ; TX_HASH: %s", ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+            // check params
+            await assertContractVariable(contract, 'PLONK_VERIFIER', receipt.contractAddress)
+            let blockNumber = await hre.ethers.provider.getBlockNumber()
+            console.log("BLOCK_NUMBER: %s", blockNumber)
+            let err = await storage(newPath, ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+            if (err != '') {
+                return err
+            }
+
+
+           // deploy MultipleVersionRollupVerifier
             const ZkEvmVerifierV1Address = getContractAddressByName(
-                storagePath,
+                newPath,
                 ImplStorageName.ZkEvmVerifierV1StorageName
             )
             const MultipleVersionRollupVerifierFactoryName = ContractFactoryName.MultipleVersionRollupVerifier
@@ -704,7 +729,7 @@ task("impl-test")
         res = await contract.setVersion(101)
         rec = await res.wait()
         console.log(`update version to 101 ${rec.status === 1}`)
-         res = await contract.setOtherVersion(99)
+        res = await contract.setOtherVersion(99)
         rec = await res.wait()
         console.log(`update otherVersion to 99 ${rec.status === 1}`)
         console.log("upgrade success")
