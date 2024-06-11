@@ -14,6 +14,7 @@ import "./tasks/overflow_test"
 import "./tasks/check"
 import "./tasks/query"
 import "./tasks/proxy_upgrade"
+import "./tasks/staking_upgrade"
 import "./src/plugin"
 import * as process from "process";
 
@@ -108,7 +109,7 @@ module.exports = {
             {
                 version: '0.8.24',
                 settings: {
-                    metadata: { bytecodeHash: 'none', },
+                    metadata: { bytecodeHash: 'none' },
                     optimizer: { enabled: true, runs: 10_000 },
                     evmVersion: 'cancun',
                 },

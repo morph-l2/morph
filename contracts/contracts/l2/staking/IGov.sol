@@ -6,11 +6,11 @@ interface IGov {
      * Structs *
      ***********/
 
-    /// @custom:field endTime
-    /// @custom:field approved
+    /// @custom:field voting expiration time
+    /// @custom:field executed
     struct ProposalInfo {
-        uint256 endTime;
-        bool approved;
+        uint256 expirationTime;
+        bool executed;
     }
 
     /// @custom:field batchBlockInterval
@@ -30,6 +30,17 @@ interface IGov {
      * Events *
      **********/
 
+    /// @notice event of create a proposal
+    event ProposalCreated(
+        uint256 indexed proposalID,
+        address indexed creator,
+        uint256 batchBlockInterval,
+        uint256 batchMaxBytes,
+        uint256 batchTimeout,
+        uint256 maxChunks,
+        uint256 rollupEpoch
+    );
+
     /// @notice event of proposal executed
     event ProposalExecuted(
         uint256 indexed proposalID,
@@ -40,29 +51,20 @@ interface IGov {
         uint256 rollupEpoch
     );
 
-    /// @notice proposal interval updated
-    /// @param oldProposalInterval    old proposal interval
-    /// @param newProposalInterval    new proposal interval
-    event ProposalIntervalUpdated(
-        uint256 oldProposalInterval,
-        uint256 newProposalInterval
-    );
+    /// @notice proposal voting duration updated
+    /// @param oldProposalVotingDuration    old proposal voting duration
+    /// @param newProposalVotingDuration    new proposal voting duration
+    event VotingDurationUpdated(uint256 oldProposalVotingDuration, uint256 newProposalVotingDuration);
 
     /// @notice batch block interval updated
     /// @param oldBatchBlockInterval    old batch block interval
     /// @param newBatchBlockInterval    new batch block interval
-    event BatchBlockIntervalUpdated(
-        uint256 oldBatchBlockInterval,
-        uint256 newBatchBlockInterval
-    );
+    event BatchBlockIntervalUpdated(uint256 oldBatchBlockInterval, uint256 newBatchBlockInterval);
 
     /// @notice batch max bytes updated
     /// @param oldBatchMaxBytes     old batch max bytes
     /// @param newBatchMaxBytes     new batch max bytes
-    event BatchMaxBytesUpdated(
-        uint256 oldBatchMaxBytes,
-        uint256 newBatchMaxBytes
-    );
+    event BatchMaxBytesUpdated(uint256 oldBatchMaxBytes, uint256 newBatchMaxBytes);
 
     /// @notice batch timeout updated
     /// @param oldBatchTimeout  old batch timeout
@@ -101,35 +103,25 @@ interface IGov {
     /// @notice current proposal ID number
     function currentProposalID() external view returns (uint256);
 
-    /// @notice whether the proposal can be approved
-    function isProposalCanBeApproved(
-        uint256 proposalID
-    ) external view returns (bool);
+    /// @notice return proposal status
+    function proposalStatus(uint256 proposalID) external view returns (bool finished, bool passed, bool executed);
 
     /// @notice proposal information.
     /// @param proposalID  proposal ID
-    function proposalInfos(
-        uint256 proposalID
-    ) external view returns (uint256 endTimestamp, bool approved);
+    function proposalInfos(uint256 proposalID) external view returns (uint256 endTimestamp, bool passed);
 
-    /// @notice return is voted
+    /// @notice return whether the address has voted
     /// @param proposalID  proposal ID
     /// @param voter       voter
-    function isVoted(
-        uint256 proposalID,
-        address voter
-    ) external view returns (bool voted);
+    function isVoted(uint256 proposalID, address voter) external view returns (bool);
 
     /*****************************
      * Public Mutating Functions *
      *****************************/
 
-    /// @notice create a proposal
-    function createProposal(ProposalData calldata proposal) external;
-
     /// @notice vote a proposal
     function vote(uint256 proposalID) external;
 
-    /// @notice execute an approved proposal
+    /// @notice execute a passed proposal
     function executeProposal(uint256 proposalID) external;
 }

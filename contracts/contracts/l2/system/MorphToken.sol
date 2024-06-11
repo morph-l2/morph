@@ -13,9 +13,6 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
      * Constants *
      *************/
 
-    /// @notice day seconds
-    uint256 private constant DAY_SECONDS = 86400;
-
     /// @notice daily inflation ratio precision
     uint256 private constant PRECISION = 1e16;
 
@@ -45,17 +42,16 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     mapping(address owner => uint256) private _balances;
 
     /// @notice allowances
-    mapping(address owner => mapping(address spender => uint256))
-        private _allowances;
+    mapping(address owner => mapping(address spender => uint256)) private _allowances;
 
-    /// @notice daily inflation rate
-    DailyInflationRate[] private _dailyInflationRates;
+    /// @notice per epoch inflation rate
+    EpochInflationRate[] private _epochInflationRates;
 
     /// @notice inflations
-    mapping(uint256 dayIndex => uint256 inflationAmount) private _inflations;
+    mapping(uint256 epochIndex => uint256 inflationAmount) private _inflations;
 
-    /// @notice inflation minted days
-    uint256 private _inflationMintedDays;
+    /// @notice inflation minted epochs count
+    uint256 private _inflationMintedEpochs;
 
     /**********************
      * Function Modifiers *
@@ -63,10 +59,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
     /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
-        require(
-            _msgSender() == RECORD_CONTRACT,
-            "only record contract allowed"
-        );
+        require(_msgSender() == RECORD_CONTRACT, "only record contract allowed");
         _;
     }
 
@@ -89,6 +82,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     function initialize(
         string memory name_,
         string memory symbol_,
+        address _owner,
         uint256 initialSupply_,
         uint256 dailyInflationRate_
     ) public initializer {
@@ -96,10 +90,11 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
         _name = name_;
         _symbol = symbol_;
-        _mint(_msgSender(), initialSupply_);
-        _dailyInflationRates.push(DailyInflationRate(dailyInflationRate_, 0));
+        _mint(_owner, initialSupply_);
+        _epochInflationRates.push(EpochInflationRate(dailyInflationRate_, 0));
+        _transferOwnership(_owner);
 
-        emit UpdateDailyInflationRate(dailyInflationRate_, 0);
+        emit UpdateEpochInflationRate(dailyInflationRate_, 0);
     }
 
     /************************
@@ -107,51 +102,47 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
      ************************/
 
     /// @dev See {IMorphToken-setRate}.
-    function updateRate(
-        uint256 newRate,
-        uint256 effectiveDayIndex
-    ) public onlyOwner {
+    function updateRate(uint256 newRate, uint256 effectiveEpochIndex) public onlyOwner {
         require(
-            effectiveDayIndex >
-                _dailyInflationRates[_dailyInflationRates.length - 1]
-                    .effectiveDayIndex,
-            "effective days after must be greater than before"
+            _epochInflationRates[_epochInflationRates.length - 1].rate != newRate,
+            "new rate is the same as the latest rate"
+        );
+        require(
+            effectiveEpochIndex > _epochInflationRates[_epochInflationRates.length - 1].effectiveEpochIndex,
+            "effective epochs after must be greater than before"
         );
 
-        _dailyInflationRates.push(
-            DailyInflationRate(newRate, effectiveDayIndex)
-        );
+        _epochInflationRates.push(EpochInflationRate(newRate, effectiveEpochIndex));
 
-        emit UpdateDailyInflationRate(newRate, effectiveDayIndex);
+        emit UpdateEpochInflationRate(newRate, effectiveEpochIndex);
     }
 
     /// @dev mint inflations
-    /// @param upToDayIndex mint up to which day
-    function mintInflations(uint256 upToDayIndex) external onlyRecordContract {
-        uint256 currentDayIndex = (block.timestamp -
-            IL2Staking(L2_STAKING_CONTRACT).rewardStartTime()) /
-            DAY_SECONDS +
-            1;
+    /// @param upToEpochIndex mint up to which epoch
+    function mintInflations(uint256 upToEpochIndex) external onlyRecordContract {
+        // inflations can only be minted for epochs that have ended.
         require(
-            currentDayIndex > upToDayIndex,
+            IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > upToEpochIndex,
             "the specified time has not yet been reached"
         );
-        require(upToDayIndex >= _inflationMintedDays, "all inflations minted");
+        require(upToEpochIndex >= _inflationMintedEpochs, "all inflations minted");
 
-        for (uint256 i = _inflationMintedDays; i <= upToDayIndex; i++) {
-            uint256 rate = _dailyInflationRates[0].rate;
-            // find inflation rate of the day
-            for (uint256 j = _dailyInflationRates.length - 1; j > 0; j--) {
-                if (_dailyInflationRates[j].effectiveDayIndex <= i) {
-                    rate = _dailyInflationRates[j].rate;
+        // the index of next epoch to mint is equal to the count of minted epochs
+        for (uint256 i = _inflationMintedEpochs; i <= upToEpochIndex; i++) {
+            uint256 rate = _epochInflationRates[0].rate;
+            // find inflation rate of the epoch
+            for (uint256 j = _epochInflationRates.length - 1; j > 0; j--) {
+                if (_epochInflationRates[j].effectiveEpochIndex <= i) {
+                    rate = _epochInflationRates[j].rate;
                 }
             }
-            _inflations[i] = (_totalSupply * rate) / PRECISION;
-            _mint(DISTRIBUTE_CONTRACT, _inflations[i]);
-            emit InflationMinted(i, _inflations[i]);
+            uint256 increment = (_totalSupply * rate) / PRECISION;
+            _inflations[i] = increment;
+            _mint(DISTRIBUTE_CONTRACT, increment);
+            emit InflationMinted(i, increment);
         }
 
-        _inflationMintedDays = upToDayIndex + 1;
+        _inflationMintedEpochs = upToEpochIndex + 1;
     }
 
     /*****************************
@@ -185,11 +176,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// - `from` and `to` cannot be the zero address.
     /// - `from` must have a balance of at least `amount`.
     /// - the caller must have allowance for ``from``'s tokens of at least `amount`.
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public override returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         address spender = _msgSender();
         _spendAllowance(from, spender, amount);
         _transfer(from, to, amount);
@@ -206,10 +193,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// Requirements:
     ///
     /// - `spender` cannot be the zero address.
-    function increaseAllowance(
-        address spender,
-        uint256 addedValue
-    ) public virtual returns (bool) {
+    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
         address owner = _msgSender();
         _approve(owner, spender, allowance(owner, spender) + addedValue);
         return true;
@@ -226,16 +210,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     ///
     /// - `spender` cannot be the zero address.
     /// - `spender` must have allowance for the caller of at least `subtractedValue`.
-    function decreaseAllowance(
-        address spender,
-        uint256 subtractedValue
-    ) public virtual returns (bool) {
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
         address owner = _msgSender();
         uint256 currentAllowance = allowance(owner, spender);
-        require(
-            currentAllowance >= subtractedValue,
-            "decreased allowance below zero"
-        );
+        require(currentAllowance >= subtractedValue, "decreased allowance below zero");
         unchecked {
             _approve(owner, spender, currentAllowance - subtractedValue);
         }
@@ -283,24 +261,22 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
     /// @dev See {IMorphToken-inflationRatesCount}.
     function inflationRatesCount() public view returns (uint256) {
-        return _dailyInflationRates.length;
+        return _epochInflationRates.length;
     }
 
-    /// @dev See {IMorphToken-dailyInflationRates}.
-    function dailyInflationRates(
-        uint256 index
-    ) public view returns (DailyInflationRate memory) {
-        return _dailyInflationRates[index];
+    /// @dev See {IMorphToken-epochInflationRates}.
+    function epochInflationRates(uint256 index) public view returns (EpochInflationRate memory) {
+        return _epochInflationRates[index];
     }
 
     /// @dev See {IMorphToken-inflation}.
-    function inflation(uint256 dayIndex) public view returns (uint256) {
-        return _inflations[dayIndex];
+    function inflation(uint256 epochIndex) public view returns (uint256) {
+        return _inflations[epochIndex];
     }
 
-    /// @dev See {IMorphToken-inflationMintedDays}.
-    function inflationMintedDays() public view returns (uint256) {
-        return _inflationMintedDays;
+    /// @dev See {IMorphToken-inflationMintedEpochs}.
+    function inflationMintedEpochs() public view returns (uint256) {
+        return _inflationMintedEpochs;
     }
 
     /// @dev See {IMorphToken-transfer}.
@@ -316,10 +292,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     }
 
     /// @dev See {IMorphToken-allowance}.
-    function allowance(
-        address owner,
-        address spender
-    ) public view returns (uint256) {
+    function allowance(address owner, address spender) public view returns (uint256) {
         return _allowances[owner][spender];
     }
 
@@ -398,11 +371,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// Revert if not enough allowance is available.
     ///
     /// Might emit an {Approval} event.
-    function _spendAllowance(
-        address owner,
-        address spender,
-        uint256 amount
-    ) internal {
+    function _spendAllowance(address owner, address spender, uint256 amount) internal {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
             require(currentAllowance >= amount, "insufficient allowance");

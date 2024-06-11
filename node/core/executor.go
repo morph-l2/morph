@@ -58,7 +58,7 @@ type Executor struct {
 	metrics *Metrics
 }
 
-func getNextL1MsgIndex(client *types.RetryableClient, logger tmlog.Logger) (uint64, error) {
+func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
 	currentHeader, err := client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return 0, err
@@ -79,7 +79,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	}
 
 	l2Client := types.NewRetryableClient(aClient, eClient, config.Logger)
-	index, err := getNextL1MsgIndex(l2Client, logger)
+	index, err := getNextL1MsgIndex(l2Client)
 	if err != nil {
 		return nil, err
 	}

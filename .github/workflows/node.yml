@@ -1,35 +1,47 @@
-# name: Node
+name: Node
 
-# on:
-#     push:
-#         branches:
-#             - main
-#         paths:
-#             - "bindings/**"
-#             - "node/**"
-#             - "ops/l2-genesis/**"
-#             - ".github/workflows/node.yaml"
-#     pull_request:
-#         paths:
-#             - "bindings/**"
-#             - "node/**"
-#             - "ops/l2-genesis/**"
-#             - ".github/workflows/node.yaml"
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "node/**"
+            - ".github/workflows/node.yaml"
+    pull_request:
+        paths:
+            - "build/**"
+            - "bindings/**"
+            - "node/**"
+            - "ops/l2-genesis/**"
+            - ".github/workflows/node.yaml"
 
-# defaults:
-#     run:
-#         working-directory: "node"
+defaults:
+    run:
+        working-directory: "node"
 
-# jobs:
-#     tests:
-#         runs-on: ubuntu-latest
-#         steps:
-#             - uses: actions/checkout@v3
-#             - name: Install Go
-#               uses: actions/setup-go@v2
-#               with:
-#                   go-version: 1.22.x
-#             - name: Run build
-#               run: make build
-#             - name: Run tests
-#               run: make test
+jobs:
+    check:
+        if: github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
+            - name: Lint
+              run: |
+                  rm -rf $HOME/.cache/golangci-lint
+                  make lint
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
+            - name: Run build
+              run: make build
+            - name: Run tests
+              run: make test

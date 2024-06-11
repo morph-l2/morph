@@ -11,7 +11,7 @@ import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
-} from "./types"
+} from "../src/types"
 import { hexlify } from "ethers/lib/utils";
 
 export const deployZkEvmVerifierV1 = async (

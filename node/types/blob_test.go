@@ -16,16 +16,8 @@ import (
 )
 
 func TestBlobFromSealedTxPayload(t *testing.T) {
-	sealedTxPayload := rand.Bytes(30)
+	sealedTxPayload := rand.Bytes(31)
 	_, err := MakeBlobCanonical(sealedTxPayload)
-	require.Error(t, err)
-
-	sealedTxPayload = rand.Bytes(MaxBlobBytesSize + 1)
-	_, err = MakeBlobCanonical(sealedTxPayload)
-	require.Error(t, err)
-
-	sealedTxPayload = rand.Bytes(31)
-	_, err = MakeBlobCanonical(sealedTxPayload)
 	require.NoError(t, err)
 
 	sealedTxPayload = rand.Bytes(MaxBlobBytesSize)

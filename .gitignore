@@ -7,8 +7,12 @@
 # MacOS
 .DS_Store
 
+coverage.txt
+
 contracts/yarn.lock
 */build
+
+build/bin
 
 ops/l2-genesis/.devnet
 ops/l2-genesis/.qanet
@@ -19,3 +23,6 @@ ops/devnet-morph/devnet/__pycache__
 contracts/qanetL1.json
 contracts/holesky.json
 .env
+
+# logs
+*.log

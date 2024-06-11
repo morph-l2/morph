@@ -1,0 +1,14 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "gas-oracle/app/Cargo.toml",
+        "prover/Cargo.toml"
+    ],
+    "cSpell.words": [
+        "ethgw",
+        "nomiclabs",
+        "predeploys",
+        "segw",
+        "undelegate",
+        "wethgw"
+    ]
+}

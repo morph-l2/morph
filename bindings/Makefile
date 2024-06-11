@@ -4,7 +4,8 @@ pkg := bindings
 
 all: version mkdir bindings more
 
-bindings: l1-staking-bindings \
+bindings: \
+	l1-staking-bindings \
 	l1-cross-domain-messenger-bindings \
 	l1-standard-erc20-gateway-bindings \
 	l1-eth-gateway-bindings \
@@ -158,6 +159,13 @@ mkdir:
 
 clean:
 	rm -rf bin $(pkg)
+.PHONY: clean
 
 test:
-	go test ./...
+	go test -v -race -coverprofile=coverage.txt -covermode=atomic -p 1 ./...
+.PHONY: test
+
+lint:
+	GOBIN=$(PWD)/build/bin go run ../build/lint.go
+.PHONY: lint
+

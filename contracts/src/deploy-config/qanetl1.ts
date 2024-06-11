@@ -17,6 +17,7 @@ const config = {
     // initialize config
     rollupMaxNumTxInChunk: 100,
     finalizationPeriodSeconds: 600,
+    rollupBatchIndex: 0,
     rollupProofWindow: 86400,
     // challenge config
     rollupProposer: '0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d',
@@ -27,10 +28,14 @@ const config = {
     batchHeader: '',
 
     // staking config
+    // staking Cross-Chain config
+    stakingCrossChainGaslimitAdd: 1000000,
+    stakingCrossChainGaslimitRemove: 8000000,
+
     // staking initialize config
-    stakingSequencerSize: 4,
     stakingLockNumber: 3,
     stakingMinDeposit: 1, // limit
+    stakingChallengerRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [
         "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",

@@ -6,10 +6,10 @@ on:
             - main
         paths:
             - "contracts/**"
-            - "ops/l2-genesis/**"
             - ".github/workflows/contracts.yaml"
     pull_request:
         paths:
+            - "build/**"
             - "contracts/**"
             - "ops/l2-genesis/**"
             - ".github/workflows/contracts.yaml"
@@ -19,16 +19,35 @@ defaults:
         working-directory: "contracts"
 
 jobs:
-    tests:
+    check:
+        if: github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18.x
+            - name: Install Solhint
+              run: npm install -g solhint
+            - name: Lint
+              run: make lint-sol
+
+    test:
         runs-on: ubuntu-latest
         env:
             FORCE_COLOR: 1
             GAS: true
         steps:
             - uses: actions/checkout@v3
-            - uses: actions/setup-node@v3
+            - name: Install Node
+              uses: actions/setup-node@v3
               with:
                   node-version: 18.x
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.22.x
             - name: Install Foundry
               uses: foundry-rs/foundry-toolchain@v1
               with:

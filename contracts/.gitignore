@@ -19,6 +19,7 @@ yarn-error.log
 !.yarn/plugins
 .pnp.*
 deployFile.json
+newFile.json
 
 dist
 artifacts
@@ -43,6 +44,7 @@ coverage*
 *.log
 
 .devnet
+.gas-snapshot
 
 # Ignore local fuzzing results
 **/testdata/fuzz/

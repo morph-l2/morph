@@ -12,8 +12,7 @@ contract Verify {
         bytes32 node = leafHash;
 
         for (uint256 height = 0; height < 32; height++) {
-            if (((index >> height) & 1) == 1)
-                node = keccak256(abi.encodePacked(smtProof[height], node));
+            if (((index >> height) & 1) == 1) node = keccak256(abi.encodePacked(smtProof[height], node));
             else node = keccak256(abi.encodePacked(node, smtProof[height]));
         }
 

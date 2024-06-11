@@ -17,7 +17,7 @@
   "gasPriceOracleScalar": 1000000000,
   "gasPriceOracleOwner": "0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d",
 
-  "govProposalInterval": 1000,
+  "govVotingDuration": 1000,
   "govBatchBlockInterval": 600,
   "govBatchMaxBytes": 124928,
   "govBatchTimeout": 1200,

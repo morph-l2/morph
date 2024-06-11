@@ -10,7 +10,7 @@ import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
-} from "./types"
+} from "../src/types"
 
 export const deployContractProxyByStorageName = async (
     hre: HardhatRuntimeEnvironment,
@@ -22,7 +22,7 @@ export const deployContractProxyByStorageName = async (
     const ProxyFactoryName = ContractFactoryName.DefaultProxy
 
     const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName)
-    // TransparentUpgradeableProxy deploy with empthContract as impl, deployer as admin
+    // TransparentUpgradeableProxy deploy with emptyContract as impl, deployer as admin
     const proxy = await ProxyFactory.deploy(emptyContractImplAddr, await deployer.getAddress(), "0x")
     await proxy.deployed()
     console.log("%s=%s ; TX_HASH: %s", storageName, proxy.address.toLocaleLowerCase(), proxy.deployTransaction.hash);
@@ -45,7 +45,7 @@ export const deployContractProxyByStorageName = async (
     return ''
 }
 
-export const deployContractProxys = async (
+export const deployContractProxies = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
@@ -59,6 +59,7 @@ export const deployContractProxys = async (
     const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
     const L1StandardERC20GatewayProxyStorageName = ProxyStorageName.L1StandardERC20GatewayProxyStorageName
+    const L1CustomERC20GatewayProxyStorageName = ProxyStorageName.L1CustomERC20GatewayProxyStorageName
     const L1ERC721GatewayProxyStorageName = ProxyStorageName.L1ERC721GatewayProxyStorageName
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
     const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
@@ -127,6 +128,12 @@ export const deployContractProxys = async (
         return err
     }
 
+    // L1CustomERC20GatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1CustomERC20GatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
     // L1ERC721GatewayProxy deploy
     err = await deployContractProxyByStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
     if (err != '') {
@@ -155,4 +162,4 @@ export const deployContractProxys = async (
     return ''
 }
 
-export default deployContractProxys
+export default deployContractProxies

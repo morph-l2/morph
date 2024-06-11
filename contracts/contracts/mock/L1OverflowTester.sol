@@ -13,32 +13,23 @@ contract L1OverflowTester {
 
     address public immutable OTHERTESTER;
 
-    uint32 internal gas_limit = 2_000_000;
+    uint32 internal gasLimit = 2_000_000;
 
     /**
      * @param _messenger   Address of CrossDomainMessenger on this network.
      * @param _otherTester Address of L2OverflowTester
      */
-    constructor(
-        address payable _messenger,
-        address _otherTester,
-        uint32 _gasLimit
-    ) {
+    constructor(address payable _messenger, address _otherTester, uint32 _gasLimit) {
         MESSENGER = ICrossDomainMessenger(_messenger);
         OTHERTESTER = _otherTester;
-        gas_limit = _gasLimit;
+        gasLimit = _gasLimit;
     }
 
     function updateGasLimit(uint32 _gasLimit) public {
-        gas_limit = _gasLimit;
+        gasLimit = _gasLimit;
     }
 
-    function crossHash(string calldata _message, uint count) public {
-        MESSENGER.sendMessage(
-            OTHERTESTER,
-            0,
-            abi.encodeCall(L2OverflowTester.hash, (_message, count)),
-            gas_limit
-        );
+    function crossHash(string calldata _message, uint256 count) public {
+        MESSENGER.sendMessage(OTHERTESTER, 0, abi.encodeCall(L2OverflowTester.hash, (_message, count)), gasLimit);
     }
 }

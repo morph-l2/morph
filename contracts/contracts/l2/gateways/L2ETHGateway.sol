@@ -12,7 +12,7 @@ import {GatewayBase} from "../../libraries/gateway/GatewayBase.sol";
 /// @notice The `L2ETHGateway` contract is used to withdraw ETH token on layer 2 and
 /// finalize deposit ETH from layer 1.
 /// @dev The ETH are not held in the gateway. The ETH will be sent to the `L2CrossDomainMessenger` contract.
-/// On finalizing deposit, the Ether will be transfered from `L2CrossDomainMessenger`, then transfer to recipient.
+/// On finalizing deposit, the Ether will be transferred from `L2CrossDomainMessenger`, then transfer to recipient.
 contract L2ETHGateway is GatewayBase, IL2ETHGateway {
     /***************
      * Constructor *
@@ -25,11 +25,7 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
     /// @param _counterpart The address of L1ETHGateway in L2.
     /// @param _router The address of L2GatewayRouter.
     /// @param _messenger The address of L2CrossDomainMessenger.
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         require(_router != address(0), "zero router address");
         GatewayBase._initialize(_counterpart, _router, _messenger);
     }
@@ -39,19 +35,12 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
      *****************************/
 
     /// @inheritdoc IL2ETHGateway
-    function withdrawETH(
-        uint256 _amount,
-        uint256 _gasLimit
-    ) external payable override {
+    function withdrawETH(uint256 _amount, uint256 _gasLimit) external payable override {
         _withdraw(_msgSender(), _amount, new bytes(0), _gasLimit);
     }
 
     /// @inheritdoc IL2ETHGateway
-    function withdrawETH(
-        address _to,
-        uint256 _amount,
-        uint256 _gasLimit
-    ) public payable override {
+    function withdrawETH(address _to, uint256 _amount, uint256 _gasLimit) public payable override {
         _withdraw(_to, _amount, new bytes(0), _gasLimit);
     }
 
@@ -102,18 +91,10 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
         }
 
         // @note no rate limit here, since ETH is limited in messenger
-        bytes memory _message = abi.encodeCall(
-            IL1ETHGateway.finalizeWithdrawETH,
-            (_from, _to, _amount, _data)
-        );
+        bytes memory _message = abi.encodeCall(IL1ETHGateway.finalizeWithdrawETH, (_from, _to, _amount, _data));
 
         uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
-        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            counterpart,
-            _amount,
-            _message,
-            _gasLimit
-        );
+        IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, _amount, _message, _gasLimit);
 
         emit WithdrawETH(_from, _to, _amount, _data, nonce);
     }

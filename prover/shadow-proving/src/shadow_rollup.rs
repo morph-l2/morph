@@ -67,10 +67,18 @@ impl BatchSyncer {
             return Ok(None);
         };
 
-        let batch_store = match self.l1_rollup.committed_batch_stores(U256::from(batch_info.batch_index)).await {
+        let batch_store = match self.l1_rollup.batch_data_store(U256::from(batch_info.batch_index)).await {
             Ok(value) => value,
             Err(msg) => {
                 log::error!("query committed_batch_stores error: {:?}", msg);
+                return Ok(None);
+            }
+        };
+
+        let batch_signature = match self.l1_rollup.batch_signature_store(U256::from(batch_info.batch_index)).await {
+            Ok(value) => value,
+            Err(msg) => {
+                log::error!("query batch_signature_store error: {:?}", msg);
                 return Ok(None);
             }
         };
@@ -79,11 +87,12 @@ impl BatchSyncer {
         let shadow_tx = self.l1_shadow_rollup.commit_batch(
             batch_info.batch_index,
             BatchStore {
-                prev_state_root: batch_store.4,
-                post_state_root: batch_store.5,
-                withdrawal_root: batch_store.6,
-                data_hash: batch_store.7,
-                blob_versioned_hash: batch_store.12,
+                prev_state_root: batch_store.2,
+                post_state_root: batch_store.3,
+                withdrawal_root: batch_store.4,
+                data_hash: batch_store.1,
+                blob_versioned_hash: batch_store.0,
+                sequencer_set_verify_hash: batch_signature.1,
             },
         );
         let rt = shadow_tx.send().await;
@@ -176,7 +185,7 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec
         log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
         return None;
     };
-    let chunks: Vec<Bytes> = param.batch_data.chunks;
+    let chunks: Vec<Bytes> = param.batch_data_input.chunks;
     return decode_chunks(chunks);
 }
 
@@ -269,7 +278,7 @@ async fn test_decode_chunks() {
     let input = Bytes::from_str(contents.as_str()).unwrap();
 
     let param = CommitBatchCall::decode(&input).unwrap();
-    let chunks: Vec<Bytes> = param.batch_data.chunks;
+    let chunks: Vec<Bytes> = param.batch_data_input.chunks;
     let rt = decode_chunks(chunks).unwrap();
     assert!(rt.len() == 11);
     assert!(rt.get(3).unwrap().len() == 2);

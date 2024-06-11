@@ -4,3 +4,5 @@ build
 tx-submitter
 .DS_Store
 .vscode
+*.log
+*debug_bin*

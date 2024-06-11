@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
@@ -171,9 +169,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         hevm.prank(multisig);
         l1MessageQueue.updateMaxGasLimit(100);
         hevm.prank(alice);
-        hevm.expectRevert(
-            "Insufficient gas limit, must be above intrinsic gas"
-        );
+        hevm.expectRevert("Insufficient gas limit, must be above intrinsic gas");
         l1MessageQueue.appendCrossDomainMessage(alice, 3, "0x0");
     }
 
@@ -197,14 +193,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         address sender = AddressAliasHelper.applyL1ToL2Alias(address(alice));
         uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee("0x0");
         hevm.expectEmit(true, true, true, true);
-        emit IL1MessageQueue.QueueTransaction(
-            sender,
-            alice,
-            0,
-            0,
-            gasLimit,
-            _calldata
-        );
+        emit IL1MessageQueue.QueueTransaction(sender, alice, 0, 0, gasLimit, _calldata);
         hevm.startPrank(alice);
         l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
         assertEq(1, l1MessageQueue.nextCrossDomainMessageIndex());
@@ -263,7 +252,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         assertEq(1, l1MessageQueue.nextCrossDomainMessageIndex());
     }
 
-    function test_pop_dropCrossDomainMessage() external {
+    function test_pop_dropCrossDomainMessage_succeeds() external {
         // store alice as messenger and rollup
         upgradeStorage(address(alice), address(alice), address(alice));
         assertEq(alice, l1MessageQueue.MESSENGER());

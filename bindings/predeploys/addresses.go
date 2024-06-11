@@ -5,9 +5,9 @@ import "github.com/scroll-tech/go-ethereum/common"
 const (
 	L2ToL1MessagePasser       = "0x5300000000000000000000000000000000000001"
 	L2GatewayRouter           = "0x5300000000000000000000000000000000000002"
-	Sequencer                 = "0x5300000000000000000000000000000000000003"
+	_                         = "0x5300000000000000000000000000000000000003"
 	Gov                       = "0x5300000000000000000000000000000000000004"
-	Record                    = "0x5300000000000000000000000000000000000005"
+	_                         = "0x5300000000000000000000000000000000000005"
 	L2ETHGateway              = "0x5300000000000000000000000000000000000006"
 	L2CrossDomainMessenger    = "0x5300000000000000000000000000000000000007"
 	L2StandardERC20Gateway    = "0x5300000000000000000000000000000000000008"
@@ -18,11 +18,14 @@ const (
 	MorphStandardERC20        = "0x530000000000000000000000000000000000000D"
 	MorphStandardERC20Factory = "0x530000000000000000000000000000000000000E"
 	GasPriceOracle            = "0x530000000000000000000000000000000000000F"
-	MorphToken                = "0x5300000000000000000000000000000000000010"
-	Distribute                = "0x5300000000000000000000000000000000000011"
-	L2Staking                 = "0x5300000000000000000000000000000000000012"
-	L2WETHGateway             = "0x5300000000000000000000000000000000000013"
-	L2WETH                    = "0x5300000000000000000000000000000000000014"
+	L2WETHGateway             = "0x5300000000000000000000000000000000000010"
+	L2WETH                    = "0x5300000000000000000000000000000000000011"
+	Record                    = "0x5300000000000000000000000000000000000012"
+	MorphToken                = "0x5300000000000000000000000000000000000013"
+	Distribute                = "0x5300000000000000000000000000000000000014"
+	L2Staking                 = "0x5300000000000000000000000000000000000015"
+	L2CustomERC20Gateway      = "0x5300000000000000000000000000000000000016"
+	Sequencer                 = "0x5300000000000000000000000000000000000017"
 )
 
 var (
@@ -32,7 +35,6 @@ var (
 	ProxyAdminAddr                = common.HexToAddress(ProxyAdmin)
 	SequencerAddr                 = common.HexToAddress(Sequencer)
 	GovAddr                       = common.HexToAddress(Gov)
-	RecordAddr                    = common.HexToAddress(Record)
 	L2GatewayRouterAddr           = common.HexToAddress(L2GatewayRouter)
 	L2ETHGatewayAddr              = common.HexToAddress(L2ETHGateway)
 	L2StandardERC20GatewayAddr    = common.HexToAddress(L2StandardERC20Gateway)
@@ -41,11 +43,13 @@ var (
 	L2ERC1155GatewayAddr          = common.HexToAddress(L2ERC1155Gateway)
 	MorphStandardERC20Addr        = common.HexToAddress(MorphStandardERC20)
 	MorphStandardERC20FactoryAddr = common.HexToAddress(MorphStandardERC20Factory)
+	L2WETHGatewayAddr             = common.HexToAddress(L2WETHGateway)
+	L2WETHAddr                    = common.HexToAddress(L2WETH)
+	RecordAddr                    = common.HexToAddress(Record)
 	MorphTokenAddr                = common.HexToAddress(MorphToken)
 	DistributeAddr                = common.HexToAddress(Distribute)
 	L2StakingAddr                 = common.HexToAddress(L2Staking)
-	L2WETHGatewayAddr             = common.HexToAddress(L2WETHGateway)
-	L2WETHAddr                    = common.HexToAddress(L2WETH)
+	L2CustomERC20GatewayAddr      = common.HexToAddress(L2CustomERC20Gateway)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -71,4 +75,5 @@ func init() {
 	Predeploys["L2TxFeeVault"] = &L2TxFeeVaultAddr
 	Predeploys["L2WETHGateway"] = &L2WETHGatewayAddr
 	Predeploys["L2WETH"] = &L2WETHAddr
+	Predeploys["L2CustomERC20Gateway"] = &L2CustomERC20GatewayAddr
 }

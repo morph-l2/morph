@@ -47,7 +47,7 @@ dependencies = [
 [[package]]
 name = "aggregator"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "ark-std 0.3.0",
  "c-kzg 1.0.0",
@@ -666,7 +666,7 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 [[package]]
 name = "bus-mapping"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -1474,7 +1474,7 @@ dependencies = [
 [[package]]
 name = "eth-types"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "base64 0.13.1",
  "ethers-core",
@@ -1783,7 +1783,7 @@ dependencies = [
 [[package]]
 name = "external-tracer"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "eth-types",
  "geth-utils",
@@ -2036,7 +2036,7 @@ dependencies = [
 [[package]]
 name = "gadgets"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "eth-types",
  "halo2_proofs",
@@ -2058,7 +2058,7 @@ dependencies = [
 [[package]]
 name = "geth-utils"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "env_logger 0.10.2",
  "gobuild",
@@ -2741,7 +2741,7 @@ dependencies = [
 [[package]]
 name = "keccak256"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "env_logger 0.10.2",
  "eth-types",
@@ -2989,7 +2989,7 @@ dependencies = [
 [[package]]
 name = "mock"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -3004,7 +3004,7 @@ dependencies = [
 [[package]]
 name = "mpt-zktrie"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "eth-types",
  "halo2-mpt-circuits",
@@ -3680,7 +3680,7 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "aggregator",
  "anyhow",
@@ -5803,7 +5803,7 @@ dependencies = [
 [[package]]
 name = "zkevm-circuits"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#d61b21c72d97d313985a809deff9adf32637f37c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=sequencer-set#b5ffbe4f4508171e5178492b7aee0627f86d9860"
 dependencies = [
  "array-init",
  "bus-mapping",

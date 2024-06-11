@@ -2,7 +2,10 @@ module morph-l2/node
 
 go 1.22
 
-toolchain go1.22.2
+replace (
+	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240429050506-03fd4c3e771d
+	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
+)
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
@@ -18,11 +21,6 @@ require (
 	github.com/urfave/cli v1.22.14
 	golang.org/x/exp v0.0.0-20230206171751-46f607a40771
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-)
-
-replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240429050506-03fd4c3e771d
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta
 )
 
 require (
@@ -71,7 +69,7 @@ require (
 	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.16 // indirect
-	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jmhodges/levigo v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect
@@ -105,9 +103,9 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/scroll-tech/zktrie v0.7.1 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
-	github.com/spf13/afero v1.10.0 // indirect
+	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	github.com/spf13/cobra v1.6.1 // indirect
+	github.com/spf13/cobra v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/status-im/keycard-go v0.3.2 // indirect
@@ -121,7 +119,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.etcd.io/bbolt v1.3.9 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
-	golang.org/x/net v0.22.0 // indirect
+	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
