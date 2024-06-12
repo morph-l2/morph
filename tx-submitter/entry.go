@@ -156,12 +156,16 @@ func Main() func(ctx *cli.Context) error {
 			"l2_rpcs", cfg.L2EthRpcs,
 			"rollup_addr", rollupAddr.Hex(),
 			"chainid", chainID.String(),
-			"l2_submitter_addr", cfg.L2SubmitterAddress,
 			"l2_sequencer_addr", cfg.L2SequencerAddress,
 			"l2_gov_addr", cfg.L2GovAddress,
 			"fee_limit", cfg.TxFeeLimit,
 			"finalize_enable", cfg.Finalize,
 			"priority_rollup_enable", cfg.PriorityRollup,
+			"rollup_interval", cfg.RollupInterval.String(),
+			"finalize_interval", cfg.FinalizeInterval.String(),
+			"tx_process_interval", cfg.TxProcessInterval.String(),
+			"rollup_tx_gas_base", cfg.RollupTxGasBase,
+			"rollup_tx_gas_per_msg", cfg.RollupTxGasPerL1Msg,
 		)
 		sr.Start()
 

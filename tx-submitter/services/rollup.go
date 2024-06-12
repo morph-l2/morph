@@ -55,20 +55,14 @@ type Rollup struct {
 	rollupAddr common.Address
 	abi        *abi.ABI
 
-	secondInterval time.Duration
-	txTimout       time.Duration
-	Finalize       bool
-	MaxFinalizeNum uint64
-	PriorityRollup bool
-
-	// tx cfg
-	txFeeLimit uint64
-
 	// rotator
 	rotator    *Rotator
 	pendingTxs *PendingTxs
 
 	rollupFinalizeMu sync.Mutex
+
+	// cfg
+	cfg utils.Config
 }
 
 func NewRollup(
@@ -88,29 +82,19 @@ func NewRollup(
 ) *Rollup {
 
 	return &Rollup{
-		ctx:     ctx,
-		metrics: metrics,
-
+		ctx:         ctx,
+		metrics:     metrics,
 		l1RpcClient: l1RpcClient,
 		L1Client:    l1,
 		Rollup:      rollup,
 		Staking:     staking,
 		L2Clients:   l2Clients,
-
-		privKey:    priKey,
-		chainId:    chainId,
-		rollupAddr: rollupAddr,
-		abi:        abi,
-
-		secondInterval: cfg.PollInterval,
-		txTimout:       cfg.TxTimeout,
-		Finalize:       cfg.Finalize,
-		MaxFinalizeNum: cfg.MaxFinalizeNum,
-		PriorityRollup: cfg.PriorityRollup,
-
-		txFeeLimit: cfg.TxFeeLimit,
-
-		rotator: rotator,
+		privKey:     priKey,
+		chainId:     chainId,
+		rollupAddr:  rollupAddr,
+		abi:         abi,
+		rotator:     rotator,
+		cfg:         cfg,
 	}
 }
 
@@ -148,7 +132,7 @@ func (sr *Rollup) Start() {
 		sr.pendingTxs.Recover(txs, sr.abi)
 	}
 
-	go utils.Loop(sr.ctx, 500*time.Millisecond, func() {
+	go utils.Loop(sr.ctx, sr.cfg.RollupInterval, func() {
 		sr.rollupFinalizeMu.Lock()
 		defer sr.rollupFinalizeMu.Unlock()
 		if err := sr.rollup(); err != nil {
@@ -159,9 +143,9 @@ func (sr *Rollup) Start() {
 		}
 	})
 
-	if sr.Finalize {
+	if sr.cfg.Finalize {
 
-		go utils.Loop(sr.ctx, time.Second*2, func() {
+		go utils.Loop(sr.ctx, sr.cfg.FinalizeInterval, func() {
 			sr.rollupFinalizeMu.Lock()
 			defer sr.rollupFinalizeMu.Unlock()
 
@@ -172,7 +156,7 @@ func (sr *Rollup) Start() {
 	}
 
 	var processtxMu sync.Mutex
-	go utils.Loop(sr.ctx, time.Second*2, func() {
+	go utils.Loop(sr.ctx, sr.cfg.TxProcessInterval, func() {
 		processtxMu.Lock()
 		defer processtxMu.Unlock()
 		if err := sr.ProcessTx(); err != nil {
@@ -217,7 +201,7 @@ func (sr *Rollup) ProcessTx() error {
 
 		// exist in mempool
 		if ispending {
-			if txRecord.sendTime+uint64(sr.txTimout.Seconds()) < uint64(time.Now().Unix()) {
+			if txRecord.sendTime+uint64(sr.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
 				log.Info("tx timeout", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
 				newtx, err := sr.ReSubmitTx(false, &rtx)
 				if err != nil {
@@ -460,7 +444,7 @@ func (sr *Rollup) finalize() error {
 
 func (sr *Rollup) rollup() error {
 
-	if !sr.PriorityRollup {
+	if !sr.cfg.PriorityRollup {
 		cur, err := sr.rotator.CurrentSubmitter(sr.L2Clients)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
@@ -600,7 +584,7 @@ func (sr *Rollup) rollup() error {
 			return nil
 		} else {
 			msgcnt := utils.ParseL1MessageCnt(batch.Chunks)
-			gas = RoughEstimateGas(msgcnt)
+			gas = sr.RoughEstimateGas(msgcnt)
 		}
 	} else {
 		gas = gas * 12 / 10 // add a buffer
@@ -953,7 +937,7 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 		return errors.New("nil tx")
 	}
 
-	err := sendTx(r.L1Client, r.txFeeLimit, tx)
+	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
 	if err != nil {
 		return err
 	}
@@ -1118,10 +1102,6 @@ func (sr *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.
 }
 
 // for rollup
-func RoughEstimateGas(msgcnt uint64) uint64 {
-	base := uint64(400_000)
-	gasPerMsg := uint64(4200)
-
-	return (base + msgcnt*gasPerMsg) * 12 / 10
-
+func (r *Rollup) RoughEstimateGas(msgcnt uint64) uint64 {
+	return r.cfg.RollupTxGasBase + msgcnt*r.cfg.RollupTxGasPerL1Msg
 }
