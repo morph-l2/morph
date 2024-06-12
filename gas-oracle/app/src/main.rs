@@ -6,12 +6,10 @@ use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // Prepare parameter.
     dotenv().ok();
-
     // Initialize logger.
     setup_logging();
-    log::info!("Start updating gas oracle...");
+    log::info!("Starting update gas oracle...");
 
     // Update GasPriceOrale contract on L2 network.
     let result = gas_price_oracle::update().await;
@@ -20,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match result {
         Ok(()) => Ok(()),
         Err(e) => {
-            log::error!("gas oracle exec error: {:#?}", e.to_string());
+            log::error!("gas oracle exec error: {:#?}", e);
             Err(e)
         }
     }
@@ -62,7 +60,7 @@ fn log_format(
     write!(
         w,
         "{} [{}] {} - {}",
-        now.now().format("%Y-%m-%d %H:%M:%S"), // Custom time format
+        now.now().format("%Y-%m-%d %H:%M:%S"),
         record.level(),
         record.target(),
         record.args()

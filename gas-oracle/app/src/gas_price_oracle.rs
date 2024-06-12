@@ -56,16 +56,15 @@ impl Config {
 pub async fn update() -> Result<(), Box<dyn Error>> {
     let config = Config::new()?;
 
-    let (base_fee_updater, overhead_updater) = prepare_updater(&config).await?;
+    let (base_fee_updater, scalar_updater) = prepare_updater(&config).await?;
 
-    // Start Updater.
-    let updater = start_updater(config, base_fee_updater, overhead_updater);
+    // Start updater.
+    let updater = start_updater(config, base_fee_updater, scalar_updater);
 
     // Start metric management.
     let metric = metric_mng();
 
     tokio::join!(updater, metric);
-
     Ok(())
 }
 
@@ -90,7 +89,7 @@ async fn start_updater(
                 continue;
             }
             // Waiting for confirmation of the previous transaction.
-            sleep(Duration::from_millis(8000)).await;
+            sleep(Duration::from_millis(6000)).await;
             let _ = overhead_updater
                 .update()
                 .await
@@ -124,14 +123,14 @@ async fn prepare_updater(
         config.gas_threshold,
     );
 
-    let overhead_updater = ScalarUpdater::new(
+    let scalar_updater = ScalarUpdater::new(
         l1_provider.clone(),
         l2_oracle.clone(),
         l1_rollup,
         config.l1_beacon_rpc.clone(),
         config.gas_threshold,
     );
-    Ok((base_fee_updater, overhead_updater))
+    Ok((base_fee_updater, scalar_updater))
 }
 
 async fn metric_mng() {
