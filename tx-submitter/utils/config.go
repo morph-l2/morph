@@ -66,6 +66,20 @@ type Config struct {
 	LogFileMaxSize int
 	LogFileMaxAge  int
 	LogCompress    bool
+
+	// rollup interval
+	RollupInterval time.Duration
+	// finalize interval
+	FinalizeInterval time.Duration
+	// tx process interval
+	TxProcessInterval time.Duration
+
+	// rollup gas base
+	RollupTxGasBase uint64
+	// rollup gas per l1 msg
+	RollupTxGasPerL1Msg uint64
+	// gas limit buffer
+	GasLimitBuffer uint64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -102,6 +116,15 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		LogFileMaxSize: ctx.GlobalInt(flags.LogFileMaxSize.Name),
 		LogFileMaxAge:  ctx.GlobalInt(flags.LogFileMaxAge.Name),
 		LogCompress:    ctx.GlobalBool(flags.LogCompress.Name),
+
+		RollupInterval:    ctx.GlobalDuration(flags.RollupInterval.Name),
+		FinalizeInterval:  ctx.GlobalDuration(flags.FinalizeInterval.Name),
+		TxProcessInterval: ctx.GlobalDuration(flags.TxProcessInterval.Name),
+
+		RollupTxGasBase:     ctx.GlobalUint64(flags.RollupTxGasBase.Name),
+		RollupTxGasPerL1Msg: ctx.GlobalUint64(flags.RollupTxGasPerL1Msg.Name),
+
+		GasLimitBuffer: ctx.GlobalUint64(flags.GasLimitBuffer.Name),
 	}
 
 	return cfg, nil
