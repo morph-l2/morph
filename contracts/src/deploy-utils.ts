@@ -109,6 +109,39 @@ export const getContractAddressByName = (
     return ''
 }
 
+// export const storage = async (
+//     path: string,
+//     contractsName: string,
+//     contractAddress: string,
+//     deployedBlockNumber: number,
+// ): Promise<string> => {
+//     let Contract = {
+//         name: contractsName,
+//         address: contractAddress,
+//         time: new Date().toISOString(),
+//         number: deployedBlockNumber
+//     }
+//     if (fs.existsSync(path)) {
+//         let data = fs.readFileSync(path)
+//         let array = JSON.parse(data)
+//         array.push(Contract)
+//         const box = JSON.stringify(array, null, 2)
+//         fs.writeFileSync(path, box, 'utf8', (err) => {
+//             console.log(err)
+//             return err
+//         })
+//     } else {
+//         var Contracts = new Array();
+//         Contracts[0] = Contract
+//         const box = JSON.stringify(Contracts, null, 2)
+//         fs.writeFileSync(path, box, 'utf8', (err) => {
+//             console.log(err)
+//             return err
+//         })
+//     }
+//     return ''
+// }
+
 export const storage = async (
     path: string,
     contractsName: string,
@@ -120,26 +153,43 @@ export const storage = async (
         address: contractAddress,
         time: new Date().toISOString(),
         number: deployedBlockNumber
-    }
+    };
+
     if (fs.existsSync(path)) {
-        let data = fs.readFileSync(path)
-        let array = JSON.parse(data)
-        array.push(Contract)
-        const box = JSON.stringify(array, null, 2)
+        let data = fs.readFileSync(path);
+        let array = JSON.parse(data.toString());
+        
+        // 查找是否已经存在相同 name 的对象
+        let index = array.findIndex((contract: { name: string }) => contract.name === contractsName);
+
+        if (index !== -1) {
+            // 替换现有对象
+            array[index] = Contract;
+        } else {
+            // 添加新对象
+            array.push(Contract);
+        }
+
+        const box = JSON.stringify(array, null, 2);
         fs.writeFileSync(path, box, 'utf8', (err) => {
-            console.log(err)
-            return err
-        })
+            if (err) {
+                console.log(err);
+                return err;
+            }
+        });
     } else {
-        var Contracts = new Array();
-        Contracts[0] = Contract
-        const box = JSON.stringify(Contracts, null, 2)
+        // 如果文件不存在，则创建新文件并写入数据
+        const Contracts = [Contract];
+        const box = JSON.stringify(Contracts, null, 2);
         fs.writeFileSync(path, box, 'utf8', (err) => {
-            console.log(err)
-            return err
-        })
+            if (err) {
+                console.log(err);
+                return err;
+            }
+        });
     }
-    return ''
+
+    return '';
 }
 
 export const awaitCondition = async (
