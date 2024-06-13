@@ -193,6 +193,13 @@ var (
 		Value:  4200,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_PER_L1_MSG"),
 	}
+
+	GasLimitBuffer = cli.Uint64Flag{
+		Name:   "GAS_LIMIT_BUFFER",
+		Usage:  "The gas limit buffer for a transaction",
+		Value:  120,
+		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -228,6 +235,7 @@ var optionalFlags = []cli.Flag{
 
 	RollupTxGasBase,
 	RollupTxGasPerL1Msg,
+	GasLimitBuffer,
 }
 
 // Flags contains the list of configuration options available to the binary.

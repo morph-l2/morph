@@ -607,9 +607,10 @@ func (sr *Rollup) rollup() error {
 			msgcnt := utils.ParseL1MessageCnt(batch.Chunks)
 			gas = sr.RoughEstimateGas(msgcnt)
 		}
-	} else {
-		gas = gas * 12 / 10 // add a buffer
 	}
+
+	// gas buffer
+	gas = gas * sr.cfg.GasLimitBuffer / 100
 
 	if sr.pendingTxs.pnonce != 0 {
 		nonce = sr.pendingTxs.pnonce + 1
