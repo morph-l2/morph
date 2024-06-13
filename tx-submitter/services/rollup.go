@@ -310,6 +310,16 @@ func (sr *Rollup) ProcessTx() error {
 				}
 
 				sr.pendingTxs.Remove(rtx.Hash())
+				// set metrics
+				fee := calcFee(rtx, receipt)
+				if fee == 0 {
+					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
+				}
+				if method == "commitBatch" {
+					sr.metrics.SetRollupCost(fee)
+				} else if method == "finalizeBatch" {
+					sr.metrics.SetFinalizeCost(fee)
+				}
 			}
 
 		}
