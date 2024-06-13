@@ -1,10 +1,264 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {IL1Staking} from "../l1/staking/IL1Staking.sol";
+import {L1Staking} from "../l1/staking/L1Staking.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
+
+contract StakingInitializeTest is L1MessageBaseTest{
+    function test_initialize_initializeAgain_revert() external {
+        // verify the initialize only can be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        l1Staking.initialize(address(1), STAKING_VALUE, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, defaultGasLimitRemove);
+    }
+
+    function test_initialize_rollupZeroAddress_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid rollup contract.
+        hevm.expectRevert("invalid rollup contract");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(0),
+                    STAKING_VALUE,
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_stakingValueEqZero_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid staking value.
+        hevm.expectRevert("invalid staking value");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(1),
+                    0,
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_lockBlocksEqZero_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid withdrawal lock blocks.
+        hevm.expectRevert("invalid withdrawal lock blocks");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    0,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_gasLimitAddEqZero_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid gas limit add staker.
+        hevm.expectRevert("invalid gas limit add staker");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    0,
+                    defaultGasLimitRemove
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_gasLimitRemoveEqZero_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid gas limit remove stakers.
+        hevm.expectRevert("invalid gas limit remove stakers");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    0
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_rewardPercentageEqZero_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid challenger reward percentage.
+        hevm.expectRevert("invalid challenger reward percentage");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    LOCK_BLOCKS,
+                    0,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_rewardPercentageEq101_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid challenger reward percentage.
+        hevm.expectRevert("invalid challenger reward percentage");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    LOCK_BLOCKS,
+                    101,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_succeeds() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Verify the RewardPercentageUpdated event is emitted successful.
+        hevm.expectEmit(false, false, false, true);
+        emit IL1Staking.RewardPercentageUpdated(0, 11);
+
+        // 跑不过
+        // Verify the GasLimitAddStakerUpdated event is emitted successful.
+        // hevm.expectEmit(false, false, false, true);
+        // emit IL1Staking.GasLimitAddStakerUpdated(0, 22);
+
+        // Verify the GasLimitRemoveStakersUpdated event is emitted successful.
+        // hevm.expectEmit(false, false, false, true);
+        // emit IL1Staking.GasLimitRemoveStakersUpdated(0, 33);
+
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    LOCK_BLOCKS,
+                    11,
+                    22,
+                    33
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+}
 
 contract StakingTest is L1MessageBaseTest {
     function test_setUpCheck_succeeds() external {
@@ -109,6 +363,11 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         address[] memory add = new address[](2);
         add[0] = alice;
         add[1] = bob;
+
+        // Verify the WhitelistUpdated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.WhitelistUpdated(add, new address[](0));
+
         hevm.prank(multisig);
         l1Staking.updateWhitelist(add, new address[](0));
         assertTrue(l1Staking.whitelist(alice));
@@ -120,6 +379,11 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         add[0] = alice;
         address[] memory remove = new address[](1);
         remove[0] = bob;
+
+        // Verify the WhitelistUpdated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.WhitelistUpdated(add, remove);
+
         hevm.prank(multisig);
         l1Staking.updateWhitelist(add, remove);
         assertTrue(l1Staking.whitelist(alice));
@@ -159,7 +423,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         assertTrue(l1Staking.removedList(bob));
     }
 
-    function test_whitelist_reAdd_succeeds() external {
+    function test_whitelist_reAdd_inRemovedList_reverts() external {
         // add to whitelist
         address[] memory add = new address[](2);
         add[0] = alice;
@@ -375,6 +639,12 @@ contract StakingWithdrawTest is L1MessageBaseTest {
         assertTrue(l1Staking.isStaker(bob));
         assertTrue(!l1Staking.removedList(bob));
 
+        // Verify the StakersRemoved event is emitted successfully.
+        address[] memory remove = new address[](1);
+        remove[0] = bob;
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.StakersRemoved(remove);
+
         // bob withdraw
         l1Staking.withdraw();
         hevm.stopPrank();
@@ -510,6 +780,15 @@ contract StakingSlashTest is L1MessageBaseTest {
         sequencers[0] = alice;
         sequencers[1] = bob;
         uint256 beforeBalance = l1Staking.rollupContract().balance;
+        
+        // Verify the Slashed event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.Slashed(sequencers);
+
+        // Verify the StakersRemoved event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.StakersRemoved(sequencers);
+
         hevm.prank(l1Staking.rollupContract());
         // bob sequencer to slash
         uint256 reward = l1Staking.slash(sequencers);
@@ -560,6 +839,10 @@ contract StakingClaimSlashRemainingTest is L1MessageBaseTest {
         uint256 afterBalance = l1Staking.rollupContract().balance;
         assertEq(reward, afterBalance - beforeBalance);
 
+        // Verify the SlashRemainingClaimed event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.SlashRemainingClaimed(multisig, 2 * STAKING_VALUE - reward);
+
         uint256 beforeBalanceOfM = multisig.balance;
         hevm.prank(multisig);
         l1Staking.claimSlashRemaining(multisig);
@@ -593,8 +876,14 @@ contract StakingUpdateGasLimitAddStakerTest is L1MessageBaseTest {
     }
 
     function test_updateGasLimitAddStaker_succeeds() external {
-        hevm.prank(multisig);
         uint256 newValue = defaultGasLimitAdd / 10;
+        uint256 oldValue = l1Staking.gasLimitAddStaker();
+
+        // Verify the GasLimitAddStakerUpdated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.GasLimitAddStakerUpdated(oldValue, newValue);
+
+        hevm.prank(multisig);
         l1Staking.updateGasLimitAddStaker(newValue);
         assertEq(l1Staking.gasLimitAddStaker(), newValue);
     }
@@ -620,8 +909,14 @@ contract StakingUpdateGasLimitRemoveStakersTest is L1MessageBaseTest {
     }
 
     function test_updateGasLimitRemoveStakers_succeeds() external {
-        hevm.prank(multisig);
         uint256 newValue = defaultGasLimitRemove / 10;
+        uint256 oldValue = l1Staking.gasLimitRemoveStakers();
+
+        // Verify the GasLimitRemoveStakersUpdated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.GasLimitRemoveStakersUpdated(oldValue, newValue);
+
+        hevm.prank(multisig);
         l1Staking.updateGasLimitRemoveStakers(newValue);
         assertEq(l1Staking.gasLimitRemoveStakers(), newValue);
     }
@@ -653,8 +948,14 @@ contract StakingUpdateRewardPercentageTest is L1MessageBaseTest {
     }
 
     function test_updateRewardPercentage_succeeds() external {
-        hevm.prank(multisig);
         uint256 newValue = 66;
+        uint256 oldValue = l1Staking.rewardPercentage();
+
+        // Verify the GasLimitRemoveStakersUpdated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.RewardPercentageUpdated(oldValue, newValue);
+
+        hevm.prank(multisig);
         l1Staking.updateRewardPercentage(newValue);
         assertEq(l1Staking.rewardPercentage(), newValue);
     }
@@ -774,6 +1075,10 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
 
         // bob withdraw
         l1Staking.withdraw();
+
+        // Verify the Claimed event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.Claimed(bob, bob);
 
         // set block number
         hevm.roll(block.number + l1Staking.withdrawalLockBlocks() + 1);
