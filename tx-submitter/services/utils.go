@@ -5,7 +5,9 @@ import (
 	"math/big"
 
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
+	"github.com/scroll-tech/go-ethereum/params"
 )
 
 const (
@@ -40,4 +42,21 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 	threshold := new(big.Int).Mul(percent, x)
 	threshold = threshold.Div(threshold, oneHundred)
 	return threshold
+}
+
+func calcFee(tx types.Transaction, receipt *types.Receipt) float64 {
+	calldatafee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(receipt.GasUsed)))
+	// blobfee
+	blobfee := big.NewInt(0)
+	if tx.BlobTxSidecar() != nil {
+		if receipt.BlobGasPrice == nil {
+			return 0
+		}
+		blobfee = new(big.Int).Mul(big.NewInt(int64(receipt.BlobGasUsed)), receipt.BlobGasPrice)
+	}
+
+	fee := new(big.Int).Add(calldatafee, blobfee)
+	feeEther := new(big.Rat).SetFrac(fee, big.NewInt(params.Ether))
+	fEtherFee, _ := feeEther.Float64()
+	return fEtherFee
 }
