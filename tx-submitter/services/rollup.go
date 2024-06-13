@@ -303,7 +303,7 @@ func (sr *Rollup) ProcessTx() error {
 
 				sr.pendingTxs.Remove(rtx.Hash())
 				// set metrics
-				fee := calcFee(rtx, receipt)
+				fee := calcFee(receipt)
 				if fee == 0 {
 					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
 				}
