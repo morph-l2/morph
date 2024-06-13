@@ -672,10 +672,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchDataStore[_batchIndex].prevStateRoot,
                 batchDataStore[_batchIndex].postStateRoot,
                 batchDataStore[_batchIndex].withdrawalRoot,
+                batchSignatureStore[_batchIndex].sequencerSetVerifyHash,
                 batchDataStore[_batchIndex].l1DataHash,
                 _kzgDataProof[0:64],
-                batchDataStore[_batchIndex].blobVersionedHash,
-                batchSignatureStore[_batchIndex].sequencerSetVerifyHash
+                batchDataStore[_batchIndex].blobVersionedHash
             )
         );
 
