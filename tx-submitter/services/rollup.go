@@ -107,6 +107,9 @@ func (sr *Rollup) Start() {
 		balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
 		if err != nil {
 			log.Error("get wallet balance error", "error", err)
+			if utils.IsRpcErr(err) {
+				sr.metrics.IncRpcErrors()
+			}
 			return
 		}
 		// balance to eth
@@ -151,6 +154,10 @@ func (sr *Rollup) Start() {
 
 			if err := sr.finalize(); err != nil {
 				log.Error("finalize failed", "error", err)
+				if utils.IsRpcErr(err) {
+					sr.metrics.IncRpcErrors()
+				}
+
 			}
 		})
 	}
@@ -161,6 +168,9 @@ func (sr *Rollup) Start() {
 		defer processtxMu.Unlock()
 		if err := sr.ProcessTx(); err != nil {
 			log.Error("process tx err", "error", err)
+			if utils.IsRpcErr(err) {
+				sr.metrics.IncRpcErrors()
+			}
 		}
 	})
 
@@ -585,6 +595,7 @@ func (sr *Rollup) rollup() error {
 
 	gas, err := sr.EstimateGas(opts.From, sr.rollupAddr, calldata, gasFeeCap, tip)
 	if err != nil {
+		log.Warn("estimate gas error", "err", err)
 		if sr.pendingTxs.HaveFailed() {
 			log.Warn("estimate gas err, wait",
 				"err", err,
