@@ -44,11 +44,16 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 	return threshold
 }
 
-func calcFee(tx types.Transaction, receipt *types.Receipt) float64 {
-	calldatafee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(receipt.GasUsed)))
+func calcFee(receipt *types.Receipt) float64 {
+
+	if receipt == nil || receipt.EffectiveGasPrice == nil {
+		return 0
+	}
+
+	calldatafee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
 	// blobfee
 	blobfee := big.NewInt(0)
-	if tx.BlobTxSidecar() != nil {
+	if receipt.Type == types.BlobTxType {
 		if receipt.BlobGasPrice == nil {
 			return 0
 		}
