@@ -76,10 +76,10 @@ contract ShadowRollup is Ownable {
                 committedBatchStores[_batchIndex].prevStateRoot,
                 committedBatchStores[_batchIndex].postStateRoot,
                 committedBatchStores[_batchIndex].withdrawalRoot,
+                committedBatchStores[_batchIndex].sequencerSetVerifyHash,
                 committedBatchStores[_batchIndex].dataHash,
                 _kzgDataProof[0:64],
-                committedBatchStores[_batchIndex].blobVersionedHash,
-                committedBatchStores[_batchIndex].sequencerSetVerifyHash
+                committedBatchStores[_batchIndex].blobVersionedHash
             )
         );
 
