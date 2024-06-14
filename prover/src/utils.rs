@@ -19,8 +19,7 @@ pub static PROVER_L2_RPC: Lazy<String> = Lazy::new(|| read_env_var("PROVER_L2_RP
 pub static GENERATE_EVM_VERIFIER: Lazy<bool> = Lazy::new(|| read_env_var("GENERATE_EVM_VERIFIER", false));
 
 // metrics
-#[allow(clippy::redundant_closure)]
-pub static REGISTRY: Lazy<Registry> = Lazy::new(|| Registry::new());
+pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
 pub static PROVE_RESULT: Lazy<IntGauge> =
     Lazy::new(|| IntGauge::new("prove_result", "prove result").expect("prove metric can be created")); // 1 = Ok, 2 = Fail
 pub static PROVE_TIME: Lazy<IntGauge> =
