@@ -583,8 +583,6 @@ func (sr *Rollup) rollup() error {
 	if err != nil {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
-	tip = new(big.Int).Mul(tip, big.NewInt(150))
-	tip = new(big.Int).Div(tip, big.NewInt(100))
 	// calldata encode
 	calldata, err := sr.abi.Pack("commitBatch", rollupBatch, sequencerVersion, []common.Address{}, signature.Signature)
 	if err != nil {
