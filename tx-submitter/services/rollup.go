@@ -56,18 +56,11 @@ type Rollup struct {
 	rollupAddr common.Address
 	abi        *abi.ABI
 
-	secondInterval time.Duration
-	txTimout       time.Duration
-	Finalize       bool
-	MaxFinalizeNum uint64
-	PriorityRollup bool
-
-	// tx cfg
-	txFeeLimit uint64
-
 	pendingTxs *PendingTxs
 
 	rollupFinalizeMu sync.Mutex
+
+	cfg utils.Config
 }
 
 func NewRollup(
@@ -106,13 +99,7 @@ func NewRollup(
 		rollupAddr: rollupAddr,
 		abi:        abi,
 
-		secondInterval: cfg.PollInterval,
-		txTimout:       cfg.TxTimeout,
-		Finalize:       cfg.Finalize,
-		MaxFinalizeNum: cfg.MaxFinalizeNum,
-		PriorityRollup: cfg.PriorityRollup,
-
-		txFeeLimit: cfg.TxFeeLimit,
+		cfg: cfg,
 	}
 }
 
@@ -161,7 +148,7 @@ func (sr *Rollup) Start() {
 		}
 	})
 
-	if sr.Finalize {
+	if sr.cfg.Finalize {
 
 		go utils.Loop(sr.ctx, time.Second*2, func() {
 			sr.rollupFinalizeMu.Lock()
@@ -219,7 +206,7 @@ func (sr *Rollup) ProcessTx() error {
 
 		// exist in mempool
 		if ispending {
-			if txRecord.sendTime+uint64(sr.txTimout.Seconds()) < uint64(time.Now().Unix()) {
+			if txRecord.sendTime+uint64(sr.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
 				log.Info("tx timeout", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
 				newtx, err := sr.ReSubmitTx(false, &rtx)
 				if err != nil {
@@ -310,6 +297,16 @@ func (sr *Rollup) ProcessTx() error {
 				}
 
 				sr.pendingTxs.Remove(rtx.Hash())
+				// set metrics
+				fee := calcFee(receipt)
+				if fee == 0 {
+					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
+				}
+				if method == "commitBatch" {
+					sr.metrics.SetRollupCost(fee)
+				} else if method == "finalizeBatch" {
+					sr.metrics.SetFinalizeCost(fee)
+				}
 			}
 
 		}
@@ -462,7 +459,7 @@ func (sr *Rollup) finalize() error {
 
 func (sr *Rollup) rollup() error {
 
-	if !sr.PriorityRollup {
+	if !sr.cfg.PriorityRollup {
 		// is the turn of the submitter
 		currentSubmitter, start, end, err := sr.getCurrentSubmitter()
 		if err != nil {
@@ -607,9 +604,10 @@ func (sr *Rollup) rollup() error {
 			msgcnt := utils.ParseL1MessageCnt(batch.Chunks)
 			gas = RoughEstimateGas(msgcnt)
 		}
-	} else {
-		gas = gas * 12 / 10 // add a buffer
 	}
+
+	// gas buffer
+	gas = gas * sr.cfg.GasLimitBuffer / 100
 
 	if sr.pendingTxs.pnonce != 0 {
 		nonce = sr.pendingTxs.pnonce + 1
@@ -919,7 +917,7 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 		return errors.New("nil tx")
 	}
 
-	err := sendTx(r.L1Client, r.txFeeLimit, tx)
+	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
 	if err != nil {
 		return err
 	}

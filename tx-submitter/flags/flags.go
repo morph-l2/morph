@@ -1,6 +1,8 @@
 package flags
 
 import (
+	"time"
+
 	"github.com/urfave/cli"
 )
 
@@ -163,6 +165,50 @@ var (
 		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
 		EnvVar: prefixEnvVar("LOG_COMPRESS"),
 	}
+
+	// rollup interval
+	RollupInterval = cli.DurationFlag{
+		Name:   "ROLLUP_INTERVAL",
+		Usage:  "Interval for rollup",
+		Value:  500 * time.Millisecond,
+		EnvVar: prefixEnvVar("ROLLUP_INTERVAL"),
+	}
+	// finalize interval
+	FinalizeInterval = cli.DurationFlag{
+		Name:   "FINALIZE_INTERVAL",
+		Usage:  "Interval for finalize",
+		Value:  2 * time.Second,
+		EnvVar: prefixEnvVar("FINALIZE_INTERVAL"),
+	}
+	// tx process interval
+	TxProcessInterval = cli.DurationFlag{
+		Name:   "TX_PROCESS_INTERVAL",
+		Usage:  "Interval for tx process",
+		Value:  2 * time.Second,
+		EnvVar: prefixEnvVar("TX_PROCESS_INTERVAL"),
+	}
+
+	// rollup tx gas base
+	RollupTxGasBase = cli.Uint64Flag{
+		Name:   "ROLLUP_TX_GAS_BASE",
+		Usage:  "The base fee for a rollup transaction",
+		Value:  400000,
+		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_BASE"),
+	}
+	// rollup tx gas per l1msg
+	RollupTxGasPerL1Msg = cli.Uint64Flag{
+		Name:   "ROLLUP_TX_GAS_PER_L1_MSG",
+		Usage:  "The gas cost for each L1 message included in a rollup transaction",
+		Value:  4200,
+		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_PER_L1_MSG"),
+	}
+
+	GasLimitBuffer = cli.Uint64Flag{
+		Name:   "GAS_LIMIT_BUFFER",
+		Usage:  "The gas limit buffer for a transaction",
+		Value:  120,
+		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -192,6 +238,14 @@ var optionalFlags = []cli.Flag{
 	LogFileMaxSize,
 	LogFileMaxAge,
 	LogCompress,
+
+	RollupInterval,
+	FinalizeInterval,
+	TxProcessInterval,
+
+	RollupTxGasBase,
+	RollupTxGasPerL1Msg,
+	GasLimitBuffer,
 }
 
 // Flags contains the list of configuration options available to the binary.

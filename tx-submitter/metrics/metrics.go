@@ -13,14 +13,11 @@ import (
 const metricsNamespace = "submitter"
 
 type Metrics struct {
-	RpcErrors                           prometheus.Counter
-	WalletBalance                       prometheus.Gauge
-	LastFinalizedBatchIndex             prometheus.Gauge
-	LastCommittedBatchIndex             prometheus.Gauge
-	LastFinalizedCommitedBatchIndexDiff prometheus.Gauge
-	L2BlockNumber                       prometheus.Gauge
-	L2BlockNumberRolluped               prometheus.Gauge
-	LastRollupedBlocknumberDiff         prometheus.Gauge
+	RpcErrors     prometheus.Counter
+	WalletBalance prometheus.Gauge
+
+	RollupCost   prometheus.Gauge
+	FinalizeCost prometheus.Gauge
 }
 
 func NewMetrics() *Metrics {
@@ -31,10 +28,19 @@ func NewMetrics() *Metrics {
 			Help:      "Number of RPC errors encountered",
 			Namespace: metricsNamespace,
 		}),
-
 		WalletBalance: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "submitter_wallet_balance",
 			Help:      "Wallet balance",
+			Namespace: metricsNamespace,
+		}),
+		RollupCost: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "submitter_rollup_cost",
+			Help:      "Rollup cost",
+			Namespace: metricsNamespace,
+		}),
+		FinalizeCost: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "submitter_finalize_cost",
+			Help:      "Finalize cost",
 			Namespace: metricsNamespace,
 		}),
 	}
@@ -50,10 +56,18 @@ func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {
 	return srv, err
 }
 
+func (m *Metrics) SetWalletBalance(balance float64) {
+	m.WalletBalance.Set(balance)
+}
+
 func (m *Metrics) IncRpcErrors() {
 	m.RpcErrors.Inc()
 }
 
-func (m *Metrics) SetWalletBalance(balance float64) {
-	m.WalletBalance.Set(balance)
+func (m *Metrics) SetRollupCost(cost float64) {
+	m.RollupCost.Set(cost)
+}
+
+func (m *Metrics) SetFinalizeCost(cost float64) {
+	m.FinalizeCost.Set(cost)
 }
