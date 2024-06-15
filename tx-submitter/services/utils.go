@@ -47,7 +47,7 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 
 // for rollup
 func RoughEstimateGas(msgcnt uint64) uint64 {
-	base := uint64(400_000)
+	base := uint64(800_000)
 	gasPerMsg := uint64(4200)
 
 	return base + msgcnt*gasPerMsg
