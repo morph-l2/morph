@@ -46,7 +46,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         l1weth.approve(address(router), type(uint256).max);
     }
 
-    function test_initialize_revert() public {
+    function test_initialize_reverts() public {
         // Verify initialize can only be called once.
         hevm.expectRevert("Initializable: contract is already initialized");
         gateway.initialize(address(1), address(1), address(1));
@@ -107,7 +107,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         hevm.stopPrank();
     }
 
-    function test_initialize_succeed() public {
+    function test_initialize_succeeds() public {
         hevm.startPrank(multisig);
 
         // Deploy a proxy contract for the L1WETHGateway.
@@ -341,7 +341,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(keccak256(xDomainCalldata)));
     }
 
-    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_revert() public{
+    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public{
         address recipient = address(2048);
         address _from = address(counterpartGateway);
 
@@ -373,7 +373,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         hevm.stopPrank();
     }
 
-    function test_onDropMessage_beforeDropMessage_revert() public {
+    function test_onDropMessage_beforeDropMessage_reverts() public {
         uint256 amount = 1000;
         
         // Assign 10 ether to l1CrossDomainMessenger.

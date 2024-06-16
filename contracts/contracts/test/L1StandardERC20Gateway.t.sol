@@ -48,7 +48,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         reentrantToken.approve(address(l1GatewayRouter), type(uint256).max);
     }
 
-    function test_initialize_revert() public {
+    function test_initialize_reverts() public {
         // verify the initialize only can be called once.
         hevm.expectRevert("Initializable: contract is already initialized");
         l1StandardERC20Gateway.initialize(address(1), address(1), address(1), address(1), address(1));
@@ -319,7 +319,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         assertEq(balance + amount, l1Token.balanceOf(address(this)));
     }
 
-    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_revert() public{
+    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public{
         address recipient = address(2048);
         address _from = address(counterpartGateway);
 
@@ -465,7 +465,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
     }
 
-    function test_onDropMessage_beforeDropMessage_revert() public {
+    function test_onDropMessage_beforeDropMessage_reverts() public {
         uint256 amount = 1000;
         
         // Assign 10 ether to l1CrossDomainMessenger.

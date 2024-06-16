@@ -45,7 +45,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         l1Token.setApprovalForAll(address(gateway), true);
     }
 
-    function test_initialize_revert() public {
+    function test_initialize_reverts() public {
         // Verify initialize can only be called once.
         hevm.expectRevert("Initializable: contract is already initialized");
         gateway.initialize(address(1), address(1));
@@ -90,7 +90,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         hevm.stopPrank();
     }
 
-    function test_initialize_succeed() public {
+    function test_initialize_succeeds() public {
         hevm.startPrank(multisig);
 
         // Deploy a proxy contract for the L1ERC1155Gateway.

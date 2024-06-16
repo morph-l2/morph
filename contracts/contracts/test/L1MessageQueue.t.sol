@@ -136,7 +136,6 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         hevm.stopPrank();
     }
 
-
     function test_setL2BaseFee_notOwner_reverts() external {
         // Verify that the onlyOwner modifier works correctly.
         // Expect revert when msg.sender is not the owner.
@@ -276,9 +275,6 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     }
 
     function test_popCrossDomainMessage_tooManyMessages_reverts() external {
-        bytes memory _calldata = "0x0";
-        uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee(_calldata);
-        
         // Store alice as messenger and rollup.
         upgradeStorage(address(alice), address(alice), address(alice));
 
@@ -289,9 +285,6 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     }
 
     function test_popCrossDomainMessage_startIndexMismatch_reverts() external {
-        bytes memory _calldata = "0x0";
-        uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee(_calldata);
-        
         // Store alice as messenger and rollup.
         upgradeStorage(address(alice), address(alice), address(alice));
 

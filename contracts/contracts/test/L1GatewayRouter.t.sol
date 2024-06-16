@@ -21,7 +21,7 @@
             hevm.stopPrank();
         }
 
-        function test_initialize_revert() external {
+        function test_initialize_reverts() external {
             // Verify that initialize can only be called once.
             hevm.expectRevert("Initializable: contract is already initialized");
             l1GatewayRouter.initialize(address(1), address(1));
@@ -69,6 +69,14 @@
 
             // Deploy a new L1GatewayRouter contract.
             L1GatewayRouter l1GatewayRouterImplTempB = new L1GatewayRouter();
+            
+            // Verify the SetDefaultERC20Gateway event is emitted successfully.
+            hevm.expectEmit(true, true, false, true);
+            emit IL1GatewayRouter.SetDefaultERC20Gateway(address(0), address(2));
+            
+            // Verify the SetETHGateway event is emitted successfully.
+            hevm.expectEmit(true, true, false, true);
+            emit IL1GatewayRouter.SetETHGateway(address(0), address(1));
 
             // Initialize the proxy with the new implementation.
             ITransparentUpgradeableProxy(address(l1GatewayRouterProxyTempB))
