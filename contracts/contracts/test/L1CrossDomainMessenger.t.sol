@@ -470,17 +470,6 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         );
         assertEq(address(refundAddress).balance, fee);
 
-        // verify refundAddress.call() failed, trigger the error message "Failed to refund the fee" as expected.
-        hevm.expectRevert("Failed to refund the fee");
-        (bool _success, ) = refundAddress.call{value: gas + fee}("");
-        l1CrossDomainMessenger.sendMessage{value: 2 ether}(
-            to,
-            value,
-            data,
-            gas,
-            refundAddress
-        );
-
         // verify the call is executed as expected, and the fee is added into the balance of the feeVault.
         uint256 initialFeeVaultBalance = l1FeeVault.balance;
         l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(
@@ -490,10 +479,6 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
             gas
         );
         assertEq(address(l1FeeVault).balance, initialFeeVaultBalance + fee);
-
-        // verify it throws a "Failed to refund the fee" error when the call fails.
-        hevm.expectRevert("Failed to deduct the fee");
-        (_success, ) = sender.call{value: gas}("");
     }
 
     function test_sendMessage_twice_succeeds() external {

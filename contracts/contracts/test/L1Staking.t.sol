@@ -229,18 +229,17 @@ contract StakingInitializeTest is L1MessageBaseTest{
             new bytes(0)
         );
 
+        // Verify the GasLimitAddStakerUpdated event is emitted successful.
+        hevm.expectEmit(false, false, false, true);
+        emit IL1Staking.GasLimitAddStakerUpdated(0, 22);
+
+        // Verify the GasLimitRemoveStakersUpdated event is emitted successful.
+        hevm.expectEmit(false, false, false, true);
+        emit IL1Staking.GasLimitRemoveStakersUpdated(0, 33);
+
         // Verify the RewardPercentageUpdated event is emitted successful.
         hevm.expectEmit(false, false, false, true);
         emit IL1Staking.RewardPercentageUpdated(0, 11);
-
-        // 跑不过
-        // Verify the GasLimitAddStakerUpdated event is emitted successful.
-        // hevm.expectEmit(false, false, false, true);
-        // emit IL1Staking.GasLimitAddStakerUpdated(0, 22);
-
-        // Verify the GasLimitRemoveStakersUpdated event is emitted successful.
-        // hevm.expectEmit(false, false, false, true);
-        // emit IL1Staking.GasLimitRemoveStakersUpdated(0, 33);
 
         ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
             address(l1StakingImpl),
