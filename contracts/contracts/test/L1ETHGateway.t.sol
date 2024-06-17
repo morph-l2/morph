@@ -22,39 +22,47 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         counterpartGateway = l1ETHGateway.counterpart();
     }
 
-    function testInitialize() external {
+    function test_initialize_initializeAgain_reverts() public {
+        // Test the initializer modifier to ensure initialize() can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        l1ETHGateway.initialize(address(1), address(1), address(1));
+    }
+
+    function test_initialize_zeroAddress_reverts() external {
         hevm.startPrank(multisig);
+
         // Deploy a transparent upgradeable proxy for the L1ETHGateway contract.
         TransparentUpgradeableProxy l1ETHGatewayProxyTemp = new TransparentUpgradeableProxy(
                 address(emptyContract),
                 address(multisig),
                 new bytes(0)
-            );
+        );
+
         // Deploy a new instance of the L1ETHGateway contract implementation.
         l1ETHGatewayImplTemp = new L1ETHGateway();
 
-        // Verify it throws an error "zero counterpart address" when the address of _counterpart is equal to the zero address.
+        // Expect revert when the address of _counterpart equals the zero address.
         hevm.expectRevert("zero counterpart address");
         ITransparentUpgradeableProxy(address(l1ETHGatewayProxyTemp))
             .upgradeToAndCall(
                 address(l1ETHGatewayImplTemp),
                 abi.encodeCall(
-                    l1ETHGatewayImplTemp.initialize,
+                    L1ETHGateway.initialize,
                     (
                         address(0), // _counterpart
                         address(l1ETHGatewayProxyTemp), // _router
                         address(l1CrossDomainMessenger) // _messenger
                     )
                 )
-            );
+        );
 
-        // Verify it throws an error "zero router address" when the address of _router is equal to the zero address.
+        // Expect revert when the address of _router equals the zero address.
         hevm.expectRevert("zero router address");
         ITransparentUpgradeableProxy(address(l1ETHGatewayProxyTemp))
             .upgradeToAndCall(
                 address(l1ETHGatewayImplTemp),
                 abi.encodeCall(
-                    l1ETHGatewayImplTemp.initialize,
+                    L1ETHGateway.initialize,
                     (
                         address(NON_ZERO_ADDRESS), // _counterpart
                         address(0), // _router
@@ -63,13 +71,13 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
                 )
             );
 
-        // Verify it throws an error "zero messenger address" when the address of _messenger is equal to the zero address.
+        // Expect revert when the address of _messenger equals the zero address.
         hevm.expectRevert("zero messenger address");
         ITransparentUpgradeableProxy(address(l1ETHGatewayProxyTemp))
             .upgradeToAndCall(
                 address(l1ETHGatewayImplTemp),
                 abi.encodeCall(
-                    l1ETHGatewayImplTemp.initialize,
+                    L1ETHGateway.initialize,
                     (
                         address(NON_ZERO_ADDRESS), // _counterpart
                         address(l1ETHGatewayProxyTemp), // _router
@@ -80,7 +88,44 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         hevm.stopPrank();
     }
 
-    function testDepositETH(
+    function test_initialize_succeed() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a transparent upgradeable proxy for the L1ETHGateway contract.
+        TransparentUpgradeableProxy l1ETHGatewayProxyTemp = new TransparentUpgradeableProxy(
+                address(emptyContract),
+                address(multisig),
+                new bytes(0)
+        );
+
+        // Deploy a new instance of the L1ETHGateway contract implementation.
+        l1ETHGatewayImplTemp = new L1ETHGateway();
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l1ETHGatewayProxyTemp))
+            .upgradeToAndCall(
+                address(l1ETHGatewayImplTemp),
+                abi.encodeCall(
+                    L1ETHGateway.initialize,
+                    (
+                        address(NON_ZERO_ADDRESS), // _counterpart
+                        address(l1ETHGatewayProxyTemp), // _router
+                        address(l1CrossDomainMessenger) // _messenger
+                    )
+                )
+        );
+
+        // Cast the proxy contract address to the L1ETHGateway contract type to call its methods.
+        L1ETHGateway l1ETHGatewayTemp = L1ETHGateway((address(l1ETHGatewayProxyTemp)));
+        hevm.stopPrank();
+        
+        // Verify the counterpart, router and messenger are initialized successfully.
+        assertEq(l1ETHGatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l1ETHGatewayTemp.router(), address(l1ETHGatewayProxyTemp));
+        assertEq(l1ETHGatewayTemp.messenger(), address(l1CrossDomainMessenger));
+    }
+
+    function test_depositETH_succeeds(
         uint256 amount,
         uint256 gasLimit,
         uint256 feePerGas

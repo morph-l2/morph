@@ -41,7 +41,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         gateway.transferOwnership(address(this));
     }
 
-    function test_initialize_revert() public {
+    function test_initialize_reverts() public {
         // Verify initialize can only be called once.
         hevm.expectRevert("Initializable: contract is already initialized");
         gateway.initialize(address(1), address(1), address(1));
@@ -102,7 +102,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         hevm.stopPrank();
     }
 
-    function test_initialize_succeed() public {
+    function test_initialize_succeeds() public {
         hevm.startPrank(multisig);
 
         // Deploy a proxy contract for the L1CustomERC20Gateway.
@@ -207,7 +207,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         assertEq(balance + amount, l1Token.balanceOf(address(this)));
     }
 
-    function test_onDropMessage_beforeDropMessage_revert() public {
+    function test_onDropMessage_beforeDropMessage_reverts() public {
         uint256 amount = 1000;
         
         // Assign 10 ether to l1CrossDomainMessenger.
