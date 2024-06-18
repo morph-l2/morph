@@ -21,7 +21,6 @@ export const StakingInit = async (
     configTmp: any
 ): Promise<string> => {
     // Load the contracts we need to interact with.
-    const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
 
     // Staking config

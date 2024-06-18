@@ -295,6 +295,16 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
      * Restricted Functions *
      ************************/
 
+    /// @dev Updates the rollup contract address.
+    /// @param _newRollup The address of the new rollup contract.
+    function updateRollup(address _newRollup) external onlyOwner {
+        require(_newRollup != address(0), "rollup address cannot be address(0)");
+        address _oldRollup = rollup;
+        rollup = _newRollup;
+
+        emit UpdateRollup(_oldRollup, _newRollup);
+    }
+
     /// @notice Update max replay times.
     /// @dev This function can only called by contract owner.
     /// @param _newMaxReplayTimes The new max replay times.
