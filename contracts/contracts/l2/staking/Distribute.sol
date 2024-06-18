@@ -66,6 +66,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         MORPH_TOKEN_CONTRACT = Predeploys.MORPH_TOKEN;
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
         RECORD_CONTRACT = Predeploys.RECORD;
+        _disableInitializers();
     }
 
     /***************

@@ -9,6 +9,11 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
      * Events *
      **********/
 
+    /// @dev Emitted when the rollup contract address is updated.
+    /// @param oldRollup The address of the old rollup contract.
+    /// @param newRollup The address of the new rollup contract.
+    event UpdateRollup(address oldRollup, address newRollup);
+
     /// @notice Emitted when the maximum number of times each message can be replayed is updated.
     /// @param oldMaxReplayTimes The old maximum number of times each message can be replayed.
     /// @param newMaxReplayTimes The new maximum number of times each message can be replayed.

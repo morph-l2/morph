@@ -235,6 +235,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		} else {
 			d.metrics.SetBatchStatus(stateNormal)
 		}
+		d.metrics.SetL1SyncHeight(lg.BlockNumber)
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)

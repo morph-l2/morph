@@ -81,6 +81,7 @@ contract Record is IRecord, OwnableUpgradeable {
         SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
         DISTRIBUTE_CONTRACT = Predeploys.DISTRIBUTE;
         GOV_CONTRACT = Predeploys.GOV;
+        _disableInitializers();
     }
 
     /***************
