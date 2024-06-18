@@ -19,7 +19,7 @@ pub static PROVER_L2_RPC: Lazy<String> = Lazy::new(|| read_env_var("PROVER_L2_RP
 pub static GENERATE_EVM_VERIFIER: Lazy<bool> = Lazy::new(|| read_env_var("GENERATE_EVM_VERIFIER", false));
 
 // metrics
-pub static REGISTRY: Lazy<Registry> = Lazy::new(|| Registry::new());
+pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
 pub static PROVE_RESULT: Lazy<IntGauge> =
     Lazy::new(|| IntGauge::new("prove_result", "prove result").expect("prove metric can be created")); // 1 = Ok, 2 = Fail
 pub static PROVE_TIME: Lazy<IntGauge> =
@@ -33,8 +33,7 @@ pub fn load_trusted_setup() -> KzgSettings {
     let setup_config = SCROLL_PROVER_ASSETS_DIR.to_string() + "/4844_trusted_setup.txt";
     let trusted_setup_file = Path::new(setup_config.as_str());
     assert!(trusted_setup_file.exists());
-    let kzg_settings = KzgSettings::load_trusted_setup_file(trusted_setup_file).unwrap();
-    return kzg_settings;
+    KzgSettings::load_trusted_setup_file(trusted_setup_file).unwrap()
 }
 
 pub fn kzg_to_versioned_hash(commitment: &[u8]) -> Vec<u8> {
@@ -100,5 +99,5 @@ fn test_kzg() {
     };
 
     let versioned_hash = kzg_to_versioned_hash(commitment.to_bytes().to_vec().as_slice());
-    log::info!("versioned_hash_Hex= {:#?}", ethers::utils::hex::encode(&versioned_hash));
+    log::info!("versioned_hash_Hex= {:#?}", ethers::utils::hex::encode(versioned_hash));
 }

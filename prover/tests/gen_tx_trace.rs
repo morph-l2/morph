@@ -31,7 +31,7 @@ pub async fn call() -> Result<(), Box<dyn Error>> {
 
     let signer = Arc::new(SignerMiddleware::new(
         provider.clone(),
-        wallet.with_chain_id(1337 as u64),
+        wallet.with_chain_id(1337_u64),
     ));
 
     let contract: TestZkEVM<SignerMiddleware<Provider<Http>, _>> =
@@ -54,7 +54,7 @@ pub async fn deploy() -> Result<(), Box<dyn Error>> {
 
     let signer = Arc::new(SignerMiddleware::new(
         provider.clone(),
-        wallet.with_chain_id(1337 as u64),
+        wallet.with_chain_id(1337_u64),
     ));
     // let factory = ContractFactory::new(abi, bytecode, client.clone());
 

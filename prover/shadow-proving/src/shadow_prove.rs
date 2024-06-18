@@ -109,20 +109,17 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
         );
 
         // Query existing proof
-        match query_proof(batch_index).await {
-            Some(prove_result) => {
-                if !prove_result.proof_data.is_empty() {
-                    log::info!("query proof and prove state: {:?}", batch_index);
-                    prove_state(batch_index, &l1_shadow_rollup).await;
-                    break;
-                }
+        if let Some(prove_result) = query_proof(batch_index).await {
+            if !prove_result.proof_data.is_empty() {
+                log::info!("query proof and prove state: {:?}", batch_index);
+                prove_state(batch_index, l1_shadow_rollup).await;
+                break;
             }
-            None => (),
         }
 
         // Request the proverServer to prove.
         let request = ProveRequest {
-            batch_index: batch_index,
+            batch_index,
             chunks: chunks.clone(),
             rpc: l2_rpc.to_owned(),
             shadow: true,
@@ -137,7 +134,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
                 task_status::PROVING => log::info!("waiting for prev proof to be generated"),
                 task_status::PROVED => {
                     log::info!("proof already generated");
-                    prove_state(batch_index, &l1_shadow_rollup).await;
+                    prove_state(batch_index, l1_shadow_rollup).await;
                     break;
                 }
                 _ => {
@@ -160,7 +157,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
                 Some(prove_result) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
-                        prove_state(batch_index, &l1_shadow_rollup).await;
+                        prove_state(batch_index, l1_shadow_rollup).await;
                         return;
                     }
                 }
@@ -202,12 +199,9 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
             Err(err) => {
                 log::error!("send tx of prove_state error: {:#?}", err);
                 METRICS.shadow_verify_result.set(2);
-                match err {
-                    ContractError::Revert(data) => {
-                        let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));
-                        log::error!("send tx of prove_state error, msg: {:#?}", msg);
-                    }
-                    _ => (),
+                if let ContractError::Revert(data) = err {
+                    let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));
+                    log::error!("send tx of prove_state error, msg: {:#?}", msg);
                 }
                 continue;
             }
@@ -232,7 +226,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &ShadowRollupType) -> bool {
             Err(error) => log::error!("provider error: {:?}", error),
         }
     }
-    return false;
+    false
 }
 
 /**
@@ -260,5 +254,5 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
         }
     };
 
-    return Some(prove_result);
+    Some(prove_result)
 }
