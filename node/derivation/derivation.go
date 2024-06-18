@@ -198,7 +198,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		}
 		d.logger.Info("fetch rollup transaction success", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 			"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
-		lastHead, err := d.l2Client.HeaderByNumber(ctx, big.NewInt(int64(batchInfo.firstBlockNumber)))
+
 		// derivation
 		lastHeader, err := d.derive(batchInfo)
 		if err != nil {
