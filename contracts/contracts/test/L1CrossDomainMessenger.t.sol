@@ -12,6 +12,7 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
+import {ReceiveRevert} from "../mock/ReceiveRevert.sol";
 
 contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
     uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
@@ -469,6 +470,17 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
             refundAddress
         );
         assertEq(address(refundAddress).balance, fee);
+
+        // verify refundAddress.call() failed, trigger the error message "Failed to refund the fee" as expected.
+        ReceiveRevert receiveRevert = new ReceiveRevert();
+        hevm.expectRevert("Failed to refund the fee");
+        l1CrossDomainMessenger.sendMessage{value: 2 ether}(
+            to,
+            value,
+            data,
+            gas,
+            address(receiveRevert)
+        );
 
         // verify the call is executed as expected, and the fee is added into the balance of the feeVault.
         uint256 initialFeeVaultBalance = l1FeeVault.balance;
