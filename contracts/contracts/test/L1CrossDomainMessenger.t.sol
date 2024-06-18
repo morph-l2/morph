@@ -16,6 +16,7 @@ import {ReceiveRevert} from "../mock/ReceiveRevert.sol";
 
 contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
     uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
+    uint256 L1CrossDomainMessenger_FeeVault_slot = 203;
     address refundAddress = address(2048);
     address counterpartGateway; 
 
@@ -491,6 +492,22 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
             gas
         );
         assertEq(address(l1FeeVault).balance, initialFeeVaultBalance + fee);
+
+
+        // verify it throws a "Failed to refund the fee" error when the call fails.
+        hevm.store(
+            address(l1CrossDomainMessenger),
+            bytes32(L1CrossDomainMessenger_FeeVault_slot),
+            bytes32(abi.encode(address(receiveRevert)))
+        );
+        hevm.expectRevert("Failed to deduct the fee");
+        l1CrossDomainMessenger.sendMessage{value: 2 ether}(
+            to,
+            value,
+            data,
+            gas,
+            refundAddress
+        );
     }
 
     function test_sendMessage_twice_succeeds() external {
