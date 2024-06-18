@@ -62,7 +62,7 @@ impl BatchSyncer {
             }
         };
 
-        if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(true) == true {
+        if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(true) {
             log::debug!("batch of {:?} already prove successful", batch_info.batch_index);
             return Ok(None);
         };
@@ -142,7 +142,7 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
         }
     };
 
-    let chunks = match batch_inspect(&l1_provider, tx_hash).await {
+    let chunks = match batch_inspect(l1_provider, tx_hash).await {
         Some(batch) => batch,
         None => vec![],
     };
@@ -186,7 +186,7 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec
         return None;
     };
     let chunks: Vec<Bytes> = param.batch_data_input.chunks;
-    return decode_chunks(chunks);
+    decode_chunks(chunks)
 }
 
 fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
@@ -219,7 +219,7 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
     log::debug!("decode_chunks_blocknum: {:#?}", chunk_with_blocks);
     log::debug!("max_l2txn_in_chunk: {:#?}", max_txn_in_chunk);
     log::debug!("total_l2txn_in_batch: {:#?}", txn_in_batch);
-    return Some(chunk_with_blocks);
+    Some(chunk_with_blocks)
 }
 
 async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: PendingTransaction<'_, Http>) -> bool {
@@ -232,12 +232,12 @@ async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: P
                     1 => log::info!("{:?} receipt success: {:#?}", method, pending_tx.tx_hash()),
                     _ => log::error!("{:?} receipt fail: {:#?}", method, tr),
                 };
-                return true;
+                true
             }
             // Maybe still pending.
             None => {
                 log::info!("{:?} receipt pending", method);
-                return false;
+                false
             }
         }
     };
@@ -248,7 +248,7 @@ async fn check_receipt(method: &str, l1_provider: &Provider<Http>, pending_tx: P
             return true;
         };
     }
-    return false;
+    false
 }
 
 async fn is_prove_success(batch_index: u64, l1_rollup: &ShadowRollupType) -> Option<bool> {
