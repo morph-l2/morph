@@ -5,7 +5,9 @@ import (
 	"math/big"
 
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
+	"github.com/scroll-tech/go-ethereum/params"
 )
 
 const (
@@ -18,7 +20,6 @@ const (
 var priceBumpPercent = big.NewInt(100 + priceBump)
 var blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
 var oneHundred = big.NewInt(100)
-var two = big.NewInt(2)
 
 var blobCommitmentVersionKZG uint8 = 0x01
 
@@ -43,6 +44,24 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 	return threshold
 }
 
-func calcBlobFeeCap(blobFee *big.Int) *big.Int {
-	return new(big.Int).Mul(blobFee, two)
+func calcFee(receipt *types.Receipt) float64 {
+
+	if receipt == nil || receipt.EffectiveGasPrice == nil {
+		return 0
+	}
+
+	calldatafee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
+	// blobfee
+	blobfee := big.NewInt(0)
+	if receipt.Type == types.BlobTxType {
+		if receipt.BlobGasPrice == nil {
+			return 0
+		}
+		blobfee = new(big.Int).Mul(big.NewInt(int64(receipt.BlobGasUsed)), receipt.BlobGasPrice)
+	}
+
+	fee := new(big.Int).Add(calldatafee, blobfee)
+	feeEther := new(big.Rat).SetFrac(fee, big.NewInt(params.Ether))
+	fEtherFee, _ := feeEther.Float64()
+	return fEtherFee
 }

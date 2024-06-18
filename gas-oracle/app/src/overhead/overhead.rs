@@ -1,8 +1,8 @@
 use eyre::anyhow;
-use std::{str::FromStr, time::Duration};
-use tokio::time::sleep;
+use tokio::time::{sleep, Duration};
 
 use super::{
+    blob_client::BeaconNode,
     calculate::{
         calc_blob_gasprice, calc_tx_overhead, data_and_hashes_from_txs, data_gas_cost,
         extract_tx_payload, extract_txn_num,
@@ -20,8 +20,6 @@ use crate::{
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use serde_json::Value;
 
-use super::blob_client::{BeaconNode, ExecutionNode};
-
 // Information about the previous rollup
 struct PrevRollupInfo {
     gas_used: u128,        // Exec layer gas used
@@ -36,7 +34,6 @@ pub struct OverHeadUpdater {
                                   * gas prices */
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
     overhead_threshold: u128,          // Threshold for overhead
-    execution_node: ExecutionNode,     // Node for executing transactions
     beacon_node: BeaconNode,           // Beacon node for blockchain
     overhead_switch: bool,             // Flag to enable/disable overhead calculations
     max_overhead: u128,                // Maximum allowable overhead
@@ -51,13 +48,11 @@ impl OverHeadUpdater {
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         l1_rollup: Rollup<Provider<Http>>,
         overhead_threshold: u128,
-        l1_rpc: String,
         l1_beacon_rpc: String,
         overhead_switch: bool,
         max_overhead: u128,
     ) -> Self {
-        // Create execution and beacon nodes with provided RPC URLs
-        let execution_node = ExecutionNode { rpc_url: l1_rpc };
+        // Create beacon nodes with provided RPC URLs
         let beacon_node = BeaconNode { rpc_url: l1_beacon_rpc };
 
         // Return a new OverHead instance with initialized values
@@ -66,7 +61,6 @@ impl OverHeadUpdater {
             l2_oracle,
             l1_rollup,
             overhead_threshold,
-            execution_node,
             beacon_node,
             overhead_switch,
             max_overhead,
@@ -185,11 +179,16 @@ impl OverHeadUpdater {
     }
 
     async fn calculate_from_prev_rollup(&mut self) -> Result<Option<usize>, OverHeadError> {
-        let latest_block = self.execution_node.query_block_by_num(0).await?;
+        let latest_block = self
+            .l1_provider
+            .get_block(BlockNumber::Latest)
+            .await
+            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
+            .ok_or_else(|| {
+                OverHeadError::Error(anyhow!(format!("l1 latest block info is none.")))
+            })?;
 
-        let excess_blob_gas =
-            U256::from_str(latest_block["result"]["excessBlobGas"].as_str().unwrap_or("0x0"))
-                .unwrap_or(U256::from(0));
+        let excess_blob_gas = latest_block.excess_blob_gas.unwrap_or_default();
 
         let blob_fee = calc_blob_gasprice(excess_blob_gas.as_u64());
 
@@ -230,7 +229,7 @@ impl OverHeadUpdater {
                 )))
             })?;
 
-        log::info!("rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
+        log::info!("hit self rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
 
         //Step2. Parse transaction data
         let data = tx.input;
@@ -252,7 +251,7 @@ impl OverHeadUpdater {
 
         //Step3. Calculate l2 data gas
         let l2_data_gas = self
-            .calculate_l2_data_gas_from_blob(tx_hash, tx.block_hash.unwrap(), block_num, l2_txn)
+            .calculate_l2_data_gas_from_blob(tx_hash, block_num, l2_txn)
             .await
             .map_err(|e| {
                 log::error!("calculate_l2_data_gas_from_blob error: {:#?}", e);
@@ -260,41 +259,45 @@ impl OverHeadUpdater {
             })?;
 
         let blob_tx_receipt = self
-            .execution_node
-            .query_blob_tx_receipt(hex::encode_prefixed(tx_hash).as_str())
-            .await?;
+            .l1_provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
+            .ok_or_else(|| {
+                OverHeadError::Error(anyhow!(format!(
+                    "l1 get transaction receipt return none, tx_hash= {:#?}",
+                    tx_hash
+                )))
+            })?;
 
         // rollup_gas_used
-        let rollup_gas_used =
-            U256::from_str(blob_tx_receipt["result"]["gasUsed"].as_str().unwrap_or("0x0"))
-                .unwrap_or(U256::from(0));
-        log::info!("rollup_calldata_gas_used: {:?}", rollup_gas_used);
-
+        let rollup_gas_used = blob_tx_receipt.gas_used.unwrap_or_default();
         if rollup_gas_used.is_zero() {
             return Err(OverHeadError::Error(anyhow!(format!(
-                "blob tx calldata gas_used is None or 0, tx_hash = {:#?}",
+                "blob tx calldata gas_used is none or 0, tx_hash = {:#?}",
                 tx_hash
             ))));
         }
 
         // blob_gas_price
-        let blob_gas_price =
-            U256::from_str(blob_tx_receipt["result"]["blobGasPrice"].as_str().unwrap_or("0x0"))
-                .unwrap_or(U256::from(0));
+        let blob_gas_price = blob_tx_receipt
+            .other
+            .get_with("blobGasPrice", serde_json::from_value::<U256>)
+            .unwrap_or(Ok(U256::zero()))
+            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?;
+
+        if blob_gas_price.is_zero() {
+            return Err(OverHeadError::Error(anyhow!(format!(
+                "blob tx blob_gas_price is none or 0, tx_hash = {:#?}",
+                tx_hash
+            ))));
+        }
 
         // effective_gas_price
-        let effective_gas_price = U256::from_str(
-            blob_tx_receipt["result"]["effectiveGasPrice"].as_str().unwrap_or("0x0"),
-        )
-        .unwrap_or(U256::from(0));
-        log::info!(
-            "blob_gas_price: {:?}, calldata_gas_price: {:?}",
-            blob_gas_price,
-            effective_gas_price
-        );
+        let effective_gas_price = blob_tx_receipt.effective_gas_price.unwrap_or_default();
         if effective_gas_price.is_zero() {
             return Err(OverHeadError::Error(anyhow!(format!(
-                "blob tx calldata effective_gas_price is None or 0, tx_hash = {:#?}",
+                "blob tx calldata effective_gas_price is none or 0, tx_hash = {:#?}",
                 tx_hash
             ))));
         }
@@ -323,7 +326,13 @@ impl OverHeadUpdater {
             ((rollup_gas_used * effective_gas_price).as_usize() as f64);
 
         log::info!(
-            "lastest_overhead: {:?},  x:{:?}, l2_txn:{:?}, blob gasFee ratio: {:?}",
+            "rollup blob tx: {:?} in block: {:?}, rollup_gas_used: {:?}, sum(tx_data_gas):{:?}, blob_gas_price: {:?}, effective_gas_price: {:?}, lastest_overhead: {:?}, x: {:?}, l2_txn: {:?}, blob_fee_ratio: {}",
+            tx_hash,
+            block_num,
+            rollup_gas_used,
+            l2_data_gas,
+            blob_gas_price,
+            effective_gas_price,
             overhead,
             x,
             l2_txn,
@@ -338,116 +347,160 @@ impl OverHeadUpdater {
     async fn calculate_l2_data_gas_from_blob(
         &self,
         tx_hash: TxHash,
-        block_hash: TxHash,
         block_num: U64,
         l2_txn: u64,
     ) -> Result<u64, OverHeadError> {
         if l2_txn == 0 {
             return Ok(0);
         }
-        let blob_tx =
-            self.execution_node.query_blob_tx(hex::encode_prefixed(tx_hash).as_str()).await?;
+        let blob_tx = self
+            .l1_provider
+            .get_transaction(tx_hash)
+            .await
+            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
+            .ok_or_else(|| {
+                OverHeadError::Error(anyhow!(format!(
+                    "l1 get transaction return none, tx_hash: {:#?}",
+                    tx_hash
+                )))
+            })?;
 
-        let blob_block =
-            self.execution_node.query_block(hex::encode_prefixed(block_hash).as_str()).await?;
+        let blob_block = self
+            .l1_provider
+            .get_block_with_txs(BlockNumber::Number(block_num))
+            .await
+            .map_err(|e| OverHeadError::Error(anyhow!(format!("{:#?}", e))))?
+            .ok_or_else(|| {
+                OverHeadError::Error(anyhow!(format!(
+                    "l1 get block info return none, block_num: {:#?}",
+                    block_num
+                )))
+            })?;
 
-        let indexed_hashes = data_and_hashes_from_txs(
-            blob_block["result"]["transactions"].as_array().unwrap_or(&Vec::<Value>::new()),
-            &blob_tx["result"],
-        );
-
+        let indexed_hashes = data_and_hashes_from_txs(&blob_block.transactions, &blob_tx);
         if indexed_hashes.is_empty() {
-            log::info!("No blob in this batch, batchTxHash ={:#?}", tx_hash);
+            log::info!("no blob in this batch, batch_tx_hash: {:#?}", tx_hash);
             return Ok(0);
         }
 
-        //Waiting for the next L1 block to be produced.
-        sleep(Duration::from_secs(12)).await;
-        let next_block = self.execution_node.query_block_by_num((block_num + 1).as_u64()).await?;
+        // Waiting for the next L1 block to be produced.
+        let next_block_num = block_num + 1;
+        // Max delay 5 * 3 = 15 secs
+        let mut retry_times = 5;
+        let prev_beacon_root = loop {
+            let blk_info = self.l1_provider.get_block(BlockNumber::Number(next_block_num)).await;
+            if let Ok(Some(info)) = blk_info {
+                if let Some(beacon_blk_root) = info.parent_beacon_block_root {
+                    break beacon_blk_root;
+                } else {
+                    return Err(OverHeadError::Error(anyhow!(format!(
+                        "next block info's pre_beacon_root is none, block number: {:?}",
+                        next_block_num
+                    ))));
+                }
+            } else if retry_times > 0 {
+                retry_times -= 1;
+                sleep(Duration::from_secs(3)).await;
 
-        let prev_beacon_root = next_block["result"]["parentBeaconBlockRoot"]
-            .as_str()
-            .ok_or_else(|| OverHeadError::Error(anyhow!("Next block not produce")))?;
+                log::warn!(
+                    "request next block info, retry times= {:?}, block number: {:?}",
+                    retry_times,
+                    next_block_num
+                );
+                continue;
+            } else {
+                return Err(OverHeadError::Error(anyhow!(format!(
+                    "maximum number of requests next block info reached: {:?}, block number:{:?}",
+                    retry_times, next_block_num
+                ))));
+            }
+        };
 
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
-        let sidecars_rt =
-            self.beacon_node.query_sidecars(prev_beacon_root.to_string(), indexes).await?;
+        let sidecars_rt = self
+            .beacon_node
+            .query_sidecars(hex::encode_prefixed(prev_beacon_root), indexes)
+            .await?;
 
-        let sidecars: &Vec<Value> = sidecars_rt["data"]
-            .as_array()
-            .ok_or_else(|| OverHeadError::Error(anyhow!("query blob_sidecars empty")))?;
+        let sidecars: &Vec<Value> = sidecars_rt["data"].as_array().ok_or_else(|| {
+            OverHeadError::Error(anyhow!(format!(
+                "blob_sidecars is none, blk_num: {:?}, blk_root: {:?}",
+                block_num, prev_beacon_root
+            )))
+        })?;
 
         if sidecars.is_empty() {
             return Err(OverHeadError::Error(anyhow!(format!(
-                "query sidecars.is_empty: {:?}",
-                sidecars_rt
+                "blob_sidecars is empty, blk_num: {:?}, blk_root: {:?}",
+                block_num, prev_beacon_root
             ))));
         }
 
         let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
 
         let tx_payload_gas = data_gas_cost(&tx_payload);
-        log::info!("sum(tx_data_gas) in blob: {}", tx_payload_gas);
 
         Ok(tx_payload_gas)
     }
 }
 
-#[tokio::test]
-#[ignore]
-async fn test_calculate_from_current_rollup() {
-    use std::{env::var, sync::Arc};
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{env::var, str::FromStr, sync::Arc};
 
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    dotenv::dotenv().ok();
+    #[tokio::test]
+    #[ignore]
+    async fn test_calculate_from_current_rollup() {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+        dotenv::dotenv().ok();
 
-    let rollup_tx_hash = "0x87b09de64fd9c433226a0c683a3b3c1d1e8ab3fa24f3213fa63e2931f205f8d8";
-    let rollup_tx_block_num = 1489357;
-    log::info!("rollup_tx_block_num: {:#?}", rollup_tx_block_num);
+        let rollup_tx_hash = "0x87b09de64fd9c433226a0c683a3b3c1d1e8ab3fa24f3213fa63e2931f205f8d8"
+            .parse::<H256>()
+            .unwrap();
+        let rollup_tx_block_num = U64::from(1489357);
 
-    let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("Cannot detect GAS_ORACLE_L1_RPC env var");
-    let l2_rpc = var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env");
-    let overhead_threshold =
-        var("OVERHEAD_THRESHOLD").expect("OVERHEAD_THRESHOLD env").parse().unwrap();
-    let l1_rollup_address = Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env")).unwrap();
-    let l2_oracle_address =
-        Address::from_str(&var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env")).unwrap();
-    let private_key = var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env");
+        let l1_rpc = var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env empty");
+        let l2_rpc = var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env empty");
+        let overhead_threshold =
+            var("OVERHEAD_THRESHOLD").expect("OVERHEAD_THRESHOLD env empty").parse().unwrap();
+        let l1_rollup_address =
+            Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env empty")).unwrap();
+        let l2_oracle_address =
+            Address::from_str(&var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env empty"))
+                .unwrap();
+        let private_key =
+            var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env empty");
 
-    let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
-    let l1_rollup: Rollup<Provider<Http>> =
-        Rollup::new(l1_rollup_address, Arc::new(l1_provider.clone()));
+        let l1_provider = Provider::<Http>::try_from(l1_rpc.clone()).unwrap();
+        let l1_rollup_contract = Rollup::new(l1_rollup_address, Arc::new(l1_provider.clone()));
 
-    let l2_provider: Provider<Http> = Provider::<Http>::try_from(l2_rpc).unwrap();
-    let l2_signer = Arc::new(SignerMiddleware::new(
-        l2_provider.clone(),
-        Wallet::from_str(private_key.as_str())
-            .unwrap()
-            .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
-    ));
-    let l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, _>> =
-        GasPriceOracle::new(l2_oracle_address, l2_signer);
+        let l2_provider = Provider::<Http>::try_from(l2_rpc).unwrap();
+        let l2_signer = Arc::new(SignerMiddleware::new(
+            l2_provider.clone(),
+            Wallet::from_str(private_key.as_str())
+                .unwrap()
+                .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
+        ));
 
-    let mut overhead: OverHeadUpdater = OverHeadUpdater::new(
-        l1_provider,
-        l2_oracle,
-        l1_rollup,
-        overhead_threshold,
-        l1_rpc,
-        var("GAS_ORACLE_L1_BEACON_RPC")
-            .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env var")
-            .parse()
-            .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var"),
-        false,
-        200000u128,
-    );
+        let l2_oracle_contract = GasPriceOracle::new(l2_oracle_address, l2_signer);
 
-    let latest_overhead = overhead
-        .calculate_from_current_rollup(
-            TxHash::from_str(rollup_tx_hash).unwrap(),
-            U64::from(rollup_tx_block_num),
-        )
-        .await;
-    println!("latest_overhead: {:?}", latest_overhead);
-    return;
+        let mut overhead: OverHeadUpdater = OverHeadUpdater::new(
+            l1_provider,
+            l2_oracle_contract,
+            l1_rollup_contract,
+            overhead_threshold,
+            var("GAS_ORACLE_L1_BEACON_RPC")
+                .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env empty")
+                .parse()
+                .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var empty"),
+            false,
+            200000u128,
+        );
+
+        let latest_overhead =
+            overhead.calculate_from_current_rollup(rollup_tx_hash, rollup_tx_block_num).await;
+
+        log::info!("latest_overhead: {:#?}", latest_overhead);
+    }
 }

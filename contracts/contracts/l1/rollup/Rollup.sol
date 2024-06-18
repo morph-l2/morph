@@ -672,10 +672,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchDataStore[_batchIndex].prevStateRoot,
                 batchDataStore[_batchIndex].postStateRoot,
                 batchDataStore[_batchIndex].withdrawalRoot,
+                batchSignatureStore[_batchIndex].sequencerSetVerifyHash,
                 batchDataStore[_batchIndex].l1DataHash,
                 _kzgDataProof[0:64],
-                batchDataStore[_batchIndex].blobVersionedHash,
-                batchSignatureStore[_batchIndex].sequencerSetVerifyHash
+                batchDataStore[_batchIndex].blobVersionedHash
             )
         );
 
@@ -700,7 +700,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes calldata sequencerSets,
         uint256 blockHeight
     ) internal pure returns (address[] memory) {
-        // TODO require submitter was in valid sequencer set after BLS was implementated
+        // TODO require submitter was in valid sequencer set after BLS was implemented
         (
             ,
             address[] memory sequencerSet0,

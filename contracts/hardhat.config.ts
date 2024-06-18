@@ -58,16 +58,11 @@ module.exports = {
     networks: {
         hardhat: {
             allowUnlimitedContractSize: true,
-        },
-        local: {
-            url: "http://localhost:8545",
-            chainId: 31337,
-            gas: 'auto',
-            gasPrice: 'auto',
+            chainId: 900,
         },
         l1: {
             url: "http://localhost:9545",
-            chainId: 31337,
+            chainId: 900,
             gas: 'auto',
             gasPrice: 'auto',
             accounts: [DEPLOYER_PK]

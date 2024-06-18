@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/scroll-tech/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -75,12 +77,14 @@ func Main() func(ctx *cli.Context) error {
 			return err
 		}
 
+		l1RpcClient, err := rpc.Dial(cfg.L1EthRpc)
+		if err != nil {
+			return fmt.Errorf("failed to connect to L1 provider: %w", err)
+		}
 		// Connect to L1 and L2 providers. Perform these last since they are the
 		// most expensive.
-		l1Client, err := ethclient.DialContext(ctx, cfg.L1EthRpc)
-		if err != nil {
-			return err
-		}
+		l1Client := ethclient.NewClient(l1RpcClient)
+
 		// l2 rpcs
 		var l2Clients []iface.L2Client
 		for _, rpc := range cfg.L2EthRpcs {
@@ -113,9 +117,13 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to l1 staking contract")
 		}
 
+		// new rotator
+		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress))
+
 		sr := services.NewRollup(
 			ctx,
 			m,
+			l1RpcClient,
 			l1Client,
 			l2Clients,
 			l1Rollup,
@@ -125,6 +133,7 @@ func Main() func(ctx *cli.Context) error {
 			*rollupAddr,
 			abi,
 			cfg,
+			rotator,
 		)
 		if err := sr.Init(); err != nil {
 			return err
@@ -147,12 +156,25 @@ func Main() func(ctx *cli.Context) error {
 			"l2_rpcs", cfg.L2EthRpcs,
 			"rollup_addr", rollupAddr.Hex(),
 			"chainid", chainID.String(),
-			"submitter_addr", cfg.SubmitterAddress,
-			"sequencer_addr", cfg.SequencerAddress,
+			"l2_sequencer_addr", cfg.L2SequencerAddress,
+			"l2_gov_addr", cfg.L2GovAddress,
+			"fee_limit", cfg.TxFeeLimit,
 			"finalize_enable", cfg.Finalize,
 			"priority_rollup_enable", cfg.PriorityRollup,
+			"rollup_interval", cfg.RollupInterval.String(),
+			"finalize_interval", cfg.FinalizeInterval.String(),
+			"tx_process_interval", cfg.TxProcessInterval.String(),
+			"rollup_tx_gas_base", cfg.RollupTxGasBase,
+			"rollup_tx_gas_per_msg", cfg.RollupTxGasPerL1Msg,
 		)
 		sr.Start()
+
+		// Catch CTRL-C to ensure a graceful shutdown.
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+
+		// Wait until the interrupt signal is received from an OS signal.
+		<-interrupt
 
 		return nil
 	}

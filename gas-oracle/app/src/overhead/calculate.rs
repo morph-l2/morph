@@ -6,7 +6,7 @@ use eyre::anyhow;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{ops::Mul, str::FromStr};
+use std::ops::Mul;
 
 use crate::read_env_var;
 
@@ -185,27 +185,30 @@ pub(super) struct IndexedBlobHash {
     pub(super) hash: H256,
 }
 
-pub(super) fn data_and_hashes_from_txs(txs: &[Value], target_tx: &Value) -> Vec<IndexedBlobHash> {
+pub(super) fn data_and_hashes_from_txs(
+    txs: &[Transaction],
+    target_tx: &Transaction,
+) -> Vec<IndexedBlobHash> {
     let mut hashes = Vec::new();
     let mut blob_index = 0u64; // index of each blob in the block's blob sidecar
 
     for tx in txs {
+        let tx_blob_versioned_hashes = tx
+            .other
+            .get_with("blobVersionedHashes", serde_json::from_value::<Vec<H256>>)
+            .unwrap_or(Ok(Vec::<H256>::new()))
+            .unwrap_or_default();
+
         // skip any non-batcher transactions
-        if tx["hash"] != target_tx["hash"] {
-            if let Some(blob_hashes) = tx["blobVersionedHashes"].as_array() {
-                blob_index += blob_hashes.len() as u64;
-            }
+        if tx.hash != target_tx.hash {
+            blob_index += tx_blob_versioned_hashes.len() as u64;
             continue;
         }
-        if let Some(blob_hashes) = tx["blobVersionedHashes"].as_array() {
-            for h in blob_hashes {
-                let idh = IndexedBlobHash {
-                    index: blob_index,
-                    hash: H256::from_str(h.as_str().unwrap()).unwrap(),
-                };
-                hashes.push(idh);
-                blob_index += 1;
-            }
+
+        for h in tx_blob_versioned_hashes {
+            let idh = IndexedBlobHash { index: blob_index, hash: h };
+            hashes.push(idh);
+            blob_index += 1;
         }
     }
     hashes
