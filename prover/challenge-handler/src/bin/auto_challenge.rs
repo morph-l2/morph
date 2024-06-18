@@ -91,7 +91,7 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     verify_state_transition().await;
 
     // Check prev challenge.
-    match detecte_challenge(latest, &l1_rollup, &l1_provider).await {
+    match detecte_challenge(latest, l1_rollup, l1_provider).await {
         Some(true) => {
             return Ok(());
         }
@@ -162,12 +162,9 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
         }
         Err(e) => {
             log::error!("send tx of challenge_state error hex: {:#?}", e);
-            match e {
-                ContractError::Revert(data) => {
-                    let msg = String::decode_with_selector(&data).unwrap_or(String::from("decode contract revert error"));
-                    log::error!("send tx of challenge_state error msg: {:#?}", msg);
-                }
-                _ => {}
+            if let ContractError::Revert(data) = e {
+                let msg = String::decode_with_selector(&data).unwrap_or(String::from("decode contract revert error"));
+                log::error!("send tx of challenge_state error msg: {:#?}", msg);
             }
             return Ok(());
         }
