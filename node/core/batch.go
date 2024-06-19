@@ -217,7 +217,15 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		copy(skippedL1MessageBitmapBytes[32*ii+padding:], bz)
 	}
 
+	height, err := heightFromBCBytes(e.batchingCache.currentBlockBytes)
+	if err != nil {
+		panic(err)
+	}
+
 	blobBytes := e.batchingCache.chunks.ConstructBlobPayload()
+	if height == e.stopAt {
+		blobBytes = nil
+	}
 	sidecar, err := types.MakeBlobTxSidecar(blobBytes)
 	if err != nil {
 		return nil, nil, err
@@ -254,10 +262,6 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	}
 	e.logger.Info(fmt.Sprintf("===blobBytes: %x \n", blobBytes))
 
-	height, err := heightFromBCBytes(e.batchingCache.currentBlockBytes)
-	if err != nil {
-		panic(err)
-	}
 	if height == e.stopAt {
 		if e.batchingCache.chunks.BlockNum() != 1 {
 			panic(fmt.Sprintf("should have only 1 block in this batch, now is %d", e.batchingCache.chunks.BlockNum()))
