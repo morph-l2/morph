@@ -10,7 +10,6 @@ import (
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
 
-	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
@@ -153,17 +152,21 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 }
 
 func (o *Oracle) fetchRollupLog(ctx context.Context, start, end uint64) ([]types.Log, error) {
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0).SetUint64(start),
-		ToBlock:   big.NewInt(0).SetUint64(end),
-		Addresses: []common.Address{
-			o.cfg.RollupAddr,
-		},
-		Topics: [][]common.Hash{
-			{RollupEventTopicHash},
-		},
+	opts := &bind.FilterOpts{
+		Context: ctx,
+		Start:   start,
+		End:     &end,
 	}
-	return o.l1Client.FilterLogs(ctx, query)
+	iter, err := o.rollup.FilterCommitBatch(opts, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+	var logs []types.Log
+	for iter.Next() {
+		logs = append(logs, iter.Event.Raw)
+	}
+	return logs, nil
 }
 
 func (o *Oracle) GetNextBatchSubmissionIndex() (*big.Int, error) {

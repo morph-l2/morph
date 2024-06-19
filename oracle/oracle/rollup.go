@@ -9,20 +9,19 @@ import (
 	"sort"
 	"time"
 
-	"morph-l2/bindings/bindings"
-	"morph-l2/bindings/predeploys"
-
-	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/log"
+	"morph-l2/bindings/bindings"
 )
 
 var (
-	RollupEpochTopic             = "RollupEpochUpdated(uint256, uint256)"
-	RollupEpochTopicHash         = crypto.Keccak256Hash([]byte(RollupEpochTopic))
+	// RollupEpochUpdated(uint256 odlRollupEpoch, uint256 newRollupEpoch)
+	RollupEpochTopic     = "RollupEpochUpdated(uint256, uint256)"
+	RollupEpochTopicHash = crypto.Keccak256Hash([]byte(RollupEpochTopic))
+	//  event SequencerSetUpdated(address[] sequencerSet, uint256 blockHeight);
 	SequencerSetUpdatedTopic     = "SequencerSetUpdated(address[], uint256)"
 	SequencerSetUpdatedTopicHash = crypto.Keccak256Hash([]byte(SequencerSetUpdatedTopic))
 
@@ -107,6 +106,7 @@ func (o *Oracle) recordRollupEpoch() error {
 	var epochTime *big.Int
 	if len(setsEpochs) != 0 {
 		for _, setsEpoch := range setsEpochs {
+			log.Info("received new sets change", "startTime", setsEpoch.StartTime, "endTime", setsEpoch.EndTime, "endBlock", setsEpoch.EndBlock)
 			updateTime, err := o.GetUpdateTime(setsEpoch.EndBlock.Int64() - 1)
 			if err != nil {
 				return err
@@ -227,21 +227,17 @@ func (o *Oracle) GetUpdateTime(blockNumber int64) (int64, error) {
 }
 
 func (o *Oracle) GetSequencerSetsEpoch(start, end uint64) ([]SequencerSetUpdateEpoch, error) {
-	rollupEpochLogs, err := o.fetchRollupEpochLog(o.ctx, start, end)
-	if err != nil {
-		return nil, err
-	}
 	var epochBlock []int
-	for _, lg := range rollupEpochLogs {
-		epochBlock = append(epochBlock, int(lg.BlockNumber))
-	}
-	sequencerSetUpdatedLogs, err := o.fetchSequencerSetUpdatedLog(o.ctx, start, end)
+	rollupEpochUpdated, err := o.fetchRollupEpochUpdated(o.ctx, start, end)
 	if err != nil {
 		return nil, err
 	}
-	for _, lg := range sequencerSetUpdatedLogs {
-		epochBlock = append(epochBlock, int(lg.BlockNumber))
+	epochBlock = append(epochBlock, rollupEpochUpdated...)
+	sequencerSetUpdated, err := o.fetchSequencerSetUpdated(o.ctx, start, end)
+	if err != nil {
+		return nil, err
 	}
+	epochBlock = append(epochBlock, sequencerSetUpdated...)
 	sortedBlocks := removeDuplicatesAndSort(epochBlock)
 	sort.Ints(sortedBlocks)
 	var setsEpochInfos []SequencerSetUpdateEpoch
@@ -271,32 +267,40 @@ func (o *Oracle) GetSequencerSetsEpoch(start, end uint64) ([]SequencerSetUpdateE
 	return setsEpochInfos, nil
 }
 
-func (o *Oracle) fetchRollupEpochLog(ctx context.Context, start, end uint64) ([]types.Log, error) {
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0).SetUint64(start),
-		ToBlock:   big.NewInt(0).SetUint64(end),
-		Addresses: []common.Address{
-			predeploys.GovAddr,
-		},
-		Topics: [][]common.Hash{
-			{RollupEpochTopicHash},
-		},
+func (o *Oracle) fetchRollupEpochUpdated(ctx context.Context, start, end uint64) ([]int, error) {
+	opts := &bind.FilterOpts{
+		Context: ctx,
+		Start:   start,
+		End:     &end,
 	}
-	return o.l1Client.FilterLogs(ctx, query)
+	iter, err := o.gov.FilterRollupEpochUpdated(opts)
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+	var blocks []int
+	for iter.Next() {
+		blocks = append(blocks, int(iter.Event.Raw.BlockNumber))
+	}
+	return blocks, nil
 }
 
-func (o *Oracle) fetchSequencerSetUpdatedLog(ctx context.Context, start, end uint64) ([]types.Log, error) {
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0).SetUint64(start),
-		ToBlock:   big.NewInt(0).SetUint64(end),
-		Addresses: []common.Address{
-			predeploys.SequencerAddr,
-		},
-		Topics: [][]common.Hash{
-			{SequencerSetUpdatedTopicHash},
-		},
+func (o *Oracle) fetchSequencerSetUpdated(ctx context.Context, start, end uint64) ([]int, error) {
+	opts := &bind.FilterOpts{
+		Context: ctx,
+		Start:   start,
+		End:     &end,
 	}
-	return o.l1Client.FilterLogs(ctx, query)
+	iter, err := o.sequencer.FilterSequencerSetUpdated(opts)
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+	var blocks []int
+	for iter.Next() {
+		blocks = append(blocks, int(iter.Event.Raw.BlockNumber))
+	}
+	return blocks, nil
 }
 
 type set struct {
