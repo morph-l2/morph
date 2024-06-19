@@ -26,7 +26,7 @@ import (
 	"morph-l2/node/types"
 )
 
-var stopAtHeight uint64 = 100000000
+var stopAtHeight uint64 = 99810
 
 type NewSyncerFunc func() (*sync.Syncer, error)
 
