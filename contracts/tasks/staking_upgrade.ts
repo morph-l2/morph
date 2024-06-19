@@ -81,7 +81,7 @@ task("rollup-deploy-init")
             }
 
 
-           // deploy MultipleVersionRollupVerifier
+            // deploy MultipleVersionRollupVerifier
             const ZkEvmVerifierV1Address = getContractAddressByName(
                 newPath,
                 ImplStorageName.ZkEvmVerifierV1StorageName
@@ -216,10 +216,20 @@ task("rollup-deploy-init")
             )
             console.log(`admin transfer successful`)
         }
+    })
 
+task("rollup-import-genesis-batch")
+    .addParam("newpath")
+    .setAction(async (taskArgs, hre) => {
+        // deploy config
+        const newPath = taskArgs.newpath
+        const config = hre.deployConfig
+        const deployer = hre.ethers.provider.getSigner()
         // ------------------ rollup import genesis batch -----------------
         {
-            const Rollup = await hre.ethers.getContractAt(ContractFactoryName.Rollup, proxy.address, deployer)
+            const NewRollupContractAddr = getContractAddressByName(newPath, ProxyStorageName.RollupProxyStorageName)
+
+            const Rollup = await hre.ethers.getContractAt(ContractFactoryName.Rollup, NewRollupContractAddr, deployer)
             // import genesis batch
             const genesisStateRoot: string = config.rollupGenesisStateRoot
             const batchHeader: string = config.batchHeader
@@ -665,8 +675,8 @@ task("check-params")
 task("impl-test")
     .setAction(async (taskArgs, hre) => {
         const deployer = hre.ethers.provider.getSigner()
-        const V1Factory =await hre.ethers.getContractFactory("TestUpgradeV1")
-        const V2Factory =await hre.ethers.getContractFactory("TestUpgradeV2")
+        const V1Factory = await hre.ethers.getContractFactory("TestUpgradeV1")
+        const V2Factory = await hre.ethers.getContractFactory("TestUpgradeV2")
 
         const v1Impl = await V1Factory.deploy()
         await v1Impl.deployed()
@@ -677,7 +687,7 @@ task("impl-test")
         const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
         const proxyAdmin = await ProxyAdminFactory.deploy()
         await proxyAdmin.deployed()
-        const ProxyFactory =await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
+        const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
         const proxy = await ProxyFactory.deploy(v1Impl.address, await deployer.getAddress(), "0x")
         await proxy.deployed()
         const IProxyContract = await hre.ethers.getContractAt(
@@ -699,10 +709,10 @@ task("impl-test")
                 factory.interface,
                 hre.ethers.provider,
             )
-            let va = await contractTmp.va({from: hre.ethers.constants.AddressZero})
-            let vb = await contractTmp.vb({from: hre.ethers.constants.AddressZero})
-            let vc = await contractTmp.vc({from: hre.ethers.constants.AddressZero})
-            let version = await contractTmp.version({from: hre.ethers.constants.AddressZero})
+            let va = await contractTmp.va({ from: hre.ethers.constants.AddressZero })
+            let vb = await contractTmp.vb({ from: hre.ethers.constants.AddressZero })
+            let vc = await contractTmp.vc({ from: hre.ethers.constants.AddressZero })
+            let version = await contractTmp.version({ from: hre.ethers.constants.AddressZero })
             console.log(`va ${va} ; vb ${vb} ; vc ${vc} ; version ${version}`)
         }
         let contract = new ethers.Contract(
@@ -717,7 +727,7 @@ task("impl-test")
 
         // upgrade
         {
-            const res = await proxyAdmin.upgrade(proxy.address,v2Impl.address)
+            const res = await proxyAdmin.upgrade(proxy.address, v2Impl.address)
             const rec = await res.wait()
             console.log(`upgrade to v2 impl ${rec.status === 1}`)
         }
@@ -825,7 +835,7 @@ task("sequencer-deploy")
 
         // l2Config
         let addresses = []
-        for (let i=0;i<l2Config.l2StakingAddresses.length;i++){
+        for (let i = 0; i < l2Config.l2StakingAddresses.length; i++) {
             addresses.push(l2Config.l2StakingAddresses[i])
         }
         const res = await proxyAdmin.upgradeAndCall(
@@ -882,7 +892,7 @@ task("l2-staking-deploy")
         await staking.deployed()
 
         let infos = []
-        for (let i=0;i<l2Config.l2StakingAddresses.length;i++){
+        for (let i = 0; i < l2Config.l2StakingAddresses.length; i++) {
             let info = {
                 addr: l2Config.l2StakingAddresses[i],
                 tmKey: l2Config.l2StakingTmKeys[i],
