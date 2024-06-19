@@ -27,8 +27,9 @@ interface IL2Staking {
     /// @param delegatee          delegatee
     /// @param delegator          delegator
     /// @param amount             new delegation amount, not increment
+    /// @param stakeAmount        stake amount
     /// @param effectiveEpoch     effective epoch
-    event Delegated(address indexed delegatee, address indexed delegator, uint256 amount, uint256 effectiveEpoch);
+    event Delegated(address indexed delegatee, address indexed delegator, uint256 amount, uint256 stakeAmount, uint256 effectiveEpoch);
 
     /// @notice Emitted undelegated stake
     /// @param delegatee          delegatee

@@ -309,6 +309,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             delegatee,
             _msgSender(),
             delegations[delegatee][_msgSender()], // new amount, not incremental
+            amount,
             effectiveEpoch
         );
 
