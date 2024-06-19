@@ -37,7 +37,7 @@ func DefaultConfig() *Config {
 		Logger:                        tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		MaxL1MessageNumPerBlock:       100,
 		L2CrossDomainMessengerAddress: predeploys.L2CrossDomainMessengerAddr,
-		SequencerAddress:              predeploys.SequencerAddr,
+		SequencerAddress:              common.HexToAddress("0x5300000000000000000000000000000000000017"),
 		GovAddress:                    predeploys.GovAddr,
 		L2StakingAddress:              predeploys.L2StakingAddr,
 	}
