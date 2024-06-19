@@ -12,19 +12,11 @@ import (
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/log"
 	"morph-l2/bindings/bindings"
 )
 
 var (
-	// RollupEpochUpdated(uint256 odlRollupEpoch, uint256 newRollupEpoch)
-	RollupEpochTopic     = "RollupEpochUpdated(uint256, uint256)"
-	RollupEpochTopicHash = crypto.Keccak256Hash([]byte(RollupEpochTopic))
-	//  event SequencerSetUpdated(address[] sequencerSet, uint256 blockHeight);
-	SequencerSetUpdatedTopic     = "SequencerSetUpdated(address[], uint256)"
-	SequencerSetUpdatedTopicHash = crypto.Keccak256Hash([]byte(SequencerSetUpdatedTopic))
-
 	MaxEpochCount = 50
 )
 

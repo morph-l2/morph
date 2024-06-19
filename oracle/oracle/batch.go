@@ -14,14 +14,8 @@ import (
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
-)
-
-var (
-	RollupEventTopic     = "CommitBatch(uint256,bytes32)"
-	RollupEventTopicHash = crypto.Keccak256Hash([]byte(RollupEventTopic))
 )
 
 type BatchInfoMap map[common.Hash][]BatchInfo
