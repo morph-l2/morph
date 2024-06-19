@@ -155,7 +155,11 @@ func (o *Oracle) fetchRollupLog(ctx context.Context, start, end uint64) ([]types
 	if err != nil {
 		return nil, err
 	}
-	defer iter.Close()
+	defer func() {
+		if err := iter.Close(); err != nil {
+			log.Info("RollupCommitBatchIterator close failed", "error", err)
+		}
+	}()
 	var logs []types.Log
 	for iter.Next() {
 		logs = append(logs, iter.Event.Raw)

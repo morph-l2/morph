@@ -269,7 +269,11 @@ func (o *Oracle) fetchRollupEpochUpdated(ctx context.Context, start, end uint64)
 	if err != nil {
 		return nil, err
 	}
-	defer iter.Close()
+	defer func() {
+		if err := iter.Close(); err != nil {
+			log.Info("GovRollupEpochUpdatedIterator close failed", "error", err)
+		}
+	}()
 	var blocks []int
 	for iter.Next() {
 		blocks = append(blocks, int(iter.Event.Raw.BlockNumber))
@@ -287,7 +291,11 @@ func (o *Oracle) fetchSequencerSetUpdated(ctx context.Context, start, end uint64
 	if err != nil {
 		return nil, err
 	}
-	defer iter.Close()
+	defer func() {
+		if err := iter.Close(); err != nil {
+			log.Info("SequencerSequencerSetUpdatedIterator close failed", "error", err)
+		}
+	}()
 	var blocks []int
 	for iter.Next() {
 		blocks = append(blocks, int(iter.Event.Raw.BlockNumber))
