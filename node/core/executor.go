@@ -151,6 +151,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
+	logger.Info("=====This is a temporary branch for upgrading=====", "stopAt", stopAtHeight)
 	return executor, nil
 }
 
