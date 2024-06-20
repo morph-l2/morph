@@ -263,11 +263,7 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	if err != nil {
 		return nil, err
 	}
-	method, err := abi.MethodById(tx.Data()[:4])
-	if err != nil {
-		return nil, err
-	}
-	if method.Name != "commitBatch" {
+	if !bytes.Equal(abi.Methods["commitBatch"].ID, tx.Data()[:4]) {
 		return nil, types.ErrNotCommitBatchTx
 	}
 	args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
