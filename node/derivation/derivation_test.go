@@ -1,7 +1,6 @@
 package derivation
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/scroll-tech/go-ethereum/common"
@@ -29,10 +28,6 @@ func TestDecodeBatch(t *testing.T) {
 		PostStateRoot          [32]uint8 "json:\"postStateRoot\""
 		WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
 	})
-	fmt.Println("commit batch id:", abi.Methods["commitBatch"].ID)
-	method, err := abi.MethodById(txData[:4])
-	require.NoError(t, err)
-	fmt.Println("method:", method.Name)
 
 	var chunks []hexutil.Bytes
 	for _, chunk := range rollupBatchData.Chunks {
