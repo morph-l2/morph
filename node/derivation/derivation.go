@@ -238,25 +238,17 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
-	opts := &bind.FilterOpts{
-		Context: ctx,
-		Start:   from,
-		End:     &to,
+	query := ethereum.FilterQuery{
+		FromBlock: big.NewInt(0).SetUint64(from),
+		ToBlock:   big.NewInt(0).SetUint64(to),
+		Addresses: []common.Address{
+			d.RollupContractAddress,
+		},
+		Topics: [][]common.Hash{
+			{RollupEventTopicHash},
+		},
 	}
-	iter, err := d.rollup.FilterCommitBatch(opts, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := iter.Close(); err != nil {
-			d.logger.Error("RollupCommitBatchIterator close failed", "error", err)
-		}
-	}()
-	var logs []eth.Log
-	for iter.Next() {
-		logs = append(logs, iter.Event.Raw)
-	}
-	return logs, nil
+	return d.l1Client.FilterLogs(ctx, query)
 }
 
 func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uint64) (*BatchInfo, error) {
