@@ -97,13 +97,21 @@ docker-build:
 	cd ops/docker && docker compose build
 .PHONY: docker-build
 
-base-image:
-	cd ops/docker && docker build -t morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 . -f go-rust-builder.Dockerfile
-.PHONY: base-image
+go-rust-builder:
+	cd ops/docker/intermediate && docker build -t morph/go-rust-builder:go-1.22-rust-nightly-2023-12-03 . -f go-rust-builder.Dockerfile
+.PHONY: go-rust-builder
+
+go-rust-alpine-builder:
+	cd ops/docker/intermediate && docker build -t morph/go-rust-alpine-builder:go-1.22-rust-nightly-2023-12-03 . -f go-rust-alpine-builder.Dockerfile
+.PHONY: go-rust-alpine-builder
+
+go-ubuntu-builder:
+	cd ops/docker/intermediate && docker build -t morph/go-ubuntu-builder:go-1.22-ubuntu . -f go-ubuntu-builder.Dockerfile
+.PHONY: go-ubuntu-builder
 
 ################## devnet 4 nodes ####################
 
-devnet-up: submodules
+devnet-up: submodules go-ubuntu-builder go-rust-builder
 	python3 ops/devnet-morph/main.py --polyrepo-dir=.
 .PHONY: devnet-up
 
