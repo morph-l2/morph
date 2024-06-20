@@ -812,7 +812,7 @@ task("morph-token-deploy")
                 l2Config.morphTokenName,
                 l2Config.morphTokenSymbol,
                 l2Config.morphTokenOwner,
-                hre.ethers.utils.parseEther(l2Config.morphTokenInitialSupply),
+                hre.ethers.utils.parseEther(l2Config.morphTokenInitialSupply.toString()),
                 l2Config.morphTokenDailyInflationRate,
             ])
         )
