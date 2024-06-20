@@ -31,5 +31,7 @@ var (
 
 	ErrMemoryDBNotFound = errors.New("not found")
 
+	ErrNotCommitBatchTx = errors.New("not commit batch tx")
+
 	ErrNotFromCrossDomainMessenger = errors.New("the cross message is not sent by L1CrossDomainMessenger")
 )

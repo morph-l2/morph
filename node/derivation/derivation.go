@@ -184,13 +184,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	for _, lg := range logs {
 		batchInfo, err := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 		if err != nil {
-			rollupCommitBatch, parseErr := d.rollup.ParseCommitBatch(lg)
-			if parseErr != nil {
-				d.logger.Error("parse commit batch failed", "err", err)
-				return
-			}
-			// ignore genesis batch
-			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
+			if errors.Is(err, types.ErrNotCommitBatchTx) {
 				continue
 			}
 			d.logger.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
@@ -244,17 +238,25 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0).SetUint64(from),
-		ToBlock:   big.NewInt(0).SetUint64(to),
-		Addresses: []common.Address{
-			d.RollupContractAddress,
-		},
-		Topics: [][]common.Hash{
-			{RollupEventTopicHash},
-		},
+	opts := &bind.FilterOpts{
+		Context: ctx,
+		Start:   from,
+		End:     &to,
 	}
-	return d.l1Client.FilterLogs(ctx, query)
+	iter, err := d.rollup.FilterCommitBatch(opts, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := iter.Close(); err != nil {
+			d.logger.Error("RollupCommitBatchIterator close failed", "error", err)
+		}
+	}()
+	var logs []eth.Log
+	for iter.Next() {
+		logs = append(logs, iter.Event.Raw)
+	}
+	return logs, nil
 }
 
 func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uint64) (*BatchInfo, error) {
@@ -268,6 +270,13 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	abi, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
 		return nil, err
+	}
+	method, err := abi.MethodById(tx.Data()[:4])
+	if err != nil {
+		return nil, err
+	}
+	if method.Name != "commitBatch" {
+		return nil, types.ErrNotCommitBatchTx
 	}
 	args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 	if err != nil {
