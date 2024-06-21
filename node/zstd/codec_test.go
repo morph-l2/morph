@@ -1,9 +1,10 @@
 package zstd
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/ethutil/hex"
-	"testing"
 )
 
 var transactions = [][]byte{
