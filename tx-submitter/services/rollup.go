@@ -584,10 +584,6 @@ func (sr *Rollup) rollup() error {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
 
-	// hotfix
-	tip = new(big.Int).Mul(tip, big.NewInt(3))
-	gasFeeCap = new(big.Int).Mul(gasFeeCap, big.NewInt(3))
-
 	// calldata encode
 	calldata, err := sr.abi.Pack("commitBatch", rollupBatch, sequencerVersion, []common.Address{}, signature.Signature)
 	if err != nil {
@@ -753,6 +749,10 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	minTip := big.NewInt(2 * params.GWei)
+	if tip.Cmp(minTip) < 0 {
+		tip = minTip
+	}
 	head, err := sr.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return nil, nil, nil, err
@@ -774,6 +774,7 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	}
 	blobFee = new(big.Int).Mul(blobFee, big.NewInt(200))
 	blobFee = new(big.Int).Div(blobFee, big.NewInt(100))
+
 	return tip, gasFeeCap, blobFee, nil
 }
 
