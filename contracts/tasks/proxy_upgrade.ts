@@ -307,10 +307,11 @@ task("upgradeGasOracleProxy")
 
         const proxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
         const proxyAdmin = proxyAdminFactory.attach(taskArgs.proxyadminaddr)
+        const owner = await proxyAdmin.owner()
 
         // upgrade
         const gasOracleFactory = await hre.ethers.getContractFactory("GasPriceOracle")
-        const gasOracleNewImpl = await gasOracleFactory.deploy(taskArgs.proxyadminaddr)
+        const gasOracleNewImpl = await gasOracleFactory.deploy(owner)
         await gasOracleNewImpl.deployed()
         console.log("New implementation address of gasOracle: ", gasOracleNewImpl.address)
         if (!hre.ethers.utils.isAddress(gasOracleNewImpl.address)) {
