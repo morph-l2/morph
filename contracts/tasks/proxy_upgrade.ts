@@ -259,7 +259,7 @@ Proxy__GasOracle
 
 EnableCurie
 
-yarn hardhat gasOracleEnableCurie --proxyadminaddr 0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d --gasoracleproxyaddr 0x530000000000000000000000000000000000000f --network l2
+yarn hardhat gasOracleEnableCurie --proxyadminaddr 0x530000000000000000000000000000000000000B --gasoracleproxyaddr 0x530000000000000000000000000000000000000f --network l2
 */
 task("gasOracleEnableCurie")
     .addParam("proxyadminaddr")
@@ -290,7 +290,7 @@ task("gasOracleEnableCurie")
 /*
 Proxy__GasOracle
 
-yarn hardhat upgradeGasOracleProxy --proxyadminaddr 0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d --gasoracleproxyaddr 0x530000000000000000000000000000000000000f --network l2
+yarn hardhat upgradeGasOracleProxy --proxyadminaddr 0x530000000000000000000000000000000000000B --gasoracleproxyaddr 0x530000000000000000000000000000000000000f --network l2
 */
 task("upgradeGasOracleProxy")
     .addParam("proxyadminaddr")
