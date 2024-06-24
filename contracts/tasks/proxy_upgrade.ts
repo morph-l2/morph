@@ -266,7 +266,7 @@ task("gasOracleEnableCurie")
     .setAction(async (taskArgs, hre) => {
         if (!hre.ethers.utils.isAddress(taskArgs.gasoracleproxyaddr)) {
             console.log(
-                `GasOracle proxy address check failed ${taskArgs.gasoracleproxyaddr} ${taskArgs.proxyadminaddr}`
+                `GasOracle proxy address check failed ${taskArgs.gasoracleproxyaddr}`
             )
             return
         }
