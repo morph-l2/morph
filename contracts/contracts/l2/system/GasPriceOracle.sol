@@ -57,6 +57,8 @@ contract GasPriceOracle is Ownable {
     uint256 public commitScalar;
     /// blob scalar
     uint256 public blobScalar;
+    /// @notice Indicates whether the network has gone through the Curie upgrade.
+    bool public isCurie;
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
