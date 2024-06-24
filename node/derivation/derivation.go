@@ -95,6 +95,17 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	}
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
+	latestDerivation := db.ReadLatestDerivationL1Height()
+	start := *latestDerivation + 1
+	if *latestDerivation == 0 && cfg.StartHeight != 0 {
+		start = cfg.StartHeight
+		db.WriteLatestDerivationL1Height(cfg.StartHeight - 1)
+	}
+	db.WriteLatestDerivationL1Height(102157)
+	logger.Info("create derivation client success",
+		"rollupAddr", cfg.RollupContractAddress,
+		"StartHeight", start,
+	)
 	return &Derivation{
 		ctx:                   ctx,
 		db:                    db,
