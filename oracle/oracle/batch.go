@@ -47,10 +47,10 @@ func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error
 	if err != nil {
 		return 0, err
 	}
-	return bs.RollupBlock.Uint64() + 1, nil
+	return bs.RollupBlock.Uint64(), nil
 }
 
-func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]bindings.IRecordBatchSubmission, error) {
+func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64, nextBatchSubmissionIndex *big.Int) ([]bindings.IRecordBatchSubmission, error) {
 	var rLogs []types.Log
 	for {
 		endBlock := startBlock + o.cfg.MaxSize
@@ -103,6 +103,10 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			log.Error("get l2 BlockNumber", "err", err)
 			return nil, parseErr
 		}
+		if rollupCommitBatch.BatchIndex.Cmp(nextBatchSubmissionIndex) < 0 {
+			log.Info("skip batch submission batch", "batchIndex", rollupCommitBatch.BatchIndex)
+			continue
+		}
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
 			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
@@ -148,6 +152,9 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			RollupBlock: big.NewInt(int64(lg.BlockNumber)),
 		}
 		recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
+		if len(recordBatchSubmissions) >= 50 {
+			break
+		}
 	}
 	return recordBatchSubmissions, nil
 }
@@ -198,7 +205,7 @@ func (o *Oracle) submitRecord() error {
 		log.Error("get pre batch rollup block number failed", "error", err)
 		return fmt.Errorf("get pre batch rollup block number error:%v", err)
 	}
-	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start)
+	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start, nextBatchSubmissionIndex)
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}

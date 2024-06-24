@@ -91,6 +91,10 @@ func (o *Oracle) recordRollupEpoch() error {
 		if err != nil {
 			return fmt.Errorf("get LatestRewardEpochBlock error:%v", err)
 		}
+		if lastRewardEpochBlock.Cmp(big.NewInt(0)) == 0 {
+			log.Info("waiting set start block")
+			return nil
+		}
 		startBlock = lastRewardEpochBlock.Uint64()
 	}
 	blockNumber, err := o.l2Client.BlockNumber(o.ctx)
