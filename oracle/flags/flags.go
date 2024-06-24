@@ -52,9 +52,10 @@ var (
 	}
 
 	StartHeight = cli.Uint64Flag{
-		Name:   "startHeight",
-		Usage:  "L1 block height where rollup start to fetch",
-		EnvVar: prefixEnvVar("START_HEIGHT"),
+		Name:     "start-height",
+		Required: true,
+		Usage:    "L1 block height where rollup start to fetch",
+		EnvVar:   prefixEnvVar("START_HEIGHT"),
 	}
 
 	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
