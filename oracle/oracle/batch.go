@@ -10,19 +10,12 @@ import (
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
 
-	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/eth"
 	"github.com/scroll-tech/go-ethereum/log"
-)
-
-var (
-	RollupEventTopic     = "CommitBatch(uint256,bytes32)"
-	RollupEventTopicHash = crypto.Keccak256Hash([]byte(RollupEventTopic))
 )
 
 type BatchInfoMap map[common.Hash][]BatchInfo
@@ -41,16 +34,19 @@ type BatchInfo struct {
 
 func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error) {
 	if nextBatchSubmissionIndex.Uint64() == 1 {
-		return o.cfg.StartBlock, nil
+		return o.cfg.StartHeight, nil
 	}
 	bs, err := o.record.BatchSubmissions(nil, new(big.Int).Sub(nextBatchSubmissionIndex, big.NewInt(1)))
 	if err != nil {
 		return 0, err
 	}
-	return bs.RollupBlock.Uint64() + 1, nil
+	if bs.RollupTime.Uint64() < o.cfg.StartHeight {
+		return o.cfg.StartHeight, nil
+	}
+	return bs.RollupBlock.Uint64(), nil
 }
 
-func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]bindings.IRecordBatchSubmission, error) {
+func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64, nextBatchSubmissionIndex *big.Int) ([]bindings.IRecordBatchSubmission, error) {
 	var rLogs []types.Log
 	for {
 		endBlock := startBlock + o.cfg.MaxSize
@@ -103,6 +99,10 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			log.Error("get l2 BlockNumber", "err", err)
 			return nil, parseErr
 		}
+		if rollupCommitBatch.BatchIndex.Cmp(nextBatchSubmissionIndex) < 0 {
+			log.Info("skip batch submission batch", "batchIndex", rollupCommitBatch.BatchIndex)
+			continue
+		}
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
 			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
@@ -148,22 +148,33 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			RollupBlock: big.NewInt(int64(lg.BlockNumber)),
 		}
 		recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
+		if len(recordBatchSubmissions) >= 50 {
+			break
+		}
 	}
 	return recordBatchSubmissions, nil
 }
 
 func (o *Oracle) fetchRollupLog(ctx context.Context, start, end uint64) ([]types.Log, error) {
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0).SetUint64(start),
-		ToBlock:   big.NewInt(0).SetUint64(end),
-		Addresses: []common.Address{
-			o.cfg.RollupAddr,
-		},
-		Topics: [][]common.Hash{
-			{RollupEventTopicHash},
-		},
+	opts := &bind.FilterOpts{
+		Context: ctx,
+		Start:   start,
+		End:     &end,
 	}
-	return o.l1Client.FilterLogs(ctx, query)
+	iter, err := o.rollup.FilterCommitBatch(opts, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := iter.Close(); err != nil {
+			log.Info("RollupCommitBatchIterator close failed", "error", err)
+		}
+	}()
+	var logs []types.Log
+	for iter.Next() {
+		logs = append(logs, iter.Event.Raw)
+	}
+	return logs, nil
 }
 
 func (o *Oracle) GetNextBatchSubmissionIndex() (*big.Int, error) {
@@ -198,7 +209,7 @@ func (o *Oracle) submitRecord() error {
 		log.Error("get pre batch rollup block number failed", "error", err)
 		return fmt.Errorf("get pre batch rollup block number error:%v", err)
 	}
-	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start)
+	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start, nextBatchSubmissionIndex)
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}
@@ -212,7 +223,7 @@ func (o *Oracle) submitRecord() error {
 	}
 	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
 	if err != nil {
-		return fmt.Errorf("record finalized batch error:%v", err)
+		return fmt.Errorf("record finalized batch error:%v,batchSubmissions length:%v", err, len(batchSubmissions))
 	}
 	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {

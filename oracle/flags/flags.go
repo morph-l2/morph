@@ -51,6 +51,13 @@ var (
 		EnvVar:   prefixEnvVar("ROLLUP"),
 	}
 
+	StartHeight = cli.Uint64Flag{
+		Name:     "start-height",
+		Required: true,
+		Usage:    "L1 block height where rollup start to fetch",
+		EnvVar:   prefixEnvVar("START_HEIGHT"),
+	}
+
 	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
 		Name:   "max-header-batch-size",
 		Usage:  "The maximum number of headers to request as a batch",
@@ -126,6 +133,7 @@ var requiredFlags = []cli.Flag{
 	TendermintFlag,
 	WSEndpointFlag,
 	RollupAddress,
+	StartHeight,
 }
 
 var optionalFlags = []cli.Flag{
