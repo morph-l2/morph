@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -62,10 +63,10 @@ type Config struct {
 
 	RollupAddr common.Address
 
-	MaxSize    uint64
-	MinSize    uint64
-	StartBlock uint64
-	PrivKey    string
+	MaxSize     uint64
+	MinSize     uint64
+	StartHeight uint64
+	PrivKey     string
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -88,6 +89,13 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
+	}
+
+	if ctx.GlobalIsSet(flags.StartHeight.Name) {
+		cfg.StartHeight = ctx.GlobalUint64(flags.StartHeight.Name)
+		if cfg.StartHeight == 0 {
+			return Config{}, errors.New("invalid DerivationStartHeight")
+		}
 	}
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {

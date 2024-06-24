@@ -84,7 +84,8 @@ func (o *Oracle) recordRollupEpoch() error {
 			return fmt.Errorf("get LatestRewardEpochBlock error:%v", err)
 		}
 		if lastRewardEpochBlock.Cmp(big.NewInt(0)) == 0 {
-			log.Info("waiting set start block")
+			log.Info("waiting record set start block")
+			time.Sleep(defaultSleepTime)
 			return nil
 		}
 		startBlock = lastRewardEpochBlock.Uint64()

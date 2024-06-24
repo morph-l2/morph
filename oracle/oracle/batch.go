@@ -34,11 +34,14 @@ type BatchInfo struct {
 
 func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error) {
 	if nextBatchSubmissionIndex.Uint64() == 1 {
-		return o.cfg.StartBlock, nil
+		return o.cfg.StartHeight, nil
 	}
 	bs, err := o.record.BatchSubmissions(nil, new(big.Int).Sub(nextBatchSubmissionIndex, big.NewInt(1)))
 	if err != nil {
 		return 0, err
+	}
+	if bs.RollupTime.Uint64() < o.cfg.StartHeight {
+		return o.cfg.StartHeight, nil
 	}
 	return bs.RollupBlock.Uint64(), nil
 }
