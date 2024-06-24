@@ -261,9 +261,9 @@ contract GasPriceOracleTest is Test {
     }
 
     /**
-     * @notice getL1GasUsed
+     * @notice getL1GasUsedBeforeCurie
      */
-    function test_getL1GasUsed_works() public {
+    function test_getL1GasUsedBeforeCurie_works() public {
         uint256 overhead = gasPriceOracle.overhead();
 
         bytes memory data = hex"0000";
@@ -283,6 +283,15 @@ contract GasPriceOracleTest is Test {
     }
 
     /**
+     * @notice getL1GasUsedCurie
+     */
+    function test_getL1GasUsedCurie_works(bytes memory _data) external {
+        vm.prank(multisig);
+        gasPriceOracle.enableCurie();
+        assertEq(gasPriceOracle.getL1GasUsed(_data), 0);
+    }
+
+    /**
      * @notice getL1Fee
      */
     function test_getL1Fee_works(
@@ -298,6 +307,7 @@ contract GasPriceOracleTest is Test {
         blobScalar = bound(blobScalar, 0, MAX_BLOB_SCALAR);
 
         vm.startPrank(multisig);
+        gasPriceOracle.enableCurie();
         gasPriceOracle.setL1BaseFeeAndBlobBaseFee(l1BaseFee, l1BlobBaseFee);
         gasPriceOracle.setCommitScalar(commitScalar);
         gasPriceOracle.setBlobScalar(blobScalar);
