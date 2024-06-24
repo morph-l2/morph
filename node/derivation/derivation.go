@@ -184,13 +184,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	for _, lg := range logs {
 		batchInfo, err := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 		if err != nil {
-			rollupCommitBatch, parseErr := d.rollup.ParseCommitBatch(lg)
-			if parseErr != nil {
-				d.logger.Error("parse commit batch failed", "err", err)
-				return
-			}
-			// ignore genesis batch
-			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
+			if errors.Is(err, types.ErrNotCommitBatchTx) {
 				continue
 			}
 			d.logger.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
@@ -268,6 +262,9 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	abi, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
 		return nil, err
+	}
+	if !bytes.Equal(abi.Methods["commitBatch"].ID, tx.Data()[:4]) {
+		return nil, types.ErrNotCommitBatchTx
 	}
 	args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 	if err != nil {
