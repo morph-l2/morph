@@ -95,8 +95,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	}
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
-	// TODO delete
-	db.WriteLatestDerivationL1Height(102157)
 	latestDerivation := db.ReadLatestDerivationL1Height()
 	start := *latestDerivation + 1
 	if *latestDerivation == 0 && cfg.StartHeight != 0 {
