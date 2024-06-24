@@ -212,7 +212,7 @@ func (o *Oracle) submitRecord() error {
 	}
 	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
 	if err != nil {
-		return fmt.Errorf("record finalized batch error:%v", err)
+		return fmt.Errorf("record finalized batch error:%v,batchSubmissions length:%v", err, len(batchSubmissions))
 	}
 	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {

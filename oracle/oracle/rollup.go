@@ -85,6 +85,14 @@ func (o *Oracle) recordRollupEpoch() error {
 		return err
 	}
 	startBlock := rollupEpoch.EndBlock.Uint64()
+
+	if startBlock == 0 {
+		lastRewardEpochBlock, err := o.record.LatestRewardEpochBlock(nil)
+		if err != nil {
+			return fmt.Errorf("get LatestRewardEpochBlock error:%v", err)
+		}
+		startBlock = lastRewardEpochBlock.Uint64()
+	}
 	blockNumber, err := o.l2Client.BlockNumber(o.ctx)
 	if err != nil {
 		return err
@@ -109,7 +117,7 @@ func (o *Oracle) recordRollupEpoch() error {
 		for _, setsEpoch := range setsEpochs {
 			updateTime, err := o.GetUpdateTime(setsEpoch.EndBlock.Int64() - 1)
 			if err != nil {
-				return err
+				return fmt.Errorf("get update time error:%v", err)
 			}
 			epochTime, err = o.gov.RollupEpoch(&bind.CallOpts{
 				BlockNumber: big.NewInt(setsEpoch.EndBlock.Int64() - 1),
@@ -205,13 +213,13 @@ func (o *Oracle) GetUpdateTime(blockNumber int64) (int64, error) {
 		BlockNumber: big.NewInt(blockNumber),
 	})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("sequencer get update time error:%v", err)
 	}
 	epochUpdateTime, err := o.gov.RollupEpochUpdateTime(&bind.CallOpts{
 		BlockNumber: big.NewInt(blockNumber),
 	})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("gov get rollup epoch update time error:%v", err)
 	}
 	header, err := o.l2Client.HeaderByNumber(o.ctx, big.NewInt(1))
 	if err != nil {
