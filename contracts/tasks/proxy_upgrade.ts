@@ -253,3 +253,72 @@ task("upgradeRollupProxy")
         const rec = await res.wait()
         console.log(`upgrade rollup ${rec.status === 1}`)
     })
+
+/*
+Proxy__GasOracle
+
+EnableCurie
+
+yarn hardhat gasOracleEnableCurie --proxyadminaddr 0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d --gasoracleproxyaddr 0x530000000000000000000000000000000000000f --network l2
+*/
+task("gasOracleEnableCurie")
+    .addParam("proxyadminaddr")
+    .addParam("gasoracleproxyaddr")
+    .setAction(async (taskArgs, hre) => {
+        if (
+            !hre.ethers.utils.isAddress(taskArgs.gasoracleproxyaddr) || !hre.ethers.utils.isAddress(taskArgs.proxyadminaddr)
+        ) {
+            console.log(`GasOracle proxy address check failed ${taskArgs.gasoracleproxyaddr} ${taskArgs.proxyadminaddr}`)
+            return
+        }
+
+        let iGasOracle = await hre.ethers.getContractAt("GasPriceOracle", taskArgs.gasoracleproxyaddr)
+        let isCurie = await iGasOracle.isCurie();
+
+        if (isCurie) {
+            console.log("Already set isCurie");
+            return;
+        }
+
+        // enable curie
+        const res = await iGasOracle.enableCurie()
+        const rec = await res.wait()
+        isCurie = await iGasOracle.isCurie();
+        console.log(`Enable curie ${isCurie === true ? "succeed" : "failed"}`)
+    })
+
+/*
+Proxy__GasOracle
+
+yarn hardhat upgradeGasOracleProxy --proxyadminaddr 0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d --gasoracleproxyaddr 0x530000000000000000000000000000000000000f --network l2
+*/
+task("upgradeGasOracleProxy")
+    .addParam("proxyadminaddr")
+    .addParam("gasoracleproxyaddr")
+    .setAction(async (taskArgs, hre) => {
+        if (
+            !hre.ethers.utils.isAddress(taskArgs.gasoracleproxyaddr) || !hre.ethers.utils.isAddress(taskArgs.proxyadminaddr)
+        ) {
+            console.log(`GasOracle proxy address check failed ${taskArgs.gasoracleproxyaddr} ${taskArgs.proxyadminaddr}`)
+            return
+        }
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+        const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadminaddr)
+
+        // upgrade
+        const gasOracleFactory = await hre.ethers.getContractFactory("GasPriceOracle")
+        const gasOracleNewImpl = await gasOracleFactory.deploy(taskArgs.proxyadminaddr)
+        await gasOracleNewImpl.deployed()
+        console.log("New implementation address of gasOracle: ", gasOracleNewImpl.address)
+        if (
+            !hre.ethers.utils.isAddress(taskArgs.gasoracleproxyaddr) ||
+            !hre.ethers.utils.isAddress(gasOracleNewImpl.address)
+        ) {
+            console.log(`New implementation address of gasOracle cheked failed ${gasOracleNewImpl.address}`)
+            return
+        }
+        const res = await proxyAdmin.upgrade(taskArgs.gasoracleproxyaddr, gasOracleNewImpl.address)
+        const rec = await res.wait()
+        console.log(`Upgrade gasOracle ${rec.status === 1 ? "succeed" : "failed"}`)
+    })
