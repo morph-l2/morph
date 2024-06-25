@@ -30,11 +30,10 @@ func (j *Journal) Init() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// create file
-			file, err := os.Create(j.path)
+			_, err := os.Create(j.path)
 			if err != nil {
 				return fmt.Errorf("failed to create journal file: %w", err)
 			}
-			defer file.Close()
 			return nil
 		} else {
 			return fmt.Errorf("failed to stat journal file: %w", err)
@@ -111,12 +110,12 @@ func addToFileStart(path string, str string) error {
 	}
 	var newContent string
 	if len(content) > 0 {
-		newContent = str + "\n" + string(content)
+		newContent = str + "\n" + content
 	} else {
 		newContent = str
 	}
 
-	err = os.WriteFile(path, []byte(newContent), 0644)
+	err = os.WriteFile(path, []byte(newContent), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write journal file: %w", err)
 	}
@@ -165,7 +164,7 @@ func addToFileEnd(path string, str string) error {
 	} else {
 		newContent = str
 	}
-	err = os.WriteFile(path, []byte(newContent), 0644)
+	err = os.WriteFile(path, []byte(newContent), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to add line to file end: %w", err)
 	}
@@ -202,7 +201,7 @@ func getFirstLine(path string) (string, error) {
 	}
 
 	// split content by line
-	lines := getLines(string(content))
+	lines := getLines(content)
 
 	// first line
 	if len(lines) > 0 {
@@ -218,7 +217,7 @@ func getLastLine(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get last line: %w", err)
 	}
-	lines := getLines(string(content))
+	lines := getLines(content)
 	if len(lines) > 0 {
 		return lines[len(lines)-1], nil
 	}

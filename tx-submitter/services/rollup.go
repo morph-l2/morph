@@ -103,7 +103,10 @@ func (sr *Rollup) Start() {
 
 	// journal
 	jn := localpool.New(sr.cfg.JournalFilePath)
-	jn.Init()
+	err := jn.Init()
+	if err != nil {
+		log.Crit("journal file init failed", "err", err)
+	}
 	// pendingtxs
 	sr.pendingTxs = NewPendingTxs(sr.abi.Methods["commitBatch"].ID, sr.abi.Methods["finalizeBatch"].ID, jn)
 	txs, err := jn.ParseAllTxs()
