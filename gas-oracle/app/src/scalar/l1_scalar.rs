@@ -12,6 +12,7 @@ use crate::{
         gas_price_oracle_abi::GasPriceOracle,
         rollup_abi::{CommitBatchCall, Rollup},
     },
+    format_contract_error,
     metrics::ORACLE_SERVICE_METRICS,
     read_env_var,
 };
@@ -108,10 +109,11 @@ impl ScalarUpdater {
                     pending
                 }
                 Err(e) => {
-                    return Err(ScalarError::Error(anyhow!(format!(
-                        "set_commit_scalar error: {:#?}",
-                        e
-                    ))));
+                    log::error!("send tx of set_commit_scalar error, origin msg: {:#?}", e);
+                    return Err(ScalarError::Error(anyhow!(
+                        "set_commit_scalar error: {}",
+                        format_contract_error(e)
+                    )));
                 }
             };
             pending_tx.await.map_err(|e| {
@@ -132,10 +134,11 @@ impl ScalarUpdater {
                     pending
                 }
                 Err(e) => {
-                    return Err(ScalarError::Error(anyhow!(format!(
-                        "set_blob_scalar error: {:#?}",
-                        e
-                    ))));
+                    log::error!("send tx of set_blob_scalar error, origin msg: {:#?}", e);
+                    return Err(ScalarError::Error(anyhow!(
+                        "set_blob_scalar error: {}",
+                        format_contract_error(e)
+                    )));
                 }
             };
             pending_tx.await.map_err(|e| {

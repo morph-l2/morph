@@ -1,5 +1,5 @@
+use ethers::contract::ContractRevert;
 use std::str::FromStr;
-
 pub mod abi;
 mod error;
 pub mod gas_price_oracle;
@@ -7,7 +7,14 @@ mod l1_base_fee;
 mod metrics;
 mod scalar;
 
+use abi::gas_price_oracle_abi::GasPriceOracleErrors;
 pub use error::*;
+use ethers::{
+    contract::ContractError,
+    middleware::SignerMiddleware,
+    providers::{Http, Provider},
+    signers::LocalWallet,
+};
 
 pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
     std::env::var(var_name)
@@ -22,6 +29,21 @@ pub fn read_parse_env<T: Clone + FromStr>(var_name: &'static str) -> T {
         Ok(v) => v,
         Err(_) => panic!("Cannot parse {} env var", var_name),
     }
+}
+
+pub fn format_contract_error(
+    e: ContractError<SignerMiddleware<Provider<Http>, LocalWallet>>,
+) -> String {
+    let error_msg = if let Some(contract_err) = e.as_revert() {
+        if let Some(data) = GasPriceOracleErrors::decode_with_selector(contract_err.as_ref()) {
+            format!("contract error: {:?}", data)
+        } else {
+            format!("unknown contract error: {:?}", contract_err)
+        }
+    } else {
+        format!("error: {:?}", e)
+    };
+    error_msg
 }
 
 /// Minimum gas price for data blobs.

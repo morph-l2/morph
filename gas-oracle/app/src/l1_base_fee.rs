@@ -1,6 +1,6 @@
 use crate::{
-    abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, metrics::ORACLE_SERVICE_METRICS,
-    OracleError,
+    abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, format_contract_error,
+    metrics::ORACLE_SERVICE_METRICS, OracleError,
 };
 use ethers::prelude::*;
 use eyre::anyhow;
@@ -124,10 +124,15 @@ impl BaseFeeUpdater {
                     pending
                 }
                 Err(e) => {
-                    return Err(OracleError::L1BaseFeeError(anyhow!(format!(
-                        "set_l1_base_fee_and_blob_base_fee error: {:#?}",
+                    log::error!(
+                        "send tx of set_l1_base_fee_and_blob_base_fee error, origin msg: {:#?}",
                         e
-                    ))));
+                    );
+
+                    return Err(OracleError::L1BaseFeeError(anyhow!(
+                        "set_l1_base_fee_and_blob_base_fee error: {}",
+                        format_contract_error(e)
+                    )));
                 }
             };
             pending_tx.await.map_err(|e| {
@@ -157,10 +162,11 @@ impl BaseFeeUpdater {
                     pending
                 }
                 Err(e) => {
-                    return Err(OracleError::L1BaseFeeError(anyhow!(format!(
-                        "set_l1_base_fee error: {:#?}",
-                        e
-                    ))));
+                    log::error!("send tx of set_l1_base_fee error, origin msg: {:#?}", e);
+                    return Err(OracleError::L1BaseFeeError(anyhow!(
+                        "set_l1_base_fee error: {}",
+                        format_contract_error(e)
+                    )));
                 }
             };
             pending_tx.await.map_err(|e| {
@@ -209,10 +215,11 @@ impl BaseFeeUpdater {
                     pending
                 }
                 Err(e) => {
-                    return Err(OracleError::L1BaseFeeError(anyhow!(format!(
-                        "set scalar error: {:#?}",
-                        e
-                    ))));
+                    log::error!("send tx of set scalar error, origin msg: {:#?}", e);
+                    return Err(OracleError::L1BaseFeeError(anyhow!(
+                        "set_scalar error: {}",
+                        format_contract_error(e)
+                    )));
                 }
             };
             pending_tx.await.map_err(|e| {
