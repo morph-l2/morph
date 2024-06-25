@@ -1,16 +1,19 @@
 package services
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
 	"morph-l2/bindings/bindings"
+	journal "morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/scroll-tech/go-ethereum/log"
 )
 
 type TxInfo struct {
@@ -32,14 +35,41 @@ type PendingTxs struct {
 	pfinalize       uint64
 	commitBatchId   []byte
 	finalizeBatchId []byte
+
+	// journal
+	journal *journal.Journal
 }
 
-func NewPendingTxs(cid []byte, fid []byte) *PendingTxs {
+func NewPendingTxs(cid []byte, fid []byte, journal *journal.Journal) *PendingTxs {
 	return &PendingTxs{
 		txinfos:         make(map[common.Hash]TxInfo),
 		commitBatchId:   cid,
 		finalizeBatchId: fid,
+		journal:         journal,
 	}
+}
+
+func (pt *PendingTxs) Store(tx types.Transaction) error {
+	err := pt.journal.AppendTx(tx)
+	if err != nil {
+		return fmt.Errorf("failed to store tx: %v", err)
+	}
+	return nil
+}
+
+func (pt *PendingTxs) dump() error {
+	err := pt.journal.Clean()
+	if err != nil {
+		return fmt.Errorf("failed to dump tx: %v", err)
+	}
+	txinfos := pt.getAll()
+	for _, info := range txinfos {
+		err := pt.journal.AppendTx(info.tx)
+		if err != nil {
+			return fmt.Errorf("failed to store tx: %v", err)
+		}
+	}
+	return nil
 }
 
 func (pt *PendingTxs) Add(tx types.Transaction) {
@@ -49,14 +79,25 @@ func (pt *PendingTxs) Add(tx types.Transaction) {
 		sendTime: uint64(time.Now().Unix()),
 		tx:       tx,
 	}
+
+	err := pt.dump()
+	if err != nil {
+		log.Error("failed to dump pending txs", "err", err)
+	}
 }
 
 func (pt *PendingTxs) Remove(txHash common.Hash) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
 	delete(pt.txinfos, txHash)
+
+	err := pt.dump()
+	if err != nil {
+		log.Error("failed to dump pending txs", "err", err)
+	}
 }
 
+// Recover from mempool
 func (pt *PendingTxs) Recover(txs []types.Transaction, a *abi.ABI) {
 	// restore state from mempool
 	if len(txs) > 0 {
@@ -83,12 +124,24 @@ func (pt *PendingTxs) Recover(txs []types.Transaction, a *abi.ABI) {
 		pt.SetPindex(pbindex)
 		pt.SetPFinalize(pfindex)
 		pt.SetNonce(txs[len(txs)-1].Nonce())
+
+		log.Info("Recover from mempool",
+			"tx_count", len(txs),
+			"max_batch_index", pbindex,
+			"max_finalize_index", pfindex,
+			"max_nonce", pt.pnonce,
+		)
+	} else {
+		log.Info("journal tx is empty")
 	}
 }
 
 func (pt *PendingTxs) GetAll() []TxInfo {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
+	return pt.getAll()
+}
+func (pt *PendingTxs) getAll() []TxInfo {
 	// copy txs and return
 	txs := make([]TxInfo, 0, len(pt.txinfos))
 	for _, tx := range pt.txinfos {

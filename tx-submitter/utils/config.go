@@ -77,6 +77,9 @@ type Config struct {
 	RollupTxGasPerL1Msg uint64
 	// gas limit buffer
 	GasLimitBuffer uint64
+
+	// journal file path
+	JournalFilePath string
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -120,6 +123,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		RollupTxGasPerL1Msg: ctx.GlobalUint64(flags.RollupTxGasPerL1Msg.Name),
 
 		GasLimitBuffer: ctx.GlobalUint64(flags.GasLimitBuffer.Name),
+
+		JournalFilePath: ctx.GlobalString(flags.JournalFlag.Name),
 	}
 
 	return cfg, nil

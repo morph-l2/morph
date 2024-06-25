@@ -28,6 +28,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/utils"
 )
@@ -100,6 +101,18 @@ func NewRollup(
 
 func (sr *Rollup) Start() {
 
+	// journal
+	jn := localpool.New(sr.cfg.JournalFilePath)
+	jn.Init()
+	// pendingtxs
+	sr.pendingTxs = NewPendingTxs(sr.abi.Methods["commitBatch"].ID, sr.abi.Methods["finalizeBatch"].ID, jn)
+	txs, err := jn.ParseAllTxs()
+	if err != nil {
+		log.Error("parse l1 mempool error", "error", err)
+	} else {
+		sr.pendingTxs.Recover(txs, sr.abi)
+	}
+
 	// metrics
 	go utils.Loop(sr.ctx, 10*time.Second, func() {
 
@@ -125,15 +138,6 @@ func (sr *Rollup) Start() {
 		sr.metrics.SetWalletBalance(balanceEthFloat)
 
 	})
-
-	// init pendingtxs
-	sr.pendingTxs = NewPendingTxs(sr.abi.Methods["commitBatch"].ID, sr.abi.Methods["finalizeBatch"].ID)
-	txs, err := utils.ParseL1Mempool(sr.l1RpcClient, crypto.PubkeyToAddress(sr.privKey.PublicKey))
-	if err != nil {
-		log.Error("parse l1 mempool error", "error", err)
-	} else {
-		sr.pendingTxs.Recover(txs, sr.abi)
-	}
 
 	go utils.Loop(sr.ctx, sr.cfg.RollupInterval, func() {
 		sr.rollupFinalizeMu.Lock()
