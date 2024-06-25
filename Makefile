@@ -97,13 +97,36 @@ docker-build:
 	cd ops/docker && docker compose build
 .PHONY: docker-build
 
-base-image:
-	cd ops/docker && docker build -t morph/go-rust-builder:go-1.19-rust-nightly-2022-12-10 . -f go-rust-builder.Dockerfile
-.PHONY: base-image
+go-rust-builder:
+	@if [ -z "$(shell docker images -q morph/go-rust-builder 2> /dev/null)" ]; then \
+		echo "Docker image morph/go-rust-builder does not exist. Building..."; \
+		cd ops/docker/intermediate && docker build -t morph/go-rust-builder:go-1.22-rust-nightly-2023-12-03 . -f go-rust-builder.Dockerfile; \
+	else \
+		echo "Docker image morph/go-rust-builder already exists."; \
+	fi
+.PHONY: go-rust-builder
+
+go-rust-alpine-builder:
+	@if [ -z "$(shell docker images -q morph/go-rust-alpine-builder 2> /dev/null)" ]; then \
+		echo "Docker image morph/go-rust-alpine-builder does not exist. Building..."; \
+		cd ops/docker/intermediate && docker build -t morph/go-rust-alpine-builder:go-1.22-rust-nightly-2023-12-03 . -f go-rust-alpine-builder.Dockerfile; \
+	else \
+		echo "Docker image morph/go-rust-alpine-builder already exists."; \
+	fi
+.PHONY: go-rust-alpine-builder
+
+go-ubuntu-builder:
+	@if [ -z "$(shell docker images -q morph/go-ubuntu-builder 2> /dev/null)" ]; then \
+		echo "Docker image morph/go-ubuntu-builder does not exist. Building..."; \
+		cd ops/docker/intermediate && docker build -t morph/go-ubuntu-builder:go-1.22-ubuntu . -f go-ubuntu-builder.Dockerfile; \
+	else \
+		echo "Docker image morph/go-ubuntu-builder already exists."; \
+	fi
+.PHONY: go-ubuntu-builder
 
 ################## devnet 4 nodes ####################
 
-devnet-up: submodules
+devnet-up: submodules go-ubuntu-builder go-rust-builder
 	python3 ops/devnet-morph/main.py --polyrepo-dir=.
 .PHONY: devnet-up
 
