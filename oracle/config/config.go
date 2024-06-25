@@ -94,7 +94,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 	if ctx.GlobalIsSet(flags.StartHeight.Name) {
 		cfg.StartHeight = ctx.GlobalUint64(flags.StartHeight.Name)
 		if cfg.StartHeight == 0 {
-			return Config{}, errors.New("invalid DerivationStartHeight")
+			return Config{}, errors.New("invalid rollup fetch StartHeight")
 		}
 	}
 

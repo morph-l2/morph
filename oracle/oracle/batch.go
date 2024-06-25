@@ -40,7 +40,7 @@ func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error
 	if err != nil {
 		return 0, err
 	}
-	if bs.RollupTime.Uint64() < o.cfg.StartHeight {
+	if bs.RollupBlock.Uint64() < o.cfg.StartHeight {
 		return o.cfg.StartHeight, nil
 	}
 	return bs.RollupBlock.Uint64(), nil

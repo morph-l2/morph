@@ -169,9 +169,6 @@ func (o *Oracle) getRewardEpochs(startRewardEpochIndex, startHeight *big.Int) (*
 }
 
 func (o *Oracle) getSequencerCommission(blockNumber *big.Int, address common.Address) (*big.Int, error) {
-	if blockNumber.Uint64() < o.cfg.StartHeight {
-		return big.NewInt(0), nil
-	}
 	return o.l2Staking.Commissions(&bind.CallOpts{
 		BlockNumber: blockNumber,
 	}, address)
@@ -271,7 +268,7 @@ func (o *Oracle) findStartBlock(start, end uint64, timeStamp int64) (int64, erro
 }
 
 func (o *Oracle) setStartBlock() {
-	start := o.cfg.StartHeight
+	var start uint64
 	for {
 		header, err := o.l2Client.HeaderByNumber(o.ctx, nil)
 		if err != nil {
