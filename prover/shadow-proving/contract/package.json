@@ -15,12 +15,12 @@
   },
   "homepage": "https://github.com/morph-l2/morph/tree/main/prover/shadow-proving/contract#readme",
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^2.0.0",
-    "@openzeppelin/contracts": "^4.4.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.0.2",
     "hardhat": "^2.22.2"
   },
   "dependencies": {
     "dotenv": "^16.0.3",
-    "ethers": "^5.7.2"
+    "ethers": "^6.13.1"
   }
 }
