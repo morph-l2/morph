@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math/big"
+	"morph-l2/node/zstd"
 	"testing"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
@@ -159,7 +160,9 @@ func TestDecodeLegacyTxsFromBlob(t *testing.T) {
 			{txsPayload: legacyTransferTxBz}, {}, {txsPayload: legacyContractTxBz},
 		},
 	}
-	b, err := MakeBlobCanonical(cks.ConstructBlobPayload())
+	compressedBlobBytes, err := zstd.CompressBatchBytes(cks.ConstructBlobPayload())
+	require.NoError(t, err)
+	b, err := MakeBlobCanonical(compressedBlobBytes)
 	require.NoError(t, err)
 	txs, err := DecodeTxsFromBlob(b)
 	require.NoError(t, err)
@@ -189,7 +192,9 @@ func TestDecodeTxsFromBlob(t *testing.T) {
 			{txsPayload: transferTxBz}, {}, {txsPayload: legacyContractTxBz}, {}, {txsPayload: contractTxBz},
 		},
 	}
-	b, err := MakeBlobCanonical(cks.ConstructBlobPayload())
+	compressedBlobBytes, err := zstd.CompressBatchBytes(cks.ConstructBlobPayload())
+	require.NoError(t, err)
+	b, err := MakeBlobCanonical(compressedBlobBytes)
 	require.NoError(t, err)
 	txs, err := DecodeTxsFromBlob(b)
 	require.NoError(t, err)

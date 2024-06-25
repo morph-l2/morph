@@ -13,7 +13,7 @@ import (
 
 func TestChunks_Append(t *testing.T) {
 	chunks := NewChunks()
-	appended := chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
+	appended := chunks.isChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.True(t, appended)
 
 	blockContext := []byte("123")
@@ -64,13 +64,13 @@ func TestChunks_Append(t *testing.T) {
 	}
 	// 99 blocks in 2nd chunk
 	require.EqualValues(t, 2, chunks.ChunkNum())
-	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
+	appended = chunks.isChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.False(t, appended)
 	// 100 blocks in 2nd chunk
 	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.EqualValues(t, 2, chunks.ChunkNum())
 
-	appended = chunks.IsChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
+	appended = chunks.isChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
 	require.True(t, appended)
 	// append chunk to 3 chunks totally
 	chunks.Append([]byte("11"), nil, nil, types.RowConsumption{{Name: "a", RowNumber: 1}})
@@ -88,19 +88,23 @@ func TestChunks_ConstructBlobPayload(t *testing.T) {
 
 	txsPayload1 := rand.Bytes(30)
 	// 3rd chunk has 30 length of tx payload
-	chunks.Append(nil, txsPayload1, nil, types.RowConsumption{{Name: "a", RowNumber: 1_000_000}})
+	chunks.Append(nil, txsPayload1, nil, types.RowConsumption{{Name: "a", RowNumber: 500_000}})
+
+	txsPayload2 := rand.Bytes(15)
+	// 3rd chunk append 15 length of tx payload
+	chunks.Append(nil, txsPayload2, nil, types.RowConsumption{{Name: "a", RowNumber: 500_000}})
 
 	blobBytes := chunks.ConstructBlobPayload()
 
-	expectedBytes := make([]byte, 62+50)
+	expectedBytes := make([]byte, 62+65)
 	copy(expectedBytes, []byte{0x0, 0x3})
 	chunk0Size := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunk0Size, 20)
 	chunk2Size := make([]byte, 4)
-	binary.BigEndian.PutUint32(chunk2Size, 30)
+	binary.BigEndian.PutUint32(chunk2Size, 45)
 	copy(expectedBytes[2:], chunk0Size)
 	copy(expectedBytes[10:], chunk2Size)
-	copy(expectedBytes[62:], append(txsPayload0, txsPayload1...))
+	copy(expectedBytes[62:], append(append(txsPayload0, txsPayload1...), txsPayload2...))
 	require.EqualValues(t, expectedBytes, blobBytes)
 }
 

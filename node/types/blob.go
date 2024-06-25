@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"morph-l2/node/zstd"
 
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
@@ -130,6 +131,14 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 	}, nil
 }
 
+func EncodeBatchBytesToBlob(batchBytes []byte) (*eth.BlobTxSidecar, error) {
+	compressedBatchBytes, err := zstd.CompressBatchBytes(batchBytes)
+	if err != nil {
+		return nil, err
+	}
+	return MakeBlobTxSidecar(compressedBatchBytes)
+}
+
 // Deprecated: DecodeTxsFromBlob is recommended
 func DecodeLegacyTxsFromBlob(b *kzg4844.Blob) (eth.Transactions, error) {
 	data, err := RetrieveBlobBytes(b)
@@ -180,7 +189,11 @@ func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	batchBytes, err := zstd.DecompressBatchBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	data = batchBytes
 	nonEmptyChunkNum := binary.BigEndian.Uint16(data[:2])
 	if nonEmptyChunkNum == 0 {
 		return nil, nil
