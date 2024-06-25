@@ -1,6 +1,7 @@
 package oracle
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -100,14 +101,14 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64, next
 			return nil, parseErr
 		}
 		if rollupCommitBatch.BatchIndex.Cmp(nextBatchSubmissionIndex) < 0 {
-			log.Info("skip batch submission batch", "batchIndex", rollupCommitBatch.BatchIndex)
+			log.Info("skip submission batch", "batchIndex", rollupCommitBatch.BatchIndex)
+			continue
+		}
+		if !bytes.Equal(abi.Methods["commitBatch"].ID, tx.Data()[:4]) {
 			continue
 		}
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
-			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
-				continue
-			}
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
 			return nil, err
 		}
@@ -184,7 +185,6 @@ func (o *Oracle) GetNextBatchSubmissionIndex() (*big.Int, error) {
 func (o *Oracle) LastBatchIndex(opts *bind.CallOpts) (*big.Int, error) {
 	if o.isFinalized {
 		return o.rollup.LastFinalizedBatchIndex(opts)
-
 	}
 	return o.rollup.LastCommittedBatchIndex(opts)
 }

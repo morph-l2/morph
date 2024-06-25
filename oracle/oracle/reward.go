@@ -18,6 +18,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/tendermint/tendermint/crypto/ed25519"
+	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	tmtypes "github.com/tendermint/tendermint/types"
 )
 
@@ -174,12 +175,25 @@ func (o *Oracle) getSequencerCommission(blockNumber *big.Int, address common.Add
 	}, address)
 }
 
+func (o *Oracle) Header(ctx context.Context, height *int64) (*ctypes.ResultHeader, error) {
+	result := new(ctypes.ResultHeader)
+	params := make(map[string]interface{})
+	if height != nil {
+		params["height"] = height
+	}
+	_, err := o.TmClient.Call(ctx, "header", params, result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // L2HeaderByNumberWithRetry retries getting headers.
 func (o *Oracle) L2HeaderByNumberWithRetry(height int64) (*tmtypes.Header, error) {
 	var res *tmtypes.Header
 	err := backoff.DoCtx(o.ctx, 3, backoff.Exponential(), func() error {
 		var err error
-		headerResp, err := o.TmClient.Header(context.Background(), &height)
+		headerResp, err := o.Header(o.ctx, &height)
 		if err != nil {
 			return err
 		}
@@ -313,7 +327,7 @@ func (o *Oracle) setStartBlock() {
 			time.Sleep(defaultSleepTime)
 			continue
 		}
-		log.Info("start find start block", "start_block", start, "end_block", header.Number.Uint64())
+		log.Info("start find startBlock", "start_block", start, "end_block", header.Number.Uint64())
 		startBlock, err := o.findStartBlock(start, header.Number.Uint64(), startTime.Int64())
 		if err != nil {
 			log.Error("find start block failed", "error", err)

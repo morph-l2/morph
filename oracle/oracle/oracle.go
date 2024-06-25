@@ -21,7 +21,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
-	tmhttp "github.com/tendermint/tendermint/rpc/client/http"
+	jsonrpcclient "github.com/tendermint/tendermint/rpc/jsonrpc/client"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -72,7 +72,7 @@ type Oracle struct {
 	gov                 *bindings.Gov
 	rollup              *bindings.Rollup
 	record              *bindings.Record
-	TmClient            *tmhttp.HTTP
+	TmClient            *jsonrpcclient.Client
 	rewardEpoch         time.Duration
 	cfg                 *config.Config
 	privKey             *ecdsa.PrivateKey
@@ -127,11 +127,14 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	if err != nil {
 		panic(err)
 	}
-	tmClient, err := tmhttp.New(cfg.TendermintRpc, cfg.WsEndpoint)
+	httpClient, err := jsonrpcclient.DefaultHTTPClient(cfg.TendermintRpc)
 	if err != nil {
 		panic(err)
 	}
-
+	tmClient, err := jsonrpcclient.NewWithHTTPClient(cfg.TendermintRpc, httpClient)
+	if err != nil {
+		panic(err)
+	}
 	rollup, err := bindings.NewRollup(cfg.RollupAddr, l1Client)
 	if err != nil {
 		panic(err)
