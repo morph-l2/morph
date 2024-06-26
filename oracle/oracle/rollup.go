@@ -35,6 +35,9 @@ func (o *Oracle) generateRollupEpoch(index, startTime, rollupEpoch, updateTime, 
 	}
 	epochsStart := startTime
 	for {
+		if startTime == endBlockTime {
+			break
+		}
 		endTime := startTime + rollupEpoch
 		if endTime > nextUpdateTime {
 			endTime = nextUpdateTime
@@ -56,9 +59,6 @@ func (o *Oracle) generateRollupEpoch(index, startTime, rollupEpoch, updateTime, 
 			break
 		}
 		rollupEpochInfos = append(rollupEpochInfos, rollupEpochInfo)
-		if endTime == endBlockTime {
-			break
-		}
 		startTime = endTime
 		index++
 	}

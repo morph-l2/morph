@@ -130,7 +130,6 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
-
 	LogLevelFlag,
 	LogTerminalFlag,
 	LogFilenameFlag,

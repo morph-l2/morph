@@ -198,15 +198,6 @@ func (o *Oracle) Start() {
 			}
 		}
 	}()
-
-	go func() {
-		for {
-			if err := o.recordRollupEpoch(); err != nil {
-				log.Error("record rollup epoch failed", "error", err)
-				time.Sleep(30 * time.Second)
-			}
-		}
-	}()
 }
 
 func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
