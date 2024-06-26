@@ -80,9 +80,9 @@ func (pt *PendingTxs) Add(tx types.Transaction) {
 		tx:       tx,
 	}
 
-	err := pt.dump()
+	err := pt.journal.AppendTx(tx)
 	if err != nil {
-		log.Error("failed to dump pending txs", "err", err)
+		log.Error("failed to append pending txs", "err", err)
 	}
 }
 

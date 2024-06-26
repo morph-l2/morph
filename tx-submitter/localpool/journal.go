@@ -3,6 +3,7 @@ package localpool
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -184,7 +185,7 @@ func (j *Journal) GetLastLine() (string, error) {
 }
 
 func readFileContent(path string) (string, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", fmt.Errorf("failed to read journal file: %w", err)
 	}
