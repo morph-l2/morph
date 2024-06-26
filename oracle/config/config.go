@@ -27,7 +27,6 @@ type Config struct {
 	PrivateKey string
 
 	TendermintRpc string
-	WsEndpoint    string
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -78,7 +77,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L2EthRpc:      ctx.GlobalString(flags.L2EthRPCFlag.Name),
 		PrivateKey:    ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		TendermintRpc: ctx.GlobalString(flags.TendermintFlag.Name),
-		WsEndpoint:    ctx.GlobalString(flags.WSEndpointFlag.Name),
 		RollupAddr:    common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
 		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		/* Optional Flags */

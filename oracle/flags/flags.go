@@ -37,12 +37,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_TENDERMINT_RPC"),
 	}
-	WSEndpointFlag = cli.StringFlag{
-		Name:     "l2-ws-endpoint",
-		Usage:    "HTTP provider ws-endpoint URL for L2",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_WS_ENDPOINT"),
-	}
 
 	RollupAddress = cli.StringFlag{
 		Name:     "rollup-address",
@@ -131,7 +125,6 @@ var requiredFlags = []cli.Flag{
 	L2EthRPCFlag,
 	PrivateKeyFlag,
 	TendermintFlag,
-	WSEndpointFlag,
 	RollupAddress,
 	StartHeight,
 }
