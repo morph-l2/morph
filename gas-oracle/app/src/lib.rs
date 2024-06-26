@@ -5,7 +5,7 @@ mod error;
 pub mod gas_price_oracle;
 mod l1_base_fee;
 mod metrics;
-mod scalar;
+mod da_scalar;
 
 use abi::gas_price_oracle_abi::GasPriceOracleErrors;
 pub use error::*;

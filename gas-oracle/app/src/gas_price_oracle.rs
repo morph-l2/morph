@@ -2,7 +2,7 @@ use crate::{
     abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
     l1_base_fee::BaseFeeUpdater,
     read_parse_env,
-    scalar::l1_scalar::ScalarUpdater,
+    da_scalar::l1_scalar::ScalarUpdater,
 };
 use ethers::{
     prelude::*,
