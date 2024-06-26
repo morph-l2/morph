@@ -1,6 +1,6 @@
 ################## update dependencies ####################
 
-ETHEREUM_TAG=v1.10.14-0.20240429050506-03fd4c3e771d
+ETHEREUM_TAG=v1.10.14-0.20240625084021-7bcb18d63e63
 TENDERMINT_TAG=v0.2.0-beta.0.20240513090937-03bf2a578b48
 
 update:
