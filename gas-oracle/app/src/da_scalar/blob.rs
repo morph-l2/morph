@@ -85,13 +85,19 @@ impl Blob {
         buffer[..fcs_field_size].copy_from_slice(&decoded_blob[1..1 + fcs_field_size]);
         let orgin_content_size =
             u64::from_le_bytes(buffer) + if fcs_field_size == 2 { 256 } else { 0 };
-        println!("orgin_content_size: {}", orgin_content_size);
 
         if origin_batch.len() != orgin_content_size as usize {
             return Err(BlobError::Error(anyhow!(
                 "decompress batch error: origin_batch_len is not equal to zstd_orgin_content_size"
             )))
         }
+
+        log::info!(
+            "check_blob_data, blob usage {:.3}, batch_compression_ratio: {:.3}",
+            compressed_data.len() as f32 / MAX_BLOB_TX_PAYLOAD_SIZE as f32,
+            orgin_content_size as f32 / compressed_data.len() as f32
+        );
+
         Self::decode_raw_tx_payload(origin_batch)?;
         Ok(())
     }

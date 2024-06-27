@@ -22,7 +22,7 @@ use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
 const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 7);
-const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 4);
+const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 2);
 const FINALIZE_BATCH_GAS_USED: u64 = 156400;
 
 lazy_static! {
@@ -90,16 +90,23 @@ impl ScalarUpdater {
             ScalarError::Error(anyhow!(format!("query l2_oracle.blob_scalar error: {:#?}", e)))
         })?;
 
-        ORACLE_SERVICE_METRICS.overhead.set(current_commit_scalar.as_u64() as i64);
-
-        log::info!("latest commit_scalar: {:?}, latest blob_scalar: {:?}, current_commit_scalar on l2 is: {:?}, current_blob_scalar on l2 is: {:?}", 
+        log::info!("set_commit_or_blob_scalar, latest commit_scalar: {:?}, latest blob_scalar: {:?}, current_commit_scalar on l2 is: {:?}, current_blob_scalar on l2 is: {:?}", 
         commit_scalar, blob_scalar, current_commit_scalar.as_u64(), current_blob_scalar.as_u64());
 
         commit_scalar = commit_scalar.min(MAX_COMMIT_SCALAR);
         blob_scalar = blob_scalar.min(MAX_BLOB_SCALAR);
 
+        ORACLE_SERVICE_METRICS.commit_scalar.set((commit_scalar / PRECISION) as i64);
+        ORACLE_SERVICE_METRICS
+            .blob_scalar
+            .set((1000.0 * blob_scalar as f64 / PRECISION as f64).round() / 10000.0);
+
         // Step3. set on L2chain
-        if self.check_threshold_reached(commit_scalar, current_commit_scalar.as_u64()) {
+        if self.check_threshold_reached(
+            commit_scalar,
+            current_commit_scalar.as_u64(),
+            "commit_scalar",
+        ) {
             // Update commit_scalar
             let tx = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).legacy();
             let rt = tx.send().await;
@@ -124,7 +131,7 @@ impl ScalarUpdater {
             })?;
         }
 
-        if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64()) {
+        if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64(), "blob_scalar") {
             // Update blob_scalar
             let tx = self.l2_oracle.set_blob_scalar(U256::from(blob_scalar)).legacy();
             let rt = tx.send().await;
@@ -152,19 +159,18 @@ impl ScalarUpdater {
         Ok(())
     }
 
-    fn check_threshold_reached(&mut self, latest: u64, current: u64) -> bool {
+    fn check_threshold_reached(&mut self, latest: u64, current: u64, state_var_name: &str) -> bool {
         let actual_change = latest.abs_diff(current);
         let expected_change = current * self.gas_threshold / 100;
-        if actual_change < expected_change {
-            log::info!(
-                "scalar update abort, actual_change: {:?} < expected_change: {:?}, threshold = {:?}%",
-                actual_change,
-                expected_change,
-                self.gas_threshold
-            );
-            return false;
-        }
-        true
+        let need_update = actual_change > expected_change;
+        log::info!(
+            "update {}, actual_change: {:?}, expected_change: {:?}, need_update: {:?}",
+            state_var_name,
+            actual_change,
+            expected_change,
+            need_update
+        );
+        need_update
     }
 
     async fn calculate_scalar(&mut self, start: u64) -> Result<Option<(u64, u64)>, ScalarError> {
@@ -288,13 +294,11 @@ impl ScalarUpdater {
         };
 
         log::info!(
-            "rollup blob tx: {:?} in block: {:?}, rollup_gas_used: {:?}, l2_txn: {:?}, l2_data_len:{:?}, commit_scalar: {:.4}g, blob_scalar: {:.4}g",
-            tx_hash,
-            block_num,
+            "rollup_gas_used: {:?}, l2_txn: {:?}, l2_data_len:{:?}, commit_scalar: {:?}, blob_scalar: {:.4}",
             rollup_gas_used,
             l2_txn,
             l2_data_len,
-            commit_scalar as f64/PRECISION as f64,
+            commit_scalar/PRECISION,
             blob_scalar as f64/PRECISION as f64,
         );
 
@@ -361,7 +365,7 @@ impl ScalarUpdater {
                 retry_times -= 1;
                 sleep(Duration::from_secs(3)).await;
 
-                log::warn!(
+                log::info!(
                     "request next block info, retry times= {:?}, block number: {:?}",
                     retry_times,
                     next_block_num

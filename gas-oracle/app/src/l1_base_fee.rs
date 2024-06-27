@@ -59,24 +59,32 @@ impl BaseFeeUpdater {
         })?;
 
         let blob_fee_on_l2: U256 = self.l2_oracle.l_1_blob_base_fee().await.map_err(|e| {
-            OracleError::L1BaseFeeError(anyhow!(format!("Failed to query scalar on l2: {:#?}", e)))
+            OracleError::L1BaseFeeError(anyhow!(format!(
+                "Failed to query l_1_blob_base_fee on l2: {:#?}",
+                e
+            )))
         })?;
 
         let scalar: U256 = self.l2_oracle.scalar().await.map_err(|e| {
             OracleError::L1BaseFeeError(anyhow!(format!("Failed to query scalar on l2: {:#?}", e)))
         })?;
 
-        #[rustfmt::skip]
-        log::info!("current l1BaseFee on l2 is: {:#?}, scalar is: {:#?}", base_fee_on_l2, scalar);
+        log::debug!("current l1BaseFee on l2 is: {:#?}, scalar is: {:#?}", base_fee_on_l2, scalar);
         ORACLE_SERVICE_METRICS.l1_base_fee_on_l2.set(
             ethers::utils::format_units(base_fee_on_l2, "gwei")
                 .unwrap_or(String::from("0"))
                 .parse()
                 .unwrap_or(0.0),
         );
+        ORACLE_SERVICE_METRICS.l1_blob_base_fee_on_l2.set(
+            ethers::utils::format_units(blob_fee_on_l2, "gwei")
+                .unwrap_or(String::from("0"))
+                .parse()
+                .unwrap_or(0.0),
+        );
 
         self.update_base_fee(l1_base_fee, l1_blob_base_fee, blob_fee_on_l2, base_fee_on_l2).await?;
-        self.update_scalar(l1_gas_price, l1_base_fee, scalar).await?;
+        self.update_base_fee_scalar(l1_gas_price, l1_base_fee, scalar).await?;
 
         // Step4. Record wallet balance.
         let balance = self.l2_provider.get_balance(self.l2_wallet, None).await.map_err(|e| {
@@ -102,13 +110,16 @@ impl BaseFeeUpdater {
         // update_base_fee
         let actual_change = l1_blob_base_fee.abs_diff(blob_fee_on_l2);
         let expected_change = blob_fee_on_l2 * self.gas_threshold / 100;
+        let need_update = !l1_blob_base_fee.is_zero() && actual_change > expected_change;
+
         log::info!(
-            "blob_fee actual_change: {:#?}, expected_change: {:#?}",
+            "set_l1_base_fee_and_blob_base_fee, blob_fee actual_change: {:?}, expected_change: {:?}, need_update: {:?}", 
             actual_change,
-            expected_change
+            expected_change,
+            need_update
         );
 
-        if !l1_blob_base_fee.is_zero() && actual_change > expected_change {
+        if need_update {
             // Update calldata basefee and blob baseFee
             let tx = self
                 .l2_oracle
@@ -147,12 +158,15 @@ impl BaseFeeUpdater {
         // Only update calldata basefee.
         let actual_change = l1_base_fee.as_u64().abs_diff(base_fee_on_l2.as_u64());
         let expected_change = base_fee_on_l2.as_u64() * self.gas_threshold / 100;
+        let need_update = !l1_blob_base_fee.is_zero() && actual_change > expected_change;
+
         log::info!(
-            "l1BaseFee actual_change: {:#?}, expected_change: {:#?}",
+            "set_l1_base_fee, l1BaseFee actual_change: {:?}, expected_change: {:?}, need_update: {:?}",
             actual_change,
-            expected_change
+            expected_change,
+            need_update
         );
-        if !l1_base_fee.is_zero() && actual_change > expected_change {
+        if need_update {
             // Set l1_base_fee for l2.
             let tx = self.l2_oracle.set_l1_base_fee(l1_base_fee).legacy();
             let rt = tx.send().await;
@@ -180,7 +194,7 @@ impl BaseFeeUpdater {
         Ok(())
     }
 
-    async fn update_scalar(
+    async fn update_base_fee_scalar(
         &self,
         l1_gas_price: U256,
         l1_base_fee: U256,
@@ -192,39 +206,40 @@ impl BaseFeeUpdater {
         let mut scalar_ratio_from_l1 = l1_gas_price.as_u128() as f64 / l1_base_fee.as_u128() as f64;
         scalar_ratio_from_l1 = scalar_ratio_from_l1.min(MAX_SCALAR_RATIO);
         #[rustfmt::skip]
-        ORACLE_SERVICE_METRICS.scalar_ratio.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
+        ORACLE_SERVICE_METRICS.base_fee_scalar.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
 
         let scalar_ratio_from_l2 = current_scalar.as_u128() as f64 / DEFAULT_SCALAR;
         let scalar_diff = scalar_ratio_from_l1 - scalar_ratio_from_l2;
-
-        log::debug!(
-            "scalar_ratio_from_l1 is: {:#?}, actual_change is: {:#?}%, expected_change is: {:#?}%",
+        let need_update = scalar_diff.abs() * 100.0 > self.gas_threshold as f64;
+        log::info!(
+            "set_base_fee_scalar, scalar_ratio_from_l1 is: {:#?}, actual_change is: {:#?}%, expected_change is: {:#?}%, need_update: {:?}",
             scalar_ratio_from_l1,
             scalar_diff,
-            self.gas_threshold
+            self.gas_threshold,
+            need_update
         );
 
-        if scalar_diff.abs() * 100.0 > self.gas_threshold as f64 {
+        if need_update {
             // Set scalar for l2.
             let scalar_expect = (DEFAULT_SCALAR * scalar_ratio_from_l1).ceil() as u128;
             let tx = self.l2_oracle.set_scalar(U256::from(scalar_expect)).legacy();
             let rt = tx.send().await;
             let pending_tx = match rt {
                 Ok(pending) => {
-                    log::info!("tx of set_scalar has been sent: {:#?}", pending.tx_hash());
+                    log::info!("tx of set_base_fee_scalar has been sent: {:#?}", pending.tx_hash());
                     pending
                 }
                 Err(e) => {
                     log::error!("send tx of set scalar error, origin msg: {:#?}", e);
                     return Err(OracleError::L1BaseFeeError(anyhow!(
-                        "set_scalar error: {}",
+                        "set_base_fee_scalar error: {}",
                         format_contract_error(e)
                     )));
                 }
             };
             pending_tx.await.map_err(|e| {
                 OracleError::L1BaseFeeError(anyhow!(format!(
-                    "set_scalar check_receipt error: {:#?}",
+                    "set_base_fee_scalar check_receipt error: {:#?}",
                     e
                 )))
             })?;

@@ -1,8 +1,8 @@
 use crate::{
     abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
+    da_scalar::l1_scalar::ScalarUpdater,
     l1_base_fee::BaseFeeUpdater,
     read_parse_env,
-    da_scalar::l1_scalar::ScalarUpdater,
 };
 use ethers::{
     prelude::*,
@@ -150,19 +150,14 @@ async fn metric_mng() {
 }
 
 fn register_metrics() {
-    // l1 base fee.
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee.clone())).unwrap();
-    // l1 base fee on l2.
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee_on_l2.clone())).unwrap();
-    // gas oracle owner balance.
-    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.gas_oracle_owner_balance.clone())).unwrap();
-    // gas oracle overhead.
-    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.overhead.clone())).unwrap();
-    // scalar ratio.
-    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.scalar_ratio.clone())).unwrap();
-    // txn per batch.
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_blob_base_fee_on_l2.clone())).unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.base_fee_scalar.clone())).unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.commit_scalar.clone())).unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.blob_scalar.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.txn_per_batch.clone())).unwrap();
-    // l1 prc.
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.gas_oracle_owner_balance.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_rpc_status.clone())).unwrap();
 }
 
