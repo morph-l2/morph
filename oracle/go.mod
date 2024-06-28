@@ -3,7 +3,7 @@ module morph-l2/oracle
 go 1.22
 
 replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240625084021-7bcb18d63e63
+	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240627065844-a0368033f416
 	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
 )
 
