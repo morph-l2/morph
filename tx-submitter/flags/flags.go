@@ -200,6 +200,12 @@ var (
 		Value:  120,
 		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
 	}
+
+	ExternalSign = cli.BoolFlag{
+		Name:   "EXTERNAL_SIGN",
+		Usage:  "Enable external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
