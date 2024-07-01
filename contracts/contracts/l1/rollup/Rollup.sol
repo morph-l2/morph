@@ -72,7 +72,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     mapping(uint256 => bytes32) public override committedBatches;
 
     /// @notice Store committed batch base.
-    mapping(uint256 batchIndex => BatchBase) public batchBaseStore;
+    mapping(uint256 batchIndex => BatchData) public batchDataStore;
 
     /// @notice Store committed batch signature.
     mapping(uint256 batchIndex => BatchSignature) public batchSignatureStore;
@@ -195,13 +195,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr);
             require(sum == 0, "not all fields are zero");
         }
-        require(BatchHeaderCodecV0.getDataHash(memPtr) != bytes32(0), "zero data hash");
+        require(BatchHeaderCodecV0.getL1DataHash(memPtr) != bytes32(0), "zero data hash");
         require(BatchHeaderCodecV0.getParentBatchHash(memPtr) == bytes32(0), "nonzero parent batch hash");
 
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
-        batchBaseStore[_batchIndex] = BatchBase(
+        batchDataStore[_batchIndex] = BatchData(
             block.timestamp,
             block.timestamp,
             0,
@@ -252,7 +252,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(committedBatches[_batchIndex + 1] == bytes32(0), "batch already committed");
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
         require(
-            batchBaseStore[_batchIndex].postStateRoot == batchDataInput.prevStateRoot,
+            batchDataStore[_batchIndex].postStateRoot == batchDataInput.prevStateRoot,
             "incorrect previous state root"
         );
 
@@ -314,7 +314,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         );
 
         // storage batch data for challenge status check
-        batchBaseStore[_batchIndex] = BatchBase(
+        batchDataStore[_batchIndex] = BatchData(
             block.timestamp,
             block.timestamp + finalizationPeriodSeconds,
             _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1]),
@@ -409,7 +409,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         for (uint256 i = lastFinalizedBatchIndex + 1; i <= lastCommittedBatchIndex; i++) {
             if (i != batchIndex) {
-                batchBaseStore[i].finalizeTimestamp += proofWindow;
+                batchDataStore[i].finalizeTimestamp += proofWindow;
             }
         }
 
@@ -530,7 +530,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(!batchInsideChallengeWindow(_batchIndex), "batch in challenge window");
         // verify previous state root.
         require(
-            finalizedStateRoots[_batchIndex - 1] == batchBaseStore[_batchIndex].prevStateRoot,
+            finalizedStateRoots[_batchIndex - 1] == batchDataStore[_batchIndex].prevStateRoot,
             "incorrect previous state root"
         );
         // avoid duplicated verification
@@ -542,8 +542,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
 
         // record state root and withdraw root
-        withdrawalRoots[batchBaseStore[_batchIndex].withdrawalRoot] = true;
-        finalizedStateRoots[_batchIndex] = batchBaseStore[_batchIndex].postStateRoot;
+        withdrawalRoots[batchDataStore[_batchIndex].withdrawalRoot] = true;
+        finalizedStateRoots[_batchIndex] = batchDataStore[_batchIndex].postStateRoot;
 
         // Pop finalized and non-skipped message from L1MessageQueue.
         _popL1Messages(
@@ -552,15 +552,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.getL1MessagePopped(memPtr)
         );
 
-        delete batchBaseStore[_batchIndex - 1];
+        delete batchDataStore[_batchIndex - 1];
         delete batchSignatureStore[_batchIndex - 1];
         delete challenges[_batchIndex - 1];
 
         emit FinalizeBatch(
             _batchIndex,
             committedBatches[_batchIndex],
-            batchBaseStore[_batchIndex].postStateRoot,
-            batchBaseStore[_batchIndex].withdrawalRoot
+            batchDataStore[_batchIndex].postStateRoot,
+            batchDataStore[_batchIndex].withdrawalRoot
         );
     }
 
@@ -597,13 +597,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev Public function to checks whether batch exists.
     /// @param batchIndex The index of the batch to be checked.
     function batchExist(uint256 batchIndex) public view returns (bool) {
-        return batchBaseStore[batchIndex].originTimestamp > 0 && committedBatches[batchIndex] != bytes32(0);
+        return batchDataStore[batchIndex].originTimestamp > 0 && committedBatches[batchIndex] != bytes32(0);
     }
 
     /// @dev Public function to checks whether the batch is in challengeWindow.
     /// @param batchIndex The index of the batch to be checked.
     function batchInsideChallengeWindow(uint256 batchIndex) public view returns (bool) {
-        return batchBaseStore[batchIndex].finalizeTimestamp > block.timestamp;
+        return batchDataStore[batchIndex].finalizeTimestamp > block.timestamp;
     }
 
     /**********************
@@ -661,11 +661,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes32 _publicInputHash = keccak256(
             abi.encodePacked(
                 LAYER_2_CHAIN_ID,
-                batchBaseStore[_batchIndex].prevStateRoot,
-                batchBaseStore[_batchIndex].postStateRoot,
-                batchBaseStore[_batchIndex].withdrawalRoot,
+                batchDataStore[_batchIndex].prevStateRoot,
+                batchDataStore[_batchIndex].postStateRoot,
+                batchDataStore[_batchIndex].withdrawalRoot,
                 batchSignatureStore[_batchIndex].sequencerSetVerifyHash,
-                BatchHeaderCodecV0.getDataHash(memPtr),
+                BatchHeaderCodecV0.getL1DataHash(memPtr),
                 _kzgDataProof[0:64],
                 _blobVersionedHash
             )

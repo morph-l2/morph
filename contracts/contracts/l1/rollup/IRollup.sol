@@ -38,7 +38,7 @@ interface IRollup {
     /// @param prevStateRoot
     /// @param postStateRoot
     /// @param withdrawalRoot
-    struct BatchBase {
+    struct BatchData {
         uint256 originTimestamp;
         uint256 finalizeTimestamp;
         uint256 blockNumber;
