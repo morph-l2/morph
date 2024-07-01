@@ -6,3 +6,4 @@ tx-submitter
 .vscode
 *.log
 *debug_bin*
+journal.rlp

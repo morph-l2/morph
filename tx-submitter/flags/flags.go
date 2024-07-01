@@ -200,6 +200,14 @@ var (
 		Value:  120,
 		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
 	}
+
+	// journal path
+	JournalFlag = cli.StringFlag{
+		Name:   "JOURNAL_FILE_PATH",
+		Usage:  "The path of the journal file",
+		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
+		Value:  "journal.rlp",
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -236,6 +244,8 @@ var optionalFlags = []cli.Flag{
 	RollupTxGasBase,
 	RollupTxGasPerL1Msg,
 	GasLimitBuffer,
+
+	JournalFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
