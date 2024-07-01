@@ -9,6 +9,8 @@ use ethers::{
 use super::zstd_util::init_zstd_decoder;
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
+const MAX_AGG_SNARKS: usize = 15;
+const METADATA_LENGTH: usize = 2 + 4 * MAX_AGG_SNARKS;
 
 #[derive(Debug, Clone)]
 pub struct Blob(pub [u8; MAX_BLOB_TX_PAYLOAD_SIZE]);
@@ -106,22 +108,30 @@ impl Blob {
     // origin_batch = be_bytes(num_valid_chunks as u16) || be_bytes(chunks[0].chunk_size as u32) ||
     // ...be_bytes(chunks[MAX_AGG_SNARKS-1].chunk_size as u32)||all_l2_tx_signed_rlp_in_batch
     pub fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Result<Vec<u8>, BlobError> {
+        if origin_batch.len() < METADATA_LENGTH {
+            log::warn!("batch.len < METADATA_LENGTH ");
+            return Ok(Vec::new());
+        }
         let chunks_len = u16::from_be_bytes(origin_batch[0..2].try_into().unwrap()); // size of num_valid_chunks is 2bytes.
-        if chunks_len > 15 {
+        if chunks_len as usize > MAX_AGG_SNARKS {
             return Err(BlobError::InvalidData(anyhow!(format!(
-                "Invalid blob data: num_valid_chunks bigger than 15. num_valid_chunks: {}",
+                "Invalid blob data: chunks_len bigger than MAX_AGG_SNARKS. parsed chunks_len: {}",
                 chunks_len
             ))));
         }
 
-        let mut data_size: u32 = 0;
-        for i in 0..15 {
-            let slice = &origin_batch[i * 4 + 2..i * 4 + 6]; // size of chunk_size is 4bytes.
-            data_size += u32::from_be_bytes(slice.try_into().unwrap());
+        let data_size: u32 = origin_batch[2..METADATA_LENGTH]
+            .chunks_exact(4)
+            .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()))
+            .sum();
+
+        let tx_payload_end = METADATA_LENGTH + data_size as usize;
+        if origin_batch.len() < tx_payload_end {
+            return Err(BlobError::InvalidData(anyhow!(
+                "The batch does not contain the complete tx_payload"
+            )));
         }
-        let tx_payload_start: usize = 2 + 4 * 15;
-        let tx_payload = &origin_batch[tx_payload_start..tx_payload_start + data_size as usize];
-        Ok(tx_payload.to_vec())
+        Ok(origin_batch[METADATA_LENGTH..tx_payload_end].to_vec())
     }
 }
 
@@ -239,6 +249,8 @@ mod tests {
 
         let tx_payload =
             super::Blob::decode_raw_tx_payload(origin_batch).expect("decode_raw_tx_payload");
+
+        println!("tx_payload.len: {:?}", tx_payload.len());
 
         assert!(!tx_payload.is_empty(), "tx_payload.len() > 0");
     }
