@@ -374,6 +374,66 @@ contract GovTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice createProposal: Reverts if rollup epoch is zero.
+     */
+    function test_createProposal_zeroRollupEpoch_reverts() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            0 // rollupEpoch
+        );
+
+        // Expect revert due to zero rollup epoch.
+        hevm.expectRevert("invalid rollup epoch");
+        address user = address(uint160(beginSeq));
+        hevm.startPrank(address(user));
+        gov.createProposal(proposal);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice createProposal: Reverts if max chunks is zero.
+     */
+    function test_createProposal_zeroMaxChunks_reverts() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            finalizationPeriodSeconds, // batchTimeout
+            0, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // Expect revert due to zero max chunks.
+        hevm.expectRevert("invalid max chunks");
+        address user = address(uint160(beginSeq));
+        hevm.startPrank(address(user));
+        gov.createProposal(proposal);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice createProposal: Reverts if batch parameters are zero.
+     */
+    function test_createProposal_zeroBatchParams_reverts() external {
+        IGov.ProposalData memory proposal = IGov.ProposalData(
+            0, // batchBlockInterval
+            0, // batchMaxBytes
+            0, // batchTimeout
+            MAX_CHUNKS, // maxChunks
+            ROLLUP_EPOCH // rollupEpoch
+        );
+
+        // Expect revert due to zero batch params.
+        hevm.expectRevert("invalid batch params");
+        address user = address(uint160(beginSeq));
+        hevm.startPrank(address(user));
+        gov.createProposal(proposal);
+        hevm.stopPrank();
+    }
+
+    /**
      * @notice vote: only sequencer allowed
      */
     function test_vote_onlySequencer_reverts() external {
@@ -382,6 +442,19 @@ contract GovTest is L2StakingBaseTest {
         hevm.expectRevert("only sequencer allowed");
         hevm.prank(alice);
         gov.vote(proposalID);
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice vote: Reverts if proposal ID is invalid.
+     */
+    function test_vote_invalidProposalID_reverts() external {
+        uint256 proposalID = gov.currentProposalID();
+
+        hevm.expectRevert("invalid proposalID");
+        address user = address(uint160(beginSeq));
+        hevm.startPrank(address(user));
+        gov.vote(proposalID + 10);
         hevm.stopPrank();
     }
 

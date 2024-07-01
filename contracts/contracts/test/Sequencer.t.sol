@@ -4,6 +4,7 @@ pragma solidity =0.8.24;
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {Types} from "../libraries/common/Types.sol";
+import {ISequencer} from "../l2/staking/ISequencer.sol";
 
 contract SequencerTest is L2StakingBaseTest {
     address public firstStaker;
@@ -37,6 +38,29 @@ contract SequencerTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice initialize: Emits event successfully.
+     */
+    function test_initialize_event_succeeds() public {
+        Types.StakerInfo[] memory stakerInfos = new Types.StakerInfo[](SEQUENCER_SIZE);
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            stakerInfos[i] = stakerInfo;
+            sequencerAddresses.push(stakerInfo.addr);
+        }
+
+        // reset initialize
+        hevm.store(address(sequencer), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        // expect the SequencerSetUpdated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit ISequencer.SequencerSetUpdated(sequencerAddresses, 0);
+
+        hevm.prank(multisig);
+        sequencer.initialize(sequencerAddresses);
+    }
+
+    /**
      * @notice update sequencer
      */
     function test_updateSequencers_succeeds() external {
@@ -54,6 +78,10 @@ contract SequencerTest is L2StakingBaseTest {
         hevm.expectRevert("only L2Staking contract");
         hevm.prank(alice);
         sequencer.updateSequencerSet(newSequencers);
+
+        // expect the SequencerSetUpdated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit ISequencer.SequencerSetUpdated(newSequencers, 3);
 
         hevm.prank(address(Predeploys.L2_STAKING));
         // updateSequencers
