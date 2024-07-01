@@ -68,7 +68,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @inheritdoc IRollup
     mapping(uint256 batchIndex => bytes32 stateRoot) public override finalizedStateRoots;
 
-    /// @notice Store committed batch base.
+    /// @notice Store committed batch hash.
     mapping(uint256 => bytes32) public override committedBatches;
 
     /// @notice Store committed batch base.
