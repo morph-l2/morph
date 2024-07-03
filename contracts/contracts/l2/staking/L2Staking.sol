@@ -309,6 +309,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             delegatee,
             _msgSender(),
             delegations[delegatee][_msgSender()], // new amount, not incremental
+            amount,
             effectiveEpoch
         );
 
@@ -399,8 +400,16 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice delegator cliam delegate staking value
     function claimUndelegation() external nonReentrant {
         uint256 totalAmount;
-
-        for (uint256 i = 0; i < undelegations[_msgSender()].length; i++) {
+        uint256 length = undelegations[_msgSender()].length;
+        UndelegationClaimedInfo[] memory undelegationClaimedInfos = new UndelegationClaimedInfo[](length);
+        for (uint256 i = 0; i < length; i++) {
+            undelegationClaimedInfos[i] = UndelegationClaimedInfo(
+                undelegations[_msgSender()][i].delegatee,
+                _msgSender(),
+                undelegations[_msgSender()][i].unlockEpoch,
+                undelegations[_msgSender()][i].amount,
+                false
+            );
             // if the reward is not started yet, claiming directly is allowed
             if (!rewardStarted || undelegations[_msgSender()][i].unlockEpoch <= currentEpoch()) {
                 totalAmount += undelegations[_msgSender()][i].amount;
@@ -410,13 +419,14 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
                     ];
                 }
                 undelegations[_msgSender()].pop();
+                undelegationClaimedInfos[i].isTrigger = true;
             }
         }
 
         require(totalAmount > 0, "no Morph token to claim");
         _transfer(_msgSender(), totalAmount);
 
-        emit UndelegationClaimed(_msgSender(), totalAmount);
+        emit UndelegationClaimed(undelegationClaimedInfos);
     }
 
     /// @notice delegator claim reward

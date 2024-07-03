@@ -12,9 +12,17 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
+<<<<<<< HEAD
 
 contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
     uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
+=======
+import {ReceiveRevert} from "../mock/ReceiveRevert.sol";
+
+contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
+    uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
+    uint256 L1CrossDomainMessenger_FeeVault_slot = 203;
+>>>>>>> main
     address refundAddress = address(2048);
     address counterpartGateway; 
 
@@ -471,14 +479,23 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         assertEq(address(refundAddress).balance, fee);
 
         // verify refundAddress.call() failed, trigger the error message "Failed to refund the fee" as expected.
+<<<<<<< HEAD
         hevm.expectRevert("Failed to refund the fee");
         (bool _success, ) = refundAddress.call{value: gas + fee}("");
+=======
+        ReceiveRevert receiveRevert = new ReceiveRevert();
+        hevm.expectRevert("Failed to refund the fee");
+>>>>>>> main
         l1CrossDomainMessenger.sendMessage{value: 2 ether}(
             to,
             value,
             data,
             gas,
+<<<<<<< HEAD
             refundAddress
+=======
+            address(receiveRevert)
+>>>>>>> main
         );
 
         // verify the call is executed as expected, and the fee is added into the balance of the feeVault.
@@ -491,9 +508,27 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         );
         assertEq(address(l1FeeVault).balance, initialFeeVaultBalance + fee);
 
+<<<<<<< HEAD
         // verify it throws a "Failed to refund the fee" error when the call fails.
         hevm.expectRevert("Failed to deduct the fee");
         (_success, ) = sender.call{value: gas}("");
+=======
+
+        // verify it throws a "Failed to refund the fee" error when the call fails.
+        hevm.store(
+            address(l1CrossDomainMessenger),
+            bytes32(L1CrossDomainMessenger_FeeVault_slot),
+            bytes32(abi.encode(address(receiveRevert)))
+        );
+        hevm.expectRevert("Failed to deduct the fee");
+        l1CrossDomainMessenger.sendMessage{value: 2 ether}(
+            to,
+            value,
+            data,
+            gas,
+            refundAddress
+        );
+>>>>>>> main
     }
 
     function test_sendMessage_twice_succeeds() external {

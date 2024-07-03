@@ -19,6 +19,21 @@ interface IL2Staking {
         uint256 unlockEpoch;
     }
 
+    /// @notice UndelegationClaimedInfo representing a claimed undelegation info.
+    ///
+    /// @custom:field delegatee   delegatee
+    /// @custom:field delegator   delegator
+    /// @custom:field unlockEpoch unlock epoch index
+    /// @custom:field amount      staking amount
+    /// @custom:field isTrigger   determine whether this information is valid
+    struct UndelegationClaimedInfo {
+        address delegatee;
+        address delegator;
+        uint256 unlockEpoch;
+        uint256 amount;
+        bool    isTrigger;
+    }
+
     /**********
      * Events *
      **********/
@@ -27,8 +42,9 @@ interface IL2Staking {
     /// @param delegatee          delegatee
     /// @param delegator          delegator
     /// @param amount             new delegation amount, not increment
+    /// @param stakeAmount        stake amount
     /// @param effectiveEpoch     effective epoch
-    event Delegated(address indexed delegatee, address indexed delegator, uint256 amount, uint256 effectiveEpoch);
+    event Delegated(address indexed delegatee, address indexed delegator, uint256 amount, uint256 stakeAmount, uint256 effectiveEpoch);
 
     /// @notice Emitted undelegated stake
     /// @param delegatee          delegatee
@@ -45,9 +61,8 @@ interface IL2Staking {
     );
 
     /// @notice Emitted claim info
-    /// @param delegator    delegator
-    /// @param amount       amount
-    event UndelegationClaimed(address indexed delegator, uint256 amount);
+    /// @param undelegationClaimedInfos all delegate information included in a single claim
+    event UndelegationClaimed(UndelegationClaimedInfo[] undelegationClaimedInfos);
 
     /// @notice Emitted commission updated
     /// @param staker           staker address

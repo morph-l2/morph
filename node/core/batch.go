@@ -16,9 +16,6 @@ import (
 	"morph-l2/node/types"
 )
 
-// MaxNumChunks is the maximum number of chunks that a batch can contain.
-const MaxNumChunks int = 15
-
 type BatchingCache struct {
 	parentBatchHeader *types.BatchHeader
 	prevStateRoot     common.Hash
@@ -175,21 +172,12 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 	}
 
 	chunkNum := e.batchingCache.chunks.ChunkNum()
-	var exceeded bool
-	// if current block will be filled in a new chunk
-	chunkAppended := e.batchingCache.chunks.IsChunksAppendedWithNewBlock(e.batchingCache.currentRowConsumption)
+	chunkAppended, exceeded, err := e.batchingCache.chunks.EstimateCompressedSizeWithNewPayload(e.batchingCache.currentTxsPayload, e.batchingCache.currentRowConsumption)
 	if chunkAppended {
 		chunkNum += 1
 	}
-	// chunk in blob:
-	// num_chunks (2 bytes) and chunki_size (4 bytes per chunk) + l2TxRawBytes
-	blobSizeWithCurBlock := 2 + MaxNumChunks*4 + e.batchingCache.chunks.TxPayloadSize() +
-		len(e.batchingCache.currentTxsPayload)
-	if blobSizeWithCurBlock > types.MaxBlobBytesSize {
-		exceeded = true
-	}
-	e.logger.Info("CalculateCapWithProposalBlock response", "blobSizeWithCurBlock", blobSizeWithCurBlock, "exceeded", exceeded)
-	return exceeded, int64(chunkNum), nil
+
+	return exceeded, int64(chunkNum), err
 }
 
 // SealBatch seals the accumulated blocks into a batch
@@ -207,8 +195,7 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		copy(skippedL1MessageBitmapBytes[32*ii+padding:], bz)
 	}
 
-	blobBytes := e.batchingCache.chunks.ConstructBlobPayload()
-	sidecar, err := types.MakeBlobTxSidecar(blobBytes)
+	sidecar, err := types.EncodeBatchBytesToBlob(e.batchingCache.chunks.ConstructBlobPayload())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -242,7 +229,6 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	for i, chunk := range chunksBytes {
 		e.logger.Info(fmt.Sprintf("===chunk%d: %x \n", i, chunk))
 	}
-	e.logger.Info(fmt.Sprintf("===blobBytes: %x \n", blobBytes))
 	return batchHash[:], e.batchingCache.sealedBatchHeader.Encode(), nil
 }
 

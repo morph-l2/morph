@@ -1,13 +1,11 @@
 # Build Geth in a stock Go builder container
-FROM golang:1.22-alpine as builder
-RUN apk add --no-cache gcc musl-dev linux-headers git make
+FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
 COPY . /morph
 WORKDIR /morph/node
 RUN make build
 
 
-FROM alpine:latest as initializer
-RUN apk add --no-cache ca-certificates
+FROM builder as initializer
 
 COPY --from=builder /morph/node/build/bin/tendermint /usr/local/bin/
 RUN echo "Initializing tendermint."
@@ -20,8 +18,7 @@ RUN sed -i  's#prometheus = false#prometheus = true#g' /data/config/config.toml
 RUN sed -i  's#laddr = "tcp://127.0.0.1:26657"#laddr = "tcp://0.0.0.0:26657"#g' /data/config/config.toml
 
 
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates
+FROM builder
 
 COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data /data

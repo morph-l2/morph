@@ -28,6 +28,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/utils"
 )
@@ -55,20 +56,14 @@ type Rollup struct {
 	rollupAddr common.Address
 	abi        *abi.ABI
 
-	secondInterval time.Duration
-	txTimout       time.Duration
-	Finalize       bool
-	MaxFinalizeNum uint64
-	PriorityRollup bool
-
-	// tx cfg
-	txFeeLimit uint64
-
 	// rotator
 	rotator    *Rotator
 	pendingTxs *PendingTxs
 
 	rollupFinalizeMu sync.Mutex
+
+	// cfg
+	cfg utils.Config
 }
 
 func NewRollup(
@@ -88,33 +83,38 @@ func NewRollup(
 ) *Rollup {
 
 	return &Rollup{
-		ctx:     ctx,
-		metrics: metrics,
-
+		ctx:         ctx,
+		metrics:     metrics,
 		l1RpcClient: l1RpcClient,
 		L1Client:    l1,
 		Rollup:      rollup,
 		Staking:     staking,
 		L2Clients:   l2Clients,
-
-		privKey:    priKey,
-		chainId:    chainId,
-		rollupAddr: rollupAddr,
-		abi:        abi,
-
-		secondInterval: cfg.PollInterval,
-		txTimout:       cfg.TxTimeout,
-		Finalize:       cfg.Finalize,
-		MaxFinalizeNum: cfg.MaxFinalizeNum,
-		PriorityRollup: cfg.PriorityRollup,
-
-		txFeeLimit: cfg.TxFeeLimit,
-
-		rotator: rotator,
+		privKey:     priKey,
+		chainId:     chainId,
+		rollupAddr:  rollupAddr,
+		abi:         abi,
+		rotator:     rotator,
+		cfg:         cfg,
 	}
 }
 
 func (sr *Rollup) Start() {
+
+	// journal
+	jn := localpool.New(sr.cfg.JournalFilePath)
+	err := jn.Init()
+	if err != nil {
+		log.Crit("journal file init failed", "err", err)
+	}
+	// pendingtxs
+	sr.pendingTxs = NewPendingTxs(sr.abi.Methods["commitBatch"].ID, sr.abi.Methods["finalizeBatch"].ID, jn)
+	txs, err := jn.ParseAllTxs()
+	if err != nil {
+		log.Error("parse l1 mempool error", "error", err)
+	} else {
+		sr.pendingTxs.Recover(txs, sr.abi)
+	}
 
 	// metrics
 	go utils.Loop(sr.ctx, 10*time.Second, func() {
@@ -123,6 +123,9 @@ func (sr *Rollup) Start() {
 		balance, err := sr.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(sr.privKey.PublicKey), nil)
 		if err != nil {
 			log.Error("get wallet balance error", "error", err)
+			if utils.IsRpcErr(err) {
+				sr.metrics.IncRpcErrors()
+			}
 			return
 		}
 		// balance to eth
@@ -139,16 +142,7 @@ func (sr *Rollup) Start() {
 
 	})
 
-	// init pendingtxs
-	sr.pendingTxs = NewPendingTxs(sr.abi.Methods["commitBatch"].ID, sr.abi.Methods["finalizeBatch"].ID)
-	txs, err := utils.ParseL1Mempool(sr.l1RpcClient, crypto.PubkeyToAddress(sr.privKey.PublicKey))
-	if err != nil {
-		log.Error("parse l1 mempool error", "error", err)
-	} else {
-		sr.pendingTxs.Recover(txs, sr.abi)
-	}
-
-	go utils.Loop(sr.ctx, 500*time.Millisecond, func() {
+	go utils.Loop(sr.ctx, sr.cfg.RollupInterval, func() {
 		sr.rollupFinalizeMu.Lock()
 		defer sr.rollupFinalizeMu.Unlock()
 		if err := sr.rollup(); err != nil {
@@ -159,24 +153,31 @@ func (sr *Rollup) Start() {
 		}
 	})
 
-	if sr.Finalize {
+	if sr.cfg.Finalize {
 
-		go utils.Loop(sr.ctx, time.Second*2, func() {
+		go utils.Loop(sr.ctx, sr.cfg.FinalizeInterval, func() {
 			sr.rollupFinalizeMu.Lock()
 			defer sr.rollupFinalizeMu.Unlock()
 
 			if err := sr.finalize(); err != nil {
 				log.Error("finalize failed", "error", err)
+				if utils.IsRpcErr(err) {
+					sr.metrics.IncRpcErrors()
+				}
+
 			}
 		})
 	}
 
 	var processtxMu sync.Mutex
-	go utils.Loop(sr.ctx, time.Second*2, func() {
+	go utils.Loop(sr.ctx, sr.cfg.TxProcessInterval, func() {
 		processtxMu.Lock()
 		defer processtxMu.Unlock()
 		if err := sr.ProcessTx(); err != nil {
 			log.Error("process tx err", "error", err)
+			if utils.IsRpcErr(err) {
+				sr.metrics.IncRpcErrors()
+			}
 		}
 	})
 
@@ -203,28 +204,28 @@ func (sr *Rollup) ProcessTx() error {
 
 		rtx := txRecord.tx
 		method := utils.ParseMethod(rtx, sr.abi)
-		log.Info("process tx", "txHash", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
+		log.Info("process tx", "hash", rtx.Hash().String(), "nonce", rtx.Nonce(), "method", method)
 		// query tx
 		_, ispending, err := sr.L1Client.TransactionByHash(context.Background(), txRecord.tx.Hash())
 		if err != nil {
 			if !utils.ErrStringMatch(err, ethereum.NotFound) {
-				return fmt.Errorf("query tx  error:%w, tx: %s, nonce: %d", err, rtx.Hash().Hex(), rtx.Nonce())
+				return fmt.Errorf("query tx  error:%w, tx: %s, nonce: %d", err, rtx.Hash().String(), rtx.Nonce())
 			}
 			sr.pendingTxs.IncQueryTimes(rtx.Hash()) // not found in mempool, increase query times
 		} else {
-			log.Info("query tx success", "txhash", rtx.Hash().Hex(), "pending", ispending)
+			log.Info("query tx success", "hash", rtx.Hash().Hex(), "pending", ispending)
 		}
 
 		// exist in mempool
 		if ispending {
-			if txRecord.sendTime+uint64(sr.txTimout.Seconds()) < uint64(time.Now().Unix()) {
+			if txRecord.sendTime+uint64(sr.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
 				log.Info("tx timeout", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
 				newtx, err := sr.ReSubmitTx(false, &rtx)
 				if err != nil {
 					log.Error("resubmit tx", "error", err, "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce())
 					return fmt.Errorf("resubmit tx error:%w", err)
 				} else {
-					log.Info("replace success", "old tx", rtx.Hash().Hex(), "new tx", newtx.Hash(), "nonce", rtx.Nonce())
+					log.Info("replace success", "old_tx", rtx.Hash().Hex(), "new_tx", newtx.Hash().String(), "nonce", rtx.Nonce())
 					sr.pendingTxs.Remove(rtx.Hash())
 					sr.pendingTxs.Add(*newtx)
 				}
@@ -232,7 +233,7 @@ func (sr *Rollup) ProcessTx() error {
 		} else { // not in mempool
 			receipt, err := sr.L1Client.TransactionReceipt(context.Background(), rtx.Hash())
 			if err != nil {
-				log.Error("query tx receipt error", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "error", err)
+				log.Error("query tx receipt error", "tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
 				if !utils.ErrStringMatch(err, ethereum.NotFound) {
 					return err
 				}
@@ -240,16 +241,16 @@ func (sr *Rollup) ProcessTx() error {
 				// sr.pendingTxs.txinfos
 				if txRecord.queryTimes >= 5 {
 					log.Warn("tx discarded",
-						"hash", rtx.Hash().Hex(),
+						"hash", rtx.Hash().String(),
 						"nonce", rtx.Nonce(),
 						"query_times", txRecord.queryTimes,
 					)
 					replacedtx, err := sr.ReSubmitTx(true, &rtx)
 					if err != nil {
-						log.Error("resend discarded tx", "old_tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "error", err)
+						log.Error("resend discarded tx", "old_tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
 						if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
 							log.Info("discarded tx removed",
-								"hash", rtx.Hash().Hex(),
+								"hash", rtx.Hash().String(),
 								"nonce", rtx.Nonce(),
 								"method", method,
 							)
@@ -261,9 +262,9 @@ func (sr *Rollup) ProcessTx() error {
 						sr.pendingTxs.Remove(rtx.Hash())
 					}
 					sr.pendingTxs.Add(*replacedtx)
-					log.Info("resend discarded tx", "old tx", rtx.Hash().Hex(), "new tx", replacedtx.Hash().Hex(), "nonce", replacedtx.Nonce())
+					log.Info("resend discarded tx", "old_tx", rtx.Hash().String(), "new_tx", replacedtx.Hash().String(), "nonce", replacedtx.Nonce())
 				} else {
-					log.Info("tx is not found, neither in mempool nor in block", "hash", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "query_times", txRecord.queryTimes)
+					log.Info("tx is not found, neither in mempool nor in block", "hash", rtx.Hash().String(), "nonce", rtx.Nonce(), "query_times", txRecord.queryTimes)
 				}
 			} else {
 				logs := utils.ParseBusinessInfo(rtx, sr.abi)
@@ -308,6 +309,16 @@ func (sr *Rollup) ProcessTx() error {
 				}
 
 				sr.pendingTxs.Remove(rtx.Hash())
+				// set metrics
+				fee := calcFee(receipt)
+				if fee == 0 {
+					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
+				}
+				if method == "commitBatch" {
+					sr.metrics.SetRollupCost(fee)
+				} else if method == "finalizeBatch" {
+					sr.metrics.SetFinalizeCost(fee)
+				}
 			}
 
 		}
@@ -460,7 +471,7 @@ func (sr *Rollup) finalize() error {
 
 func (sr *Rollup) rollup() error {
 
-	if !sr.PriorityRollup {
+	if !sr.cfg.PriorityRollup {
 		cur, err := sr.rotator.CurrentSubmitter(sr.L2Clients)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
@@ -591,6 +602,7 @@ func (sr *Rollup) rollup() error {
 
 	gas, err := sr.EstimateGas(opts.From, sr.rollupAddr, calldata, gasFeeCap, tip)
 	if err != nil {
+		log.Warn("estimate gas error", "err", err)
 		if sr.pendingTxs.HaveFailed() {
 			log.Warn("estimate gas err, wait",
 				"err", err,
@@ -600,11 +612,12 @@ func (sr *Rollup) rollup() error {
 			return nil
 		} else {
 			msgcnt := utils.ParseL1MessageCnt(batch.Chunks)
-			gas = RoughEstimateGas(msgcnt)
+			gas = sr.RoughEstimateGas(msgcnt)
 		}
-	} else {
-		gas = gas * 12 / 10 // add a buffer
 	}
+
+	// gas buffer
+	gas = gas * sr.cfg.GasLimitBuffer / 100
 
 	if sr.pendingTxs.pnonce != 0 {
 		nonce = sr.pendingTxs.pnonce + 1
@@ -953,7 +966,7 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 		return errors.New("nil tx")
 	}
 
-	err := sendTx(r.L1Client, r.txFeeLimit, tx)
+	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
 	if err != nil {
 		return err
 	}
@@ -1118,10 +1131,6 @@ func (sr *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.
 }
 
 // for rollup
-func RoughEstimateGas(msgcnt uint64) uint64 {
-	base := uint64(400_000)
-	gasPerMsg := uint64(4200)
-
-	return (base + msgcnt*gasPerMsg) * 12 / 10
-
+func (r *Rollup) RoughEstimateGas(msgcnt uint64) uint64 {
+	return r.cfg.RollupTxGasBase + msgcnt*r.cfg.RollupTxGasPerL1Msg
 }

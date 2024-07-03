@@ -8,7 +8,7 @@ LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 build:
-	env GO111MODULE=on go build -o build/bin/staking-oracle -v $(LDFLAGS) ./cmd/staking-oracle
+	env GO111MODULE=on CGO_LDFLAGS="-ldl" go build -o build/bin/staking-oracle -v $(LDFLAGS) ./cmd/staking-oracle
 
 clean:
 	rm -r build
