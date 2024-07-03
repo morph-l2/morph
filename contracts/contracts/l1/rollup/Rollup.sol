@@ -267,8 +267,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // compute the data hash for each chunk
         uint256 _totalL1MessagesPoppedInBatch;
         for (uint256 i = 0; i < _chunksLength; i++) {
-            uint256 _totalNumL1MessagesInChunk = _commitChunk(
-                dataPtr,
+            uint256 _totalNumL1MessagesInChunk;
+            bytes32 _chunkDataHash;
+            (_chunkDataHash, _totalNumL1MessagesInChunk) = _commitChunk(
                 batchDataInput.chunks[i],
                 _totalL1MessagesPoppedInBatch,
                 _totalL1MessagesPoppedOverall,
@@ -277,7 +278,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             unchecked {
                 _totalL1MessagesPoppedInBatch += _totalNumL1MessagesInChunk;
                 _totalL1MessagesPoppedOverall += _totalNumL1MessagesInChunk;
-                dataPtr += 32;
+            }
+            assembly {
+                mstore(dataPtr, _chunkDataHash)
+                dataPtr := add(dataPtr, 0x20)
             }
         }
         // check the length of bitmap
@@ -779,61 +783,51 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         return l2BlockNumber;
     }
 
-    /// @dev Internal function to commit a chunk.
-    /// @param _memPtr                          The start memory offset to store list of `dataHash`.
-    /// @param _chunk                           The encoded chunk to commit.
-    /// @param _totalL1MessagesPoppedInBatch    The total number of L1 messages popped in current batch.
-    /// @param _totalL1MessagesPoppedOverall    The total number of L1 messages popped in all batches including current batch.
-    /// @param _skippedL1MessageBitmap          The bitmap indicates whether each L1 message is skipped or not.
-    /// @return _totalNumL1MessagesInChunk      The total number of L1 message popped in current chunk
+    /// @dev Internal function to commit a chunk with version 1.
+    /// @param _chunk The encoded chunk to commit.
+    /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
+    /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
+    /// @param _skippedL1MessageBitmap The bitmap indicates whether each L1 message is skipped or not.
+    /// @return _dataHash The computed data hash for this chunk.
+    /// @return _totalNumL1MessagesInChunk The total number of L1 message popped in current chunk
     function _commitChunk(
-        uint256 _memPtr,
         bytes memory _chunk,
         uint256 _totalL1MessagesPoppedInBatch,
         uint256 _totalL1MessagesPoppedOverall,
         bytes calldata _skippedL1MessageBitmap
-    ) internal view returns (uint256 _totalNumL1MessagesInChunk) {
+    ) internal view returns (bytes32 _dataHash, uint256 _totalNumL1MessagesInChunk) {
         uint256 chunkPtr;
         uint256 startDataPtr;
         uint256 dataPtr;
-        uint256 blockPtr;
 
         assembly {
             dataPtr := mload(0x40)
             startDataPtr := dataPtr
             chunkPtr := add(_chunk, 0x20) // skip chunkLength
-            blockPtr := add(chunkPtr, 1) // skip numBlocks
         }
 
         uint256 _numBlocks = ChunkCodecV0.validateChunkLength(chunkPtr, _chunk.length);
-
         // concatenate block contexts, use scope to avoid stack too deep
-        {
-            uint256 _totalTransactionsInChunk;
-            for (uint256 i = 0; i < _numBlocks; i++) {
-                dataPtr = ChunkCodecV0.copyBlockContext(chunkPtr, dataPtr, i);
-                uint256 _numTransactionsInBlock = ChunkCodecV0.getNumTransactions(blockPtr);
-                unchecked {
-                    _totalTransactionsInChunk += _numTransactionsInBlock;
-                    blockPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
-                }
-            }
-            assembly {
-                mstore(0x40, add(dataPtr, mul(_totalTransactionsInChunk, 0x20))) // reserve memory for tx hashes
+        for (uint256 i = 0; i < _numBlocks; i++) {
+            dataPtr = ChunkCodecV0.copyBlockContext(chunkPtr, dataPtr, i);
+            uint256 blockPtr = chunkPtr + 1 + i * ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
+            uint256 _numL1MessagesInBlock = ChunkCodecV0.getNumL1Messages(blockPtr);
+            unchecked {
+                _totalNumL1MessagesInChunk += _numL1MessagesInBlock;
             }
         }
-
-        // It is used to compute the actual number of transactions in chunk.
-        uint256 txHashStartDataPtr;
         assembly {
-            txHashStartDataPtr := dataPtr
-            blockPtr := add(chunkPtr, 1) // reset block ptr
+            mstore(0x40, add(dataPtr, mul(_totalNumL1MessagesInChunk, 0x20))) // reserve memory for l1 message hashes
+            chunkPtr := add(chunkPtr, 1)
         }
 
+        // the number of actual transactions in one chunk: non-skipped l1 messages + l2 txs
+        uint256 _totalTransactionsInChunk;
         // concatenate tx hashes
         while (_numBlocks > 0) {
             // concatenate l1 message hashes
-            uint256 _numL1MessagesInBlock = ChunkCodecV0.getNumL1Messages(blockPtr);
+            uint256 _numL1MessagesInBlock = ChunkCodecV0.getNumL1Messages(chunkPtr);
+            uint256 startPtr = dataPtr;
             dataPtr = _loadL1MessageHashes(
                 dataPtr,
                 _numL1MessagesInBlock,
@@ -841,33 +835,26 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 _totalL1MessagesPoppedOverall,
                 _skippedL1MessageBitmap
             );
-
-            // concatenate l2 transaction hashes
-            require(
-                ChunkCodecV0.getNumTransactions(blockPtr) >= _numL1MessagesInBlock,
-                "num txs less than num L1 msgs"
-            );
-
+            uint256 _numTransactionsInBlock = ChunkCodecV0.getNumTransactions(chunkPtr);
+            require(_numTransactionsInBlock >= _numL1MessagesInBlock, "num txs less than num L1 msgs");
             unchecked {
-                _totalNumL1MessagesInChunk += _numL1MessagesInBlock;
+                _totalTransactionsInChunk += (dataPtr - startPtr) / 32; // number of non-skipped l1 messages
+                _totalTransactionsInChunk += _numTransactionsInBlock - _numL1MessagesInBlock; // number of l2 txs
                 _totalL1MessagesPoppedInBatch += _numL1MessagesInBlock;
                 _totalL1MessagesPoppedOverall += _numL1MessagesInBlock;
 
                 _numBlocks -= 1;
-                blockPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
+                chunkPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
             }
         }
 
         // check the actual number of transactions in the chunk
-        require((dataPtr - txHashStartDataPtr) / 32 <= maxNumTxInChunk, "too many txs in one chunk");
+        require(_totalTransactionsInChunk <= maxNumTxInChunk, "too many txs in one chunk");
 
         // compute data hash and store to memory
         assembly {
-            let dataHash := keccak256(startDataPtr, sub(dataPtr, startDataPtr))
-            mstore(_memPtr, dataHash)
+            _dataHash := keccak256(startDataPtr, sub(dataPtr, startDataPtr))
         }
-
-        return _totalNumL1MessagesInChunk;
     }
 
     /// @dev Internal function to load L1 message hashes from the message queue.
