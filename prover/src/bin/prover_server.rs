@@ -109,13 +109,10 @@ async fn handle_metrics() -> String {
 
     // Encode metrics to send.
     match encoder.encode(&metric_families, &mut buffer) {
-        Ok(()) => {
-            let output = String::from_utf8(buffer.clone()).unwrap();
-            return output;
-        }
+        Ok(()) => String::from_utf8(buffer.clone()).unwrap_or_default(),
         Err(e) => {
             log::error!("encode metrics error: {:#?}", e);
-            return String::from("");
+            String::from("")
         }
     }
 }
@@ -142,11 +139,11 @@ async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>
     );
 
     // Verify block number is greater than 0
-    if prove_request.chunks.len() == 0 {
+    if prove_request.chunks.is_empty() {
         return String::from("chunks is empty");
     }
     for chunk in &prove_request.chunks {
-        if chunk.len() == 0 {
+        if chunk.is_empty() {
             return String::from("blocks is empty");
         }
     }
@@ -195,7 +192,7 @@ async fn check_batch_status(prove_request: &ProveRequest) -> Option<String> {
 // The file contents are read into a String which is returned.
 async fn query_prove_result(batch_index: String) -> String {
     let result = query_proof(batch_index).await;
-    return serde_json::to_string(&result).unwrap();
+    serde_json::to_string(&result).unwrap()
 }
 
 async fn query_proof(batch_index: String) -> ProveResult {
@@ -280,7 +277,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             break;
         }
     }
-    return result;
+    result
 }
 
 // Async function to check queue status.

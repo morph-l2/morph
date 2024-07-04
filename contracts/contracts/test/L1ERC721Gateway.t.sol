@@ -3,6 +3,7 @@ pragma solidity =0.8.24;
 
 import {MockERC721} from "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
 import {ERC721TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC721.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
@@ -38,6 +39,85 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         l1Token.setApprovalForAll(address(gateway), true);
     }
 
+    function test_initialize_reverts() public {
+        // Verify initialize can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        gateway.initialize(address(1), address(1));
+
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for L1ERC721Gateway.
+        TransparentUpgradeableProxy l1ERC721GatewayProxy = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L1ERC721Gateway contract.
+        L1ERC721Gateway l1ERC721GatewayImpl = new L1ERC721Gateway();
+
+        // Expect revert due to zero counterpart address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l1ERC721GatewayProxy)).upgradeToAndCall(
+            address(l1ERC721GatewayImpl),
+            abi.encodeCall(
+                L1ERC721Gateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(l1CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        
+        // Expect revert due to zero messenger address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l1ERC721GatewayProxy)).upgradeToAndCall(
+            address(l1ERC721GatewayImpl),
+            abi.encodeCall(
+                L1ERC721Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_succeeds() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for the L1ERC721Gateway.
+        TransparentUpgradeableProxy l1ERC721GatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L1ERC721Gateway contract.
+        L1ERC721Gateway l1ERC721GatewayImplTemp = new L1ERC721Gateway();
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l1ERC721GatewayProxyTemp)).upgradeToAndCall(
+            address(l1ERC721GatewayImplTemp),
+            abi.encodeCall(
+                L1ERC721Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l1CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Cast the proxy contract address to the L1ERC721Gateway contract type to call its methods.
+        L1ERC721Gateway l1ERC721GatewayTemp = L1ERC721Gateway(address(l1ERC721GatewayProxyTemp));
+        hevm.stopPrank();
+        
+        // Verify the counterpart and messenger are initialized successfully.
+        assertEq(l1ERC721GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l1ERC721GatewayTemp.messenger(), address(l1CrossDomainMessenger));
+    }
+
     function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
@@ -54,6 +134,11 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         hevm.assume(token2 != address(0));
 
         assertEq(gateway.tokenMapping(token1), address(0));
+
+        // Expect UpdateTokenMapping event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit L1ERC721Gateway.UpdateTokenMapping(token1, address(0), token2);
+
         gateway.updateTokenMapping(token1, token2);
         assertEq(gateway.tokenMapping(token1), token2);
     }

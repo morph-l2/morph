@@ -3,6 +3,7 @@ pragma solidity =0.8.24;
 
 import {MockERC1155} from "@rari-capital/solmate/src/test/utils/mocks/MockERC1155.sol";
 import {ERC1155TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC1155.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
@@ -11,6 +12,7 @@ import {L1ERC1155Gateway} from "../l1/gateways/L1ERC1155Gateway.sol";
 import {IL1ERC1155Gateway} from "../l1/gateways/IL1ERC1155Gateway.sol";
 import {IL2ERC1155Gateway} from "../l2/gateways/IL2ERC1155Gateway.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
+import {Constants} from "../libraries/constants/Constants.sol";
 
 contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
     uint256 private constant TOKEN_COUNT = 100;
@@ -41,6 +43,85 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             l1Token.mint(address(this), i, MAX_TOKEN_BALANCE, "");
         }
         l1Token.setApprovalForAll(address(gateway), true);
+    }
+
+    function test_initialize_reverts() public {
+        // Verify initialize can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        gateway.initialize(address(1), address(1));
+
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for L1ERC1155Gateway.
+        TransparentUpgradeableProxy l1ERC1155GatewayProxy = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L1ERC1155Gateway contract.
+        L1ERC1155Gateway l1ERC1155GatewayImpl = new L1ERC1155Gateway();
+
+        // Expect revert due to zero counterpart address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l1ERC1155GatewayProxy)).upgradeToAndCall(
+            address(l1ERC1155GatewayImpl),
+            abi.encodeCall(
+                L1ERC1155Gateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(l1CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        
+        // Expect revert due to zero messenger address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l1ERC1155GatewayProxy)).upgradeToAndCall(
+            address(l1ERC1155GatewayImpl),
+            abi.encodeCall(
+                L1ERC1155Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_succeeds() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for the L1ERC1155Gateway.
+        TransparentUpgradeableProxy l1ERC1155GatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L1ERC1155Gateway contract.
+        L1ERC1155Gateway l1ERC1155GatewayImplTemp = new L1ERC1155Gateway();
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l1ERC1155GatewayProxyTemp)).upgradeToAndCall(
+            address(l1ERC1155GatewayImplTemp),
+            abi.encodeCall(
+                L1ERC1155Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l1CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Cast the proxy contract address to the L1ERC1155Gateway contract type to call its methods.
+        L1ERC1155Gateway l1ERC1155GatewayTemp = L1ERC1155Gateway(address(l1ERC1155GatewayProxyTemp));
+        hevm.stopPrank();
+        
+        // Verify the counterpart and messenger are initialized successfully.
+        assertEq(l1ERC1155GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l1ERC1155GatewayTemp.messenger(), address(l1CrossDomainMessenger));
     }
 
     function test_depositERC1155_succeeds(uint256 tokenId, uint256 amount, uint256 gasLimit, uint256 feePerGas) public {
@@ -138,6 +219,104 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         for (uint256 i = 0; i < tokenCount; i++) {
             assertEq(balances[i] + _amounts[i], l1Token.balanceOf(address(this), _tokenIds[i]));
         }
+    }
+
+    function test_onDropMessage_revert(uint256 tokenId, uint256 amount) external {
+        gateway.updateTokenMapping(address(l1Token), address(l2Token));
+        tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
+        amount = bound(amount, 1, MAX_TOKEN_BALANCE);
+        bytes memory message = "message";
+
+        // Assign 10 ether to the contract and l1CrossDomainMessenger.
+        hevm.deal(address(this), 10 ether);
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);
+
+        // Verify onlyInDropContext modifier. Expect revert when msg.sender is not the messenger.
+        hevm.expectRevert("only messenger can call");
+        gateway.onDropMessage(message);
+
+        // Expect revert when xDomainMessageSender is not DROP_XDOMAIN_MESSAGE_SENDER.
+        hevm.prank(address(l1CrossDomainMessenger));
+        hevm.expectRevert("only called in drop context");
+        gateway.onDropMessage(message);
+
+        // Simulate xDomainMessageSender returning DROP_XDOMAIN_MESSAGE_SENDER.
+        hevm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeWithSignature("xDomainMessageSender()"),
+            abi.encode(Constants.DROP_XDOMAIN_MESSAGE_SENDER)
+        );
+
+        // Update msg.sender to l1CrossDomainMessenger.
+        hevm.startPrank(address(l1CrossDomainMessenger));
+
+        // Expect revert when msg.value != 0.
+        hevm.expectRevert("nonzero msg.value");
+        gateway.onDropMessage{value: amount}(message);
+
+        // Expect revert when selector is invalid.
+        hevm.expectRevert("invalid selector");
+        gateway.onDropMessage(message);
+
+        hevm.stopPrank();
+    }
+
+    function test_onDropMessage_succeeds(uint256 tokenId, uint256 amount) external {
+        gateway.updateTokenMapping(address(l1Token), address(l2Token));
+        tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
+        amount = bound(amount, 1, MAX_TOKEN_BALANCE);
+
+        gateway.depositERC1155(address(l1Token), tokenId, amount, defaultGasLimit);
+
+        // Create a message with the valid selector and set the sender as address(this).
+        bytes memory message = abi.encodeCall(
+            IL2ERC1155Gateway.finalizeDepositERC1155,
+            (address(l1Token), address(l2Token), address(this), address(this), tokenId, amount)
+        );
+
+        // Update msg.sender to l1CrossDomainMessenger.
+        hevm.startPrank(address(l1CrossDomainMessenger));
+
+        // Simulate xDomainMessageSender returning DROP_XDOMAIN_MESSAGE_SENDER.
+        hevm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeWithSignature("xDomainMessageSender()"),
+            abi.encode(Constants.DROP_XDOMAIN_MESSAGE_SENDER)
+        );
+        
+        // Expect RefundERC1155 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL1ERC1155Gateway.RefundERC1155(address(l1Token), address(this), tokenId, amount);
+
+        gateway.onDropMessage(message);
+        hevm.stopPrank();
+    }
+
+    function test_updateTokenMapping_revert(address token1) public {
+        // Simulate a call by a non-owner address and expect a revert.
+        hevm.expectRevert("Ownable: caller is not the owner");
+        hevm.prank(address(1));
+        gateway.updateTokenMapping(token1, token1);
+
+        // Expect a revert when the L2 token address is zero.
+        hevm.expectRevert("token address cannot be 0");
+        gateway.updateTokenMapping(token1, address(0));
+    }
+
+    function test_updateTokenMapping_succeeds(address token1, address token2) public {
+        // Assume token2 is not a zero address.
+        hevm.assume(token2 != address(0));
+
+        // Verify the initial mapping for token1 is zero.
+        assertEq(gateway.tokenMapping(token1), address(0));
+
+        // Expect the UpdateTokenMapping event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit L1ERC1155Gateway.UpdateTokenMapping(token1, address(0), token2);
+
+        // Update the token mapping from token1 to token2 and verify the mapping.
+        gateway.updateTokenMapping(token1, token2);
+        assertEq(gateway.tokenMapping(token1), token2);
     }
 
     function test_finalizeWithdrawERC1155_counterErr_fails(

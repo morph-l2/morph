@@ -1,4 +1,4 @@
-version: '3.4'
+version: '3.8'
 
 volumes:
   l1_execution:
@@ -128,7 +128,6 @@ services:
     build:
       context: ../..
       dockerfile: ops/docker/Dockerfile.l2-geth
-      target: ${BUILD_GETH}
     restart: unless-stopped
     ports:
       - "8545:8545"
@@ -239,7 +238,7 @@ services:
     environment:
       - MORPH_NODE_L2_ETH_RPC=http://morph-geth-0:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-0:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
       - MORPH_NODE_L1_CONFIRMATIONS=0
@@ -272,7 +271,7 @@ services:
     environment:
       - MORPH_NODE_L2_ETH_RPC=http://morph-geth-1:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-1:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
       - MORPH_NODE_L1_CONFIRMATIONS=0
@@ -306,7 +305,7 @@ services:
       - EMPTY_BLOCK_DELAY=true
       - MORPH_NODE_L2_ETH_RPC=http://morph-geth-2:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-2:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
       - MORPH_NODE_L1_CONFIRMATIONS=0
@@ -340,7 +339,7 @@ services:
       - EMPTY_BLOCK_DELAY=true
       - MORPH_NODE_L2_ETH_RPC=http://morph-geth-3:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-3:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
       - MORPH_NODE_L1_CONFIRMATIONS=0
@@ -397,7 +396,7 @@ services:
       - EMPTY_BLOCK_DELAY=true
       - MORPH_NODE_L2_ETH_RPC=http://sentry-geth-0:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://sentry-geth-0:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
       - MORPH_NODE_L1_CONFIRMATIONS=0
@@ -447,7 +446,7 @@ services:
      environment:
        - MORPH_NODE_L2_ETH_RPC=http://validator_geth:8545
        - MORPH_NODE_L2_ENGINE_RPC=http://validator_geth:8551
-       - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
+       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
        ## todo need to replace it to a public network
        - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
        - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}

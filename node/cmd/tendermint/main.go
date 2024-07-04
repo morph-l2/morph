@@ -8,8 +8,6 @@ import (
 	"github.com/tendermint/tendermint/cmd/tendermint/commands/debug"
 	"github.com/tendermint/tendermint/libs/cli"
 	nm "github.com/tendermint/tendermint/node"
-
-	"morph-l2/node/types"
 )
 
 func main() {
@@ -37,7 +35,7 @@ func main() {
 	)
 	rootCmd.AddCommand(cmd.NewRunNodeCmd(nm.DefaultNewNode))
 
-	command := cli.PrepareBaseCmd(rootCmd, "TM", os.ExpandEnv(filepath.Join("$HOME", types.DefaultHomeDir)))
+	command := cli.PrepareBaseCmd(rootCmd, "TM", os.ExpandEnv(filepath.Join("$HOME", ".morphnode")))
 	if err := command.Execute(); err != nil {
 		panic(err)
 	}

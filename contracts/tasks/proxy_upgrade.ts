@@ -5,6 +5,10 @@ import "@nomiclabs/hardhat-waffle";
 import { task } from "hardhat/config";
 import { ethers } from "ethers";
 
+import fs from "fs";
+import { ContractFactoryName } from "../src/types"
+import { predeploys } from "../src"
+
 // yarn hardhat upgradeProxy --proxyaddr 0x0165878a594ca255338adfa4d48449f69242eb8f --newimpladdr 0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae --network l1
 task("upgradeProxy")
     .addParam("proxyaddr")
@@ -252,4 +256,62 @@ task("upgradeRollupProxy")
         const res = await proxyAdmin.upgrade(taskArgs.rollupproxyaddr, rollupNewImpl.address)
         const rec = await res.wait()
         console.log(`upgrade rollup ${rec.status === 1}`)
+    })
+
+/*
+Proxy__GasOracle
+
+EnableCurie
+
+yarn hardhat gasOracleEnableCurie --gasoracleproxyaddr 0x530000000000000000000000000000000000000f --network l2
+*/
+task("gasOracleEnableCurie")
+    .addParam("gasoracleproxyaddr")
+    .setAction(async (taskArgs, hre) => {
+        if (!hre.ethers.utils.isAddress(taskArgs.gasoracleproxyaddr)) {
+            console.log(
+                `GasOracle proxy address check failed ${taskArgs.gasoracleproxyaddr}`
+            )
+            return
+        }
+
+        let iGasOracle = await hre.ethers.getContractAt("GasPriceOracle", taskArgs.gasoracleproxyaddr)
+        let isCurie = await iGasOracle.isCurie()
+
+        if (isCurie) {
+            console.log("Already set isCurie")
+            return
+        }
+
+        // enable curie
+        const res = await iGasOracle.enableCurie()
+        const rec = await res.wait()
+        isCurie = await iGasOracle.isCurie()
+        console.log(`Enable curie ${isCurie === true ? "succeed" : "failed"}`)
+    })
+
+/*
+Proxy__GasOracle
+
+yarn hardhat gasOracleProxy-upgrade --l2config ../ops/l2-genesis/deploy-config/qanet-deploy-config.json  --network qanetl2
+*/
+
+task("gasOracleProxy-upgrade")
+    .addParam("l2config")
+    .setAction(async (taskArgs, hre) => {
+        const data = fs.readFileSync(taskArgs.l2config);
+        // @ts-ignore
+        const l2Config = JSON.parse(data);
+
+        const GasPriceOracleFactory = await hre.ethers.getContractFactory("GasPriceOracle")
+        const gasOracleProxyNewImpl = await GasPriceOracleFactory.deploy(l2Config.gasPriceOracleOwner)
+        await gasOracleProxyNewImpl.deployed()
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log(`GasPriceOracle new impl deploy at ${gasOracleProxyNewImpl.address} and height ${blockNumber}`)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+        let res = await proxyAdmin.upgrade(predeploys.GasPriceOracle, gasOracleProxyNewImpl.address)
+        let rec = await res.wait()
+        console.log(`upgrade gasOracleProxy ${rec.status == 1 ? "success" : "failed"}`)
     })

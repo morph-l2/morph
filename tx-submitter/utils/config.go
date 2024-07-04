@@ -41,16 +41,10 @@ type Config struct {
 	PrivateKey string
 	TxTimeout  time.Duration
 
-	// MaxBlock is the max block number to handle
-	MaxBlock uint64
-	// MinBlock is the min block number to handle
-	MinBlock uint64
 	// finalize
 	// if start finalize
-	Finalize       bool
-	MaxFinalizeNum uint64
+	Finalize bool
 	// L2 contract
-	L2SubmitterAddress string
 	L2SequencerAddress string
 	L2GovAddress       string
 
@@ -69,6 +63,23 @@ type Config struct {
 	LogFileMaxSize int
 	LogFileMaxAge  int
 	LogCompress    bool
+
+	// rollup interval
+	RollupInterval time.Duration
+	// finalize interval
+	FinalizeInterval time.Duration
+	// tx process interval
+	TxProcessInterval time.Duration
+
+	// rollup gas base
+	RollupTxGasBase uint64
+	// rollup gas per l1 msg
+	RollupTxGasPerL1Msg uint64
+	// gas limit buffer
+	GasLimitBuffer uint64
+
+	// journal file path
+	JournalFilePath string
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -76,16 +87,14 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:     ctx.GlobalString(flags.BuildEnvFlag.Name),
-		L1EthRpc:     ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpcs:    ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
-		PollInterval: ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		LogLevel:     ctx.GlobalString(flags.LogLevelFlag.Name),
-		PrivateKey:   ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		TxTimeout:    ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
+		BuildEnv:   ctx.GlobalString(flags.BuildEnvFlag.Name),
+		L1EthRpc:   ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpcs:  ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
+		LogLevel:   ctx.GlobalString(flags.LogLevelFlag.Name),
+		PrivateKey: ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		TxTimeout:  ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
 		// finalize
-		Finalize:       ctx.GlobalBool(flags.FinalizeFlag.Name),
-		MaxFinalizeNum: ctx.GlobalUint64(flags.MaxFinalizeNumFlag.Name),
+		Finalize: ctx.GlobalBool(flags.FinalizeFlag.Name),
 		// L1 contract
 		L1StakingAddress: ctx.GlobalString(flags.L1StakingAddressFlag.Name),
 		RollupAddress:    ctx.GlobalString(flags.RollupAddressFlag.Name),
@@ -105,6 +114,17 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		LogFileMaxSize: ctx.GlobalInt(flags.LogFileMaxSize.Name),
 		LogFileMaxAge:  ctx.GlobalInt(flags.LogFileMaxAge.Name),
 		LogCompress:    ctx.GlobalBool(flags.LogCompress.Name),
+
+		RollupInterval:    ctx.GlobalDuration(flags.RollupInterval.Name),
+		FinalizeInterval:  ctx.GlobalDuration(flags.FinalizeInterval.Name),
+		TxProcessInterval: ctx.GlobalDuration(flags.TxProcessInterval.Name),
+
+		RollupTxGasBase:     ctx.GlobalUint64(flags.RollupTxGasBase.Name),
+		RollupTxGasPerL1Msg: ctx.GlobalUint64(flags.RollupTxGasPerL1Msg.Name),
+
+		GasLimitBuffer: ctx.GlobalUint64(flags.GasLimitBuffer.Name),
+
+		JournalFilePath: ctx.GlobalString(flags.JournalFlag.Name),
 	}
 
 	return cfg, nil
