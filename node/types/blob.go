@@ -83,11 +83,11 @@ func makeBCP(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, p kzg4844.Proof, 
 		return
 	}
 	b = *blob
-	c, err = kzg4844.BlobToCommitment(b)
+	c, err = kzg4844.BlobToCommitment(&b)
 	if err != nil {
 		return
 	}
-	p, err = kzg4844.ComputeBlobProof(b, c)
+	p, err = kzg4844.ComputeBlobProof(&b, c)
 	if err != nil {
 		return
 	}
