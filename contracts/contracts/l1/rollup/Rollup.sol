@@ -210,7 +210,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             bytes32(0)
         );
 
-        batchSignatureStore[_batchIndex] = BatchSignature(bytes32(0), bytes32(0), "0x");
+        batchSignatureStore[_batchIndex] = BatchSignature(bytes32(0), "0x");
         finalizedStateRoots[_batchIndex] = _postStateRoot;
         lastCommittedBatchIndex = _batchIndex;
         lastFinalizedBatchIndex = _batchIndex;
@@ -312,44 +312,44 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
 
-        committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(
-            _batchPtr,
-            BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH + batchDataInput.skippedL1MessageBitmap.length
-        );
+        {
+            committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(
+                _batchPtr,
+                BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH + batchDataInput.skippedL1MessageBitmap.length
+            );
 
-        // storage batch data for challenge status check
-        batchDataStore[_batchIndex] = BatchData(
-            block.timestamp,
-            block.timestamp + finalizationPeriodSeconds,
-            _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1]),
-            batchDataInput.prevStateRoot,
-            batchDataInput.postStateRoot,
-            batchDataInput.withdrawalRoot
-        );
+            // storage batch data for challenge status check
+            batchDataStore[_batchIndex] = BatchData(
+                block.timestamp,
+                block.timestamp + finalizationPeriodSeconds,
+                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1]),
+                batchDataInput.prevStateRoot,
+                batchDataInput.postStateRoot,
+                batchDataInput.withdrawalRoot
+            );
 
-        address[] memory submitter = new address[](1);
-        submitter[0] = _msgSender();
-        batchSignatureStore[_batchIndex] = BatchSignature(
-            _getBLSMsgHash(batchDataInput),
-            keccak256(batchSignatureInput.sequencerSets),
-            // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
-            // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-            abi.encode(submitter) // => batchSignature.signedSequencers
-        );
+            address[] memory submitter = new address[](1);
+            submitter[0] = _msgSender();
+            batchSignatureStore[_batchIndex] = BatchSignature(
+                keccak256(batchSignatureInput.sequencerSets),
+                // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
+                // Therefore, if the batch is successfully challenged, only the submitter will be punished.
+                abi.encode(submitter) // => batchSignature.signedSequencers
+            );
 
-        lastCommittedBatchIndex = _batchIndex;
+            lastCommittedBatchIndex = _batchIndex;
+        }
 
         // verify bls signature
         require(
             IL1Staking(l1StakingContract).verifySignature(
                 abi.decode(batchSignatureInput.signedSequencers, (address[])),
                 _getValidSequencerSet(batchSignatureInput.sequencerSets, 0),
-                batchSignatureStore[_batchIndex].blsMsgHash,
+                _getBLSMsgHash(batchDataInput),
                 batchSignatureInput.signature
             ),
             "the signature verification failed"
         );
-
         emit CommitBatch(_batchIndex, committedBatches[_batchIndex]);
     }
 

@@ -47,11 +47,9 @@ interface IRollup {
         bytes32 withdrawalRoot;
     }
 
-    /// @param blsMsgHash
     /// @param sequencerSetVerifyHash
     /// @param sequencers
     struct BatchSignature {
-        bytes32 blsMsgHash;
         bytes32 sequencerSetVerifyHash;
         bytes signedSequencers;
     }
