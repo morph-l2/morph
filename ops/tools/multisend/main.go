@@ -19,8 +19,8 @@ import (
 )
 
 var (
-	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode("0x3e4bde571b86929bf08e2aaad9a6a1882664cd5e65b96fff7d03e1c4e6dfa15c"))
-	chainId     = big.NewInt(53077)
+	chainId     *big.Int
+	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode(""))
 	url         = "http://localhost:8545"
 	senderNum   = 2
 	duration    = 120 * time.Minute
@@ -31,7 +31,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	chainId, err = client.ChainID(context.Background())
+	if err != nil {
+		panic(err)
+	}
 	senderPks := distribute(client)
 	receiver, _ := crypto.GenerateKey()
 	to := crypto.PubkeyToAddress(receiver.PublicKey)
