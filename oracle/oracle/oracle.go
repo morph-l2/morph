@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum"
 	"io"
 	"os"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	"morph-l2/oracle/config"
 	"morph-l2/oracle/metrics"
 
-	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
@@ -196,14 +196,6 @@ func (o *Oracle) Start() {
 		}
 	}()
 
-	go func() {
-		for {
-			if err := o.recordRollupEpoch(); err != nil {
-				log.Error("record rollup epoch failed", "error", err)
-				time.Sleep(30 * time.Second)
-			}
-		}
-	}()
 }
 
 func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
