@@ -10,7 +10,7 @@ RUN apt-get install build-essential curl wget git pkg-config -y
 RUN apt-get install libclang-dev libssl-dev llvm software-properties-common -y
 
 # Install golang
-RUN add-apt-repository ppa:longsleep/golang-backports
+# RUN add-apt-repository ppa:longsleep/golang-backports
 RUN apt install golang-1.22-go -y
 ENV PATH="/usr/lib/go-1.22/bin:${PATH}"
 
