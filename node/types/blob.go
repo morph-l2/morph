@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"morph-l2/node/zstd"
 
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
@@ -82,11 +83,11 @@ func makeBCP(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, p kzg4844.Proof, 
 		return
 	}
 	b = *blob
-	c, err = kzg4844.BlobToCommitment(b)
+	c, err = kzg4844.BlobToCommitment(&b)
 	if err != nil {
 		return
 	}
-	p, err = kzg4844.ComputeBlobProof(b, c)
+	p, err = kzg4844.ComputeBlobProof(&b, c)
 	if err != nil {
 		return
 	}
@@ -128,6 +129,14 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 		Commitments: commitments,
 		Proofs:      proofs,
 	}, nil
+}
+
+func EncodeBatchBytesToBlob(batchBytes []byte) (*eth.BlobTxSidecar, error) {
+	compressedBatchBytes, err := zstd.CompressBatchBytes(batchBytes)
+	if err != nil {
+		return nil, err
+	}
+	return MakeBlobTxSidecar(compressedBatchBytes)
 }
 
 // Deprecated: DecodeTxsFromBlob is recommended
@@ -180,13 +189,18 @@ func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	batchBytes, err := zstd.DecompressBatchBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	data = batchBytes
 	nonEmptyChunkNum := binary.BigEndian.Uint16(data[:2])
 	if nonEmptyChunkNum == 0 {
 		return nil, nil
 	}
-	// skip metadata: 2bytes(chunkNum) + 15*4bytes(size per chunk)
-	reader := bytes.NewReader(data[62:])
+	// skip metadata: 2bytes(chunkNum) + maxChunks*4bytes(size per chunk)
+	skipBytes := 2 + MaxChunks*4
+	reader := bytes.NewReader(data[skipBytes:])
 	txs := make(eth.Transactions, 0)
 	for {
 		var (

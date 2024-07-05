@@ -150,7 +150,11 @@ func Main() func(ctx *cli.Context) error {
 			}
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
-
+		dir, err := os.Getwd()
+		if err != nil {
+			log.Warn("get workdir err")
+			dir = ""
+		}
 		log.Info("starting tx submitter",
 			"l1_rpc", cfg.L1EthRpc,
 			"l2_rpcs", cfg.L2EthRpcs,
@@ -166,6 +170,8 @@ func Main() func(ctx *cli.Context) error {
 			"tx_process_interval", cfg.TxProcessInterval.String(),
 			"rollup_tx_gas_base", cfg.RollupTxGasBase,
 			"rollup_tx_gas_per_msg", cfg.RollupTxGasPerL1Msg,
+			"work_dir", dir,
+			"journal_path", cfg.JournalFilePath,
 		)
 		sr.Start()
 

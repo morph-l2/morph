@@ -1,7 +1,7 @@
 # Build Geth in a stock Go builder container
-FROM golang:1.22-alpine as builder
+FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
 
-RUN apk add --no-cache gcc musl-dev linux-headers git make
+# RUN apk add --no-cache gcc musl-dev linux-headers git make
 
 COPY . /morph
 
@@ -10,9 +10,9 @@ WORKDIR /morph/oracle
 RUN make build
 
 # Pull Geth into a second stage deploy alpine container
-FROM alpine:latest
+FROM builder
 
-RUN apk add --no-cache ca-certificates
+# RUN apk add --no-cache ca-certificates
 COPY --from=builder /morph/oracle/build/bin/staking-oracle /usr/local/bin/
 
 CMD ["staking-oracle"]

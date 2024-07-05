@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"morph-l2/node/zstd"
 
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/core/types"
@@ -13,6 +15,7 @@ import (
 const (
 	NormalizedRowLimit = 1_000_000
 	MaxBlocksPerChunk  = 100
+	MaxChunks          = 45
 )
 
 type Chunk struct {
@@ -155,14 +158,15 @@ type Chunks struct {
 	data           []*Chunk
 	blockNum       int
 	sizeInCalldata int
-	txPayloadSize  int
+	blobPayload    []byte
 
 	hash *common.Hash
 }
 
 func NewChunks() *Chunks {
 	return &Chunks{
-		data: make([]*Chunk, 0),
+		data:        make([]*Chunk, 0),
+		blobPayload: make([]byte, 0),
 	}
 }
 
@@ -172,11 +176,12 @@ func (cks *Chunks) Append(blockContext, txsPayload []byte, l1TxHashes []common.H
 	}
 	defer func() {
 		cks.sizeInCalldata += len(blockContext)
-		cks.txPayloadSize += len(txsPayload)
 		cks.blockNum++
 		cks.hash = nil // clear hash when data is updated
 	}()
+
 	if len(cks.data) == 0 {
+		cks.blobPayload = cks.appendBlobBytes(txsPayload, true)
 		cks.data = append(cks.data, NewChunk(blockContext, txsPayload, l1TxHashes, rc))
 		cks.sizeInCalldata += 1
 		return
@@ -184,10 +189,13 @@ func (cks *Chunks) Append(blockContext, txsPayload []byte, l1TxHashes []common.H
 	lastChunk := cks.data[len(cks.data)-1]
 	accRc, maxRowUsages := lastChunk.accumulateRowUsages(rc)
 	if lastChunk.blockNum+1 > MaxBlocksPerChunk || maxRowUsages > NormalizedRowLimit { // add a new chunk
+		cks.blobPayload = cks.appendBlobBytes(txsPayload, true)
 		cks.data = append(cks.data, NewChunk(blockContext, txsPayload, l1TxHashes, rc))
 		cks.sizeInCalldata += 1
 		return
 	}
+
+	cks.blobPayload = cks.appendBlobBytes(txsPayload, false)
 	lastChunk.append(blockContext, txsPayload, l1TxHashes, accRc)
 }
 
@@ -203,9 +211,60 @@ func (cks *Chunks) Encode() ([][]byte, error) {
 	return bytesArray, nil
 }
 
+func (cks *Chunks) appendBlobBytes(txsPayload []byte, appendChunk bool) []byte {
+	blobBytes := make([]byte, len(cks.blobPayload))
+	copy(blobBytes, cks.blobPayload)
+
+	if len(blobBytes) == 0 && !appendChunk {
+		panic("Incorrect state. Chunk has not been appended while blobPayload is empty")
+	}
+	if len(cks.data) == MaxChunks && appendChunk {
+		panic(fmt.Errorf("can not append chunk up to more than %d", MaxChunks))
+	}
+
+	if len(blobBytes) == 0 {
+		// metadata consists of num_chunks (2 bytes) and chunki_size (4 bytes per chunk)
+		metadataLength := 2 + MaxChunks*4
+
+		// the raw (un-padded) blob payload
+		blobBytes = make([]byte, metadataLength)
+	}
+	if appendChunk {
+		// update chunk num
+		preChunkNum := binary.BigEndian.Uint16(blobBytes[:2])
+		binary.BigEndian.PutUint16(blobBytes[0:], preChunkNum+1)
+
+		if len(txsPayload) > 0 {
+			// update new chunk size
+			newChunkIndex := len(cks.data)
+			binary.BigEndian.PutUint32(blobBytes[2+newChunkIndex*4:], uint32(len(txsPayload)))
+
+			// append blob
+			blobBytes = append(blobBytes, txsPayload...)
+		}
+	} else if len(txsPayload) > 0 { // update chunk size and append payload
+		var chunkIndex int
+		if len(cks.data) == 0 {
+			chunkIndex = 0
+		} else {
+			chunkIndex = len(cks.data) - 1
+		}
+		preChunkSize := binary.BigEndian.Uint32(blobBytes[2+chunkIndex*4:])
+		binary.BigEndian.PutUint32(blobBytes[2+chunkIndex*4:], uint32(len(txsPayload))+preChunkSize)
+
+		// append blob
+		blobBytes = append(blobBytes, txsPayload...)
+	}
+	return blobBytes
+}
+
 func (cks *Chunks) ConstructBlobPayload() []byte {
+	if len(cks.blobPayload) > 0 {
+		return cks.blobPayload
+	}
+
 	// metadata consists of num_chunks (2 bytes) and chunki_size (4 bytes per chunk)
-	metadataLength := 2 + 15*4
+	metadataLength := 2 + MaxChunks*4
 
 	// the raw (un-padded) blob payload
 	blobBytes := make([]byte, metadataLength)
@@ -242,12 +301,8 @@ func (cks *Chunks) BlockNum() int       { return cks.blockNum }
 func (cks *Chunks) ChunkNum() int       { return len(cks.data) }
 func (cks *Chunks) SizeInCalldata() int { return cks.sizeInCalldata }
 
-func (cks *Chunks) TxPayloadSize() int {
-	return cks.txPayloadSize
-}
-
-// IsChunksAppendedWithNewBlock check if a new chunk needs to be created with this new block being added.
-func (cks *Chunks) IsChunksAppendedWithNewBlock(blockRc types.RowConsumption) (appended bool) {
+// isChunksAppendedWithNewBlock check if a new chunk needs to be created with this new block being added.
+func (cks *Chunks) isChunksAppendedWithNewBlock(blockRc types.RowConsumption) (appended bool) {
 	if len(cks.data) == 0 {
 		return true
 	}
@@ -257,4 +312,21 @@ func (cks *Chunks) IsChunksAppendedWithNewBlock(blockRc types.RowConsumption) (a
 	}
 	_, maxRowUsages := lastChunk.accumulateRowUsages(blockRc)
 	return maxRowUsages > NormalizedRowLimit
+}
+
+func (cks *Chunks) EstimateCompressedSizeWithNewPayload(txPayload []byte, blockRc types.RowConsumption) (appendChunk, sizeOverflow bool, err error) {
+	appendChunk = cks.isChunksAppendedWithNewBlock(blockRc)
+	if appendChunk && len(cks.data) == MaxChunks {
+		// return sizeOverflow as true to notify the upper stream to seal the batch, to prevent the batch from involving over MaxChunks
+		return appendChunk, true, err
+	}
+	blobBytes := cks.appendBlobBytes(txPayload, appendChunk)
+	compressed, err := zstd.CompressBatchBytes(blobBytes)
+	if err != nil {
+		return false, false, err
+	}
+	if len(compressed) > MaxBlobBytesSize {
+		sizeOverflow = true
+	}
+	return
 }

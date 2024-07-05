@@ -215,7 +215,7 @@ func KZGToVersionedHash(commitment kzg4844.Commitment) (out common.Hash) {
 }
 
 func VerifyBlobProof(blob *Blob, commitment kzg4844.Commitment, proof kzg4844.Proof) error {
-	return kzg4844.VerifyBlobProof(*blob.KZGBlob(), commitment, proof)
+	return kzg4844.VerifyBlobProof(blob.KZGBlob(), commitment, proof)
 }
 
 // dataAndHashesFromTxs extracts calldata and datahashes from the input transactions and returns them. It
