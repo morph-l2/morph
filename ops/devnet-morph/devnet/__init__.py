@@ -150,7 +150,7 @@ def devnet_deploy(paths, args):
         '--outfile.l2', pjoin(paths.devnet_dir, 'genesis-l2.json'),
         '--outfile.genbatchheader', pjoin(paths.devnet_dir, 'genesis-batch-header.json'),
         '--outfile.rollup', pjoin(paths.devnet_dir, 'rollup.json')
-    ], env=env_genesis,cwd=paths.L2_dir)
+    ], env=env_genesis, cwd=paths.L2_dir)
     write_json(done_file, {})
 
     log.info('Deploying L1 Impl contracts and initialize contracts...')
