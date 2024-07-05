@@ -70,7 +70,8 @@ async fn prover_mng(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
             .layer(CorsLayer::permissive())
             .layer(TraceLayer::new_for_http());
 
-        axum::Server::bind(&"0.0.0.0:3030".parse().unwrap())
+        let mng_address = read_env_var("PROVER_MNG_ADDRESS", "0.0.0.0:3030".to_string());
+        axum::Server::bind(&mng_address.parse().unwrap())
             .serve(service.into_make_service())
             .await
             .unwrap();
@@ -82,11 +83,11 @@ async fn metric_mng() {
     REGISTRY.register(Box::new(PROVE_RESULT.clone())).unwrap();
     REGISTRY.register(Box::new(PROVE_TIME.clone())).unwrap();
 
-    let metric_address = read_env_var("PROVER_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
     tokio::spawn(async move {
         let metrics = Router::new()
             .route("/metrics", get(handle_metrics))
             .layer(TraceLayer::new_for_http());
+        let metric_address = read_env_var("PROVER_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
         axum::Server::bind(&metric_address.parse().unwrap())
             .serve(metrics.into_make_service())
             .await
