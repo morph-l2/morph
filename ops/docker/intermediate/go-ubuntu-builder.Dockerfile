@@ -2,7 +2,7 @@ ARG GO_VERSION=1.22
 
 FROM ubuntu:20.04
 
-RUN apt-get update && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
+RUN apt-get update --fix-missing && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
 
 # Install basic packages
 RUN apt-get install build-essential curl wget git pkg-config -y
