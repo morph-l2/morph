@@ -7,7 +7,7 @@ RUN apt-get update --fix-missing && ln -fs /usr/share/zoneinfo/America/New_York 
 # Install basic packages
 RUN apt-get install build-essential curl wget git pkg-config -y
 # Install dev-packages
-RUN apt-get install libclang-dev libssl-dev llvm -y
+RUN apt-get install libclang-dev libssl-dev llvm software-properties-common -y
 
 # Install golang
 RUN add-apt-repository ppa:longsleep/golang-backports
