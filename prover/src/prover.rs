@@ -221,7 +221,7 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         hex::encode(chunk_hashes[0].prev_state_root)
     );
 
-    let blob = BatchHash::<15>::construct(&chunk_hashes).point_evaluation_assignments();
+    let blob = BatchHash::<MAX_AGG_SNARKS>::construct(&chunk_hashes).point_evaluation_assignments();
     let challenge = blob.challenge; // z
     let evaluation = blob.evaluation; // y
     let mut blob_bytes = [0u8; BLOB_DATA_SIZE];
