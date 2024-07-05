@@ -96,7 +96,8 @@ func TestChunks_ConstructBlobPayload(t *testing.T) {
 
 	blobBytes := chunks.ConstructBlobPayload()
 
-	expectedBytes := make([]byte, 62+65)
+	skipBytes := 2 + MaxChunks*4
+	expectedBytes := make([]byte, skipBytes+65)
 	copy(expectedBytes, []byte{0x0, 0x3})
 	chunk0Size := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunk0Size, 20)
@@ -104,7 +105,7 @@ func TestChunks_ConstructBlobPayload(t *testing.T) {
 	binary.BigEndian.PutUint32(chunk2Size, 45)
 	copy(expectedBytes[2:], chunk0Size)
 	copy(expectedBytes[10:], chunk2Size)
-	copy(expectedBytes[62:], append(append(txsPayload0, txsPayload1...), txsPayload2...))
+	copy(expectedBytes[skipBytes:], append(append(txsPayload0, txsPayload1...), txsPayload2...))
 	require.EqualValues(t, expectedBytes, blobBytes)
 }
 
