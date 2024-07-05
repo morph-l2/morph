@@ -4,7 +4,7 @@ ARG CARGO_CHEF_TAG=0.1.41
 
 FROM ubuntu:20.04
 
-RUN apt-get update && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
+RUN apt-get update --fix-missing && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
 
 # Install basic packages
 RUN apt-get install build-essential curl wget git pkg-config -y
@@ -32,7 +32,7 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
     else \
     echo "Unsupported architecture"; exit 1; \
     fi
-RUN wget https://go.dev/dl/go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
+RUN wget https://raw.githubusercontent.com/anylots/golangTemp/main/go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
 RUN tar -C /usr/local -xzf go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
 RUN rm go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz && rm /tmp/arch
 ENV PATH="/usr/local/go/bin:${PATH}"
