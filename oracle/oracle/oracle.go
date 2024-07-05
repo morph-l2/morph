@@ -77,6 +77,7 @@ type Oracle struct {
 	cfg                 *config.Config
 	privKey             *ecdsa.PrivateKey
 	isFinalized         bool
+	enable              bool
 	rollupEpochMaxBlock uint64
 	metrics             *metrics.Metrics
 }
@@ -195,6 +196,17 @@ func (o *Oracle) Start() {
 			}
 		}
 	}()
+
+	if o.enable {
+		go func() {
+			for {
+				if err := o.recordRollupEpoch(); err != nil {
+					log.Error("record rollup epoch failed", "error", err)
+					time.Sleep(30 * time.Second)
+				}
+			}
+		}()
+	}
 
 }
 
