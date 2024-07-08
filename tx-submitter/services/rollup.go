@@ -383,8 +383,18 @@ func (sr *Rollup) finalize() error {
 		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
 	}
 
+	// get next batch
+	nextBatchIndex := target.Uint64() + 1
+	batch, err := GetRollupBatchByIndex(nextBatchIndex, sr.L2Clients)
+	if err != nil {
+		log.Error("get next batch by index error",
+			"batch_index", nextBatchIndex,
+		)
+		return fmt.Errorf("get next batch by index err:%v", err)
+	}
+
 	// calldata
-	calldata, err := sr.abi.Pack("finalizeBatch", target)
+	calldata, err := sr.abi.Pack("finalizeBatch", []byte(batch.ParentBatchHeader))
 	if err != nil {
 		return fmt.Errorf("pack finalizeBatch error:%v", err)
 	}
