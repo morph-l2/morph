@@ -47,7 +47,7 @@ dependencies = [
 [[package]]
 name = "aggregator"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "ark-std 0.3.0",
  "bitstream-io",
@@ -682,12 +682,13 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 [[package]]
 name = "bus-mapping"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "eth-types",
  "ethers-core",
  "ethers-providers",
  "ethers-signers",
+ "external-tracer",
  "gadgets",
  "halo2_proofs",
  "hex",
@@ -697,6 +698,7 @@ dependencies = [
  "mpt-zktrie",
  "num",
  "poseidon-circuit",
+ "rand",
  "revm-precompile",
  "serde",
  "serde_json",
@@ -1417,7 +1419,7 @@ dependencies = [
 [[package]]
 name = "eth-types"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "base64 0.13.1",
  "ethers-core",
@@ -1434,6 +1436,7 @@ dependencies = [
  "revm-primitives",
  "serde",
  "serde_json",
+ "serde_stacker",
  "serde_with",
  "sha3 0.10.8",
  "strum 0.25.0",
@@ -1728,7 +1731,7 @@ dependencies = [
 [[package]]
 name = "external-tracer"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "eth-types",
  "geth-utils",
@@ -1970,7 +1973,7 @@ dependencies = [
 [[package]]
 name = "gadgets"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "eth-types",
  "halo2_proofs",
@@ -1993,7 +1996,7 @@ dependencies = [
 [[package]]
 name = "geth-utils"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "env_logger 0.10.2",
  "gobuild",
@@ -2879,7 +2882,7 @@ dependencies = [
 [[package]]
 name = "mock"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -2894,7 +2897,7 @@ dependencies = [
 [[package]]
 name = "mpt-zktrie"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "eth-types",
  "halo2curves",
@@ -3542,7 +3545,7 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 [[package]]
 name = "prover"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "aggregator",
  "anyhow",
@@ -5615,7 +5618,7 @@ dependencies = [
 [[package]]
 name = "zkevm-circuits"
 version = "0.11.0"
-source = "git+https://github.com/anylots/zkevm-circuits.git?branch=scroll_dev#96cfa732dab5d0ad9867980a0c223414adcefd5c"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=devnet_curie#8998b008c389d7c728343f1e8b6fbc53c5995ee0"
 dependencies = [
  "array-init",
  "bus-mapping",
