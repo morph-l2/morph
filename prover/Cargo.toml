@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "v1.1" }
 snark-verifier-sdk = { git = "https://github.com/scroll-tech/snark-verifier", branch = "develop", default-features = false, features = ["loader_halo2", "loader_evm", "halo2-pse"] }
-prover = { git = "https://github.com/anylots/zkevm-circuits.git", branch = "curie_scroll", default-features = false, features = ["parallel_syn", "scroll"] }
-zkevm-circuits = { git = "https://github.com/anylots/zkevm-circuits.git", branch = "curie_scroll", default-features = false, features = ["parallel_syn", "scroll"] }
+prover = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "devnet_curie", default-features = false, features = ["parallel_syn", "scroll"] }
+zkevm-circuits = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "devnet_curie", default-features = false, features = ["parallel_syn", "scroll"] }
 
 env_logger = "0.9.0"
 log = "0.4"
