@@ -87,6 +87,8 @@ impl Prover {
                 }
             };
 
+            save_trace(17, &chunk_traces);
+
             // Step3. Generate evm proof
             self.generate_proof(batch_index, chunk_traces).await;
         }
