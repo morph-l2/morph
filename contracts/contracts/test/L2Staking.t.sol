@@ -449,7 +449,7 @@ contract L2StakingTest is L2StakingBaseTest {
 
         // Expect the Delegated event is emitted successfully.
         hevm.expectEmit(true, true, true, true);
-        emit IL2Staking.Delegated(firstStaker, bob, morphBalance, 0);
+        emit IL2Staking.Delegated(firstStaker, bob, morphBalance, morphBalance, 0);
 
         l2Staking.delegateStake(firstStaker, morphBalance);
 
@@ -515,8 +515,15 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(bob);
 
         // Verify the Delegated event is emitted successfully.
+        uint256 beforeAmount = l2Staking.delegations(secondStaker, bob);
         hevm.expectEmit(true, true, true, true);
-        emit IL2Staking.Delegated(secondStaker, bob, morphBalance, l2Staking.currentEpoch() + 1);
+        emit IL2Staking.Delegated(
+            secondStaker,
+            bob,
+            beforeAmount + morphBalance / 2,
+            beforeAmount,
+            l2Staking.currentEpoch() + 1
+        );
 
         l2Staking.delegateStake(secondStaker, morphBalance / 2);
 
@@ -734,8 +741,13 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.warp(time);
 
         // Expect the UndelegationClaimed event is emitted successfully.
+        IL2Staking.UndelegationClaimedInfo[] memory undelegationClaimedInfos = new IL2Staking.UndelegationClaimedInfo[](
+            1
+        );
+        (address delegatee, uint256 amount, uint256 unlockEpoch) = l2Staking.undelegations(bob, 0);
+        undelegationClaimedInfos[0] = IL2Staking.UndelegationClaimedInfo(delegatee, bob, unlockEpoch, amount, true);
         hevm.expectEmit(true, true, true, true);
-        emit IL2Staking.UndelegationClaimed(bob, morphBalance);
+        emit IL2Staking.UndelegationClaimed(undelegationClaimedInfos);
 
         l2Staking.claimUndelegation();
         uint256 newBalance = morphToken.balanceOf(bob);
