@@ -3,6 +3,8 @@ package flags
 import (
 	"time"
 
+	"morph-l2/bindings/predeploys"
+
 	"github.com/urfave/cli"
 )
 
@@ -81,23 +83,19 @@ var (
 	}
 
 	// L2 contract
-	SubmitterAddressFlag = cli.StringFlag{
-		Name:     "L2_SUBMITTER_ADDRESS",
-		Usage:    "Address of the submitter contract",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_SUBMITTER_ADDRESS"),
-	}
 	L2SequencerAddressFlag = cli.StringFlag{
 		Name:     "L2_SEQUENCER_ADDRESS",
 		Usage:    "Address of the sequencer contract",
-		Required: true,
+		Required: false,
 		EnvVar:   prefixEnvVar("L2_SEQUENCER_ADDRESS"),
+		Value:    predeploys.Sequencer,
 	}
 	L2GovAddressFlag = cli.StringFlag{
 		Name:     "L2_GOV_ADDRESS",
 		Usage:    "Address of the gov contract",
-		Required: true,
+		Required: false,
 		EnvVar:   prefixEnvVar("L2_GOV_ADDRESS"),
+		Value:    predeploys.Gov,
 	}
 
 	/* Optional Flags */
@@ -218,12 +216,10 @@ var requiredFlags = []cli.Flag{
 	TxTimeoutFlag,
 	FinalizeFlag,
 	PriorityRollupFlag,
-	SubmitterAddressFlag,
-	L2SequencerAddressFlag,
+
 	PrivateKeyFlag,
 	TxFeeLimitFlag,
 	L1StakingAddressFlag,
-	L2GovAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -246,6 +242,9 @@ var optionalFlags = []cli.Flag{
 	GasLimitBuffer,
 
 	JournalFlag,
+
+	L2SequencerAddressFlag,
+	L2GovAddressFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
