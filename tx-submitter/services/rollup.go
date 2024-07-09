@@ -787,6 +787,17 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	if head.ExcessBlobGas != nil {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
 	}
+
+	//calldata fee bump x*fee/100
+	if sr.cfg.CalldataFeeBump > 0 {
+		// feecap
+		gasFeeCap = new(big.Int).Mul(gasFeeCap, big.NewInt(int64(sr.cfg.CalldataFeeBump)))
+		gasFeeCap = new(big.Int).Div(gasFeeCap, big.NewInt(100))
+		// tip
+		tip = new(big.Int).Mul(tip, big.NewInt(int64(sr.cfg.CalldataFeeBump)))
+		tip = new(big.Int).Div(tip, big.NewInt(100))
+	}
+
 	return tip, gasFeeCap, blobFee, nil
 }
 

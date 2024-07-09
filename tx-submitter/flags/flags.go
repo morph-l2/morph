@@ -206,6 +206,13 @@ var (
 		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
 		Value:  "journal.rlp",
 	}
+
+	CalldataFeeBumpFlag = cli.Uint64Flag{
+		Name:   "CALL_DATA_FEE_BUMP",
+		Usage:  "The fee bump for call data",
+		Value:  100, //fee = x * origin_fee/100
+		EnvVar: prefixEnvVar("CALL_DATA_FEE_BUMP"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -245,6 +252,7 @@ var optionalFlags = []cli.Flag{
 
 	L2SequencerAddressFlag,
 	L2GovAddressFlag,
+	CalldataFeeBumpFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
