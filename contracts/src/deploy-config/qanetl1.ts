@@ -17,15 +17,15 @@ const config = {
     // initialize config
     rollupMaxNumTxInChunk: 100,
     finalizationPeriodSeconds: 600,
-    rollupBatchIndex: 0,
+    rollupBatchIndex: 203,
     rollupProofWindow: 86400,
     // challenge config
     rollupProposer: '0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d',
     rollupChallenger: '0x71616250f7CAaa8a5DC295dc5851D6b1E49188a7',
     // genesis config
-    rollupGenesisStateRoot: '',
+    rollupGenesisStateRoot: '0x17a795e284dcf2aee501bd1db3452b496bbe9d0fef039bd0996274f8b9ce659d',
     withdrawRoot: '',
-    batchHeader: '',
+    batchHeader: '0x0000000000000000cb0000000000000000000000000000002e88c1b0b0d34f34aeeac820cfcc08e0001986639c71ca14f70bf03d38e02231fa010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c44401452f3bf24a6a2f0a30f785fc7d372f1fc0c6a85efe30c4c513b5a68649ba34a5e',
 
     // staking config
     // staking Cross-Chain config

@@ -75,11 +75,18 @@ module.exports = {
             accounts: [DEPLOYER_PK]
         },
         qanetl1: {
-            url: QA_URL,
+            url: "http://l2-qa-morph-l1-geth.bitkeep.tools",
             chainId: 900,
             gas: 'auto',
             gasPrice: 'auto',
-            accounts: [DEPLOYER_PK]
+            accounts: ['0xc3b334eb3bf42f27c1100f36179395662cc7661a210597e26e158cd373f2d982']
+        },
+        qanetl2: {
+            url: "http://l2-qa-morph-sentry-0.bitkeep.tools",
+            chainId: 53077,
+            gas: 'auto',
+            gasPrice: 'auto',
+            accounts: ['0x2035516063ca7724d93e1bfaa01137457355f8e9e1d6cf28cff84def7a478c18']
         },
         sepolia: {
             url: SEPOLIA_URL,
