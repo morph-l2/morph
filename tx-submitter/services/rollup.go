@@ -1122,7 +1122,7 @@ func (r *Rollup) IsStaker() (bool, error) {
 
 	isStaker, err := r.Staking.IsStaker(nil, common.HexToAddress(r.walletAddr()))
 	if err != nil {
-		return false, fmt.Errorf("failed to get staker info:%v", err)
+		return false, fmt.Errorf("call IsStaker err :%v", err)
 	}
 	return isStaker, nil
 }
