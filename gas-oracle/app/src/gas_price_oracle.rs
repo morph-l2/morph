@@ -71,7 +71,7 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
 async fn start_updater(
     config: Config,
     base_fee_updater: BaseFeeUpdater,
-    mut overhead_updater: ScalarUpdater,
+    mut scalar_updater: ScalarUpdater,
 ) {
     tokio::spawn(async move {
         let mut update_times = 0;
@@ -90,7 +90,7 @@ async fn start_updater(
             }
             // Waiting for confirmation of the previous transaction.
             sleep(Duration::from_millis(6000)).await;
-            let _ = overhead_updater
+            let _ = scalar_updater
                 .update()
                 .await
                 .map_err(|e| log::error!("overhead_updater err: {:?}", e));
