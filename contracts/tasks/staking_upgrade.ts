@@ -1413,3 +1413,24 @@ task("record-upgrade")
 
         console.log(`upgrade record ${rec.status == 1 ? "success" : "failed"}`)    
     })
+
+task("gaspriceoracle-upgrade")
+    .addParam("owner")
+    .setAction(async (taskArgs, hre) => {
+        const _owner = taskArgs.owner
+
+        const GPOFactory = await hre.ethers.getContractFactory("GasPriceOracle")
+        const gpoNewImpl = await GPOFactory.deploy(_owner)
+        await gpoNewImpl.deployed()
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log(`GasPriceOracle new impl deploy at ${gpoNewImpl.address} and height ${blockNumber}`)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+        let res = await proxyAdmin.upgrade(
+            predeploys.GasPriceOracle, 
+            gpoNewImpl.address)
+        let rec = await res.wait()
+
+        console.log(`upgrade GasPriceOracle ${rec.status == 1 ? "success" : "failed"}`)    
+    })
