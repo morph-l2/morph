@@ -74,7 +74,7 @@ contract L2StakingTest is L2StakingBaseTest {
             new bytes(0)
         );
 
-        // Deploy L1CrossDomainMessenger implementation.
+        // Deploy L2Staking implementation.
         L2Staking l2StakingImplTemp = new L2Staking(payable(NON_ZERO_ADDRESS));
 
         Types.StakerInfo[] memory stakerInfos = new Types.StakerInfo[](SEQUENCER_SIZE);
