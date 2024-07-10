@@ -45,7 +45,7 @@ contract ShadowRollup is Ownable {
     ///
     /// @param _batchIndex The index of batch
     /// @param _batchData The batch data
-    function commitBatch(uint64 _batchIndex, BatchStore calldata _batchData) external {
+    function commitBatch(uint64 _batchIndex, BatchStore calldata _batchData) external onlyOwner {
         committedBatchStores[_batchIndex] = _batchData;
     }
 
