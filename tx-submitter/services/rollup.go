@@ -513,7 +513,7 @@ func (sr *Rollup) rollup() error {
 		}
 	}
 
-	if len(sr.pendingTxs.txinfos) > 11 {
+	if len(sr.pendingTxs.txinfos) > int(sr.cfg.MaxTxsInPendingPool) {
 		log.Info("too many txs in mempool, wait")
 		return nil
 	}

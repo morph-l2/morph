@@ -213,6 +213,13 @@ var (
 		Value:  100, //fee = x * origin_fee/100
 		EnvVar: prefixEnvVar("CALL_DATA_FEE_BUMP"),
 	}
+
+	MaxTxsInPendingPoolFlag = cli.Uint64Flag{
+		Name:   "MAX_TXS_IN_PENDING_POOL",
+		Usage:  "The maximum number of transactions in the pending pool",
+		Value:  12,
+		EnvVar: prefixEnvVar("MAX_TXS_IN_PENDING_POOL"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -253,6 +260,7 @@ var optionalFlags = []cli.Flag{
 	L2SequencerAddressFlag,
 	L2GovAddressFlag,
 	CalldataFeeBumpFlag,
+	MaxTxsInPendingPoolFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

@@ -82,6 +82,8 @@ type Config struct {
 	JournalFilePath string
 	// calldata fee bump
 	CalldataFeeBump uint64
+	//max txs in pendingpool
+	MaxTxsInPendingPool uint64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -128,7 +130,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 
 		JournalFilePath: ctx.GlobalString(flags.JournalFlag.Name),
 		// calldata fee bump
-		CalldataFeeBump: ctx.GlobalUint64(flags.CalldataFeeBumpFlag.Name),
+		CalldataFeeBump:     ctx.GlobalUint64(flags.CalldataFeeBumpFlag.Name),
+		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
 	}
 
 	return cfg, nil
