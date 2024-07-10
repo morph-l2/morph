@@ -18,6 +18,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/tendermint/tendermint/crypto/ed25519"
+	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	tmtypes "github.com/tendermint/tendermint/types"
 )
 
@@ -182,14 +183,27 @@ func (o *Oracle) L2HeaderByNumberWithRetry(height int64) (*tmtypes.Header, error
 	var res *tmtypes.Header
 	err := backoff.DoCtx(o.ctx, 3, backoff.Exponential(), func() error {
 		var err error
-		headerResp, err := o.TmClient.Header(context.Background(), &height)
+		headerResp, err := o.getHeader(height)
 		if err != nil {
 			return err
 		}
-		res = headerResp.Header
+		res = headerResp
 		return nil
 	})
 	return res, err
+}
+
+func (o *Oracle) getHeader(height int64) (*tmtypes.Header, error) {
+	result := new(ctypes.ResultHeader)
+	params := make(map[string]interface{})
+	if height != 0 {
+		params["height"] = &height
+	}
+	_, err := o.TmClient.Call(o.ctx, "header", params, result)
+	if err != nil {
+		return nil, err
+	}
+	return result.Header, nil
 }
 
 func (o *Oracle) getSequencer(proposerAddress tmtypes.Address, blockNumber *big.Int) (common.Address, error) {

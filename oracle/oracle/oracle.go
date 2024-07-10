@@ -21,7 +21,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
-	tmhttp "github.com/tendermint/tendermint/rpc/client/http"
+	jsonrpcclient "github.com/tendermint/tendermint/rpc/jsonrpc/client"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -72,11 +72,12 @@ type Oracle struct {
 	gov                 *bindings.Gov
 	rollup              *bindings.Rollup
 	record              *bindings.Record
-	TmClient            *tmhttp.HTTP
+	TmClient            *jsonrpcclient.Client
 	rewardEpoch         time.Duration
 	cfg                 *config.Config
 	privKey             *ecdsa.PrivateKey
 	isFinalized         bool
+	enable              bool
 	rollupEpochMaxBlock uint64
 	metrics             *metrics.Metrics
 }
@@ -127,9 +128,13 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	if err != nil {
 		panic(err)
 	}
-	tmClient, err := tmhttp.New(cfg.TendermintRpc, cfg.WsEndpoint)
+	httpClient, err := jsonrpcclient.DefaultHTTPClient(cfg.TendermintRpc)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+	tmClient, err := jsonrpcclient.NewWithHTTPClient(cfg.TendermintRpc, httpClient)
+	if err != nil {
+		return nil, err
 	}
 
 	rollup, err := bindings.NewRollup(cfg.RollupAddr, l1Client)
@@ -196,14 +201,17 @@ func (o *Oracle) Start() {
 		}
 	}()
 
-	go func() {
-		for {
-			if err := o.recordRollupEpoch(); err != nil {
-				log.Error("record rollup epoch failed", "error", err)
-				time.Sleep(30 * time.Second)
+	if o.enable {
+		go func() {
+			for {
+				if err := o.recordRollupEpoch(); err != nil {
+					log.Error("record rollup epoch failed", "error", err)
+					time.Sleep(30 * time.Second)
+				}
 			}
-		}
-	}()
+		}()
+	}
+
 }
 
 func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {

@@ -198,8 +198,9 @@ func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 	if nonEmptyChunkNum == 0 {
 		return nil, nil
 	}
-	// skip metadata: 2bytes(chunkNum) + 15*4bytes(size per chunk)
-	reader := bytes.NewReader(data[62:])
+	// skip metadata: 2bytes(chunkNum) + maxChunks*4bytes(size per chunk)
+	skipBytes := 2 + MaxChunks*4
+	reader := bytes.NewReader(data[skipBytes:])
 	txs := make(eth.Transactions, 0)
 	for {
 		var (

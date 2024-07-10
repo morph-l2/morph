@@ -32,43 +32,24 @@ interface IRollup {
         bytes signature;
     }
 
-    /// @param batchHash
-    /// @param batchVersion
     /// @param originTimestamp
     /// @param finalizeTimestamp
     /// @param blockNumber
-    struct BatchBase {
-        bytes32 batchHash;
-        uint256 batchVersion;
-        uint256 originTimestamp;
-        uint256 finalizeTimestamp;
-        uint256 blockNumber;
-    }
-
-    /// @param blobVersionedHash
-    /// @param l1DataHash
     /// @param prevStateRoot
     /// @param postStateRoot
     /// @param withdrawalRoot
-    /// @param l1MessagePopped
-    /// @param totalL1MessagePopped
-    /// @param skippedL1MessageBitmap
     struct BatchData {
-        bytes32 blobVersionedHash;
-        bytes32 l1DataHash;
+        uint256 originTimestamp;
+        uint256 finalizeTimestamp;
+        uint256 blockNumber;
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
-        uint256 l1MessagePopped;
-        uint256 totalL1MessagePopped;
-        bytes skippedL1MessageBitmap;
     }
 
-    /// @param blsMsgHash
     /// @param sequencerSetVerifyHash
     /// @param sequencers
     struct BatchSignature {
-        bytes32 blsMsgHash;
         bytes32 sequencerSetVerifyHash;
         bytes signedSequencers;
     }
@@ -159,7 +140,7 @@ interface IRollup {
     /// @param batchIndex   The index of the batch.
     /// @param winner       The address of winner.
     /// @param res          The result of challenge.
-    event ChallengeRes(uint64 indexed batchIndex, address indexed winner, string indexed res);
+    event ChallengeRes(uint256 indexed batchIndex, address indexed winner, string indexed res);
 
     /*************************
      * Public View Functions *

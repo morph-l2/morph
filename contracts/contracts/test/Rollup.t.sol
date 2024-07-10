@@ -123,7 +123,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
 
         // finalize batch1
         hevm.warp(block.timestamp + rollup.finalizationPeriodSeconds() + 1);
-        rollup.finalizeBatch(1);
+        rollup.finalizeBatch(batchHeader1);
         assertTrue(rollup.isBatchFinalized(1));
         assertEq(rollup.finalizedStateRoots(1), stateRoot);
         assertTrue(rollup.withdrawalRoots(bytes32(uint256(3))));
@@ -183,7 +183,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(batchHeader2, add(0x20, 1)), shl(192, 2)) // batchIndex = 2
             mstore(add(batchHeader2, add(0x20, 9)), shl(192, 264)) // l1MessagePopped = 264
             mstore(add(batchHeader2, add(0x20, 17)), shl(192, 265)) // totalL1MessagePopped = 265
-            mstore(add(batchHeader2, add(0x20, 25)), 0x3c71d155351642d15f1542a1543ce423abeca1f8939100a0a34cdc3127b95f69) // l1dataHash
+            mstore(add(batchHeader2, add(0x20, 25)), 0xdae89323bf398ca9f6f8e83b1b0d603334be063fa3920015b6aa9df77a0ccbcd) // dataHash
             mstore(add(batchHeader2, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader2, add(0x20, 89)), batchHash1) // parentBatchHash
             mstore(
@@ -302,7 +302,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         // verify committed batch correctly
         hevm.startPrank(address(0));
         hevm.warp(block.timestamp + rollup.finalizationPeriodSeconds());
-        rollup.finalizeBatch(2);
+        rollup.finalizeBatch(batchHeader2);
         hevm.stopPrank();
 
         assertTrue(rollup.isBatchFinalized(2));
@@ -459,12 +459,12 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
-        // incorrect parent batch hash, revert
+        // incorrect batch hash, revert
         assembly {
             mstore(add(batchHeader0, add(0x20, 25)), 2) // change data hash for batch0
         }
         hevm.startPrank(alice);
-        hevm.expectRevert("incorrect parent batch hash");
+        hevm.expectRevert("incorrect batch hash");
         batchDataInput = IRollup.BatchDataInput(
             0,
             batchHeader0,
@@ -726,7 +726,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
 
         hevm.expectRevert("Pausable: paused");
-        rollup.finalizeBatch(0);
+        rollup.finalizeBatch(new bytes(0));
         hevm.stopPrank();
 
         // unpause

@@ -251,6 +251,8 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @param delegatee     delegatee address
     /// @param delegator     delegatee address
     function queryUnclaimed(address delegatee, address delegator) external view returns (uint256 reward) {
+        require(unclaimed[delegator].delegatees.length() != 0, "invalid delegator or no remaining reward");
+        require(unclaimed[delegator].delegatees.contains(delegatee), "no remaining reward of the delegatee");
         uint256 totalAmount;
         uint256 delegatorAmount;
         uint256 start = unclaimed[delegator].unclaimedStart[delegatee];

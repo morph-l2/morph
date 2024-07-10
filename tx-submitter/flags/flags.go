@@ -3,6 +3,8 @@ package flags
 import (
 	"time"
 
+	"morph-l2/bindings/predeploys"
+
 	"github.com/urfave/cli"
 )
 
@@ -81,23 +83,19 @@ var (
 	}
 
 	// L2 contract
-	SubmitterAddressFlag = cli.StringFlag{
-		Name:     "L2_SUBMITTER_ADDRESS",
-		Usage:    "Address of the submitter contract",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_SUBMITTER_ADDRESS"),
-	}
 	L2SequencerAddressFlag = cli.StringFlag{
 		Name:     "L2_SEQUENCER_ADDRESS",
 		Usage:    "Address of the sequencer contract",
-		Required: true,
+		Required: false,
 		EnvVar:   prefixEnvVar("L2_SEQUENCER_ADDRESS"),
+		Value:    predeploys.Sequencer,
 	}
 	L2GovAddressFlag = cli.StringFlag{
 		Name:     "L2_GOV_ADDRESS",
 		Usage:    "Address of the gov contract",
-		Required: true,
+		Required: false,
 		EnvVar:   prefixEnvVar("L2_GOV_ADDRESS"),
+		Value:    predeploys.Gov,
 	}
 
 	/* Optional Flags */
@@ -208,6 +206,20 @@ var (
 		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
 		Value:  "journal.rlp",
 	}
+
+	CalldataFeeBumpFlag = cli.Uint64Flag{
+		Name:   "CALL_DATA_FEE_BUMP",
+		Usage:  "The fee bump for call data",
+		Value:  100, //fee = x * origin_fee/100
+		EnvVar: prefixEnvVar("CALL_DATA_FEE_BUMP"),
+	}
+
+	MaxTxsInPendingPoolFlag = cli.Uint64Flag{
+		Name:   "MAX_TXS_IN_PENDING_POOL",
+		Usage:  "The maximum number of transactions in the pending pool",
+		Value:  12,
+		EnvVar: prefixEnvVar("MAX_TXS_IN_PENDING_POOL"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -218,12 +230,10 @@ var requiredFlags = []cli.Flag{
 	TxTimeoutFlag,
 	FinalizeFlag,
 	PriorityRollupFlag,
-	SubmitterAddressFlag,
-	L2SequencerAddressFlag,
+
 	PrivateKeyFlag,
 	TxFeeLimitFlag,
 	L1StakingAddressFlag,
-	L2GovAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -246,6 +256,11 @@ var optionalFlags = []cli.Flag{
 	GasLimitBuffer,
 
 	JournalFlag,
+
+	L2SequencerAddressFlag,
+	L2GovAddressFlag,
+	CalldataFeeBumpFlag,
+	MaxTxsInPendingPoolFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

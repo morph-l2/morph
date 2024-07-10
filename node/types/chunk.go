@@ -15,7 +15,7 @@ import (
 const (
 	NormalizedRowLimit = 1_000_000
 	MaxBlocksPerChunk  = 100
-	MaxChunks          = 15
+	MaxChunks          = 45
 )
 
 type Chunk struct {
@@ -216,7 +216,7 @@ func (cks *Chunks) appendBlobBytes(txsPayload []byte, appendChunk bool) []byte {
 	copy(blobBytes, cks.blobPayload)
 
 	if len(blobBytes) == 0 && !appendChunk {
-		panic(errors.New("Incorrect state. Chunk has not been appended while blobPayload is empty "))
+		panic("Incorrect state. Chunk has not been appended while blobPayload is empty")
 	}
 	if len(cks.data) == MaxChunks && appendChunk {
 		panic(fmt.Errorf("can not append chunk up to more than %d", MaxChunks))

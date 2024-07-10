@@ -104,6 +104,7 @@ services:
       - --password=/execution/password
       - --nodiscover
       - --syncmode=full
+      - --gcmode=archive
     ports:
       - 8551
       - 9545:8545

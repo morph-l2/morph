@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
 	"time"
 
 	"morph-l2/bindings/bindings"
+	ntype "morph-l2/node/types"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -38,7 +38,8 @@ func Loop(ctx context.Context, period time.Duration, f func()) {
 func ParseFBatchIndex(calldata []byte) uint64 {
 	abi, _ := bindings.RollupMetaData.GetAbi()
 	parms, _ := abi.Methods["finalizeBatch"].Inputs.Unpack(calldata[4:])
-	return parms[0].(*big.Int).Uint64()
+	batchHeader, _ := ntype.DecodeBatchHeader(parms[0].([]byte))
+	return batchHeader.BatchIndex
 }
 
 func ParseParentBatchIndex(calldata []byte) uint64 {
@@ -116,14 +117,14 @@ func ParseBusinessInfo(tx types.Transaction, a *abi.ABI) []interface{} {
 			)
 		} else if bytes.Equal(id, a.Methods["finalizeBatch"].ID) {
 			method := "finalizeBatch"
-			fIndex, err := a.Methods["finalizeBatch"].Inputs.Unpack(tx.Data()[4:])
+			parms, err := a.Methods["finalizeBatch"].Inputs.Unpack(tx.Data()[4:])
 			if err != nil {
 				log.Error("unpack finalizeBatch error", "err", err)
 			}
-			finalizedIndex := fIndex[0].(*big.Int).Uint64()
+			batchHeader, _ := ntype.DecodeBatchHeader(parms[0].([]byte))
 			res = append(res,
 				"method", method,
-				"finalizedIndex", finalizedIndex,
+				"finalizedIndex", batchHeader.BatchIndex,
 			)
 
 		}
