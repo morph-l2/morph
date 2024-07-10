@@ -513,7 +513,7 @@ func (sr *Rollup) rollup() error {
 		}
 	}
 
-	if len(sr.pendingTxs.txinfos) > 11 {
+	if len(sr.pendingTxs.txinfos) > int(sr.cfg.MaxTxsInPendingPool) {
 		log.Info("too many txs in mempool, wait")
 		return nil
 	}
@@ -787,6 +787,17 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	if head.ExcessBlobGas != nil {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
 	}
+
+	//calldata fee bump x*fee/100
+	if sr.cfg.CalldataFeeBump > 0 {
+		// feecap
+		gasFeeCap = new(big.Int).Mul(gasFeeCap, big.NewInt(int64(sr.cfg.CalldataFeeBump)))
+		gasFeeCap = new(big.Int).Div(gasFeeCap, big.NewInt(100))
+		// tip
+		tip = new(big.Int).Mul(tip, big.NewInt(int64(sr.cfg.CalldataFeeBump)))
+		tip = new(big.Int).Div(tip, big.NewInt(100))
+	}
+
 	return tip, gasFeeCap, blobFee, nil
 }
 
@@ -1122,7 +1133,7 @@ func (r *Rollup) IsStaker() (bool, error) {
 
 	isStaker, err := r.Staking.IsStaker(nil, common.HexToAddress(r.walletAddr()))
 	if err != nil {
-		return false, fmt.Errorf("failed to get staker info:%v", err)
+		return false, fmt.Errorf("call IsStaker err :%v", err)
 	}
 	return isStaker, nil
 }
