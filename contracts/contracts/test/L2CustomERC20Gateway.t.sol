@@ -3,6 +3,7 @@
 pragma solidity =0.8.24;
 
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
@@ -50,6 +51,105 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
         l2Token.approve(address(gateway), type(uint256).max);
     }
 
+    function test_initialize_initializer_reverts() public {
+        // Verify initialize can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        gateway.initialize(address(1), address(1), address(1));
+    }
+
+    function test_initialize_zeroAddress_reverts() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for L2CustomERC20Gateway.
+        TransparentUpgradeableProxy l2CustomERC20GatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L2CustomERC20Gateway contract.
+        L2CustomERC20Gateway l2CustomERC20GatewayImplTemp = new L2CustomERC20Gateway();
+        
+        // Expect revert due to zero router address.
+        hevm.expectRevert("zero router address");
+        ITransparentUpgradeableProxy(address(l2CustomERC20GatewayProxyTemp)).upgradeToAndCall(
+            address(l2CustomERC20GatewayImplTemp),
+            abi.encodeCall(
+                L2CustomERC20Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0), // _router
+                    address(NON_ZERO_ADDRESS) // _messenger
+                )
+            )
+        );
+        
+        // Expect revert due to zero counterpart address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l2CustomERC20GatewayProxyTemp)).upgradeToAndCall(
+            address(l2CustomERC20GatewayImplTemp),
+            abi.encodeCall(
+                L2CustomERC20Gateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(NON_ZERO_ADDRESS), // _router
+                    address(NON_ZERO_ADDRESS) // _messenger
+                )
+            )
+        );
+
+        // Expect revert due to zero messenger address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l2CustomERC20GatewayProxyTemp)).upgradeToAndCall(
+            address(l2CustomERC20GatewayImplTemp),
+            abi.encodeCall(
+                L2CustomERC20Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(NON_ZERO_ADDRESS), // _router
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_succeeds() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for the L2CustomERC20Gateway.
+        TransparentUpgradeableProxy l2CustomERC20GatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L2CustomERC20Gateway contract.
+        L2CustomERC20Gateway l2CustomERC20GatewayImplTemp = new L2CustomERC20Gateway();
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l2CustomERC20GatewayProxyTemp)).upgradeToAndCall(
+            address(l2CustomERC20GatewayImplTemp),
+            abi.encodeCall(
+                L2CustomERC20Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2GatewayRouter), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Cast the proxy contract address to the L2CustomERC20Gateway contract type to call its methods.
+        L2CustomERC20Gateway l2CustomERC20GatewayTemp = L2CustomERC20Gateway((address(l2CustomERC20GatewayProxyTemp)));
+        hevm.stopPrank();
+        
+        // Verify the counterpart, router and messenger are initialized successfully.
+        assertEq(l2CustomERC20GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l2CustomERC20GatewayTemp.router(), address(l2GatewayRouter));
+        assertEq(l2CustomERC20GatewayTemp.messenger(), address(l2CrossDomainMessenger));
+    }
+
     function test_updateTokenMapping_onlyOwner_fails(address token2) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
@@ -64,6 +164,10 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
 
     function test_updateTokenMapping_succeeds(address token1, address token2) public {
         hevm.assume(token1 != address(0));
+
+        // Expect the UpdateTokenMapping event to be emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit L2CustomERC20Gateway.UpdateTokenMapping(token2, address(0), token1);
 
         assertEq(gateway.getL1ERC20Address(token2), address(0));
         gateway.updateTokenMapping(token2, token1);
