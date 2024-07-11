@@ -3,7 +3,7 @@ module morph-l2/oracle
 go 1.22
 
 replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240627065844-a0368033f416
+	github.com/scroll-tech/go-ethereum v1.11.4 => github.com/morph-l2/go-ethereum v1.10.14-0.20240627065844-a0368033f416
 	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
 )
 
@@ -76,7 +76,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/rjeczalik/notify v0.9.3 // indirect
-	github.com/rs/cors v1.10.1 // indirect
+	github.com/rs/cors v1.11.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/scroll-tech/zktrie v0.8.4 // indirect

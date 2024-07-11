@@ -81,7 +81,7 @@ library BatchHeaderCodecV0 {
     /// @notice Get the data hash of the batch header.
     /// @param batchPtr The start memory offset of the batch header in memory.
     /// @return _dataHash The data hash of the batch header.
-    function getDataHash(uint256 batchPtr) internal pure returns (bytes32 _dataHash) {
+    function getL1DataHash(uint256 batchPtr) internal pure returns (bytes32 _dataHash) {
         assembly {
             _dataHash := mload(add(batchPtr, 25))
         }
