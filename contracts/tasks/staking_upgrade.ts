@@ -1434,3 +1434,25 @@ task("gaspriceoracle-upgrade")
 
         console.log(`upgrade GasPriceOracle ${rec.status == 1 ? "success" : "failed"}`)    
     })
+
+task("l2staking-upgrade")
+    .addParam("l1staking")
+    .setAction(async (taskArgs, hre) => {
+        const _l1Staking = taskArgs.l1staking
+
+        const L2StakingFactory = await hre.ethers.getContractFactory("L2Staking")
+        const l2StakingNewImpl = await L2StakingFactory.deploy(_l1Staking)
+        await l2StakingNewImpl.deployed()
+
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log(`L2Staking new impl deploy at ${l2StakingNewImpl.address} and height ${blockNumber}`)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+        let res = await proxyAdmin.upgrade(
+            predeploys.L2Staking, 
+            l2StakingNewImpl.address)
+        let rec = await res.wait()
+
+        console.log(`upgrade L2Staking ${rec.status == 1 ? "success" : "failed"}`)    
+    })
