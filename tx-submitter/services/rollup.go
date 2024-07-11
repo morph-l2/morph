@@ -393,7 +393,7 @@ func (sr *Rollup) finalize() error {
 		return fmt.Errorf("get next batch by index err:%v", err)
 	}
 	if batch == nil {
-		log.Info("batch is nil,wait to finalize", "batch_index", nextBatchIndex)
+		log.Info("next batch is nil,wait next batch header to finalize", "next_batch_index", nextBatchIndex)
 		return nil
 	}
 
