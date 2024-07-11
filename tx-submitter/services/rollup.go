@@ -392,6 +392,10 @@ func (sr *Rollup) finalize() error {
 		)
 		return fmt.Errorf("get next batch by index err:%v", err)
 	}
+	if batch == nil {
+		log.Info("batch is nil,wait to finalize", "batch_index", nextBatchIndex)
+		return nil
+	}
 
 	// calldata
 	calldata, err := sr.abi.Pack("finalizeBatch", []byte(batch.ParentBatchHeader))
