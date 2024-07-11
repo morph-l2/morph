@@ -119,7 +119,9 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 
 			if i == 0 {
 				lastHeightBeforeCurrentBatch = wBlock.Number - 1
-			} else if i == len(blocks)-1 {
+			}
+
+			if i == len(blocks)-1 {
 				lastBlockStateRoot = wBlock.StateRoot
 				lastBlockWithdrawRoot = wBlock.WithdrawTrieRoot
 			}
