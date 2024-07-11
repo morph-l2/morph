@@ -107,6 +107,8 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		var l1TxHashes []common.Hash
 		var totalL1MessagePopped = parentBatchHeader.TotalL1MessagePopped
 		var lastHeightBeforeCurrentBatch uint64
+		var lastBlockStateRoot common.Hash
+		var lastBlockWithdrawRoot common.Hash
 		var l2TxNum int
 
 		for i, blockBz := range blocks {
@@ -117,6 +119,9 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 
 			if i == 0 {
 				lastHeightBeforeCurrentBatch = wBlock.Number - 1
+			} else if i == len(blocks)-1 {
+				lastBlockStateRoot = wBlock.StateRoot
+				lastBlockWithdrawRoot = wBlock.WithdrawTrieRoot
 			}
 
 			totalL1MessagePoppedBefore := totalL1MessagePopped
@@ -148,6 +153,8 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			return false, 0, err
 		}
 		e.batchingCache.prevStateRoot = header.Root
+		e.batchingCache.postStateRoot = lastBlockStateRoot
+		e.batchingCache.withdrawRoot = lastBlockWithdrawRoot
 
 		// initialize latest batch index
 		e.metrics.BatchIndex.Set(float64(e.batchingCache.parentBatchHeader.BatchIndex))
