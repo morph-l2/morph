@@ -14,13 +14,11 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY ./go-ethereum/rollup/circuitcapacitychecker/libzkp .
 RUN cargo build --release
-RUN find ./ | grep libzktrie.so | xargs -I{} cp {} /app/target/release/
 
 FROM morph/go-rust-builder:go-1.22-rust-nightly-2023-12-03 as go-rust-builder
 
 COPY ./go-ethereum /go-ethereum
 COPY --from=zkp-builder /app/target/release/libzkp.so /usr/local/lib/
-COPY --from=zkp-builder /app/target/release/libzktrie.so /usr/local/lib/
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
 RUN cd /go-ethereum && env GO111MODULE=on GOFLAGS=-buildvcs=false go run build/ci.go install -buildtags circuit_capacity_checker ./cmd/geth
 
@@ -32,7 +30,6 @@ RUN apt-get -qq update \
 
 COPY --from=go-rust-builder /go-ethereum/build/bin/geth /usr/local/bin/
 COPY --from=zkp-builder /app/target/release/libzkp.so /usr/local/lib/
-COPY --from=zkp-builder /app/target/release/libzktrie.so /usr/local/lib/
 COPY ./ops/docker/entrypoint-l2.sh /entrypoint.sh
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
 
