@@ -525,6 +525,7 @@ func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {
 		TotalL1MessagePopped: 0,
 		DataHash:             chunks.DataHash(),
 		BlobVersionedHash:    types.EmptyVersionedHash,
+		PostStateRoot:        genesisHeader.Root,
 		ParentBatchHash:      common.Hash{},
 	}, nil
 }

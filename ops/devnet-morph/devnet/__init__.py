@@ -141,6 +141,7 @@ def devnet_deploy(paths, args):
 
     log.info('Generating L2 genesis and rollup configs.')
     run_command([
+        'env', 'CGO_ENABLED=1' 'CGO_LDFLAGS="-ldl"'
         'go', 'run', 'cmd/main.go', 'genesis', 'l2',
         '--l1-rpc', 'http://localhost:9545',
         '--deploy-config', temp_deploy_config,
