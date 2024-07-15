@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/bls12381"
@@ -21,11 +22,14 @@ type BatchingCache struct {
 	prevStateRoot     common.Hash
 
 	// accumulated batch data
-	chunks                *types.Chunks
-	totalL1MessagePopped  uint64
-	skippedBitmap         []*big.Int
-	postStateRoot         common.Hash
-	withdrawRoot          common.Hash
+	chunks                 *types.Chunks
+	totalL1MessagePopped   uint64
+	skippedBitmap          []*big.Int
+	postStateRoot          common.Hash
+	withdrawRoot           common.Hash
+	sequencerSetBytes      []byte
+	sequencerSetVerifyHash common.Hash
+
 	lastPackedBlockHeight uint64
 	// caches sealedBatchHeader according to the above accumulated batch data
 	sealedBatchHeader *types.BatchHeader
@@ -39,6 +43,8 @@ type BatchingCache struct {
 	skippedBitmapAfterCurBlock        []*big.Int
 	currentStateRoot                  common.Hash
 	currentWithdrawRoot               common.Hash
+	currentSequencerSetVerifyHash     common.Hash
+	currentSequencerSetBytes          []byte
 	currentBlockBytes                 []byte
 	currentTxsHash                    []byte
 	currentRowConsumption             eth.RowConsumption
@@ -67,6 +73,8 @@ func (bc *BatchingCache) ClearCurrent() {
 	bc.totalL1MessagePoppedAfterCurBlock = 0
 	bc.currentStateRoot = common.Hash{}
 	bc.currentWithdrawRoot = common.Hash{}
+	bc.currentSequencerSetVerifyHash = common.Hash{}
+	bc.currentSequencerSetBytes = nil
 	bc.currentBlockBytes = nil
 	bc.currentTxsHash = nil
 }
@@ -109,6 +117,8 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		var lastHeightBeforeCurrentBatch uint64
 		var lastBlockStateRoot common.Hash
 		var lastBlockWithdrawRoot common.Hash
+		var lastSequencerSetVerifyHash common.Hash
+		var lastSequencerSetBytes []byte
 		var l2TxNum int
 
 		for i, blockBz := range blocks {
@@ -121,9 +131,14 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 				lastHeightBeforeCurrentBatch = wBlock.Number - 1
 			}
 
-			if i == len(blocks)-1 {
+			if i == len(blocks)-1 { // last block
 				lastBlockStateRoot = wBlock.StateRoot
 				lastBlockWithdrawRoot = wBlock.WithdrawTrieRoot
+
+				lastSequencerSetBytes, lastSequencerSetVerifyHash, err = e.getSequencerSetInfoByHeight(wBlock.Number)
+				if err != nil {
+					return false, 0, err
+				}
 			}
 
 			totalL1MessagePoppedBefore := totalL1MessagePopped
@@ -157,6 +172,8 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		e.batchingCache.prevStateRoot = header.Root
 		e.batchingCache.postStateRoot = lastBlockStateRoot
 		e.batchingCache.withdrawRoot = lastBlockWithdrawRoot
+		e.batchingCache.sequencerSetBytes = lastSequencerSetBytes
+		e.batchingCache.sequencerSetVerifyHash = lastSequencerSetVerifyHash
 
 		// initialize latest batch index
 		e.metrics.BatchIndex.Set(float64(e.batchingCache.parentBatchHeader.BatchIndex))
@@ -219,6 +236,10 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		TotalL1MessagePopped:   e.batchingCache.totalL1MessagePopped,
 		DataHash:               e.batchingCache.chunks.DataHash(),
 		BlobVersionedHash:      blobHashes[0], // currently we only have one blob
+		PrevStateRoot:          e.batchingCache.prevStateRoot,
+		PostStateRoot:          e.batchingCache.postStateRoot,
+		WithdrawalRoot:         e.batchingCache.withdrawRoot,
+		SequencerSetVerifyHash: e.batchingCache.sequencerSetVerifyHash,
 		ParentBatchHash:        e.batchingCache.parentBatchHeader.Hash(),
 		SkippedL1MessageBitmap: skippedL1MessageBitmapBytes,
 	}
@@ -258,11 +279,6 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		}
 	}
 
-	sequencerBytes, err := e.sequencer.GetSequencerSetBytes(nil)
-	if err != nil {
-		return err
-	}
-
 	chunksBytes, err := e.batchingCache.chunks.Encode()
 	if err != nil {
 		return err
@@ -287,7 +303,7 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		Index:                    currentIndex,
 		Hash:                     e.batchingCache.sealedBatchHeader.Hash(),
 		ParentBatchHeader:        e.batchingCache.parentBatchHeader.Encode(),
-		CurrentSequencerSetBytes: sequencerBytes,
+		CurrentSequencerSetBytes: e.batchingCache.sequencerSetBytes,
 		Chunks:                   chunksBytes,
 		SkippedL1MessageBitmap:   e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
 		PrevStateRoot:            e.batchingCache.prevStateRoot,
@@ -315,6 +331,8 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	e.batchingCache.skippedBitmap = skippedBitmap
 	e.batchingCache.postStateRoot = e.batchingCache.currentStateRoot
 	e.batchingCache.withdrawRoot = e.batchingCache.currentWithdrawRoot
+	e.batchingCache.sequencerSetBytes = e.batchingCache.currentSequencerSetBytes
+	e.batchingCache.sequencerSetVerifyHash = e.batchingCache.currentSequencerSetVerifyHash
 	e.batchingCache.lastPackedBlockHeight = curHeight
 	e.batchingCache.chunks = types.NewChunks()
 	e.batchingCache.chunks.Append(e.batchingCache.currentBlockContext, e.batchingCache.currentTxsPayload, e.batchingCache.currentL1TxsHashes, e.batchingCache.currentRowConsumption)
@@ -367,6 +385,8 @@ func (e *Executor) PackCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes
 	e.batchingCache.totalL1MessagePopped = e.batchingCache.totalL1MessagePoppedAfterCurBlock
 	e.batchingCache.withdrawRoot = e.batchingCache.currentWithdrawRoot
 	e.batchingCache.postStateRoot = e.batchingCache.currentStateRoot
+	e.batchingCache.sequencerSetBytes = e.batchingCache.currentSequencerSetBytes
+	e.batchingCache.sequencerSetVerifyHash = e.batchingCache.currentSequencerSetVerifyHash
 	e.batchingCache.lastPackedBlockHeight = curHeight
 	e.batchingCache.ClearCurrent()
 
@@ -382,6 +402,18 @@ func (e *Executor) BatchHash(batchHeaderBytes []byte) ([]byte, error) {
 	return batchHeader.Hash().Bytes(), nil
 }
 
+func (e *Executor) getSequencerSetInfoByHeight(height uint64) (sequencerSetBytes []byte, sequencerSetVerifyHash common.Hash, err error) {
+	callOpts := &bind.CallOpts{
+		BlockNumber: big.NewInt(int64(height)),
+	}
+	sequencerSetBytes, err = e.sequencer.GetSequencerSetBytes(callOpts)
+	if err != nil {
+		return
+	}
+	sequencerSetVerifyHash, err = e.sequencer.SequencerSetVerifyHash(callOpts)
+	return
+}
+
 func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.Txs) error {
 	currentTxsPayload, curL1TxsHashes, totalL1MessagePopped, skippedBitmap, l2TxNum, err := ParsingTxs(currentTxs, e.batchingCache.parentBatchHeader.TotalL1MessagePopped, e.batchingCache.totalL1MessagePopped, e.batchingCache.skippedBitmap)
 	if err != nil {
@@ -391,6 +423,12 @@ func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.
 	if err = curBlock.UnmarshalBinary(currentBlockBytes); err != nil {
 		return err
 	}
+
+	sequencerSetBytes, sequencerSetVerifyHash, err := e.getSequencerSetInfoByHeight(curBlock.Number)
+	if err != nil {
+		return err
+	}
+
 	l1TxNum := int(totalL1MessagePopped - e.batchingCache.totalL1MessagePopped)
 	currentBlockContext := curBlock.BlockContextBytes(l2TxNum+l1TxNum, l1TxNum)
 	e.batchingCache.currentBlockContext = currentBlockContext
@@ -401,6 +439,8 @@ func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.
 	e.batchingCache.skippedBitmapAfterCurBlock = skippedBitmap
 	e.batchingCache.currentStateRoot = curBlock.StateRoot
 	e.batchingCache.currentWithdrawRoot = curBlock.WithdrawTrieRoot
+	e.batchingCache.currentSequencerSetBytes = sequencerSetBytes
+	e.batchingCache.currentSequencerSetVerifyHash = sequencerSetVerifyHash
 	e.batchingCache.currentBlockBytes = currentBlockBytes
 	e.batchingCache.currentTxsHash = currentTxs.Hash()
 	e.batchingCache.currentRowConsumption = curBlock.RowConsumption
