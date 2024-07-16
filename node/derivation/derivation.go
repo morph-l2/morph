@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/scroll-tech/go-ethereum/eth/catalyst"
 	"math/big"
 	"os"
 	"time"
@@ -185,6 +186,20 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		batchInfo, err := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 		if err != nil {
 			if errors.Is(err, types.ErrNotCommitBatchTx) {
+				rollupCommitBatch, err := d.rollup.ParseCommitBatch(lg)
+				if err != nil {
+					d.logger.Error("parse commit batch failed", "err", err)
+					return
+				}
+				// ignore genesis batch
+				if rollupCommitBatch.BatchIndex.Uint64() != 0 {
+					header, err := d.NewEmptyBlock()
+					if err != nil {
+						d.logger.Error("new empty block for genesis batch failed", "batchIndex", batchInfo, "blockNumber", header.Number)
+						return
+					}
+					d.logger.Info("new empty block for genesis batch", "batchIndex", batchInfo, "blockNumber", header.Number)
+				}
 				continue
 			}
 			d.logger.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
@@ -410,4 +425,15 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	return lastHeader, nil
+}
+
+func (d *Derivation) NewEmptyBlock() (*eth.Header, error) {
+	return d.l2Client.NewSafeL2Block(d.ctx, &catalyst.SafeL2Data{
+		// TODO
+		Number:       0,
+		GasLimit:     0,
+		BaseFee:      big.NewInt(0),
+		Timestamp:    0,
+		Transactions: [][]byte{},
+	})
 }
