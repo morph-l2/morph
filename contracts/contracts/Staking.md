@@ -8,7 +8,7 @@
 
 Morph token staking will be divided into three stages:
 
-- MorphToken has not yet issued yet
+- MorphToken has not yet been issued yet
 - MorphToken has been issued, but inflation and staking rewards have not started yet.
 - Inflation starts and distribute staking rewards
 
