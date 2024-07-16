@@ -39,7 +39,7 @@ type Hardhat struct {
 
 // New creates a new `Hardhat` struct and reads all of the files from
 // disk so that they are cached for the end user. A network is passed
-// that corresponds to the network that they deployments are associated
+// that corresponds to the network that the deployments are associated
 // with. A slice of artifact paths and deployment paths are passed
 // so that a single `Hardhat` instance can operate on multiple sets
 // of artifacts and deployments. The deployments paths should be
