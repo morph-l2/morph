@@ -52,7 +52,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		ArchimedesBlock:         big.NewInt(0),
 		ShanghaiBlock:           big.NewInt(0),
 		BernoulliBlock:          big.NewInt(0),
-		CurieBlock:              nil,
+		CurieBlock:              big.NewInt(0),
 		TerminalTotalDifficulty: big.NewInt(0),
 		Scroll: params.ScrollConfig{
 			UseZktrie:                 true,
