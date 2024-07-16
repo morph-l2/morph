@@ -234,6 +234,12 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	if sidecar != nil && len(sidecar.Blobs) > 0 {
 		blobHashes = sidecar.BlobHashes()
 	}
+
+	var (
+		batchBytes []byte
+		batchHash  common.Hash
+	)
+
 	batchHeader := types.BatchHeader{
 		Version:                0,
 		BatchIndex:             e.batchingCache.parentBatchHeader.BatchIndex + 1,
@@ -246,7 +252,8 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	}
 	e.batchingCache.sealedBatchHeader = &batchHeader
 	e.batchingCache.sealedSidecar = sidecar
-	batchHash := e.batchingCache.sealedBatchHeader.Hash()
+	batchBytes = batchHeader.Encode()
+	batchHash = batchHeader.Hash()
 	e.logger.Info("Sealed batch header", "batchHash", batchHash.Hex())
 	e.logger.Info(fmt.Sprintf("===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===blockNum: %d \n===ParentBatchHash: %x \n===SkippedL1MessageBitmap: %x \n",
 		batchHeader.BatchIndex,
@@ -272,13 +279,34 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		if len(blobHashes) != 1 || blobHashes[0] != types.EmptyVersionedHash {
 			panic("the blob hash should be empty hash in this batch!")
 		}
-		batchHeaderJson, err := json.Marshal(&batchHeader)
+
+		// use new batch header instead
+		e.logger.Info("we are trying to generate genesis batch for upgraded version")
+		batchHeaderAfter := types.BatchHeaderAfter{
+			Version:              0,
+			BatchIndex:           e.batchingCache.parentBatchHeader.BatchIndex + 1,
+			L1MessagePopped:      0,
+			TotalL1MessagePopped: e.batchingCache.totalL1MessagePopped,
+			DataHash:             e.batchingCache.chunks.DataHash(),
+			BlobVersionedHash:    types.EmptyVersionedHash,
+			PrevStateRoot:        e.batchingCache.prevStateRoot,
+			PostStateRoot:        e.batchingCache.postStateRoot,
+			WithdrawalRoot:       e.batchingCache.withdrawRoot,
+			ParentBatchHash:      e.batchingCache.parentBatchHeader.Hash(),
+		}
+		batchBytes = batchHeaderAfter.Encode()
+		batchHash = batchHeaderAfter.Hash()
+		batchHeaderJson, err := json.Marshal(&batchHeaderAfter)
 		if err != nil {
 			panic(err)
 		}
-		e.logger.Info("The batch header", "batch index", batchHeader.BatchIndex, "postStateRoot", e.batchingCache.postStateRoot.Hex(), "json format", string(batchHeaderJson), "encoded hex", hex.EncodeToString(batchHeader.Encode()))
+		e.logger.Info("The genesis batch header for upgrading",
+			"batch index", batchHeader.BatchIndex,
+			"batch hash", batchHash.String(),
+			"json format", string(batchHeaderJson),
+			"encoded hex", hex.EncodeToString(batchBytes))
 	}
-	return batchHash[:], e.batchingCache.sealedBatchHeader.Encode(), nil
+	return batchHash[:], batchBytes, nil
 }
 
 // CommitBatch commit the sealed batch. It does nothing if no batch header is sealed.

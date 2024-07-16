@@ -11,6 +11,54 @@ import (
 
 var EmptyVersionedHash = common.HexToHash("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
 
+type BatchHeaderAfter struct {
+	Version                uint8
+	BatchIndex             uint64
+	L1MessagePopped        uint64
+	TotalL1MessagePopped   uint64
+	DataHash               common.Hash
+	BlobVersionedHash      common.Hash
+	PrevStateRoot          common.Hash
+	PostStateRoot          common.Hash
+	WithdrawalRoot         common.Hash
+	SequencerSetVerifyHash common.Hash
+	ParentBatchHash        common.Hash
+	SkippedL1MessageBitmap hexutil.Bytes
+
+	//cache
+	EncodedBytes hexutil.Bytes `json:"-"`
+}
+
+func (b *BatchHeaderAfter) Encode() []byte {
+	if len(b.EncodedBytes) > 0 {
+		return b.EncodedBytes
+	}
+	batchBytes := make([]byte, 249+len(b.SkippedL1MessageBitmap))
+	batchBytes[0] = b.Version
+	binary.BigEndian.PutUint64(batchBytes[1:], b.BatchIndex)
+	binary.BigEndian.PutUint64(batchBytes[9:], b.L1MessagePopped)
+	binary.BigEndian.PutUint64(batchBytes[17:], b.TotalL1MessagePopped)
+	copy(batchBytes[25:], b.DataHash[:])
+	copy(batchBytes[57:], b.BlobVersionedHash[:])
+	copy(batchBytes[89:], b.PrevStateRoot[:])
+	copy(batchBytes[121:], b.PostStateRoot[:])
+	copy(batchBytes[153:], b.WithdrawalRoot[:])
+	copy(batchBytes[185:], b.SequencerSetVerifyHash[:])
+	copy(batchBytes[217:], b.ParentBatchHash[:])
+	copy(batchBytes[249:], b.SkippedL1MessageBitmap[:])
+	b.EncodedBytes = batchBytes
+	return batchBytes
+}
+
+// Hash calculates the hash of the batch header.
+func (b *BatchHeaderAfter) Hash() common.Hash {
+	if len(b.EncodedBytes) == 0 {
+		b.Encode()
+	}
+
+	return crypto.Keccak256Hash(b.EncodedBytes)
+}
+
 type BatchHeader struct {
 	// Encoded in BatchHeaderV0Codec
 	Version                uint8
