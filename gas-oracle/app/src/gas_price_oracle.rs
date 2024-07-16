@@ -1,7 +1,7 @@
 use crate::{
     abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
+    da_scalar::l1_scalar::ScalarUpdater,
     l1_base_fee::BaseFeeUpdater,
-    overhead::overhead::OverHeadUpdater,
     read_parse_env,
 };
 use ethers::{
@@ -22,16 +22,13 @@ use crate::{metrics::*, read_env_var};
 struct Config {
     l1_rpc: String,
     l2_rpc: String,
-    gas_threshold: u128,
-    overhead_threshold: u128,
+    gas_threshold: u64,
     interval: u64,
     overhead_interval: u64,
     l1_rollup_address: Address,
     l2_oracle_address: Address,
     private_key: String,
     l1_beacon_rpc: String,
-    overhead_switch: bool,
-    max_overhead: u128,
 }
 
 impl Config {
@@ -43,7 +40,6 @@ impl Config {
             l1_rpc: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env"),
             l2_rpc: var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env"),
             gas_threshold: read_parse_env("GAS_THRESHOLD"),
-            overhead_threshold: read_parse_env("OVERHEAD_THRESHOLD"),
             interval: read_parse_env("INTERVAL"),
             overhead_interval: read_parse_env("OVERHEAD_INTERVAL"),
             l1_rollup_address: Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env"))?,
@@ -52,8 +48,6 @@ impl Config {
             )?,
             private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env"),
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
-            overhead_switch: read_env_var("OVERHEAD_SWITCH", false),
-            max_overhead: read_env_var("MAX_OVERHEAD", 200000),
         })
     }
 }
@@ -62,23 +56,22 @@ impl Config {
 pub async fn update() -> Result<(), Box<dyn Error>> {
     let config = Config::new()?;
 
-    let (base_fee_updater, overhead_updater) = prepare_updater(&config).await?;
+    let (base_fee_updater, scalar_updater) = prepare_updater(&config).await?;
 
-    // Start Updater.
-    let updater = start_updater(config, base_fee_updater, overhead_updater);
+    // Start updater.
+    let updater = start_updater(config, base_fee_updater, scalar_updater);
 
     // Start metric management.
     let metric = metric_mng();
 
     tokio::join!(updater, metric);
-
     Ok(())
 }
 
 async fn start_updater(
     config: Config,
     base_fee_updater: BaseFeeUpdater,
-    mut overhead_updater: OverHeadUpdater,
+    mut scalar_updater: ScalarUpdater,
 ) {
     tokio::spawn(async move {
         let mut update_times = 0;
@@ -96,8 +89,8 @@ async fn start_updater(
                 continue;
             }
             // Waiting for confirmation of the previous transaction.
-            sleep(Duration::from_millis(8000)).await;
-            let _ = overhead_updater
+            sleep(Duration::from_millis(6000)).await;
+            let _ = scalar_updater
                 .update()
                 .await
                 .map_err(|e| log::error!("overhead_updater err: {:?}", e));
@@ -108,7 +101,7 @@ async fn start_updater(
 
 async fn prepare_updater(
     config: &Config,
-) -> Result<(BaseFeeUpdater, OverHeadUpdater), Box<dyn Error>> {
+) -> Result<(BaseFeeUpdater, ScalarUpdater), Box<dyn Error>> {
     let l1_provider = Provider::<Http>::try_from(config.l1_rpc.clone())?;
     let l2_provider = Provider::<Http>::try_from(config.l2_rpc.clone())?;
     let l2_signer = Arc::new(SignerMiddleware::new(
@@ -130,16 +123,14 @@ async fn prepare_updater(
         config.gas_threshold,
     );
 
-    let overhead_updater = OverHeadUpdater::new(
+    let scalar_updater = ScalarUpdater::new(
         l1_provider.clone(),
         l2_oracle.clone(),
         l1_rollup,
-        config.overhead_threshold,
         config.l1_beacon_rpc.clone(),
-        config.overhead_switch,
-        config.max_overhead,
+        config.gas_threshold,
     );
-    Ok((base_fee_updater, overhead_updater))
+    Ok((base_fee_updater, scalar_updater))
 }
 
 async fn metric_mng() {
@@ -159,19 +150,14 @@ async fn metric_mng() {
 }
 
 fn register_metrics() {
-    // l1 base fee.
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee.clone())).unwrap();
-    // l1 base fee on l2.
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_base_fee_on_l2.clone())).unwrap();
-    // gas oracle owner balance.
-    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.gas_oracle_owner_balance.clone())).unwrap();
-    // gas oracle overhead.
-    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.overhead.clone())).unwrap();
-    // scalar ratio.
-    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.scalar_ratio.clone())).unwrap();
-    // txn per batch.
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_blob_base_fee_on_l2.clone())).unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.base_fee_scalar.clone())).unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.commit_scalar.clone())).unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.blob_scalar.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.txn_per_batch.clone())).unwrap();
-    // l1 prc.
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.gas_oracle_owner_balance.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_rpc_status.clone())).unwrap();
 }
 
