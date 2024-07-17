@@ -213,24 +213,36 @@ library BatchHeaderCodecV0 {
         }
     }
 
+    /// @dev Stores the previous state hash.
+    /// @param batchPtr The memory pointer to the location where the previous state hash will be stored.
+    /// @param _prevStateHash The hash of the previous state to be stored.
     function storePrevStateHash(uint256 batchPtr, bytes32 _prevStateHash) internal pure {
         assembly {
             mstore(add(batchPtr, 89), _prevStateHash)
         }
     }
 
+    /// @dev Stores the post-state hash.
+    /// @param batchPtr The memory pointer to the location where the post-state hash will be stored.
+    /// @param _postStateHash The hash of the post-state to be stored.
     function storePostStateHash(uint256 batchPtr, bytes32 _postStateHash) internal pure {
         assembly {
             mstore(add(batchPtr, 121), _postStateHash)
         }
     }
 
+    /// @dev Stores the withdrawal root hash.
+    /// @param batchPtr The memory pointer to the location where the hash will be stored.
+    /// @param _withdrawRootHash The hash of the withdrawal root to be stored.
     function storeWithdrawRootHash(uint256 batchPtr, bytes32 _withdrawRootHash) internal pure {
         assembly {
             mstore(add(batchPtr, 153), _withdrawRootHash)
         }
     }
 
+    /// @dev Stores the hash for verifying the sequencer set.
+    /// @param batchPtr The memory pointer to the batch data.
+    /// @param _sequencerSetVerifyHash The hash of the sequencer set to be stored.
     function storeSequencerSetVerifyHash(uint256 batchPtr, bytes32 _sequencerSetVerifyHash) internal pure {
         assembly {
             mstore(add(batchPtr, 185), _sequencerSetVerifyHash)
