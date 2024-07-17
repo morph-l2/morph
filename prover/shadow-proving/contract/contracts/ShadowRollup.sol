@@ -3,6 +3,7 @@ pragma solidity =0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {IZkEvmVerifier} from "./libs/IZkEvmVerifier.sol";
+import {BatchHeaderCodecV0} from "./libs/BatchHeaderCodecV0.sol";
 
 /// @title ShadowRollup
 /// @notice This contract maintains data for shadow rollup.
@@ -43,10 +44,23 @@ contract ShadowRollup is Ownable {
 
     /// @notice Commit a batch of transactions on layer 1.
     ///
-    /// @param _batchIndex The index of batch
+    /// @param _batchHeader The header of the batch, see the comments of `BatchHeaderV0Codec`.
     /// @param _batchData The batch data
-    function commitBatch(uint64 _batchIndex, BatchStore calldata _batchData) external {
-        committedBatchStores[_batchIndex] = _batchData;
+    function commitBatch(bytes calldata _batchHeader, BatchStore calldata _batchData) external onlyOwner {
+        // get batch data from batch header
+        (uint256 memPtr, ) = _loadBatchHeader(_batchHeader);
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        bytes32 _dataHash = BatchHeaderCodecV0.getL1DataHash(memPtr);
+        bytes32 _blobVersionedHash = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
+
+        committedBatchStores[_batchIndex] = BatchStore(
+            _batchData.prevStateRoot,
+            _batchData.postStateRoot,
+            _batchData.withdrawalRoot,
+            _dataHash,
+            _blobVersionedHash,
+            _batchData.sequencerSetVerifyHash
+        );
     }
 
     // proveState proves a batch by submitting a proof.
@@ -97,5 +111,23 @@ contract ShadowRollup is Ownable {
     function isProveSuccess(uint256 _batchIndex) external view returns (bool) {
         require(_batchIndex > 0, "invalid batchIndex");
         return proveStatus[_batchIndex];
+    }
+
+    /// @dev Internal function to load batch header from calldata to memory.
+    /// @param _batchHeader The batch header in calldata.
+    /// @return _memPtr     The start memory offset of loaded batch header.
+    /// @return _batchHash  The hash of the loaded batch header.
+    function _loadBatchHeader(bytes calldata _batchHeader) internal view returns (uint256 _memPtr, bytes32 _batchHash) {
+        // load to memory
+        uint256 _length;
+        (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
+
+        // compute batch hash
+        _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_memPtr);
+        // only check when genesis is imported
+        if (finalizedStateRoots[0] != bytes32(0)) {
+            require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+        }
     }
 }
