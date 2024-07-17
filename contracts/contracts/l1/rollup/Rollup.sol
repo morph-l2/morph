@@ -10,7 +10,7 @@ import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
 import {IL1Staking} from "../staking/IL1Staking.sol";
-import "hardhat/console.sol";
+
 // solhint-disable no-inline-assembly
 // solhint-disable reason-string
 
@@ -278,29 +278,32 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         assembly {
             let dataLen := mul(_chunksLength, 0x20)
             _l1DataHash := keccak256(sub(dataPtr, dataLen), dataLen)
-            _batchPtr := mload(0x40) // reset batchPtr
+            // _batchPtr := mload(0x40) // reset batchPtr
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
-        // store entries, the order matters
-        BatchHeaderCodecV1.storeVersion(_batchPtr, batchDataInput.version);
-        BatchHeaderCodecV1.storeBatchIndex(_batchPtr, _batchIndex);
-        BatchHeaderCodecV1.storeL1MessagePopped(_batchPtr, _totalL1MessagesPoppedInBatch);
-        BatchHeaderCodecV1.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
-        BatchHeaderCodecV1.storeDataHash(_batchPtr, _l1DataHash);
-        BatchHeaderCodecV1.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
-        BatchHeaderCodecV1.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
-        BatchHeaderCodecV1.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
-        BatchHeaderCodecV1.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
-        BatchHeaderCodecV1.storeParentBatchHash(_batchPtr, _parentBatchHash);
-        BatchHeaderCodecV1.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
-
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
-        BatchHeaderCodecV1.storeBlobVersionedHash(_batchPtr, ZERO_VERSIONED_HASH);
+
         {
-            committedBatches[_batchIndex] = BatchHeaderCodecV1.computeBatchHash(
-                _batchPtr,
-                BatchHeaderCodecV1.BATCH_HEADER_FIXED_LENGTH + batchDataInput.skippedL1MessageBitmap.length
-            );
+            uint256 lengthStore = BatchHeaderCodecV1.BATCH_HEADER_FIXED_LENGTH +
+                batchDataInput.skippedL1MessageBitmap.length;
+            assembly {
+                _batchPtr := mload(0x40)
+                mstore(0x40, add(_batchPtr, mul(lengthStore, 32)))
+            }
+            // store entries, the order matters
+            BatchHeaderCodecV1.storeVersion(_batchPtr, batchDataInput.version);
+            BatchHeaderCodecV1.storeBatchIndex(_batchPtr, _batchIndex);
+            BatchHeaderCodecV1.storeL1MessagePopped(_batchPtr, _totalL1MessagesPoppedInBatch);
+            BatchHeaderCodecV1.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
+            BatchHeaderCodecV1.storeDataHash(_batchPtr, _l1DataHash);
+            BatchHeaderCodecV1.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
+            BatchHeaderCodecV1.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
+            BatchHeaderCodecV1.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
+            BatchHeaderCodecV1.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
+            BatchHeaderCodecV1.storeParentBatchHash(_batchPtr, _parentBatchHash);
+            BatchHeaderCodecV1.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
+            BatchHeaderCodecV1.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
+            committedBatches[_batchIndex] = BatchHeaderCodecV1.computeBatchHash(_batchPtr, lengthStore);
             // storage batch data for challenge status check
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,

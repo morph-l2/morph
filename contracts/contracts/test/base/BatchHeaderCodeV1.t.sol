@@ -123,23 +123,5 @@ contract BatchHeaderCodeV1 is DSTestPlus {
             bytes32 batchHash2 = codecTest.computeBatchHashWithData(data);
             assertEq(batchHash2, 0xf14fe204d280f7483ae29385d880e7ba7a8a715c3450004da41cf82bfdd8415d);
         }
-        {
-            BatchHeaderCodecTest.BatchHeaderData memory data = BatchHeaderCodecTest.BatchHeaderData(
-                0,
-                0,
-                0,
-                0,
-                0x00000000000024f82c50f1000000000000000000000000000000000000000000,
-                0x0000000000000000000000000000000000000000000000000000000000000000,
-                0x0000000000000000000024f82c50f10000000000000000000000000000000000,
-                0x0000000000000000000000000000000000000000000000000000000000000000,
-                0x000000000000000000000000000024f82c50f100000000000000000000000000,
-                0x0000000000000000000000000000000000000000000000000000000000000000,
-                0x00000000000000000000000000000000000024f82c50f1000000000000000000,
-                "0x"
-            );
-            bytes32 batchHash2 = codecTest.computeBatchHashWithData(data);
-            emit log_bytes32(batchHash2);
-        }
     }
 }

@@ -4,8 +4,6 @@ pragma solidity =0.8.24;
 
 import {BatchHeaderCodecV1} from "../libraries/codec/BatchHeaderCodecV1.sol";
 
-import "hardhat/console.sol";
-
 ///   * version                 1           uint8       0       The batch version
 ///   * batchIndex              8           uint64      1       The index of the batch
 ///   * l1MessagePopped         8           uint64      9       Number of L1 messages popped in the batch
@@ -114,7 +112,6 @@ contract BatchHeaderCodecTest {
         BatchHeaderCodecV1.storeSequencerSetVerifyHash(_batchPtr, data.sequencerSetVerifyHash);
         BatchHeaderCodecV1.storeParentBatchHash(_batchPtr, data.parentBatchHash);
         BatchHeaderCodecV1.storeSkippedBitmap(_batchPtr, data.skipMap);
-
         return BatchHeaderCodecV1.computeBatchHash(_batchPtr, BatchHeaderCodecV1.BATCH_HEADER_FIXED_LENGTH);
     }
 }
