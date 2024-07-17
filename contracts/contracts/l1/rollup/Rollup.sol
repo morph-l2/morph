@@ -287,7 +287,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchDataInput.skippedL1MessageBitmap.length;
             assembly {
                 _batchPtr := mload(0x40)
-                mstore(0x40, add(_batchPtr, mul(lengthStore, 32)))
+                mstore(0x40, add(_batchPtr, mul(_headerLength, 32)))
             }
             // store entries, the order matters
             BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);

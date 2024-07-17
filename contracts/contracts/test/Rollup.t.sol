@@ -632,7 +632,7 @@ contract RollupTest is L1MessageBaseTest {
         );
         rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
         hevm.stopPrank();
-        // assertEq(rollup.committedBatches(1), 0xf14fe204d280f7483ae29385d880e7ba7a8a715c3450004da41cf82bfdd8415d);
+        assertEq(rollup.committedBatches(1), 0xf14fe204d280f7483ae29385d880e7ba7a8a715c3450004da41cf82bfdd8415d);
         bytes memory batchHeader1 = new bytes(249);
         assembly {
             mstore(add(batchHeader1, 0x20), 0) // version
