@@ -172,6 +172,8 @@ func Main() func(ctx *cli.Context) error {
 			"rollup_tx_gas_per_msg", cfg.RollupTxGasPerL1Msg,
 			"work_dir", dir,
 			"journal_path", cfg.JournalFilePath,
+			"gas_rough_estimate", cfg.RoughEstimateGas,
+			"gas_limit_buffer", cfg.GasLimitBuffer,
 		)
 		sr.Start()
 
