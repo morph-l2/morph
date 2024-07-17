@@ -1,6 +1,6 @@
 // update errors
 #[derive(Debug, thiserror::Error)]
-pub enum OverHeadError {
+pub enum ScalarError {
     #[error("{0}")]
     Error(eyre::Error),
     #[error("{0}")]
@@ -8,3 +8,4 @@ pub enum OverHeadError {
     #[error("{0}")]
     BeaconNodeError(eyre::Error),
 }
+
