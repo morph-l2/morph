@@ -80,6 +80,15 @@ type Config struct {
 	RollupTxGasPerL1Msg uint64
 	// gas limit buffer
 	GasLimitBuffer uint64
+
+	// journal file path
+	JournalFilePath string
+	// calldata fee bump
+	CalldataFeeBump uint64
+	//max txs in pendingpool
+	MaxTxsInPendingPool uint64
+	// rough estimate gas switch
+	RoughEstimateGas bool
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -125,6 +134,13 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		RollupTxGasPerL1Msg: ctx.GlobalUint64(flags.RollupTxGasPerL1Msg.Name),
 
 		GasLimitBuffer: ctx.GlobalUint64(flags.GasLimitBuffer.Name),
+
+		JournalFilePath: ctx.GlobalString(flags.JournalFlag.Name),
+		// calldata fee bump
+		CalldataFeeBump:     ctx.GlobalUint64(flags.CalldataFeeBumpFlag.Name),
+		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
+		// rough estimate gas switch
+		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 	}
 
 	return cfg, nil

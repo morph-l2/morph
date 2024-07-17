@@ -175,6 +175,12 @@ func Main() func(ctx *cli.Context) error {
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
+		dir, err := os.Getwd()
+		if err != nil {
+			log.Warn("get workdir err")
+			dir = ""
+		}
+
 		log.Info("starting tx submitter",
 			"l1_rpc", cfg.L1EthRpc,
 			"l2_rpcs", cfg.L2EthRpcs,
@@ -185,6 +191,15 @@ func Main() func(ctx *cli.Context) error {
 			"finalize_enable", cfg.Finalize,
 			"priority_rollup_enable", cfg.PriorityRollup,
 			"l1_sequencer_addr", cfg.L1SequencerAddress,
+			"rollup_interval", cfg.RollupInterval.String(),
+			"finalize_interval", cfg.FinalizeInterval.String(),
+			"tx_process_interval", cfg.TxProcessInterval.String(),
+			"rollup_tx_gas_base", cfg.RollupTxGasBase,
+			"rollup_tx_gas_per_msg", cfg.RollupTxGasPerL1Msg,
+			"work_dir", dir,
+			"journal_path", cfg.JournalFilePath,
+			"gas_rough_estimate", cfg.RoughEstimateGas,
+			"gas_limit_buffer", cfg.GasLimitBuffer,
 		)
 		sr.Start()
 
