@@ -5,7 +5,7 @@ pragma solidity ^0.8.24;
 /* Testing utilities */
 import "forge-std/Test.sol";
 import "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
-import {BatchHeaderCodecV1} from "../../libraries/codec/BatchHeaderCodecV1.sol";
+import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchHeaderCodecTest} from "../../mock/BatchHeaderCodecTest.sol";
 
 contract BatchHeaderCodeV1 is DSTestPlus {

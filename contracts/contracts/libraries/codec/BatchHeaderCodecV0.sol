@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 
 // solhint-disable no-inline-assembly
 
-/// @dev Below is the encoding for `BatchHeader` V0, total 121 + ceil(l1MessagePopped / 256) * 32 bytes.
+/// @dev Below is the encoding for `BatchHeader` V1, total 217 + ceil(l1MessagePopped / 256) * 32 bytes.
 /// ```text
 ///   * Field                   Bytes       Type        Index   Comments
 ///   * version                 1           uint8       0       The batch version
@@ -13,12 +13,16 @@ pragma solidity ^0.8.24;
 ///   * totalL1MessagePopped    8           uint64      17      Number of total L1 messages popped after the batch
 ///   * dataHash                32          bytes32     25      The data hash of the batch
 ///   * blobVersionedHash       32          bytes32     57      The versioned hash of the blob with this batch’s data
-///   * parentBatchHash         32          bytes32     89      The parent batch hash
-///   * skippedL1MessageBitmap  dynamic     uint256[]   121     A bitmap to indicate which L1 messages are skipped in the batch
+///   * prevStateHash           32          bytes32     89      Preview state root
+///   * postStateHash           32          bytes32     121     Post state root
+///   * withdrawRootHash        32          bytes32     153     L2 withdrawal tree root hash
+///   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
+///   * parentBatchHash         32          bytes32     217     The parent batch hash
+///   * skippedL1MessageBitmap  dynamic     uint256[]   249     A bitmap to indicate which L1 messages are skipped in the batch
 /// ```
 library BatchHeaderCodecV0 {
     /// @dev The length of fixed parts of the batch header.
-    uint256 internal constant BATCH_HEADER_FIXED_LENGTH = 121;
+    uint256 internal constant BATCH_HEADER_FIXED_LENGTH = 249;
 
     /// @notice Load batch header in calldata to memory.
     /// @param _batchHeader The encoded batch header bytes in calldata.
@@ -96,12 +100,36 @@ library BatchHeaderCodecV0 {
         }
     }
 
+    function getPrevStateHash(uint256 batchPtr) internal pure returns (bytes32 _prevStateHash) {
+        assembly {
+            _prevStateHash := mload(add(batchPtr, 89))
+        }
+    }
+
+    function getPostStateHash(uint256 batchPtr) internal pure returns (bytes32 _postStateHash) {
+        assembly {
+            _postStateHash := mload(add(batchPtr, 121))
+        }
+    }
+
+    function getWithdrawRootHash(uint256 batchPtr) internal pure returns (bytes32 _withdrawRootHash) {
+        assembly {
+            _withdrawRootHash := mload(add(batchPtr, 153))
+        }
+    }
+
+    function getSequencerSetVerifyHash(uint256 batchPtr) internal pure returns (bytes32 _sequencerSetVerifyHash) {
+        assembly {
+            _sequencerSetVerifyHash := mload(add(batchPtr, 185))
+        }
+    }
+
     /// @notice Get the parent batch hash of the batch header.
     /// @param batchPtr The start memory offset of the batch header in memory.
     /// @return _parentBatchHash The parent batch hash of the batch header.
     function getParentBatchHash(uint256 batchPtr) internal pure returns (bytes32 _parentBatchHash) {
         assembly {
-            _parentBatchHash := mload(add(batchPtr, 89))
+            _parentBatchHash := mload(add(batchPtr, 217))
         }
     }
 
@@ -185,12 +213,36 @@ library BatchHeaderCodecV0 {
         }
     }
 
+    function storePrevStateHash(uint256 batchPtr, bytes32 _prevStateHash) internal pure {
+        assembly {
+            mstore(add(batchPtr, 89), _prevStateHash)
+        }
+    }
+
+    function storePostStateHash(uint256 batchPtr, bytes32 _postStateHash) internal pure {
+        assembly {
+            mstore(add(batchPtr, 121), _postStateHash)
+        }
+    }
+
+    function storeWithdrawRootHash(uint256 batchPtr, bytes32 _withdrawRootHash) internal pure {
+        assembly {
+            mstore(add(batchPtr, 153), _withdrawRootHash)
+        }
+    }
+
+    function storeSequencerSetVerifyHash(uint256 batchPtr, bytes32 _sequencerSetVerifyHash) internal pure {
+        assembly {
+            mstore(add(batchPtr, 185), _sequencerSetVerifyHash)
+        }
+    }
+
     /// @notice Store the parent batch hash of batch header.
     /// @param batchPtr The start memory offset of the batch header in memory.
     /// @param _parentBatchHash The parent batch hash.
     function storeParentBatchHash(uint256 batchPtr, bytes32 _parentBatchHash) internal pure {
         assembly {
-            mstore(add(batchPtr, 89), _parentBatchHash)
+            mstore(add(batchPtr, 217), _parentBatchHash)
         }
     }
 
