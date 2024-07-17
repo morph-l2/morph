@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 
 // solhint-disable no-inline-assembly
 
-/// @dev Below is the encoding for `BatchHeader` V1, total 217 + ceil(l1MessagePopped / 256) * 32 bytes.
+/// @dev Below is the encoding for `BatchHeader` V0, total 217 + ceil(l1MessagePopped / 256) * 32 bytes.
 /// ```text
 ///   * Field                   Bytes       Type        Index   Comments
 ///   * version                 1           uint8       0       The batch version

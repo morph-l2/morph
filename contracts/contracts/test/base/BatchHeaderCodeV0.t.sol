@@ -8,7 +8,7 @@ import "@rari-capital/solmate/src/test/utils/DSTestPlus.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchHeaderCodecTest} from "../../mock/BatchHeaderCodecTest.sol";
 
-contract BatchHeaderCodeV1 is DSTestPlus {
+contract BatchHeaderCodeV0Test is DSTestPlus {
     bytes32 public constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
     BatchHeaderCodecTest public codecTest;
 
