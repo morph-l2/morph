@@ -282,21 +282,19 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 
 		// use new batch header instead
 		e.logger.Info("we are trying to generate genesis batch for upgraded version")
-		batchHeaderAfter := types.BatchHeaderAfter{
+		batchHeaderGenesis := types.BatchHeaderAfter{
 			Version:              0,
 			BatchIndex:           e.batchingCache.parentBatchHeader.BatchIndex + 1,
 			L1MessagePopped:      0,
 			TotalL1MessagePopped: e.batchingCache.totalL1MessagePopped,
 			DataHash:             e.batchingCache.chunks.DataHash(),
 			BlobVersionedHash:    types.EmptyVersionedHash,
-			PrevStateRoot:        e.batchingCache.prevStateRoot,
 			PostStateRoot:        e.batchingCache.postStateRoot,
-			WithdrawalRoot:       e.batchingCache.withdrawRoot,
 			ParentBatchHash:      e.batchingCache.parentBatchHeader.Hash(),
 		}
-		batchBytes = batchHeaderAfter.Encode()
-		batchHash = batchHeaderAfter.Hash()
-		batchHeaderJson, err := json.Marshal(&batchHeaderAfter)
+		batchBytes = batchHeaderGenesis.Encode()
+		batchHash = batchHeaderGenesis.Hash()
+		batchHeaderJson, err := json.Marshal(&batchHeaderGenesis)
 		if err != nil {
 			panic(err)
 		}
