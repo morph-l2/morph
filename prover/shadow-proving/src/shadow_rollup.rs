@@ -116,8 +116,8 @@ impl BatchSyncer {
 
 async fn get_committed_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Result<Option<(BatchInfo, Bytes)>, String> {
     log::info!("latest blocknum = {:#?}", latest);
-    let start = if latest > U64::from(200) {
-        latest - U64::from(200)
+    let start = if latest > U64::from(600) {
+        latest - U64::from(600)
     } else {
         U64::from(1)
     };
@@ -130,11 +130,11 @@ async fn get_committed_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &
         }
     };
     if logs.is_empty() {
-        log::warn!("There have been no commit_batch logs for the last 200 blocks");
+        log::warn!("There have been no commit_batch logs for the last 600 blocks");
         return Ok(None);
     }
     if logs.len() < 2 {
-        log::warn!("No enough commit_batch logs for the last 200 blocks");
+        log::warn!("No enough commit_batch logs for the last 600 blocks");
         return Ok(None);
     }
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
@@ -164,7 +164,7 @@ async fn get_committed_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &
     };
 
     let chunks = match batch_inspect(l1_provider, tx_hash).await {
-        Some(batch) => batch,
+        Some(chunks) => chunks,
         None => vec![],
     };
 

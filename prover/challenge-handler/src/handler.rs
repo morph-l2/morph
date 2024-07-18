@@ -107,42 +107,48 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         };
         METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
 
-        // Step2. detecte challenge event.
+        // Step2. detect challenge events from the past 3 days.
         let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
             Some(value) => value,
             None => continue,
         };
         log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
         METRICS.detected_batch_index.set(batch_index as i64);
-        if let Some(prove_result) = query_proof(batch_index).await {
-            if !prove_result.proof_data.is_empty() {
-                log::info!("query proof and prove state: {:#?}", batch_index);
-                prove_state(batch_index, l1_rollup).await;
-                continue;
-            }
-        }
 
-        // Step3. query challenged batch for the past 3 days(7200blocks*3 = 3 day).
-        let hash = match query_challenged_batch(latest, l1_rollup, batch_index, l1_provider).await {
+        // Step3. query challenged batch info.
+        let (challenged_rollup_hash, next_rollup_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
             Some(value) => value,
             None => continue,
         };
-        let batch_info = match batch_inspect(l1_provider, hash).await {
-            Some(batch) => batch,
+        let batch_header: Bytes = match batch_header_inspect(l1_provider, next_rollup_hash).await {
+            Some(bh) => bh,
+            None => continue,
+        };
+
+        let chunks = match batch_inspect(l1_provider, challenged_rollup_hash).await {
+            Some(chunks) => chunks,
             None => continue,
         };
         log::info!(
             "batch inspect of: {:?}, chunks.len = {:?}, chunks = {:#?}",
             batch_index,
-            batch_info.len(),
-            batch_info
+            chunks.len(),
+            chunks
         );
-        METRICS.chunks_len.set(batch_info.len() as i64);
+        METRICS.chunks_len.set(chunks.len() as i64);
+
+        if let Some(prove_result) = query_proof(batch_index).await {
+            if !prove_result.proof_data.is_empty() {
+                log::info!("query proof and prove state: {:#?}", batch_index);
+                prove_state(batch_index, batch_header, l1_rollup).await;
+                continue;
+            }
+        }
 
         // Step4. Make a call to the Prove server.
         let request = ProveRequest {
             batch_index,
-            chunks: batch_info.clone(),
+            chunks: chunks.clone(),
             rpc: l2_rpc.to_owned(),
         };
         let rt = tokio::task::spawn_blocking(move || util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch"))
@@ -155,7 +161,7 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
                 task_status::PROVING => log::info!("waiting for prev proof to be generated"),
                 task_status::PROVED => {
                     log::info!("proof already generated");
-                    prove_state(batch_index, l1_rollup).await;
+                    prove_state(batch_index, batch_header, l1_rollup).await;
                     continue;
                 }
                 _ => {
@@ -170,7 +176,7 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         }
 
         // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 4800 * batch_info.len() + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
+        let mut max_waiting_time: usize = 4800 * chunks.len() + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
         while max_waiting_time > 300 {
             sleep(Duration::from_secs(300)).await;
             max_waiting_time -= 300;
@@ -178,7 +184,7 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
                 Some(prove_result) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
-                        prove_state(batch_index, l1_rollup).await;
+                        prove_state(batch_index, batch_header, l1_rollup).await;
                         break;
                     }
                 }
@@ -191,7 +197,7 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
     }
 }
 
-async fn prove_state(batch_index: u64, l1_rollup: &RollupType) -> bool {
+async fn prove_state(batch_index: u64, batch_header: Bytes, l1_rollup: &RollupType) -> bool {
     for _ in 0..MAX_RETRY_TIMES {
         sleep(Duration::from_secs(12)).await;
         let prove_result = match query_proof(batch_index).await {
@@ -208,7 +214,7 @@ async fn prove_state(batch_index: u64, l1_rollup: &RollupType) -> bool {
         let aggr_proof = Bytes::from(prove_result.proof_data);
         let kzg_data = Bytes::from(prove_result.blob_kzg);
 
-        let call = l1_rollup.prove_state(batch_index, aggr_proof, kzg_data);
+        let call = l1_rollup.prove_state(batch_header.clone(), aggr_proof, kzg_data);
         let rt = call.send().await;
         let pending_tx = match rt {
             Ok(pending_tx) => {
@@ -284,20 +290,32 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
     Some(prove_result)
 }
 
-async fn query_challenged_batch(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<TxHash> {
+async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(TxHash, TxHash)> {
     let start = if latest > U64::from(7200 * 3) {
         // Depends on challenge period
         latest - U64::from(7200 * 3)
     } else {
         U64::from(1)
     };
+
+    let challenged_hash = query_tx_hash(l1_rollup, start, batch_index, l1_provider).await.or_else(|| {
+        log::warn!("challenged_hash is none");
+        None
+    })?;
+    let next_hash = query_tx_hash(l1_rollup, start, batch_index + 1, l1_provider).await.or_else(|| {
+        log::warn!("next_hash is none");
+        None
+    })?;
+    Some((challenged_hash, next_hash))
+}
+
+async fn query_tx_hash(l1_rollup: &RollupType, start: U64, batch_index: u64, l1_provider: &Provider<Http>) -> Option<H256> {
     let filter = l1_rollup
         .commit_batch_filter()
         .filter
         .from_block(start)
         .topic1(U256::from(batch_index))
         .address(l1_rollup.address());
-
     let logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
         Ok(logs) => logs,
         Err(e) => {
@@ -305,12 +323,10 @@ async fn query_challenged_batch(latest: U64, l1_rollup: &RollupType, batch_index
             return None;
         }
     };
-
     if logs.is_empty() {
         log::error!("no commit_batch log of {:?}, commit_batch logs is empty", batch_index);
         return None;
     }
-
     for log in logs {
         if log.topics[1].to_low_u64_be() != batch_index {
             continue;
@@ -333,6 +349,7 @@ async fn query_challenged_batch(latest: U64, l1_rollup: &RollupType, batch_index
         }
     }
     log::error!("unable to find valid commit_batch log, batch index = {:?}", batch_index);
+
     None
 }
 
@@ -418,6 +435,38 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec
     decode_chunks(chunks)
 }
 
+async fn batch_header_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Bytes> {
+    //Step1.  Get transaction
+    let result = l1_provider.get_transaction(hash).await;
+    let tx = match result {
+        Ok(Some(tx)) => tx,
+        Ok(None) => {
+            log::error!("l1_provider.get_transaction is none");
+            return None;
+        }
+        Err(e) => {
+            log::error!("l1_provider.get_transaction err: {:#?}", e);
+            return None;
+        }
+    };
+
+    //Step2. Parse transaction data
+    let data = tx.input;
+
+    if data.is_empty() {
+        log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
+        return None;
+    }
+    let param = if let Ok(_param) = CommitBatchCall::decode(&data) {
+        _param
+    } else {
+        log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
+        return None;
+    };
+    let parent_batch_header: Bytes = param.batch_data_input.parent_batch_header;
+    Some(parent_batch_header)
+}
+
 fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
     if chunks.is_empty() {
         return None;
@@ -449,20 +498,3 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
     Some(chunk_with_blocks)
 }
 
-#[tokio::test]
-async fn test_decode_chunks() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
-
-    use std::fs::File;
-    use std::io::Read;
-    let mut file = File::open("./src/batch.json").unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    let input = Bytes::from_str(contents.as_str()).unwrap();
-
-    let param = CommitBatchCall::decode(&input).unwrap();
-    let chunks: Vec<Bytes> = param.batch_data_input.chunks;
-    let rt = decode_chunks(chunks).unwrap();
-    assert!(rt.len() == 11);
-    assert!(rt.get(3).unwrap().len() == 2);
-}
