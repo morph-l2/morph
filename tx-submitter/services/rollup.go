@@ -382,13 +382,22 @@ func (sr *Rollup) finalize() error {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
 
-	gasDefault := uint64(50_0000)
 	gas, err := sr.EstimateGas(opts.From, sr.rollupAddr, calldata, feecap, tip)
 	if err != nil {
-		gas = gasDefault
-	} else {
-		gas = gas * 12 / 10 // add a buffer
+		log.Warn("estimate finalize tx gas error",
+			"error", err,
+		)
+
+		if sr.cfg.RoughEstimateGas {
+			gas = sr.RoughFinalizeGasEstimate()
+			log.Info("rough estimate finalize gas", "gas", gas)
+		} else {
+			return fmt.Errorf("estimate finalize gas error:%v", err)
+		}
 	}
+
+	// gas bump
+	gas = sr.BumpGas(gas)
 
 	var nonce uint64
 	if sr.pendingTxs.pnonce != 0 {
@@ -492,7 +501,6 @@ func (sr *Rollup) rollup() error {
 		return nil
 	}
 
-	var nonce uint64
 	var batchIndex uint64
 	var err error
 
@@ -591,22 +599,31 @@ func (sr *Rollup) rollup() error {
 
 	gas, err := sr.EstimateGas(opts.From, sr.rollupAddr, calldata, gasFeeCap, tip)
 	if err != nil {
+		log.Warn("estimate gas error", "err", err)
+		// have failed tx & estimate err -> no rough estimate
 		if sr.pendingTxs.HaveFailed() {
-			log.Warn("estimate gas err, wait",
+			log.Warn("estimate gas err, wait failed tx fixed",
 				"err", err,
-				"update_index", cindex+1,
+				"update_pooled_pending_index", cindex+1,
 			)
 			sr.pendingTxs.ResetFailedIndex(cindex + 1)
 			return nil
-		} else {
+		}
+
+		if sr.cfg.RoughEstimateGas {
 			msgcnt := utils.ParseL1MessageCnt(batch.Chunks)
-			gas = RoughEstimateGas(msgcnt)
+			gas = sr.RoughRollupGasEstimate(msgcnt)
+			log.Info("rough estimate rollup tx gas", "gas", gas, "msgcnt", msgcnt)
+		} else {
+			return fmt.Errorf("estimate gas error:%v", err)
 		}
 	}
 
-	// gas buffer
-	gas = gas * sr.cfg.GasLimitBuffer / 100
+	// add buffer to gas
+	gas = sr.BumpGas(gas)
 
+	// calc nonce
+	var nonce uint64
 	if sr.pendingTxs.pnonce != 0 {
 		nonce = sr.pendingTxs.pnonce + 1
 	} else {
@@ -702,19 +719,6 @@ func (sr *Rollup) rollup() error {
 	}
 
 	return nil
-}
-
-func (sr *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.Int, tip *big.Int) (uint64, error) {
-
-	gas, err := sr.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
-		From:      from,
-		To:        &to,
-		GasFeeCap: feecap,
-		GasTipCap: tip,
-		Data:      data,
-	})
-	return gas, err
-
 }
 
 func (sr *Rollup) aggregateSignatures(blsSignatures []eth.RPCBatchSignature) (*bindings.IRollupBatchSignature, error) {
@@ -1085,4 +1089,35 @@ func (r *Rollup) inSequencersSet() (bool, error) {
 		return isSequencer, nil
 	}
 	return false, errors.New("failed to get in sequencer set")
+}
+func (r *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.Int, tip *big.Int) (uint64, error) {
+
+	gas, err := r.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
+		From:      from,
+		To:        &to,
+		GasFeeCap: feecap,
+		GasTipCap: tip,
+		Data:      data,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("call estimate gas error:%v", err)
+	}
+	return gas, nil
+}
+
+func (r *Rollup) BumpGas(origin uint64) uint64 {
+	if r.cfg.GasLimitBuffer != 0 {
+		return origin * (100 + r.cfg.GasLimitBuffer) / 100
+	} else {
+		return origin
+	}
+}
+
+// for rollup
+func (r *Rollup) RoughRollupGasEstimate(msgcnt uint64) uint64 {
+	return r.cfg.RollupTxGasBase + msgcnt*r.cfg.RollupTxGasPerL1Msg
+}
+
+func (r *Rollup) RoughFinalizeGasEstimate() uint64 {
+	return 500_000
 }

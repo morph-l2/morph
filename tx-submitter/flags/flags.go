@@ -192,7 +192,7 @@ var (
 	RollupTxGasBase = cli.Uint64Flag{
 		Name:   "ROLLUP_TX_GAS_BASE",
 		Usage:  "The base fee for a rollup transaction",
-		Value:  400000,
+		Value:  530000,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_BASE"),
 	}
 	// rollup tx gas per l1msg
@@ -206,8 +206,36 @@ var (
 	GasLimitBuffer = cli.Uint64Flag{
 		Name:   "GAS_LIMIT_BUFFER",
 		Usage:  "The gas limit buffer for a transaction",
-		Value:  120,
+		Value:  20, // add 20%
 		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
+	}
+
+	// journal path
+	JournalFlag = cli.StringFlag{
+		Name:   "JOURNAL_FILE_PATH",
+		Usage:  "The path of the journal file",
+		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
+		Value:  "journal.rlp",
+	}
+
+	CalldataFeeBumpFlag = cli.Uint64Flag{
+		Name:   "CALL_DATA_FEE_BUMP",
+		Usage:  "The fee bump for call data",
+		Value:  100, //fee = x * origin_fee/100
+		EnvVar: prefixEnvVar("CALL_DATA_FEE_BUMP"),
+	}
+
+	MaxTxsInPendingPoolFlag = cli.Uint64Flag{
+		Name:   "MAX_TXS_IN_PENDING_POOL",
+		Usage:  "The maximum number of transactions in the pending pool",
+		Value:  12,
+		EnvVar: prefixEnvVar("MAX_TXS_IN_PENDING_POOL"),
+	}
+
+	RoughEstimateGasFlag = cli.BoolFlag{
+		Name:   "ROUGH_ESTIMATE_GAS",
+		Usage:  "Whether to use rough estimate gas",
+		EnvVar: prefixEnvVar("ROUGH_ESTIMATE_GAS"),
 	}
 )
 
@@ -246,6 +274,12 @@ var optionalFlags = []cli.Flag{
 	RollupTxGasBase,
 	RollupTxGasPerL1Msg,
 	GasLimitBuffer,
+
+	JournalFlag,
+
+	CalldataFeeBumpFlag,
+	MaxTxsInPendingPoolFlag,
+	RoughEstimateGasFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
