@@ -277,7 +277,6 @@ var optionalFlags = []cli.Flag{
 
 	JournalFlag,
 
-	L2SequencerAddressFlag,
 	CalldataFeeBumpFlag,
 	MaxTxsInPendingPoolFlag,
 	RoughEstimateGasFlag,
