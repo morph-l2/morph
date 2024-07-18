@@ -52,7 +52,6 @@ export const ContractInit = async (
         const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
         const Rollup = await hre.ethers.getContractAt(ContractFactoryName.Rollup, RollupProxyAddress, deployer)
         // import genesis batch 
-        const genesisStateRoot: string = config.rollupGenesisStateRoot
         const batchHeader: string = config.batchHeader
         const batchIndex: string = config.rollupBatchIndex
 
