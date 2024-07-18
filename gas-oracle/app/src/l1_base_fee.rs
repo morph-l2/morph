@@ -5,9 +5,7 @@ use crate::{
 use ethers::prelude::*;
 use eyre::anyhow;
 
-static DEFAULT_SCALAR: f64 = 1000000000.0;
 const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
-const MAX_SCALAR_RATIO: f64 = 100.0;
 
 pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
@@ -65,11 +63,11 @@ impl BaseFeeUpdater {
             )))
         })?;
 
-        let scalar: U256 = self.l2_oracle.scalar().await.map_err(|e| {
-            OracleError::L1BaseFeeError(anyhow!(format!("Failed to query scalar on l2: {:#?}", e)))
-        })?;
-
-        log::debug!("current l1BaseFee on l2 is: {:#?}, scalar is: {:#?}", base_fee_on_l2, scalar);
+        log::debug!(
+            "current l1BaseFee on l2 is: {:#?}, blob_fee_on_l2 on l2 is: {:#?}",
+            base_fee_on_l2,
+            blob_fee_on_l2
+        );
         ORACLE_SERVICE_METRICS.l1_base_fee_on_l2.set(
             ethers::utils::format_units(base_fee_on_l2, "gwei")
                 .unwrap_or(String::from("0"))
@@ -84,7 +82,6 @@ impl BaseFeeUpdater {
         );
 
         self.update_base_fee(l1_base_fee, l1_blob_base_fee, blob_fee_on_l2, base_fee_on_l2).await?;
-        self.update_base_fee_scalar(l1_gas_price, l1_base_fee, scalar).await?;
 
         // Step4. Record wallet balance.
         let balance = self.l2_provider.get_balance(self.l2_wallet, None).await.map_err(|e| {
@@ -191,59 +188,6 @@ impl BaseFeeUpdater {
             })?;
         }
 
-        Ok(())
-    }
-
-    async fn update_base_fee_scalar(
-        &self,
-        l1_gas_price: U256,
-        l1_base_fee: U256,
-        current_scalar: U256,
-    ) -> Result<(), OracleError> {
-        if l1_gas_price < l1_base_fee {
-            return Err(OracleError::L1BaseFeeError(anyhow!("l1_gas_price < l1_base_fee")));
-        }
-        let mut scalar_ratio_from_l1 = l1_gas_price.as_u128() as f64 / l1_base_fee.as_u128() as f64;
-        scalar_ratio_from_l1 = scalar_ratio_from_l1.min(MAX_SCALAR_RATIO);
-        #[rustfmt::skip]
-        ORACLE_SERVICE_METRICS.base_fee_scalar.set(format!("{:.2}", scalar_ratio_from_l1).parse().unwrap_or(0.00));
-
-        let scalar_ratio_from_l2 = current_scalar.as_u128() as f64 / DEFAULT_SCALAR;
-        let scalar_diff = scalar_ratio_from_l1 - scalar_ratio_from_l2;
-        let need_update = scalar_diff.abs() * 100.0 > self.gas_threshold as f64;
-        log::info!(
-            "set_base_fee_scalar, scalar_ratio_from_l1 is: {:#?}, actual_change is: {:#?}%, expected_change is: {:#?}%, need_update: {:?}",
-            scalar_ratio_from_l1,
-            scalar_diff,
-            self.gas_threshold,
-            need_update
-        );
-
-        if need_update {
-            // Set scalar for l2.
-            let scalar_expect = (DEFAULT_SCALAR * scalar_ratio_from_l1).ceil() as u128;
-            let tx = self.l2_oracle.set_scalar(U256::from(scalar_expect)).legacy();
-            let rt = tx.send().await;
-            let pending_tx = match rt {
-                Ok(pending) => {
-                    log::info!("tx of set_base_fee_scalar has been sent: {:#?}", pending.tx_hash());
-                    pending
-                }
-                Err(e) => {
-                    log::error!("send tx of set scalar error, origin msg: {:#?}", e);
-                    return Err(OracleError::L1BaseFeeError(anyhow!(
-                        "set_base_fee_scalar error: {}",
-                        format_contract_error(e)
-                    )));
-                }
-            };
-            pending_tx.await.map_err(|e| {
-                OracleError::L1BaseFeeError(anyhow!(format!(
-                    "set_base_fee_scalar check_receipt error: {:#?}",
-                    e
-                )))
-            })?;
-        }
         Ok(())
     }
 }
