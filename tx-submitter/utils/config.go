@@ -90,6 +90,8 @@ type Config struct {
 	ExternalSignAddress string
 	ExternalSignAppid   string
 	ExternalSignChain   string
+	// rough estimate gas switch
+	RoughEstimateGas bool
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -144,6 +146,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignAppid:   ctx.GlobalString(flags.ExternalSignAppid.Name),
 		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddress.Name),
 		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
+		// rough estimate gas switch
+		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 	}
 
 	return cfg, nil

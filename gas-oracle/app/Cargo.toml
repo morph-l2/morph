@@ -22,3 +22,4 @@ tower-http = { version = "0.4", features = ["full"] }
 reqwest = { version = "0.11", default-features = false, features =  ["blocking", "json"] }
 thiserror = "1.0"
 eyre = "0.6"
+zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = ["experimental"]}

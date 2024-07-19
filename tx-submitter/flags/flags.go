@@ -181,7 +181,7 @@ var (
 	RollupTxGasBase = cli.Uint64Flag{
 		Name:   "ROLLUP_TX_GAS_BASE",
 		Usage:  "The base fee for a rollup transaction",
-		Value:  400000,
+		Value:  530000,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_BASE"),
 	}
 	// rollup tx gas per l1msg
@@ -195,7 +195,7 @@ var (
 	GasLimitBuffer = cli.Uint64Flag{
 		Name:   "GAS_LIMIT_BUFFER",
 		Usage:  "The gas limit buffer for a transaction",
-		Value:  120,
+		Value:  20, // add 20%
 		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
 	}
 
@@ -252,6 +252,11 @@ var (
 		Usage:  "The url of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
 	}
+	RoughEstimateGasFlag = cli.BoolFlag{
+		Name:   "ROUGH_ESTIMATE_GAS",
+		Usage:  "Whether to use rough estimate gas",
+		EnvVar: prefixEnvVar("ROUGH_ESTIMATE_GAS"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -300,6 +305,7 @@ var optionalFlags = []cli.Flag{
 	ExternalSignAppid,
 	ExternalSignChain,
 	ExternalSignUrl,
+	RoughEstimateGasFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
