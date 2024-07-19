@@ -95,7 +95,7 @@ impl Prover {
     }
 
     /// Generate EVM Proof for block trace.
-    async fn generate_proof(&mut self, batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>) {
+    pub async fn generate_proof(&mut self, batch_index: u64, chunk_traces: Vec<Vec<BlockTrace>>) {
         let start = Instant::now();
 
         let proof_path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
@@ -297,7 +297,7 @@ async fn get_chunk_traces(
 ) -> Option<Vec<Vec<BlockTrace>>> {
     let mut chunk_traces: Vec<Vec<BlockTrace>> = vec![];
     for chunk in chunks {
-        let chunk_trace = match get_block_traces_by_number(&provider, &chunk).await {
+        let chunk_trace = match get_block_traces_by_number(provider, &chunk).await {
             Some(traces) => traces,
             None => {
                 log::error!("No trace obtained for batch: {:#?}", batch_index);
