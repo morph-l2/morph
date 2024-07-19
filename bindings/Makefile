@@ -169,7 +169,7 @@ more: compile-forge
 	go run ./gen/main.go \
 		-artifacts ../contracts/artifacts \
 		-out ./bindings \
-		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther \
+		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther,EnforcedTxGateway,L1ERC721Gateway,L1ERC1155Gateway,L1ReverseCustomGateway,L2ReverseCustomGateway,Whitelist \
 		-package bindings
 
 mkdir:
