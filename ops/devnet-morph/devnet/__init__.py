@@ -143,6 +143,7 @@ def devnet_deploy(paths, args):
     env_genesis = os.environ.copy()
     env_genesis["CGO_LDFLAGS"] = "-ldl"
     run_command([
+        'env', 'CGO_ENABLED=1', 'CGO_LDFLAGS="-ldl"',
         'go', 'run', 'cmd/main.go', 'genesis', 'l2',
         '--l1-rpc', 'http://localhost:9545',
         '--deploy-config', temp_deploy_config,
@@ -158,15 +159,17 @@ def devnet_deploy(paths, args):
     l2_genesis_state_root = rollup_cfg['l2_genesis_state_root']
     withdraw_root = rollup_cfg['withdraw_root']
     genesis_batch_header = rollup_cfg['genesis_batch_header']
-    pattern1 = re.compile("rollupGenesisStateRoot: '.*'")
-    pattern2 = re.compile("withdrawRoot: '.*'")
+#     Do not need genesis root and withdraw root
+#     pattern1 = re.compile("rollupGenesisStateRoot: '.*'")
+#     pattern2 = re.compile("withdrawRoot: '.*'")
     pattern3 = re.compile("batchHeader: '.*'")
-    for line in fileinput.input(paths.contracts_config, inplace=True):
-        modified_line = re.sub(pattern1, f"rollupGenesisStateRoot: '{l2_genesis_state_root}'", line)
-        print(modified_line, end='')
-    for line in fileinput.input(paths.contracts_config, inplace=True):
-        modified_line = re.sub(pattern2, f"withdrawRoot: '{withdraw_root}'", line)
-        print(modified_line, end='')
+#     for line in fileinput.input(paths.contracts_config, inplace=True):
+#         modified_line = re.sub(pattern1, f"rollupGenesisStateRoot: '{l2_genesis_state_root}'", line)
+#         print(modified_line, end='')
+#     for line in fileinput.input(paths.contracts_config, inplace=True):
+#         modified_line = re.sub(pattern2, f"withdrawRoot: '{withdraw_root}'", line)
+#         print(modified_line, end='')
+
     for line in fileinput.input(paths.contracts_config, inplace=True):
         modified_line = re.sub(pattern3, f"batchHeader: '{genesis_batch_header}'", line)
         print(modified_line, end='')

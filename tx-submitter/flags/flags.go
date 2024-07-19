@@ -181,7 +181,7 @@ var (
 	RollupTxGasBase = cli.Uint64Flag{
 		Name:   "ROLLUP_TX_GAS_BASE",
 		Usage:  "The base fee for a rollup transaction",
-		Value:  400000,
+		Value:  530000,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_BASE"),
 	}
 	// rollup tx gas per l1msg
@@ -195,7 +195,7 @@ var (
 	GasLimitBuffer = cli.Uint64Flag{
 		Name:   "GAS_LIMIT_BUFFER",
 		Usage:  "The gas limit buffer for a transaction",
-		Value:  120,
+		Value:  20, // add 20%
 		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
 	}
 
@@ -219,6 +219,12 @@ var (
 		Usage:  "The maximum number of transactions in the pending pool",
 		Value:  12,
 		EnvVar: prefixEnvVar("MAX_TXS_IN_PENDING_POOL"),
+	}
+
+	RoughEstimateGasFlag = cli.BoolFlag{
+		Name:   "ROUGH_ESTIMATE_GAS",
+		Usage:  "Whether to use rough estimate gas",
+		EnvVar: prefixEnvVar("ROUGH_ESTIMATE_GAS"),
 	}
 )
 
@@ -261,6 +267,7 @@ var optionalFlags = []cli.Flag{
 	L2GovAddressFlag,
 	CalldataFeeBumpFlag,
 	MaxTxsInPendingPoolFlag,
+	RoughEstimateGasFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
