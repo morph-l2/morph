@@ -46,11 +46,15 @@ type Data struct {
 	SignDatas []string `json:"signDatas"` // raw txs jsons
 }
 
-func NewExternalSign(appid string, priv *rsa.PrivateKey, client *resty.Client) *ExternalSign {
+func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl string) *ExternalSign {
+
+	// new resty.client
+	client := resty.New()
 	return &ExternalSign{
 		Appid:   appid,
 		Privkey: priv,
 		Client:  client,
+		signUrl: signUrl,
 	}
 }
 
