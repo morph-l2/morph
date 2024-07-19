@@ -4,9 +4,11 @@ pragma solidity =0.8.24;
 
 import {MockERC1155} from "@rari-capital/solmate/src/test/utils/mocks/MockERC1155.sol";
 import {ERC1155TokenReceiver} from "@rari-capital/solmate/src/tokens/ERC1155.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
 import {L2ERC1155Gateway} from "../l2/gateways/L2ERC1155Gateway.sol";
+import {IL2ERC1155Gateway} from "../l2/gateways/IL2ERC1155Gateway.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
 
 contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
@@ -46,6 +48,81 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         gateway.initialize(address(1), address(messenger));
     }
 
+    function test_initialize_zeroAddress_reverts() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for L2ERC1155Gateway.
+        TransparentUpgradeableProxy l2ERC1155GatewayProxy = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L2ERC1155Gateway contract.
+        L2ERC1155Gateway l2ERC1155GatewayImpl = new L2ERC1155Gateway();
+
+        // Expect revert due to zero counterpart address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l2ERC1155GatewayProxy)).upgradeToAndCall(
+            address(l2ERC1155GatewayImpl),
+            abi.encodeCall(
+                L2ERC1155Gateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        
+        // Expect revert due to zero messenger address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l2ERC1155GatewayProxy)).upgradeToAndCall(
+            address(l2ERC1155GatewayImpl),
+            abi.encodeCall(
+                L2ERC1155Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_succeeds() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for the L2ERC1155Gateway.
+        TransparentUpgradeableProxy l2ERC1155GatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new L2ERC1155Gateway contract.
+        L2ERC1155Gateway l2ERC1155GatewayImplTemp = new L2ERC1155Gateway();
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l2ERC1155GatewayProxyTemp)).upgradeToAndCall(
+            address(l2ERC1155GatewayImplTemp),
+            abi.encodeCall(
+                L2ERC1155Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Cast the proxy contract address to the L2ERC1155Gateway contract type to call its methods.
+        L2ERC1155Gateway l2ERC1155GatewayTemp = L2ERC1155Gateway(address(l2ERC1155GatewayProxyTemp));
+        hevm.stopPrank();
+        
+        // Verify the counterpart and messenger are initialized successfully.
+        assertEq(l2ERC1155GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l2ERC1155GatewayTemp.messenger(), address(l2CrossDomainMessenger));
+    }
+
     function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
@@ -60,6 +137,10 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
 
     function test_updateTokenMapping_succeeds(address token1, address token2) public {
         if (token2 == address(0)) token2 = address(1);
+
+        // Expect the UpdateTokenMapping event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit L2ERC1155Gateway.UpdateTokenMapping(token1, address(0), token2);
 
         assertEq(gateway.tokenMapping(token1), address(0));
         gateway.updateTokenMapping(token1, token2);
@@ -91,11 +172,13 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         amount = bound(amount, 1, type(uint256).max);
         gateway.updateTokenMapping(address(token), address(token));
 
+        // Expect WithdrawERC1155 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC1155Gateway.WithdrawERC1155(address(token), address(token), address(this), address(this), tokenId, amount);
+
         gateway.withdrawERC1155(address(token), tokenId, amount, 0);
         assertEq(token.balanceOf(address(gateway), tokenId), 0);
         assertEq(token.balanceOf(address(this), tokenId), type(uint256).max - amount);
-
-        // @todo check event
     }
 
     /// @dev withdraw erc1155 with recipient
@@ -104,11 +187,13 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         amount = bound(amount, 1, type(uint256).max);
         gateway.updateTokenMapping(address(token), address(token));
 
+        // Expect WithdrawERC1155 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC1155Gateway.WithdrawERC1155(address(token), address(token), address(this), to, tokenId, amount);
+
         gateway.withdrawERC1155(address(token), to, tokenId, amount, 0);
         assertEq(token.balanceOf(address(gateway), tokenId), 0);
         assertEq(token.balanceOf(address(this), tokenId), type(uint256).max - amount);
-
-        // @todo check event
     }
 
     /// @dev failed to batch withdraw erc1155
@@ -161,13 +246,15 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
             _amounts[i] = amount;
         }
 
+        // Expect BatchWithdrawERC1155 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC1155Gateway.BatchWithdrawERC1155(address(token), address(token), address(this), address(this), _tokenIds, _amounts);
+
         gateway.batchWithdrawERC1155(address(token), _tokenIds, _amounts, 0);
         for (uint256 i = 0; i < count; i++) {
             assertEq(token.balanceOf(address(gateway), i), 0);
             assertEq(token.balanceOf(address(this), i), type(uint256).max - amount);
         }
-
-        // @todo check event
     }
 
     /// @dev batch withdraw erc1155 with recipient
@@ -183,13 +270,15 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
             _amounts[i] = amount;
         }
 
+        // Expect BatchWithdrawERC1155 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC1155Gateway.BatchWithdrawERC1155(address(token), address(token), address(this), to, _tokenIds, _amounts);
+
         gateway.batchWithdrawERC1155(address(token), to, _tokenIds, _amounts, 0);
         for (uint256 i = 0; i < count; i++) {
             assertEq(token.balanceOf(address(gateway), i), 0);
             assertEq(token.balanceOf(address(this), i), type(uint256).max - _amounts[i]);
         }
-
-        // @todo check event
     }
 
     /// @dev failed to finalize deposit erc1155
@@ -231,6 +320,11 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
 
         // finalize deposit
         messenger.setXDomainMessageSender(address(counterpart));
+
+        // Expect the FinalizeDepositERC1155 event can be emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC1155Gateway.FinalizeDepositERC1155(address(token), address(token), from, to, tokenId, amount);
+
         messenger.callTarget(
             address(gateway),
             abi.encodeCall(
@@ -297,6 +391,11 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
 
         // finalize batch deposit
         messenger.setXDomainMessageSender(address(counterpart));
+
+        // Expect the FinalizeDepositERC1155 event can be emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC1155Gateway.FinalizeBatchDepositERC1155(address(token), address(token), from, to, _tokenIds, _amounts);
+        
         messenger.callTarget(
             address(gateway),
             abi.encodeCall(
