@@ -35,22 +35,14 @@ interface IRollup {
     /// @param originTimestamp
     /// @param finalizeTimestamp
     /// @param blockNumber
-    /// @param prevStateRoot
-    /// @param postStateRoot
-    /// @param withdrawalRoot
     struct BatchData {
         uint256 originTimestamp;
         uint256 finalizeTimestamp;
         uint256 blockNumber;
-        bytes32 prevStateRoot;
-        bytes32 postStateRoot;
-        bytes32 withdrawalRoot;
     }
 
-    /// @param sequencerSetVerifyHash
     /// @param sequencers
     struct BatchSignature {
-        bytes32 sequencerSetVerifyHash;
         bytes signedSequencers;
     }
 

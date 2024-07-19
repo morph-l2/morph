@@ -175,18 +175,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      ************************/
 
     /// @notice Import layer 2 genesis block
-    function importGenesisBatch(
-        uint256 _batchIndex,
-        bytes calldata _batchHeader,
-        bytes32 _postStateRoot
-    ) external onlyOwner {
-        // check genesis batch header length
-        require(_postStateRoot != bytes32(0), "zero state root");
-
+    function importGenesisBatch(uint256 _batchIndex, bytes calldata _batchHeader) external onlyOwner {
         // check whether the genesis batch is imported
         require(finalizedStateRoots[0] == bytes32(0), "genesis batch imported");
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        bytes32 _postStateRoot = BatchHeaderCodecV0.getPostStateHash(memPtr);
+        require(_postStateRoot != bytes32(0), "zero state root");
         // check all fields except `l1DataHash` and `lastBlockHash` are zero
         unchecked {
             uint256 sum = BatchHeaderCodecV0.getVersion(memPtr) +
@@ -197,20 +192,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         require(BatchHeaderCodecV0.getL1DataHash(memPtr) != bytes32(0), "zero data hash");
         require(BatchHeaderCodecV0.getParentBatchHash(memPtr) == bytes32(0), "nonzero parent batch hash");
-
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
-        batchDataStore[_batchIndex] = BatchData(
-            block.timestamp,
-            block.timestamp,
-            0,
-            bytes32(0),
-            _postStateRoot,
-            bytes32(0)
-        );
+        batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0);
 
-        batchSignatureStore[_batchIndex] = BatchSignature(bytes32(0), "0x");
+        batchSignatureStore[_batchIndex] = BatchSignature("0x");
         finalizedStateRoots[_batchIndex] = _postStateRoot;
         lastCommittedBatchIndex = _batchIndex;
         lastFinalizedBatchIndex = _batchIndex;
@@ -247,14 +234,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // the variable `batchPtr` will be reused later for the current batch
         (uint256 _batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr);
-
         require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
         require(committedBatches[_batchIndex + 1] == bytes32(0), "batch already committed");
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
-        require(
-            batchDataStore[_batchIndex].postStateRoot == batchDataInput.prevStateRoot,
-            "incorrect previous state root"
-        );
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0.getTotalL1MessagePopped(_batchPtr);
 
@@ -296,42 +278,41 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         assembly {
             let dataLen := mul(_chunksLength, 0x20)
             _l1DataHash := keccak256(sub(dataPtr, dataLen), dataLen)
-            _batchPtr := mload(0x40) // reset batchPtr
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
-        // store entries, the order matters
-        BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
-        BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
-        BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, _totalL1MessagesPoppedInBatch);
-        BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
-        BatchHeaderCodecV0.storeDataHash(_batchPtr, _l1DataHash);
-        BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
-        BatchHeaderCodecV0.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
-
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
 
-        BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
-
         {
-            committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(
-                _batchPtr,
-                BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH + batchDataInput.skippedL1MessageBitmap.length
-            );
-
+            uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
+                batchDataInput.skippedL1MessageBitmap.length;
+            assembly {
+                _batchPtr := mload(0x40)
+                mstore(0x40, add(_batchPtr, mul(_headerLength, 32)))
+            }
+            // store entries, the order matters
+            BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
+            BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
+            BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, _totalL1MessagesPoppedInBatch);
+            BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
+            BatchHeaderCodecV0.storeDataHash(_batchPtr, _l1DataHash);
+            BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
+            BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
+            BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
+            BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
+            BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
+            BatchHeaderCodecV0.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
+            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
+            committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             // storage batch data for challenge status check
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,
                 block.timestamp + finalizationPeriodSeconds,
-                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1]),
-                batchDataInput.prevStateRoot,
-                batchDataInput.postStateRoot,
-                batchDataInput.withdrawalRoot
+                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1])
             );
 
             address[] memory submitter = new address[](1);
             submitter[0] = _msgSender();
             batchSignatureStore[_batchIndex] = BatchSignature(
-                keccak256(batchSignatureInput.sequencerSets),
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
                 abi.encode(submitter) // => batchSignature.signedSequencers
@@ -534,7 +515,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(!batchInsideChallengeWindow(_batchIndex), "batch in challenge window");
         // verify previous state root.
         require(
-            finalizedStateRoots[_batchIndex - 1] == batchDataStore[_batchIndex].prevStateRoot,
+            finalizedStateRoots[_batchIndex - 1] == BatchHeaderCodecV0.getPrevStateHash(memPtr),
             "incorrect previous state root"
         );
         // avoid duplicated verification
@@ -546,8 +527,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
 
         // record state root and withdraw root
-        withdrawalRoots[batchDataStore[_batchIndex].withdrawalRoot] = true;
-        finalizedStateRoots[_batchIndex] = batchDataStore[_batchIndex].postStateRoot;
+        withdrawalRoots[BatchHeaderCodecV0.getWithdrawRootHash(memPtr)] = true;
+        finalizedStateRoots[_batchIndex] = BatchHeaderCodecV0.getPostStateHash(memPtr);
 
         // Pop finalized and non-skipped message from L1MessageQueue.
         _popL1Messages(
@@ -563,8 +544,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit FinalizeBatch(
             _batchIndex,
             committedBatches[_batchIndex],
-            batchDataStore[_batchIndex].postStateRoot,
-            batchDataStore[_batchIndex].withdrawalRoot
+            BatchHeaderCodecV0.getPostStateHash(memPtr),
+            BatchHeaderCodecV0.getWithdrawRootHash(memPtr)
         );
     }
 
@@ -665,10 +646,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes32 _publicInputHash = keccak256(
             abi.encodePacked(
                 LAYER_2_CHAIN_ID,
-                batchDataStore[_batchIndex].prevStateRoot,
-                batchDataStore[_batchIndex].postStateRoot,
-                batchDataStore[_batchIndex].withdrawalRoot,
-                batchSignatureStore[_batchIndex].sequencerSetVerifyHash,
+                BatchHeaderCodecV0.getPrevStateHash(memPtr),
+                BatchHeaderCodecV0.getPostStateHash(memPtr),
+                BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
+                BatchHeaderCodecV0.getSequencerSetVerifyHash(memPtr),
                 BatchHeaderCodecV0.getL1DataHash(memPtr),
                 _kzgDataProof[0:64],
                 _blobVersionedHash
