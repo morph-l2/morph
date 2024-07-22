@@ -315,6 +315,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice whether address is staker
     /// @param addr  address to check
     function isStaker(address addr) public view returns (bool) {
+        if (stakerIndexes[addr] == 0) {
+            return false;
+        }
         return stakerSet[stakerIndexes[addr] - 1] == addr;
     }
 
@@ -335,7 +338,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param _stakers  the staker address array
     function getStakersBitmap(address[] calldata _stakers) external view returns (uint256 bitmap) {
         require(_stakers.length <= 255, "stakers lenght out of bounds");
-        for (uint256 i = 0; i <= _stakers.length; i++) {
+        for (uint256 i = 0; i < _stakers.length; i++) {
             require(isStaker(_stakers[i]), "invalid staker");
             bitmap = bitmap | (1 << stakerIndexes[_stakers[i]]);
         }
@@ -348,14 +351,19 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         uint256 _bitmap = bitmap;
         uint256 stakersLength = 0;
         while (_bitmap > 0) {
-            _bitmap = _bitmap & (_bitmap - 1);
             stakersLength = stakersLength + 1;
+            _bitmap = _bitmap & (_bitmap - 1);
         }
 
         stakerAddrs = new address[](stakersLength);
-        for (uint8 i = 1; i <= 255; i++) {
+        uint256 index = 0;
+        for (uint8 i = 1; i < 255; i++) {
             if ((bitmap & (1 << i)) > 0) {
-                stakerAddrs[i - 1] = stakerSet[i - 1];
+                stakerAddrs[index] = stakerSet[i - 1];
+                index = index + 1;
+                if (index >= stakersLength) {
+                    break;
+                }
             }
         }
     }
@@ -367,10 +375,10 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice add stater
     /// @param addr  staker address
     function _addStaker(address addr) internal {
-        for (uint8 i = 1; i <= 255; i++) {
+        for (uint8 i = 0; i < 255; i++) {
             if (stakerSet[i] == address(0)) {
                 stakerSet[i] = addr;
-                stakerIndexes[addr] = i;
+                stakerIndexes[addr] = i + 1;
                 return;
             }
         }
