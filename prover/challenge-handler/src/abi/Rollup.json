@@ -398,21 +398,6 @@
         "internalType": "uint256",
         "name": "blockNumber",
         "type": "uint256"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "prevStateRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "postStateRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "withdrawalRoot",
-        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -485,11 +470,6 @@
     ],
     "name": "batchSignatureStore",
     "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "sequencerSetVerifyHash",
-        "type": "bytes32"
-      },
       {
         "internalType": "bytes",
         "name": "signedSequencers",
@@ -716,11 +696,6 @@
         "internalType": "bytes",
         "name": "_batchHeader",
         "type": "bytes"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_postStateRoot",
-        "type": "bytes32"
       }
     ],
     "name": "importGenesisBatch",

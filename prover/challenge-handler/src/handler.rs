@@ -29,6 +29,7 @@ pub struct ProveResult {
     pub proof_data: Vec<u8>,
     pub pi_data: Vec<u8>,
     pub blob_kzg: Vec<u8>,
+    pub batch_header: Vec<u8>,
 }
 
 mod task_status {
@@ -120,15 +121,20 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
             Some(value) => value,
             None => continue,
         };
-        let batch_header: Bytes = match batch_header_inspect(l1_provider, next_rollup_hash).await {
+        let on_chain_batch_header: Bytes = match batch_header_inspect(l1_provider, next_rollup_hash).await {
             Some(bh) => bh,
             None => continue,
         };
 
-        let chunks = match batch_inspect(l1_provider, challenged_rollup_hash).await {
-            Some(chunks) => chunks,
+        let mut batch_info = match batch_inspect(l1_provider, challenged_rollup_hash).await {
+            Some(mut b) => {
+                b.batch_index = batch_index;
+                b
+            }
             None => continue,
         };
+
+        let chunks = &batch_info.chunks_info;
         log::info!(
             "batch inspect of: {:?}, chunks.len = {:?}, chunks = {:#?}",
             batch_index,
@@ -140,7 +146,11 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         if let Some(prove_result) = query_proof(batch_index).await {
             if !prove_result.proof_data.is_empty() {
                 log::info!("query proof and prove state: {:#?}", batch_index);
-                prove_state(batch_index, batch_header, l1_rollup).await;
+                let batch_header = batch_info.fill_ext(prove_result.batch_header.clone()).encode();
+                if on_chain_batch_header != batch_header {
+                    log::error!("========batch_header data error");
+                }
+                prove_state(batch_index, batch_header, prove_result, l1_rollup).await;
                 continue;
             }
         }
@@ -161,7 +171,16 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
                 task_status::PROVING => log::info!("waiting for prev proof to be generated"),
                 task_status::PROVED => {
                     log::info!("proof already generated");
-                    prove_state(batch_index, batch_header, l1_rollup).await;
+                    if let Some(prove_result) = query_proof(batch_index).await {
+                        if !prove_result.proof_data.is_empty() {
+                            log::info!("query proof and prove state: {:#?}", batch_index);
+                            let batch_header = batch_info.fill_ext(prove_result.batch_header.clone()).encode();
+                            if on_chain_batch_header != batch_header {
+                                log::error!("========batch_header data error");
+                            }
+                            prove_state(batch_index, batch_header, prove_result, l1_rollup).await;
+                        }
+                    }
                     continue;
                 }
                 _ => {
@@ -184,7 +203,11 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
                 Some(prove_result) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
-                        prove_state(batch_index, batch_header, l1_rollup).await;
+                        let batch_header = batch_info.fill_ext(prove_result.batch_header.clone()).encode();
+                        if on_chain_batch_header != batch_header {
+                            log::error!("========batch_header data error");
+                        }
+                        prove_state(batch_index, batch_header, prove_result, l1_rollup).await;
                         break;
                     }
                 }
@@ -197,22 +220,13 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
     }
 }
 
-async fn prove_state(batch_index: u64, batch_header: Bytes, l1_rollup: &RollupType) -> bool {
+async fn prove_state(batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
     for _ in 0..MAX_RETRY_TIMES {
         sleep(Duration::from_secs(12)).await;
-        let prove_result = match query_proof(batch_index).await {
-            Some(pr) => pr,
-            None => continue,
-        };
-
-        if prove_result.proof_data.is_empty() {
-            log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
-            continue;
-        }
 
         log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
-        let aggr_proof = Bytes::from(prove_result.proof_data);
-        let kzg_data = Bytes::from(prove_result.blob_kzg);
+        let aggr_proof = Bytes::from(batch_proof.proof_data.clone());
+        let kzg_data = Bytes::from(batch_proof.blob_kzg.clone());
 
         let call = l1_rollup.prove_state(batch_header.clone(), aggr_proof, kzg_data);
         let rt = call.send().await;
@@ -404,7 +418,24 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
     None
 }
 
-async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec<Vec<u64>>> {
+#[derive(Default, Clone)]
+struct BatchInfo {
+    version: u8,
+    batch_index: u64,
+    chunks_info: Vec<Vec<u64>>,
+    l1_message_popped: u64,
+    total_l1_message_popped: u64,
+    data_hash: [u8; 32],
+    blob_versioned_hash: [u8; 32],
+    prev_state_root: [u8; 32],
+    post_state_root: [u8; 32],
+    withdrawal_root: [u8; 32],
+    sequencer_set_verify_hash: [u8; 32],
+    parent_batch_hash: [u8; 32],
+    skipped_l1_message_bitmap: Bytes,
+}
+
+async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<BatchInfo> {
     //Step1.  Get transaction
     let result = l1_provider.get_transaction(hash).await;
     let tx = match result {
@@ -431,8 +462,38 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec
         log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
         return None;
     };
+
+    let version: u8 = param.batch_data_input.version;
+    let skipped_l1_message_bitmap: Bytes = param.batch_data_input.skipped_l1_message_bitmap;
+    let prev_state_root: [u8; 32] = param.batch_data_input.prev_state_root;
+    let post_state_root: [u8; 32] = param.batch_data_input.post_state_root;
+    let withdrawal_root: [u8; 32] = param.batch_data_input.withdrawal_root;
     let chunks: Vec<Bytes> = param.batch_data_input.chunks;
-    decode_chunks(chunks)
+    let (chunks_info, total_l1_txn) = decode_chunks(chunks).unwrap_or_default();
+    let mut batch_info = BatchInfo {
+        version,
+        skipped_l1_message_bitmap,
+        prev_state_root,
+        post_state_root,
+        withdrawal_root,
+        chunks_info,
+        l1_message_popped: total_l1_txn,
+        ..Default::default()
+    };
+
+    // prev_batch_header
+    let prev_batch_header: Bytes = match batch_header_inspect(l1_provider, hash).await {
+        Some(bh) => bh,
+        None => {
+            log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
+            return None;
+        }
+    };
+    let prev_total_l1_message = prev_batch_header.get(17..25).unwrap_or_default();
+    let post_total_l1_message = u64::from_be_bytes(prev_total_l1_message.try_into().unwrap()) + batch_info.l1_message_popped;
+    batch_info.total_l1_message_popped = post_total_l1_message;
+
+    Some(batch_info)
 }
 
 async fn batch_header_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Bytes> {
@@ -467,7 +528,34 @@ async fn batch_header_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Opt
     Some(parent_batch_header)
 }
 
-fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
+impl BatchInfo {
+    fn fill_ext(&mut self, batch_header_ex: Vec<u8>) -> &Self {
+        self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
+        self.blob_versioned_hash = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
+        self.data_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
+        self
+    }
+
+    fn encode(&self) -> Bytes {
+        let mut batch_header: Vec<u8> = vec![];
+        batch_header.extend_from_slice(&self.version.to_be_bytes());
+        batch_header.extend_from_slice(&self.batch_index.to_be_bytes());
+        batch_header.extend_from_slice(&self.l1_message_popped.to_be_bytes());
+        batch_header.extend_from_slice(&self.total_l1_message_popped.to_be_bytes());
+        batch_header.extend_from_slice(&self.data_hash);
+        batch_header.extend_from_slice(&self.blob_versioned_hash);
+        batch_header.extend_from_slice(&self.prev_state_root);
+        batch_header.extend_from_slice(&self.post_state_root);
+        batch_header.extend_from_slice(&self.withdrawal_root);
+        batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
+        batch_header.extend_from_slice(&self.parent_batch_hash);
+        batch_header.extend_from_slice(&self.skipped_l1_message_bitmap);
+
+        Bytes::from(batch_header)
+    }
+}
+
+fn decode_chunks(chunks: Vec<Bytes>) -> Option<(Vec<Vec<u64>>, u64)> {
     if chunks.is_empty() {
         return None;
     }
@@ -475,6 +563,7 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
     let mut chunk_with_blocks: Vec<Vec<u64>> = vec![];
     let mut txn_in_batch = 0;
     let mut max_txn_in_chunk = 0;
+    let mut total_l1_txn = 0;
     for chunk in chunks.iter() {
         let mut chunk_bn: Vec<u64> = vec![];
         let bs: &[u8] = chunk;
@@ -484,10 +573,20 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
         // | num blocks |  block 1 | ... |  block n |
         let num_blocks = U256::from_big_endian(bs.get(..1)?);
         for i in 0..num_blocks.as_usize() {
+            // decode blockContext
+            //   * Field                   Bytes      Type         Index  Comments
+            //   * blockNumber             8          uint64       0      The height of this block.
+            //   * timestamp               8          uint64       8      The timestamp of this block.
+            //   * baseFee                 32         uint256      16     The base fee of this block.
+            //   * gasLimit                8          uint64       48     The gas limit of this block.
+            //   * numTransactions         2          uint16       56     The number of transactions in this block, both L1 & L2 txs.
+            //   * numL1Messages           2          uint16       58     The number of l1 messages in this block.
             let block_num = U256::from_big_endian(bs.get((60.mul(i) + 1)..(60.mul(i) + 1 + 8))?);
             let txs_num = U256::from_big_endian(bs.get((60.mul(i) + 1 + 56)..(60.mul(i) + 1 + 58))?);
-            max_txn_in_chunk = max_txn_in_chunk.max(txs_num.as_u32());
+            let l1_txs_num = U256::from_big_endian(bs.get((60.mul(i) + 1 + 58)..(60.mul(i) + 1 + 60))?);
+            max_txn_in_chunk = max_txn_in_chunk.max(txs_num.as_u64());
             txn_in_batch += txs_num.as_u32();
+            total_l1_txn += l1_txs_num.as_u64();
             chunk_bn.push(block_num.as_u64());
         }
 
@@ -495,6 +594,5 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<Vec<Vec<u64>>> {
     }
     METRICS.txn_len.set(txn_in_batch.into());
     log::info!("total_l2txn_in_batch: {:#?}, max_l2txn_in_chunk: {:#?}", txn_in_batch, max_txn_in_chunk);
-    Some(chunk_with_blocks)
+    Some((chunk_with_blocks, total_l1_txn))
 }
-

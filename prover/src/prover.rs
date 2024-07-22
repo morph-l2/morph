@@ -6,7 +6,7 @@ use c_kzg::{Blob, KzgCommitment, KzgProof};
 use ethers::abi::AbiEncode;
 use ethers::providers::Provider;
 use ethers::types::U256;
-use ethers::utils::hex;
+use ethers::utils::{hex, keccak256};
 use prover::aggregator::Prover as BatchProver;
 use prover::utils::chunk_trace_to_witness_block;
 use prover::zkevm::Prover as ChunkProver;
@@ -213,8 +213,9 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         chunk_hashes.extend(repeat(padding_chunk_hash).take(MAX_AGG_SNARKS - number_of_valid_chunks));
     }
     log::debug!(
-        "lastest_hash_withdraw_root: {:?}",
-        chunk_hashes[MAX_AGG_SNARKS - 1].withdraw_root
+        "withdraw_root of batch_{:?} = {:#?}",
+        batch_index,
+        hex::encode(chunk_hashes[MAX_AGG_SNARKS - 1].withdraw_root)
     );
 
     log::debug!(
@@ -222,6 +223,20 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         batch_index,
         hex::encode(chunk_hashes[0].prev_state_root)
     );
+    log::debug!(
+        "post_state_root of batch_{:?} = {:#?}",
+        batch_index,
+        hex::encode(chunk_hashes[MAX_AGG_SNARKS - 1].post_state_root)
+    );
+
+    let data_hash_preimage = chunk_hashes
+        .iter()
+        .take(number_of_valid_chunks)
+        .flat_map(|chunk_info| chunk_info.data_hash.0.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+    let batch_data_hash = keccak256(data_hash_preimage);
+    let sequencer_root = chunk_hashes[MAX_AGG_SNARKS - 1].sequencer_root.as_fixed_bytes();
 
     let blob = BatchHash::<MAX_AGG_SNARKS>::construct(&chunk_hashes).point_evaluation_assignments();
     let challenge = blob.challenge; // z
@@ -245,8 +260,28 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
     log::info!(
         "=========> blob_versioned_hash of batch_{:?} = {:#?}",
         batch_index,
-        hex::encode(versioned_hash)
+        hex::encode(versioned_hash.clone())
     );
+
+    // Save batch_header
+    // | batch_data_hash | versioned_hash | sequencer_root |
+    // |-----------------|----------------|----------------|
+    // |     bytes32     |     bytes32    |     bytes32    |
+    let mut batch_header: Vec<u8> = Vec::with_capacity(96);
+    batch_header.extend_from_slice(&batch_data_hash);
+    batch_header.extend_from_slice(&versioned_hash);
+    batch_header.extend_from_slice(sequencer_root);
+    let mut batch_file = File::create(format!("{}/batch_header.data", proof_path)).unwrap();
+    match batch_file.write_all(&batch_header[..]) {
+        Ok(()) => (),
+        Err(e) => {
+            return Err(format!(
+                "save header_info of batch = {:#?} error: {:#?}",
+                batch_index, e
+            ));
+        }
+    };
+
     let mut z = [0u8; 32];
     challenge.to_big_endian(&mut z);
     let (proof, y) =
