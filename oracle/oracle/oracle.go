@@ -28,7 +28,7 @@ import (
 
 const (
 	defaultRewardEpoch = time.Hour / time.Second * 24
-	defaultPrecision   = 10 ^ 8
+	defaultPrecision   = 10e18
 	defaultSleepTime   = 30 * time.Second
 )
 

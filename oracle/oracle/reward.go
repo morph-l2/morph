@@ -132,9 +132,7 @@ func (o *Oracle) getRewardEpochs(startRewardEpochIndex, startHeight *big.Int) (*
 
 	var sequencers []common.Address
 	var seqBlockCounts, sequencerRatios, sequencerCommissions []*big.Int
-	var blC int64
 	for seq, count := range sequencersBlockCount {
-		blC += count
 		sequencers = append(sequencers, seq)
 		seqBlockCounts = append(seqBlockCounts, big.NewInt(count))
 	}
@@ -148,7 +146,6 @@ func (o *Oracle) getRewardEpochs(startRewardEpochIndex, startHeight *big.Int) (*
 		sequencerRatios = append(sequencerRatios, ratio)
 		residue = new(big.Int).Sub(residue, ratio)
 		if ratio.Cmp(maxRatio) > 0 {
-			maxRatio = ratio
 			maxRatioIndex = i
 		}
 		commission, err := o.getSequencerCommission(new(big.Int).Sub(startHeight, big.NewInt(1)), sequencers[i])
