@@ -16,7 +16,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         super.setUp();
 
         batchSignatureInput = IRollup.BatchSignatureInput(
-            abi.encode(new address[](0)),
+            uint256(0),
             abi.encode(uint256(0), new address[](0), uint256(0), new address[](0), uint256(0), new address[](0)),
             bytes("0x")
         );
@@ -331,7 +331,7 @@ contract RollupTest is L1MessageBaseTest {
     function setUp() public virtual override {
         super.setUp();
         batchSignatureInput = IRollup.BatchSignatureInput(
-            abi.encode(new address[](0)),
+            uint256(0),
             abi.encode(uint256(0), new address[](0), uint256(0), new address[](0), uint256(0), new address[](0)),
             bytes("0x")
         );
