@@ -770,15 +770,18 @@ func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRol
 	args := abi.Arguments{
 		{Type: AddressArr, Name: "stakeAddresses"},
 	}
-	bsSigner, err := args.Pack(&signers)
+
+	// TODO
+	_, err := args.Pack(&signers)
 	if err != nil {
 		return nil, fmt.Errorf("pack signers error:%v", err)
 	}
 
+	// TODO
 	sigData := bindings.IRollupBatchSignatureInput{
-		SignedSequencers: bsSigner,
-		SequencerSets:    batch.CurrentSequencerSetBytes,
-		Signature:        blsSignature,
+		SignedSequencersBitmap: big.NewInt(0),
+		SequencerSets:          batch.CurrentSequencerSetBytes,
+		Signature:              blsSignature,
 	}
 	return &sigData, nil
 }
