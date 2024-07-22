@@ -1,5 +1,7 @@
 # Build Geth in a stock Go builder container
-FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
+FROM golang:1.20-alpine as builder
+
+RUN apk add --no-cache gcc musl-dev linux-headers git make
 
 COPY . /morph
 
@@ -8,10 +10,9 @@ WORKDIR /morph/tx-submitter
 RUN make build
 
 # Pull Geth into a second stage deploy alpine container
-FROM morph/go-ubuntu-builder:go-1.22-ubuntu
+FROM alpine:latest
 
-RUN apt-get -qq update \
-    && apt-get -qq install -y --no-install-recommends ca-certificates
+RUN apk add --no-cache ca-certificates
 COPY --from=builder /morph/tx-submitter/tx-submitter /usr/local/bin/
 
 CMD ["tx-submitter"]
