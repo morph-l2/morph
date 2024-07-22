@@ -39,10 +39,6 @@ interface IRollup {
         uint256 originTimestamp;
         uint256 finalizeTimestamp;
         uint256 blockNumber;
-    }
-
-    /// @param signedSequencersBitmap The bitmap of signed sequencers
-    struct BatchSignature {
         uint256 signedSequencersBitmap;
     }
 

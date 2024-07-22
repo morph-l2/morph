@@ -74,9 +74,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Store committed batch base.
     mapping(uint256 batchIndex => BatchData) public batchDataStore;
 
-    /// @notice Store committed batch signature.
-    mapping(uint256 batchIndex => BatchSignature) public batchSignatureStore;
-
     /// @notice Store the withdrawalRoot.
     mapping(bytes32 withdrawalRoot => bool exist) public withdrawalRoots;
 
@@ -195,9 +192,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
-        batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0);
+        batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0, 0);
 
-        batchSignatureStore[_batchIndex] = BatchSignature(0);
         finalizedStateRoots[_batchIndex] = _postStateRoot;
         lastCommittedBatchIndex = _batchIndex;
         lastFinalizedBatchIndex = _batchIndex;
@@ -307,10 +303,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,
                 block.timestamp + finalizationPeriodSeconds,
-                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1])
-            );
-
-            batchSignatureStore[_batchIndex] = BatchSignature(
+                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1]),
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
                 IL1Staking(l1StakingContract).getStakerBitmap(_msgSender()) // => batchSignature.signedSequencersBitmap
@@ -493,7 +486,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (challenges[_batchIndex].startTime + proofWindow <= block.timestamp) {
             // set status
             challenges[_batchIndex].challengeSuccess = true;
-            _challengerWin(_batchIndex, batchSignatureStore[_batchIndex].signedSequencersBitmap, "Timeout");
+            _challengerWin(_batchIndex, batchDataStore[_batchIndex].signedSequencersBitmap, "Timeout");
         } else {
             _verifyProof(memPtr, _aggrProof, _kzgDataProof);
             // Record defender win
@@ -536,7 +529,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         );
 
         delete batchDataStore[_batchIndex - 1];
-        delete batchSignatureStore[_batchIndex - 1];
         delete challenges[_batchIndex - 1];
 
         emit FinalizeBatch(
