@@ -16,7 +16,7 @@ ifeq (${PLATFORM},server)
 endif
 
 build:
-	env CGO_LDFLAGS="-ldl" go build -v $(LDFLAGS) -o tx-submitter ./cmd
+	go build -v $(LDFLAGS) -o tx-submitter ./cmd
 
 clean:
 	rm tx-submitter
