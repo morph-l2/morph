@@ -18,7 +18,7 @@ contract RecordTest is L2StakingBaseTest {
     function test_initialize_onlyOnce_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        record.initialize(address(0), 1);
+        record.initialize(multisig, address(0), 1);
     }
 
     /**
@@ -50,7 +50,7 @@ contract RecordTest is L2StakingBaseTest {
         // Initialize the proxy with the new implementation.
         ITransparentUpgradeableProxy(address(recordProxyTemp)).upgradeToAndCall(
             address(recordImplTemp),
-            abi.encodeCall(Record.initialize, (oracleAddress, 0))
+            abi.encodeCall(Record.initialize, (multisig, oracleAddress, 0))
         );
         hevm.stopPrank();
     }
@@ -82,7 +82,7 @@ contract RecordTest is L2StakingBaseTest {
         // Initialize the proxy with the new implementation.
         ITransparentUpgradeableProxy(address(recordProxyTemp)).upgradeToAndCall(
             address(recordImplTemp),
-            abi.encodeCall(Record.initialize, (oracleAddress, nextBatchSubmissionIndex))
+            abi.encodeCall(Record.initialize, (multisig, oracleAddress, nextBatchSubmissionIndex))
         );
         hevm.stopPrank();
 
