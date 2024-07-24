@@ -23,11 +23,11 @@ interface IRollup {
         bytes32 withdrawalRoot;
     }
 
-    /// @param signedSequencers The signed sequencers
+    /// @param signedSequencers The bitmap of signed sequencers
     /// @param sequencerSets    The latest 3 sequencer sets
     /// @param signature        The BLS signature
     struct BatchSignatureInput {
-        bytes signedSequencers;
+        uint256 signedSequencersBitmap;
         bytes sequencerSets;
         bytes signature;
     }
@@ -35,23 +35,11 @@ interface IRollup {
     /// @param originTimestamp
     /// @param finalizeTimestamp
     /// @param blockNumber
-    /// @param prevStateRoot
-    /// @param postStateRoot
-    /// @param withdrawalRoot
     struct BatchData {
         uint256 originTimestamp;
         uint256 finalizeTimestamp;
         uint256 blockNumber;
-        bytes32 prevStateRoot;
-        bytes32 postStateRoot;
-        bytes32 withdrawalRoot;
-    }
-
-    /// @param sequencerSetVerifyHash
-    /// @param sequencers
-    struct BatchSignature {
-        bytes32 sequencerSetVerifyHash;
-        bytes signedSequencers;
+        uint256 signedSequencersBitmap;
     }
 
     /// @dev Structure to store information about a batch challenge.

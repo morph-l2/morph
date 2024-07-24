@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto/bls12381"
@@ -21,11 +22,12 @@ type BatchingCache struct {
 	prevStateRoot     common.Hash
 
 	// accumulated batch data
-	chunks                *types.Chunks
-	totalL1MessagePopped  uint64
-	skippedBitmap         []*big.Int
-	postStateRoot         common.Hash
-	withdrawRoot          common.Hash
+	chunks               *types.Chunks
+	totalL1MessagePopped uint64
+	skippedBitmap        []*big.Int
+	postStateRoot        common.Hash
+	withdrawRoot         common.Hash
+
 	lastPackedBlockHeight uint64
 	// caches sealedBatchHeader according to the above accumulated batch data
 	sealedBatchHeader *types.BatchHeader
@@ -121,7 +123,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 				lastHeightBeforeCurrentBatch = wBlock.Number - 1
 			}
 
-			if i == len(blocks)-1 {
+			if i == len(blocks)-1 { // last block
 				lastBlockStateRoot = wBlock.StateRoot
 				lastBlockWithdrawRoot = wBlock.WithdrawTrieRoot
 			}
@@ -212,6 +214,12 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	if sidecar != nil && len(sidecar.Blobs) > 0 {
 		blobHashes = sidecar.BlobHashes()
 	}
+
+	sequencerSetVerifyHash, err := e.sequencer.SequencerSetVerifyHash(nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get sequencerSetVerifyHash, err: %w", err)
+	}
+
 	batchHeader := types.BatchHeader{
 		Version:                0,
 		BatchIndex:             e.batchingCache.parentBatchHeader.BatchIndex + 1,
@@ -219,6 +227,10 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		TotalL1MessagePopped:   e.batchingCache.totalL1MessagePopped,
 		DataHash:               e.batchingCache.chunks.DataHash(),
 		BlobVersionedHash:      blobHashes[0], // currently we only have one blob
+		PrevStateRoot:          e.batchingCache.prevStateRoot,
+		PostStateRoot:          e.batchingCache.postStateRoot,
+		WithdrawalRoot:         e.batchingCache.withdrawRoot,
+		SequencerSetVerifyHash: sequencerSetVerifyHash,
 		ParentBatchHash:        e.batchingCache.parentBatchHeader.Hash(),
 		SkippedL1MessageBitmap: skippedL1MessageBitmapBytes,
 	}
@@ -258,11 +270,6 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		}
 	}
 
-	sequencerBytes, err := e.sequencer.GetSequencerSetBytes(nil)
-	if err != nil {
-		return err
-	}
-
 	chunksBytes, err := e.batchingCache.chunks.Encode()
 	if err != nil {
 		return err
@@ -282,12 +289,23 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	}
 
 	currentIndex := e.batchingCache.parentBatchHeader.BatchIndex + 1
+
+	// The batch needs the sequencer set info at the end height of the batch, which is equal to current height - 1.
+	callOpts := &bind.CallOpts{
+		BlockNumber: big.NewInt(int64(curHeight - 1)),
+	}
+	sequencerSetBytes, err := e.sequencer.GetSequencerSetBytes(callOpts)
+	if err != nil {
+		e.logger.Error("failed to GetSequencerSetBytes", "query at height of", curHeight-1, "error", err)
+		return err
+	}
+
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
 		Version:                  0,
 		Index:                    currentIndex,
 		Hash:                     e.batchingCache.sealedBatchHeader.Hash(),
 		ParentBatchHeader:        e.batchingCache.parentBatchHeader.Encode(),
-		CurrentSequencerSetBytes: sequencerBytes,
+		CurrentSequencerSetBytes: sequencerSetBytes,
 		Chunks:                   chunksBytes,
 		SkippedL1MessageBitmap:   e.batchingCache.sealedBatchHeader.SkippedL1MessageBitmap,
 		PrevStateRoot:            e.batchingCache.prevStateRoot,
@@ -391,6 +409,7 @@ func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.
 	if err = curBlock.UnmarshalBinary(currentBlockBytes); err != nil {
 		return err
 	}
+
 	l1TxNum := int(totalL1MessagePopped - e.batchingCache.totalL1MessagePopped)
 	currentBlockContext := curBlock.BlockContextBytes(l2TxNum+l1TxNum, l1TxNum)
 	e.batchingCache.currentBlockContext = currentBlockContext
@@ -485,6 +504,7 @@ func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {
 		TotalL1MessagePopped: 0,
 		DataHash:             chunks.DataHash(),
 		BlobVersionedHash:    types.EmptyVersionedHash,
+		PostStateRoot:        genesisHeader.Root,
 		ParentBatchHash:      common.Hash{},
 	}, nil
 }
