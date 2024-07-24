@@ -41,26 +41,26 @@ contract L2StakingTest is L2StakingBaseTest {
 
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        l2Staking.initialize(0, 0, 0, _stakerInfos);
+        l2Staking.initialize(multisig, 0, 0, 0, _stakerInfos);
 
         // reset initialize
         hevm.store(address(l2Staking), bytes32(uint256(0)), bytes32(uint256(0)));
 
         hevm.expectRevert("sequencersSize must greater than 0");
         hevm.prank(multisig);
-        l2Staking.initialize(0, 0, 0, _stakerInfos);
+        l2Staking.initialize(multisig, 0, 0, 0, _stakerInfos);
 
         hevm.expectRevert("invalid undelegateLockEpochs");
         hevm.prank(multisig);
-        l2Staking.initialize(1, 0, 0, _stakerInfos);
+        l2Staking.initialize(multisig, 1, 0, 0, _stakerInfos);
 
         hevm.expectRevert("invalid reward start time");
         hevm.prank(multisig);
-        l2Staking.initialize(1, 1, 100, _stakerInfos);
+        l2Staking.initialize(multisig, 1, 1, 100, _stakerInfos);
 
         hevm.expectRevert("invalid initial stakers");
         hevm.prank(multisig);
-        l2Staking.initialize(1, 1, rewardStartTime * 2, _stakerInfos);
+        l2Staking.initialize(multisig, 1, 1, rewardStartTime * 2, _stakerInfos);
     }
 
     /**
@@ -101,7 +101,10 @@ contract L2StakingTest is L2StakingBaseTest {
         // Initialize the proxy with the new implementation.
         ITransparentUpgradeableProxy(address(l2StakingProxyTemp)).upgradeToAndCall(
             address(l2StakingImplTemp),
-            abi.encodeCall(L2Staking.initialize, (SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos))
+            abi.encodeCall(
+                L2Staking.initialize,
+                (multisig, SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos)
+            )
         );
         hevm.stopPrank();
 
@@ -737,17 +740,50 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(firstStaker, morphBalance);
         l2Staking.undelegateStake(firstStaker);
 
-        uint256 time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 1);
+        uint256 time = rewardStartTime + REWARD_EPOCH * 1;
         hevm.warp(time);
 
         // Expect the UndelegationClaimed event is emitted successfully.
-        IL2Staking.UndelegationClaimedInfo[] memory undelegationClaimedInfos = new IL2Staking.UndelegationClaimedInfo[](
-            1
-        );
         (address delegatee, uint256 amount, uint256 unlockEpoch) = l2Staking.undelegations(bob, 0);
-        undelegationClaimedInfos[0] = IL2Staking.UndelegationClaimedInfo(delegatee, bob, unlockEpoch, amount, true);
         hevm.expectEmit(true, true, true, true);
-        emit IL2Staking.UndelegationClaimed(undelegationClaimedInfos);
+        emit IL2Staking.UndelegationClaimed(delegatee, bob, unlockEpoch, amount);
+
+        l2Staking.claimUndelegation();
+        uint256 newBalance = morphToken.balanceOf(bob);
+
+        // Verify the balance of bob is correct.
+        assertEq(currentBalance, newBalance);
+
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice normal claim undelegation
+     */
+    function test_claimUndelegation_delegatorClaimUndelegations_succeeds() public {
+        hevm.startPrank(bob);
+        uint256 currentBalance = morphToken.balanceOf(bob);
+
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance / 2);
+        l2Staking.delegateStake(secondStaker, morphBalance / 2);
+
+        hevm.warp(rewardStartTime + REWARD_EPOCH * 2);
+
+        l2Staking.undelegateStake(firstStaker);
+        l2Staking.undelegateStake(secondStaker);
+
+        hevm.warp(rewardStartTime + REWARD_EPOCH * 4);
+
+        // Expect the UndelegationClaimed event is emitted successfully.
+        uint256 amount;
+        uint256 unlockEpoch;
+        hevm.expectEmit(true, true, true, true);
+        (, amount, unlockEpoch) = l2Staking.undelegations(bob, 0);
+        emit IL2Staking.UndelegationClaimed(firstStaker, bob, unlockEpoch, amount);
+        hevm.expectEmit(true, true, true, true);
+        (, amount, unlockEpoch) = l2Staking.undelegations(bob, 1);
+        emit IL2Staking.UndelegationClaimed(secondStaker, bob, unlockEpoch, amount);
 
         l2Staking.claimUndelegation();
         uint256 newBalance = morphToken.balanceOf(bob);
@@ -785,12 +821,10 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.roll(ROLLUP_EPOCH);
 
         uint256 time = rewardStartTime + REWARD_EPOCH * (ROLLUP_EPOCH + 1);
-
         hevm.warp(time);
         l2Staking.claimUndelegation();
 
         l2Staking.delegateStake(firstStaker, morphBalance);
-
         hevm.stopPrank();
     }
 

@@ -44,7 +44,7 @@ contract DistributeTest is L2StakingBaseTest {
     function test_initialize_onlyOnce_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        distribute.initialize();
+        distribute.initialize(multisig);
     }
 
     /**

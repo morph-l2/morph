@@ -113,13 +113,14 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         }
         ITransparentUpgradeableProxy(address(sequencerProxy)).upgradeToAndCall(
             address(sequencerImpl),
-            abi.encodeCall(Sequencer.initialize, (sequencerAddresses))
+            abi.encodeCall(Sequencer.initialize, (multisig, sequencerAddresses))
         );
         ITransparentUpgradeableProxy(address(govProxy)).upgradeToAndCall(
             address(govImpl),
             abi.encodeCall(
                 Gov.initialize,
                 (
+                    multisig,
                     VOTING_DURATION, // _votingDuration
                     0, // _batchBlockInterval
                     0, // _batchMaxBytes
@@ -132,7 +133,10 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
         ITransparentUpgradeableProxy(address(l2StakingProxy)).upgradeToAndCall(
             address(l2StakingImpl),
-            abi.encodeCall(L2Staking.initialize, (SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos))
+            abi.encodeCall(
+                L2Staking.initialize,
+                (multisig, SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos)
+            )
         );
         ITransparentUpgradeableProxy(address(morphTokenProxy)).upgradeToAndCall(
             address(morphTokenImpl),
@@ -140,11 +144,11 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         );
         ITransparentUpgradeableProxy(address(distributeProxy)).upgradeToAndCall(
             address(distributeImpl),
-            abi.encodeCall(Distribute.initialize, ())
+            abi.encodeCall(Distribute.initialize, (multisig))
         );
         ITransparentUpgradeableProxy(address(recordProxy)).upgradeToAndCall(
             address(recordImpl),
-            abi.encodeCall(Record.initialize, (oracleAddress, nextBatchSubmissionIndex))
+            abi.encodeCall(Record.initialize, (multisig, oracleAddress, nextBatchSubmissionIndex))
         );
 
         // set address

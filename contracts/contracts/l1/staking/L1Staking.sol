@@ -337,7 +337,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice get stakers bitmap
     /// @param _stakers  the staker address array
     function getStakersBitmap(address[] calldata _stakers) external view returns (uint256 bitmap) {
-        require(_stakers.length <= 255, "stakers lenght out of bounds");
+        require(_stakers.length <= 255, "stakers length out of bounds");
         for (uint256 i = 0; i < _stakers.length; i++) {
             require(isStaker(_stakers[i]), "invalid staker");
             bitmap = bitmap | (1 << stakerIndexes[_stakers[i]]);

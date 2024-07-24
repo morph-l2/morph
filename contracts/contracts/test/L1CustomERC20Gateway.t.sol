@@ -57,7 +57,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
 
         // Deploy a new L1CustomERC20Gateway contract.
         L1CustomERC20Gateway l1CustomERC20GatewayImplTemp = new L1CustomERC20Gateway();
-        
+
         // Expect revert due to zero router address.
         hevm.expectRevert("zero router address");
         ITransparentUpgradeableProxy(address(l1CustomERC20GatewayProxyTemp)).upgradeToAndCall(
@@ -71,7 +71,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
                 )
             )
         );
-        
+
         // Expect revert due to zero counterpart address.
         hevm.expectRevert("zero counterpart address");
         ITransparentUpgradeableProxy(address(l1CustomERC20GatewayProxyTemp)).upgradeToAndCall(
@@ -131,7 +131,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         // Cast the proxy contract address to the L1CustomERC20Gateway contract type to call its methods.
         L1CustomERC20Gateway l1CustomERC20GatewayTemp = L1CustomERC20Gateway((address(l1CustomERC20GatewayProxyTemp)));
         hevm.stopPrank();
-        
+
         // Verify the counterpart, router and messenger are initialized successfully.
         assertEq(l1CustomERC20GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
         assertEq(l1CustomERC20GatewayTemp.router(), address(l1GatewayRouter));
@@ -209,12 +209,12 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
 
     function test_onDropMessage_beforeDropMessage_reverts() public {
         uint256 amount = 1000;
-        
+
         // Assign 10 ether to l1CrossDomainMessenger.
-        hevm.deal(address(l1CrossDomainMessenger), 10 ether);  
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);
 
         // Update the token mapping from l1Token to l2Token.
-        gateway.updateTokenMapping(address(l1Token), address(l2Token)); 
+        gateway.updateTokenMapping(address(l1Token), address(l2Token));
 
         // Deposit some tokens to L1StandardERC20Gateway.
         gateway.depositERC20(address(l1Token), amount, defaultGasLimit);
@@ -368,13 +368,13 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(keccak256(xDomainCalldata)));
     }
 
-    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_revert() public{
+    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_revert() public {
         address recipient = address(2048);
         address _from = address(counterpartGateway);
 
         // Assign 10 ether to the required addresses.
-        hevm.deal(_from, 10 ether);   
-        hevm.deal(address(l1CrossDomainMessenger), 10 ether);   
+        hevm.deal(_from, 10 ether);
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);
 
         // Start simulating the calls as l1CrossDomainMessenger.
         hevm.startPrank(address(l1CrossDomainMessenger));
@@ -389,7 +389,7 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         // Expect revert due to non-zero msg.value.
         hevm.expectRevert("nonzero msg.value");
         gateway.finalizeWithdrawERC20{value: 1}(address(l1Token), address(l2Token), _from, recipient, 1, "");
-        
+
         // Expect revert due to _l2Token being zero.
         hevm.expectRevert("token address cannot be 0");
         gateway.finalizeWithdrawERC20(address(l1Token), address(0), _from, recipient, 1, "");
