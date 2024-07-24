@@ -401,32 +401,29 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     function claimUndelegation() external nonReentrant {
         uint256 totalAmount;
         uint256 length = undelegations[_msgSender()].length;
-        UndelegationClaimedInfo[] memory undelegationClaimedInfos = new UndelegationClaimedInfo[](length);
-        for (uint256 i = 0; i < length; i++) {
-            undelegationClaimedInfos[i] = UndelegationClaimedInfo(
-                undelegations[_msgSender()][i].delegatee,
-                _msgSender(),
-                undelegations[_msgSender()][i].unlockEpoch,
-                undelegations[_msgSender()][i].amount,
-                false
-            );
+
+        for (uint256 i = 0; i < length; ) {
             // if the reward is not started yet, claiming directly is allowed
             if (!rewardStarted || undelegations[_msgSender()][i].unlockEpoch <= currentEpoch()) {
+                emit UndelegationClaimed(
+                    undelegations[_msgSender()][i].delegatee,
+                    _msgSender(),
+                    undelegations[_msgSender()][i].unlockEpoch,
+                    undelegations[_msgSender()][i].amount
+                );
                 totalAmount += undelegations[_msgSender()][i].amount;
-                if (undelegations[_msgSender()].length > 1) {
-                    undelegations[_msgSender()][i] = undelegations[_msgSender()][
-                        undelegations[_msgSender()].length - 1
-                    ];
+                if (i < length - 1) {
+                    undelegations[_msgSender()][i] = undelegations[_msgSender()][length - 1];
                 }
                 undelegations[_msgSender()].pop();
-                undelegationClaimedInfos[i].isTrigger = true;
+                length = length - 1;
+            } else {
+                i = i + 1;
             }
         }
 
         require(totalAmount > 0, "no Morph token to claim");
         _transfer(_msgSender(), totalAmount);
-
-        emit UndelegationClaimed(undelegationClaimedInfos);
     }
 
     /// @notice delegator claim reward
