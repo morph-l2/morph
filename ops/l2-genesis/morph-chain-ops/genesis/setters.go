@@ -14,14 +14,11 @@ import (
 	"morph-l2/morph-deployer/morph-chain-ops/state"
 )
 
-// UntouchableCodeHashes contains code hashes of all the contracts
-// that should not be touched by the migration process.
-type ChainHashMap map[uint64]common.Hash
-
 var (
 	// UntouchablePredeploys are addresses in the predeploy namespace
 	// that should not be touched by the migration process.
 	UntouchablePredeploys = map[common.Address]bool{
+		predeploys.ProxyAdminAddr:         true,
 		predeploys.MorphStandardERC20Addr: true,
 		predeploys.L2WETHAddr:             true,
 	}

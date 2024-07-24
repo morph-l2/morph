@@ -270,6 +270,38 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
+    /// @notice query all unclaimed morph reward
+    /// @param delegator     delegatee address
+    function queryAllUnclaimed(
+        address delegator
+    ) external view returns (address[] memory delegatees, uint256[] memory rewards) {
+        uint256 length = unclaimed[delegator].delegatees.length();
+        require(length != 0, "invalid delegator or no remaining reward");
+        delegatees = new address[](length);
+        rewards = new uint256[](length);
+        for (uint256 j = 0; j < unclaimed[delegator].delegatees.length(); j++) {
+            address delegatee = unclaimed[delegator].delegatees.at(j);
+            uint256 reward;
+            uint256 totalAmount;
+            uint256 delegatorAmount;
+            uint256 start = unclaimed[delegator].unclaimedStart[delegatee];
+            for (uint256 i = start; i < mintedEpochCount; i++) {
+                if (distributions[delegatee][i].amounts[delegator] > 0) {
+                    delegatorAmount = distributions[delegatee][i].amounts[delegator];
+                }
+                if (distributions[delegatee][i].delegationAmount > 0) {
+                    totalAmount = distributions[delegatee][i].delegationAmount;
+                }
+                reward += (distributions[delegatee][i].delegatorRewardAmount * delegatorAmount) / totalAmount;
+                if (unclaimed[delegator].undelegated[delegatee] && unclaimed[delegator].unclaimedEnd[delegatee] == i) {
+                    break;
+                }
+            }
+            delegatees[j] = delegatee;
+            rewards[j] = reward;
+        }
+    }
+
     /**********************
      * Internal Functions *
      **********************/

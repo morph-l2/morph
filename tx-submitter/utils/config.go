@@ -84,6 +84,8 @@ type Config struct {
 	CalldataFeeBump uint64
 	//max txs in pendingpool
 	MaxTxsInPendingPool uint64
+	// rough estimate gas switch
+	RoughEstimateGas bool
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -132,6 +134,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		// calldata fee bump
 		CalldataFeeBump:     ctx.GlobalUint64(flags.CalldataFeeBumpFlag.Name),
 		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
+		// rough estimate gas switch
+		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 	}
 
 	return cfg, nil
