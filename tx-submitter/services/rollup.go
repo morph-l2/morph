@@ -591,7 +591,7 @@ func (sr *Rollup) rollup() error {
 		chunks = append(chunks, chunk)
 	}
 
-	signature, err := sr.aggregateSignatures(batch)
+	signature, err := sr.buildSignatureInput(batch)
 	if err != nil {
 		return err
 	}
@@ -746,7 +746,7 @@ func (sr *Rollup) rollup() error {
 	return nil
 }
 
-func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
+func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
 	blsSignatures := batch.Signatures
 	if len(blsSignatures) == 0 {
 		return nil, fmt.Errorf("invalid batch signature")
@@ -765,21 +765,18 @@ func (sr *Rollup) aggregateSignatures(batch *eth.RPCRollupBatch) (*bindings.IRol
 	}
 	aggregatedSig := blssignatures.AggregateSignatures(sigs)
 	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
-	// abi pack
-	AddressArr, _ := abi.NewType("address[]", "", nil)
-	args := abi.Arguments{
-		{Type: AddressArr, Name: "stakeAddresses"},
-	}
 
-	// TODO
-	_, err := args.Pack(&signers)
+	// query bitmap of signers
+	bm, err := r.Staking.GetStakersBitmap(nil, signers)
 	if err != nil {
-		return nil, fmt.Errorf("pack signers error:%v", err)
+		return nil, fmt.Errorf("query stakers bitmap error:%v", err)
+	}
+	if bm == nil {
+		return nil, errors.New("stakers bitmap is nil")
 	}
 
-	// TODO
 	sigData := bindings.IRollupBatchSignatureInput{
-		SignedSequencersBitmap: big.NewInt(0),
+		SignedSequencersBitmap: bm,
 		SequencerSets:          batch.CurrentSequencerSetBytes,
 		Signature:              blsSignature,
 	}
