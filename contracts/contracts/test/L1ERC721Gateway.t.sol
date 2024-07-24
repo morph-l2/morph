@@ -68,7 +68,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
                 )
             )
         );
-        
+
         // Expect revert due to zero messenger address.
         hevm.expectRevert("zero messenger address");
         ITransparentUpgradeableProxy(address(l1ERC721GatewayProxy)).upgradeToAndCall(
@@ -112,7 +112,7 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         // Cast the proxy contract address to the L1ERC721Gateway contract type to call its methods.
         L1ERC721Gateway l1ERC721GatewayTemp = L1ERC721Gateway(address(l1ERC721GatewayProxyTemp));
         hevm.stopPrank();
-        
+
         // Verify the counterpart and messenger are initialized successfully.
         assertEq(l1ERC721GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
         assertEq(l1ERC721GatewayTemp.messenger(), address(l1CrossDomainMessenger));

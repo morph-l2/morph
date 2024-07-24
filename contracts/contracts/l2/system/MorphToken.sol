@@ -86,8 +86,6 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         uint256 initialSupply_,
         uint256 dailyInflationRate_
     ) public initializer {
-        __Ownable_init();
-
         _name = name_;
         _symbol = symbol_;
         _mint(_owner, initialSupply_);

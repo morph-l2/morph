@@ -62,7 +62,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
 
         // Deploy a new L1WETHGateway contract.
         L1WETHGateway l1WETHGatewayImplTemp = new L1WETHGateway(address(l1weth), address(l2weth));
-        
+
         // Expect revert due to zero router address.
         hevm.expectRevert("zero router address");
         ITransparentUpgradeableProxy(address(l1WETHGatewayProxyTemp)).upgradeToAndCall(
@@ -76,7 +76,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
                 )
             )
         );
-        
+
         // Expect revert due to zero counterpart address.
         hevm.expectRevert("zero counterpart address");
         ITransparentUpgradeableProxy(address(l1WETHGatewayProxyTemp)).upgradeToAndCall(
@@ -136,7 +136,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         // Cast the proxy contract address to the L1WETHGateway contract type to call its methods.
         L1WETHGateway l1WETHGatewayTemp = L1WETHGateway(payable(address(l1WETHGatewayProxyTemp)));
         hevm.stopPrank();
-        
+
         // Verify the counterpart, router and messenger are initialized successfully.
         assertEq(l1WETHGatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
         assertEq(l1WETHGatewayTemp.router(), address(l1GatewayRouter));
@@ -341,12 +341,12 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(keccak256(xDomainCalldata)));
     }
 
-    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public{
+    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public {
         address recipient = address(2048);
         address _from = address(counterpartGateway);
 
         // Assign 10 ether to the required address.
-        hevm.deal(address(l1CrossDomainMessenger), 10 ether);   
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);
 
         // Start simulating the calls as l1CrossDomainMessenger.
         hevm.startPrank(address(l1CrossDomainMessenger));
@@ -361,7 +361,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         // Expect revert due to msg.value mismatch.
         hevm.expectRevert("msg.value mismatch");
         l1WETHGateway.finalizeWithdrawERC20{value: 1}(address(l1weth), address(l2weth), _from, recipient, 2, "");
-        
+
         // Expect revert due to l1 token is not WETH.
         hevm.expectRevert("l1 token not WETH");
         l1WETHGateway.finalizeWithdrawERC20{value: 1}(address(1), address(l2weth), _from, recipient, 1, "");
@@ -369,15 +369,15 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         // Expect revert due to l2 token is not WETH.
         hevm.expectRevert("l2 token not WETH");
         l1WETHGateway.finalizeWithdrawERC20{value: 1}(address(l1weth), address(1), _from, recipient, 1, "");
-        
+
         hevm.stopPrank();
     }
 
     function test_onDropMessage_beforeDropMessage_reverts() public {
         uint256 amount = 1000;
-        
+
         // Assign 10 ether to l1CrossDomainMessenger.
-        hevm.deal(address(l1CrossDomainMessenger), 10 ether);   
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);
 
         // Deposit some tokens to L1WETHGateway.
         l1WETHGateway.depositERC20(address(l1weth), amount, defaultGasLimit);
@@ -386,7 +386,14 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         bytes memory data = new bytes(0);
         bytes memory message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
-            (address(l1weth), l1WETHGateway.getL2ERC20Address(address(l1weth)), address(this), address(this), amount, data)
+            (
+                address(l1weth),
+                l1WETHGateway.getL2ERC20Address(address(l1weth)),
+                address(this),
+                address(this),
+                amount,
+                data
+            )
         );
 
         hevm.startPrank(address(l1CrossDomainMessenger));

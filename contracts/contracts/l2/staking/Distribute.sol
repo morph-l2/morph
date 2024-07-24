@@ -74,8 +74,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      ***************/
 
     /// @notice initializer
-    function initialize() public initializer {
-        __Ownable_init();
+    /// @param _owner owner
+    function initialize(address _owner) public initializer {
+        require(_owner != address(0), "invalid owner address");
+        _transferOwnership(_owner);
     }
 
     /************************
