@@ -236,7 +236,7 @@ fn compute_and_save_kzg(chunk_traces: &Vec<Vec<BlockTrace>>, batch_index: u64, p
         .cloned()
         .collect::<Vec<_>>();
     let batch_data_hash = keccak256(data_hash_preimage);
-    let sequencer_root = chunk_hashes[MAX_AGG_SNARKS - 1].sequencer_root.as_fixed_bytes();
+    let sequencer_root = chunk_hashes[MAX_AGG_SNARKS - 1].sequencer_root.as_bytes();
 
     let blob = BatchHash::<MAX_AGG_SNARKS>::construct(&chunk_hashes).point_evaluation_assignments();
     let challenge = blob.challenge; // z

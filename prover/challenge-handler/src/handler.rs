@@ -1,4 +1,4 @@
-use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
+use crate::abi::rollup_abi::{CommitBatchCall, Rollup, RollupErrors};
 use crate::metrics::METRICS;
 use crate::util;
 use ethers::providers::{Http, Provider};
@@ -117,18 +117,15 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         METRICS.detected_batch_index.set(batch_index as i64);
 
         // Step3. query challenged batch info.
-        let (challenged_rollup_hash, next_rollup_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
+        let (challenged_rollup_hash, batch_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
             Some(value) => value,
-            None => continue,
-        };
-        let on_chain_batch_header: Bytes = match batch_header_inspect(l1_provider, next_rollup_hash).await {
-            Some(bh) => bh,
             None => continue,
         };
 
         let mut batch_info = match batch_inspect(l1_provider, challenged_rollup_hash).await {
             Some(mut b) => {
                 b.batch_index = batch_index;
+                b.parent_batch_hash = batch_hash.as_bytes().try_into().unwrap_or_default();
                 b
             }
             None => continue,
@@ -143,14 +140,11 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         );
         METRICS.chunks_len.set(chunks.len() as i64);
 
-        if let Some(prove_result) = query_proof(batch_index).await {
-            if !prove_result.proof_data.is_empty() {
+        if let Some(batch_proof) = query_proof(batch_index).await {
+            if !batch_proof.proof_data.is_empty() {
                 log::info!("query proof and prove state: {:#?}", batch_index);
-                let batch_header = batch_info.fill_ext(prove_result.batch_header.clone()).encode();
-                if on_chain_batch_header != batch_header {
-                    log::error!("========batch_header data error");
-                }
-                prove_state(batch_index, batch_header, prove_result, l1_rollup).await;
+                let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
+                prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
                 continue;
             }
         }
@@ -171,14 +165,11 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
                 task_status::PROVING => log::info!("waiting for prev proof to be generated"),
                 task_status::PROVED => {
                     log::info!("proof already generated");
-                    if let Some(prove_result) = query_proof(batch_index).await {
-                        if !prove_result.proof_data.is_empty() {
+                    if let Some(batch_proof) = query_proof(batch_index).await {
+                        if !batch_proof.proof_data.is_empty() {
                             log::info!("query proof and prove state: {:#?}", batch_index);
-                            let batch_header = batch_info.fill_ext(prove_result.batch_header.clone()).encode();
-                            if on_chain_batch_header != batch_header {
-                                log::error!("========batch_header data error");
-                            }
-                            prove_state(batch_index, batch_header, prove_result, l1_rollup).await;
+                            let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
+                            prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
                         }
                     }
                     continue;
@@ -197,17 +188,14 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         // Step5. query proof and prove onchain state.
         let mut max_waiting_time: usize = 4800 * chunks.len() + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
         while max_waiting_time > 300 {
-            sleep(Duration::from_secs(300)).await;
-            max_waiting_time -= 300;
+            sleep(Duration::from_secs(12)).await;
+            max_waiting_time -= 12;
             match query_proof(batch_index).await {
-                Some(prove_result) => {
+                Some(batch_proof) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
-                    if !prove_result.proof_data.is_empty() {
-                        let batch_header = batch_info.fill_ext(prove_result.batch_header.clone()).encode();
-                        if on_chain_batch_header != batch_header {
-                            log::error!("========batch_header data error");
-                        }
-                        prove_state(batch_index, batch_header, prove_result, l1_rollup).await;
+                    if !batch_proof.proof_data.is_empty() {
+                        let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
+                        prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
                         break;
                     }
                 }
@@ -236,12 +224,8 @@ async fn prove_state(batch_index: u64, batch_header: Bytes, batch_proof: ProveRe
                 pending_tx
             }
             Err(err) => {
-                log::error!("send tx of prove_state error: {:#?}", err);
                 METRICS.verify_result.set(2);
-                if let ContractError::Revert(data) = err {
-                    let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));
-                    log::error!("send tx of prove_state error, msg: {:#?}", msg);
-                }
+                log::error!("send tx of prove_state error, err_msg: {:#?}", format_contract_error(err));
                 continue;
             }
         };
@@ -304,7 +288,7 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
     Some(prove_result)
 }
 
-async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(TxHash, TxHash)> {
+async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(H256, H256)> {
     let start = if latest > U64::from(7200 * 3) {
         // Depends on challenge period
         latest - U64::from(7200 * 3)
@@ -316,11 +300,9 @@ async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l
         log::warn!("challenged_hash is none");
         None
     })?;
-    let next_hash = query_tx_hash(l1_rollup, start, batch_index + 1, l1_provider).await.or_else(|| {
-        log::warn!("next_hash is none");
-        None
-    })?;
-    Some((challenged_hash, next_hash))
+
+    let batch_hash: [u8; 32] = l1_rollup.committed_batches(U256::from(batch_index - 1)).await.unwrap_or_default();
+    Some((challenged_hash, H256::from_slice(&batch_hash)))
 }
 
 async fn query_tx_hash(l1_rollup: &RollupType, start: U64, batch_index: u64, l1_provider: &Provider<Http>) -> Option<H256> {
@@ -530,9 +512,11 @@ async fn batch_header_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Opt
 
 impl BatchInfo {
     fn fill_ext(&mut self, batch_header_ex: Vec<u8>) -> &Self {
+        log::debug!("batch_header_ex len: {:#?}", batch_header_ex.len());
+
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
         self.blob_versioned_hash = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
-        self.data_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
+        self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
         self
     }
 
@@ -550,7 +534,6 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
         batch_header.extend_from_slice(&self.parent_batch_hash);
         batch_header.extend_from_slice(&self.skipped_l1_message_bitmap);
-
         Bytes::from(batch_header)
     }
 }
@@ -595,4 +578,17 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<(Vec<Vec<u64>>, u64)> {
     METRICS.txn_len.set(txn_in_batch.into());
     log::info!("total_l2txn_in_batch: {:#?}, max_l2txn_in_chunk: {:#?}", txn_in_batch, max_txn_in_chunk);
     Some((chunk_with_blocks, total_l1_txn))
+}
+
+pub fn format_contract_error(e: ContractError<SignerMiddleware<Provider<Http>, LocalWallet>>) -> String {
+    let error_msg = if let Some(contract_err) = e.as_revert() {
+        if let Some(data) = RollupErrors::decode_with_selector(contract_err.as_ref()) {
+            format!("contract error: {:?}", data)
+        } else {
+            format!("unknown contract error: {:?}", contract_err)
+        }
+    } else {
+        format!("error: {:?}", e)
+    };
+    error_msg
 }

@@ -120,10 +120,7 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
         log::error!("There have been no commit_batch logs for the last 600 blocks.");
         return Ok(());
     }
-    if logs.len() < 2 {
-        log::warn!("No enough commit_batch logs for the last 600 blocks");
-        return Ok(());
-    }
+
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
     let batch_index = match logs.get(logs.len() - 2) {
         Some(log) => log.topics[1].to_low_u64_be(),
@@ -135,11 +132,11 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     log::info!("latest batch index = {:#?}", batch_index);
 
     // Challenge state.
-    // let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
-    // if is_batch_finalized {
-    //     log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
-    //     return Ok(());
-    // }
+    let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
+    if is_batch_finalized {
+        log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
+        return Ok(());
+    }
 
     let challenges = match l1_rollup.challenges(U256::from(batch_index)).await {
         Ok(x) => x,
