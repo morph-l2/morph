@@ -140,8 +140,6 @@ def devnet_deploy(paths, args):
     ], env={}, cwd=paths.contracts_dir)
 
     log.info('Generating L2 genesis and rollup configs.')
-    env_genesis = os.environ.copy()
-    env_genesis["CGO_LDFLAGS"] = "-ldl"
     run_command([
         'env', 'CGO_ENABLED=1', 'CGO_LDFLAGS="-ldl"',
         'go', 'run', 'cmd/main.go', 'genesis', 'l2',
@@ -151,7 +149,7 @@ def devnet_deploy(paths, args):
         '--outfile.l2', pjoin(paths.devnet_dir, 'genesis-l2.json'),
         '--outfile.genbatchheader', pjoin(paths.devnet_dir, 'genesis-batch-header.json'),
         '--outfile.rollup', pjoin(paths.devnet_dir, 'rollup.json')
-    ], env=env_genesis, cwd=paths.L2_dir)
+    ], cwd=paths.L2_dir)
     write_json(done_file, {})
 
     log.info('Deploying L1 Impl contracts and initialize contracts...')
