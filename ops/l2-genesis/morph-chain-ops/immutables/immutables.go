@@ -137,7 +137,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 		return nil, nil, err
 	}
 	var lastTx *types.Transaction
-	var transferTx *types.Transaction
 	for _, dep := range deployments {
 		results[dep.Name] = dep.Bytecode
 		switch dep.Name {
@@ -156,10 +155,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 				return nil, nil, err
 			}
 			lastTx, err = l2Sequencer.Initialize(opts, config.L2StakingOwner, addresses)
-			if err != nil {
-				return nil, nil, err
-			}
-			transferTx, err = l2Sequencer.TransferOwnership(opts, config.L2StakingOwner)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -194,10 +189,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
-			transferTx, err = l2Staking.TransferOwnership(opts, config.L2StakingOwner)
-			if err != nil {
-				return nil, nil, err
-			}
 		case "MorphToken":
 			if config == nil || config.MorphTokenName == "" {
 				continue
@@ -227,11 +218,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 	slotResults := make(SlotResults)
 	if lastTx != nil {
 		backend.Commit()
-		if transferTx != nil {
-			if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
-				return nil, nil, err
-			}
-		}
 		if _, err = bind.WaitMined(context.Background(), backend, lastTx); err != nil {
 			return nil, nil, err
 		}
