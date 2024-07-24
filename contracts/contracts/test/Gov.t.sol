@@ -17,27 +17,27 @@ contract GovTest is L2StakingBaseTest {
     function test_initialize_paramsCheck_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        gov.initialize(0, 0, 0, 0, 0, 0);
+        gov.initialize(multisig, 0, 0, 0, 0, 0, 0);
 
         // reset initialize
         hevm.store(address(gov), bytes32(uint256(0)), bytes32(uint256(0)));
 
         hevm.expectRevert("invalid proposal voting duration");
         hevm.prank(multisig);
-        gov.initialize(0, 0, 0, 0, 0, 0);
+        gov.initialize(multisig, 0, 0, 0, 0, 0, 0);
 
         hevm.expectRevert("invalid max chunks");
         hevm.prank(multisig);
-        gov.initialize(1, 0, 0, 0, 0, 0);
+        gov.initialize(multisig, 1, 0, 0, 0, 0, 0);
 
         hevm.expectRevert("invalid rollup epoch");
         hevm.prank(multisig);
-        gov.initialize(1, 0, 0, 0, 1, 0);
+        gov.initialize(multisig, 1, 0, 0, 0, 1, 0);
 
         // _batchBlockInterval
         hevm.expectRevert("invalid batch params");
         hevm.prank(multisig);
-        gov.initialize(1, 0, 0, 0, 1, 1);
+        gov.initialize(multisig, 1, 0, 0, 0, 1, 1);
     }
 
     /**

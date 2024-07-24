@@ -25,27 +25,15 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         // Deploy L1MessageQueueWithGasPriceOracle
         // Verify it throws a custom error ErrZeroAddress() when the _messenger is equal to zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
-        l1MessageQueue = new L1MessageQueueWithGasPriceOracle(
-                address(0),
-                address(1),
-                address(1)
-            );
+        l1MessageQueue = new L1MessageQueueWithGasPriceOracle(address(0), address(1), address(1));
 
         // Verify it throws a custom error ErrZeroAddress() when the _rollup is equal to zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
-        l1MessageQueue = new L1MessageQueueWithGasPriceOracle(
-                address(1),
-                address(0),
-                address(1)
-            );   
+        l1MessageQueue = new L1MessageQueueWithGasPriceOracle(address(1), address(0), address(1));
 
         // Verify it throws a custom error ErrZeroAddress() when the _enforcedTxGateway is equal to zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
-        l1MessageQueue = new L1MessageQueueWithGasPriceOracle(
-                address(1),
-                address(1),
-                address(0)
-            );   
+        l1MessageQueue = new L1MessageQueueWithGasPriceOracle(address(1), address(1), address(0));
     }
 
     function test_initialize_initializeAgain_reverts() external {
@@ -54,7 +42,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         l1MessageQueueWithGasPriceOracle.initialize(l1MessageQueueMaxGasLimit, address(whitelistChecker));
     }
 
-    function test_initialize_succeeds() external{
+    function test_initialize_succeeds() external {
         // Verify initialize() sets state variables correctly.
         assertEq(l1MessageQueueWithGasPriceOracle.maxGasLimit(), 100000000);
         assertEq(address(l1MessageQueueWithGasPriceOracle.whitelistChecker()), address(whitelistChecker));
@@ -74,16 +62,8 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         uint256 nonce = l1MessageQueueWithGasPriceOracle.nextCrossDomainMessageIndex();
 
         // Verify getCrossDomainMessage() executes successfully and returns the correct value.
-        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
-            sender,
-            to,
-            value,
-            nonce,
-            data
-        );
-        uint256 gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(
-            _xDomainCalldata
-        );
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(sender, to, value, nonce, data);
+        uint256 gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(_xDomainCalldata);
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
         bytes32 queueIndex = l1MessageQueueWithGasPriceOracle.getCrossDomainMessage(0);
         assertTrue(queueIndex != 0x0000000000000000000000000000000000000000000000000000000000000000);
@@ -92,12 +72,11 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     function test_estimateCrossDomainMessageFee_succeeds() external {
         hevm.startPrank(multisig);
         uint256 gasLimit = 100;
-        
+
         l1MessageQueueWithGasPriceOracle.setL2BaseFee(1);
 
         // Verify the return value of estimateCrossDomainMessageFee() equals gasLimit * l2BaseFee.
-        uint256 fee = l1MessageQueueWithGasPriceOracle
-            .estimateCrossDomainMessageFee(multisig, gasLimit);
+        uint256 fee = l1MessageQueueWithGasPriceOracle.estimateCrossDomainMessageFee(multisig, gasLimit);
         assertEq(fee, gasLimit * 1);
 
         // Verify it returns 0 for whitelisted addresses.
@@ -112,27 +91,15 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     function test_calculateIntrinsicGasFee_succeeds() external {
         hevm.startPrank(multisig);
         bytes memory _calldata = "";
-        uint256 intrinsicGasFee = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(
-            _calldata
-        );
+        uint256 intrinsicGasFee = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(_calldata);
 
         // Verify calculateIntrinsicGasFee() returns the correct fee for empty _calldata.
-        assertEq(
-            intrinsicGasFee,
-            INTRINSIC_GAS_TX +
-                _calldata.length *
-                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
-        );
+        assertEq(intrinsicGasFee, INTRINSIC_GAS_TX + _calldata.length * APPROPRIATE_INTRINSIC_GAS_PER_BYTE);
         _calldata = "0x00";
         intrinsicGasFee = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(_calldata);
 
         // Verify calculateIntrinsicGasFee() returns the correct fee for non-empty _calldata.
-        assertEq(
-            intrinsicGasFee,
-            INTRINSIC_GAS_TX +
-                _calldata.length *
-                APPROPRIATE_INTRINSIC_GAS_PER_BYTE
-        );
+        assertEq(intrinsicGasFee, INTRINSIC_GAS_TX + _calldata.length * APPROPRIATE_INTRINSIC_GAS_PER_BYTE);
         hevm.stopPrank();
     }
 
@@ -180,11 +147,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         // Verify the modifier onlyMessenger works correctly.
         // Expect revert when msg.sender isn't MESSENGER.
         hevm.expectRevert("Only callable by the L1CrossDomainMessenger");
-        l1MessageQueueWithGasPriceOracle.appendCrossDomainMessage(
-            address(alice),
-            100,
-            "0x0"
-        );
+        l1MessageQueueWithGasPriceOracle.appendCrossDomainMessage(address(alice), 100, "0x0");
     }
 
     function test_appendCrossDomainMessage_succeeds() external {
@@ -210,13 +173,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
 
         // Expect revert when msg.sender isn't ENFORCED_TX_GATEWAAY.
         hevm.expectRevert("Only callable by the EnforcedTxGateway");
-        l1MessageQueue.appendEnforcedTransaction(
-            alice,
-            bob,
-            0,
-            gasLimit,
-            _calldata
-        );
+        l1MessageQueue.appendEnforcedTransaction(alice, bob, 0, gasLimit, _calldata);
     }
 
     function test_appendEnforcedTransaction_notEOA_reverts() external {
@@ -226,14 +183,8 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         // Expect revert when msg.sender isn't an EOA address.
         hevm.prank(alice);
         hevm.expectRevert("only EOA");
-        l1MessageQueue.appendEnforcedTransaction(
-            address(this),
-            bob,
-            0,
-            gasLimit,
-            _calldata
-        );
-    } 
+        l1MessageQueue.appendEnforcedTransaction(address(this), bob, 0, gasLimit, _calldata);
+    }
 
     function test_appendEnforcedTransaction_succeeds() external {
         hevm.prank(multisig);
@@ -245,14 +196,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
 
         // Verify the event QueueTransaction is emitted successfully as expected.
         hevm.expectEmit(true, true, true, true);
-        emit IL1MessageQueue.QueueTransaction(
-            alice,
-            bob,
-            0,
-            0,
-            gasLimit,
-            _calldata
-        );
+        emit IL1MessageQueue.QueueTransaction(alice, bob, 0, 0, gasLimit, _calldata);
 
         hevm.prank(alice);
         l1MessageQueue.appendEnforcedTransaction(alice, bob, 0, gasLimit, _calldata);
@@ -297,7 +241,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     function test_dropCrossDomainMessage_cannotDropPending_reverts() external {
         bytes memory _calldata = "0x0";
         uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee(_calldata);
-        
+
         // Store alice as messenger and rollup.
         upgradeStorage(address(alice), address(alice), address(alice));
 
@@ -363,21 +307,21 @@ contract L1MessageQueueTest is L1MessageBaseTest {
             assertTrue(l1MessageQueue.isMessageDropped(i));
         }
         hevm.stopPrank();
-        
+
         // Expect revert when message already dropped.
         hevm.prank(alice);
         hevm.expectRevert("message already dropped");
         l1MessageQueue.dropCrossDomainMessage(1);
     }
 
-    function test_updateMaxGasLimit_notOwner_reverts() external{
+    function test_updateMaxGasLimit_notOwner_reverts() external {
         // Verify the modifier onlyOwner works successfully.
         // It throws an error "Ownable: caller is not the owner" when msg.sender is not the owner.
         hevm.expectRevert("Ownable: caller is not the owner");
         l1MessageQueueWithGasPriceOracle.updateMaxGasLimit(1);
     }
 
-    function test_updateMaxGasLimit_succeeds() external{
+    function test_updateMaxGasLimit_succeeds() external {
         // Verify the event is emitted successfully and the data is correct.
         hevm.expectEmit(false, false, false, true);
         emit IL1MessageQueue.UpdateMaxGasLimit(l1MessageQueueMaxGasLimit, 1);
@@ -388,10 +332,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
     function test_updateWhitelistChecker_succeeds() external {
         // Verify the event is emitted successfully.
         hevm.expectEmit(true, true, false, false);
-        emit IL1MessageQueueWithGasPriceOracle.UpdateWhitelistChecker(
-            address(whitelistChecker),
-            address(alice)
-        );
+        emit IL1MessageQueueWithGasPriceOracle.UpdateWhitelistChecker(address(whitelistChecker), address(alice));
         hevm.prank(multisig);
         l1MessageQueueWithGasPriceOracle.updateWhitelistChecker(address(alice));
         // Verify the whiteListChecker is updated successfully.
