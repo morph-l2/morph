@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 
-	"morphl2/externalsign"
+	"morph-l2/externalsign"
 
 	"github.com/scroll-tech/go-ethereum/core/types"
 )
