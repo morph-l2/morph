@@ -405,18 +405,20 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         for (uint256 i = 0; i < length; ) {
             // if the reward is not started yet, claiming directly is allowed
             if (!rewardStarted || undelegations[_msgSender()][i].unlockEpoch <= currentEpoch()) {
-                emit UndelegationClaimed(
-                    undelegations[_msgSender()][i].delegatee,
-                    _msgSender(),
-                    undelegations[_msgSender()][i].unlockEpoch,
-                    undelegations[_msgSender()][i].amount
-                );
                 totalAmount += undelegations[_msgSender()][i].amount;
+
+                // event params
+                address delegatee = undelegations[_msgSender()][i].delegatee;
+                uint256 unlockEpoch = undelegations[_msgSender()][i].unlockEpoch;
+                uint256 amount = undelegations[_msgSender()][i].amount;
+
                 if (i < length - 1) {
                     undelegations[_msgSender()][i] = undelegations[_msgSender()][length - 1];
                 }
                 undelegations[_msgSender()].pop();
                 length = length - 1;
+
+                emit UndelegationClaimed(delegatee, _msgSender(), unlockEpoch, amount);
             } else {
                 i = i + 1;
             }
