@@ -2,6 +2,7 @@ package tx_summitter
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"io"
 	"os"
@@ -117,6 +118,16 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to l1 staking contract")
 		}
 
+		var rsaPriv *rsa.PrivateKey
+		// external sign
+		if cfg.ExternalSign {
+			// parse rsa private key
+			rsaPriv, err = utils.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+			if err != nil {
+				return fmt.Errorf("failed to parse rsa private key: %w", err)
+			}
+		}
+
 		// new rotator
 		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress))
 
@@ -133,6 +144,7 @@ func Main() func(ctx *cli.Context) error {
 			*rollupAddr,
 			abi,
 			cfg,
+			rsaPriv,
 			rotator,
 		)
 		if err := sr.Init(); err != nil {

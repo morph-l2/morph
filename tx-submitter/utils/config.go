@@ -91,6 +91,7 @@ type Config struct {
 	ExternalSignAppid   string
 	ExternalSignChain   string
 	ExternalSignUrl     string
+	ExternalSignRsaPriv string
 	// rough estimate gas switch
 	RoughEstimateGas bool
 }
@@ -148,6 +149,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddress.Name),
 		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
 		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
+		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 		// rough estimate gas switch
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 	}
