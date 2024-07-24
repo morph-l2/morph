@@ -74,9 +74,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Store committed batch base.
     mapping(uint256 batchIndex => BatchData) public batchDataStore;
 
-    /// @notice Store committed batch signature.
-    mapping(uint256 batchIndex => BatchSignature) public batchSignatureStore;
-
     /// @notice Store the withdrawalRoot.
     mapping(bytes32 withdrawalRoot => bool exist) public withdrawalRoots;
 
@@ -195,9 +192,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
-        batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0);
+        batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0, 0);
 
-        batchSignatureStore[_batchIndex] = BatchSignature("0x");
         finalizedStateRoots[_batchIndex] = _postStateRoot;
         lastCommittedBatchIndex = _batchIndex;
         lastFinalizedBatchIndex = _batchIndex;
@@ -307,15 +303,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,
                 block.timestamp + finalizationPeriodSeconds,
-                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1])
-            );
-
-            address[] memory submitter = new address[](1);
-            submitter[0] = _msgSender();
-            batchSignatureStore[_batchIndex] = BatchSignature(
+                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1]),
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-                abi.encode(submitter) // => batchSignature.signedSequencers
+                IL1Staking(l1StakingContract).getStakerBitmap(_msgSender()) // => batchSignature.signedSequencersBitmap
             );
 
             lastCommittedBatchIndex = _batchIndex;
@@ -324,7 +315,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // verify bls signature
         require(
             IL1Staking(l1StakingContract).verifySignature(
-                abi.decode(batchSignatureInput.signedSequencers, (address[])),
+                batchSignatureInput.signedSequencersBitmap,
                 _getValidSequencerSet(batchSignatureInput.sequencerSets, 0),
                 _getBLSMsgHash(batchDataInput),
                 batchSignatureInput.signature
@@ -495,7 +486,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (challenges[_batchIndex].startTime + proofWindow <= block.timestamp) {
             // set status
             challenges[_batchIndex].challengeSuccess = true;
-            _challengerWin(_batchIndex, batchSignatureStore[_batchIndex].signedSequencers, "Timeout");
+            _challengerWin(_batchIndex, batchDataStore[_batchIndex].signedSequencersBitmap, "Timeout");
         } else {
             _verifyProof(memPtr, _aggrProof, _kzgDataProof);
             // Record defender win
@@ -538,7 +529,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         );
 
         delete batchDataStore[_batchIndex - 1];
-        delete batchSignatureStore[_batchIndex - 1];
         delete challenges[_batchIndex - 1];
 
         emit FinalizeBatch(
@@ -706,13 +696,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     }
 
     /// @dev Internal function executed when the challenger wins.
-    /// @param batchIndex   The index of the batch indicating where the challenge occurred.
-    /// @param sequencers   An array containing the sequencers to be slashed.
-    /// @param _type        Description of the challenge type.
-    function _challengerWin(uint256 batchIndex, bytes memory sequencers, string memory _type) internal {
+    /// @param batchIndex           The index of the batch indicating where the challenge occurred.
+    /// @param sequencersBitmap     An array containing the sequencers to be slashed.
+    /// @param _type                Description of the challenge type.
+    function _challengerWin(uint256 batchIndex, uint256 sequencersBitmap, string memory _type) internal {
         revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
-        uint256 reward = IL1Staking(l1StakingContract).slash(abi.decode(sequencers, (address[])));
+        uint256 reward = IL1Staking(l1StakingContract).slash(sequencersBitmap);
         batchChallengeReward[challenges[batchIndex].challenger] += (challenges[batchIndex].challengeDeposit + reward);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
