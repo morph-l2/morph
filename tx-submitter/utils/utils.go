@@ -57,15 +57,15 @@ func ParseParentBatchIndex(calldata []byte) uint64 {
 }
 
 // ParseL1Mempool parses the L1 mempool and returns the transactions.
-func ParseL1Mempool(rpc *rpc.Client, addr common.Address) ([]types.Transaction, error) {
+func ParseL1Mempool(rpc *rpc.Client, addr common.Address) ([]*types.Transaction, error) {
 
-	var result map[string]map[string]types.Transaction
+	var result map[string]map[string]*types.Transaction
 	err := rpc.Call(&result, "txpool_contentFrom", addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get txpool content: %v", err)
 	}
 
-	var txs []types.Transaction
+	var txs []*types.Transaction
 
 	// get pending txs
 	if pendingTxs, ok := result["pending"]; ok {
@@ -85,7 +85,7 @@ func ParseL1Mempool(rpc *rpc.Client, addr common.Address) ([]types.Transaction, 
 
 }
 
-func ParseMempoolLatestBatchIndex(id []byte, txs []types.Transaction) uint64 {
+func ParseMempoolLatestBatchIndex(id []byte, txs []*types.Transaction) uint64 {
 
 	var res uint64
 	for _, tx := range txs {
@@ -101,7 +101,7 @@ func ParseMempoolLatestBatchIndex(id []byte, txs []types.Transaction) uint64 {
 
 }
 
-func ParseBusinessInfo(tx types.Transaction, a *abi.ABI) []interface{} {
+func ParseBusinessInfo(tx *types.Transaction, a *abi.ABI) []interface{} {
 	// var method string
 	// var batchIndex uint64
 	// var finalizedIndex uint64
@@ -135,7 +135,7 @@ func ParseBusinessInfo(tx types.Transaction, a *abi.ABI) []interface{} {
 	return res
 }
 
-func ParseMethod(tx types.Transaction, a *abi.ABI) string {
+func ParseMethod(tx *types.Transaction, a *abi.ABI) string {
 	if tx.Data() == nil || len(tx.Data()) < 4 {
 		return ""
 	}
