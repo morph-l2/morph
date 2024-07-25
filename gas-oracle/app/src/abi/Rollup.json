@@ -30,9 +30,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "uint64",
+        "internalType": "uint256",
         "name": "batchIndex",
-        "type": "uint64"
+        "type": "uint256"
       },
       {
         "indexed": true,
@@ -326,45 +326,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "batchIndex",
-        "type": "uint256"
-      }
-    ],
-    "name": "batchBaseStore",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "batchHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "batchVersion",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "originTimestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "finalizeTimestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "blockNumber",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "owner",
         "type": "address"
@@ -424,44 +385,24 @@
     "name": "batchDataStore",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "blobVersionedHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "l1DataHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "prevStateRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "postStateRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "withdrawalRoot",
-        "type": "bytes32"
-      },
-      {
         "internalType": "uint256",
-        "name": "l1MessagePopped",
+        "name": "originTimestamp",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "totalL1MessagePopped",
+        "name": "finalizeTimestamp",
         "type": "uint256"
       },
       {
-        "internalType": "bytes",
-        "name": "skippedL1MessageBitmap",
-        "type": "bytes"
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "signedSequencersBitmap",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -519,35 +460,6 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "batchIndex",
-        "type": "uint256"
-      }
-    ],
-    "name": "batchSignatureStore",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "blsMsgHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "sequencerSetVerifyHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes",
-        "name": "signedSequencers",
-        "type": "bytes"
       }
     ],
     "stateMutability": "view",
@@ -670,9 +582,9 @@
       {
         "components": [
           {
-            "internalType": "bytes",
-            "name": "signedSequencers",
-            "type": "bytes"
+            "internalType": "uint256",
+            "name": "signedSequencersBitmap",
+            "type": "uint256"
           },
           {
             "internalType": "bytes",
@@ -707,7 +619,7 @@
     "outputs": [
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "batchHash",
         "type": "bytes32"
       }
     ],
@@ -730,9 +642,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_batchIndex",
-        "type": "uint256"
+        "internalType": "bytes",
+        "name": "_batchHeader",
+        "type": "bytes"
       }
     ],
     "name": "finalizeBatch",
@@ -762,14 +674,14 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_batchIndex",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes",
         "name": "_batchHeader",
         "type": "bytes"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_postStateRoot",
-        "type": "bytes32"
       }
     ],
     "name": "importGenesisBatch",
@@ -973,9 +885,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint64",
-        "name": "_batchIndex",
-        "type": "uint64"
+        "internalType": "bytes",
+        "name": "_batchHeader",
+        "type": "bytes"
       },
       {
         "internalType": "bytes",
