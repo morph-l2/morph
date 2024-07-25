@@ -81,7 +81,13 @@ func (e *ExternalSign) newData(txs []types.Transaction) (*Data, error) {
 
 func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 	nonceStr := uuid.NewString()
-	databs, err := json.Marshal(data)
+	business := BusinessData{
+		Appid:     e.Appid,
+		Data:      "{\"chain\":\"ETH\"}",
+		Noncestr:  nonceStr,
+		Timestamp: strconv.FormatInt(time.Now().UnixMilli(), 10),
+	}
+	databs, err := json.Marshal(business)
 	if err != nil {
 		return nil, fmt.Errorf("marshal data failed: %w", err)
 	}
