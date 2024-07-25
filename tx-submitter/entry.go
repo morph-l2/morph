@@ -16,6 +16,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/externalsign"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
@@ -122,7 +123,7 @@ func Main() func(ctx *cli.Context) error {
 		// external sign
 		if cfg.ExternalSign {
 			// parse rsa private key
-			rsaPriv, err = utils.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+			rsaPriv, err = externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
 			if err != nil {
 				return fmt.Errorf("failed to parse rsa private key: %w", err)
 			}

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -30,9 +31,9 @@ type ExternalSign struct {
 
 type BusinessData struct {
 	Appid     string `json:"appid"`
-	Data      Data   `json:"data"`
+	Data      string `json:"data"`
 	Noncestr  string `json:"noncestr"`
-	Timestamp uint64 `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 }
 
 type ReqData struct {
@@ -79,11 +80,21 @@ func (e *ExternalSign) newData(txs []types.Transaction) (*Data, error) {
 
 func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 	nonceStr := uuid.NewString()
-	databs, err := json.Marshal(data)
+	dataBs, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("marshal data failed: %w", err)
 	}
-	hashed := sha256.Sum256([]byte(databs))
+	businessData := BusinessData{
+		Appid:     e.Appid,
+		Data:      string(dataBs),
+		Noncestr:  nonceStr,
+		Timestamp: strconv.FormatInt(time.Now().UnixMilli(), 10),
+	}
+	businessDataBs, err := json.Marshal(businessData)
+	if err != nil {
+		return nil, fmt.Errorf("marshal data failed: %w", err)
+	}
+	hashed := sha256.Sum256([]byte(businessDataBs))
 	signature, err := rsa.SignPKCS1v15(nil, e.Privkey, crypto.SHA256, hashed[:])
 	if err != nil {
 		return nil, fmt.Errorf("sign data failed: %w", err)
@@ -91,12 +102,7 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 	hexSig := hex.EncodeToString(signature)
 
 	return &ReqData{
-		BusinessData: BusinessData{
-			Appid:     e.Appid,
-			Data:      data,
-			Noncestr:  nonceStr,
-			Timestamp: uint64(time.Now().Unix()),
-		},
+		BusinessData: businessData,
 		BizSignature: hexSig,
 	}, nil
 
@@ -142,22 +148,5 @@ func (e *ExternalSign) requestSign(data ReqData) (*types.Transaction, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode signed tx err: %v", err)
 	}
-
-	// resp status check
-	// if resp.StatusCode() != http.StatusOK {
-	// 	return nil, fmt.Errorf("request sign error,code not ok: %v", resp.StatusCode())
-	// }
-
-	// respon body check
-	// if resp.RawResponse == nil {
-	// 	return nil, errors.New("request sign no response")
-	// }
-
-	// parse response
-	// defer resp.RawResponse.Body.Close()
-	// if err := json.NewDecoder(resp.RawResponse.Body).Decode(&response); err != nil {
-	// 	return nil, fmt.Errorf("request sign error: %v", err)
-	// }
-
 	return tx, nil
 }

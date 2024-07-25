@@ -2,10 +2,6 @@ package utils
 
 import (
 	"crypto/ecdsa"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
 	"strings"
 
 	"github.com/scroll-tech/go-ethereum"
@@ -23,19 +19,6 @@ func ParsePkAndWallet(pkStr, walletStr string) (*ecdsa.PrivateKey, *common.Addre
 	wallet := common.HexToAddress(walletStr)
 
 	return priv, &wallet, nil
-}
-func ParseRsaPrivateKey(pkStr string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(pkStr))
-	if block == nil || block.Type != "RSA PRIVATE KEY" {
-		return nil, fmt.Errorf("failed to decode rsa privkey str")
-	}
-
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return key, nil
 }
 
 func ToCallArg(msg ethereum.CallMsg) interface{} {

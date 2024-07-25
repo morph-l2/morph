@@ -46,3 +46,23 @@ func Test_RequestSign(t *testing.T) {
 	require.Equal(t, tx.Data(), signedTx.Data())
 
 }
+
+func TestNewWallet(t *testing.T) {
+
+	//test data
+	appid := ""
+	rsaPrivStr := ""
+	signUrl := ""
+
+	rsaPriv, err := ParseRsaPrivateKey(rsaPrivStr)
+	require.NoError(t, err)
+	es := NewExternalSign(appid, rsaPriv, signUrl)
+	data, err := es.newData(nil)
+	data.Chain = "ETH"
+	require.NoError(t, err)
+	reqData, err := es.craftReqData(*data)
+	require.NoError(t, err)
+	t.Log("reqData", reqData)
+	es.requestSign(*reqData)
+
+}
