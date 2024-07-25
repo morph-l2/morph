@@ -39,6 +39,7 @@ type BusinessData struct {
 type ReqData struct {
 	BusinessData
 	BizSignature string `json:"bizSignature"`
+	PubKey       string `json:"publicKey"`
 }
 
 type Data struct {
@@ -100,6 +101,7 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 			Timestamp: strconv.FormatInt(time.Now().UnixMilli(), 10),
 		},
 		BizSignature: hexSig,
+		PubKey:       "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA8kc4H0aVH2OQm7OMqtiFdbcWaa/5PCC1E40vkxwgwWOeu0NVQxeA/LrDQBDLjvy23nhZCCvlsqg/awRKOxXiXszZ4eOnv1HXTjE27ECEuhzJRg6BzYLzasigric+FRyrrtFt/dWhAJe40stTVKyQDpf780aXsqSeY/C2l7JcspbIKjzIvHygvwOVb6r4JZJlirq533inC3tJI0rGjOw3td/0d8h8IooKID92G1xBKErq1WwIfMO8GKP0P1gfMGxQHg7FYbjlg7+eK0Ba9Z2e9zgR1VXbmevHt/gUeq4CgBCvGkGl+itcJwXuTwVrrSunJ1STOcWfPgNfadrSVR8+dV3IfxuYjVldUAsuqr9z1U8TZkTTb+8HPV9nzvqLWdZ0D4ANcQH6lgh9xRPgqSItAsiK9svwzWpiu8YLdUxIS/bIAB4KQrLf20YfH7uk1SztKic8LaASsIHkLHzvMHp3ATJeF2EE0LRGnMHwW+hEQjohzhCNiu8nApH2nBsCD1rEX5x/4+adPM/KuaomIn/kIMJuw5MzjEMwxRYmpYOF6XXOWPxgvDXvDXtl7WUs0kwY0tCzVZmIBsrlYf+oMD0z1z7nu6H+F4Rm0nNFy6CYdVDgxXIQ+VFV4yfyTMZ68nYL+YGmcKzRCXUPDpbRTgF0jKowaWkDMPfIsNbt2lhNDasCAwEAAQ==",
 	}, nil
 
 }
