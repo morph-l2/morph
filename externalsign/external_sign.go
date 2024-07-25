@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -32,7 +33,7 @@ type BusinessData struct {
 	Appid     string `json:"appid"`
 	Data      string `json:"data"`
 	Noncestr  string `json:"noncestr"`
-	Timestamp uint64 `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 }
 
 type ReqData struct {
@@ -96,7 +97,7 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 			Appid:     e.Appid,
 			Data:      "{\"chain\":\"ETH\"}",
 			Noncestr:  nonceStr,
-			Timestamp: uint64(time.Now().UnixMilli()),
+			Timestamp: strconv.FormatInt(time.Now().UnixMilli(), 10),
 		},
 		BizSignature: hexSig,
 	}, nil
