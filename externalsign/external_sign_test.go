@@ -20,6 +20,7 @@ func Test_RequestSign(t *testing.T) {
 
 	// testdata
 	topk, err := crypto.GenerateKey()
+	require.NoError(t, err)
 	toaddr := crypto.PubkeyToAddress(topk.PublicKey)
 	gas := uint64(50000)
 	chainid := big.NewInt(4)
@@ -34,7 +35,7 @@ func Test_RequestSign(t *testing.T) {
 			ChainID:   chainid,
 		},
 	)
-	signedTx, err := es.RequestSign([]types.Transaction{*tx})
+	signedTx, err := es.RequestSign([]*types.Transaction{tx})
 	require.NoError(t, err)
 
 	require.Equal(t, tx.Hash(), signedTx.Hash())
@@ -61,6 +62,10 @@ func TestNewWallet(t *testing.T) {
 	data.Chain = "ETH"
 	require.NoError(t, err)
 	reqData, err := es.craftReqData(*data)
+	require.NoError(t, err)
+	pubstr, err := GetPubKeyStr(rsaPriv)
+	require.NoError(t, err)
+	reqData.Pubkey = pubstr
 	require.NoError(t, err)
 	t.Log("reqData", reqData)
 	es.requestSign(*reqData)

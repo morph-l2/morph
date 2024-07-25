@@ -39,6 +39,7 @@ type BusinessData struct {
 type ReqData struct {
 	BusinessData
 	BizSignature string `json:"bizSignature"`
+	Pubkey       string `json:"publicKey"`
 }
 
 type Data struct {

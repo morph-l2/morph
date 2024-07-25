@@ -39,3 +39,12 @@ func ParseRsaPrivateKey(pkStr string) (*rsa.PrivateKey, error) {
 
 	return priKey, nil
 }
+
+func GetPubKeyStr(priv *rsa.PrivateKey) (string, error) {
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(priv.PublicKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal public key:%w", err)
+	}
+	return base64.StdEncoding.EncodeToString(pubKeyBytes), nil
+
+}
