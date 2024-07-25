@@ -67,35 +67,16 @@ impl BatchSyncer {
             return Ok(None);
         };
 
-        let batch_store = match self.l1_rollup.batch_data_store(U256::from(batch_info.batch_index)).await {
-            Ok(value) => value,
-            Err(msg) => {
-                log::error!("query committed_batch_stores error: {:?}", msg);
-                return Ok(None);
-            }
-        };
-
-        let batch_signature = match self.l1_rollup.batch_signature_store(U256::from(batch_info.batch_index)).await {
-            Ok(value) => value,
-            Err(msg) => {
-                log::error!("query batch_signature_store error: {:?}", msg);
-                return Ok(None);
-            }
-        };
-
-        let data_hash = batch_header.get(25..57).unwrap_or_default().try_into().unwrap_or_default();
-        let blob_versioned_hash = batch_header.get(57..89).unwrap_or_default().try_into().unwrap_or_default();
-
         // Prepare shadow batch
         let shadow_tx = self.l1_shadow_rollup.commit_batch(
             batch_info.batch_index,
             BatchStore {
-                prev_state_root: batch_store.3,
-                post_state_root: batch_store.4,
-                withdrawal_root: batch_store.5,
-                data_hash,
-                blob_versioned_hash,
-                sequencer_set_verify_hash: batch_signature.0,
+                prev_state_root: batch_header.get(89..121).unwrap_or_default().try_into().unwrap_or_default(),
+                post_state_root: batch_header.get(121..153).unwrap_or_default().try_into().unwrap_or_default(),
+                withdrawal_root: batch_header.get(153..185).unwrap_or_default().try_into().unwrap_or_default(),
+                data_hash: batch_header.get(25..57).unwrap_or_default().try_into().unwrap_or_default(),
+                blob_versioned_hash: batch_header.get(57..89).unwrap_or_default().try_into().unwrap_or_default(),
+                sequencer_set_verify_hash: batch_header.get(185..217).unwrap_or_default().try_into().unwrap_or_default(),
             },
         );
         let rt = shadow_tx.send().await;

@@ -186,10 +186,10 @@ async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider
         }
 
         // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 4800 * chunks.len() + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
+        let mut max_waiting_time: usize = 4800 * chunks.len() + 2400; //chunk_prove_time =1h 20min，batch_prove_time = 24min
         while max_waiting_time > 300 {
-            sleep(Duration::from_secs(12)).await;
-            max_waiting_time -= 12;
+            sleep(Duration::from_secs(300)).await;
+            max_waiting_time -= 300;
             match query_proof(batch_index).await {
                 Some(batch_proof) => {
                     log::debug!("query proof and prove state: {:#?}", batch_index);
