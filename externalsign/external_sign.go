@@ -96,7 +96,7 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 			Appid:     e.Appid,
 			Data:      "{\"chain\":\"ETH\"}",
 			Noncestr:  nonceStr,
-			Timestamp: uint64(time.Now().Unix()),
+			Timestamp: uint64(time.Now().UnixMilli()),
 		},
 		BizSignature: hexSig,
 	}, nil
