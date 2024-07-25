@@ -15,8 +15,7 @@ func (r *Rollup) Sign(tx *types.Transaction) (*types.Transaction, error) {
 		if externalSigner == nil {
 			externalsign.NewExternalSign(r.cfg.ExternalSignAppid, r.externalRsaPriv, r.cfg.ExternalSignUrl)
 		}
-
-		signedTx, err := externalSigner.RequestSign([]types.Transaction{*tx})
+		signedTx, err := externalSigner.RequestSign([]*types.Transaction{tx})
 		if err != nil {
 			return nil, fmt.Errorf("externalsign sign tx error:%v", err)
 		}

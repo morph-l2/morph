@@ -59,7 +59,7 @@ func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl string) *Extern
 	}
 }
 
-func (e *ExternalSign) newData(txs []types.Transaction) (*Data, error) {
+func (e *ExternalSign) newData(txs []*types.Transaction) (*Data, error) {
 
 	// marshal tx
 	var signDatas []string
@@ -108,7 +108,7 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 
 }
 
-func (e *ExternalSign) RequestSign(txs []types.Transaction) (*types.Transaction, error) {
+func (e *ExternalSign) RequestSign(txs []*types.Transaction) (*types.Transaction, error) {
 	data, err := e.newData(txs)
 	if err != nil {
 		return nil, fmt.Errorf("new data error:%s", err)
