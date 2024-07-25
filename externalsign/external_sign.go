@@ -30,7 +30,7 @@ type ExternalSign struct {
 
 type BusinessData struct {
 	Appid     string `json:"appid"`
-	Data      Data   `json:"data"`
+	Data      string `json:"data"`
 	Noncestr  string `json:"noncestr"`
 	Timestamp uint64 `json:"timestamp"`
 }
@@ -83,6 +83,7 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal data failed: %w", err)
 	}
+	// sign
 	hashed := sha256.Sum256([]byte(databs))
 	signature, err := rsa.SignPKCS1v15(nil, e.Privkey, crypto.SHA256, hashed[:])
 	if err != nil {
@@ -93,7 +94,7 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 	return &ReqData{
 		BusinessData: BusinessData{
 			Appid:     e.Appid,
-			Data:      data,
+			Data:      "{\"chain\":\"ETH\"}",
 			Noncestr:  nonceStr,
 			Timestamp: uint64(time.Now().Unix()),
 		},
@@ -142,22 +143,5 @@ func (e *ExternalSign) requestSign(data ReqData) (*types.Transaction, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode signed tx err: %v", err)
 	}
-
-	// resp status check
-	// if resp.StatusCode() != http.StatusOK {
-	// 	return nil, fmt.Errorf("request sign error,code not ok: %v", resp.StatusCode())
-	// }
-
-	// respon body check
-	// if resp.RawResponse == nil {
-	// 	return nil, errors.New("request sign no response")
-	// }
-
-	// parse response
-	// defer resp.RawResponse.Body.Close()
-	// if err := json.NewDecoder(resp.RawResponse.Body).Decode(&response); err != nil {
-	// 	return nil, fmt.Errorf("request sign error: %v", err)
-	// }
-
 	return tx, nil
 }

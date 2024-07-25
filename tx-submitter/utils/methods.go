@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"strings"
@@ -25,17 +26,35 @@ func ParsePkAndWallet(pkStr, walletStr string) (*ecdsa.PrivateKey, *common.Addre
 	return priv, &wallet, nil
 }
 func ParseRsaPrivateKey(pkStr string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(pkStr))
-	if block == nil || block.Type != "RSA PRIVATE KEY" {
-		return nil, fmt.Errorf("failed to decode rsa privkey str")
+	// decode private
+	var derBytes []byte
+	blockPub, rest := pem.Decode([]byte(pkStr))
+	switch string(rest) {
+	case pkStr:
+		// private key only
+		publicBytes, err := base64.StdEncoding.DecodeString(pkStr)
+		if err != nil {
+			return nil, err
+		}
+		derBytes = publicBytes
+	default:
+		// contains the private key that begins with -----BEGIN
+		derBytes = blockPub.Bytes
 	}
-
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	priKey, err := x509.ParsePKCS1PrivateKey(derBytes)
 	if err != nil {
-		return nil, err
+		privateKeyF, err := x509.ParsePKCS8PrivateKey(derBytes)
+		if err != nil {
+			return nil, err
+		}
+		var ok bool
+		priKey, ok = privateKeyF.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("%s", "failed to parse to rsa private key")
+		}
 	}
 
-	return key, nil
+	return priKey, nil
 }
 
 func ToCallArg(msg ethereum.CallMsg) interface{} {
