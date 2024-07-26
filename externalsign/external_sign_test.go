@@ -37,7 +37,18 @@ func Test_RequestSign(t *testing.T) {
 			ChainID:   chainid,
 		},
 	)
-	signedTx, err := es.RequestSign([]*types.Transaction{tx})
+
+	data, err := es.newData([]*types.Transaction{tx})
+	data.Chain = "ETH"
+	require.NoError(t, err)
+	reqData, err := es.craftReqData(*data)
+	require.NoError(t, err)
+	pubstr, err := GetPubKeyStr(rsa)
+	require.NoError(t, err)
+	reqData.Pubkey = pubstr
+	require.NoError(t, err)
+	t.Log("reqData", reqData)
+	signedTx, err := es.requestSign(*reqData)
 	require.NoError(t, err)
 
 	require.Equal(t, tx.Hash(), signedTx.Hash())
