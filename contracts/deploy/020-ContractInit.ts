@@ -53,7 +53,6 @@ export const ContractInit = async (
         const Rollup = await hre.ethers.getContractAt(ContractFactoryName.Rollup, RollupProxyAddress, deployer)
         // import genesis batch 
         const batchHeader: string = config.batchHeader
-        const batchIndex: string = config.rollupBatchIndex
 
         // submitter and challenger
         const submitter: string = config.rollupProposer
@@ -64,7 +63,7 @@ export const ContractInit = async (
             console.error('please check your address')
             return ''
         }
-        let res = await Rollup.importGenesisBatch(batchIndex, batchHeader)
+        let res = await Rollup.importGenesisBatch(batchHeader)
         let rec = await res.wait()
         console.log(`importGenesisBatch(%s) ${rec.status == 1 ? "success" : "failed"}`, batchHeader)
         res = await Rollup.addChallenger(challenger)
