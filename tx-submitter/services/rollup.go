@@ -580,6 +580,10 @@ func (sr *Rollup) rollup() error {
 		return nil
 	}
 
+	log.Info("batch header",
+		"parent_header", string(batch.ParentBatchHeader),
+	)
+
 	if len(batch.Signatures) == 0 {
 		log.Info("length of batch signature is empty, wait for the next turn")
 		return nil
