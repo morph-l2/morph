@@ -11,12 +11,14 @@ import (
 )
 
 func Test_RequestSign(t *testing.T) {
+
 	appid := ""
-	rsa, err := rsa.GenerateKey(nil, 2048)
-	if err != nil {
-		t.Error(err)
-	}
-	es := NewExternalSign(appid, rsa, "")
+	rsaPrivStr := ""
+	signUrl := ""
+
+	rsa, err := ParseRsaPrivateKey(rsaPrivStr)
+	require.NoError(t, err)
+	es := NewExternalSign(appid, rsa, signUrl)
 
 	// testdata
 	topk, err := crypto.GenerateKey()
