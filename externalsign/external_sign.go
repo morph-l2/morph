@@ -144,6 +144,10 @@ func (e *ExternalSign) requestSign(data ReqData) (*types.Transaction, error) {
 		"body", resp.String(),
 	)
 
+	if resp.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("response status not ok: %v, resp body:%v", resp.StatusCode(), string(resp.Body()))
+	}
+
 	tx := new(types.Transaction)
 	err = rlp.DecodeBytes([]byte(response.Result.SignDatas[0].Sign), tx)
 	if err != nil {
