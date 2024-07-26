@@ -6,7 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -43,9 +47,15 @@ type ReqData struct {
 }
 
 type Data struct {
-	Address   string   `json:"address"`
-	Chain     string   `json:"chain"`
-	SignDatas []string `json:"signDatas"` // raw txs jsons
+	Address   string         `json:"address"`
+	Chain     string         `json:"chain"`
+	SignDatas []types.TxData `json:"signDatas"` // raw txs jsons
+}
+
+func init() {
+	output := io.Writer(os.Stdout)
+	logHandler := log.StreamHandler(output, log.TerminalFormat(false))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, logHandler))
 }
 
 func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl string) *ExternalSign {
@@ -60,22 +70,12 @@ func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl string) *Extern
 	}
 }
 
-func (e *ExternalSign) newData(txs []*types.Transaction) (*Data, error) {
-
-	// marshal tx
-	var signDatas []string
-	for _, tx := range txs {
-		signData, err := tx.MarshalJSON()
-		if err != nil {
-			return nil, fmt.Errorf("create new data failed: %w", err)
-		}
-		signDatas = append(signDatas, string(signData))
-	}
+func (e *ExternalSign) newData(txDatas []types.TxData) (*Data, error) {
 
 	return &Data{
 		Address:   e.Address,
 		Chain:     e.Chain,
-		SignDatas: signDatas,
+		SignDatas: txDatas,
 	}, nil
 }
 
@@ -109,8 +109,8 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 
 }
 
-func (e *ExternalSign) RequestSign(txs []*types.Transaction) (*types.Transaction, error) {
-	data, err := e.newData(txs)
+func (e *ExternalSign) RequestSign(txdatas []types.TxData) (*types.Transaction, error) {
+	data, err := e.newData(txdatas)
 	if err != nil {
 		return nil, fmt.Errorf("new data error:%s", err)
 	}
@@ -139,13 +139,18 @@ func (e *ExternalSign) requestSign(data ReqData) (*types.Transaction, error) {
 	}
 
 	// log resp info
-	log.Debug("request sign response",
+	log.Info("request sign response",
 		"status", resp.StatusCode(),
 		"body", resp.String(),
+		"result", resp.Result(),
 	)
 
 	if resp.StatusCode() != http.StatusOK {
 		return nil, fmt.Errorf("response status not ok: %v, resp body:%v", resp.StatusCode(), string(resp.Body()))
+	}
+
+	if len(response.Result.SignDatas) == 0 {
+		return nil, errors.New("signDatas empty")
 	}
 
 	tx := new(types.Transaction)

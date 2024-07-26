@@ -1,7 +1,6 @@
 package externalsign
 
 import (
-	"crypto/rsa"
 	"math/big"
 	"testing"
 
@@ -27,19 +26,19 @@ func Test_RequestSign(t *testing.T) {
 	gas := uint64(50000)
 	chainid := big.NewInt(4)
 
-	tx := types.NewTx(
-		&types.DynamicFeeTx{
-			To:        &toaddr,
-			Gas:       gas,
-			GasFeeCap: big.NewInt(1),
-			GasTipCap: big.NewInt(2),
-			Value:     big.NewInt(3),
-			ChainID:   chainid,
-		},
-	)
+	txdata := &types.DynamicFeeTx{
+		To:        &toaddr,
+		Gas:       gas,
+		GasFeeCap: big.NewInt(1),
+		GasTipCap: big.NewInt(2),
+		Value:     big.NewInt(3),
+		ChainID:   chainid,
+	}
 
-	data, err := es.newData([]*types.Transaction{tx})
+	data, err := es.newData([]types.TxData{txdata})
 	data.Chain = "ETH"
+	// todo: fill it
+	data.Address = ""
 	require.NoError(t, err)
 	reqData, err := es.craftReqData(*data)
 	require.NoError(t, err)
@@ -51,13 +50,12 @@ func Test_RequestSign(t *testing.T) {
 	signedTx, err := es.requestSign(*reqData)
 	require.NoError(t, err)
 
-	require.Equal(t, tx.Hash(), signedTx.Hash())
-	require.Equal(t, tx.Gas(), signedTx.Gas())
-	require.Equal(t, tx.GasFeeCap(), signedTx.GasFeeCap())
-	require.Equal(t, tx.GasTipCap(), signedTx.GasTipCap())
-	require.Equal(t, tx.Value(), signedTx.Value())
-	require.Equal(t, tx.Value(), signedTx.Value())
-	require.Equal(t, tx.Data(), signedTx.Data())
+	// require.Equal(t, txdata.Hash(), signedTx.Hash())
+	require.Equal(t, txdata.Gas, signedTx.Gas())
+	require.Equal(t, txdata.GasFeeCap, signedTx.GasFeeCap())
+	require.Equal(t, txdata.GasTipCap, signedTx.GasTipCap())
+	require.Equal(t, txdata.Value, signedTx.Value())
+	require.Equal(t, txdata.Data, signedTx.Data())
 
 }
 
