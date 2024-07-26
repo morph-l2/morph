@@ -172,23 +172,17 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      ************************/
 
     /// @notice Import layer 2 genesis block
-    function importGenesisBatch(uint256 _batchIndex, bytes calldata _batchHeader) external onlyOwner {
+    function importGenesisBatch(bytes calldata _batchHeader) external onlyOwner {
         // check whether the genesis batch is imported
         require(finalizedStateRoots[0] == bytes32(0), "genesis batch imported");
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         bytes32 _postStateRoot = BatchHeaderCodecV0.getPostStateHash(memPtr);
         require(_postStateRoot != bytes32(0), "zero state root");
         // check all fields except `l1DataHash` and `lastBlockHash` are zero
-        unchecked {
-            uint256 sum = BatchHeaderCodecV0.getVersion(memPtr) +
-                BatchHeaderCodecV0.getBatchIndex(memPtr) +
-                BatchHeaderCodecV0.getL1MessagePopped(memPtr) +
-                BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr);
-            require(sum == 0, "not all fields are zero");
-        }
+        require(BatchHeaderCodecV0.getL1MessagePopped(memPtr) == 0, "l1 message popped should be 0");
         require(BatchHeaderCodecV0.getL1DataHash(memPtr) != bytes32(0), "zero data hash");
-        require(BatchHeaderCodecV0.getParentBatchHash(memPtr) == bytes32(0), "nonzero parent batch hash");
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
