@@ -71,6 +71,10 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
 
         updateTime = block.timestamp;
 
+        sequencerSetVerifyHash = keccak256(
+            abi.encode(blockHeight0, sequencerSet0, blockHeight1, sequencerSet1, blockHeight2, sequencerSet2)
+        );
+
         emit SequencerSetUpdated(_sequencerSet, 0);
     }
 
