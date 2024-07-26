@@ -115,6 +115,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
         );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
+        );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
         emit IRollup.CommitBatch(1, bytes32(0xea8482fa5502100ff03f9329ad89519a3b4f4a6bbe9f7997508683195342f899));
@@ -243,6 +248,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
         );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
+        );
         hevm.startPrank(address(0));
         hevm.expectRevert("too many txs in one chunk");
 
@@ -257,6 +267,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
         );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
+        );
         hevm.startPrank(address(0));
         hevm.expectRevert("too many txs in one chunk");
         batchDataInput = IRollup.BatchDataInput(0, batchHeader1, chunks, bitmap, bytesData1, bytesData1, bytesData4);
@@ -269,6 +284,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             address(rollup.l1StakingContract()),
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
+        );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
         );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
