@@ -41,26 +41,26 @@ contract L2StakingTest is L2StakingBaseTest {
 
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        l2Staking.initialize(0, 0, 0, _stakerInfos);
+        l2Staking.initialize(multisig, 0, 0, 0, _stakerInfos);
 
         // reset initialize
         hevm.store(address(l2Staking), bytes32(uint256(0)), bytes32(uint256(0)));
 
         hevm.expectRevert("sequencersSize must greater than 0");
         hevm.prank(multisig);
-        l2Staking.initialize(0, 0, 0, _stakerInfos);
+        l2Staking.initialize(multisig, 0, 0, 0, _stakerInfos);
 
         hevm.expectRevert("invalid undelegateLockEpochs");
         hevm.prank(multisig);
-        l2Staking.initialize(1, 0, 0, _stakerInfos);
+        l2Staking.initialize(multisig, 1, 0, 0, _stakerInfos);
 
         hevm.expectRevert("invalid reward start time");
         hevm.prank(multisig);
-        l2Staking.initialize(1, 1, 100, _stakerInfos);
+        l2Staking.initialize(multisig, 1, 1, 100, _stakerInfos);
 
         hevm.expectRevert("invalid initial stakers");
         hevm.prank(multisig);
-        l2Staking.initialize(1, 1, rewardStartTime * 2, _stakerInfos);
+        l2Staking.initialize(multisig, 1, 1, rewardStartTime * 2, _stakerInfos);
     }
 
     /**
@@ -101,7 +101,10 @@ contract L2StakingTest is L2StakingBaseTest {
         // Initialize the proxy with the new implementation.
         ITransparentUpgradeableProxy(address(l2StakingProxyTemp)).upgradeToAndCall(
             address(l2StakingImplTemp),
-            abi.encodeCall(L2Staking.initialize, (SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos))
+            abi.encodeCall(
+                L2Staking.initialize,
+                (multisig, SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos)
+            )
         );
         hevm.stopPrank();
 

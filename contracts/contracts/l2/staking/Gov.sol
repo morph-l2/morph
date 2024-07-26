@@ -88,6 +88,7 @@ contract Gov is IGov, OwnableUpgradeable {
      ***************/
 
     /// @notice Initializer
+    /// @param _owner owner
     /// @param _votingDuration proposal interval
     /// @param _batchBlockInterval batch block interval
     /// @param _batchMaxBytes max batch bytes
@@ -95,6 +96,7 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @param _maxChunks max chunks
     /// @param _rollupEpoch rollup epoch
     function initialize(
+        address _owner,
         uint256 _votingDuration,
         uint256 _batchBlockInterval,
         uint256 _batchMaxBytes,
@@ -102,12 +104,13 @@ contract Gov is IGov, OwnableUpgradeable {
         uint256 _maxChunks,
         uint256 _rollupEpoch
     ) public initializer {
+        require(_owner != address(0), "invalid owner address");
         require(_votingDuration > 0, "invalid proposal voting duration");
         require(_maxChunks > 0, "invalid max chunks");
         require(_rollupEpoch > 0, "invalid rollup epoch");
         require(_batchBlockInterval != 0 || _batchMaxBytes != 0 || _batchTimeout != 0, "invalid batch params");
 
-        __Ownable_init();
+        _transferOwnership(_owner);
 
         votingDuration = _votingDuration;
         batchBlockInterval = _batchBlockInterval;
@@ -126,6 +129,7 @@ contract Gov is IGov, OwnableUpgradeable {
     }
 
     /// @notice Initializer
+    /// @param _owner owner
     /// @param _votingDuration proposal interval
     /// @param _batchBlockInterval batch block interval
     /// @param _batchMaxBytes max batch bytes
@@ -133,6 +137,7 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @param _maxChunks max chunks
     /// @param _rollupEpoch rollup epoch
     function initializeV2(
+        address _owner,
         uint256 _votingDuration,
         uint256 _batchBlockInterval,
         uint256 _batchMaxBytes,
@@ -140,12 +145,13 @@ contract Gov is IGov, OwnableUpgradeable {
         uint256 _maxChunks,
         uint256 _rollupEpoch
     ) public reinitializer(2) {
+        require(_owner != address(0), "invalid owner address");
         require(_votingDuration > 0, "invalid proposal voting duration");
         require(_maxChunks > 0, "invalid max chunks");
         require(_rollupEpoch > 0, "invalid rollup epoch");
         require(_batchBlockInterval != 0 || _batchMaxBytes != 0 || _batchTimeout != 0, "invalid batch params");
 
-        __Ownable_init();
+        _transferOwnership(_owner);
 
         votingDuration = _votingDuration;
         batchBlockInterval = _batchBlockInterval;
@@ -162,6 +168,7 @@ contract Gov is IGov, OwnableUpgradeable {
         emit MaxChunksUpdated(0, _maxChunks);
         emit RollupEpochUpdated(0, _rollupEpoch);
     }
+
     /************************
      * Restricted Functions *
      ************************/
