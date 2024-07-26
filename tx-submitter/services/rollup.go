@@ -220,14 +220,14 @@ func (sr *Rollup) ProcessTx() error {
 		if ispending {
 			if txRecord.sendTime+uint64(sr.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
 				log.Info("tx timeout", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
-				newtx, err := sr.ReSubmitTx(false, &rtx)
+				newtx, err := sr.ReSubmitTx(false, rtx)
 				if err != nil {
 					log.Error("resubmit tx", "error", err, "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce())
 					return fmt.Errorf("resubmit tx error:%w", err)
 				} else {
 					log.Info("replace success", "old_tx", rtx.Hash().Hex(), "new_tx", newtx.Hash().String(), "nonce", rtx.Nonce())
 					sr.pendingTxs.Remove(rtx.Hash())
-					sr.pendingTxs.Add(*newtx)
+					sr.pendingTxs.Add(newtx)
 				}
 			}
 		} else { // not in mempool
@@ -245,7 +245,7 @@ func (sr *Rollup) ProcessTx() error {
 						"nonce", rtx.Nonce(),
 						"query_times", txRecord.queryTimes,
 					)
-					replacedtx, err := sr.ReSubmitTx(true, &rtx)
+					replacedtx, err := sr.ReSubmitTx(true, rtx)
 					if err != nil {
 						log.Error("resend discarded tx", "old_tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
 						if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -261,7 +261,7 @@ func (sr *Rollup) ProcessTx() error {
 					} else {
 						sr.pendingTxs.Remove(rtx.Hash())
 					}
-					sr.pendingTxs.Add(*replacedtx)
+					sr.pendingTxs.Add(replacedtx)
 					log.Info("resend discarded tx", "old_tx", rtx.Hash().String(), "new_tx", replacedtx.Hash().String(), "nonce", replacedtx.Nonce())
 				} else {
 					log.Info("tx is not found, neither in mempool nor in block", "hash", rtx.Hash().String(), "nonce", rtx.Nonce(), "query_times", txRecord.queryTimes)
@@ -485,7 +485,7 @@ func (sr *Rollup) finalize() error {
 
 		sr.pendingTxs.SetNonce(signedTx.Nonce())
 		sr.pendingTxs.SetPFinalize(target.Uint64())
-		sr.pendingTxs.Add(*signedTx)
+		sr.pendingTxs.Add(signedTx)
 	}
 
 	return nil
@@ -740,7 +740,7 @@ func (sr *Rollup) rollup() error {
 
 		sr.pendingTxs.SetPindex(batchIndex)
 		sr.pendingTxs.SetNonce(tx.Nonce())
-		sr.pendingTxs.Add(*signedTx)
+		sr.pendingTxs.Add(signedTx)
 	}
 
 	return nil
@@ -1014,7 +1014,7 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 
 	// after send tx
 	// add to pending txs
-	r.pendingTxs.Add(*tx)
+	r.pendingTxs.Add(tx)
 
 	return nil
 
