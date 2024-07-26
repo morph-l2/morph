@@ -17,7 +17,7 @@ func Test_RequestSign(t *testing.T) {
 
 	rsa, err := ParseRsaPrivateKey(rsaPrivStr)
 	require.NoError(t, err)
-	es := NewExternalSign(appid, rsa, signUrl)
+	es := NewExternalSign(appid, rsa, signUrl, addr, chain)
 
 	// testdata
 	topk, err := crypto.GenerateKey()
@@ -37,8 +37,6 @@ func Test_RequestSign(t *testing.T) {
 
 	data, err := es.newData([]types.TxData{txdata})
 	data.Chain = "ETH"
-	// todo: fill it
-	data.Address = ""
 	require.NoError(t, err)
 	reqData, err := es.craftReqData(*data)
 	require.NoError(t, err)
@@ -65,12 +63,13 @@ func TestNewWallet(t *testing.T) {
 	appid := ""
 	rsaPrivStr := ""
 	signUrl := ""
+	addr := ""
+	chain := "ETH"
 
 	rsaPriv, err := ParseRsaPrivateKey(rsaPrivStr)
 	require.NoError(t, err)
-	es := NewExternalSign(appid, rsaPriv, signUrl)
+	es := NewExternalSign(appid, rsaPriv, signUrl, addr, chain)
 	data, err := es.newData(nil)
-	data.Chain = "ETH"
 	require.NoError(t, err)
 	reqData, err := es.craftReqData(*data)
 	require.NoError(t, err)

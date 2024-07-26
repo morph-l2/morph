@@ -58,7 +58,7 @@ func init() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, logHandler))
 }
 
-func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl string) *ExternalSign {
+func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl, addr, chain string) *ExternalSign {
 
 	// new resty.client
 	client := resty.New()
@@ -67,6 +67,8 @@ func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl string) *Extern
 		Privkey: priv,
 		Client:  client,
 		signUrl: signUrl,
+		Address: addr,
+		Chain:   chain,
 	}
 }
 
