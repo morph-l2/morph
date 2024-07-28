@@ -104,7 +104,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
-			return nil, fmt.Errorf("submitBatches Unpack error:%v", err)
+			return nil, err
 		}
 		rollupBatchData := args[0].(struct {
 			Version                uint8     "json:\"version\""
