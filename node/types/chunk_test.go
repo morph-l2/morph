@@ -11,6 +11,21 @@ import (
 	"github.com/tendermint/tendermint/libs/rand"
 )
 
+func TestChunks_AppendNilRows(t *testing.T) {
+	blockContext := []byte("123")
+	txPayloads := []byte("abc")
+	txHashes := []common.Hash{common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(2))}
+	chunks := NewChunks()
+	chunks.Append(blockContext, txPayloads, txHashes, types.RowConsumption{{Name: "a", RowNumber: 980_000}})
+	require.EqualValues(t, 1, len(chunks.data))
+
+	chunks.Append(blockContext, txPayloads, txHashes, nil)
+	require.EqualValues(t, 1, len(chunks.data))
+
+	chunks.Append(blockContext, txPayloads, txHashes, types.RowConsumption{{Name: "a", RowNumber: 980_000}})
+	require.EqualValues(t, 2, len(chunks.data))
+}
+
 func TestChunks_Append(t *testing.T) {
 	chunks := NewChunks()
 	appended := chunks.isChunksAppendedWithNewBlock(types.RowConsumption{{Name: "a", RowNumber: 1}})
