@@ -1,6 +1,7 @@
 package oracle
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -96,11 +97,12 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			log.Error("get l2 BlockNumber", "err", err)
 			return nil, parseErr
 		}
+
+		if !bytes.Equal(abi.Methods["commitBatch"].ID, tx.Data()[:4]) {
+			continue
+		}
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
-			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
-				continue
-			}
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
 			return nil, err
 		}
