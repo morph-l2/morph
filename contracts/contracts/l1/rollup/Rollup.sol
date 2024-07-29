@@ -224,7 +224,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // the variable `batchPtr` will be reused later for the current batch
         (uint256 _batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr);
-        require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
+        require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect batch hash");
         require(committedBatches[_batchIndex + 1] == bytes32(0), "batch already committed");
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
 
@@ -328,7 +328,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-        require(committedBatches[_batchIndex] == _batchHash, "incorrect parent batch hash");
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
 
         // make sure no gap is left when reverting from the ending to the beginning.
         require(committedBatches[_batchIndex + _count] == bytes32(0), "reverting must start from the ending");
@@ -470,7 +470,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-        require(committedBatches[_batchIndex] == _batchHash, "incorrect parent batch hash");
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
 
         // Ensure challenge exists and is not finished
         require(batchInChallenge(_batchIndex), "batch in challenge");
@@ -496,7 +496,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-        require(committedBatches[_batchIndex] == _batchHash, "incorrect parent batch hash");
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
 
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
