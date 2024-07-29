@@ -14,6 +14,8 @@ func Test_RequestSign(t *testing.T) {
 	appid := ""
 	rsaPrivStr := ""
 	signUrl := ""
+	addr := ""
+	chain := "ETH"
 
 	rsa, err := ParseRsaPrivateKey(rsaPrivStr)
 	require.NoError(t, err)
