@@ -472,7 +472,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
-        // incorrect batch hash, revert
+        // incorrect parent batch hash, revert
         assembly {
             mstore(add(batchHeader0, add(0x20, 25)), 2) // change data hash for batch0
         }
