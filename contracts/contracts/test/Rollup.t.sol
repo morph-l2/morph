@@ -693,7 +693,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.revertBatch(batchHeader0, 0);
 
         // incorrect batch hash, revert
-        hevm.expectRevert("incorrect batch hash");
+        hevm.expectRevert("incorrect parent batch hash");
         batchHeader1[0] = bytes1(uint8(1)); // change version to 1
         rollup.revertBatch(batchHeader1, 1);
         batchHeader1[0] = bytes1(uint8(0)); // change back

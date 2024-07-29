@@ -224,6 +224,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // the variable `batchPtr` will be reused later for the current batch
         (uint256 _batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr);
+        require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
         require(committedBatches[_batchIndex + 1] == bytes32(0), "batch already committed");
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
 
@@ -327,8 +328,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect parent batch hash");
 
-        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
         // make sure no gap is left when reverting from the ending to the beginning.
         require(committedBatches[_batchIndex + _count] == bytes32(0), "reverting must start from the ending");
         // check finalization
@@ -466,8 +467,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes calldata _kzgDataProof
     ) external nonReqRevert whenNotPaused {
         // get batch data from batch header
-        (uint256 memPtr, ) = _loadBatchHeader(_batchHeader);
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect parent batch hash");
+
         // Ensure challenge exists and is not finished
         require(batchInChallenge(_batchIndex), "batch in challenge");
 
@@ -490,8 +494,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev finalize batch
     function finalizeBatch(bytes calldata _batchHeader) public nonReqRevert whenNotPaused {
         // get batch data from batch header
-        (uint256 memPtr, ) = _loadBatchHeader(_batchHeader);
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect parent batch hash");
 
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
@@ -722,10 +727,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // compute batch hash
         _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_memPtr);
-        // only check when genesis is imported
-        if (finalizedStateRoots[lastCommittedBatchIndex] != bytes32(0)) {
-            require(committedBatches[_batchIndex] == _batchHash, "incorrect parent batch hash");
-        }
     }
 
     /// @dev Internal function to load the latestL2BlockNumber.
