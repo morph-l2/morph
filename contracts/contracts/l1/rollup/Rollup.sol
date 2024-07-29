@@ -719,14 +719,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _batchHeader The batch header in calldata.
     /// @return _memPtr     The start memory offset of loaded batch header.
     /// @return _batchHash  The hash of the loaded batch header.
-    function _loadBatchHeader(bytes calldata _batchHeader) internal view returns (uint256 _memPtr, bytes32 _batchHash) {
+    function _loadBatchHeader(bytes calldata _batchHeader) internal pure returns (uint256 _memPtr, bytes32 _batchHash) {
         // load to memory
         uint256 _length;
         (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
 
         // compute batch hash
         _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
-        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_memPtr);
     }
 
     /// @dev Internal function to load the latestL2BlockNumber.
