@@ -55,6 +55,7 @@ func (ck *Chunk) accumulateRowUsages(rc types.RowConsumption) (accRc types.RowCo
 		return rc, maxRowNumber(rc)
 	}
 	if len(rc) == 0 {
+		accRc = make(types.RowConsumption, len(ck.accumulatedRc))
 		copy(accRc, ck.accumulatedRc)
 		max = maxRowNumber(ck.accumulatedRc)
 		return

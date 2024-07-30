@@ -202,6 +202,8 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
     /// @dev finalize withdraw erc721
     function test_finalizeDepositERC721_succeeds(address from, address to, uint256 tokenId) public {
         hevm.assume(to != address(0));
+        hevm.assume(to != address(mockRecipient));
+        hevm.assume(to != address(this));
         hevm.assume(to.code.length == 0);
 
         tokenId = bound(tokenId, NOT_OWNED_TOKEN_ID + 1, type(uint256).max);
