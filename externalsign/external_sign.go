@@ -16,9 +16,9 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/log"
-	"github.com/scroll-tech/go-ethereum/rlp"
 )
 
 type ExternalSign struct {
@@ -31,6 +31,7 @@ type ExternalSign struct {
 	Client *resty.Client
 	// url
 	signUrl string
+	Signer  types.Signer
 }
 
 type BusinessData struct {
@@ -47,9 +48,9 @@ type ReqData struct {
 }
 
 type Data struct {
-	Address   string         `json:"address"`
-	Chain     string         `json:"chain"`
-	SignDatas []types.TxData `json:"signDatas"` // raw txs jsons
+	Address string `json:"address"`
+	Chain   string `json:"chain"`
+	Sha3    string `json:"sha3"`
 }
 
 func init() {
@@ -58,7 +59,7 @@ func init() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, logHandler))
 }
 
-func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl, addr, chain string) *ExternalSign {
+func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl, addr, chain string, signer types.Signer) *ExternalSign {
 
 	// new resty.client
 	client := resty.New()
@@ -69,15 +70,16 @@ func NewExternalSign(appid string, priv *rsa.PrivateKey, signUrl, addr, chain st
 		signUrl: signUrl,
 		Address: addr,
 		Chain:   chain,
+		Signer:  signer,
 	}
 }
 
-func (e *ExternalSign) newData(txDatas []types.TxData) (*Data, error) {
+func (e *ExternalSign) newData(hash string) (*Data, error) {
 
 	return &Data{
-		Address:   e.Address,
-		Chain:     e.Chain,
-		SignDatas: txDatas,
+		Address: e.Address,
+		Chain:   e.Chain,
+		Sha3:    hash,
 	}, nil
 }
 
@@ -111,8 +113,8 @@ func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
 
 }
 
-func (e *ExternalSign) RequestSign(txdatas []types.TxData) (*types.Transaction, error) {
-	data, err := e.newData(txdatas)
+func (e *ExternalSign) RequestSign(hash string, tx *types.Transaction) (*types.Transaction, error) {
+	data, err := e.newData(hash)
 	if err != nil {
 		return nil, fmt.Errorf("new data error:%s", err)
 	}
@@ -120,14 +122,14 @@ func (e *ExternalSign) RequestSign(txdatas []types.TxData) (*types.Transaction, 
 	if err != nil {
 		return nil, fmt.Errorf("craft req data error:%s", err)
 	}
-	signedTx, err := e.requestSign(*reqdata)
+	signedTx, err := e.requestSign(*reqdata, tx)
 	if err != nil {
 		return nil, fmt.Errorf("request sign error:%s", err)
 	}
 	return signedTx, nil
 }
 
-func (e *ExternalSign) requestSign(data ReqData) (*types.Transaction, error) {
+func (e *ExternalSign) requestSign(data ReqData, tx *types.Transaction) (*types.Transaction, error) {
 
 	response := new(Response)
 	resp, err := e.Client.R().
@@ -151,14 +153,17 @@ func (e *ExternalSign) requestSign(data ReqData) (*types.Transaction, error) {
 		return nil, fmt.Errorf("response status not ok: %v, resp body:%v", resp.StatusCode(), string(resp.Body()))
 	}
 
-	if len(response.Result.SignDatas) == 0 {
-		return nil, errors.New("signDatas empty")
+	if len(response.Result.Sha3) == 0 {
+		return nil, errors.New("respones sha3 empty")
 	}
 
-	tx := new(types.Transaction)
-	err = rlp.DecodeBytes([]byte(response.Result.SignDatas[0].Sign), tx)
+	sig, err := hexutil.Decode(response.Result.Sha3)
 	if err != nil {
-		return nil, fmt.Errorf("decode signed tx err: %v", err)
+		return nil, fmt.Errorf("decide sig failed:%w", err)
 	}
-	return tx, nil
+	signedTx, err := tx.WithSignature(e.Signer, sig)
+	if err != nil {
+		return nil, fmt.Errorf("with signature err:%w", err)
+	}
+	return signedTx, nil
 }

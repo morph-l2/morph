@@ -5,9 +5,9 @@ type SignData struct {
 }
 
 type Result struct {
-	SignDatas []SignData `json:"signDatas"`
-	Address   string     `json:"address"`
-	SignType  int        `json:"signType"`
+	Address  string `json:"address"`
+	SignType int    `json:"signType"`
+	Sha3     string `json:"sha3"`
 }
 
 type Response struct {
