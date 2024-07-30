@@ -234,7 +234,6 @@ mod tests {
             calculate::decode_transactions_from_blob, typed_tx::TypedTransaction,
         };
 
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
         let blob_bytes = load_zstd_blob();
         let blob = Blob(blob_bytes);
 
@@ -263,7 +262,6 @@ mod tests {
     #[test]
     #[allow(clippy::needless_range_loop)]
     fn test_decode_zstd_working_example() {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
         for i in 1..12 {
             let random_batch = gen_batch_data(51200 * i);
