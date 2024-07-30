@@ -52,7 +52,6 @@ pub fn init_zstd_decoder<R: BufRead>(
     reader: R,
 ) -> Result<Decoder<'static, BufReader<R>>, eyre::Error> {
     let mut decoder = Decoder::new(reader)?;
-    decoder.set_parameter(zstd::zstd_safe::DParameter::WindowLogMax(17))?;
     decoder.include_magicbytes(false)?;
     Ok(decoder)
 }
