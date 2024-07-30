@@ -47,7 +47,7 @@ dependencies = [
 [[package]]
 name = "aggregator"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "ark-std 0.3.0",
  "bitstream-io",
@@ -682,7 +682,7 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 [[package]]
 name = "bus-mapping"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -1419,7 +1419,7 @@ dependencies = [
 [[package]]
 name = "eth-types"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "base64 0.13.1",
  "ethers-core",
@@ -1731,7 +1731,7 @@ dependencies = [
 [[package]]
 name = "external-tracer"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "eth-types",
  "geth-utils",
@@ -1973,7 +1973,7 @@ dependencies = [
 [[package]]
 name = "gadgets"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "eth-types",
  "halo2_proofs",
@@ -1996,7 +1996,7 @@ dependencies = [
 [[package]]
 name = "geth-utils"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "env_logger 0.10.2",
  "gobuild",
@@ -2882,7 +2882,7 @@ dependencies = [
 [[package]]
 name = "mock"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "eth-types",
  "ethers-core",
@@ -2897,7 +2897,7 @@ dependencies = [
 [[package]]
 name = "mpt-zktrie"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "eth-types",
  "halo2curves",
@@ -3545,7 +3545,7 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 [[package]]
 name = "prover"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "aggregator",
  "anyhow",
@@ -5618,7 +5618,7 @@ dependencies = [
 [[package]]
 name = "zkevm-circuits"
 version = "0.11.0"
-source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=check_protocol#1686cccf87ac868df7364fa5735a6f4851a004da"
+source = "git+https://github.com/morph-l2/zkevm-circuits.git?branch=develop#fbc567e0d4c44021a838e1967f3405c360406b5e"
 dependencies = [
  "array-init",
  "bus-mapping",
