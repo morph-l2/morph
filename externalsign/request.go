@@ -1,13 +1,14 @@
 package externalsign
 
 type SignData struct {
-	Sign string `json:"sign"`
+	PubData string `json:"pubData"`
+	Sign    string `json:"sign"`
 }
 
 type Result struct {
-	Address  string `json:"address"`
-	SignType int    `json:"signType"`
-	Sha3     string `json:"sha3"`
+	Address   string      `json:"address"`
+	SignType  int         `json:"signType"`
+	SignDatas []*SignData `json:"signDatas"`
 }
 
 type Response struct {

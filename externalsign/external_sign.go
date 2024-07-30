@@ -131,11 +131,9 @@ func (e *ExternalSign) RequestSign(hash string, tx *types.Transaction) (*types.T
 
 func (e *ExternalSign) requestSign(data ReqData, tx *types.Transaction) (*types.Transaction, error) {
 
-	response := new(Response)
 	resp, err := e.Client.R().
 		SetHeader("Content-Type", "application/json").
 		SetBody(data).
-		SetResult(response). // or SetResult(AuthSuccess{}).
 		Post(e.signUrl)
 
 	if err != nil {
@@ -146,18 +144,25 @@ func (e *ExternalSign) requestSign(data ReqData, tx *types.Transaction) (*types.
 	log.Info("request sign response",
 		"status", resp.StatusCode(),
 		"body", resp.String(),
-		"result", resp.Result(),
+		// "result", result,
 	)
 
 	if resp.StatusCode() != http.StatusOK {
 		return nil, fmt.Errorf("response status not ok: %v, resp body:%v", resp.StatusCode(), string(resp.Body()))
 	}
 
-	if len(response.Result.Sha3) == 0 {
+	// decode resp
+	response := new(Response)
+	err = json.Unmarshal(resp.Body(), response)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal resp err:%w", err)
+	}
+
+	if len(response.Result.SignDatas) == 0 {
 		return nil, errors.New("respones sha3 empty")
 	}
 
-	sig, err := hexutil.Decode(response.Result.Sha3)
+	sig, err := hexutil.Decode(response.Result.SignDatas[0].Sign)
 	if err != nil {
 		return nil, fmt.Errorf("decide sig failed:%w", err)
 	}

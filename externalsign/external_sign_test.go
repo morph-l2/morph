@@ -4,19 +4,20 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
-func Test_RequestSign(t *testing.T) {
+func TestRequestSign(t *testing.T) {
 
 	appid := "morph-setup-0D799FE0-401D-4A7C-8C35-32E38F85F37D"
 	rsaPrivStr := ""
-	signUrl := "http://localhost:8080//v1/sign/tx_sign"
-	addr := "0x4bed25a6b8b84778b506301022045167c06df31b"
-	chain := "ETH"
-	chainid := big.NewInt(900)
+	signUrl := "http://localhost:8080/v1/sign/tx_sign"
+	addr := "0x83da35ef5eae423f43023edb20b3a43de443cbca"
+	chain := "QANET-L2"
+	chainid := big.NewInt(53077)
 	signer := types.LatestSignerForChainID(chainid)
 
 	rsa, err := ParseRsaPrivateKey(rsaPrivStr)
@@ -52,6 +53,9 @@ func Test_RequestSign(t *testing.T) {
 	signedTx, err := es.requestSign(*reqData, tx)
 	require.NoError(t, err)
 
+	from, err := signer.Sender(signedTx)
+	require.NoError(t, err)
+	require.Equal(t, hexutil.Encode(from.Bytes()), addr)
 	require.Equal(t, txdata.Gas, signedTx.Gas())
 	require.Equal(t, txdata.GasFeeCap, signedTx.GasFeeCap())
 	require.Equal(t, txdata.GasTipCap, signedTx.GasTipCap())
@@ -66,9 +70,9 @@ func TestNewWallet(t *testing.T) {
 	appid := "morph-setup-0D799FE0-401D-4A7C-8C35-32E38F85F37D"
 	rsaPrivStr := ""
 	signUrl := "http://localhost:8080/v1/sign/gen_address"
-	addr := "0x8ad8694790cd19ff732e0d71de0ad8b771307a5f"
-	chain := "ETH"
-	chainid := big.NewInt(900)
+	addr := "0x83da35ef5eae423f43023edb20b3a43de443cbca"
+	chain := "QANET-L2"
+	chainid := big.NewInt(53077)
 	signer := types.LatestSignerForChainID(chainid)
 
 	rsaPriv, err := ParseRsaPrivateKey(rsaPrivStr)
