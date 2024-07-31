@@ -52,6 +52,14 @@ type Data struct {
 	Chain   string `json:"chain"`
 	Sha3    string `json:"sha3"`
 }
+type GenAddrData struct {
+	CoinId      string `json:"coinId"`
+	ChainCoinId string `json:"chainCoinId"`
+	EncryptKey  string `json:"encryptKey"`
+	KeyMd5      string `json:"keyMd5"`
+	UniqId      string `json:"uniqId"`
+	Chain       string `json:"chain"`
+}
 
 func init() {
 	output := io.Writer(os.Stdout)
@@ -83,7 +91,13 @@ func (e *ExternalSign) newData(hash string) (*Data, error) {
 	}, nil
 }
 
-func (e *ExternalSign) craftReqData(data Data) (*ReqData, error) {
+func (e *ExternalSign) NewGenAddrData() (*GenAddrData, error) {
+	return &GenAddrData{
+		Chain: e.Chain,
+	}, nil
+}
+
+func (e *ExternalSign) craftReqData(data interface{}) (*ReqData, error) {
 	nonceStr := uuid.NewString()
 	dataBs, err := json.Marshal(data)
 	if err != nil {
