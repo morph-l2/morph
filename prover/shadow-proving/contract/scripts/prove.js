@@ -25,7 +25,9 @@ async function main() {
     let shadow_rollup = new ethers.Contract(rollup_address, ShadowRollup.abi, signer);
 
 
+    console.log("=========commitBatch");
     await commitBatch(shadow_rollup, customHttpProvider);
+    console.log("=========proveState");
     await proveState(shadow_rollup, customHttpProvider);
 
 
@@ -37,6 +39,8 @@ async function proveState(shadow_rollup, customHttpProvider) {
     let proveData = loadProveData();
     let _aggrProof = ethers.utils.arrayify(new Uint8Array(proveData.proof_data));
     let _kzgData = ethers.utils.arrayify(new Uint8Array(proveData.blob_kzg));
+    let _pi_data = ethers.utils.arrayify(new Uint8Array(proveData.pi_data));
+    console.log("_pi_data: " + _pi_data);
 
     let tx = await shadow_rollup.proveState(15, _aggrProof, _kzgData);
     await tx.wait();
@@ -48,11 +52,12 @@ async function proveState(shadow_rollup, customHttpProvider) {
 
 async function commitBatch(shadow_rollup, customHttpProvider) {
     let batchData = {
-        prevStateRoot: "0x1306f43ca4580b9b94bc83e79c23fbcaaff7f261557c7ea90c86c5b4c17584d2",
-        postStateRoot: "0x1acb7b53ebd05988c1267d6cdebcc61f871d099cc2e983d1a2c371cb53fdd1fa",
-        withdrawalRoot: "0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757",
-        dataHash: "0xc8655a6aa50d4385480cc0b65f64f6b060a1b57ab68ee5a572516b946e9cdf70",
-        blobVersionedHash: "0x0113416a8338bd500524d63315f3c3f6e9b96d3d5a3ad303451c4f4af31d5993"
+        prevStateRoot: "0x226cc11d9dc85a98baac8109303ef74163778ca6ea1a5ef1b39f4d79ee49a5b4",
+        postStateRoot: "0x226cc11d9dc85a98baac8109303ef74163778ca6ea1a5ef1b39f4d79ee49a5b4",
+        withdrawalRoot: "0x3e00490d9ecd0777a41441e5bebaa848fb9e45627c296464f9302a83a908b8d2",
+        dataHash: "0x25b849644b691771ff52cf20583681302539d86a61aeac4e7a479d5be01a89d6",
+        blobVersionedHash: "0x015b4e3d3dcd64cc0eb6a5ad535d7a1844a8c4cdad366ec73557bcc533941370",
+        sequencerSetVerifyHash:"0x5586abb0fb477a7951e0a249f28ee3ab81a9892d89b7bf54a887a924da4e93f0"
     };
     let tx = await shadow_rollup.commitBatch(15, batchData);
     await tx.wait();

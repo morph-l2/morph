@@ -53,11 +53,11 @@ impl BatchSyncer {
     async fn sync_batch(&self) -> Result<Option<BatchInfo>, anyhow::Error> {
         let latest = self.l1_provider.get_block_number().await?;
 
-        let batch_info: BatchInfo = match get_latest_batch(latest, &self.l1_rollup, &self.l1_provider).await {
-            Ok(Some(batch)) => batch,
+        let (batch_info, batch_header) = match get_committed_batch(latest, &self.l1_rollup, &self.l1_provider).await {
+            Ok(Some(committed_batch)) => committed_batch,
             Ok(None) => return Ok(None),
             Err(msg) => {
-                log::error!("get_latest_batch error: {:?}", msg);
+                log::error!("get_committed_batch error: {:?}", msg);
                 return Ok(None);
             }
         };
@@ -67,32 +67,16 @@ impl BatchSyncer {
             return Ok(None);
         };
 
-        let batch_store = match self.l1_rollup.batch_data_store(U256::from(batch_info.batch_index)).await {
-            Ok(value) => value,
-            Err(msg) => {
-                log::error!("query committed_batch_stores error: {:?}", msg);
-                return Ok(None);
-            }
-        };
-
-        let batch_signature = match self.l1_rollup.batch_signature_store(U256::from(batch_info.batch_index)).await {
-            Ok(value) => value,
-            Err(msg) => {
-                log::error!("query batch_signature_store error: {:?}", msg);
-                return Ok(None);
-            }
-        };
-
         // Prepare shadow batch
         let shadow_tx = self.l1_shadow_rollup.commit_batch(
             batch_info.batch_index,
             BatchStore {
-                prev_state_root: batch_store.2,
-                post_state_root: batch_store.3,
-                withdrawal_root: batch_store.4,
-                data_hash: batch_store.1,
-                blob_versioned_hash: batch_store.0,
-                sequencer_set_verify_hash: batch_signature.1,
+                prev_state_root: batch_header.get(89..121).unwrap_or_default().try_into().unwrap_or_default(),
+                post_state_root: batch_header.get(121..153).unwrap_or_default().try_into().unwrap_or_default(),
+                withdrawal_root: batch_header.get(153..185).unwrap_or_default().try_into().unwrap_or_default(),
+                data_hash: batch_header.get(25..57).unwrap_or_default().try_into().unwrap_or_default(),
+                blob_versioned_hash: batch_header.get(57..89).unwrap_or_default().try_into().unwrap_or_default(),
+                sequencer_set_verify_hash: batch_header.get(185..217).unwrap_or_default().try_into().unwrap_or_default(),
             },
         );
         let rt = shadow_tx.send().await;
@@ -111,10 +95,10 @@ impl BatchSyncer {
     }
 }
 
-async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Result<Option<BatchInfo>, String> {
+async fn get_committed_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Result<Option<(BatchInfo, Bytes)>, String> {
     log::info!("latest blocknum = {:#?}", latest);
-    let start = if latest > U64::from(200) {
-        latest - U64::from(200)
+    let start = if latest > U64::from(600) {
+        latest - U64::from(600)
     } else {
         U64::from(1)
     };
@@ -127,11 +111,29 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
         }
     };
     if logs.is_empty() {
-        log::warn!("There have been no commit_batch logs for the last 200 blocks");
+        log::warn!("There have been no commit_batch logs for the last 600 blocks");
+        return Ok(None);
+    }
+    if logs.len() < 2 {
+        log::warn!("No enough commit_batch logs for the last 600 blocks");
         return Ok(None);
     }
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
-    let (batch_index, tx_hash) = match logs.last() {
+
+    let batch_header = {
+        let tx_hash = match logs.last() {
+            Some(log) => log.transaction_hash.unwrap_or_default(),
+
+            None => {
+                return Err("find commit_batch log error".to_string());
+            }
+        };
+        batch_header_inspect(l1_provider, tx_hash)
+            .await
+            .ok_or_else(|| "Failed to inspect batch header".to_string())?
+    };
+
+    let (batch_index, tx_hash) = match logs.get(logs.len() - 2) {
         Some(log) => {
             let _index = log.topics[1].to_low_u64_be();
             let _tx_hash = log.transaction_hash.unwrap_or_default();
@@ -143,7 +145,7 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
     };
 
     let chunks = match batch_inspect(l1_provider, tx_hash).await {
-        Some(batch) => batch,
+        Some(chunks) => chunks,
         None => vec![],
     };
 
@@ -151,10 +153,54 @@ async fn get_latest_batch(latest: U64, l1_rollup: &RollupType, l1_provider: &Pro
         return Err(String::from("batch_index == 0 or chunks.is_empty()"));
     }
 
-    let batch: BatchInfo = BatchInfo { batch_index, chunks };
+    let batch_info: BatchInfo = BatchInfo { batch_index, chunks };
 
     log::info!("latest batch index = {:#?}", batch_index);
-    Ok(Some(batch))
+    Ok(Some((batch_info, batch_header)))
+}
+
+/// Below is the encoding for `BatchHeader`.
+/// ```text
+///   * Field                   Bytes       Type        Index   Comments
+///   * version                 1           uint8       0       The batch version
+///   * batchIndex              8           uint64      1       The index of the batch
+///   * l1MessagePopped         8           uint64      9       Number of L1 messages popped in the batch
+///   * totalL1MessagePopped    8           uint64      17      Number of total L1 messages popped after the batch
+///   * dataHash                32          bytes32     25      The data hash of the batch
+///   * blobVersionedHash       32          bytes32     57      The versioned hash of the blob with this batch’s data
+///   * parentBatchHash         32          bytes32     89      The parent batch hash
+///   * skippedL1MessageBitmap  dynamic     uint256[]   121     A bitmap to indicate which L1 messages are skipped in the batch
+/// ``
+async fn batch_header_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Bytes> {
+    //Step1.  Get transaction
+    let result = l1_provider.get_transaction(hash).await;
+    let tx = match result {
+        Ok(Some(tx)) => tx,
+        Ok(None) => {
+            log::error!("l1_provider.get_transaction is none");
+            return None;
+        }
+        Err(e) => {
+            log::error!("l1_provider.get_transaction err: {:#?}", e);
+            return None;
+        }
+    };
+
+    //Step2. Parse transaction data
+    let data = tx.input;
+
+    if data.is_empty() {
+        log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
+        return None;
+    }
+    let param = if let Ok(_param) = CommitBatchCall::decode(&data) {
+        _param
+    } else {
+        log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
+        return None;
+    };
+    let parent_batch_header: Bytes = param.batch_data_input.parent_batch_header;
+    Some(parent_batch_header)
 }
 
 async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Vec<Vec<u64>>> {

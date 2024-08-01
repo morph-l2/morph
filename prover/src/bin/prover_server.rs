@@ -26,6 +26,7 @@ pub struct ProveResult {
     pub proof_data: Vec<u8>,
     pub pi_data: Vec<u8>,
     pub blob_kzg: Vec<u8>,
+    pub batch_header: Vec<u8>,
 }
 
 mod task_status {
@@ -70,7 +71,8 @@ async fn prover_mng(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
             .layer(CorsLayer::permissive())
             .layer(TraceLayer::new_for_http());
 
-        axum::Server::bind(&"0.0.0.0:3030".parse().unwrap())
+        let mng_address = read_env_var("PROVER_MNG_ADDRESS", "0.0.0.0:3030".to_string());
+        axum::Server::bind(&mng_address.parse().unwrap())
             .serve(service.into_make_service())
             .await
             .unwrap();
@@ -82,11 +84,11 @@ async fn metric_mng() {
     REGISTRY.register(Box::new(PROVE_RESULT.clone())).unwrap();
     REGISTRY.register(Box::new(PROVE_TIME.clone())).unwrap();
 
-    let metric_address = read_env_var("PROVER_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
     tokio::spawn(async move {
         let metrics = Router::new()
             .route("/metrics", get(handle_metrics))
             .layer(TraceLayer::new_for_http());
+        let metric_address = read_env_var("PROVER_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
         axum::Server::bind(&metric_address.parse().unwrap())
             .serve(metrics.into_make_service())
             .await
@@ -211,6 +213,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
         proof_data: Vec::new(),
         pi_data: Vec::new(),
         blob_kzg: Vec::new(),
+        batch_header: Vec::new(),
     };
     log::info!("query proof of batch_index: {:#?}", batch_index);
 
@@ -274,6 +277,20 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 }
             }
             result.blob_kzg = blob_kzg;
+
+            // Batch header data
+            let batch_header_path = path.join("batch_header.data");
+            let mut batch_header = Vec::new();
+            match fs::File::open(batch_header_path) {
+                Ok(mut file) => {
+                    file.read_to_end(&mut batch_header).unwrap();
+                }
+                Err(e) => {
+                    log::error!("Failed to load batch_header: {:#?}", e);
+                    result.error_msg = String::from("Failed to load batch_header");
+                }
+            }
+            result.batch_header = batch_header;
             break;
         }
     }
