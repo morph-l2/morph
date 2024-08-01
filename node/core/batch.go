@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/scroll-tech/go-ethereum/crypto"
 	"math/big"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
@@ -393,11 +394,7 @@ func (e *Executor) PackCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes
 }
 
 func (e *Executor) BatchHash(batchHeaderBytes []byte) ([]byte, error) {
-	batchHeader, err := types.DecodeBatchHeader(batchHeaderBytes)
-	if err != nil {
-		return nil, err
-	}
-	return batchHeader.Hash().Bytes(), nil
+	return crypto.Keccak256Hash(batchHeaderBytes).Bytes(), nil
 }
 
 func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.Txs) error {
