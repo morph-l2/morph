@@ -10,6 +10,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	eth "github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/crypto/bls12381"
 	"github.com/tendermint/tendermint/l2node"
 	tmtypes "github.com/tendermint/tendermint/types"
@@ -393,11 +394,7 @@ func (e *Executor) PackCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes
 }
 
 func (e *Executor) BatchHash(batchHeaderBytes []byte) ([]byte, error) {
-	batchHeader, err := types.DecodeBatchHeader(batchHeaderBytes)
-	if err != nil {
-		return nil, err
-	}
-	return batchHeader.Hash().Bytes(), nil
+	return crypto.Keccak256Hash(batchHeaderBytes).Bytes(), nil
 }
 
 func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.Txs) error {
