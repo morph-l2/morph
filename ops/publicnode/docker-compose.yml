@@ -15,9 +15,9 @@ services:
       - "6060"
       - "30303"
     volumes:
-      - "${PWD}/holesky/geth-data:/db"
-      - "${PWD}/holesky/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/holesky/entrypoint-geth.sh:/entrypoint.sh"
+      - "${GETH_DATA_DIR}:/db"
+      - "${JWT_SECRET_FILE}:/jwt-secret.txt"
+      - "${GETH_ENTRYPOINT_FILE}:/entrypoint.sh"
     entrypoint:
       - "/bin/sh"
       - "/entrypoint.sh"  
@@ -42,8 +42,8 @@ services:
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-holesky:8551
       - MORPH_NODE_L2_ENGINE_AUTH=/jwt-secret.txt
     volumes:
-      - "${PWD}/holesky/node-data:/db"
-      - "${PWD}/holesky/jwt-secret.txt:/jwt-secret.txt"
+      - "${NODE_DATA_DIR}:/db"
+      - "${JWT_SECRET_FILE}:/jwt-secret.txt"
     command: >
       morphnode
       --home /db
