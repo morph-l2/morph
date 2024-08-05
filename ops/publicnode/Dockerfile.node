@@ -4,4 +4,6 @@ COPY . /morph
 WORKDIR /morph/node
 RUN make build
 
+FROM builder
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 CMD ["morphnode","--home", "/db"]

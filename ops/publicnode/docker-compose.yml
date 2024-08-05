@@ -6,17 +6,18 @@ services:
     image: morph/geth-nccc:latest
     build: 
       context: ../..
-      dockerfile: ops/pubilcnode/Dockerfile.geth-nccc
+      dockerfile: ops/publicnode/Dockerfile.geth-nccc
     restart: unless-stopped
-    port:
+    ports:
       - "8545:8545"
       - "8546:8546"
       - "8551"
       - "6060"
       - "30303"
     volumes:
-      - "holesky/geth-data:/db"
-      - "holesky/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/holesky/geth-data:/db"
+      - "${PWD}/holesky/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/holesky/entrypoint-geth.sh:/entrypoint.sh"
     entrypoint:
       - "/bin/sh"
       - "/entrypoint.sh"  
@@ -29,7 +30,7 @@ services:
     image: morph/node:latest
     build:
       context: ../..
-      dockerfile: ops/pubilcnode/Dockerfile.node
+      dockerfile: ops/publicnode/Dockerfile.node
     restart: unless-stopped
     ports:
       - "26656"
@@ -41,8 +42,8 @@ services:
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-holesky:8551
       - MORPH_NODE_L2_ENGINE_AUTH=/jwt-secret.txt
     volumes:
-      - "holesky/node-data:/db"
-      - "holesky/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/holesky/node-data:/db"
+      - "${PWD}/holesky/jwt-secret.txt:/jwt-secret.txt"
     command: >
       morphnode
       --home /db

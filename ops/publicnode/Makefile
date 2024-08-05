@@ -7,6 +7,16 @@ go-ubuntu-builder:
 	fi
 .PHONY: go-ubuntu-builder
 
-run-holesky-node: go-ubuntu-builder 
+
+SECRET_FILE = holesky/jwt-secret.txt
+
+jwt:
+	@[ -f $(SECRET_FILE) ] || (echo "Generating $(SECRET_FILE)..." && openssl rand -hex 32 > $(SECRET_FILE) && echo "$(SECRET_FILE) created.")
+
+clean-jwt:
+	@rm -f $(SECRET_FILE)
+	@echo "Cleaned up $(SECRET_FILE)."
+
+run-holesky-node: go-ubuntu-builder jwt
 	docker-compose up holesky-node 
 	
