@@ -65,6 +65,8 @@ type Rollup struct {
 	externalRsaPriv  *rsa.PrivateKey
 	// cfg
 	cfg utils.Config
+	// signer
+	signer types.Signer
 }
 
 func NewRollup(
@@ -98,6 +100,7 @@ func NewRollup(
 		abi:         abi,
 		rotator:     rotator,
 		cfg:         cfg,
+		signer:      types.LatestSignerForChainID(chainId),
 	}
 }
 

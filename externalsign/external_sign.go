@@ -127,8 +127,10 @@ func (e *ExternalSign) craftReqData(data interface{}) (*ReqData, error) {
 
 }
 
-func (e *ExternalSign) RequestSign(hash string, tx *types.Transaction) (*types.Transaction, error) {
-	data, err := e.newData(hash)
+func (e *ExternalSign) RequestSign(tx *types.Transaction) (*types.Transaction, error) {
+	hashHex := e.Signer.Hash(tx).Hex()
+
+	data, err := e.newData(hashHex)
 	if err != nil {
 		return nil, fmt.Errorf("new data error:%s", err)
 	}

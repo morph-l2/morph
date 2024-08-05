@@ -2,13 +2,16 @@ package tx_summitter
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/ethclient"
 	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/rpc"
@@ -73,12 +76,6 @@ func Main() func(ctx *cli.Context) error {
 
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
-		// Parse sequencer private key and rollup contract address.
-		privKey, rollupAddr, err := utils.ParsePkAndWallet(cfg.PrivateKey, cfg.RollupAddress)
-		if err != nil {
-			return err
-		}
-
 		l1RpcClient, err := rpc.Dial(cfg.L1EthRpc)
 		if err != nil {
 			return fmt.Errorf("failed to connect to L1 provider: %w", err)
@@ -104,11 +101,13 @@ func Main() func(ctx *cli.Context) error {
 
 		chainID, err := l1Client.ChainID(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get chain id: %w", err)
 		}
-		l1Rollup, err := bindings.NewRollup(*rollupAddr, l1Client)
+
+		rollupAddr := common.HexToAddress(cfg.RollupAddress)
+		l1Rollup, err := bindings.NewRollup(rollupAddr, l1Client)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to connect to rollup contract: %w", err)
 		}
 		m := metrics.NewMetrics()
 		abi, _ := bindings.RollupMetaData.GetAbi()
@@ -120,6 +119,7 @@ func Main() func(ctx *cli.Context) error {
 		}
 
 		var rsaPriv *rsa.PrivateKey
+		var privKey *ecdsa.PrivateKey
 		// external sign
 		if cfg.ExternalSign {
 			// parse rsa private key
@@ -127,6 +127,14 @@ func Main() func(ctx *cli.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to parse rsa private key: %w", err)
 			}
+		} else {
+			// parse priv key
+			hex := strings.TrimPrefix(cfg.PrivateKey, "0x")
+			privKey, err = crypto.HexToECDSA(hex)
+			if err != nil {
+				return fmt.Errorf("parse privkey err:%w", err)
+			}
+
 		}
 
 		// new rotator
@@ -142,7 +150,7 @@ func Main() func(ctx *cli.Context) error {
 			l1Staking,
 			chainID,
 			privKey,
-			*rollupAddr,
+			rollupAddr,
 			abi,
 			cfg,
 			rsaPriv,

@@ -13,15 +13,15 @@ var externalSigner *externalsign.ExternalSign
 func (r *Rollup) Sign(tx *types.Transaction) (*types.Transaction, error) {
 	if r.cfg.ExternalSign {
 		if externalSigner == nil {
-			externalsign.NewExternalSign(r.cfg.ExternalSignAppid, r.externalRsaPriv, r.cfg.ExternalSignUrl)
+			externalSigner = externalsign.NewExternalSign(r.cfg.ExternalSignAppid, r.externalRsaPriv, r.cfg.ExternalSignUrl, r.cfg.ExternalSignAddress, r.cfg.ExternalSignChain, r.signer)
 		}
-		signedTx, err := externalSigner.RequestSign([]*types.Transaction{tx})
+		signedTx, err := externalSigner.RequestSign(tx)
 		if err != nil {
 			return nil, fmt.Errorf("externalsign sign tx error:%v", err)
 		}
 		return signedTx, nil
 	} else {
-		signedTx, err := types.SignTx(tx, types.NewLondonSignerWithEIP4844(r.chainId), r.privKey)
+		signedTx, err := types.SignTx(tx, r.signer, r.privKey)
 		if err != nil {
 			return nil, fmt.Errorf("sign tx error:%v", err)
 		}
