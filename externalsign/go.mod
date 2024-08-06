@@ -1,4 +1,4 @@
-module morph-l2/externalsign
+module github.com/morph-l2/morph/externalsign
 
 go 1.22
 
