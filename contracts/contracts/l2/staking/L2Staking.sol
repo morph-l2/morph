@@ -495,6 +495,12 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return stakerAddresses.length;
     }
 
+    /// @notice get undelegations of a delegator
+    /// @param delegator delegator
+    function getUndelegations(address delegator) external view returns (Undelegation[] memory) {
+        return undelegations[delegator];
+    }
+
     /**********************
      * Internal Functions *
      **********************/
