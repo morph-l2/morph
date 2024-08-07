@@ -21,6 +21,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice staking value, immutable
     uint256 public stakingValue;
 
+    /// @notice challenge deposit value
+    uint256 public challengeDeposit;
+
     /// @notice exit lock blocks
     uint256 public withdrawalLockBlocks;
 
@@ -95,7 +98,8 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice initializer
     /// @param _rollupContract    rollup contract address
-    /// @param _stakingValue      smallest staking value
+    /// @param _stakingValue      staking value
+    /// @param _challengeDeposit  challenge deposit value
     /// @param _lockBlocks        withdraw lock blocks
     /// @param _rewardPercentage  percentage awarded to challenger
     /// @param _gasLimitAdd       cross-chain gas limit add staker
@@ -103,6 +107,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     function initialize(
         address _rollupContract,
         uint256 _stakingValue,
+        uint256 _challengeDeposit,
         uint256 _lockBlocks,
         uint256 _rewardPercentage,
         uint256 _gasLimitAdd,
@@ -110,6 +115,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     ) public initializer {
         require(_rollupContract != address(0), "invalid rollup contract");
         require(_stakingValue > 0, "invalid staking value");
+        require(_challengeDeposit > 0, "invalid challenge deposit value");
         require(_lockBlocks > 0, "invalid withdrawal lock blocks");
         require(_gasLimitAdd > 0, "invalid gas limit add staker");
         require(_gasLimitRemove > 0, "invalid gas limit remove stakers");
@@ -121,6 +127,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         rollupContract = _rollupContract;
         rewardPercentage = _rewardPercentage;
         stakingValue = _stakingValue;
+        challengeDeposit = _challengeDeposit;
         withdrawalLockBlocks = _lockBlocks;
         gasLimitAddStaker = _gasLimitAdd;
         gasLimitRemoveStakers = _gasLimitRemove;
@@ -242,6 +249,15 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         uint256 _oldGasLimitRemove = gasLimitRemoveStakers;
         gasLimitRemoveStakers = _gasLimitRemove;
         emit GasLimitRemoveStakersUpdated(_oldGasLimitRemove, _gasLimitRemove);
+    }
+
+    /// @notice update challenge deposit
+    /// @param _challengeDeposit       challenge deposit value
+    function updateChallengeDeposit(uint256 _challengeDeposit) external onlyOwner {
+        require(_challengeDeposit > 0 && _challengeDeposit != challengeDeposit, "invalid challenge deposit value");
+        uint256 _oldChallengeDeposit = challengeDeposit;
+        challengeDeposit = _challengeDeposit;
+        emit ChallengeDepositUpdated(_oldChallengeDeposit, _challengeDeposit);
     }
 
     /// @notice update reward percentage
