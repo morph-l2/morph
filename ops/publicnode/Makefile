@@ -9,21 +9,58 @@ go-ubuntu-builder:
 	fi
 .PHONY: go-ubuntu-builder
 
-
-######################start commands for managing holesky node##########################
-
-holesky-jwt:
+generate-jwt:
 	@[ -f $(JWT_SECRET_FILE) ] || (echo "Generating $(JWT_SECRET_FILE)..." && openssl rand -hex 32 > $(JWT_SECRET_FILE) && echo "$(JWT_SECRET_FILE) created.")
 
-copy-holesky-config:
+
+######################start commands for managing holesky node##########################
+prepare-holesky-data:
 	@if [ ! -d "$(NODE_HOME)" ]; then \
+  		echo "Creating node home directory..."; \
 		mkdir -p $(NODE_HOME); \
-		echo "Copying holesky config files to your target node home..."; \
+		echo "Copying holesky config files to target node home..."; \
 		cp -r holesky/* $(NODE_HOME); \
-		echo "${NODE_HOME} created."; \
+		echo "Node home directory and config files are ready."; \
+
+		cd $(NODE_HOME); \
+		$(MAKE) download-and-decompress-snapshot; \
+		mv ${SNAPSHOT_TAR}/geth ./geth-data; \
+		mv ${SNAPSHOT_TAR}/data ./node-data; \
+		rm -rf ${SNAPSHOT_TAR}; \
+		echo "Snapshot data is successfully set up."
 	fi
 
-run-holesky-node: go-ubuntu-builder copy-holesky-config holesky-jwt
+download-and-decompress-snapshot:
+	@echo "Checking for required tools (wget, tar)..."; \
+	if ! command -v wget > /dev/null; then \
+		echo "Error: wget is not installed."; \
+		exit 1; \
+	fi; \
+	if ! command -v tar > /dev/null; then \
+		echo "Error: tar is not installed."; \
+		exit 1; \
+	fi; \
+	echo "Tools are available."; \
+
+	echo "Downloading ${SNAPSHOT_TAR}.tar.gz from https://snapshot.morphl2.io/holesky..."; \
+	if wget -q --show-progress https://snapshot.morphl2.io/holesky/${SNAPSHOT_TAR}.tar.gz; then \
+		echo "${SNAPSHOT_TAR}.tar.gz downloaded successfully."; \
+	else \
+		echo "Error downloading ${SNAPSHOT_TAR}.tar.gz."; \
+		exit 1; \
+	fi; \
+
+	echo "Decompressing ${SNAPSHOT_TAR}.tar.gz..."; \
+	if tar -xzvf ${SNAPSHOT_TAR}.tar.gz; then \
+		echo "${SNAPSHOT_TAR}.tar.gz decompressed successfully."; \
+	else \
+		echo "Error decompressing ${SNAPSHOT_TAR}.tar.gz."; \
+		exit 1; \
+	fi; \
+	rm -rf ${SNAPSHOT_TAR}.tar.gz; \
+
+
+run-holesky-node: go-ubuntu-builder prepare-holesky-data generate-jwt
 	docker-compose up holesky-node 
 
 stop-holesky-node:
