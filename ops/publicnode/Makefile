@@ -1,5 +1,7 @@
 include .env
 
+.PHONY: prepare-holesky-data download-and-decompress-snapshot
+
 go-ubuntu-builder:
 	@if [ -z "$(shell docker images -q morph/go-ubuntu-builder 2> /dev/null)" ]; then \
 		echo "Docker image morph/go-ubuntu-builder does not exist. Building..."; \
@@ -14,6 +16,7 @@ generate-jwt:
 
 
 ######################start commands for managing holesky node##########################
+
 prepare-holesky-data:
 	@if [ ! -d "$(NODE_HOME)" ]; then \
   		echo "Creating node home directory..."; \
@@ -21,14 +24,12 @@ prepare-holesky-data:
 		echo "Copying holesky config files to target node home..."; \
 		cp -r holesky/* $(NODE_HOME); \
 		echo "Node home directory and config files are ready."; \
-
-		cd $(NODE_HOME); \
 		$(MAKE) download-and-decompress-snapshot; \
-		mv ${SNAPSHOT_TAR}/geth ./geth-data; \
-		mv ${SNAPSHOT_TAR}/data ./node-data; \
-		rm -rf ${SNAPSHOT_TAR}; \
-		echo "Snapshot data is successfully set up."
-	fi
+		mv ${SNAPSHOT_NAME}/geth $(NODE_HOME)/geth-data; \
+		mv ${SNAPSHOT_NAME}/data $(NODE_HOME)/node-data; \
+		rm -rf ${SNAPSHOT_NAME}; \
+		echo "Snapshot data is successfully set up."; \
+	fi 
 
 download-and-decompress-snapshot:
 	@echo "Checking for required tools (wget, tar)..."; \
@@ -41,23 +42,21 @@ download-and-decompress-snapshot:
 		exit 1; \
 	fi; \
 	echo "Tools are available."; \
-
-	echo "Downloading ${SNAPSHOT_TAR}.tar.gz from https://snapshot.morphl2.io/holesky..."; \
-	if wget -q --show-progress https://snapshot.morphl2.io/holesky/${SNAPSHOT_TAR}.tar.gz; then \
-		echo "${SNAPSHOT_TAR}.tar.gz downloaded successfully."; \
+	echo "Downloading ${SNAPSHOT_NAME}.tar.gz from https://snapshot.morphl2.io/holesky..."; \
+	if wget -q --show-progress -O ${SNAPSHOT_NAME}.tar.gz https://snapshot.morphl2.io/holesky/${SNAPSHOT_NAME}.tar.gz; then \
+		echo "${SNAPSHOT_NAME}.tar.gz downloaded successfully."; \
 	else \
-		echo "Error downloading ${SNAPSHOT_TAR}.tar.gz."; \
+		echo "Error downloading ${SNAPSHOT_NAME}.tar.gz."; \
 		exit 1; \
 	fi; \
-
-	echo "Decompressing ${SNAPSHOT_TAR}.tar.gz..."; \
-	if tar -xzvf ${SNAPSHOT_TAR}.tar.gz; then \
-		echo "${SNAPSHOT_TAR}.tar.gz decompressed successfully."; \
+	echo "Decompressing ${SNAPSHOT_NAME}.tar.gz..."; \
+	if tar -xzvf ${SNAPSHOT_NAME}.tar.gz; then \
+		echo "${SNAPSHOT_NAME}.tar.gz decompressed successfully."; \
 	else \
-		echo "Error decompressing ${SNAPSHOT_TAR}.tar.gz."; \
+		echo "Error decompressing ${SNAPSHOT_NAME}.tar.gz."; \
 		exit 1; \
 	fi; \
-	rm -rf ${SNAPSHOT_TAR}.tar.gz; \
+	rm -rf ${SNAPSHOT_NAME}.tar.gz; 
 
 
 run-holesky-node: go-ubuntu-builder prepare-holesky-data generate-jwt
