@@ -10,6 +10,13 @@ import (
 	"os/signal"
 	"strings"
 
+	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/metrics"
+	"morph-l2/tx-submitter/services"
+	"morph-l2/tx-submitter/utils"
+
+	"github.com/morph-l2/externalsign"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/crypto"
 	"github.com/scroll-tech/go-ethereum/ethclient"
@@ -17,13 +24,6 @@ import (
 	"github.com/scroll-tech/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
-
-	"morph-l2/bindings/bindings"
-	"morph-l2/externalsign"
-	"morph-l2/tx-submitter/iface"
-	"morph-l2/tx-submitter/metrics"
-	"morph-l2/tx-submitter/services"
-	"morph-l2/tx-submitter/utils"
 )
 
 // Main is the entrypoint into the batch submitter service. This method returns

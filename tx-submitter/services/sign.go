@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 
-	"morph-l2/externalsign"
+	"github.com/morph-l2/externalsign"
 
 	"github.com/scroll-tech/go-ethereum/core/types"
 )
@@ -13,9 +13,9 @@ var externalSigner *externalsign.ExternalSign
 func (r *Rollup) Sign(tx *types.Transaction) (*types.Transaction, error) {
 	if r.cfg.ExternalSign {
 		if externalSigner == nil {
-			externalSigner = externalsign.NewExternalSign(r.cfg.ExternalSignAppid, r.externalRsaPriv, r.cfg.ExternalSignUrl, r.cfg.ExternalSignAddress, r.cfg.ExternalSignChain, r.signer)
+			externalSigner = externalsign.NewExternalSign(r.cfg.ExternalSignAppid, r.externalRsaPriv, r.cfg.ExternalSignAddress, r.cfg.ExternalSignChain, r.signer)
 		}
-		signedTx, err := externalSigner.RequestSign(tx)
+		signedTx, err := externalSigner.RequestSign(r.cfg.ExternalSignUrl, tx)
 		if err != nil {
 			return nil, fmt.Errorf("externalsign sign tx error:%v", err)
 		}

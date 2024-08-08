@@ -3,7 +3,6 @@ go 1.22
 use (
 	./bindings
 	./contracts
-	./externalsign
 	./node
 	./ops/l2-genesis
 	./ops/tools
