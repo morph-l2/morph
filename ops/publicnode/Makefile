@@ -26,8 +26,7 @@ prepare-holesky-data:
 		echo "Node home directory and config files are ready."; \
 		$(MAKE) download-and-decompress-snapshot; \
 		mv ${SNAPSHOT_NAME}/geth $(NODE_HOME)/geth-data; \
-		mv ${SNAPSHOT_NAME}/data $(NODE_HOME)/node-data; \
-		rm -rf ${SNAPSHOT_NAME}; \
+		mv ${SNAPSHOT_NAME}/data/* $(NODE_HOME)/node-data/data; \
 		echo "Snapshot data is successfully set up."; \
 	fi 
 
@@ -60,7 +59,7 @@ download-and-decompress-snapshot:
 
 
 run-holesky-node: go-ubuntu-builder prepare-holesky-data generate-jwt
-	docker-compose up holesky-node 
+	docker-compose up holesky-node &
 
 stop-holesky-node:
 	docker stop morph-node-holesky morph-geth-holesky
