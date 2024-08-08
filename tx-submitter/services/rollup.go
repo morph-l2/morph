@@ -14,7 +14,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/scroll-tech/go-ethereum"
 	"github.com/scroll-tech/go-ethereum/accounts/abi"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/consensus/misc/eip4844"
 	"github.com/scroll-tech/go-ethereum/core"
@@ -87,20 +86,21 @@ func NewRollup(
 ) *Rollup {
 
 	return &Rollup{
-		ctx:         ctx,
-		metrics:     metrics,
-		l1RpcClient: l1RpcClient,
-		L1Client:    l1,
-		Rollup:      rollup,
-		Staking:     staking,
-		L2Clients:   l2Clients,
-		privKey:     priKey,
-		chainId:     chainId,
-		rollupAddr:  rollupAddr,
-		abi:         abi,
-		rotator:     rotator,
-		cfg:         cfg,
-		signer:      types.LatestSignerForChainID(chainId),
+		ctx:             ctx,
+		metrics:         metrics,
+		l1RpcClient:     l1RpcClient,
+		L1Client:        l1,
+		Rollup:          rollup,
+		Staking:         staking,
+		L2Clients:       l2Clients,
+		privKey:         priKey,
+		chainId:         chainId,
+		rollupAddr:      rollupAddr,
+		abi:             abi,
+		rotator:         rotator,
+		cfg:             cfg,
+		signer:          types.LatestSignerForChainID(chainId),
+		externalRsaPriv: rsaPriv,
 	}
 }
 
@@ -125,7 +125,7 @@ func (r *Rollup) Start() {
 	go utils.Loop(r.ctx, 10*time.Second, func() {
 
 		// get balacnce of wallet
-		balance, err := r.L1Client.BalanceAt(context.Background(), crypto.PubkeyToAddress(r.privKey.PublicKey), nil)
+		balance, err := r.L1Client.BalanceAt(context.Background(), r.walletAddr(), nil)
 		if err != nil {
 			log.Error("get wallet balance error", "error", err)
 			if utils.IsRpcErr(err) {
@@ -383,10 +383,6 @@ func (r *Rollup) finalize() error {
 		return nil
 	}
 	// finalize
-	opts, err := bind.NewKeyedTransactorWithChainID(r.privKey, r.chainId)
-	if err != nil {
-		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
-	}
 
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
@@ -413,7 +409,7 @@ func (r *Rollup) finalize() error {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
 
-	gas, err := r.EstimateGas(opts.From, r.rollupAddr, calldata, feecap, tip)
+	gas, err := r.EstimateGas(r.walletAddr(), r.rollupAddr, calldata, feecap, tip)
 	if err != nil {
 		log.Warn("estimate finalize tx gas error",
 			"error", err,
@@ -434,7 +430,7 @@ func (r *Rollup) finalize() error {
 	if r.pendingTxs.pnonce != 0 {
 		nonce = r.pendingTxs.pnonce + 1
 	} else {
-		nonce, err = r.L1Client.PendingNonceAt(context.Background(), crypto.PubkeyToAddress(r.privKey.PublicKey))
+		nonce, err = r.L1Client.PendingNonceAt(context.Background(), r.walletAddr())
 		if err != nil {
 			return fmt.Errorf("query layer1 nonce error:%v", err.Error())
 		}
@@ -517,7 +513,7 @@ func (r *Rollup) rollup() error {
 			"now", time.Now().Unix(),
 		)
 
-		if cur.Hex() == r.walletAddr() {
+		if cur.Hex() == r.walletAddr().Hex() {
 			left := end - time.Now().Unix()
 			if left < rotatorBuff {
 				log.Info("rollup time not enough, wait next turn", "left", left)
@@ -610,11 +606,6 @@ func (r *Rollup) rollup() error {
 		WithdrawalRoot:         batch.WithdrawRoot,
 	}
 
-	opts, err := bind.NewKeyedTransactorWithChainID(r.privKey, r.chainId)
-	if err != nil {
-		return fmt.Errorf("new keyedTransaction with chain id error:%v", err)
-	}
-
 	// tip and cap
 	tip, gasFeeCap, blobFee, err := r.GetGasTipAndCap()
 	if err != nil {
@@ -626,8 +617,7 @@ func (r *Rollup) rollup() error {
 	if err != nil {
 		return fmt.Errorf("pack calldata error:%v", err)
 	}
-
-	gas, err := r.EstimateGas(opts.From, r.rollupAddr, calldata, gasFeeCap, tip)
+	gas, err := r.EstimateGas(r.walletAddr(), r.rollupAddr, calldata, gasFeeCap, tip)
 	if err != nil {
 		log.Warn("estimate gas error", "err", err)
 		// have failed tx & estimate err -> no rough estimate
@@ -657,7 +647,7 @@ func (r *Rollup) rollup() error {
 	if r.pendingTxs.pnonce != 0 {
 		nonce = r.pendingTxs.pnonce + 1
 	} else {
-		nonce, err = r.L1Client.PendingNonceAt(context.Background(), crypto.PubkeyToAddress(r.privKey.PublicKey))
+		nonce, err = r.L1Client.PendingNonceAt(context.Background(), r.walletAddr())
 		if err != nil {
 			return fmt.Errorf("query layer1 nonce error:%v", err.Error())
 		}
@@ -699,7 +689,6 @@ func (r *Rollup) rollup() error {
 		})
 	}
 
-	opts.Nonce = big.NewInt(int64(nonce))
 	signedTx, err := r.Sign(tx)
 	if err != nil {
 		return fmt.Errorf("sign tx error:%v", err)
@@ -833,12 +822,12 @@ func (sr *Rollup) Init() error {
 	return nil
 }
 
-func (sr *Rollup) walletAddr() string {
+func (sr *Rollup) walletAddr() common.Address {
 
 	if sr.cfg.ExternalSign {
-		return sr.cfg.ExternalSignAddress
+		return common.HexToAddress(sr.cfg.ExternalSignAddress)
 	} else {
-		return crypto.PubkeyToAddress(sr.privKey.PublicKey).Hex()
+		return crypto.PubkeyToAddress(sr.privKey.PublicKey)
 	}
 
 }
@@ -1051,12 +1040,6 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction) (*types.Transact
 		return nil, errors.New("nil tx")
 	}
 
-	// for sign
-	opts, err := bind.NewKeyedTransactorWithChainID(r.privKey, r.chainId)
-	if err != nil {
-		return nil, fmt.Errorf("new keyedTransaction with chain id error:%v", err)
-	}
-
 	method := "replaced tx"
 	if resend {
 		method = "resubmitted tx"
@@ -1138,8 +1121,6 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction) (*types.Transact
 		"blob_fee_cap", blobFeeCap.String(), //todo: convert to gwei
 	)
 	// sign tx
-	opts.Nonce = big.NewInt(int64(newTx.Nonce()))
-
 	newTx, err = r.Sign(newTx)
 	if err != nil {
 		return nil, fmt.Errorf("sign tx error:%w", err)
@@ -1155,7 +1136,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction) (*types.Transact
 
 func (r *Rollup) IsStaker() (bool, error) {
 
-	isStaker, err := r.Staking.IsStaker(nil, common.HexToAddress(r.walletAddr()))
+	isStaker, err := r.Staking.IsStaker(nil, r.walletAddr())
 	if err != nil {
 		return false, fmt.Errorf("call IsStaker err :%v", err)
 	}
