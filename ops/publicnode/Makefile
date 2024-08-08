@@ -15,6 +15,11 @@ generate-jwt:
 	@[ -f $(JWT_SECRET_FILE) ] || (echo "Generating $(JWT_SECRET_FILE)..." && openssl rand -hex 32 > $(JWT_SECRET_FILE) && echo "$(JWT_SECRET_FILE) created.")
 
 
+submodules:
+	git submodule update --init
+	git submodule update --remote
+.PHONY: submodules
+
 ######################start commands for managing holesky node##########################
 
 prepare-holesky-data:
@@ -58,7 +63,7 @@ download-and-decompress-snapshot:
 	rm -rf ${SNAPSHOT_NAME}.tar.gz; 
 
 
-run-holesky-node: go-ubuntu-builder prepare-holesky-data generate-jwt
+run-holesky-node: go-ubuntu-builder submodules prepare-holesky-data generate-jwt
 	docker-compose up holesky-node &
 
 stop-holesky-node:
