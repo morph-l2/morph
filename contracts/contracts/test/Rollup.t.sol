@@ -53,7 +53,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         }
 
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader0);
+        rollup.importGenesisBatch(batchHeader0);
         bytes32 batchHash0 = rollup.committedBatches(0);
 
         bytes memory bitmap;
@@ -114,6 +114,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             address(rollup.l1StakingContract()),
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
+        );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
         );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
@@ -243,6 +248,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
         );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
+        );
         hevm.startPrank(address(0));
         hevm.expectRevert("too many txs in one chunk");
 
@@ -257,6 +267,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
         );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
+        );
         hevm.startPrank(address(0));
         hevm.expectRevert("too many txs in one chunk");
         batchDataInput = IRollup.BatchDataInput(0, batchHeader1, chunks, bitmap, bytesData1, bytesData1, bytesData4);
@@ -269,6 +284,11 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             address(rollup.l1StakingContract()),
             abi.encodeCall(IL1Staking.isStaker, (address(0))),
             abi.encode(true)
+        );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
         );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
@@ -376,7 +396,7 @@ contract RollupTest is L1MessageBaseTest {
             mstore(add(batchHeader0, add(0x20, 217)), bytesData0) // parentBatchHash
         }
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader0);
+        rollup.importGenesisBatch(batchHeader0);
         // only staker allowed, revert
         hevm.startPrank(address(0));
         hevm.expectRevert("only staker allowed");
@@ -452,12 +472,12 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
-        // incorrect batch hash, revert
+        // incorrect parent batch hash, revert
         assembly {
             mstore(add(batchHeader0, add(0x20, 25)), 2) // change data hash for batch0
         }
         hevm.startPrank(alice);
-        hevm.expectRevert("incorrect batch hash");
+        hevm.expectRevert("incorrect parent batch hash");
         batchDataInput = IRollup.BatchDataInput(
             0,
             batchHeader0,
@@ -610,7 +630,7 @@ contract RollupTest is L1MessageBaseTest {
             mstore(add(batchHeader0, add(0x20, 121)), bytesData1) // stateRootHsash
         }
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader0);
+        rollup.importGenesisBatch(batchHeader0);
         bytes32 batchHash0 = rollup.committedBatches(0);
 
         bytes[] memory chunks = new bytes[](1);
@@ -786,7 +806,7 @@ contract RollupTest is L1MessageBaseTest {
         batchHeader = new bytes(249);
         hevm.expectRevert("zero state root");
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
 
         // batch header length too small, revert
         batchHeader = new bytes(248);
@@ -795,7 +815,7 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.expectRevert("batch header length too small");
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
 
         // wrong bitmap length, revert
         batchHeader = new bytes(250);
@@ -804,44 +824,17 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.expectRevert("wrong bitmap length");
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
 
         // not all fields are zero, revert
-        batchHeader = new bytes(249);
-        assembly {
-            mstore(add(batchHeader, add(0x20, 121)), bytesData1) // stateRootHsash
-        }
-        batchHeader[0] = bytes1(uint8(1)); // version not zero
-        hevm.expectRevert("not all fields are zero");
-        hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
-
-        batchHeader = new bytes(249);
-        assembly {
-            mstore(add(batchHeader, add(0x20, 121)), bytesData1) // stateRootHsash
-        }
-        batchHeader[1] = bytes1(uint8(1)); // batchIndex not zero
-        hevm.expectRevert("not all fields are zero");
-        hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
-
         batchHeader = new bytes(249 + 32);
         assembly {
             mstore(add(batchHeader, add(0x20, 9)), shl(192, 1)) // l1MessagePopped not zero
             mstore(add(batchHeader, add(0x20, 121)), bytesData1) // stateRootHsash
         }
-        hevm.expectRevert("not all fields are zero");
+        hevm.expectRevert("l1 message popped should be 0");
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
-
-        batchHeader = new bytes(249);
-        batchHeader[17] = bytes1(uint8(1)); // totalL1MessagePopped not zero
-        assembly {
-            mstore(add(batchHeader, add(0x20, 121)), bytesData1) // stateRootHsash
-        }
-        hevm.expectRevert("not all fields are zero");
-        hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
 
         // zero data hash, revert
         batchHeader = new bytes(249);
@@ -850,18 +843,7 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.expectRevert("zero data hash");
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
-
-        // nonzero parent batch hash, revert
-        batchHeader = new bytes(249);
-        batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
-        assembly {
-            mstore(add(batchHeader, add(0x20, 121)), bytesData1) // stateRootHsash
-            mstore(add(batchHeader, add(0x20, 217)), bytesData1) // parentBatchHash
-        }
-        hevm.expectRevert("nonzero parent batch hash");
-        hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
 
         // invalid versioned hash, revert
         batchHeader = new bytes(249);
@@ -871,7 +853,7 @@ contract RollupTest is L1MessageBaseTest {
         batchHeader[25] = bytes1(uint8(1)); // dataHash not zero
         hevm.expectRevert("invalid versioned hash");
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
 
         // import correctly
         batchHeader = new bytes(249);
@@ -884,7 +866,7 @@ contract RollupTest is L1MessageBaseTest {
         assertFalse(rollup.withdrawalRoots(0));
         assertEq(rollup.committedBatches(0), bytes32(0));
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
         assertEq(rollup.finalizedStateRoots(0), bytes32(uint256(1)));
         assertFalse(rollup.withdrawalRoots(0));
         assertGt(uint256(rollup.committedBatches(0)), 0);
@@ -892,6 +874,6 @@ contract RollupTest is L1MessageBaseTest {
         // Genesis batch imported, revert
         hevm.expectRevert("genesis batch imported");
         hevm.prank(multisig);
-        rollup.importGenesisBatch(0, batchHeader);
+        rollup.importGenesisBatch(batchHeader);
     }
 }

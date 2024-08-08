@@ -9,9 +9,9 @@ services:
   sequencer_geth_prover:
     image: morph-geth:latest
     ports:
-      - "6688:8545"
+      - "7788:8545"
     healthcheck:
-      test: curl -f http://localhost:6688
+      test: curl -f http://localhost:7788
       interval: 30s
       timeout: 5s
       retries: 3
