@@ -834,7 +834,13 @@ func (sr *Rollup) Init() error {
 }
 
 func (sr *Rollup) walletAddr() string {
-	return crypto.PubkeyToAddress(sr.privKey.PublicKey).Hex()
+
+	if sr.cfg.ExternalSign {
+		return sr.cfg.ExternalSignAddress
+	} else {
+		return crypto.PubkeyToAddress(sr.privKey.PublicKey).Hex()
+	}
+
 }
 
 func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRollupBatch, error) {
