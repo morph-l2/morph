@@ -68,6 +68,11 @@ contract L2TxFeeVault is OwnableBase {
     /// @param newMinWithdrawAmount The value of new `minWithdrawAmount`.
     event UpdateMinWithdrawAmount(uint256 oldMinWithdrawAmount, uint256 newMinWithdrawAmount);
 
+    /// @notice Emitted when account transfer allowed status changed.
+    /// @param account The address of account whose status is changed.
+    /// @param status The current whitelist status.
+    event UpdateTransferAllowed(address account, bool status);
+
     /*************
      * Variables *
      *************/
@@ -83,6 +88,19 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Total amount of wei processed by the contract.
     uint256 public totalProcessed;
+
+    /// @notice Keep track whether the account is allowed.
+    mapping(address => bool) public transferAllowed;
+
+    /**********************
+     * Function Modifiers *
+     **********************/
+
+    /// @dev Check if the caller is allowed or owner.
+    modifier onlyAllowedAndOwner() {
+        require(transferAllowed[msg.sender] || owner == msg.sender, "caller is not allowed");
+        _;
+    }
 
     /***************
      * Constructor *
@@ -141,7 +159,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Transfer funds to the address.
     /// @param _to The address of recipient.
     /// @param _value The amount of ETH to tranfer.
-    function transferTo(address _to, uint256 _value) public onlyOwner {
+    function transferTo(address _to, uint256 _value) public onlyAllowedAndOwner {
         require(_to != address(0), "FeeVault: recipient address cannot be address(0)");
 
         uint256 _balance = address(this).balance;
@@ -158,7 +176,7 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Transfer all funds to the address.
     /// @param _to The address of recipient.
-    function transferTo(address _to) external onlyOwner {
+    function transferTo(address _to) external onlyAllowedAndOwner {
         uint256 value = address(this).balance;
         transferTo(_to, value);
     }
@@ -166,6 +184,16 @@ contract L2TxFeeVault is OwnableBase {
     /************************
      * Restricted Functions *
      ************************/
+
+    /// @notice Update the transfer allowed status
+    /// @param _accounts The list of addresses to update.
+    /// @param _status The ransfer allowed status to update.
+    function updateTransferAllowedStatus(address[] memory _accounts, bool _status) external onlyOwner {
+        for (uint256 i = 0; i < _accounts.length; i++) {
+            transferAllowed[_accounts[i]] = _status;
+            emit UpdateTransferAllowed(_accounts[i], _status);
+        }
+    }
 
     /// @notice Update the address of messenger.
     /// @param _newMessenger The address of messenger to update.
