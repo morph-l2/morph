@@ -298,7 +298,6 @@ func (o *Oracle) setStartBlock() {
 			log.Info("reward start")
 			break
 		}
-		start = header.Number.Uint64()
 		log.Info("wait reward start...")
 		time.Sleep(defaultSleepTime)
 		continue
