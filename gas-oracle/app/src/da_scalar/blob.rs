@@ -16,6 +16,11 @@ const METADATA_LENGTH: usize = 2 + 4 * MAX_AGG_SNARKS;
 pub struct Blob(pub [u8; MAX_BLOB_TX_PAYLOAD_SIZE]);
 
 impl Blob {
+    pub fn get_origin_batch(&self) -> Result<Vec<u8>, BlobError> {
+        let compressed_data = self.get_compressed_batch()?;
+        decompress_batch(&compressed_data)
+    }
+    
     pub fn get_compressed_batch(&self) -> Result<Vec<u8>, BlobError> {
         // Decode blob, recovering BLS12-381 scalars.
         let mut data = vec![0u8; MAX_BLOB_TX_PAYLOAD_SIZE];
@@ -262,7 +267,6 @@ mod tests {
     #[test]
     #[allow(clippy::needless_range_loop)]
     fn test_decode_zstd_working_example() {
-
         for i in 1..12 {
             let random_batch = gen_batch_data(51200 * i);
             decode_batch_test(&random_batch);
