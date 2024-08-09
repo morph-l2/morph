@@ -176,6 +176,14 @@ func Main() func(ctx *cli.Context) error {
 			log.Warn("get workdir err")
 			dir = ""
 		}
+
+		var signMethod string
+		if cfg.ExternalSign {
+			signMethod = "external_sign"
+		} else {
+			signMethod = "local_sign"
+		}
+
 		log.Info("starting tx submitter",
 			"l1_rpc", cfg.L1EthRpc,
 			"l2_rpcs", cfg.L2EthRpcs,
@@ -195,7 +203,22 @@ func Main() func(ctx *cli.Context) error {
 			"journal_path", cfg.JournalFilePath,
 			"gas_rough_estimate", cfg.RoughEstimateGas,
 			"gas_limit_buffer", cfg.GasLimitBuffer,
+			"rough_estimate_gas", cfg.RoughEstimateGas,
+			"rough_estimate_base_gas", cfg.RollupTxGasBase,
+			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
+			"sign_method", signMethod,
+			"addr", sr.WalletAddr().Hex(),
 		)
+
+		if cfg.ExternalSign {
+			log.Info("external sign info",
+				"appid", cfg.ExternalSignAppid,
+				"addr", cfg.ExternalSignAddress,
+				"chain", cfg.ExternalSignChain,
+				"url", cfg.ExternalSignUrl,
+			)
+		}
+
 		sr.Start()
 
 		// Catch CTRL-C to ensure a graceful shutdown.

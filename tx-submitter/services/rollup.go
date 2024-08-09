@@ -125,7 +125,7 @@ func (r *Rollup) Start() {
 	go utils.Loop(r.ctx, 10*time.Second, func() {
 
 		// get balacnce of wallet
-		balance, err := r.L1Client.BalanceAt(context.Background(), r.walletAddr(), nil)
+		balance, err := r.L1Client.BalanceAt(context.Background(), r.WalletAddr(), nil)
 		if err != nil {
 			log.Error("get wallet balance error", "error", err)
 			if utils.IsRpcErr(err) {
@@ -409,7 +409,7 @@ func (r *Rollup) finalize() error {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
 
-	gas, err := r.EstimateGas(r.walletAddr(), r.rollupAddr, calldata, feecap, tip)
+	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, feecap, tip)
 	if err != nil {
 		log.Warn("estimate finalize tx gas error",
 			"error", err,
@@ -430,7 +430,7 @@ func (r *Rollup) finalize() error {
 	if r.pendingTxs.pnonce != 0 {
 		nonce = r.pendingTxs.pnonce + 1
 	} else {
-		nonce, err = r.L1Client.PendingNonceAt(context.Background(), r.walletAddr())
+		nonce, err = r.L1Client.PendingNonceAt(context.Background(), r.WalletAddr())
 		if err != nil {
 			return fmt.Errorf("query layer1 nonce error:%v", err.Error())
 		}
@@ -507,13 +507,13 @@ func (r *Rollup) rollup() error {
 
 		log.Info("rotator info",
 			"turn", cur.Hex(),
-			"cur", r.walletAddr(),
+			"cur", r.WalletAddr(),
 			"start", start,
 			"end", end,
 			"now", time.Now().Unix(),
 		)
 
-		if cur.Hex() == r.walletAddr().Hex() {
+		if cur.Hex() == r.WalletAddr().Hex() {
 			left := end - time.Now().Unix()
 			if left < rotatorBuff {
 				log.Info("rollup time not enough, wait next turn", "left", left)
@@ -617,7 +617,7 @@ func (r *Rollup) rollup() error {
 	if err != nil {
 		return fmt.Errorf("pack calldata error:%v", err)
 	}
-	gas, err := r.EstimateGas(r.walletAddr(), r.rollupAddr, calldata, gasFeeCap, tip)
+	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip)
 	if err != nil {
 		log.Warn("estimate gas error", "err", err)
 		// have failed tx & estimate err -> no rough estimate
@@ -647,7 +647,7 @@ func (r *Rollup) rollup() error {
 	if r.pendingTxs.pnonce != 0 {
 		nonce = r.pendingTxs.pnonce + 1
 	} else {
-		nonce, err = r.L1Client.PendingNonceAt(context.Background(), r.walletAddr())
+		nonce, err = r.L1Client.PendingNonceAt(context.Background(), r.WalletAddr())
 		if err != nil {
 			return fmt.Errorf("query layer1 nonce error:%v", err.Error())
 		}
@@ -822,7 +822,7 @@ func (sr *Rollup) Init() error {
 	return nil
 }
 
-func (sr *Rollup) walletAddr() common.Address {
+func (sr *Rollup) WalletAddr() common.Address {
 
 	if sr.cfg.ExternalSign {
 		return common.HexToAddress(sr.cfg.ExternalSignAddress)
@@ -1136,7 +1136,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction) (*types.Transact
 
 func (r *Rollup) IsStaker() (bool, error) {
 
-	isStaker, err := r.Staking.IsStaker(nil, r.walletAddr())
+	isStaker, err := r.Staking.IsStaker(nil, r.WalletAddr())
 	if err != nil {
 		return false, fmt.Errorf("call IsStaker err :%v", err)
 	}
