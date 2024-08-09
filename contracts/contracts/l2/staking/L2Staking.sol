@@ -191,6 +191,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
                     candidateNumber -= 1;
                 }
             }
+
+            delete stakers[remove[i]];
         }
         emit StakerRemoved(remove);
 
