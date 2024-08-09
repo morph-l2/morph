@@ -188,9 +188,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             ? mintedEpochCount - 1
             : targetEpochIndex;
         uint256 reward = _claim(delegatee, delegator, endEpochIndex);
-        if (reward > 0) {
-            _transfer(delegator, reward);
-        }
+
+        require(reward > 0, "no reward to claim");
+        _transfer(delegator, reward);
     }
 
     /// @dev claim delegation reward of all sequencers.
@@ -214,9 +214,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 reward += _claim(delegatee, delegator, endEpochIndex);
             }
         }
-        if (reward > 0) {
-            _transfer(delegator, reward);
-        }
+
+        require(reward > 0, "no reward to claim");
+        _transfer(delegator, reward);
     }
 
     /// @dev claim commission reward
@@ -233,7 +233,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             commission += distributions[delegatee][i].commissionAmount;
             distributions[delegatee][i].commissionAmount = 0;
             // if all delegators claimed, delete distribution
-            if (distributions[delegatee][i].remainsNumber == 0) {
+            if (distributions[delegatee][i].delegators.length() > 0 && distributions[delegatee][i].remainsNumber == 0) {
                 delete distributions[delegatee][i];
             }
         }
@@ -310,10 +310,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
     /// @notice transfer morph token
     function _transfer(address _to, uint256 _amount) internal {
-        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(address(this));
         IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
-        uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
+        uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(address(this));
+        require(_amount > 0 && balanceBefore - balanceAfter == _amount, "morph token transfer failed");
     }
 
     /// @notice claim delegator morph reward
