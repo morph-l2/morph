@@ -371,7 +371,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
         // check challenge amount
-        require(msg.value >= IL1Staking(l1StakingContract).stakingValue(), "insufficient value");
+        require(msg.value >= IL1Staking(l1StakingContract).challengeDeposit(), "insufficient value");
 
         batchChallenged = batchIndex;
         challenges[batchIndex] = BatchChallenge(batchIndex, _msgSender(), msg.value, block.timestamp, false, false);

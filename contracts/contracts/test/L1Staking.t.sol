@@ -16,6 +16,7 @@ contract StakingInitializeTest is L1MessageBaseTest {
         l1Staking.initialize(
             address(1),
             STAKING_VALUE,
+            CHALLENGE_DEPOSIT,
             LOCK_BLOCKS,
             rewardPercentage,
             defaultGasLimitAdd,
@@ -39,7 +40,15 @@ contract StakingInitializeTest is L1MessageBaseTest {
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (address(0), STAKING_VALUE, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, defaultGasLimitRemove)
+                (
+                    address(0),
+                    STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
             )
         );
         hevm.stopPrank();
@@ -61,7 +70,37 @@ contract StakingInitializeTest is L1MessageBaseTest {
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (address(1), 0, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, defaultGasLimitRemove)
+                (
+                    address(1),
+                    0,
+                    CHALLENGE_DEPOSIT,
+                    LOCK_BLOCKS,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_challengeDepositEqZero_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid staking value.
+        hevm.expectRevert("invalid challenge deposit value");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (address(1), STAKING_VALUE, 0, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, defaultGasLimitRemove)
             )
         );
         hevm.stopPrank();
@@ -83,7 +122,15 @@ contract StakingInitializeTest is L1MessageBaseTest {
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (address(1), STAKING_VALUE, 0, rewardPercentage, defaultGasLimitAdd, defaultGasLimitRemove)
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
+                    0,
+                    rewardPercentage,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
             )
         );
         hevm.stopPrank();
@@ -105,7 +152,7 @@ contract StakingInitializeTest is L1MessageBaseTest {
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (address(1), STAKING_VALUE, LOCK_BLOCKS, rewardPercentage, 0, defaultGasLimitRemove)
+                (address(1), STAKING_VALUE, CHALLENGE_DEPOSIT, LOCK_BLOCKS, rewardPercentage, 0, defaultGasLimitRemove)
             )
         );
         hevm.stopPrank();
@@ -127,7 +174,7 @@ contract StakingInitializeTest is L1MessageBaseTest {
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (address(1), STAKING_VALUE, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, 0)
+                (address(1), STAKING_VALUE, CHALLENGE_DEPOSIT, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, 0)
             )
         );
         hevm.stopPrank();
@@ -149,7 +196,15 @@ contract StakingInitializeTest is L1MessageBaseTest {
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (address(1), STAKING_VALUE, LOCK_BLOCKS, 0, defaultGasLimitAdd, defaultGasLimitRemove)
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
+                    LOCK_BLOCKS,
+                    0,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
             )
         );
         hevm.stopPrank();
@@ -171,7 +226,15 @@ contract StakingInitializeTest is L1MessageBaseTest {
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (address(1), STAKING_VALUE, LOCK_BLOCKS, 101, defaultGasLimitAdd, defaultGasLimitRemove)
+                (
+                    address(1),
+                    STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
+                    LOCK_BLOCKS,
+                    101,
+                    defaultGasLimitAdd,
+                    defaultGasLimitRemove
+                )
             )
         );
         hevm.stopPrank();
@@ -201,7 +264,10 @@ contract StakingInitializeTest is L1MessageBaseTest {
 
         ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
             address(l1StakingImpl),
-            abi.encodeCall(L1Staking.initialize, (address(1), STAKING_VALUE, LOCK_BLOCKS, 11, 22, 33))
+            abi.encodeCall(
+                L1Staking.initialize,
+                (address(1), STAKING_VALUE, CHALLENGE_DEPOSIT, LOCK_BLOCKS, 11, 22, 33)
+            )
         );
         hevm.stopPrank();
     }
