@@ -191,6 +191,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
                     candidateNumber -= 1;
                 }
             }
+
+            delete stakers[remove[i]];
         }
         emit StakerRemoved(remove);
 
@@ -493,6 +495,12 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice get staker addresses length
     function getStakerAddressesLength() external view returns (uint256) {
         return stakerAddresses.length;
+    }
+
+    /// @notice get undelegations of a delegator
+    /// @param delegator delegator
+    function getUndelegations(address delegator) external view returns (Undelegation[] memory) {
+        return undelegations[delegator];
     }
 
     /**********************
