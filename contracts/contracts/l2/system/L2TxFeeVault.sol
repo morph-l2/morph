@@ -98,7 +98,7 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @dev Check if the caller is allowed or owner.
     modifier onlyAllowedAndOwner() {
-        require(transferAllowed[msg.sender] || owner == msg.sender, "caller is not allowed");
+        require(transferAllowed[msg.sender] || owner == msg.sender, "FeeVault: caller is not allowed");
         _;
     }
 
