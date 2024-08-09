@@ -123,6 +123,8 @@ contract L2TxFeeVaultTest is DSTestPlus {
 
     function test_owner_transfer_succeeds(address to) public {
         hevm.assume(to != address(0));
+        hevm.assume(address(to).balance == 0);
+        hevm.assume(to.code.length == 0);
         hevm.deal(address(vault), 11 ether);
         vault.transferTo(to);
         assertEq(address(to).balance, 11 ether);
@@ -144,6 +146,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
     function test_allowed_transfer_succeeds(address to, address allowed) public {
         hevm.assume(to != address(0));
         hevm.assume(allowed != address(0));
+        hevm.assume(address(to).balance == 0);
         address[] memory allowedAccounts = new address[](1);
         // set allowed account
         allowedAccounts[0] = allowed;
