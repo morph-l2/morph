@@ -132,6 +132,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             for (uint256 j = _epochInflationRates.length - 1; j > 0; j--) {
                 if (_epochInflationRates[j].effectiveEpochIndex <= i) {
                     rate = _epochInflationRates[j].rate;
+                    break;
                 }
             }
             uint256 increment = (_totalSupply * rate) / PRECISION;
