@@ -31,8 +31,8 @@ interface IDistribute {
 
     /// @notice Unclaimed representing a unclaimd info of a delegator
     ///
-    /// @custom:field undelegated        whether is undelegated
     /// @custom:field delegatees         all delegatees if this delegator, remove delegatee after all reward claimed
+    /// @custom:field undelegated        whether is undelegated
     /// @custom:field unclaimedStart     unclaimed start epoch index
     /// @custom:field unclaimedEnd       unclaimed end epoch index, set 0 if undelegated is false or all claimed
     struct Unclaimed {
