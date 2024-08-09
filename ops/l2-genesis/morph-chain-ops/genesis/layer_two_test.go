@@ -31,6 +31,7 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		L1GatewayRouterProxy:        address1,
 		L1StandardERC20GatewayProxy: address1,
 		L1CustomERC20GatewayProxy:   address1,
+		L1ReverseCustomGatewayProxy: address1,
 		L1ETHGatewayProxy:           address1,
 		L1ERC721GatewayProxy:        address1,
 		L1ERC1155GatewayProxy:       address1,

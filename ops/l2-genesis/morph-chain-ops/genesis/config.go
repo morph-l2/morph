@@ -69,6 +69,8 @@ type DeployConfig struct {
 	L1StandardERC20GatewayProxy common.Address `json:"l1StandardERC20GatewayProxy"`
 	// L1CustomERC20GatewayProxy proxy address on L1
 	L1CustomERC20GatewayProxy common.Address `json:"l1CustomERC20GatewayProxy"`
+	// L1ReverseCustomGatewayProxy proxy address on L1
+	L1ReverseCustomGatewayProxy common.Address `json:"l1ReverseCustomGatewayProxy"`
 	// L1ETHGateway proxy address on L1
 	L1ETHGatewayProxy common.Address `json:"l1ETHGatewayProxy"`
 	// L1ERC721Gateway proxy address on L1
@@ -177,6 +179,14 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 			return err
 		}
 		d.L1CustomERC20GatewayProxy = deployment.Address
+	}
+
+	if d.L1ReverseCustomGatewayProxy == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Proxy__L1ReverseCustomGateway")
+		if err != nil {
+			return err
+		}
+		d.L1ReverseCustomGatewayProxy = deployment.Address
 	}
 
 	if d.L1ETHGatewayProxy == (common.Address{}) {
@@ -288,6 +298,9 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	}
 	if config.L1CustomERC20GatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1CustomERC20GatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1ReverseCustomGatewayProxy == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1ReverseCustomGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1ETHGatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1ETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
@@ -505,6 +518,15 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1CustomERC20GatewayProxy,
+	}
+	storage["L2ReverseCustomGateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+		"counterpart":   config.L1ReverseCustomGatewayProxy,
 	}
 	storage["L2ETHGateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard

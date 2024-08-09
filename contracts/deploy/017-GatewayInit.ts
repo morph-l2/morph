@@ -22,7 +22,6 @@ export const GatewayInit = async (
     configTmp: any
 ): Promise<string> => {
     // Load the contracts we need to interact with.
-    const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
     const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
 
     // L1GatewayRouter config
@@ -44,6 +43,11 @@ export const GatewayInit = async (
     const L1CustomERC20GatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CustomERC20GatewayProxyStorageName)
     const L1CustomERC20GatewayImplAddress = getContractAddressByName(path, ImplStorageName.L1CustomERC20GatewayStorageName)
     const L1CustomERC20GatewayFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1CustomERC20Gateway)
+
+    // L1ReverseCustomGateway config
+    const L1ReverseCustomGatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.L1ReverseCustomGatewayProxyStorageName)
+    const L1ReverseCustomGatewayImplAddress = getContractAddressByName(path, ImplStorageName.L1ReverseCustomGatewayStorageName)
+    const L1ReverseCustomGatewayFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1ReverseCustomGateway)
 
     // L1ERC721Gateway config
     const L1ERC721GatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.L1ERC721GatewayProxyStorageName)
@@ -292,6 +296,62 @@ export const GatewayInit = async (
             L1CrossDomainMessengerProxyAddress
         )
         console.log('L1CustomERC20Gateway upgrade success')
+    }
+
+    // L1ReverseCustomGateway init
+    const IL1ReverseCustomGatewayProxyAddressProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1ReverseCustomGatewayProxyAddress, deployer)
+    if (
+        (await IL1ReverseCustomGatewayProxyAddressProxy.implementation()).toLocaleLowerCase() !== L1ReverseCustomGatewayImplAddress.toLocaleLowerCase()
+    ) {
+        console.log('Upgrading the L1ReverseCustomGateway proxy...')
+        const counterpart: string = predeploys.L2ReverseERC20Gateway
+
+        if (!ethers.utils.isAddress(counterpart)
+            || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
+        ) {
+            console.error('please check your address')
+            return ''
+        }
+
+        // Upgrade and initialize the proxy.
+        await IL1ReverseCustomGatewayProxyAddressProxy.connect(deployer).upgradeToAndCall(
+            L1ReverseCustomGatewayImplAddress,
+            L1ReverseCustomGatewayFactory.interface.encodeFunctionData('initialize', [
+                counterpart,
+                L1GatewayRouterProxyAddress,
+                L1CrossDomainMessengerProxyAddress,
+            ])
+        )
+        await awaitCondition(
+            async () => {
+                return (
+                    (await IL1ReverseCustomGatewayProxyAddressProxy.implementation()).toLocaleLowerCase() === L1ReverseCustomGatewayImplAddress.toLocaleLowerCase()
+                )
+            },
+            3000,
+            1000
+        )
+        const contractTmp = new ethers.Contract(
+            L1ReverseCustomGatewayProxyAddress,
+            L1ReverseCustomGatewayFactory.interface,
+            deployer,
+        )
+        await assertContractVariable(
+            contractTmp,
+            'counterpart',
+            counterpart
+        )
+        await assertContractVariable(
+            contractTmp,
+            'router',
+            L1GatewayRouterProxyAddress
+        )
+        await assertContractVariable(
+            contractTmp,
+            'messenger',
+            L1CrossDomainMessengerProxyAddress
+        )
+        console.log('L1ReverseCustomGateway upgrade success')
     }
 
     // L1ERC721Gateway init

@@ -64,6 +64,7 @@ export const AdminTransfer = async (
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
     const L1StandardERC20GatewayProxyStorageName = ProxyStorageName.L1StandardERC20GatewayProxyStorageName
     const L1CustomERC20GatewayProxyStorageName = ProxyStorageName.L1CustomERC20GatewayProxyStorageName
+    const L1ReverseCustomGatewayProxyStorageName = ProxyStorageName.L1ReverseCustomGatewayProxyStorageName
     const L1ERC721GatewayProxyStorageName = ProxyStorageName.L1ERC721GatewayProxyStorageName
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
     // const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
@@ -120,6 +121,13 @@ export const AdminTransfer = async (
     if (err != '') {
         return err
     }
+
+    // L1ReverseCustomGatewayProxy admin change
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ReverseCustomGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
     // L1ERC721GatewayProxy admin change
     err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
     if (err != '') {
