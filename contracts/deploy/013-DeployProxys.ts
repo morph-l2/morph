@@ -60,6 +60,7 @@ export const deployContractProxies = async (
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
     const L1StandardERC20GatewayProxyStorageName = ProxyStorageName.L1StandardERC20GatewayProxyStorageName
     const L1CustomERC20GatewayProxyStorageName = ProxyStorageName.L1CustomERC20GatewayProxyStorageName
+    const L1WithdrawLockERC20GatewayProxyStorageName = ProxyStorageName.L1WithdrawLockERC20GatewayProxyStorageName
     const L1ReverseCustomGatewayProxyStorageName = ProxyStorageName.L1ReverseCustomGatewayProxyStorageName
     const L1ERC721GatewayProxyStorageName = ProxyStorageName.L1ERC721GatewayProxyStorageName
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
@@ -131,6 +132,12 @@ export const deployContractProxies = async (
 
     // L1CustomERC20GatewayProxy deploy
     err = await deployContractProxyByStorageName(hre, path, deployer, L1CustomERC20GatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
+    // L1WithdrawLockERC20GatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1WithdrawLockERC20GatewayProxyStorageName)
     if (err != '') {
         return err
     }

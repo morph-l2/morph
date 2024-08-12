@@ -116,6 +116,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 			},
 		},
 		{
+			Name: "L2WithdrawLockERC20Gateway",
+		},
+		{
 			Name: "L2WETH",
 		},
 		{
@@ -303,6 +306,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for l1weth")
 		}
 		_, tx, _, err = bindings.DeployL2WETHGateway(opts, backend, predeploys.L2WETHAddr, l1weth)
+	case "L2WithdrawLockERC20Gateway":
+		_, tx, _, err = bindings.DeployL2WithdrawLockERC20Gateway(opts, backend)
 	case "L2WETH":
 		_, tx, _, err = bindings.DeployWrappedEther(opts, backend)
 	case "ProxyAdmin":

@@ -81,6 +81,8 @@ type DeployConfig struct {
 	L1WETHGatewayProxy common.Address `json:"l1WETHGatewayProxy"`
 	// L1WETH address on L1
 	L1WETH common.Address `json:"l1WETH"`
+	// L1WithdrawLockERC20GatewayProxy proxy address on L1
+	L1WithdrawLockERC20Gateway common.Address `json:"l1WithdrawLockERC20Gateway"`
 
 	// GasPriceOracle config
 	// The initial value of the gas overhead
@@ -228,6 +230,14 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		}
 		d.L1WETH = deployment.Address
 	}
+
+	if d.L1WithdrawLockERC20Gateway == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Proxy__L1WithdrawLockERC20Gateway")
+		if err != nil {
+			return err
+		}
+		d.L1WithdrawLockERC20Gateway = deployment.Address
+	}
 	return nil
 }
 
@@ -313,6 +323,9 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	}
 	if config.L1WETHGatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1WETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1WithdrawLockERC20Gateway == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1WithdrawLockERC20Gateway cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1WETH == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1WETH cannot be address(0): %w", ErrInvalidImmutablesConfig)
@@ -545,6 +558,15 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"counterpart":   config.L1WETHGatewayProxy,
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["L2WithdrawLockERC20Gateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+		"counterpart":   config.L1WithdrawLockERC20Gateway,
 	}
 	storage["L2ERC721Gateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard
