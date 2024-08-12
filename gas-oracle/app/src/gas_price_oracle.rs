@@ -46,7 +46,7 @@ impl Config {
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
             )?,
-            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env"),
+            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").unwrap_or("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string()),
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
         })
     }
