@@ -96,9 +96,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Function Modifiers *
      **********************/
 
-    /// @notice Only staker allowed.
-    modifier OnlyStaker() {
-        require(IL1Staking(l1StakingContract).isStaker(_msgSender()), "only staker allowed");
+    /// @notice Only active staker allowed.
+    modifier OnlyActiveStaker() {
+        require(IL1Staking(l1StakingContract).isActiveStaker(_msgSender()), "only staker allowed");
         _;
     }
 
@@ -200,7 +200,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function commitBatch(
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
-    ) external payable override OnlyStaker nonReqRevert whenNotPaused {
+    ) external payable override OnlyActiveStaker nonReqRevert whenNotPaused {
         require(batchDataInput.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchDataInput.chunks.length;

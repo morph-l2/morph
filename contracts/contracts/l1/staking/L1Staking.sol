@@ -172,23 +172,42 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         _msgAddStaker(stakers[_msgSender()]);
     }
 
+    /// @notice remove staker
+    function removeStaker(address[] memory _stakers) external onlyOwner {
+        for (uint256 i = 0; i < _stakers.length; i++) {
+            require(isActiveStaker(_stakers[i]), "only active staker can be removed");
+            require(withdrawals[_stakers[i]] == 0, "withdrawing");
+
+            withdrawals[_stakers[i]] = block.number + withdrawalLockBlocks;
+            _removeStaker(_stakers[i]);
+            emit Withdrawn(_stakers[i], withdrawals[_stakers[i]]);
+
+            delete whitelist[_stakers[i]];
+            removedList[_stakers[i]] = true;
+        }
+        emit StakersRemoved(_stakers);
+
+        // send message to remove stakers on l2
+        _msgRemoveStakers(_stakers);
+    }
+
     /// @notice withdraw staking
     function withdraw() external {
-        require(isStaker(_msgSender()), "only staker");
+        require(isActiveStaker(_msgSender()), "only active staker");
         require(withdrawals[_msgSender()] == 0, "withdrawing");
-        require(!isStakerInDeleteList(_msgSender()), "staker is slashed");
 
         withdrawals[_msgSender()] = block.number + withdrawalLockBlocks;
         _removeStaker(_msgSender());
         emit Withdrawn(_msgSender(), withdrawals[_msgSender()]);
 
-        // send message to remove staker on l2
-        address[] memory remove = new address[](1);
-        remove[0] = _msgSender();
         delete whitelist[_msgSender()];
         removedList[_msgSender()] = true;
+
+        address[] memory remove = new address[](1);
+        remove[0] = _msgSender();
         emit StakersRemoved(remove);
 
+        // send message to remove staker on l2
         _msgRemoveStakers(remove);
     }
 
@@ -335,6 +354,15 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             return false;
         }
         return stakerSet[stakerIndexes[addr] - 1] == addr;
+    }
+
+    /// @notice whether address is active staker
+    /// @param addr  address to check
+    function isActiveStaker(address addr) public view returns (bool) {
+        if (stakerIndexes[addr] == 0) {
+            return false;
+        }
+        return (stakerSet[stakerIndexes[addr] - 1] == addr) && (deleteableHeight[addr] == 0);
     }
 
     /// @notice whether address in delete list

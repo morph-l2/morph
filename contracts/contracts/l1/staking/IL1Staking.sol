@@ -77,6 +77,10 @@ interface IL1Staking {
     /// @param addr  the address to check
     function isStaker(address addr) external view returns (bool);
 
+    /// @notice whether address is active staker
+    /// @param addr  the address to check
+    function isActiveStaker(address addr) external view returns (bool);
+
     /// @notice get staker bitmap
     /// @param staker  the staker address
     function getStakerBitmap(address staker) external view returns (uint256);
