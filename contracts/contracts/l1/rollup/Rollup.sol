@@ -98,7 +98,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice Only active staker allowed.
     modifier OnlyActiveStaker() {
-        require(IL1Staking(l1StakingContract).isActiveStaker(_msgSender()), "only staker allowed");
+        require(IL1Staking(l1StakingContract).isActiveStaker(_msgSender()), "only active staker allowed");
         _;
     }
 

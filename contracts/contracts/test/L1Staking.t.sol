@@ -634,7 +634,7 @@ contract StakingRegisterTest is L1MessageBaseTest {
 contract StakingWithdrawTest is L1MessageBaseTest {
     function test_withdraw_notStaker_reverts() external {
         // bob withdraw
-        hevm.expectRevert("only staker");
+        hevm.expectRevert("only active staker");
         hevm.startPrank(bob);
         l1Staking.withdraw();
         hevm.stopPrank();
@@ -689,6 +689,10 @@ contract StakingWithdrawTest is L1MessageBaseTest {
         assertFalse(l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
     }
+}
+
+contract StakingRemoveStakerTest is L1MessageBaseTest {
+    // TODO
 }
 
 contract StakingSlashTest is L1MessageBaseTest {
