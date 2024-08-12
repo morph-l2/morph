@@ -1,0 +1,9 @@
+# Build Node
+FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
+COPY . /morph
+WORKDIR /morph/node
+RUN make build
+
+FROM builder
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+CMD ["morphnode","--home", "/db"]

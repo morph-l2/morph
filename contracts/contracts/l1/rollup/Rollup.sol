@@ -328,8 +328,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-
         require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+
         // make sure no gap is left when reverting from the ending to the beginning.
         require(committedBatches[_batchIndex + _count] == bytes32(0), "reverting must start from the ending");
         // check finalization
@@ -467,8 +467,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes calldata _kzgDataProof
     ) external nonReqRevert whenNotPaused {
         // get batch data from batch header
-        (uint256 memPtr, ) = _loadBatchHeader(_batchHeader);
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+
         // Ensure challenge exists and is not finished
         require(batchInChallenge(_batchIndex), "batch in challenge");
 
@@ -491,8 +494,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev finalize batch
     function finalizeBatch(bytes calldata _batchHeader) public nonReqRevert whenNotPaused {
         // get batch data from batch header
-        (uint256 memPtr, ) = _loadBatchHeader(_batchHeader);
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
 
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
@@ -715,18 +719,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _batchHeader The batch header in calldata.
     /// @return _memPtr     The start memory offset of loaded batch header.
     /// @return _batchHash  The hash of the loaded batch header.
-    function _loadBatchHeader(bytes calldata _batchHeader) internal view returns (uint256 _memPtr, bytes32 _batchHash) {
+    function _loadBatchHeader(bytes calldata _batchHeader) internal pure returns (uint256 _memPtr, bytes32 _batchHash) {
         // load to memory
         uint256 _length;
         (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
 
         // compute batch hash
         _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
-        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_memPtr);
-        // only check when genesis is imported
-        if (finalizedStateRoots[0] != bytes32(0)) {
-            require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
-        }
     }
 
     /// @dev Internal function to load the latestL2BlockNumber.

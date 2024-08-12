@@ -66,8 +66,6 @@ pub async fn challenge() -> Result<(), Box<dyn Error>> {
     let proof_window = l1_rollup.proof_window().await?;
     log::info!("finalization_period: {:#?}  proof_window: {:#?}", finalization_period, proof_window);
 
-    // TODO IStaking
-    // let min_deposit: U256 = l1_rollup.min_deposit().await?;
     let min_deposit: U256 = U256::from(4 * 10u128.pow(18));
     log::info!("min_deposit: {:#?}", min_deposit);
 
@@ -103,8 +101,8 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     }
 
     log::info!("latest blocknum = {:#?}", latest);
-    let start = if latest > U64::from(200) {
-        latest - U64::from(200)
+    let start = if latest > U64::from(600) {
+        latest - U64::from(600)
     } else {
         U64::from(1)
     };
@@ -119,11 +117,12 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     };
 
     if logs.is_empty() {
-        log::error!("There have been no commit_batch logs for the last 200 blocks.");
+        log::error!("There have been no commit_batch logs for the last 600 blocks.");
         return Ok(());
     }
+
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
-    let batch_index = match logs.last() {
+    let batch_index = match logs.get(logs.len() - 2) {
         Some(log) => log.topics[1].to_low_u64_be(),
         None => {
             log::error!("find commit_batch log error");
@@ -133,11 +132,11 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     log::info!("latest batch index = {:#?}", batch_index);
 
     // Challenge state.
-    // let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
-    // if is_batch_finalized {
-    //     log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
-    //     return Ok(());
-    // }
+    let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
+    if is_batch_finalized {
+        log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
+        return Ok(());
+    }
 
     let challenges = match l1_rollup.challenges(U256::from(batch_index)).await {
         Ok(x) => x,
