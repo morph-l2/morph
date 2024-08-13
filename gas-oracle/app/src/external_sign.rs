@@ -1,5 +1,3 @@
-// main.rs (or lib.rs)
-
 use ethers::{abi::AbiEncode, types::*};
 use reqwest::Client;
 use rsa::{
@@ -7,9 +5,7 @@ use rsa::{
     Pkcs1v15Sign, RsaPrivateKey,
 };
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-// use sha2::{Digest, Sha256};
-use sha2::Digest;
+use sha2::{Digest, Sha256};
 use std::{error::Error, time::SystemTime};
 use transaction::eip2718::TypedTransaction;
 use uuid::Uuid;
@@ -100,13 +96,11 @@ impl ExternalSign {
 
         let response: Response = serde_json::from_str(&resp)?;
 
-        // This assumes the response includes the signature in hex form
         if response.result.sign_datas.is_empty() {
             return Err("response sha3 empty".into());
         }
 
         let sig = hex::decode(&response.result.sign_datas[0].sign)?;
-        // Apply the signature to the transaction (example, adjust as needed)
         let signed_tx: Bytes = tx.rlp_signed(&Signature::try_from(sig.as_slice()).unwrap());
         Ok(signed_tx)
     }
@@ -138,7 +132,6 @@ impl ExternalSign {
         let hashed = sha2::Sha256::digest(business_data_bs.as_bytes());
 
         // let signing_key = SigningKey::<Sha256>::new(self.privkey.clone());
-
         let signature = self.privkey.sign(Pkcs1v15Sign::new::<Sha256>(), &hashed)?;
         let hex_sig = hex::encode(signature);
 
@@ -160,18 +153,32 @@ impl ExternalSign {
 
         Ok(response.text().await?)
     }
-
-    fn hash_transaction(&self, tx: &TransactionRequest) -> String {
-        // Implement transaction hashing suitable to your needs
-        // This is a stub placeholder
-        "your_hash_hex".to_string()
-    }
 }
 
 #[tokio::test]
 async fn test_sign() -> Result<(), Box<dyn Error>> {
-    // Initialize your ExternalSign instance and perform signing as needed
-    // You would populate the actual Ethereum transaction details and other logistics here
+    use ethers::{
+        middleware::SignerMiddleware,
+        providers::{Http, Middleware, Provider},
+        signers::{Signer, Wallet},
+    };
+    use std::{str::FromStr, sync::Arc};
 
+    let l2_provider = Provider::<Http>::try_from("http://localhost:8545")?;
+    let l2_signer = Arc::new(SignerMiddleware::new(
+        l2_provider.clone(),
+        Wallet::from_str("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+            .unwrap()
+            .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
+    ));
+    let req = TransactionRequest::new().to(Address::default()).data(Bytes::new());
+    let mut tx = TypedTransaction::Legacy(req);
+    l2_signer.fill_transaction(&mut tx, None).await.unwrap();
+
+    let ext_signer: ExternalSign =
+        ExternalSign::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
+    let raw_tx = ext_signer.request_sign(&tx).await.unwrap();
+    let pending_tx = l2_provider.send_raw_transaction(raw_tx).await.unwrap();
+    pending_tx.await.expect("send_raw_transaction");
     Ok(())
 }
