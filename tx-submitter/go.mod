@@ -4,11 +4,12 @@ go 1.22
 
 replace (
 	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240724022729-cdc13a3a3f11
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
+	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.2-beta
 )
 
 require (
 	github.com/holiman/uint256 v1.2.4
+	github.com/morph-l2/externalsign v0.0.0-20240807073848-567eed9af9e6
 	github.com/prometheus/client_golang v1.17.0
 	github.com/scroll-tech/go-ethereum v1.11.4
 	github.com/stretchr/testify v1.9.0
@@ -48,7 +49,6 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.16 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
