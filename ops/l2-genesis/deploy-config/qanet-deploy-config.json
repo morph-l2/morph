@@ -40,10 +40,10 @@
   "l2StakingUnDelegatedLockEpochs": 2,
   "l2StakingRewardStartTime": 1728000000,
   "l2StakingAddresses": [
-    "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
-    "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",
-    "0x343C5154FFe47c8a07DF5ea6846404e68E9809A2",
-    "0xaaC606d51De6A5aBF0d1B9dbd5ed5Ff2Ac2e521B"
+    "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
+    "0x4a1f64dec538835c125874e275edca367bf6022a",
+    "0xbb8605961105bb3dcd0e86ef94a1bf9fb2270a29",
+    "0x7d7201ad7da2b9b9ab9a36c454a3c2d55c4fbdd8"
   ],
   "l2StakingPks": [
     "0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32",
