@@ -226,6 +226,13 @@ var (
 		Usage:  "Whether to use rough estimate gas",
 		EnvVar: prefixEnvVar("ROUGH_ESTIMATE_GAS"),
 	}
+
+	RotatorBufferFlag = cli.Int64Flag{
+		Name:   "ROTATOR_BUFFER",
+		Usage:  "rotation interval buffer",
+		Value:  15,
+		EnvVar: prefixEnvVar("ROTATOR_BUFFER"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -268,6 +275,7 @@ var optionalFlags = []cli.Flag{
 	CalldataFeeBumpFlag,
 	MaxTxsInPendingPoolFlag,
 	RoughEstimateGasFlag,
+	RotatorBufferFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

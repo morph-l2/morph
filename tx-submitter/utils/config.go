@@ -86,6 +86,8 @@ type Config struct {
 	MaxTxsInPendingPool uint64
 	// rough estimate gas switch
 	RoughEstimateGas bool
+	// rotator interval buffer
+	RotatorBuffer int64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -136,6 +138,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
 		// rough estimate gas switch
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
+		// rotator interval buffer
+		RotatorBuffer: ctx.GlobalInt64(flags.RotatorBufferFlag.Name),
 	}
 
 	return cfg, nil

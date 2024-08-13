@@ -37,7 +37,6 @@ const (
 	txSlotSize  = 32 * 1024
 	txMaxSize   = 4 * txSlotSize // 128KB
 	rotatorWait = 3 * time.Second
-	rotatorBuff = 15
 )
 
 type Rollup struct {
@@ -514,7 +513,7 @@ func (sr *Rollup) rollup() error {
 
 		if cur.Hex() == sr.walletAddr() {
 			left := end - time.Now().Unix()
-			if left < rotatorBuff {
+			if left < sr.cfg.RotatorBuffer {
 				log.Info("rollup time not enough, wait next turn", "left", left)
 				return nil
 			}
