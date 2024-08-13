@@ -221,6 +221,42 @@ var (
 		EnvVar: prefixEnvVar("MAX_TXS_IN_PENDING_POOL"),
 	}
 
+	// external sign
+	ExternalSign = cli.BoolFlag{
+		Name:   "EXTERNAL_SIGN",
+		Usage:  "Enable external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
+	}
+
+	// address
+	ExternalSignAddress = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_ADDRESS",
+		Usage:  "The address of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_ADDRESS"),
+	}
+	// appid
+	ExternalSignAppid = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_APPID",
+		Usage:  "The appid of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_APPID"),
+	}
+	// chain
+	ExternalSignChain = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_CHAIN",
+		Usage:  "The chain of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_CHAIN"),
+	}
+	// url
+	ExternalSignUrl = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_URL",
+		Usage:  "The url of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
+	}
+	ExternalSignRsaPriv = cli.StringFlag{
+		Name:   "EXTERNAL_RSA_PRIV",
+		Usage:  "The rsa private key of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_RSA_PRIV"),
+	}
 	RoughEstimateGasFlag = cli.BoolFlag{
 		Name:   "ROUGH_ESTIMATE_GAS",
 		Usage:  "Whether to use rough estimate gas",
@@ -274,6 +310,14 @@ var optionalFlags = []cli.Flag{
 	L2GovAddressFlag,
 	CalldataFeeBumpFlag,
 	MaxTxsInPendingPoolFlag,
+
+	// external sign
+	ExternalSign,
+	ExternalSignAddress,
+	ExternalSignAppid,
+	ExternalSignChain,
+	ExternalSignUrl,
+	ExternalSignRsaPriv,
 	RoughEstimateGasFlag,
 	RotatorBufferFlag,
 }
