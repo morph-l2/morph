@@ -1,25 +1,9 @@
 package utils
 
 import (
-	"crypto/ecdsa"
-	"strings"
-
 	"github.com/scroll-tech/go-ethereum"
-	"github.com/scroll-tech/go-ethereum/common"
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/crypto"
 )
-
-func ParsePkAndWallet(pkStr, walletStr string) (*ecdsa.PrivateKey, *common.Address, error) {
-	hex := strings.TrimPrefix(pkStr, "0x")
-	priv, err := crypto.HexToECDSA(hex)
-	if err != nil {
-		return nil, nil, err
-	}
-	wallet := common.HexToAddress(walletStr)
-
-	return priv, &wallet, nil
-}
 
 func ToCallArg(msg ethereum.CallMsg) interface{} {
 	arg := map[string]interface{}{
