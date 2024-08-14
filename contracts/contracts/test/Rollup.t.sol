@@ -112,7 +112,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         bitmap = new bytes(32);
         hevm.mockCall(
             address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.isStaker, (address(0))),
+            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
             abi.encode(true)
         );
         hevm.mockCall(
@@ -245,7 +245,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.updateMaxNumTxInChunk(2);
         hevm.mockCall(
             address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.isStaker, (address(0))),
+            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
             abi.encode(true)
         );
         hevm.mockCall(
@@ -264,7 +264,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.updateMaxNumTxInChunk(10);
         hevm.mockCall(
             address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.isStaker, (address(0))),
+            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
             abi.encode(true)
         );
         hevm.mockCall(
@@ -282,7 +282,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.updateMaxNumTxInChunk(186);
         hevm.mockCall(
             address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.isStaker, (address(0))),
+            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
             abi.encode(true)
         );
         hevm.mockCall(
@@ -397,9 +397,9 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.prank(multisig);
         rollup.importGenesisBatch(batchHeader0);
-        // only staker allowed, revert
+        // only active staker allowed, revert
         hevm.startPrank(address(0));
-        hevm.expectRevert("only staker allowed");
+        hevm.expectRevert("only active staker allowed");
         batchDataInput = IRollup.BatchDataInput(
             0,
             batchHeader0,
