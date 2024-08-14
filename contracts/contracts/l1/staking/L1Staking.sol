@@ -21,9 +21,6 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice staking value, immutable
     uint256 public stakingValue;
 
-    /// @notice challenge deposit value
-    uint256 public challengeDeposit;
-
     /// @notice exit lock blocks
     uint256 public withdrawalLockBlocks;
 
@@ -68,6 +65,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice withdraw unlock block height
     mapping(address staker => uint256) public withdrawals;
+
+    /// @notice challenge deposit value
+    uint256 public challengeDeposit;
 
     /**********************
      * Function Modifiers *
