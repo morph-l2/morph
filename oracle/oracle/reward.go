@@ -3,6 +3,7 @@ package oracle
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -284,96 +285,110 @@ func (o *Oracle) findStartBlock(start, end uint64, timeStamp int64) (int64, erro
 func (o *Oracle) setStartBlock() {
 	start := o.cfg.StartBlock
 	for {
-		header, err := o.l2Client.HeaderByNumber(o.ctx, nil)
+		err := func() error {
+			header, err := o.l2Client.HeaderByNumber(o.ctx, nil)
+			if err != nil {
+				return fmt.Errorf("get latest header error:%v", err)
+			}
+			rewardStarted, err := o.l2Staking.RewardStarted(&bind.CallOpts{
+				BlockNumber: header.Number,
+			})
+			if err != nil {
+				return fmt.Errorf("get RewardStarted error:%v", err)
+			}
+			if rewardStarted {
+				return nil
+			}
+			return ErrRewardNotStart
+
+		}()
 		if err != nil {
-			panic(err)
+			if errors.Is(err, ErrRewardNotStart) {
+				log.Info(err.Error())
+			} else {
+				log.Error("query reward start falied", "error", err)
+			}
+			continue
 		}
-		rewardStarted, err := o.l2Staking.RewardStarted(&bind.CallOpts{
-			BlockNumber: header.Number,
-		})
-		if err != nil {
-			panic(err)
-		}
-		if rewardStarted {
-			log.Info("reward start")
-			break
-		}
-		log.Info("wait reward start...")
-		time.Sleep(defaultSleepTime)
-		continue
+		log.Info("reward start")
+		break
 	}
 
 	for {
-		header, err := o.l2Client.HeaderByNumber(o.ctx, nil)
-		if err != nil {
-			log.Error("query header by number failed", "error", err)
-		}
-		startTime, err := o.l2Staking.RewardStartTime(&bind.CallOpts{
-			BlockNumber: header.Number,
-		})
-		if err != nil {
-			log.Error("query reward start time failed", "error", err)
-		}
-		latestRewardEpochBlock, err := o.record.LatestRewardEpochBlock(nil)
-		if err != nil {
-			log.Error("query latest reward epoch block failed", "error", err)
-		}
-		if latestRewardEpochBlock.Uint64() != 0 {
-			break
-		}
-		if header.Time < startTime.Uint64() {
-			start = header.Number.Uint64()
-			time.Sleep(defaultSleepTime)
-			continue
-		}
-		log.Info("start find start block", "start_block", start, "end_block", header.Number.Uint64())
-		startBlock, err := o.findStartBlock(start, header.Number.Uint64(), startTime.Int64())
-		if err != nil {
-			log.Error("find start block failed", "error", err)
-			time.Sleep(defaultSleepTime)
-			continue
-		}
+		err := func() error {
+			header, err := o.l2Client.HeaderByNumber(o.ctx, nil)
+			if err != nil {
+				return fmt.Errorf("query header by number error:%v", err)
+			}
+			startTime, err := o.l2Staking.RewardStartTime(&bind.CallOpts{
+				BlockNumber: header.Number,
+			})
+			if err != nil {
+				return fmt.Errorf("query reward start time error:%v", err)
+			}
+			latestRewardEpochBlock, err := o.record.LatestRewardEpochBlock(nil)
+			if err != nil {
+				return fmt.Errorf("query latest reward epoch block error:%v", err)
+			}
+			if latestRewardEpochBlock.Uint64() != 0 {
+				return nil
+			}
+			if header.Time < startTime.Uint64() {
+				start = header.Number.Uint64()
+				return ErrRewardNotStart
+			}
+			log.Info("start find start block", "start_block", start, "end_block", header.Number.Uint64())
+			startBlock, err := o.findStartBlock(start, header.Number.Uint64(), startTime.Int64())
+			if err != nil {
+				return fmt.Errorf("find start block error:%v", err)
+			}
 
-		chainID, err := o.l2Client.ChainID(o.ctx)
+			chainID, err := o.l2Client.ChainID(o.ctx)
+			if err != nil {
+				return fmt.Errorf("get chain id error:%v", err)
+			}
+			opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainID)
+			if err != nil {
+				log.Error(fmt.Sprintf("new opts error:%v", err))
+			}
+			nonce, err := o.l2Client.NonceAt(context.Background(), crypto.PubkeyToAddress(o.privKey.PublicKey), nil)
+			if err != nil {
+				return err
+			}
+			opts.NoSend = true
+			opts.Nonce = big.NewInt(int64(nonce))
+			tx, err := o.record.SetLatestRewardEpochBlock(opts, big.NewInt(startBlock))
+			if err != nil {
+				return fmt.Errorf("set latestReward epoch block error:%v", err)
+			}
+			signedTx, err := opts.Signer(opts.From, tx)
+			if err != nil {
+				return err
+			}
+			err = o.l2Client.SendTransaction(o.ctx, signedTx)
+			if err != nil {
+				return fmt.Errorf("send transaction error:%v", err)
+			}
+			var receipt *types.Receipt
+			err = backoff.Do(3, backoff.Exponential(), func() error {
+				var err error
+				receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
+				return err
+			})
+			if err != nil {
+				return fmt.Errorf("TransactionReceipt error:%v", err)
+			}
+			if receipt.Status != types.ReceiptStatusSuccessful {
+				return fmt.Errorf("set stark block failed")
+			}
+			log.Info("set start block success")
+			return nil
+		}()
 		if err != nil {
-			log.Error("get chain id failed", "error", err)
+			log.Error("start block failed", "error", err)
 			time.Sleep(defaultSleepTime)
 			continue
 		}
-		opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainID)
-		if err != nil {
-			log.Error(fmt.Sprintf("new opts error:%v", err))
-		}
-		nonce, err := o.l2Client.NonceAt(context.Background(), crypto.PubkeyToAddress(o.privKey.PublicKey), nil)
-		if err != nil {
-			return
-		}
-		opts.NoSend = true
-		opts.Nonce = big.NewInt(int64(nonce))
-		tx, err := o.record.SetLatestRewardEpochBlock(opts, big.NewInt(startBlock))
-		if err != nil {
-			log.Error("set latestReward epoch block failed", "error", err)
-			time.Sleep(defaultSleepTime)
-			continue
-		}
-		signedTx, err := opts.Signer(opts.From, tx)
-		if err != nil {
-			return
-		}
-		err = o.l2Client.SendTransaction(o.ctx, signedTx)
-		if err != nil {
-			log.Error("send transaction failed,retry...", "error", err)
-			time.Sleep(defaultSleepTime)
-			continue
-		}
-		receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
-		if err != nil {
-			log.Error("TransactionReceipt failed,retry...", "error", err)
-		}
-		if receipt.Status != types.ReceiptStatusSuccessful {
-			log.Error("set stark block failed")
-			continue
-		}
-		log.Info("set start block success")
+		break
 	}
 }
