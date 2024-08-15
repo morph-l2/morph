@@ -84,6 +84,14 @@ type Config struct {
 	CalldataFeeBump uint64
 	//max txs in pendingpool
 	MaxTxsInPendingPool uint64
+
+	// external sign
+	ExternalSign        bool
+	ExternalSignAddress string
+	ExternalSignAppid   string
+	ExternalSignChain   string
+	ExternalSignUrl     string
+	ExternalSignRsaPriv string
 	// rough estimate gas switch
 	RoughEstimateGas bool
 }
@@ -134,6 +142,14 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		// calldata fee bump
 		CalldataFeeBump:     ctx.GlobalUint64(flags.CalldataFeeBumpFlag.Name),
 		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
+
+		// external sign
+		ExternalSign:        ctx.GlobalBool(flags.ExternalSign.Name),
+		ExternalSignAppid:   ctx.GlobalString(flags.ExternalSignAppid.Name),
+		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddress.Name),
+		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
+		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
+		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 		// rough estimate gas switch
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 	}
