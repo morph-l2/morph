@@ -18,6 +18,7 @@ contract L1MessageBaseTest is CommonTest {
     L1Staking public l1StakingImpl;
 
     uint256 public constant STAKING_VALUE = 1e18; // 1 eth
+    uint256 public constant CHALLENGE_DEPOSIT = 1e18; // 1 eth
     uint256 public constant LOCK_BLOCKS = 3;
     uint256 public rewardPercentage = 20;
     uint32 public defaultGasLimitAdd = 1000000;
@@ -127,6 +128,7 @@ contract L1MessageBaseTest is CommonTest {
                 (
                     address(rollupProxy),
                     STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
                     LOCK_BLOCKS,
                     rewardPercentage,
                     defaultGasLimitAdd,
