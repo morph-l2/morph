@@ -514,7 +514,7 @@ func (r *Rollup) rollup() error {
 
 		if cur.Hex() == r.WalletAddr().Hex() {
 			left := end - time.Now().Unix()
-			if left < sr.cfg.RotatorBuffer {
+			if left < r.cfg.RotatorBuffer {
 				log.Info("rollup time not enough, wait next turn", "left", left)
 				return nil
 			}
