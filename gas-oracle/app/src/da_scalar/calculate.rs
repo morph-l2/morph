@@ -70,14 +70,14 @@ pub(super) fn extract_tx_payload(
 
             let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
             let blob_struct = Blob(blob_array);
-            let mut compressed_batch = blob_struct.get_compressed_batch().map_err(|e| {
+            let mut origin_batch = blob_struct.get_origin_batch().map_err(|e| {
                 ScalarError::CalculateError(anyhow!(format!(
                     "Failed to decode blob tx payload: {}",
                     e
                 )))
             })?;
 
-            tx_payload.append(&mut compressed_batch);
+            tx_payload.append(&mut origin_batch);
         } else {
             return Err(ScalarError::CalculateError(anyhow!(format!(
                 "no blob in response matches desired index: {}",

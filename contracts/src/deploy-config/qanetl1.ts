@@ -31,14 +31,15 @@ const config = {
 
     // staking initialize config
     stakingLockNumber: 3,
-    stakingMinDeposit: 1, // limit
+    stakingChallengeDeposit: 1, // 1 ether
+    stakingMinDeposit: 1, // 1 ether
     stakingChallengerRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [
-        "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
-        "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",
-        "0x343C5154FFe47c8a07DF5ea6846404e68E9809A2",
-        "0xaaC606d51De6A5aBF0d1B9dbd5ed5Ff2Ac2e521B"
+        "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
+        "0x4a1f64dec538835c125874e275edca367bf6022a",
+        "0xbb8605961105bb3dcd0e86ef94a1bf9fb2270a29",
+        "0x7d7201ad7da2b9b9ab9a36c454a3c2d55c4fbdd8"
     ],
     l2SequencerTmKeys: [
         "0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb",

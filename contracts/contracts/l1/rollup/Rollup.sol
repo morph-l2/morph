@@ -96,9 +96,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Function Modifiers *
      **********************/
 
-    /// @notice Only staker allowed.
-    modifier OnlyStaker() {
-        require(IL1Staking(l1StakingContract).isStaker(_msgSender()), "only staker allowed");
+    /// @notice Only active staker allowed.
+    modifier OnlyActiveStaker() {
+        require(IL1Staking(l1StakingContract).isActiveStaker(_msgSender()), "only active staker allowed");
         _;
     }
 
@@ -200,7 +200,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function commitBatch(
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
-    ) external payable override OnlyStaker nonReqRevert whenNotPaused {
+    ) external payable override OnlyActiveStaker nonReqRevert whenNotPaused {
         require(batchDataInput.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchDataInput.chunks.length;
@@ -371,7 +371,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
         // check challenge amount
-        require(msg.value >= IL1Staking(l1StakingContract).stakingValue(), "insufficient value");
+        require(msg.value >= IL1Staking(l1StakingContract).challengeDeposit(), "insufficient value");
 
         batchChallenged = batchIndex;
         challenges[batchIndex] = BatchChallenge(batchIndex, _msgSender(), msg.value, block.timestamp, false, false);
