@@ -203,6 +203,7 @@ func Main() func(ctx *cli.Context) error {
 			"journal_path", cfg.JournalFilePath,
 			"gas_rough_estimate", cfg.RoughEstimateGas,
 			"gas_limit_buffer", cfg.GasLimitBuffer,
+			"rotator_buffer", cfg.RotatorBuffer,
 			"rough_estimate_gas", cfg.RoughEstimateGas,
 			"rough_estimate_base_gas", cfg.RollupTxGasBase,
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
