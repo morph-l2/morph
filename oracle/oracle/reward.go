@@ -66,7 +66,7 @@ func (o *Oracle) syncRewardEpoch() error {
 		return err
 	}
 	if startHeight.Cmp(finalizedBlock) > 0 {
-		time.Sleep(30 * time.Second)
+		time.Sleep(defaultSleepTime)
 		return nil
 	}
 	recordRewardEpochInfo, err := o.getRewardEpochs(startRewardEpochIndex, startHeight)
@@ -111,7 +111,7 @@ func (o *Oracle) getRewardEpochs(startRewardEpochIndex, startHeight *big.Int) (*
 		}
 		if height.Cmp(finalizedBlock) > 0 {
 			log.Info("finalized block small than syncing block,wait...", "finalizedBlock", finalizedBlock, "syncingBlock", height)
-			time.Sleep(time.Second * 30)
+			time.Sleep(defaultSleepTime)
 			continue
 		}
 		tmHeader, err := o.L2HeaderByNumberWithRetry(height.Int64())
@@ -308,6 +308,7 @@ func (o *Oracle) setStartBlock() {
 			} else {
 				log.Error("query reward start falied", "error", err)
 			}
+			time.Sleep(defaultSleepTime)
 			continue
 		}
 		log.Info("reward start")
