@@ -55,6 +55,11 @@ interface IL1Staking {
     /// @param newPercentage    new percentage
     event RewardPercentageUpdated(uint256 oldPercentage, uint256 newPercentage);
 
+    /// @notice challenge deposit value updated
+    /// @param oldChallengeDeposit    old challengeDeposit
+    /// @param newChallengeDeposit    new challengeDeposit
+    event ChallengeDepositUpdated(uint256 oldChallengeDeposit, uint256 newChallengeDeposit);
+
     /*************************
      * Public View Functions *
      *************************/
@@ -65,9 +70,16 @@ interface IL1Staking {
     /// @notice return staking value
     function stakingValue() external view returns (uint256);
 
+    /// @notice return challenge deposit value
+    function challengeDeposit() external view returns (uint256);
+
     /// @notice whether address is staker
     /// @param addr  the address to check
     function isStaker(address addr) external view returns (bool);
+
+    /// @notice whether address is active staker
+    /// @param addr  the address to check
+    function isActiveStaker(address addr) external view returns (bool);
 
     /// @notice get staker bitmap
     /// @param staker  the staker address

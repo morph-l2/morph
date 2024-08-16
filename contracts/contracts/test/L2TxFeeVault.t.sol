@@ -112,4 +112,49 @@ contract L2TxFeeVaultTest is DSTestPlus {
 
         assertEq(address(vault).balance, 200 ether - amount1 - amount2);
     }
+
+    function test_transfer_moreThanBalance_reverts(uint256 amount, address to) public {
+        hevm.assume(to != address(0));
+        hevm.assume(amount >= 10 ether);
+        hevm.deal(address(vault), amount - 1);
+        hevm.expectRevert("FeeVault: insufficient balance to transfer");
+        vault.transferTo(to, amount);
+    }
+
+    function test_owner_transfer_succeeds(address to) public {
+        hevm.assume(to != address(0));
+        hevm.assume(address(to).balance == 0);
+        hevm.assume(to.code.length == 0);
+        hevm.deal(address(vault), 11 ether);
+        vault.transferTo(to);
+        assertEq(address(to).balance, 11 ether);
+        assertEq(vault.totalProcessed(), 11 ether);
+    }
+
+    function test_allowed_transfer_reverts(address to, address allowed) public {
+        hevm.assume(to != address(0));
+        hevm.assume(allowed != address(0));
+        hevm.assume(allowed != address(this));
+        emit log_address(allowed);
+        // set allowed account
+        hevm.deal(address(vault), 11 ether);
+        hevm.expectRevert("FeeVault: caller is not allowed");
+        hevm.prank(allowed);
+        vault.transferTo(to);
+    }
+
+    function test_allowed_transfer_succeeds(address to, address allowed) public {
+        hevm.assume(to != address(0));
+        hevm.assume(allowed != address(0));
+        hevm.assume(address(to).balance == 0);
+        address[] memory allowedAccounts = new address[](1);
+        // set allowed account
+        allowedAccounts[0] = allowed;
+        vault.updateTransferAllowedStatus(allowedAccounts, true);
+        hevm.deal(address(vault), 11 ether);
+        hevm.prank(allowed);
+        vault.transferTo(to);
+        assertEq(address(to).balance, 11 ether);
+        assertEq(vault.totalProcessed(), 11 ether);
+    }
 }

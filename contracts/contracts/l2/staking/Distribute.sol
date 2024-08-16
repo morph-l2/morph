@@ -188,9 +188,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             ? mintedEpochCount - 1
             : targetEpochIndex;
         uint256 reward = _claim(delegatee, delegator, endEpochIndex);
-
-        require(reward > 0, "no reward to claim");
-        _transfer(delegator, reward);
+        if (reward > 0) {
+            _transfer(delegator, reward);
+        }
     }
 
     /// @dev claim delegation reward of all sequencers.
@@ -214,9 +214,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 reward += _claim(delegatee, delegator, endEpochIndex);
             }
         }
-
-        require(reward > 0, "no reward to claim");
-        _transfer(delegator, reward);
+        if (reward > 0) {
+            _transfer(delegator, reward);
+        }
     }
 
     /// @dev claim commission reward

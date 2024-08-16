@@ -46,6 +46,13 @@ contract L2TxFeeVault is OwnableBase {
     /// @param from  Address that triggered the withdrawal.
     event Withdrawal(uint256 value, address to, address from);
 
+    /// @notice Emits each time that a transfer occurs.
+    ///
+    /// @param value Amount that was transferd (in wei).
+    /// @param to    Address that the funds were sent to.
+    /// @param from  Address that triggered the transfer.
+    event Transfer(uint256 value, address to, address from);
+
     /// @notice Emits each time the owner updates the address of `messenger`.
     /// @param oldMessenger The address of old messenger.
     /// @param newMessenger The address of new messenger.
@@ -60,6 +67,11 @@ contract L2TxFeeVault is OwnableBase {
     /// @param oldMinWithdrawAmount The value of old `minWithdrawAmount`.
     /// @param newMinWithdrawAmount The value of new `minWithdrawAmount`.
     event UpdateMinWithdrawAmount(uint256 oldMinWithdrawAmount, uint256 newMinWithdrawAmount);
+
+    /// @notice Emitted when account transfer allowed status changed.
+    /// @param account The address of account whose status is changed.
+    /// @param status The current whitelist status.
+    event UpdateTransferAllowed(address account, bool status);
 
     /*************
      * Variables *
@@ -76,6 +88,19 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Total amount of wei processed by the contract.
     uint256 public totalProcessed;
+
+    /// @notice Keep track whether the account is allowed.
+    mapping(address => bool) public transferAllowed;
+
+    /**********************
+     * Function Modifiers *
+     **********************/
+
+    /// @dev Check if the caller is allowed or owner.
+    modifier onlyAllowedAndOwner() {
+        require(transferAllowed[msg.sender] || owner == msg.sender, "FeeVault: caller is not allowed");
+        _;
+    }
 
     /***************
      * Constructor *
@@ -101,6 +126,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Triggers a withdrawal of funds to the L1 fee wallet.
     /// @param _value The amount of ETH to withdraw.
     function withdraw(uint256 _value) public onlyOwner {
+        require(recipient != address(0), "FeeVault: recipient address cannot be address(0)");
         require(
             _value >= minWithdrawAmount,
             "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
@@ -130,9 +156,44 @@ contract L2TxFeeVault is OwnableBase {
         withdraw(value);
     }
 
+    /// @notice Transfer funds to the address.
+    /// @param _to The address of recipient.
+    /// @param _value The amount of ETH to tranfer.
+    function transferTo(address _to, uint256 _value) public onlyAllowedAndOwner {
+        require(_to != address(0), "FeeVault: recipient address cannot be address(0)");
+
+        uint256 _balance = address(this).balance;
+        require(_value <= _balance, "FeeVault: insufficient balance to transfer");
+
+        unchecked {
+            totalProcessed += _value;
+        }
+
+        emit Transfer(_value, recipient, msg.sender);
+        (bool success, ) = _to.call{value: _value}("");
+        require(success, "FeeVault: ETH transfer failed");
+    }
+
+    /// @notice Transfer all funds to the address.
+    /// @param _to The address of recipient.
+    function transferTo(address _to) external onlyAllowedAndOwner {
+        uint256 value = address(this).balance;
+        transferTo(_to, value);
+    }
+
     /************************
      * Restricted Functions *
      ************************/
+
+    /// @notice Update the transfer allowed status
+    /// @param _accounts The list of addresses to update.
+    /// @param _status The ransfer allowed status to update.
+    function updateTransferAllowedStatus(address[] memory _accounts, bool _status) external onlyOwner {
+        for (uint256 i = 0; i < _accounts.length; i++) {
+            transferAllowed[_accounts[i]] = _status;
+            emit UpdateTransferAllowed(_accounts[i], _status);
+        }
+    }
 
     /// @notice Update the address of messenger.
     /// @param _newMessenger The address of messenger to update.
