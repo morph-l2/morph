@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"path/filepath"
 
-	"github.com/scroll-tech/go-ethereum/core/rawdb"
-	"github.com/scroll-tech/go-ethereum/ethdb"
-	"github.com/scroll-tech/go-ethereum/rlp"
+	"github.com/morph-l2/go-ethereum/core/rawdb"
+	"github.com/morph-l2/go-ethereum/ethdb"
+	"github.com/morph-l2/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 
 	"morph-l2/node/types"

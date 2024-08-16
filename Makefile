@@ -1,38 +1,40 @@
 ################## update dependencies ####################
 
-ETHEREUM_TAG=v1.10.14-0.20240724022729-cdc13a3a3f11
-TENDERMINT_TAG=v0.2.2-beta
+ETHEREUM_TARGET_VERSION := v0.5.0
+TENDERMINT_TARGET_VERSION := v0.3.0
+
+ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
+TENDERMINT_MODULE_NAME := github.com/morph-l2/tendermint
+
+.PHONY: update_mod
+update_mod:
+	@echo "Updating go.mod in $(MODULE)..."
+	
+	@if grep -q '$(ETHEREUM_MODULE_NAME)' $(MODULE)/go.mod; then \
+		sed -i '' -e "s|$(ETHEREUM_MODULE_NAME) v[0-9][^[:space:]]*|$(ETHEREUM_MODULE_NAME) $(ETHEREUM_TARGET_VERSION)|" $(MODULE)/go.mod; \
+	fi
+
+	@if grep -q '$(TENDERMINT_MODULE_NAME)' $(MODULE)/go.mod; then \
+		sed -i '' -e "s|$(TENDERMINT_MODULE_NAME) v[0-9][^[:space:]]*|$(TENDERMINT_MODULE_NAME) $(TENDERMINT_TARGET_VERSION)|" $(MODULE)/go.mod; \
+	fi
+
+	@cd $(MODULE) && go mod tidy
+	@echo "go.mod in $(MODULE) updated and cleaned."
+
+.PHONY: update_all_mod
+update_all_mod:
+	@$(MAKE) update_mod MODULE=bindings
+	@$(MAKE) update_mod MODULE=contracts
+	@$(MAKE) update_mod MODULE=node
+	@$(MAKE) update_mod MODULE=ops/l2-genesis
+	@$(MAKE) update_mod MODULE=ops/tools
+	@$(MAKE) update_mod MODULE=oracle
+	@$(MAKE) update_mod MODULE=tx-submitter
+
 
 update:
 	go work sync
-
-	cd $(PWD)/bindings/ && \
-		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
-		go mod tidy
-	cd $(PWD)/contracts/ && \
-		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
-		go mod tidy
-	cd $(PWD)/node/ && \
-		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
-		go mod tidy
-	cd $(PWD)/ops/l2-genesis/ && \
-		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
-	cd $(PWD)/ops/tools/ && \
-		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
-		go mod tidy
-	cd $(PWD)/oracle/ && \
-		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
-		go mod tidy
-	cd $(PWD)/tx-submitter/ && \
-		sed -i '' '6s/.*/	github.com\/scroll-tech\/go-ethereum => github.com\/morph-l2\/go-ethereum ${ETHEREUM_TAG}/' go.mod && \
-		sed -i '' '7s/.*/	github.com\/tendermint\/tendermint => github.com\/morph-l2\/tendermint ${TENDERMINT_TAG}/' go.mod && \
-		go mod tidy
+	@$(MAKE) update_all_mod
 .PHONY: update
 
 submodules:

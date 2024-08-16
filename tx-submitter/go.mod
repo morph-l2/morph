@@ -2,16 +2,13 @@ module morph-l2/tx-submitter
 
 go 1.22
 
-replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240724022729-cdc13a3a3f11
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.2-beta
-)
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.0
 
 require (
 	github.com/holiman/uint256 v1.2.4
-	github.com/morph-l2/externalsign v0.0.0-20240807073848-567eed9af9e6
+	github.com/morph-l2/externalsign v0.1.0-beta
+	github.com/morph-l2/go-ethereum v0.5.0
 	github.com/prometheus/client_golang v1.17.0
-	github.com/scroll-tech/go-ethereum v1.11.4
 	github.com/stretchr/testify v1.9.0
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
@@ -22,6 +19,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.7.0 // indirect
+	github.com/btcsuite/btcd v0.20.1-beta // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect

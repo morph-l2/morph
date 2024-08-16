@@ -1,7 +1,7 @@
 package immutables
 
 import (
-	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common"
 )
 
 type InitConfig struct {
