@@ -51,7 +51,7 @@ abigen \
     --type ${TYPE} \
     --out ./${PACKAGE}/${TYPE_LOWER}.go
 
-# Place import "github.com/ethereum/go-ethereum" to "github.com/scroll-tech/go-ethereum"
+# Place import "github.com/ethereum/go-ethereum" to "github.com/morph-l2/go-ethereum"
 TO_REPLACED_STRING="github.com/ethereum/go-ethereum"
-NEW_STRING="github.com/scroll-tech/go-ethereum"
+NEW_STRING="github.com/morph-l2/go-ethereum"
 sed -i "" -e "s#${TO_REPLACED_STRING}#${NEW_STRING}#g" ./${PACKAGE}/${TYPE_LOWER}.go

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/ethclient"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	"morph-l2/node/types"

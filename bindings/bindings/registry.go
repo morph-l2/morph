@@ -5,7 +5,7 @@ import (
 
 	"morph-l2/bindings/solc"
 
-	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common"
 )
 
 var layouts = make(map[string]*solc.StorageLayout)

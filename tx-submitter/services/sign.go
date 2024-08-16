@@ -5,7 +5,7 @@ import (
 
 	"github.com/morph-l2/externalsign"
 
-	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/core/types"
 )
 
 var externalSigner *externalsign.ExternalSign

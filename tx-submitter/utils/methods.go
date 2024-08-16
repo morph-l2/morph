@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"github.com/scroll-tech/go-ethereum"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
 )
 
 func ToCallArg(msg ethereum.CallMsg) interface{} {

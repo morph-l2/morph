@@ -1,6 +1,6 @@
 package derivation
 
-import "github.com/scroll-tech/go-ethereum/crypto/kzg4844"
+import "github.com/morph-l2/go-ethereum/crypto/kzg4844"
 
 const (
 	BlobSize = 4096 * 32
