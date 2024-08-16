@@ -303,7 +303,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
-    function queryAllDelegateeUnclaimed(
+    /// @notice query all unclaimed morph reward epochs info
+    /// @param delegator     delegatee address
+    function queryAllUnclaimedEpochs(
         address delegator
     )
         external
