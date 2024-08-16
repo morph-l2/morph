@@ -8,8 +8,8 @@ import (
 
 	"morph-l2/tx-submitter/iface"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/log"
 )
 
 type Rotator struct {

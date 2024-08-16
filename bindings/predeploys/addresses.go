@@ -1,6 +1,6 @@
 package predeploys
 
-import "github.com/scroll-tech/go-ethereum/common"
+import "github.com/morph-l2/go-ethereum/common"
 
 const (
 	L2ToL1MessagePasser        = "0x5300000000000000000000000000000000000001"

@@ -10,10 +10,10 @@ import (
 	journal "morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/utils"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/accounts/abi"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/log"
 )
 
 type TxInfo struct {

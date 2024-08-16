@@ -4,11 +4,11 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/scroll-tech/go-ethereum"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/eth"
+	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/eth"
 )
 
 type Client interface {
