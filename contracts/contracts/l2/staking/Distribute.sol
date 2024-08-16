@@ -163,7 +163,6 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ) external onlyRecordContract {
         mintedEpochCount++;
         require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
-
         require(
             delegatorRewards.length == sequencers.length && commissions.length == sequencers.length,
             "invalid data length"
@@ -301,6 +300,28 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             }
             delegatees[j] = delegatee;
             rewards[j] = reward;
+        }
+    }
+
+    /// @notice query all unclaimed morph reward epochs info
+    /// @param delegator     delegatee address
+    function queryAllUnclaimedEpochs(
+        address delegator
+    )
+        external
+        view
+        returns (bool[] memory undelegated, uint256[] memory unclaimedStart, uint256[] memory unclaimedEnd)
+    {
+        uint256 length = unclaimed[delegator].delegatees.length();
+
+        undelegated = new bool[](length);
+        unclaimedStart = new uint256[](length);
+        unclaimedEnd = new uint256[](length);
+
+        for (uint256 i = 0; i < length; i++) {
+            undelegated[i] = unclaimed[delegator].undelegated[unclaimed[delegator].delegatees.at(i)];
+            unclaimedStart[i] = unclaimed[delegator].unclaimedStart[unclaimed[delegator].delegatees.at(i)];
+            unclaimedEnd[i] = unclaimed[delegator].unclaimedEnd[unclaimed[delegator].delegatees.at(i)];
         }
     }
 

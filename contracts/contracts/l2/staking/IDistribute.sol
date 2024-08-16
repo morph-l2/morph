@@ -78,6 +78,12 @@ interface IDistribute {
         address delegator
     ) external view returns (address[] memory delegatee, uint256[] memory reward);
 
+    /// @notice query all unclaimed morph reward epochs info
+    /// @param delegator     delegatee address
+    function queryAllUnclaimedEpochs(
+        address delegator
+    ) external view returns (bool[] memory undelegated, uint256[] memory unclaimedStart, uint256[] memory unclaimedEnd);
+
     /*****************************
      * Public Mutating Functions *
      *****************************/

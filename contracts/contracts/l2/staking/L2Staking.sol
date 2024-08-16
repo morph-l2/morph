@@ -461,9 +461,40 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /// @notice Get all the delegators which staked to staker
-    /// @param staker sequencers size
-    function getDelegators(address staker) external view returns (address[] memory) {
+    /// @param staker staker address
+    function getAllDelegators(address staker) external view returns (address[] memory) {
         return delegators[staker].values();
+    }
+
+    /// @notice Get the delegators length which staked to staker
+    /// @param staker staker address
+    function getDelegatorsLength(address staker) external view returns (uint256) {
+        return delegators[staker].length();
+    }
+
+    /// @notice Get the delegators which staked to staker in pagination
+    /// @param staker       staker address
+    /// @param pageSize     page size
+    /// @param pageIndex    page index
+    function getAllDelegatorsInPagination(
+        address staker,
+        uint256 pageSize,
+        uint256 pageIndex
+    ) external view returns (uint256 delegatorsTotalNumber, address[] memory delegatorsInPage) {
+        require(pageSize > 0, "invalid page size");
+
+        delegatorsTotalNumber = delegators[staker].length();
+        delegatorsInPage = new address[](pageSize);
+
+        uint256 start = pageSize * pageIndex;
+        uint256 end = pageSize * (pageIndex + 1) - 1;
+        if (end > (delegatorsTotalNumber - 1)) {
+            end = delegatorsTotalNumber - 1;
+        }
+        for (uint256 i = start; i <= end; i++) {
+            delegatorsInPage[i] = delegators[staker].at(i);
+        }
+        return (delegatorsTotalNumber, delegatorsInPage);
     }
 
     /// @notice get stakers info
