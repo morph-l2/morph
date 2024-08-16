@@ -49,6 +49,7 @@ export const deployContractProxies = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
+    config: any
 ): Promise<string> => {
     const L1CrossDomainMessengerStorageName = ProxyStorageName.L1CrossDomainMessengerProxyStorageName
     const L1MessageQueueWithGasPriceOracleProxyStorageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
@@ -60,26 +61,60 @@ export const deployContractProxies = async (
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
     const L1StandardERC20GatewayProxyStorageName = ProxyStorageName.L1StandardERC20GatewayProxyStorageName
     const L1CustomERC20GatewayProxyStorageName = ProxyStorageName.L1CustomERC20GatewayProxyStorageName
+    const L1WithdrawLockERC20GatewayProxyStorageName = ProxyStorageName.L1WithdrawLockERC20GatewayProxyStorageName
+    const L1ReverseCustomGatewayProxyStorageName = ProxyStorageName.L1ReverseCustomGatewayProxyStorageName
     const L1ERC721GatewayProxyStorageName = ProxyStorageName.L1ERC721GatewayProxyStorageName
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
     const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
     const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
+    const L1USDCGatewayProxyStorageName = ProxyStorageName.L1USDCGatewayProxyStorageName
 
     const WETHFactoryName = ContractFactoryName.WETH
     const WETHImplStorageName = ImplStorageName.WETH
 
+    const MockERC20FactoryName = ContractFactoryName.MockERC20
+    const USDCImplStorageName = ImplStorageName.USDC
+    let err = ""
 
     // ************************ token contracts deploy ************************
-    // L1WETH deploy
-    let Factory = await hre.ethers.getContractFactory(WETHFactoryName)
-    let contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", WETHImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    let blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storage(path, WETHImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (config.l1WETHAddress == "") {
+        // L1WETH deploy
+        let Factory = await hre.ethers.getContractFactory(WETHFactoryName)
+        let contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", WETHImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, WETHImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
+    } else {
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        err = await storage(path, WETHImplStorageName, config.l1WETHAddress.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
+    }
+
+    if (config.l1USDCAddress == "") {
+        // L1WETH deploy
+        let Factory = await hre.ethers.getContractFactory(MockERC20FactoryName)
+        let contract = await Factory.deploy("USDC","USDC",18)
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", USDCImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, USDCImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
+    } else {
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        err = await storage(path, USDCImplStorageName, config.l1USDCAddress.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ messenger contracts deploy ************************
@@ -134,6 +169,18 @@ export const deployContractProxies = async (
         return err
     }
 
+    // L1WithdrawLockERC20GatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1WithdrawLockERC20GatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
+    // L1ReverseCustomERC20GatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1ReverseCustomGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
     // L1ERC721GatewayProxy deploy
     err = await deployContractProxyByStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
     if (err != '') {
@@ -158,6 +205,11 @@ export const deployContractProxies = async (
         return err
     }
 
+    // L1USDCGatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1USDCGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
     // return nil
     return ''
 }
