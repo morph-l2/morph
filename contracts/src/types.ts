@@ -8,6 +8,7 @@ const ContractFactoryName = {
     EmptyContract: 'EmptyContract',
     // tokens
     WETH: 'WrappedEther',
+    MockERC20: 'MockERC20',
     // messenger
     L1CrossDomainMessenger: 'L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'L1MessageQueueWithGasPriceOracle',
@@ -21,7 +22,10 @@ const ContractFactoryName = {
     L1GatewayRouter: 'L1GatewayRouter',
     L1StandardERC20Gateway: 'L1StandardERC20Gateway',
     L1CustomERC20Gateway: 'L1CustomERC20Gateway',
+    L1WithdrawLockERC20Gateway: 'L1CustomERC20Gateway',
+    L1ReverseCustomGateway: 'L1ReverseCustomGateway',
     L1WETHGateway: 'L1WETHGateway',
+    L1USDCGateway: 'L1USDCGateway',
     L1ETHGateway: 'L1ETHGateway',
     L1ERC721Gateway: 'L1ERC721Gateway',
     L1ERC1155Gateway: 'L1ERC1155Gateway',
@@ -40,8 +44,11 @@ const ProxyStorageName = {
     L1GatewayRouterProxyStorageName: 'Proxy__L1GatewayRouter',
     L1StandardERC20GatewayProxyStorageName: 'Proxy__L1StandardERC20Gateway',
     L1CustomERC20GatewayProxyStorageName: 'Proxy__L1CustomERC20Gateway',
+    L1WithdrawLockERC20GatewayProxyStorageName: 'Proxy__L1WithdrawLockERC20Gateway',
+    L1ReverseCustomGatewayProxyStorageName: 'Proxy__L1ReverseCustomGateway',
     L1ETHGatewayProxyStorageName: 'Proxy__L1ETHGateway',
     L1WETHGatewayProxyStorageName: 'Proxy__L1WETHGateway',
+    L1USDCGatewayProxyStorageName: 'Proxy__L1USDCGateway',
     L1ERC721GatewayProxyStorageName: 'Proxy__L1ERC721Gateway',
     L1ERC1155GatewayProxyStorageName: 'Proxy__L1ERC1155Gateway',
     EnforcedTxGatewayProxyStorageName: "Proxy__EnforcedTxGateway"
@@ -55,6 +62,7 @@ const ImplStorageName = {
     EmptyContract: 'Impl__EmptyContract',
     // tokens
     WETH: 'Impl__WETH',
+    USDC: 'Impl__USDC',
     // messenger
     L1CrossDomainMessengerStorageName: 'Impl__L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'Impl__L1MessageQueueWithGasPriceOracle',
@@ -68,8 +76,11 @@ const ImplStorageName = {
     L1GatewayRouterStorageName: 'Impl__L1GatewayRouter',
     L1StandardERC20GatewayStorageName: 'Impl__L1StandardERC20Gateway',
     L1CustomERC20GatewayStorageName: 'Impl__L1CustomERC20Gateway',
+    L1WithdrawLockERC20GatewayStorageName: 'Impl__L1WithdrawLockERC20Gateway',
+    L1ReverseCustomGatewayStorageName: 'Impl__L1ReverseCustomGateway',
     L1ETHGatewayStorageName: 'Impl__L1ETHGateway',
     L1WETHGatewayStorageName: 'Impl__L1WETHGateway',
+    L1USDCGatewayStorageName: 'Impl__L1USDCGateway',
     L1ERC721GatewayStorageName: 'Impl__L1ERC721Gateway',
     L1ERC1155GatewayStorageName: 'Impl__L1ERC1155Gateway',
     EnforcedTxGatewayStorageName: "Impl__EnforcedTxGateway"
