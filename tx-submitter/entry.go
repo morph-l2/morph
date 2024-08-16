@@ -17,11 +17,11 @@ import (
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/externalsign"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/crypto"
-	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/log"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/crypto"
+	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )

@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/rpc"
 )
 
 var DefaultHomeDir = ".morphnode"

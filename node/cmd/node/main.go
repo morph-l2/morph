@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/scroll-tech/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/ethclient"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
 	"github.com/urfave/cli"

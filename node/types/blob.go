@@ -8,9 +8,9 @@ import (
 	"io"
 	"morph-l2/node/zstd"
 
-	eth "github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
-	"github.com/scroll-tech/go-ethereum/rlp"
+	eth "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
+	"github.com/morph-l2/go-ethereum/rlp"
 )
 
 const MaxBlobBytesSize = 4096 * 31

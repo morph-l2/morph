@@ -3,7 +3,7 @@ package localpool
 import (
 	"fmt"
 
-	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/core/types"
 )
 
 func EncodeTx(tx *types.Transaction) (string, error) {
