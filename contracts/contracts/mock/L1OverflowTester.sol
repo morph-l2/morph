@@ -3,8 +3,6 @@
 pragma solidity =0.8.24;
 
 import {ICrossDomainMessenger} from "./../libraries/ICrossDomainMessenger.sol";
-import {IL1CrossDomainMessenger} from "./../l1/IL1CrossDomainMessenger.sol";
-
 import {L2OverflowTester} from "./L2OverflowTester.sol";
 
 contract L1OverflowTester {
@@ -12,8 +10,6 @@ contract L1OverflowTester {
      * @notice Messenger contract on this domain.
      */
     ICrossDomainMessenger public immutable MESSENGER;
-
-    address public messenger;
 
     address public immutable OTHERTESTER;
 
@@ -27,20 +23,13 @@ contract L1OverflowTester {
         MESSENGER = ICrossDomainMessenger(_messenger);
         OTHERTESTER = _otherTester;
         gasLimit = _gasLimit;
-        messenger = _messenger;
     }
 
     function updateGasLimit(uint32 _gasLimit) public {
         gasLimit = _gasLimit;
     }
 
-    function crossHash(string calldata _message, uint256 count) public payable {
-        IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(
-            OTHERTESTER,
-            0,
-            abi.encodeCall(L2OverflowTester.hash, (_message, count)),
-            gasLimit,
-            address(bytes20(bytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")))
-        );
+    function crossHash(string calldata _message, uint256 count) public {
+        MESSENGER.sendMessage(OTHERTESTER, 0, abi.encodeCall(L2OverflowTester.hash, (_message, count)), gasLimit);
     }
 }
