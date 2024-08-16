@@ -3,6 +3,9 @@ const config = {
     contractAdmin: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
     l1FeeVaultRecipient: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
 
+    l1WETHAddress: "",
+    l1USDCAddress: "",
+    
     // chainID config
     l1ChainID: 900,
     l2ChainID: 53077,
