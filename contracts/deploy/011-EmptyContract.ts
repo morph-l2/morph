@@ -5,7 +5,7 @@ import "@nomiclabs/hardhat-waffle";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { storage } from "../src/deploy-utils";
+import { updateStorage } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
@@ -27,7 +27,7 @@ export const deployEmptyContract = async (
     // check params
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storage(path, EmptyContractImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await updateStorage(path, EmptyContractImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

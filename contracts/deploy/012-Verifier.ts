@@ -6,7 +6,7 @@ import fs from "fs";
 import {
     HardhatRuntimeEnvironment
 } from 'hardhat/types';
-import { assertContractVariable, storage } from "../src/deploy-utils";
+import { assertContractVariable, updateStorage } from "../src/deploy-utils";
 import {
     ImplStorageName,
     ProxyStorageName,
@@ -36,7 +36,7 @@ export const deployZkEvmVerifierV1 = async (
     await assertContractVariable(contract, 'PLONK_VERIFIER', receipt.contractAddress)
     const blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storage(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    let err = await updateStorage(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

@@ -142,6 +142,48 @@ export const storage = async (
     return ''
 }
 
+export const updateStorage = async (
+    path: string,
+    contractsName: string,
+    contractAddress: string,
+    deployedBlockNumber: number,
+): Promise<string> => {
+    let Contract = {
+        name: contractsName,
+        address: contractAddress,
+        time: new Date().toISOString(),
+        number: deployedBlockNumber
+    }
+
+    if (fs.existsSync(path)) {
+        let data = fs.readFileSync(path);
+        let array = JSON.parse(data);
+
+        const index = array.findIndex((item: any) => item.name === contractsName);
+
+        if (index !== -1) {
+            array[index] = Contract;
+        } else {
+            array.push(Contract);
+        }
+
+        const box = JSON.stringify(array, null, 2);
+        fs.writeFileSync(path, box, 'utf8', (err) => {
+            console.log(err);
+            return err;
+        });
+    } else {
+        const Contracts = [Contract];
+        const box = JSON.stringify(Contracts, null, 2);
+        fs.writeFileSync(path, box, 'utf8', (err) => {
+            console.log(err);
+            return err;
+        });
+    }
+
+    return '';
+}
+
 export const awaitCondition = async (
     cond: () => Promise<boolean>,
     rate = 1000,

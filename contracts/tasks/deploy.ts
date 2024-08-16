@@ -23,40 +23,57 @@ import { ethers } from "ethers";
 
 task("deploy")
     .addParam('storagepath')
+    .addOptionalParam('component', 'String of letters to control which contracts to deploy, e.g. "abcd"')
     .setAction(async (taskArgs, hre) => {
         // Initialization parameters
         const storagePath = taskArgs.storagepath
         const deployer = await hre.ethers.provider.getSigner();
+        let component = taskArgs.component || '';
+
         console.log('################################## console parameters ##################################')
         console.log('deployer :', await deployer.getAddress())
 
-        console.log('\n---------------------------------- deploy  ProxyAdmin ----------------------------------')
-        // ProxyAdmin
-        let err = await deployProxyAdmin(hre, storagePath, deployer)
-        if (err != '') {
-            console.log('Deploy deployProxyAdmin failed, err: ', err)
-            return
+        if (component === '') {
+            component = 'abcdefghijklmnop';
         }
-        console.log('\n---------------------------------- deploy  EmptyContract ----------------------------------')
-        // EmptyContract
-        err = await deployEmptyContract(hre, storagePath, deployer)
-        if (err != '') {
-            console.log('Deploy address manager failed, err: ', err)
-            return
+        let err = '';
+
+        if (component.includes('a')) {
+            console.log('\n---------------------------------- deploy  ProxyAdmin ----------------------------------')
+            // ProxyAdmin
+            let err = await deployProxyAdmin(hre, storagePath, deployer)
+            if (err != '') {
+                console.log('Deploy deployProxyAdmin failed, err: ', err)
+                return
+            }
         }
 
-        console.log('\n---------------------------------- deploy  Proxys ----------------------------------')
-        err = await deployContractProxies(hre, storagePath, deployer)
-        if (err != '') {
-            console.log('Deploy Proxys failed, err: ', err)
-            return
+        if (component.includes('b')) {
+            console.log('\n---------------------------------- deploy  EmptyContract ----------------------------------')
+            // EmptyContract
+            err = await deployEmptyContract(hre, storagePath, deployer)
+            if (err != '') {
+                console.log('Deploy address manager failed, err: ', err)
+                return
+            }
         }
 
-        console.log('\n---------------------------------- deploy  ZkEvmVerifierV1 ----------------------------------')
-        err = await deployZkEvmVerifierV1(hre, storagePath, deployer)
-        if (err != '') {
-            console.log('Deploy deploy ZkEvmVerifierV1 failed, err: ', err)
-            return
+        if (/[c-o]/.test(component)) {
+            console.log('\n---------------------------------- deploy  Proxys ----------------------------------')
+            err = await deployContractProxies(hre, storagePath, deployer, component)
+            if (err != '') {
+                console.log('Deploy Proxys failed, err: ', err)
+                return
+            }
+        }
+
+        if (component.includes('p')) {
+            console.log('\n---------------------------------- deploy  ZkEvmVerifierV1 ----------------------------------')
+            err = await deployZkEvmVerifierV1(hre, storagePath, deployer)
+            if (err != '') {
+                console.log('Deploy deploy ZkEvmVerifierV1 failed, err: ', err)
+                return
+            }
         }
     });
 
