@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	eth "github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/eth/catalyst"
+	"github.com/morph-l2/go-ethereum/common"
+	eth "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/eth/catalyst"
 	"github.com/stretchr/testify/require"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 
@@ -187,7 +187,7 @@ func TestValidateL1Messages(t *testing.T) {
 			NextL1MessageIndex: 11,
 			Transactions:       l1TxBytes,
 			SkippedTxs: []*eth.SkippedTransaction{
-				{Tx: *eth.NewTx(&skippedL1WithIndex10)},
+				{Tx: eth.NewTx(&skippedL1WithIndex10)},
 			},
 		}
 		collectedL1TxHashesCopy := append(collectedL1TxHashes, common.BigToHash(big.NewInt(int64(10))))
@@ -228,7 +228,7 @@ func TestValidateL1Messages(t *testing.T) {
 			NextL1MessageIndex: 10,
 			Transactions:       l1TxBytes,
 			SkippedTxs: []*eth.SkippedTransaction{
-				{Tx: *skippedTx},
+				{Tx: skippedTx},
 			},
 		}
 		err = executor.validateL1Messages(thisBlock, collectedL1TxHashes)
@@ -238,7 +238,7 @@ func TestValidateL1Messages(t *testing.T) {
 			NextL1MessageIndex: 10,
 			Transactions:       l1TxBytes,
 			SkippedTxs: []*eth.SkippedTransaction{
-				{Tx: *skippedTx},
+				{Tx: skippedTx},
 			},
 		}
 		err = executor.validateL1Messages(thisBlock, collectedL1TxHashes)

@@ -7,13 +7,13 @@ import (
 	"math/big"
 	"strconv"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind/backends"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/rlp"
-	"github.com/scroll-tech/go-ethereum/trie"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind/backends"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/rlp"
+	"github.com/morph-l2/go-ethereum/trie"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
@@ -92,6 +92,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 			Name: "L2CustomERC20Gateway",
 		},
 		{
+			Name: "L2ReverseCustomGateway",
+		},
+		{
 			Name: "L2ERC721Gateway",
 		},
 		{
@@ -111,6 +114,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 			Args: []interface{}{
 				immutable["L2WETHGateway"]["l1WETH"],
 			},
+		},
+		{
+			Name: "L2WithdrawLockERC20Gateway",
 		},
 		{
 			Name: "L2WETH",
@@ -137,7 +143,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 		return nil, nil, err
 	}
 	var lastTx *types.Transaction
-	var transferTx *types.Transaction
 	for _, dep := range deployments {
 		results[dep.Name] = dep.Bytecode
 		switch dep.Name {
@@ -155,11 +160,7 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
-			lastTx, err = l2Sequencer.Initialize(opts, addresses)
-			if err != nil {
-				return nil, nil, err
-			}
-			transferTx, err = l2Sequencer.TransferOwnership(opts, config.L2StakingOwner)
+			lastTx, err = l2Sequencer.Initialize(opts, config.L2StakingOwner, addresses)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -185,15 +186,12 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			}
 			lastTx, err = l2Staking.Initialize(
 				opts,
+				config.L2StakingOwner,
 				new(big.Int).SetUint64(config.L2StakingSequencersMaxSize),
 				new(big.Int).SetUint64(config.L2StakingUnDelegateLockEpochs),
 				new(big.Int).SetUint64(config.L2StakingRewardStartTime),
 				infos,
 			)
-			if err != nil {
-				return nil, nil, err
-			}
-			transferTx, err = l2Staking.TransferOwnership(opts, config.L2StakingOwner)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -226,11 +224,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 	slotResults := make(SlotResults)
 	if lastTx != nil {
 		backend.Commit()
-		if transferTx != nil {
-			if _, err = bind.WaitMined(context.Background(), backend, transferTx); err != nil {
-				return nil, nil, err
-			}
-		}
 		if _, err = bind.WaitMined(context.Background(), backend, lastTx); err != nil {
 			return nil, nil, err
 		}
@@ -301,6 +294,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2StandardERC20Gateway(opts, backend)
 	case "L2CustomERC20Gateway":
 		_, tx, _, err = bindings.DeployL2CustomERC20Gateway(opts, backend)
+	case "L2ReverseCustomGateway":
+		_, tx, _, err = bindings.DeployL2ReverseCustomGateway(opts, backend)
 	case "L2ERC721Gateway":
 		_, tx, _, err = bindings.DeployL2ERC721Gateway(opts, backend)
 	case "L2ERC1155Gateway":
@@ -311,6 +306,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for l1weth")
 		}
 		_, tx, _, err = bindings.DeployL2WETHGateway(opts, backend, predeploys.L2WETHAddr, l1weth)
+	case "L2WithdrawLockERC20Gateway":
+		_, tx, _, err = bindings.DeployL2WithdrawLockERC20Gateway(opts, backend)
 	case "L2WETH":
 		_, tx, _, err = bindings.DeployWrappedEther(opts, backend)
 	case "ProxyAdmin":

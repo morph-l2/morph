@@ -3,9 +3,9 @@ package eth
 import (
 	"fmt"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
 )
 
 // EncodeTransactions encodes a list of transactions into opaque transactions.

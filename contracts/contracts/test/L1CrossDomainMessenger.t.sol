@@ -18,7 +18,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
     uint256 L1CrossDomainMessenger_provenWithdrawals_slot = 251;
     uint256 L1CrossDomainMessenger_FeeVault_slot = 203;
     address refundAddress = address(2048);
-    address counterpartGateway; 
+    address counterpartGateway;
 
     function setUp() public virtual override {
         super.setUp();
@@ -41,10 +41,10 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         // Deploy a TransparentUpgradeableProxy contract for l1CrossDomainMessengerProxyTemp.
         TransparentUpgradeableProxy l1CrossDomainMessengerProxyTemp = new TransparentUpgradeableProxy(
-                address(emptyContract),
-                address(multisig),
-                new bytes(0)
-            );
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
 
         // Deploy L1CrossDomainMessenger implementation.
         L1CrossDomainMessenger l1CrossDomainMessengerImplTemp = new L1CrossDomainMessenger();
@@ -53,37 +53,25 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         // Expect revert due to feeVault being zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
-        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
-            .upgradeToAndCall(
-                address(l1CrossDomainMessengerImplTemp),
-                abi.encodeCall(
-                    L1CrossDomainMessenger.initialize,
-                    (address(0), rollup, messageQueue)
-                )
-            );
+        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp)).upgradeToAndCall(
+            address(l1CrossDomainMessengerImplTemp),
+            abi.encodeCall(L1CrossDomainMessenger.initialize, (address(0), rollup, messageQueue))
+        );
 
         // Expect revert due to rollup being zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
-        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
-            .upgradeToAndCall(
-                address(l1CrossDomainMessengerImplTemp),
-                abi.encodeCall(
-                    L1CrossDomainMessenger.initialize,
-                    (feeVault, address(0), messageQueue)
-                )
-            );
+        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp)).upgradeToAndCall(
+            address(l1CrossDomainMessengerImplTemp),
+            abi.encodeCall(L1CrossDomainMessenger.initialize, (feeVault, address(0), messageQueue))
+        );
 
         // Expect revert due to messageQueue being zero address.
         hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
-        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
-            .upgradeToAndCall(
-                address(l1CrossDomainMessengerImplTemp),
-                abi.encodeCall(
-                    L1CrossDomainMessenger.initialize,
-                    (feeVault, rollup, address(0))
-                )
-            );
-        
+        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp)).upgradeToAndCall(
+            address(l1CrossDomainMessengerImplTemp),
+            abi.encodeCall(L1CrossDomainMessenger.initialize, (feeVault, rollup, address(0)))
+        );
+
         hevm.stopPrank();
     }
 
@@ -92,10 +80,10 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         // Deploy a TransparentUpgradeableProxy contract for l1CrossDomainMessengerProxyTemp.
         TransparentUpgradeableProxy l1CrossDomainMessengerProxyTemp = new TransparentUpgradeableProxy(
-                address(emptyContract),
-                address(multisig),
-                new bytes(0)
-            );
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
 
         // Deploy L1CrossDomainMessenger implementation.
         L1CrossDomainMessenger l1CrossDomainMessengerImplTemp = new L1CrossDomainMessenger();
@@ -104,16 +92,17 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         hevm.expectEmit(false, false, false, true);
         emit IL1CrossDomainMessenger.UpdateMaxReplayTimes(0, 3);
 
-        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp))
-            .upgradeToAndCall(
-                address(l1CrossDomainMessengerImplTemp),
-                abi.encodeCall(
-                    L1CrossDomainMessenger.initialize,
-                    (l1FeeVault, address(l1CrossDomainMessengerProxyTemp), address(l1CrossDomainMessengerProxyTemp))
-                )
-            );
+        ITransparentUpgradeableProxy(address(l1CrossDomainMessengerProxyTemp)).upgradeToAndCall(
+            address(l1CrossDomainMessengerImplTemp),
+            abi.encodeCall(
+                L1CrossDomainMessenger.initialize,
+                (l1FeeVault, address(l1CrossDomainMessengerProxyTemp), address(l1CrossDomainMessengerProxyTemp))
+            )
+        );
 
-        L1CrossDomainMessenger l1CrossDomainMessengerTemp = L1CrossDomainMessenger(payable(address(l1CrossDomainMessengerProxyTemp)));
+        L1CrossDomainMessenger l1CrossDomainMessengerTemp = L1CrossDomainMessenger(
+            payable(address(l1CrossDomainMessengerProxyTemp))
+        );
         hevm.stopPrank();
 
         // Verify the state variable maxReplayTimes is initialized successfully.
@@ -140,15 +129,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         // prove without rollup
         hevm.expectRevert("Messenger: withdrawalRoot not finalized");
-        l1CrossDomainMessenger.proveAndRelayMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
+        l1CrossDomainMessenger.proveAndRelayMessage(from, to, value, nonce, message, wdProof, wdRoot);
 
         // Verify the RelayedMessage event is emitted successfully.
         hevm.expectEmit(true, true, true, true);
@@ -166,25 +147,13 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
 
         // prove again
         hevm.expectRevert("Messenger: withdrawal has already been finalized");
-        l1CrossDomainMessenger.proveAndRelayMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
+        l1CrossDomainMessenger.proveAndRelayMessage(from, to, value, nonce, message, wdProof, wdRoot);
 
         message = "FailedRelayedMessage";
-        _xDomainCalldataHash = keccak256(
-            _encodeXDomainCalldata(from, to, value, nonce, message)
-        );
+        _xDomainCalldataHash = keccak256(_encodeXDomainCalldata(from, to, value, nonce, message));
         // get proof from ffi
         _appendMessageHash(_xDomainCalldataHash);
-        (wdHashRes, wdProof, wdRoot) = ffi.getProveWithdrawalTransactionInputs(
-            _xDomainCalldataHash
-        );
+        (wdHashRes, wdProof, wdRoot) = ffi.getProveWithdrawalTransactionInputs(_xDomainCalldataHash);
         // mock call rollup withdrawal root submitted success
         hevm.mockCall(
             address(l1CrossDomainMessenger.rollup()),
@@ -194,56 +163,24 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         // verify the event FailedRelayedMessage can be emitted successfully.
         hevm.expectEmit(true, true, true, true);
         emit ICrossDomainMessenger.FailedRelayedMessage(_xDomainCalldataHash);
-        l1CrossDomainMessenger.proveAndRelayMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
+        l1CrossDomainMessenger.proveAndRelayMessage(from, to, value, nonce, message, wdProof, wdRoot);
 
         // verify it throws the error "Messenger: Forbid to call message queue" when the address of to is equal to messageQueue.
         to = address(l1CrossDomainMessenger.messageQueue());
         hevm.expectRevert("Messenger: Forbid to call message queue");
-        l1CrossDomainMessenger.proveAndRelayMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
+        l1CrossDomainMessenger.proveAndRelayMessage(from, to, value, nonce, message, wdProof, wdRoot);
 
         // verify it throws the error "Messenger: Forbid to call message queue" when the address of from is equal to xDomainMessageSender.
         to = address(bob);
         from = address(l1CrossDomainMessenger.xDomainMessageSender());
         hevm.expectRevert("Messenger: Invalid message sender");
-        l1CrossDomainMessenger.proveAndRelayMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
+        l1CrossDomainMessenger.proveAndRelayMessage(from, to, value, nonce, message, wdProof, wdRoot);
 
         // verify it throws the error "Messenger: invalid withdrawal inclusion" when verifyMerkleProof returns false.
         from = address(alice);
         message = "invalid";
         hevm.expectRevert("Messenger: invalid withdrawal inclusion proof");
-        l1CrossDomainMessenger.proveAndRelayMessage(
-            from,
-            to,
-            value,
-            nonce,
-            message,
-            wdProof,
-            wdRoot
-        );
+        l1CrossDomainMessenger.proveAndRelayMessage(from, to, value, nonce, message, wdProof, wdRoot);
     }
 
     function test_replayMessage_succeeds(uint256 exceedValue) external {
@@ -442,57 +379,25 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         _xDomainCalldata = _encodeXDomainCalldata(sender, to, value, nonce, data);
         gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(_xDomainCalldata);
         hevm.expectRevert("Insufficient msg.value");
-        l1CrossDomainMessenger.sendMessage{value: 1 ether}(
-            to,
-            value,
-            data,
-            gas
-        );
+        l1CrossDomainMessenger.sendMessage{value: 1 ether}(to, value, data, gas);
         // give enough value
-        uint256 fee = l1MessageQueueWithGasPriceOracle
-            .estimateCrossDomainMessageFee(sender, gas);
-        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(
-            to,
-            value,
-            data,
-            gas
-        );
+        uint256 fee = l1MessageQueueWithGasPriceOracle.estimateCrossDomainMessageFee(sender, gas);
+        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(to, value, data, gas);
 
         // send more value with refund address
-        fee = l1MessageQueueWithGasPriceOracle.estimateCrossDomainMessageFee(
-            sender,
-            gas
-        );
-        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee * 2}(
-            to,
-            value,
-            data,
-            gas,
-            refundAddress
-        );
+        fee = l1MessageQueueWithGasPriceOracle.estimateCrossDomainMessageFee(sender, gas);
+        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee * 2}(to, value, data, gas, refundAddress);
         assertEq(address(refundAddress).balance, fee);
 
         // verify refundAddress.call() failed, trigger the error message "Failed to refund the fee" as expected.
         ReceiveRevert receiveRevert = new ReceiveRevert();
         hevm.expectRevert("Failed to refund the fee");
-        l1CrossDomainMessenger.sendMessage{value: 2 ether}(
-            to,
-            value,
-            data,
-            gas,
-            address(receiveRevert)
-        );
+        l1CrossDomainMessenger.sendMessage{value: 2 ether}(to, value, data, gas, address(receiveRevert));
 
         // verify the call is executed as expected, and the fee is added into the balance of the feeVault.
         uint256 initialFeeVaultBalance = l1FeeVault.balance;
-        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(
-            to,
-            value,
-            data,
-            gas
-        );
+        l1CrossDomainMessenger.sendMessage{value: 1 ether + fee}(to, value, data, gas);
         assertEq(address(l1FeeVault).balance, initialFeeVaultBalance + fee);
-
 
         // verify it throws a "Failed to refund the fee" error when the call fails.
         hevm.store(
@@ -501,13 +406,7 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
             bytes32(abi.encode(address(receiveRevert)))
         );
         hevm.expectRevert("Failed to deduct the fee");
-        l1CrossDomainMessenger.sendMessage{value: 2 ether}(
-            to,
-            value,
-            data,
-            gas,
-            refundAddress
-        );
+        l1CrossDomainMessenger.sendMessage{value: 2 ether}(to, value, data, gas, refundAddress);
     }
 
     function test_sendMessage_twice_succeeds() external {
@@ -519,16 +418,8 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         // send value zero
         uint256 value = 0;
         uint256 nonce = l1CrossDomainMessenger.messageNonce();
-        bytes memory _xDomainCalldata = _encodeXDomainCalldata(
-            sender,
-            to,
-            value,
-            nonce,
-            data
-        );
-        uint256 gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(
-            _xDomainCalldata
-        );
+        bytes memory _xDomainCalldata = _encodeXDomainCalldata(sender, to, value, nonce, data);
+        uint256 gas = l1MessageQueueWithGasPriceOracle.calculateIntrinsicGasFee(_xDomainCalldata);
 
         // Tests that the sendMessage function is able to send the same message twice.
         l1CrossDomainMessenger.sendMessage(to, value, data, gas);
@@ -551,23 +442,14 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         l1CrossDomainMessenger.dropMessage(sender, to, value, nonce, data);
     }
 
-    function test_dropMessage_succeeds(
-        uint256 amount,
-        address recipient,
-        bytes memory dataToCall
-    ) public {
+    function test_dropMessage_succeeds(uint256 amount, address recipient, bytes memory dataToCall) public {
         amount = bound(amount, 1, address(this).balance);
         bytes memory message = abi.encodeCall(
             IL2ETHGateway.finalizeDepositETH,
             (address(this), recipient, amount, dataToCall)
         );
 
-        l1ETHGateway.depositETHAndCall{value: amount}(
-            recipient,
-            amount,
-            dataToCall,
-            defaultGasLimit
-        );
+        l1ETHGateway.depositETHAndCall{value: amount}(recipient, amount, dataToCall, defaultGasLimit);
 
         // skip message 0
         hevm.startPrank(address(rollup));
@@ -578,33 +460,18 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         // Drop message 0 and verify balance
         revertOnReceive = false;
         uint256 balance = address(this).balance;
-        l1CrossDomainMessenger.dropMessage(
-            address(l1ETHGateway),
-            address(counterpartGateway),
-            amount,
-            0,
-            message
-        );
+        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
         assertEq(balance + amount, address(this).balance);
     }
 
-    function test_dropMessage_dropAgain_reverts(
-        uint256 amount,
-        address recipient,
-        bytes memory dataToCall
-    ) public {
+    function test_dropMessage_dropAgain_reverts(uint256 amount, address recipient, bytes memory dataToCall) public {
         amount = bound(amount, 1, address(this).balance);
         bytes memory message = abi.encodeCall(
             IL2ETHGateway.finalizeDepositETH,
             (address(this), recipient, amount, dataToCall)
         );
 
-        l1ETHGateway.depositETHAndCall{value: amount}(
-            recipient,
-            amount,
-            dataToCall,
-            defaultGasLimit
-        );
+        l1ETHGateway.depositETHAndCall{value: amount}(recipient, amount, dataToCall, defaultGasLimit);
 
         // skip message 0
         hevm.startPrank(address(rollup));
@@ -615,24 +482,12 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         // Drop message 0 and verify balance
         revertOnReceive = false;
         uint256 balance = address(this).balance;
-        l1CrossDomainMessenger.dropMessage(
-            address(l1ETHGateway),
-            address(counterpartGateway),
-            amount,
-            0,
-            message
-        );
+        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
         assertEq(balance + amount, address(this).balance);
 
         // Expect revert when trying to drop the same message again.
         hevm.expectRevert("Message already dropped");
-        l1CrossDomainMessenger.dropMessage(
-            address(l1ETHGateway),
-            address(counterpartGateway),
-            amount,
-            0,
-            message
-        );
+        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
     }
 
     function test_updateMaxReplayTimes_succeeds(uint256 _maxReplayTimes) external {

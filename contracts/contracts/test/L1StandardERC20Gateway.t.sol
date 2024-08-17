@@ -66,7 +66,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         L1StandardERC20Gateway l1StandardERC20GatewayImplTemp = new L1StandardERC20Gateway();
 
         // Expect revert due to zero counterpart address.
-        hevm.expectRevert("zero counterpart address");  
+        hevm.expectRevert("zero counterpart address");
         ITransparentUpgradeableProxy(address(l1StandardERC20GatewayProxyTemp)).upgradeToAndCall(
             address(l1StandardERC20GatewayImplTemp),
             abi.encodeCall(
@@ -159,7 +159,7 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
 
         // Deploy a new L1StandardERC20Gateway contract.
         L1StandardERC20Gateway l1StandardERC20GatewayImplTemp = new L1StandardERC20Gateway();
-        
+
         // Initialize the proxy with the new implementation.
         ITransparentUpgradeableProxy(address(l1StandardERC20GatewayProxyTemp)).upgradeToAndCall(
             address(l1StandardERC20GatewayImplTemp),
@@ -177,7 +177,9 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         hevm.stopPrank();
 
         // Cast the proxy contract address to the L1StandardERC20Gateway contract type to call its methods.
-        L1StandardERC20Gateway l1StandardERC20GatewayTemp = L1StandardERC20Gateway(address(l1StandardERC20GatewayProxyTemp));
+        L1StandardERC20Gateway l1StandardERC20GatewayTemp = L1StandardERC20Gateway(
+            address(l1StandardERC20GatewayProxyTemp)
+        );
 
         // Verify the counterpart, router, messenger, l2TokenImplementation, and l2TokenFactory are initialized successfully.
         assertEq(l1StandardERC20GatewayTemp.counterpart(), address(1));
@@ -319,13 +321,13 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         assertEq(balance + amount, l1Token.balanceOf(address(this)));
     }
 
-    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public{
+    function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public {
         address recipient = address(2048);
         address _from = address(counterpartGateway);
 
         // Assign 10 ether to the required addresses.
-        hevm.deal(_from, 10 ether);   
-        hevm.deal(address(l1CrossDomainMessenger), 10 ether);   
+        hevm.deal(_from, 10 ether);
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);
 
         // Start simulating the calls as l1CrossDomainMessenger.
         hevm.startPrank(address(l1CrossDomainMessenger));
@@ -339,8 +341,15 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
 
         // Expect revert due to non-zero msg.value.
         hevm.expectRevert("nonzero msg.value");
-        l1StandardERC20Gateway.finalizeWithdrawERC20{value: 1}(address(l1Token), address(l2Token), _from, recipient, 1, "");
-        
+        l1StandardERC20Gateway.finalizeWithdrawERC20{value: 1}(
+            address(l1Token),
+            address(l2Token),
+            _from,
+            recipient,
+            1,
+            ""
+        );
+
         // Expect revert due to _l2Token being zero.
         hevm.expectRevert("token address cannot be 0");
         l1StandardERC20Gateway.finalizeWithdrawERC20(address(l1Token), address(0), _from, recipient, 1, "");
@@ -467,9 +476,9 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
 
     function test_onDropMessage_beforeDropMessage_reverts() public {
         uint256 amount = 1000;
-        
+
         // Assign 10 ether to l1CrossDomainMessenger.
-        hevm.deal(address(l1CrossDomainMessenger), 10 ether);   
+        hevm.deal(address(l1CrossDomainMessenger), 10 ether);
 
         // Deposit some tokens to L1StandardERC20Gateway.
         l1StandardERC20Gateway.depositERC20(address(l1Token), amount, defaultGasLimit);
@@ -478,7 +487,14 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         bytes memory data = new bytes(0);
         bytes memory message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
-            (address(l1Token), l1StandardERC20Gateway.getL2ERC20Address(address(l1Token)), address(this), address(this), amount, data)
+            (
+                address(l1Token),
+                l1StandardERC20Gateway.getL2ERC20Address(address(l1Token)),
+                address(this),
+                address(this),
+                amount,
+                data
+            )
         );
 
         hevm.startPrank(address(l1CrossDomainMessenger));

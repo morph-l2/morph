@@ -31,9 +31,13 @@ export const deployContractImpls = async (
     const L1ETHGatewayFactoryName = ContractFactoryName.L1ETHGateway
     const L1StandardERC20GatewayFactoryName = ContractFactoryName.L1StandardERC20Gateway
     const L1CustomERC20GatewayFactoryName = ContractFactoryName.L1CustomERC20Gateway
+    const L1WithdrawLockERC20GatewayFactoryName = ContractFactoryName.L1WithdrawLockERC20Gateway
+    const L1ReverseCustomGatewayFactoryName = ContractFactoryName.L1ReverseCustomGateway
     const L1ERC721GatewayFactoryName = ContractFactoryName.L1ERC721Gateway
     const L1ERC1155GatewayFactoryName = ContractFactoryName.L1ERC1155Gateway
     const L1WETHGatewayFactoryName = ContractFactoryName.L1WETHGateway
+    const L1USDCGatewayFactoryName = ContractFactoryName.L1USDCGateway
+    const EnforcedTxGatewayFactoryName = ContractFactoryName.EnforcedTxGateway
 
     // implement storage name
     const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
@@ -44,10 +48,14 @@ export const deployContractImpls = async (
     const L1ETHGatewayImplStorageName = ImplStorageName.L1ETHGatewayStorageName
     const L1StandardERC20GatewayImplStorageName = ImplStorageName.L1StandardERC20GatewayStorageName
     const L1CustomERC20GatewayImplStorageName = ImplStorageName.L1CustomERC20GatewayStorageName
+    const L1WithdrawLockERC20GatewayImplStorageName = ImplStorageName.L1WithdrawLockERC20GatewayStorageName
+    const L1ReverseCustomGatewayImplStorageName = ImplStorageName.L1ReverseCustomGatewayStorageName
     const L1WETHGatewayImplStorageName = ImplStorageName.L1WETHGatewayStorageName
+    const L1USDCGatewayImplStorageName = ImplStorageName.L1USDCGatewayStorageName
     const L1ERC721GatewayImplStorageName = ImplStorageName.L1ERC721GatewayStorageName
     const L1ERC1155GatewayImplStorageName = ImplStorageName.L1ERC1155GatewayStorageName
     const WhitelistImplStorageName = ImplStorageName.Whitelist
+    const EnforcedTxGatewayStorageName = ImplStorageName.EnforcedTxGatewayStorageName
 
     // proxy contract address
     const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
@@ -144,6 +152,30 @@ export const deployContractImpls = async (
         return err
     }
 
+    // L1WithdrawLockERC20Gateway deploy
+    Factory = await hre.ethers.getContractFactory(L1WithdrawLockERC20GatewayFactoryName)
+    contract = await Factory.deploy()
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", L1WithdrawLockERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storage(path, L1WithdrawLockERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
+    // L1ReverseCustomGateway deploy
+    Factory = await hre.ethers.getContractFactory(L1ReverseCustomGatewayFactoryName)
+    contract = await Factory.deploy()
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", L1ReverseCustomGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storage(path, L1ReverseCustomGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
     // L1ETHGateway deploy
     Factory = await hre.ethers.getContractFactory(L1ETHGatewayFactoryName)
     contract = await Factory.deploy()
@@ -152,6 +184,44 @@ export const deployContractImpls = async (
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storage(path, L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
+    // L1WETHGateway deploy
+    const WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
+    Factory = await hre.ethers.getContractFactory(L1WETHGatewayFactoryName)
+    contract = await Factory.deploy(WETHAddress, predeploys.L2WETH)
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storage(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
+    // L1USDCGateway deploy
+    const L1USDCAddress = getContractAddressByName(path, ImplStorageName.USDC)
+    Factory = await hre.ethers.getContractFactory(L1USDCGatewayFactoryName)
+    contract = await Factory.deploy(L1USDCAddress, predeploys.L2USDC)
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storage(path, L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
+    // EnforcedTxGateway deploy
+    Factory = await hre.ethers.getContractFactory(EnforcedTxGatewayFactoryName)
+    contract = await Factory.deploy()
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", EnforcedTxGatewayStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storage(path, EnforcedTxGatewayStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
@@ -176,19 +246,6 @@ export const deployContractImpls = async (
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storage(path, L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
-    }
-
-    // L1WETHGateway deploy
-    const WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
-    Factory = await hre.ethers.getContractFactory(L1WETHGatewayFactoryName)
-    contract = await Factory.deploy(WETHAddress, predeploys.L2WETH)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

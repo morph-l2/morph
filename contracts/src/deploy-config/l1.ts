@@ -3,6 +3,9 @@ const config = {
     contractAdmin: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
     l1FeeVaultRecipient: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
 
+    l1WETHAddress: "",
+    l1USDCAddress: "",
+    
     // chainID config
     l1ChainID: 900,
     l2ChainID: 53077,
@@ -17,15 +20,12 @@ const config = {
     // initialize config
     rollupMaxNumTxInChunk: 100,
     finalizationPeriodSeconds: 10,
-    rollupBatchIndex: 0,
     rollupProofWindow: 86400,
     // challenge config
     rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
     rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
     // genesis config
-    rollupGenesisStateRoot: '0x06374560ac61775a9ee81644c875754fc69029a05a32becf6ebc2c801070db0e',
-    withdrawRoot: '0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757',
-    batchHeader: '0x000000000000000000000000000000000000000000000000001c886dcf76b0d43e796488c6ed2776179e359d8f567f1e06faee36357b06fa04010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c4440140000000000000000000000000000000000000000000000000000000000000000',
+    batchHeader: '0x00000000000000000000000000000000000000000000000000a2670138daba658558f31d1a7bad165578ccf46bc03652344709b6fe07c854c7010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014000000000000000000000000000000000000000000000000000000000000000028c72a27b523abe62e212d04b427c50b684c614d5ebe6c784180a1f79ca36dd2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
 
     // staking config
     // staking Cross-Chain config
@@ -34,7 +34,8 @@ const config = {
 
     // staking initialize config
     stakingLockNumber: 3,
-    stakingMinDeposit: 1, // limit
+    stakingChallengeDeposit: 1, // 1 ether
+    stakingMinDeposit: 1, // 1 ether
     stakingChallengerRewardPercentage: 100,
     // register sequencers
     l2SequencerAddresses: [

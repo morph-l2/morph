@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/rlp"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/rlp"
 )
 
 type BatchData struct {

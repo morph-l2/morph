@@ -2,9 +2,11 @@
 pragma solidity =0.8.24;
 
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
+import {IDistribute} from "../l2/staking/IDistribute.sol";
 
 contract DistributeTest is L2StakingBaseTest {
     address public firstStaker;
+    address public secondStaker;
     uint256 public mockReward;
     uint256 public mockCommission;
 
@@ -12,6 +14,7 @@ contract DistributeTest is L2StakingBaseTest {
         super.setUp();
 
         firstStaker = address(uint160(beginSeq));
+        secondStaker = address(uint160(beginSeq + 1));
         mockReward = 10 ether;
         mockCommission = 1 ether;
     }
@@ -41,7 +44,7 @@ contract DistributeTest is L2StakingBaseTest {
     function test_initialize_onlyOnce_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        distribute.initialize();
+        distribute.initialize(multisig);
     }
 
     /**
@@ -100,6 +103,10 @@ contract DistributeTest is L2StakingBaseTest {
 
         uint256 reward = distribute.queryUnclaimed(firstStaker, alice);
         assertEq(reward, mockReward);
+
+        // Verify the RewardClaimed event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IDistribute.RewardClaimed(alice, firstStaker, 0, mockReward);
 
         // delegator claim
         uint256 balanceBefore = morphToken.balanceOf(alice);
@@ -180,6 +187,34 @@ contract DistributeTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice claimAll: Test claiming rewards from multiple delegatees.
+     */
+    function test_claimAll_multipleDelegatees_succeeds() public {
+        // Notify delegation from two stakers: 10 ether and 5 ether to Alice
+        hevm.startPrank(address(l2Staking));
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+        distribute.notifyDelegation(secondStaker, alice, 0, 5 ether, 5 ether, 1, true);
+        hevm.stopPrank();
+
+        // Update the epoch reward for epoch 0.
+        _update_epoch_reward(0);
+
+        // Transfer 100 ether to the distribute contract from multisig
+        hevm.prank(multisig);
+        morphToken.transfer(address(distribute), 100 ether);
+
+        uint256 rewardBefore = morphToken.balanceOf(alice);
+
+        // Claim all rewards for Alice for epoch 0
+        hevm.prank(address(l2Staking));
+        distribute.claimAll(alice, 0);
+        uint256 rewardAfter = morphToken.balanceOf(alice);
+
+        // Verify Alice claimed the expected amount of rewards (mockReward * 2).
+        assertEq(rewardAfter, rewardBefore + mockReward * 2);
+    }
+
+    /**
      * @notice updateEpochReward: only record contract allowed
      */
     function test_updateEpochReward_paramsCheck_reverts() public {
@@ -209,5 +244,66 @@ contract DistributeTest is L2StakingBaseTest {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
         distribute.claimCommission(address(0), 0);
+    }
+
+    /**
+     * @notice claimCommission: expect revert if tokens are not minted yet
+     */
+    function test_claimCommission_notMinted_reverts() public {
+        hevm.expectRevert("not minted yet");
+        hevm.prank(address(l2Staking));
+        distribute.claimCommission(address(0), 0);
+    }
+
+    /**
+     * @notice claimCommission: claim commission and update nextEpochToClaimCommission
+     */
+    function test_claimCommission_succeeds() public {
+        // Simulate l2Staking address to notify delegation.
+        hevm.prank(address(l2Staking));
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+
+        // Update the epoch reward for epoch 0.
+        _update_epoch_reward(0);
+
+        // Transfer 10 ether to the distribute contract from multisig.
+        hevm.prank(multisig);
+        morphToken.transfer(address(distribute), 10 ether);
+
+        // Expect the CommissionClaimed event to be emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IDistribute.CommissionClaimed(firstStaker, 0, 1 ether);
+
+        uint256 beforeReward = morphToken.balanceOf(firstStaker);
+
+        // Simulate l2Staking address to claim the commission for the first staker for epoch 0
+        hevm.prank(address(l2Staking));
+        distribute.claimCommission(firstStaker, 0);
+        uint256 afterReward = morphToken.balanceOf(firstStaker);
+
+        // Verify the reward after claiming is the reward before plus the mock commission.
+        assertEq(afterReward, beforeReward + mockCommission);
+
+        // Verify the next epoch to claim commission for firstStaker is updated to 1.
+        assertEq(distribute.nextEpochToClaimCommission(firstStaker), 1);
+    }
+
+    /**
+     * @notice claimCommission: expect revert "all commission claimed"
+     */
+    function test_claimCommission_allCommissionClaimed_reverts() public {
+        hevm.prank(address(l2Staking));
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+        _update_epoch_reward(0);
+
+        hevm.prank(multisig);
+        morphToken.transfer(address(distribute), 10 ether);
+
+        hevm.prank(address(l2Staking));
+        distribute.claimCommission(firstStaker, 0);
+
+        hevm.expectRevert("all commission claimed");
+        hevm.prank(address(l2Staking));
+        distribute.claimCommission(firstStaker, 0);
     }
 }

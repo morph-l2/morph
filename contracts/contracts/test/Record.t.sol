@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {IRecord} from "../l2/staking/IRecord.sol";
+import {Record} from "../l2/staking/Record.sol";
+import {Types} from "../libraries/common/Types.sol";
 
 contract RecordTest is L2StakingBaseTest {
     function setUp() public virtual override {
@@ -15,7 +18,80 @@ contract RecordTest is L2StakingBaseTest {
     function test_initialize_onlyOnce_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        record.initialize(address(0), 1);
+        record.initialize(multisig, address(0), 1);
+    }
+
+    /**
+     * @notice initialize: Reverts if next batch submission index is zero.
+     */
+    function test_initialize_zeroNextBatchSubmissionIndex_reverts() public {
+        // Deploy a TransparentUpgradeableProxy contract for recordProxyTemp.
+        TransparentUpgradeableProxy recordProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy Record implementation.
+        Record recordImplTemp = new Record();
+
+        Types.StakerInfo[] memory stakerInfos = new Types.StakerInfo[](SEQUENCER_SIZE);
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            stakerInfos[i] = stakerInfo;
+            sequencerAddresses.push(stakerInfo.addr);
+        }
+
+        // Expect revert due to invalid next batch submission index.
+        hevm.expectRevert("invalid next batch submission index");
+        hevm.startPrank(multisig);
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(recordProxyTemp)).upgradeToAndCall(
+            address(recordImplTemp),
+            abi.encodeCall(Record.initialize, (multisig, oracleAddress, 0))
+        );
+        hevm.stopPrank();
+    }
+
+    /**
+     * @notice initialize: Initializes the Record contract successfully.
+     */
+    function test_initialize_succeeds() public {
+        // Deploy a TransparentUpgradeableProxy contract for recordProxyTemp.
+        TransparentUpgradeableProxy recordProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy Record implementation.
+        Record recordImplTemp = new Record();
+
+        Types.StakerInfo[] memory stakerInfos = new Types.StakerInfo[](SEQUENCER_SIZE);
+        for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
+            address user = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(user);
+            stakerInfos[i] = stakerInfo;
+            sequencerAddresses.push(stakerInfo.addr);
+        }
+
+        hevm.startPrank(multisig);
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(recordProxyTemp)).upgradeToAndCall(
+            address(recordImplTemp),
+            abi.encodeCall(Record.initialize, (multisig, oracleAddress, nextBatchSubmissionIndex))
+        );
+        hevm.stopPrank();
+
+        // Cast the proxy address to the Record contract type to call its methods.
+        Record recordTemp = Record(payable(address(recordProxyTemp)));
+
+        // Verify that the oracle address and nextBatchSubmissionIndex are correctly initialized.
+        assertEq(recordTemp.oracle(), oracleAddress);
+        assertEq(recordTemp.nextBatchSubmissionIndex(), nextBatchSubmissionIndex);
     }
 
     /**
@@ -92,6 +168,9 @@ contract RecordTest is L2StakingBaseTest {
         emit IRecord.BatchSubmissionsUploaded(1, 1);
         hevm.prank(oracleAddress);
         record.recordFinalizedBatchSubmissions(submissions);
+
+        // Verify that the nextBatchSubmissionIndex updated correctly.
+        assertEq(record.nextBatchSubmissionIndex(), nextBatchSubmissionIndex + 1);
     }
 
     /**
@@ -130,6 +209,9 @@ contract RecordTest is L2StakingBaseTest {
         emit IRecord.RollupEpochsUploaded(0, 1);
         hevm.prank(oracleAddress);
         record.recordRollupEpochs(epochInfos);
+
+        // Verify that the nextRollupEpochIndex updated correctly.
+        assertEq(record.nextRollupEpochIndex(), 1);
     }
 
     /**

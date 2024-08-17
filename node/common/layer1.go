@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/scroll-tech/go-ethereum"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 
-	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/rpc"
 )
 
 type DeployContractBackend interface {

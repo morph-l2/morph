@@ -181,7 +181,7 @@ var (
 	RollupTxGasBase = cli.Uint64Flag{
 		Name:   "ROLLUP_TX_GAS_BASE",
 		Usage:  "The base fee for a rollup transaction",
-		Value:  400000,
+		Value:  530000,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_BASE"),
 	}
 	// rollup tx gas per l1msg
@@ -195,7 +195,7 @@ var (
 	GasLimitBuffer = cli.Uint64Flag{
 		Name:   "GAS_LIMIT_BUFFER",
 		Usage:  "The gas limit buffer for a transaction",
-		Value:  120,
+		Value:  20, // add 20%
 		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
 	}
 
@@ -219,6 +219,55 @@ var (
 		Usage:  "The maximum number of transactions in the pending pool",
 		Value:  12,
 		EnvVar: prefixEnvVar("MAX_TXS_IN_PENDING_POOL"),
+	}
+
+	// external sign
+	ExternalSign = cli.BoolFlag{
+		Name:   "EXTERNAL_SIGN",
+		Usage:  "Enable external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
+	}
+
+	// address
+	ExternalSignAddress = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_ADDRESS",
+		Usage:  "The address of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_ADDRESS"),
+	}
+	// appid
+	ExternalSignAppid = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_APPID",
+		Usage:  "The appid of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_APPID"),
+	}
+	// chain
+	ExternalSignChain = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_CHAIN",
+		Usage:  "The chain of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_CHAIN"),
+	}
+	// url
+	ExternalSignUrl = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_URL",
+		Usage:  "The url of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
+	}
+	ExternalSignRsaPriv = cli.StringFlag{
+		Name:   "EXTERNAL_RSA_PRIV",
+		Usage:  "The rsa private key of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_RSA_PRIV"),
+	}
+	RoughEstimateGasFlag = cli.BoolFlag{
+		Name:   "ROUGH_ESTIMATE_GAS",
+		Usage:  "Whether to use rough estimate gas",
+		EnvVar: prefixEnvVar("ROUGH_ESTIMATE_GAS"),
+	}
+
+	RotatorBufferFlag = cli.Int64Flag{
+		Name:   "ROTATOR_BUFFER",
+		Usage:  "rotation interval buffer",
+		Value:  15,
+		EnvVar: prefixEnvVar("ROTATOR_BUFFER"),
 	}
 )
 
@@ -261,6 +310,16 @@ var optionalFlags = []cli.Flag{
 	L2GovAddressFlag,
 	CalldataFeeBumpFlag,
 	MaxTxsInPendingPoolFlag,
+
+	// external sign
+	ExternalSign,
+	ExternalSignAddress,
+	ExternalSignAppid,
+	ExternalSignChain,
+	ExternalSignUrl,
+	ExternalSignRsaPriv,
+	RoughEstimateGasFlag,
+	RotatorBufferFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

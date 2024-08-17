@@ -9,11 +9,19 @@ import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 import {L1Staking} from "../l1/staking/L1Staking.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
-contract StakingInitializeTest is L1MessageBaseTest{
+contract StakingInitializeTest is L1MessageBaseTest {
     function test_initialize_initializeAgain_revert() external {
         // verify the initialize only can be called once.
         hevm.expectRevert("Initializable: contract is already initialized");
-        l1Staking.initialize(address(1), STAKING_VALUE, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, defaultGasLimitRemove);
+        l1Staking.initialize(
+            address(1),
+            STAKING_VALUE,
+            CHALLENGE_DEPOSIT,
+            LOCK_BLOCKS,
+            rewardPercentage,
+            defaultGasLimitAdd,
+            defaultGasLimitRemove
+        );
     }
 
     function test_initialize_rollupZeroAddress_revert() external {
@@ -35,6 +43,7 @@ contract StakingInitializeTest is L1MessageBaseTest{
                 (
                     address(0),
                     STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
                     LOCK_BLOCKS,
                     rewardPercentage,
                     defaultGasLimitAdd,
@@ -64,11 +73,34 @@ contract StakingInitializeTest is L1MessageBaseTest{
                 (
                     address(1),
                     0,
+                    CHALLENGE_DEPOSIT,
                     LOCK_BLOCKS,
                     rewardPercentage,
                     defaultGasLimitAdd,
                     defaultGasLimitRemove
                 )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_challengeDepositEqZero_revert() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a proxy contract for l1StakingProxyTemp.
+        TransparentUpgradeableProxy l1StakingProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Expect revert due to invalid staking value.
+        hevm.expectRevert("invalid challenge deposit value");
+        ITransparentUpgradeableProxy(address(l1StakingProxyTemp)).upgradeToAndCall(
+            address(l1StakingImpl),
+            abi.encodeCall(
+                L1Staking.initialize,
+                (address(1), STAKING_VALUE, 0, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, defaultGasLimitRemove)
             )
         );
         hevm.stopPrank();
@@ -93,6 +125,7 @@ contract StakingInitializeTest is L1MessageBaseTest{
                 (
                     address(1),
                     STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
                     0,
                     rewardPercentage,
                     defaultGasLimitAdd,
@@ -119,14 +152,7 @@ contract StakingInitializeTest is L1MessageBaseTest{
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (
-                    address(1),
-                    STAKING_VALUE,
-                    LOCK_BLOCKS,
-                    rewardPercentage,
-                    0,
-                    defaultGasLimitRemove
-                )
+                (address(1), STAKING_VALUE, CHALLENGE_DEPOSIT, LOCK_BLOCKS, rewardPercentage, 0, defaultGasLimitRemove)
             )
         );
         hevm.stopPrank();
@@ -148,14 +174,7 @@ contract StakingInitializeTest is L1MessageBaseTest{
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (
-                    address(1),
-                    STAKING_VALUE,
-                    LOCK_BLOCKS,
-                    rewardPercentage,
-                    defaultGasLimitAdd,
-                    0
-                )
+                (address(1), STAKING_VALUE, CHALLENGE_DEPOSIT, LOCK_BLOCKS, rewardPercentage, defaultGasLimitAdd, 0)
             )
         );
         hevm.stopPrank();
@@ -180,6 +199,7 @@ contract StakingInitializeTest is L1MessageBaseTest{
                 (
                     address(1),
                     STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
                     LOCK_BLOCKS,
                     0,
                     defaultGasLimitAdd,
@@ -209,6 +229,7 @@ contract StakingInitializeTest is L1MessageBaseTest{
                 (
                     address(1),
                     STAKING_VALUE,
+                    CHALLENGE_DEPOSIT,
                     LOCK_BLOCKS,
                     101,
                     defaultGasLimitAdd,
@@ -245,14 +266,7 @@ contract StakingInitializeTest is L1MessageBaseTest{
             address(l1StakingImpl),
             abi.encodeCall(
                 L1Staking.initialize,
-                (
-                    address(1),
-                    STAKING_VALUE,
-                    LOCK_BLOCKS,
-                    11,
-                    22,
-                    33
-                )
+                (address(1), STAKING_VALUE, CHALLENGE_DEPOSIT, LOCK_BLOCKS, 11, 22, 33)
             )
         );
         hevm.stopPrank();
@@ -270,6 +284,17 @@ contract StakingTest is L1MessageBaseTest {
         assertEq(l1Staking.rewardPercentage(), rewardPercentage);
         assertEq(l1Staking.gasLimitAddStaker(), 1000000);
         assertEq(l1Staking.gasLimitRemoveStakers(), 10000000);
+    }
+
+    function test_invalidStaker_reverts() external {
+        // make param
+        address[] memory sequencers = new address[](2);
+        sequencers[0] = alice;
+        sequencers[1] = bob;
+        hevm.startPrank(address(emptyContract));
+        hevm.expectRevert("invalid staker");
+        l1Staking.getStakersBitmap(sequencers);
+        hevm.stopPrank();
     }
 
     function test_registerAlice_succeeds() external {
@@ -322,7 +347,8 @@ contract StakingTest is L1MessageBaseTest {
         emit IL1Staking.Withdrawn(bob, block.number + LOCK_BLOCKS);
         l1Staking.withdraw();
         assertFalse(l1Staking.whitelist(bob));
-        assertFalse(l1Staking.isStaker(bob));
+        assertTrue(l1Staking.isStaker(bob));
+        assertTrue(l1Staking.isStakerInDeleteList(bob));
         assertTrue(l1Staking.removedList(bob));
         assertEq(l1Staking.withdrawals(bob), block.number + LOCK_BLOCKS);
         hevm.stopPrank();
@@ -386,7 +412,7 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         hevm.prank(multisig);
         l1Staking.updateWhitelist(add, remove);
         assertTrue(l1Staking.whitelist(alice));
-        assertTrue(!l1Staking.whitelist(bob));
+        assertFalse(l1Staking.whitelist(bob));
     }
 
     function test_whitelist_withdraw_succeeds() external {
@@ -417,8 +443,8 @@ contract StakingWhitelistTest is L1MessageBaseTest {
 
         // check
         assertTrue(l1Staking.whitelist(alice));
-        assertTrue(!l1Staking.whitelist(bob));
-        assertTrue(!l1Staking.removedList(alice));
+        assertFalse(l1Staking.whitelist(bob));
+        assertFalse(l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
     }
 
@@ -450,8 +476,8 @@ contract StakingWhitelistTest is L1MessageBaseTest {
 
         // check
         assertTrue(l1Staking.whitelist(alice));
-        assertTrue(!l1Staking.whitelist(bob));
-        assertTrue(!l1Staking.removedList(alice));
+        assertFalse(l1Staking.whitelist(bob));
+        assertFalse(l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
 
         hevm.startPrank(multisig);
@@ -485,16 +511,19 @@ contract StakingWhitelistTest is L1MessageBaseTest {
         l1Staking.register{value: STAKING_VALUE}(bobInfo.tmKey, bobInfo.blsKey);
         hevm.stopPrank();
 
-        address[] memory sequencers = new address[](1);
-        sequencers[0] = bob;
-        hevm.prank(l1Staking.rollupContract());
         // bob sequencer to slash
-        l1Staking.slash(sequencers);
+        uint256 bitmap = l1Staking.getStakerBitmap(bob);
+        assertEq(bitmap, 4);
+        address[] memory stakers = l1Staking.getStakersFromBitmap(bitmap);
+        assertEq(stakers.length, 1);
+        assertEq(stakers[0], bob);
+        hevm.prank(l1Staking.rollupContract());
+        l1Staking.slash(bitmap);
 
         // check
         assertTrue(l1Staking.whitelist(alice));
-        assertTrue(!l1Staking.whitelist(bob));
-        assertTrue(!l1Staking.removedList(alice));
+        assertFalse(l1Staking.whitelist(bob));
+        assertFalse(l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
     }
 }
@@ -587,8 +616,8 @@ contract StakingRegisterTest is L1MessageBaseTest {
         assertEq(addressCheck, address(0));
         // alice register
         Types.StakerInfo memory aliceInfo = ffi.generateStakerInfo(alice);
-        assertTrue(!l1Staking.blsKeys(aliceInfo.blsKey));
-        assertTrue(!l1Staking.tmKeys(aliceInfo.tmKey));
+        assertFalse(l1Staking.blsKeys(aliceInfo.blsKey));
+        assertFalse(l1Staking.tmKeys(aliceInfo.tmKey));
         hevm.deal(alice, 5 * STAKING_VALUE);
         hevm.prank(alice);
         l1Staking.register{value: STAKING_VALUE}(aliceInfo.tmKey, aliceInfo.blsKey);
@@ -604,9 +633,9 @@ contract StakingRegisterTest is L1MessageBaseTest {
 
 contract StakingWithdrawTest is L1MessageBaseTest {
     function test_withdraw_notStaker_reverts() external {
-        hevm.startPrank(bob);
         // bob withdraw
-        hevm.expectRevert("only staker");
+        hevm.expectRevert("only active staker");
+        hevm.startPrank(bob);
         l1Staking.withdraw();
         hevm.stopPrank();
     }
@@ -636,7 +665,7 @@ contract StakingWithdrawTest is L1MessageBaseTest {
         // before withdraw
         assertEq(l1Staking.withdrawals(bob), 0);
         assertTrue(l1Staking.isStaker(bob));
-        assertTrue(!l1Staking.removedList(bob));
+        assertFalse(l1Staking.removedList(bob));
 
         // Verify the StakersRemoved event is emitted successfully.
         address[] memory remove = new address[](1);
@@ -651,26 +680,26 @@ contract StakingWithdrawTest is L1MessageBaseTest {
         // after withdraw
         // check
         assertEq(l1Staking.withdrawals(bob), block.number + l1Staking.withdrawalLockBlocks());
-        assertTrue(!l1Staking.isStaker(bob));
-        assertTrue(!l1Staking.whitelist(bob));
-        assertTrue(l1Staking.removedList(bob));
+        assertTrue(l1Staking.isStaker(bob));
+        assertTrue(l1Staking.isStakerInDeleteList(bob));
 
         assertTrue(l1Staking.whitelist(alice));
-        assertTrue(!l1Staking.whitelist(bob));
-        assertTrue(!l1Staking.removedList(alice));
+        assertFalse(l1Staking.whitelist(bob));
+
+        assertFalse(l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
     }
 }
 
+contract StakingRemoveStakerTest is L1MessageBaseTest {
+    // TODO
+}
+
 contract StakingSlashTest is L1MessageBaseTest {
     function test_slash_notRollup_reverts() external {
-        // make param
-        address[] memory sequencers = new address[](2);
-        sequencers[0] = alice;
-        sequencers[1] = bob;
         hevm.startPrank(address(emptyContract));
         hevm.expectRevert("only rollup contract");
-        l1Staking.slash(sequencers);
+        l1Staking.slash(0);
         hevm.stopPrank();
     }
 
@@ -698,20 +727,18 @@ contract StakingSlashTest is L1MessageBaseTest {
 
         // bob withdraw
         l1Staking.withdraw();
-
         hevm.stopPrank();
 
-        address[] memory sequencers = new address[](1);
-        sequencers[0] = bob;
-        hevm.prank(l1Staking.rollupContract());
         // bob sequencer to slash
-        uint256 reward = l1Staking.slash(sequencers);
+        uint256 bitmap = l1Staking.getStakerBitmap(bob);
+        hevm.prank(l1Staking.rollupContract());
+        uint256 reward = l1Staking.slash(bitmap);
         assertEq(reward, (STAKING_VALUE * l1Staking.rewardPercentage()) / 100);
 
         // check
         assertTrue(l1Staking.whitelist(alice));
-        assertTrue(!l1Staking.whitelist(bob));
-        assertTrue(!l1Staking.removedList(alice));
+        assertFalse(l1Staking.whitelist(bob));
+        assertFalse(l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
     }
 
@@ -738,17 +765,16 @@ contract StakingSlashTest is L1MessageBaseTest {
         l1Staking.register{value: STAKING_VALUE}(bobInfo.tmKey, bobInfo.blsKey);
         hevm.stopPrank();
 
-        address[] memory sequencers = new address[](1);
-        sequencers[0] = bob;
-        hevm.prank(l1Staking.rollupContract());
         // bob sequencer to slash
-        uint256 reward = l1Staking.slash(sequencers);
+        uint256 bitmap = l1Staking.getStakerBitmap(bob);
+        hevm.prank(l1Staking.rollupContract());
+        uint256 reward = l1Staking.slash(bitmap);
         assertEq(reward, (STAKING_VALUE * l1Staking.rewardPercentage()) / 100);
 
         // check
         assertTrue(l1Staking.whitelist(alice));
-        assertTrue(!l1Staking.whitelist(bob));
-        assertTrue(!l1Staking.removedList(alice));
+        assertFalse(l1Staking.whitelist(bob));
+        assertFalse(l1Staking.removedList(alice));
         assertTrue(l1Staking.removedList(bob));
     }
 
@@ -779,7 +805,7 @@ contract StakingSlashTest is L1MessageBaseTest {
         sequencers[0] = alice;
         sequencers[1] = bob;
         uint256 beforeBalance = l1Staking.rollupContract().balance;
-        
+
         // Verify the Slashed event is emitted successfully.
         hevm.expectEmit(true, true, true, true);
         emit IL1Staking.Slashed(sequencers);
@@ -788,9 +814,10 @@ contract StakingSlashTest is L1MessageBaseTest {
         hevm.expectEmit(true, true, true, true);
         emit IL1Staking.StakersRemoved(sequencers);
 
+        // sequencer to slash
+        uint256 bitmap = l1Staking.getStakersBitmap(sequencers);
         hevm.prank(l1Staking.rollupContract());
-        // bob sequencer to slash
-        uint256 reward = l1Staking.slash(sequencers);
+        uint256 reward = l1Staking.slash(bitmap);
         assertEq(reward, (2 * STAKING_VALUE * l1Staking.rewardPercentage()) / 100);
         uint256 afterBalance = l1Staking.rollupContract().balance;
         assertEq(reward, afterBalance - beforeBalance);
@@ -831,9 +858,11 @@ contract StakingClaimSlashRemainingTest is L1MessageBaseTest {
         sequencers[0] = alice;
         sequencers[1] = bob;
         uint256 beforeBalance = l1Staking.rollupContract().balance;
+
+        // sequencer to slash
+        uint256 bitmap = l1Staking.getStakersBitmap(sequencers);
         hevm.prank(l1Staking.rollupContract());
-        // bob sequencer to slash
-        uint256 reward = l1Staking.slash(sequencers);
+        uint256 reward = l1Staking.slash(bitmap);
         assertEq(reward, (2 * STAKING_VALUE * l1Staking.rewardPercentage()) / 100);
         uint256 afterBalance = l1Staking.rollupContract().balance;
         assertEq(reward, afterBalance - beforeBalance);
@@ -982,7 +1011,6 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         hevm.deal(bob, 5 * STAKING_VALUE);
         hevm.startPrank(bob);
         l1Staking.register{value: STAKING_VALUE}(bobInfo.tmKey, bobInfo.blsKey);
-
         hevm.expectRevert("withdrawal not exist");
         l1Staking.claimWithdrawal(bob);
         hevm.stopPrank();
@@ -1012,7 +1040,6 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
 
         // bob withdraw
         l1Staking.withdraw();
-
         hevm.expectRevert("withdrawal locked");
         l1Staking.claimWithdrawal(bob);
         hevm.stopPrank();

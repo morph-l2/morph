@@ -55,27 +55,47 @@ interface IL1Staking {
     /// @param newPercentage    new percentage
     event RewardPercentageUpdated(uint256 oldPercentage, uint256 newPercentage);
 
+    /// @notice challenge deposit value updated
+    /// @param oldChallengeDeposit    old challengeDeposit
+    /// @param newChallengeDeposit    new challengeDeposit
+    event ChallengeDepositUpdated(uint256 oldChallengeDeposit, uint256 newChallengeDeposit);
+
     /*************************
      * Public View Functions *
      *************************/
 
-    /// @notice staking value
-    function getStakers() external view returns (address[] memory);
+    /// @notice return all stakers
+    function getStakers() external view returns (address[255] memory);
 
-    /// @notice staking value
+    /// @notice return staking value
     function stakingValue() external view returns (uint256);
+
+    /// @notice return challenge deposit value
+    function challengeDeposit() external view returns (uint256);
 
     /// @notice whether address is staker
     /// @param addr  the address to check
     function isStaker(address addr) external view returns (bool);
 
+    /// @notice whether address is active staker
+    /// @param addr  the address to check
+    function isActiveStaker(address addr) external view returns (bool);
+
+    /// @notice get staker bitmap
+    /// @param staker  the staker address
+    function getStakerBitmap(address staker) external view returns (uint256);
+
+    /// @notice get stakers bitmap
+    /// @param stakers  the staker address array
+    function getStakersBitmap(address[] calldata stakers) external view returns (uint256);
+
     /// @notice verify BLS signature
-    /// @param signedSequencers  signed sequencers
-    /// @param sequencerSet      sequencer set
-    /// @param msgHash           bls message hash
-    /// @param signature         batch signature
+    /// @param signedSequencersBitmap bitmap of signed sequencers
+    /// @param sequencerSet           sequencer set
+    /// @param msgHash                bls message hash
+    /// @param signature              batch signature
     function verifySignature(
-        address[] calldata signedSequencers,
+        uint256 signedSequencersBitmap,
         address[] calldata sequencerSet,
         bytes32 msgHash,
         bytes calldata signature
@@ -86,6 +106,6 @@ interface IL1Staking {
      *****************************/
 
     /// @notice challenger win, slash sequencers
-    /// @param sequencers  the sequencers to slash
-    function slash(address[] memory sequencers) external returns (uint256);
+    /// @param sequencersBitmap  the sequencers to slash
+    function slash(uint256 sequencersBitmap) external returns (uint256);
 }

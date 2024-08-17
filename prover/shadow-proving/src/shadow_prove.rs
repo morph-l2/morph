@@ -30,6 +30,7 @@ pub struct ProveResult {
     pub proof_data: Vec<u8>,
     pub pi_data: Vec<u8>,
     pub blob_kzg: Vec<u8>,
+    pub batch_header: Vec<u8>,
 }
 
 mod task_status {
@@ -149,7 +150,7 @@ async fn handle_with_prover(batch_info: &BatchInfo, l1_shadow_rollup: &ShadowRol
         }
 
         // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 4800 * chunks_len + 1800; //chunk_prove_time =1h 20min，batch_prove_time = 24min
+        let mut max_waiting_time: usize = 4800 * chunks_len + 2400; //chunk_prove_time =1h 20min，batch_prove_time = 24min
         while max_waiting_time > 300 {
             sleep(Duration::from_secs(300)).await;
             max_waiting_time -= 300; // Query results every 5 minutes.

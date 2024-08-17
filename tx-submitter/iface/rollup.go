@@ -5,9 +5,9 @@ import (
 
 	"morph-l2/bindings/bindings"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
 )
 
 type IRollup interface {
@@ -30,4 +30,5 @@ type IL2Gov interface {
 }
 type IL1Staking interface {
 	IsStaker(opts *bind.CallOpts, addr common.Address) (bool, error)
+	GetStakersBitmap(opts *bind.CallOpts, _stakers []common.Address) (*big.Int, error)
 }

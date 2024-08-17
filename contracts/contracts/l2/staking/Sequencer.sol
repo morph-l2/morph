@@ -57,17 +57,23 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
      ***************/
 
     /// @notice Initializer.
+    /// @param _owner         owner
     /// @param _sequencerSet  initial sequencer set, must be same as initial staker set in l2 staking contract
-    function initialize(address[] calldata _sequencerSet) public initializer {
+    function initialize(address _owner, address[] calldata _sequencerSet) public initializer {
+        require(_owner != address(0), "invalid owner address");
         require(_sequencerSet.length > 0, "invalid sequencer set");
 
-        __Ownable_init();
+        _transferOwnership(_owner);
 
         sequencerSet0 = _sequencerSet;
         sequencerSet1 = _sequencerSet;
         sequencerSet2 = _sequencerSet;
 
         updateTime = block.timestamp;
+
+        sequencerSetVerifyHash = keccak256(
+            abi.encode(blockHeight0, sequencerSet0, blockHeight1, sequencerSet1, blockHeight2, sequencerSet2)
+        );
 
         emit SequencerSetUpdated(_sequencerSet, 0);
     }

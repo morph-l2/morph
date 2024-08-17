@@ -10,7 +10,7 @@ impl BeaconNode {
         &self,
         slot: String,
         indexes: Vec<u64>,
-    ) -> Result<Value, OverHeadError> {
+    ) -> Result<Value, ScalarError> {
         let rpc_url = self.rpc_url.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -24,7 +24,7 @@ impl BeaconNode {
         l1_beacon_rpc: String,
         slot: &str,
         indexes: Vec<u64>,
-    ) -> Result<Value, OverHeadError> {
+    ) -> Result<Value, ScalarError> {
         let client = reqwest::blocking::Client::new();
         let mut url = l1_beacon_rpc.to_owned() +
             "/eth/v1/beacon/blob_sidecars/" +
@@ -45,18 +45,18 @@ impl BeaconNode {
         match response {
             Ok(rs) => match rs.text() {
                 Ok(r) => serde_json::from_str::<Value>(&r).map_err(|e| {
-                    OverHeadError::BeaconNodeError(anyhow!(
+                    ScalarError::BeaconNodeError(anyhow!(
                         "deserialize response failed, slot= {:#?}, error = {:#?}",
                         slot,
                         e
                     ))
                 }),
-                Err(e) => Err(OverHeadError::BeaconNodeError(anyhow!(format!(
+                Err(e) => Err(ScalarError::BeaconNodeError(anyhow!(format!(
                     "fetch beacon node res_txt error, slot= {:#?}, error = {:#?}",
                     slot, e
                 )))),
             },
-            Err(e) => Err(OverHeadError::BeaconNodeError(anyhow!(format!(
+            Err(e) => Err(ScalarError::BeaconNodeError(anyhow!(format!(
                 "query beacon node error, slot= {:#?}, error = {:#?}",
                 slot, e
             )))),

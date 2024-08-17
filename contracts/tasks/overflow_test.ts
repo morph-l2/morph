@@ -90,7 +90,10 @@ task("crossHash")
         const contract = MyContract.attach(addr);
 
         console.log("sending tx for crossHash......")
-        let txn = await contract.crossHash(message, count)
+        //const options = {value: ethers.utils.parseEther("1.0")}
+        const txn = await contract["crossHash(string,uint256)"](message, count, { value: ethers.utils.parseEther("0.002") })
+
+        //let txn = await contract.crossHash(message, count, options)
         await txn.wait();
         console.log(txn)
 

@@ -2,7 +2,6 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -12,8 +11,6 @@ import {IL1Staking} from "./IL1Staking.sol";
 import {IL2Staking} from "../../l2/staking/IL2Staking.sol";
 
 contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable {
-    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
-
     /*************
      * Variables *
      *************/
@@ -45,8 +42,17 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice staker removed list
     mapping(address => bool) public removedList;
 
-    /// @notice all stakers
-    EnumerableSetUpgradeable.AddressSet internal stakerSet;
+    /// @notice all stakers (0-254)
+    address[255] public stakerSet;
+
+    /// @notice all stakers indexes (1-255). '0' means not exist. stakerIndexes[1] releated to stakerSet[0]
+    mapping(address => uint8) public stakerIndexes;
+
+    /// @notice stakers to delete
+    address[] public deleteList;
+
+    /// @notice staker deleteable height
+    mapping(address => uint256) public deleteableHeight;
 
     /// @notice all stakers info
     mapping(address => Types.StakerInfo) public stakers;
@@ -59,6 +65,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice withdraw unlock block height
     mapping(address staker => uint256) public withdrawals;
+
+    /// @notice challenge deposit value
+    uint256 public challengeDeposit;
 
     /**********************
      * Function Modifiers *
@@ -89,7 +98,8 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice initializer
     /// @param _rollupContract    rollup contract address
-    /// @param _stakingValue      smallest staking value
+    /// @param _stakingValue      staking value
+    /// @param _challengeDeposit  challenge deposit value
     /// @param _lockBlocks        withdraw lock blocks
     /// @param _rewardPercentage  percentage awarded to challenger
     /// @param _gasLimitAdd       cross-chain gas limit add staker
@@ -97,6 +107,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     function initialize(
         address _rollupContract,
         uint256 _stakingValue,
+        uint256 _challengeDeposit,
         uint256 _lockBlocks,
         uint256 _rewardPercentage,
         uint256 _gasLimitAdd,
@@ -104,6 +115,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     ) public initializer {
         require(_rollupContract != address(0), "invalid rollup contract");
         require(_stakingValue > 0, "invalid staking value");
+        require(_challengeDeposit > 0, "invalid challenge deposit value");
         require(_lockBlocks > 0, "invalid withdrawal lock blocks");
         require(_gasLimitAdd > 0, "invalid gas limit add staker");
         require(_gasLimitRemove > 0, "invalid gas limit remove stakers");
@@ -115,6 +127,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         rollupContract = _rollupContract;
         rewardPercentage = _rewardPercentage;
         stakingValue = _stakingValue;
+        challengeDeposit = _challengeDeposit;
         withdrawalLockBlocks = _lockBlocks;
         gasLimitAddStaker = _gasLimitAdd;
         gasLimitRemoveStakers = _gasLimitRemove;
@@ -150,51 +163,71 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         require(msg.value == stakingValue, "invalid staking value");
 
         stakers[_msgSender()] = Types.StakerInfo(_msgSender(), tmKey, blsKey);
-        stakerSet.add(_msgSender());
+        _addStaker(_msgSender());
         blsKeys[blsKey] = true;
         tmKeys[tmKey] = true;
         emit Registered(_msgSender(), tmKey, blsKey);
 
         // send message to add staker on l2
-        _addStaker(stakers[_msgSender()]);
+        _msgAddStaker(stakers[_msgSender()]);
+    }
+
+    /// @notice remove staker
+    function removeStaker(address[] memory _stakers) external onlyOwner {
+        for (uint256 i = 0; i < _stakers.length; i++) {
+            require(isActiveStaker(_stakers[i]), "only active staker can be removed");
+            require(withdrawals[_stakers[i]] == 0, "withdrawing");
+
+            withdrawals[_stakers[i]] = block.number + withdrawalLockBlocks;
+            _removeStaker(_stakers[i]);
+            emit Withdrawn(_stakers[i], withdrawals[_stakers[i]]);
+
+            delete whitelist[_stakers[i]];
+            removedList[_stakers[i]] = true;
+        }
+        emit StakersRemoved(_stakers);
+
+        // send message to remove stakers on l2
+        _msgRemoveStakers(_stakers);
     }
 
     /// @notice withdraw staking
     function withdraw() external {
-        require(stakerSet.contains(_msgSender()), "only staker");
+        require(isActiveStaker(_msgSender()), "only active staker");
         require(withdrawals[_msgSender()] == 0, "withdrawing");
 
         withdrawals[_msgSender()] = block.number + withdrawalLockBlocks;
-        stakerSet.remove(_msgSender());
+        _removeStaker(_msgSender());
         emit Withdrawn(_msgSender(), withdrawals[_msgSender()]);
 
-        // send message to remove staker on l2
-        address[] memory remove = new address[](1);
-        remove[0] = _msgSender();
         delete whitelist[_msgSender()];
         removedList[_msgSender()] = true;
+
+        address[] memory remove = new address[](1);
+        remove[0] = _msgSender();
         emit StakersRemoved(remove);
 
-        _removeStakers(remove);
+        // send message to remove staker on l2
+        _msgRemoveStakers(remove);
     }
 
     /// @notice challenger win, slash sequencers
-    function slash(address[] memory sequencers) external onlyRollupContract nonReentrant returns (uint256) {
+    function slash(uint256 sequencersBitmap) external onlyRollupContract nonReentrant returns (uint256) {
+        address[] memory sequencers = getStakersFromBitmap(sequencersBitmap);
+
         uint256 valueSum;
         for (uint256 i = 0; i < sequencers.length; i++) {
             if (withdrawals[sequencers[i]] > 0) {
                 delete withdrawals[sequencers[i]];
                 valueSum += stakingValue;
-            } else {
-                if (stakerSet.contains(sequencers[i])) {
-                    valueSum += stakingValue;
-                }
-                stakerSet.remove(sequencers[i]);
+            } else if (!isStakerInDeleteList(sequencers[i])) {
+                // If it is the first time to be slashed
+                valueSum += stakingValue;
+                _removeStaker(sequencers[i]);
                 // remove from whitelist
                 delete whitelist[sequencers[i]];
                 removedList[sequencers[i]] = true;
             }
-            delete stakers[sequencers[i]];
         }
 
         uint256 reward = (valueSum * rewardPercentage) / 100;
@@ -205,7 +238,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         emit StakersRemoved(sequencers);
 
         // send message to remove stakers on l2
-        _removeStakers(sequencers);
+        _msgRemoveStakers(sequencers);
 
         return reward;
     }
@@ -237,6 +270,15 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         emit GasLimitRemoveStakersUpdated(_oldGasLimitRemove, _gasLimitRemove);
     }
 
+    /// @notice update challenge deposit
+    /// @param _challengeDeposit       challenge deposit value
+    function updateChallengeDeposit(uint256 _challengeDeposit) external onlyOwner {
+        require(_challengeDeposit > 0 && _challengeDeposit != challengeDeposit, "invalid challenge deposit value");
+        uint256 _oldChallengeDeposit = challengeDeposit;
+        challengeDeposit = _challengeDeposit;
+        emit ChallengeDepositUpdated(_oldChallengeDeposit, _challengeDeposit);
+    }
+
     /// @notice update reward percentage
     /// @param _rewardPercentage       percentage awarded to challenger
     function updateRewardPercentage(uint256 _rewardPercentage) external onlyOwner {
@@ -247,6 +289,25 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         uint256 _oldRewardPercentage = rewardPercentage;
         rewardPercentage = _rewardPercentage;
         emit RewardPercentageUpdated(_oldRewardPercentage, _rewardPercentage);
+    }
+
+    /// @notice clean staker store
+    function cleanStakerStore() external onlyOwner {
+        for (uint256 i = 0; i < deleteList.length; i++) {
+            if (deleteableHeight[deleteList[i]] <= block.number) {
+                // clean stakerSet
+                delete stakerSet[stakerIndexes[deleteList[i]] - 1];
+                delete stakerIndexes[deleteList[i]];
+
+                // clean deleteList
+                delete deleteableHeight[deleteList[i]];
+                deleteList[i] = deleteList[deleteList.length - 1];
+                deleteList.pop();
+
+                // clean staker info
+                delete stakers[deleteList[i]];
+            }
+        }
     }
 
     /*****************************
@@ -272,7 +333,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice verify BLS signature
     function verifySignature(
-        address[] calldata, // signedSequencers
+        uint256, // signedSequencersBitmap
         address[] calldata, // sequencerSet
         bytes32, // msgHash
         bytes calldata // signature
@@ -281,20 +342,102 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return true;
     }
 
-    /// @notice staking value
-    function getStakers() external view returns (address[] memory) {
-        return stakerSet.values();
+    /// @notice return all stakers
+    function getStakers() external view returns (address[255] memory) {
+        return stakerSet;
     }
 
     /// @notice whether address is staker
     /// @param addr  address to check
-    function isStaker(address addr) external view returns (bool) {
-        return stakerSet.contains(addr);
+    function isStaker(address addr) public view returns (bool) {
+        if (stakerIndexes[addr] == 0) {
+            return false;
+        }
+        return stakerSet[stakerIndexes[addr] - 1] == addr;
+    }
+
+    /// @notice whether address is active staker
+    /// @param addr  address to check
+    function isActiveStaker(address addr) public view returns (bool) {
+        if (stakerIndexes[addr] == 0) {
+            return false;
+        }
+        return (stakerSet[stakerIndexes[addr] - 1] == addr) && (deleteableHeight[addr] == 0);
+    }
+
+    /// @notice whether address in delete list
+    /// @param addr  address to check
+    function isStakerInDeleteList(address addr) public view returns (bool) {
+        return deleteableHeight[addr] > 0;
+    }
+
+    /// @notice get staker bitmap
+    /// @param _staker  the staker address
+    function getStakerBitmap(address _staker) external view returns (uint256 bitmap) {
+        require(isStaker(_staker), "invalid staker");
+        bitmap = 1 << stakerIndexes[_staker];
+        return bitmap;
+    }
+
+    /// @notice get stakers bitmap
+    /// @param _stakers  the staker address array
+    function getStakersBitmap(address[] calldata _stakers) external view returns (uint256 bitmap) {
+        require(_stakers.length <= 255, "stakers length out of bounds");
+        for (uint256 i = 0; i < _stakers.length; i++) {
+            require(isStaker(_stakers[i]), "invalid staker");
+            bitmap = bitmap | (1 << stakerIndexes[_stakers[i]]);
+        }
+        return bitmap;
+    }
+
+    /// @notice get stakers from bitmap
+    /// @param bitmap  the stakers bitmap
+    function getStakersFromBitmap(uint256 bitmap) public view returns (address[] memory stakerAddrs) {
+        // skip first bit
+        uint256 _bitmap = bitmap >> 1;
+        uint256 stakersLength = 0;
+        while (_bitmap > 0) {
+            stakersLength = stakersLength + 1;
+            _bitmap = _bitmap & (_bitmap - 1);
+        }
+
+        stakerAddrs = new address[](stakersLength);
+        uint256 index = 0;
+        for (uint8 i = 1; i < 255; i++) {
+            if ((bitmap & (1 << i)) > 0) {
+                stakerAddrs[index] = stakerSet[i - 1];
+                index = index + 1;
+                if (index >= stakersLength) {
+                    break;
+                }
+            }
+        }
     }
 
     /**********************
      * Internal Functions *
      **********************/
+
+    /// @notice add stater
+    /// @param addr  staker address
+    function _addStaker(address addr) internal {
+        for (uint8 i = 0; i < 255; i++) {
+            if (stakerSet[i] == address(0)) {
+                stakerSet[i] = addr;
+                stakerIndexes[addr] = i + 1;
+                return;
+            }
+        }
+        require(false, "slot full");
+    }
+
+    /// @notice Add staker to deleteList, it will not be actually deleted until cleanStakerStore is executed
+    /// @param addr  staker address
+    function _removeStaker(address addr) internal {
+        require(deleteableHeight[addr] == 0, "already in deleteList");
+        deleteList.push(addr);
+        deleteableHeight[addr] = block.number + withdrawalLockBlocks;
+    }
 
     /// @notice transfer ETH
     /// @param _to      The address to transfer ETH to.
@@ -308,7 +451,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice add staker
     /// @param add       staker to add
-    function _addStaker(Types.StakerInfo memory add) internal {
+    function _msgAddStaker(Types.StakerInfo memory add) internal {
         MESSENGER.sendMessage(
             address(OTHER_STAKING),
             0,
@@ -319,7 +462,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice remove stakers
     /// @param remove    stakers to remove
-    function _removeStakers(address[] memory remove) internal {
+    function _msgRemoveStakers(address[] memory remove) internal {
         MESSENGER.sendMessage(
             address(OTHER_STAKING),
             0,
