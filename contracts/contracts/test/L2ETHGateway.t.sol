@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
 import {L2ToL1MessagePasser} from "../l2/system/L2ToL1MessagePasser.sol";
 import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
 import {L2ETHGateway} from "../l2/gateways/L2ETHGateway.sol";
 import {L2GatewayRouter} from "../l2/gateways/L2GatewayRouter.sol";
 import {L2CrossDomainMessenger} from "../l2/L2CrossDomainMessenger.sol";
 import {IL1ETHGateway} from "../l1/gateways/IL1ETHGateway.sol";
+import {L2ETHGateway} from "../l2/gateways/L2ETHGateway.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
@@ -29,6 +32,105 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         l2Messenger = l2CrossDomainMessenger;
         feeVault = l2FeeVault;
         l1Messenger = address(NON_ZERO_ADDRESS);
+    }
+
+    function test_initialize_initializeAgain_reverts() public {
+        // Test the initializer modifier to ensure initialize() can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        l2ETHGateway.initialize(address(1), address(1), address(1));
+    }
+
+    function test_initialize_zeroAddress_reverts() external {
+        hevm.startPrank(multisig);
+
+        // Deploy a transparent upgradeable proxy for the L2ETHGateway contract.
+        TransparentUpgradeableProxy l2ETHGatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new instance of the L2ETHGateway contract implementation.
+        gateway = new L2ETHGateway();
+
+        // Expect revert when the address of _counterpart equals the zero address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l2ETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2ETHGateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(l2ETHGatewayProxyTemp), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Expect revert when the address of _router equals the zero address.
+        hevm.expectRevert("zero router address");
+        ITransparentUpgradeableProxy(address(l2ETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2ETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Expect revert when the address of _messenger equals the zero address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l2ETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2ETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2ETHGatewayProxyTemp), // _router
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+
+    function test_initialize_succeed() public {
+        hevm.startPrank(multisig);
+
+        // Deploy a transparent upgradeable proxy for the L2ETHGateway contract.
+        TransparentUpgradeableProxy l2ETHGatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+
+        // Deploy a new instance of the L2ETHGateway contract implementation.
+        gateway = new L2ETHGateway();
+
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l2ETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2ETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2ETHGatewayProxyTemp), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+
+        // Cast the proxy contract address to the L2ETHGateway contract type to call its methods.
+        L2ETHGateway l2ETHGatewayTemp = L2ETHGateway((address(l2ETHGatewayProxyTemp)));
+        hevm.stopPrank();
+
+        // Verify the counterpart, router and messenger are initialized successfully.
+        assertEq(l2ETHGatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l2ETHGatewayTemp.router(), address(l2ETHGatewayProxyTemp));
+        assertEq(l2ETHGatewayTemp.messenger(), address(l2CrossDomainMessenger));
     }
 
     function test_withdrawETH_succeeds(uint256 amount, uint256 gasLimit, uint256 feePerGas) public {
@@ -109,7 +211,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         );
     }
 
-    function test_finalizeWithdrawETHFailed_succeeds(
+    function test_finalizeDepositETHFailed_succeeds(
         address sender,
         address recipient,
         uint256 amount,
@@ -120,11 +222,13 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         // send some ETH to L2CrossDomainMessenger
         gateway.withdrawETH{value: amount}(amount, 21000);
 
-        // do finalize withdraw eth
+        // prepare the message to finalize the deposit of ETH on L2
         bytes memory message = abi.encodeCall(
             IL2ETHGateway.finalizeDepositETH,
             (sender, recipient, amount, dataToCall)
         );
+
+        // counterpart is not L1ETHGateway
         bytes memory xDomainCalldata = _encodeXDomainCalldata(
             address(uint160(address(counterpartGateway)) + 1),
             address(gateway),
@@ -133,7 +237,6 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
             message
         );
 
-        // counterpart is not L1ETHGateway
         // emit FailedRelayedMessage from L2CrossDomainMessenger
         hevm.expectEmit(true, false, false, true);
         emit ICrossDomainMessenger.FailedRelayedMessage(keccak256(xDomainCalldata));
@@ -155,7 +258,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         assertBoolEq(false, l2Messenger.isL1MessageExecuted(keccak256(xDomainCalldata)));
     }
 
-    function test_finalizeWithdrawETH_succeeds(address sender, uint256 amount, bytes memory dataToCall) public {
+    function test_finalizeDepositETH_succeeds(address sender, uint256 amount, bytes memory dataToCall) public {
         address recipient = address(2048);
 
         amount = bound(amount, 1, address(this).balance / 2);
@@ -163,7 +266,7 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         // send some ETH to L2CrossDomainMessenger
         gateway.withdrawETH{value: amount}(amount, 21000);
 
-        // do finalize withdraw eth
+        // Prepare the message to finalize the deposit of ETH on L2
         bytes memory message = abi.encodeCall(
             IL2ETHGateway.finalizeDepositETH,
             (sender, address(recipient), amount, dataToCall)
