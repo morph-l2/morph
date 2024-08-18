@@ -65,12 +65,12 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         );
 
         // Deploy a new instance of the L2WETHGateway contract implementation.
-        gateway = new L2WETHGateway(address(l1weth), address(l2weth));
+        L2WETHGateway l2WETHGatewayImplTemp = new L2WETHGateway(address(l1weth), address(l2weth));
 
         // Expect revert when the address of _counterpart equals the zero address.
         hevm.expectRevert("zero counterpart address");
         ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
-            address(gateway),
+            address(l2WETHGatewayImplTemp),
             abi.encodeCall(
                 L2WETHGateway.initialize,
                 (
@@ -84,7 +84,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // Expect revert when the address of _router equals the zero address.
         hevm.expectRevert("zero router address");
         ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
-            address(gateway),
+            address(l2WETHGatewayImplTemp),
             abi.encodeCall(
                 L2WETHGateway.initialize,
                 (
@@ -98,7 +98,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // Expect revert when the address of _messenger equals the zero address.
         hevm.expectRevert("zero messenger address");
         ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
-            address(gateway),
+            address(l2WETHGatewayImplTemp),
             abi.encodeCall(
                 L2WETHGateway.initialize,
                 (
@@ -122,11 +122,11 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         );
 
         // Deploy a new instance of the L2WETHGateway contract implementation.
-        gateway = new L2WETHGateway(address(l1weth), address(l2weth));
+        L2WETHGateway l2WETHGatewayImplTemp = new L2WETHGateway(address(l1weth), address(l2weth));
 
         // Initialize the proxy with the new implementation.
         ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
-            address(gateway),
+            address(l2WETHGatewayImplTemp),
             abi.encodeCall(
                 L2WETHGateway.initialize,
                 (
