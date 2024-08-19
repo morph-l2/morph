@@ -37,6 +37,8 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		L1ERC1155GatewayProxy:       address1,
 		L1WETHGatewayProxy:          address1,
 		L1WETH:                      address1,
+		L1USDC:                      address1,
+		L1USDCGatewayProxy:          address1,
 		L1WithdrawLockERC20Gateway:  address1,
 
 		GasPriceOracleOverhead: 1,
