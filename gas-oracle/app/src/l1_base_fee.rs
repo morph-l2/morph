@@ -4,7 +4,7 @@ use crate::{
     abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, external_sign::ExternalSign,
     format_contract_error, metrics::ORACLE_SERVICE_METRICS, read_parse_env, OracleError,
 };
-use ethers::prelude::*;
+use ethers::{prelude::*, middleware::signer::SignerMiddlewareError};
 use eyre::anyhow;
 use transaction::eip2718::TypedTransaction;
 
@@ -138,7 +138,26 @@ impl BaseFeeUpdater {
                 let raw_tx = ext_signer.request_sign(&tx).await.unwrap();
                 self.l2_provider.send_raw_transaction(raw_tx).await.unwrap()
             } else {
-                client.send_transaction(tx, None).await.unwrap()
+                let rt = client.send_transaction(tx, None).await;
+                // if let Err(e) = rt {
+                //     log::error!(
+                //         "send tx of set_l1_base_fee_and_blob_base_fee error, origin msg: {:#?}",
+                //         e
+                //     );
+
+                    // if let  SignerMiddlewareError::MiddlewareError(a) = e{
+                    //     let err:Middleware::Error =  Middleware::convert_err(a);
+                    // let erra = err.convert_err();
+
+                    // }
+                    // let err = (e as SignerMiddlewareError::MiddlewareError).from_middleware_error();
+
+                    // return Err(OracleError::L1BaseFeeError(anyhow!(
+                    //     "set_l1_base_fee_and_blob_base_fee error: {}",                        
+                    //     format_contract_error(e)
+                    // )));
+                // }
+                rt.unwrap()
             };
 
             // self.l2_provider.estimate_gas()fill_transaction(tx, block);
