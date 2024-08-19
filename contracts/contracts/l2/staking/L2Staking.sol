@@ -111,16 +111,19 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
      ***************/
 
     /// @notice initializer
+    /// @param _owner                owner
     /// @param _sequencersMaxSize    max size of sequencer set
     /// @param _undelegateLockEpochs undelegate lock epochs
     /// @param _rewardStartTime      reward start time
     /// @param _stakers              initial stakers, must be same as initial sequencer set in sequencer contract
     function initialize(
+        address _owner,
         uint256 _sequencersMaxSize,
         uint256 _undelegateLockEpochs,
         uint256 _rewardStartTime,
         Types.StakerInfo[] calldata _stakers
     ) public initializer {
+        require(_owner != address(0), "invalid owner address");
         require(_sequencersMaxSize > 0, "sequencersSize must greater than 0");
         require(_undelegateLockEpochs > 0, "invalid undelegateLockEpochs");
         require(
@@ -129,7 +132,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         );
         require(_stakers.length > 0, "invalid initial stakers");
 
-        __Ownable_init();
+        _transferOwnership(_owner);
         __ReentrancyGuard_init();
 
         sequencerSetMaxSize = _sequencersMaxSize;
@@ -188,6 +191,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
                     candidateNumber -= 1;
                 }
             }
+
+            delete stakers[remove[i]];
         }
         emit StakerRemoved(remove);
 
@@ -456,9 +461,40 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /// @notice Get all the delegators which staked to staker
-    /// @param staker sequencers size
-    function getDelegators(address staker) external view returns (address[] memory) {
+    /// @param staker staker address
+    function getAllDelegators(address staker) external view returns (address[] memory) {
         return delegators[staker].values();
+    }
+
+    /// @notice Get the delegators length which staked to staker
+    /// @param staker staker address
+    function getDelegatorsLength(address staker) external view returns (uint256) {
+        return delegators[staker].length();
+    }
+
+    /// @notice Get the delegators which staked to staker in pagination
+    /// @param staker       staker address
+    /// @param pageSize     page size
+    /// @param pageIndex    page index
+    function getAllDelegatorsInPagination(
+        address staker,
+        uint256 pageSize,
+        uint256 pageIndex
+    ) external view returns (uint256 delegatorsTotalNumber, address[] memory delegatorsInPage) {
+        require(pageSize > 0, "invalid page size");
+
+        delegatorsTotalNumber = delegators[staker].length();
+        delegatorsInPage = new address[](pageSize);
+
+        uint256 start = pageSize * pageIndex;
+        uint256 end = pageSize * (pageIndex + 1) - 1;
+        if (end > (delegatorsTotalNumber - 1)) {
+            end = delegatorsTotalNumber - 1;
+        }
+        for (uint256 i = start; i <= end; i++) {
+            delegatorsInPage[i] = delegators[staker].at(i);
+        }
+        return (delegatorsTotalNumber, delegatorsInPage);
     }
 
     /// @notice get stakers info
@@ -490,6 +526,12 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice get staker addresses length
     function getStakerAddressesLength() external view returns (uint256) {
         return stakerAddresses.length;
+    }
+
+    /// @notice get undelegations of a delegator
+    /// @param delegator delegator
+    function getUndelegations(address delegator) external view returns (Undelegation[] memory) {
+        return undelegations[delegator];
     }
 
     /**********************

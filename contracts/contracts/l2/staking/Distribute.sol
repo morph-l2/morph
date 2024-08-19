@@ -74,8 +74,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      ***************/
 
     /// @notice initializer
-    function initialize() public initializer {
-        __Ownable_init();
+    /// @param _owner owner
+    function initialize(address _owner) public initializer {
+        require(_owner != address(0), "invalid owner address");
+        _transferOwnership(_owner);
     }
 
     /************************
@@ -161,7 +163,6 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     ) external onlyRecordContract {
         mintedEpochCount++;
         require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
-
         require(
             delegatorRewards.length == sequencers.length && commissions.length == sequencers.length,
             "invalid data length"
@@ -231,7 +232,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             commission += distributions[delegatee][i].commissionAmount;
             distributions[delegatee][i].commissionAmount = 0;
             // if all delegators claimed, delete distribution
-            if (distributions[delegatee][i].remainsNumber == 0) {
+            if (distributions[delegatee][i].delegators.length() > 0 && distributions[delegatee][i].remainsNumber == 0) {
                 delete distributions[delegatee][i];
             }
         }
@@ -302,16 +303,38 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         }
     }
 
+    /// @notice query all unclaimed morph reward epochs info
+    /// @param delegator     delegatee address
+    function queryAllUnclaimedEpochs(
+        address delegator
+    )
+        external
+        view
+        returns (bool[] memory undelegated, uint256[] memory unclaimedStart, uint256[] memory unclaimedEnd)
+    {
+        uint256 length = unclaimed[delegator].delegatees.length();
+
+        undelegated = new bool[](length);
+        unclaimedStart = new uint256[](length);
+        unclaimedEnd = new uint256[](length);
+
+        for (uint256 i = 0; i < length; i++) {
+            undelegated[i] = unclaimed[delegator].undelegated[unclaimed[delegator].delegatees.at(i)];
+            unclaimedStart[i] = unclaimed[delegator].unclaimedStart[unclaimed[delegator].delegatees.at(i)];
+            unclaimedEnd[i] = unclaimed[delegator].unclaimedEnd[unclaimed[delegator].delegatees.at(i)];
+        }
+    }
+
     /**********************
      * Internal Functions *
      **********************/
 
     /// @notice transfer morph token
     function _transfer(address _to, uint256 _amount) internal {
-        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
+        uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(address(this));
         IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
-        uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
+        uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(address(this));
+        require(_amount > 0 && balanceBefore - balanceAfter == _amount, "morph token transfer failed");
     }
 
     /// @notice claim delegator morph reward

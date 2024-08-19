@@ -2,15 +2,12 @@ module morph-l2/oracle
 
 go 1.22
 
-replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240627065844-a0368033f416
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
-)
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.0
 
 require (
 	github.com/go-kit/kit v0.12.0
+	github.com/morph-l2/go-ethereum v0.5.0
 	github.com/prometheus/client_golang v1.17.0
-	github.com/scroll-tech/go-ethereum v1.11.4
 	github.com/stretchr/testify v1.9.0
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
@@ -86,7 +83,7 @@ require (
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect

@@ -9,16 +9,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/scroll-tech/go-ethereum"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	eth "github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/crypto"
-	geth "github.com/scroll-tech/go-ethereum/eth"
-	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	eth "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto"
+	geth "github.com/morph-l2/go-ethereum/eth"
+	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/ethclient/authclient"
+	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	"morph-l2/bindings/bindings"
@@ -286,7 +286,7 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	if err != nil {
 		return nil, err
 	}
-	indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), *tx)
+	indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), tx)
 	header, err := d.l1Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockNumber)))
 	if err != nil {
 		return nil, err

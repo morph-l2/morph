@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  holesky-geth: 
+    container_name: morph-geth-holesky
+    image: morph/geth-nccc:latest
+    build: 
+      context: ../..
+      dockerfile: ops/publicnode/Dockerfile.geth-nccc
+    restart: unless-stopped
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "8551"
+      - "6060"
+      - "30303"
+    volumes:
+      - "${GETH_DATA_DIR}:/db"
+      - "${JWT_SECRET_FILE}:/jwt-secret.txt"
+      - "${GETH_ENTRYPOINT_FILE}:/entrypoint.sh"
+    entrypoint:
+      - "/bin/sh"
+      - "/entrypoint.sh"  
+
+  holesky-node:
+    container_name: morph-node-holesky
+    depends_on:
+      holesky-geth:
+        condition: service_started
+    image: morph/node:latest
+    build:
+      context: ../..
+      dockerfile: ops/publicnode/Dockerfile.node
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "26657"
+      - "26658"
+      - "26660"
+    environment:
+      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-holesky:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-holesky:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=/jwt-secret.txt
+    volumes:
+      - "${NODE_DATA_DIR}:/db"
+      - "${JWT_SECRET_FILE}:/jwt-secret.txt"
+    command: >
+      morphnode
+      --home /db
+      --log.filename /node.log
+
+
+

@@ -74,7 +74,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
                 )
             )
         );
-        
+
         // Expect revert due to zero messenger address.
         hevm.expectRevert("zero messenger address");
         ITransparentUpgradeableProxy(address(l1ERC1155GatewayProxy)).upgradeToAndCall(
@@ -118,7 +118,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         // Cast the proxy contract address to the L1ERC1155Gateway contract type to call its methods.
         L1ERC1155Gateway l1ERC1155GatewayTemp = L1ERC1155Gateway(address(l1ERC1155GatewayProxyTemp));
         hevm.stopPrank();
-        
+
         // Verify the counterpart and messenger are initialized successfully.
         assertEq(l1ERC1155GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
         assertEq(l1ERC1155GatewayTemp.messenger(), address(l1CrossDomainMessenger));
@@ -283,7 +283,7 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
             abi.encodeWithSignature("xDomainMessageSender()"),
             abi.encode(Constants.DROP_XDOMAIN_MESSAGE_SENDER)
         );
-        
+
         // Expect RefundERC1155 event to be emitted.
         hevm.expectEmit(true, true, true, true);
         emit IL1ERC1155Gateway.RefundERC1155(address(l1Token), address(this), tokenId, amount);

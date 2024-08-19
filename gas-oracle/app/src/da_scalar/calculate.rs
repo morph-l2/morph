@@ -70,14 +70,14 @@ pub(super) fn extract_tx_payload(
 
             let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
             let blob_struct = Blob(blob_array);
-            let mut compressed_batch = blob_struct.get_compressed_batch().map_err(|e| {
+            let mut origin_batch = blob_struct.get_origin_batch().map_err(|e| {
                 ScalarError::CalculateError(anyhow!(format!(
                     "Failed to decode blob tx payload: {}",
                     e
                 )))
             })?;
 
-            tx_payload.append(&mut compressed_batch);
+            tx_payload.append(&mut origin_batch);
         } else {
             return Err(ScalarError::CalculateError(anyhow!(format!(
                 "no blob in response matches desired index: {}",
@@ -171,11 +171,18 @@ pub(super) fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> 
 
     let mut offset: usize = 0;
     while offset < bs.len() {
-        let tx_len = *bs.get(offset + 1).unwrap() as usize;
-        if tx_len == 0 {
+        if *bs.get(offset).unwrap() < 0xf7 {
             break;
-        }
-        let tx_bytes = bs[offset..offset + 2 + tx_len].to_vec();
+        };
+        let tx_len_size = *bs.get(offset).unwrap() as usize - 0xf7;
+
+        let mut tx_len_bytes = [0u8; 4];
+        tx_len_bytes[4 - tx_len_size..]
+            .copy_from_slice(bs.get(offset + 1..offset + tx_len_size + 1).unwrap_or_default());
+
+        let tx_len = u32::from_be_bytes(tx_len_bytes) as usize;
+
+        let tx_bytes = bs[offset..offset + tx_len_size + tx_len + 1].to_vec();
         let tx_decoded: TypedTransaction = match rlp::decode(&tx_bytes) {
             Ok(tx) => tx,
             Err(e) => {
@@ -183,9 +190,8 @@ pub(super) fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> 
                 return vec![];
             }
         };
-
         txs_decoded.push(tx_decoded);
-        offset += tx_len + 2
+        offset += tx_len_size + tx_len + 1
     }
     txs_decoded
 }

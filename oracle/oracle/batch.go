@@ -1,6 +1,7 @@
 package oracle
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,12 +11,12 @@ import (
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/eth"
-	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/eth"
+	"github.com/morph-l2/go-ethereum/log"
 )
 
 type BatchInfoMap map[common.Hash][]BatchInfo
@@ -96,11 +97,12 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			log.Error("get l2 BlockNumber", "err", err)
 			return nil, parseErr
 		}
+
+		if !bytes.Equal(abi.Methods["commitBatch"].ID, tx.Data()[:4]) {
+			continue
+		}
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
-			if rollupCommitBatch.BatchIndex.Uint64() == 0 {
-				continue
-			}
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
 			return nil, err
 		}

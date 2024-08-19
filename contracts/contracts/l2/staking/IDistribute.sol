@@ -31,8 +31,8 @@ interface IDistribute {
 
     /// @notice Unclaimed representing a unclaimd info of a delegator
     ///
-    /// @custom:field undelegated        whether is undelegated
     /// @custom:field delegatees         all delegatees if this delegator, remove delegatee after all reward claimed
+    /// @custom:field undelegated        whether is undelegated
     /// @custom:field unclaimedStart     unclaimed start epoch index
     /// @custom:field unclaimedEnd       unclaimed end epoch index, set 0 if undelegated is false or all claimed
     struct Unclaimed {
@@ -77,6 +77,12 @@ interface IDistribute {
     function queryAllUnclaimed(
         address delegator
     ) external view returns (address[] memory delegatee, uint256[] memory reward);
+
+    /// @notice query all unclaimed morph reward epochs info
+    /// @param delegator     delegatee address
+    function queryAllUnclaimedEpochs(
+        address delegator
+    ) external view returns (bool[] memory undelegated, uint256[] memory unclaimedStart, uint256[] memory unclaimedEnd);
 
     /*****************************
      * Public Mutating Functions *

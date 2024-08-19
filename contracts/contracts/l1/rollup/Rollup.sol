@@ -96,9 +96,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Function Modifiers *
      **********************/
 
-    /// @notice Only staker allowed.
-    modifier OnlyStaker() {
-        require(IL1Staking(l1StakingContract).isStaker(_msgSender()), "only staker allowed");
+    /// @notice Only active staker allowed.
+    modifier OnlyActiveStaker() {
+        require(IL1Staking(l1StakingContract).isActiveStaker(_msgSender()), "only active staker allowed");
         _;
     }
 
@@ -172,23 +172,17 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      ************************/
 
     /// @notice Import layer 2 genesis block
-    function importGenesisBatch(uint256 _batchIndex, bytes calldata _batchHeader) external onlyOwner {
+    function importGenesisBatch(bytes calldata _batchHeader) external onlyOwner {
         // check whether the genesis batch is imported
         require(finalizedStateRoots[0] == bytes32(0), "genesis batch imported");
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         bytes32 _postStateRoot = BatchHeaderCodecV0.getPostStateHash(memPtr);
         require(_postStateRoot != bytes32(0), "zero state root");
         // check all fields except `l1DataHash` and `lastBlockHash` are zero
-        unchecked {
-            uint256 sum = BatchHeaderCodecV0.getVersion(memPtr) +
-                BatchHeaderCodecV0.getBatchIndex(memPtr) +
-                BatchHeaderCodecV0.getL1MessagePopped(memPtr) +
-                BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr);
-            require(sum == 0, "not all fields are zero");
-        }
+        require(BatchHeaderCodecV0.getL1MessagePopped(memPtr) == 0, "l1 message popped should be 0");
         require(BatchHeaderCodecV0.getL1DataHash(memPtr) != bytes32(0), "zero data hash");
-        require(BatchHeaderCodecV0.getParentBatchHash(memPtr) == bytes32(0), "nonzero parent batch hash");
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
@@ -206,7 +200,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function commitBatch(
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
-    ) external payable override OnlyStaker nonReqRevert whenNotPaused {
+    ) external payable override OnlyActiveStaker nonReqRevert whenNotPaused {
         require(batchDataInput.version == 0, "invalid version");
         // check whether the batch is empty
         uint256 _chunksLength = batchDataInput.chunks.length;
@@ -334,8 +328,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-
         require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+
         // make sure no gap is left when reverting from the ending to the beginning.
         require(committedBatches[_batchIndex + _count] == bytes32(0), "reverting must start from the ending");
         // check finalization
@@ -377,7 +371,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
         // check challenge amount
-        require(msg.value >= IL1Staking(l1StakingContract).stakingValue(), "insufficient value");
+        require(msg.value >= IL1Staking(l1StakingContract).challengeDeposit(), "insufficient value");
 
         batchChallenged = batchIndex;
         challenges[batchIndex] = BatchChallenge(batchIndex, _msgSender(), msg.value, block.timestamp, false, false);
@@ -473,8 +467,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes calldata _kzgDataProof
     ) external nonReqRevert whenNotPaused {
         // get batch data from batch header
-        (uint256 memPtr, ) = _loadBatchHeader(_batchHeader);
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+
         // Ensure challenge exists and is not finished
         require(batchInChallenge(_batchIndex), "batch in challenge");
 
@@ -497,8 +494,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev finalize batch
     function finalizeBatch(bytes calldata _batchHeader) public nonReqRevert whenNotPaused {
         // get batch data from batch header
-        (uint256 memPtr, ) = _loadBatchHeader(_batchHeader);
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
 
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
@@ -721,18 +719,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _batchHeader The batch header in calldata.
     /// @return _memPtr     The start memory offset of loaded batch header.
     /// @return _batchHash  The hash of the loaded batch header.
-    function _loadBatchHeader(bytes calldata _batchHeader) internal view returns (uint256 _memPtr, bytes32 _batchHash) {
+    function _loadBatchHeader(bytes calldata _batchHeader) internal pure returns (uint256 _memPtr, bytes32 _batchHash) {
         // load to memory
         uint256 _length;
         (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
 
         // compute batch hash
         _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
-        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_memPtr);
-        // only check when genesis is imported
-        if (finalizedStateRoots[0] != bytes32(0)) {
-            require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
-        }
     }
 
     /// @dev Internal function to load the latestL2BlockNumber.

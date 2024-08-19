@@ -3,7 +3,7 @@ package eth
 import (
 	"fmt"
 
-	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common"
 )
 
 type BlockID struct {

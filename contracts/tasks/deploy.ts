@@ -27,6 +27,8 @@ task("deploy")
         // Initialization parameters
         const storagePath = taskArgs.storagepath
         const deployer = await hre.ethers.provider.getSigner();
+        const config = hre.deployConfig
+
         console.log('################################## console parameters ##################################')
         console.log('deployer :', await deployer.getAddress())
 
@@ -46,7 +48,7 @@ task("deploy")
         }
 
         console.log('\n---------------------------------- deploy  Proxys ----------------------------------')
-        err = await deployContractProxies(hre, storagePath, deployer)
+        err = await deployContractProxies(hre, storagePath, deployer,config)
         if (err != '') {
             console.log('Deploy Proxys failed, err: ', err)
             return

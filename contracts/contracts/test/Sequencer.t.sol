@@ -27,14 +27,14 @@ contract SequencerTest is L2StakingBaseTest {
 
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        sequencer.initialize(_sequencersAddresses);
+        sequencer.initialize(multisig, _sequencersAddresses);
 
         // reset initialize
         hevm.store(address(sequencer), bytes32(uint256(0)), bytes32(uint256(0)));
 
         hevm.expectRevert("invalid sequencer set");
         hevm.prank(multisig);
-        sequencer.initialize(_sequencersAddresses);
+        sequencer.initialize(multisig, _sequencersAddresses);
     }
 
     /**
@@ -57,7 +57,7 @@ contract SequencerTest is L2StakingBaseTest {
         emit ISequencer.SequencerSetUpdated(sequencerAddresses, 0);
 
         hevm.prank(multisig);
-        sequencer.initialize(sequencerAddresses);
+        sequencer.initialize(multisig, sequencerAddresses);
     }
 
     /**

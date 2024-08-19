@@ -3,9 +3,9 @@ package db
 import (
 	"encoding/binary"
 
-	"github.com/scroll-tech/go-ethereum/ethdb"
-	"github.com/scroll-tech/go-ethereum/log"
-	"github.com/scroll-tech/go-ethereum/rlp"
+	"github.com/morph-l2/go-ethereum/ethdb"
+	"github.com/morph-l2/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/rlp"
 
 	"morph-l2/node/types"
 )

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/core/types"
 )
 
 // The current `contentfrom` method of `blobpool` returns empty,
@@ -45,7 +45,7 @@ func (j *Journal) Init() error {
 	return nil
 }
 
-func (j *Journal) AppendTx(tx types.Transaction) error {
+func (j *Journal) AppendTx(tx *types.Transaction) error {
 	encTx, err := EncodeTx(tx)
 	if err != nil {
 		return fmt.Errorf("add tx to journal filed:%v", err)
@@ -66,7 +66,7 @@ func (j *Journal) AddToFileEnd(str string) error {
 
 }
 
-func (j *Journal) ParseAllTxsAndCleanJournal() ([]types.Transaction, error) {
+func (j *Journal) ParseAllTxsAndCleanJournal() ([]*types.Transaction, error) {
 	txs, err := j.ParseAllTxs()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse txs: %w", err)
@@ -78,7 +78,7 @@ func (j *Journal) ParseAllTxsAndCleanJournal() ([]types.Transaction, error) {
 	return txs, nil
 }
 
-func (j *Journal) ParseAllTxs() ([]types.Transaction, error) {
+func (j *Journal) ParseAllTxs() ([]*types.Transaction, error) {
 	content, err := readFileContent(j.path)
 
 	if err != nil {
@@ -89,7 +89,7 @@ func (j *Journal) ParseAllTxs() ([]types.Transaction, error) {
 		return nil, nil
 	}
 
-	var ans []types.Transaction
+	var ans []*types.Transaction
 	lines := getLines(content)
 	for _, line := range lines {
 		// parse tx

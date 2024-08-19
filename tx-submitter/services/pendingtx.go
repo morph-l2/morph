@@ -10,15 +10,15 @@ import (
 	journal "morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/utils"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/accounts/abi"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/log"
 )
 
 type TxInfo struct {
 	sendTime uint64
-	tx       types.Transaction
+	tx       *types.Transaction
 
 	queryTimes uint64
 }
@@ -49,7 +49,7 @@ func NewPendingTxs(cid []byte, fid []byte, journal *journal.Journal) *PendingTxs
 	}
 }
 
-func (pt *PendingTxs) Store(tx types.Transaction) error {
+func (pt *PendingTxs) Store(tx *types.Transaction) error {
 	err := pt.journal.AppendTx(tx)
 	if err != nil {
 		return fmt.Errorf("failed to store tx: %v", err)
@@ -72,7 +72,7 @@ func (pt *PendingTxs) dump() error {
 	return nil
 }
 
-func (pt *PendingTxs) Add(tx types.Transaction) {
+func (pt *PendingTxs) Add(tx *types.Transaction) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
 	pt.txinfos[tx.Hash()] = TxInfo{
@@ -98,7 +98,7 @@ func (pt *PendingTxs) Remove(txHash common.Hash) {
 }
 
 // Recover from mempool
-func (pt *PendingTxs) Recover(txs []types.Transaction, a *abi.ABI) {
+func (pt *PendingTxs) Recover(txs []*types.Transaction, a *abi.ABI) {
 	// restore state from mempool
 	if len(txs) > 0 {
 		var pbindex, pfindex uint64

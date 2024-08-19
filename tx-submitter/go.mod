@@ -2,15 +2,13 @@ module morph-l2/tx-submitter
 
 go 1.22
 
-replace (
-	github.com/scroll-tech/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20240627065844-a0368033f416
-	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.2.0-beta.0.20240513090937-03bf2a578b48
-)
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.0
 
 require (
 	github.com/holiman/uint256 v1.2.4
+	github.com/morph-l2/externalsign v0.1.0-beta
+	github.com/morph-l2/go-ethereum v0.5.0
 	github.com/prometheus/client_golang v1.17.0
-	github.com/scroll-tech/go-ethereum v1.11.4
 	github.com/stretchr/testify v1.9.0
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
@@ -21,6 +19,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.7.0 // indirect
+	github.com/btcsuite/btcd v0.20.1-beta // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
@@ -37,6 +36,7 @@ require (
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/go-resty/resty/v2 v2.13.1 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
@@ -48,7 +48,6 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.16 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
@@ -79,7 +78,7 @@ require (
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect

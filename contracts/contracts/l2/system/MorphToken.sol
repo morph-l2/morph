@@ -86,8 +86,6 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         uint256 initialSupply_,
         uint256 dailyInflationRate_
     ) public initializer {
-        __Ownable_init();
-
         _name = name_;
         _symbol = symbol_;
         _mint(_owner, initialSupply_);
@@ -134,6 +132,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             for (uint256 j = _epochInflationRates.length - 1; j > 0; j--) {
                 if (_epochInflationRates[j].effectiveEpochIndex <= i) {
                     rate = _epochInflationRates[j].rate;
+                    break;
                 }
             }
             uint256 increment = (_totalSupply * rate) / PRECISION;
@@ -143,6 +142,13 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         }
 
         _inflationMintedEpochs = upToEpochIndex + 1;
+    }
+
+    /// @dev Destroys `amount` tokens from `account`, reducing the total supply.
+    /// @param amount amount to destroy
+    function burn(uint256 amount) external onlyOwner {
+        require(amount > 0, "amount to burn is zero");
+        _burn(_msgSender(), amount);
     }
 
     /*****************************
@@ -344,6 +350,30 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             _balances[account] += amount;
         }
         emit Transfer(address(0), account, amount);
+    }
+
+    /**
+     * @dev Destroys `amount` tokens from `account`, reducing the total supply.
+     *
+     * Emits a {Transfer} event with `to` set to the zero address.
+     *
+     * Requirements:
+     *
+     * - `account` cannot be the zero address.
+     * - `account` must have at least `amount` tokens.
+     */
+    function _burn(address account, uint256 amount) internal {
+        require(account != address(0), "ERC20: burn from the zero address");
+
+        uint256 accountBalance = _balances[account];
+        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
+        unchecked {
+            _balances[account] = accountBalance - amount;
+            // Overflow not possible: amount <= accountBalance <= totalSupply.
+            _totalSupply -= amount;
+        }
+
+        emit Transfer(account, address(0), amount);
     }
 
     /// @dev Sets `amount` as the allowance of `spender` over the `owner` s tokens.

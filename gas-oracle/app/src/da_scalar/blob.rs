@@ -9,13 +9,18 @@ use ethers::{
 use super::zstd_util::init_zstd_decoder;
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
-const MAX_AGG_SNARKS: usize = 15;
+const MAX_AGG_SNARKS: usize = 45;
 const METADATA_LENGTH: usize = 2 + 4 * MAX_AGG_SNARKS;
 
 #[derive(Debug, Clone)]
 pub struct Blob(pub [u8; MAX_BLOB_TX_PAYLOAD_SIZE]);
 
 impl Blob {
+    pub fn get_origin_batch(&self) -> Result<Vec<u8>, BlobError> {
+        let compressed_data = self.get_compressed_batch()?;
+        decompress_batch(&compressed_data)
+    }
+    
     pub fn get_compressed_batch(&self) -> Result<Vec<u8>, BlobError> {
         // Decode blob, recovering BLS12-381 scalars.
         let mut data = vec![0u8; MAX_BLOB_TX_PAYLOAD_SIZE];
@@ -57,17 +62,25 @@ impl Blob {
             }
         };
 
-        let (_last_block, _block_type, block_size) =
-            parse_block_header(&decoded_blob.to_vec(), fcs_field_size).map_err(|e| {
-                BlobError::Error(anyhow!(format!("parse_block_header error: {:#?}", e)))
-            })?;
+        fn get_blocks_size(decoded_blob: &Vec<u8>, start: usize) -> Result<usize, BlobError> {
+            let (last_block, _block_type, block_size) =
+                parse_block_header(&decoded_blob.to_vec(), start).map_err(|e| {
+                    BlobError::Error(anyhow!(format!("parse_block_header error: {:#?}", e)))
+                })?;
 
-        // compressed_data = frame_header + frame_content_field_size + zstd_block
-        let compressed_len = 1 + fcs_field_size as usize + block_size as usize + 3;
+            if !last_block {
+                return get_blocks_size(decoded_blob, block_size as usize + 3 + start);
+            }
+            // block = Block_Header(3 bytes) + Block_Content
+            Ok(block_size as usize + 3 + start)
+        }
+
+        // compressed_data = frame_header + frame_content_field_size + zstd_blocks
+        let compressed_len = get_blocks_size(&decoded_blob, fcs_field_size)? + 1;
+
         if compressed_len as usize > MAX_BLOB_TX_PAYLOAD_SIZE - 4096 {
             return Err(BlobError::Error(anyhow!("oversized batch payload")))
         }
-
         let compressed_batch = decoded_blob[..compressed_len].to_vec();
 
         // check data
@@ -112,17 +125,17 @@ impl Blob {
             log::warn!("batch.len < METADATA_LENGTH ");
             return Ok(Vec::new());
         }
-        let chunks_len = u16::from_be_bytes(origin_batch[0..2].try_into().unwrap()); // size of num_valid_chunks is 2bytes.
-        if chunks_len as usize > MAX_AGG_SNARKS {
+        let num_valid_chunks = u16::from_be_bytes(origin_batch[0..2].try_into().unwrap()); // size of num_valid_chunks is 2bytes.
+        if num_valid_chunks as usize > MAX_AGG_SNARKS {
             return Err(BlobError::InvalidData(anyhow!(format!(
-                "Invalid blob data: chunks_len bigger than MAX_AGG_SNARKS. parsed chunks_len: {}",
-                chunks_len
+                "Invalid blob data: num_valid_chunks bigger than MAX_AGG_SNARKS. parsed num_valid_chunks: {}",
+                num_valid_chunks
             ))));
         }
 
-        let data_size: u32 = origin_batch[2..METADATA_LENGTH]
+        let data_size: u64 = origin_batch[2..2 + 4 * num_valid_chunks as usize]
             .chunks_exact(4)
-            .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()))
+            .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()) as u64)
             .sum();
 
         let tx_payload_end = METADATA_LENGTH + data_size as usize;
@@ -151,26 +164,10 @@ fn parse_frame_header_descriptor(compressed_data: &[u8]) -> Result<u8, Box<dyn E
     if compressed_data.is_empty() {
         return Err("Compressed data is empty".into());
     }
-
     let descriptor = compressed_data[0];
 
     // resolve Frame_Content_Size_flag (2 bits)
     let frame_content_size_flag = (descriptor >> 6) & 0b11;
-
-    // resolve Single_Segment_flag (1 bit)
-    // let single_segment_flag = (descriptor >> 5) & 0b1;
-
-    // resolve Unused_bit (1 bit)
-    // let unused_bit = (descriptor >> 4) & 0b1;
-
-    // resolve Reserved_bit (1 bit)
-    // let reserved_bit = (descriptor >> 3) & 0b1;
-
-    // resolve Content_Checksum_flag (1 bit)
-    // let content_checksum_flag = (descriptor >> 2) & 0b1;
-
-    // resolve Dictionary_ID_flag (2 bits)
-    // let dictionary_id_flag = descriptor & 0b11;
 
     Ok(frame_content_size_flag)
 }
@@ -179,6 +176,12 @@ fn parse_block_header(
     compressed_data: &[u8],
     fcs_field_size: usize,
 ) -> Result<(bool, u8, u32), Box<dyn Error>> {
+    // Make sure we have enough data to parse
+    if compressed_data.len() < 1 + fcs_field_size + 3 {
+        // 2 (minimum starting point) + 3 (block header size)
+        return Err("Compressed batch is too small to contain a valid block header".into());
+    }
+
     // Make sure we have enough data to parse
     if compressed_data.len() < 1 + fcs_field_size + 3 {
         // 2 (minimum starting point) + 3 (block header size)
@@ -232,6 +235,10 @@ mod tests {
 
     #[test]
     fn test_decode_blob_with_zstd_batch() {
+        use crate::da_scalar::{
+            calculate::decode_transactions_from_blob, typed_tx::TypedTransaction,
+        };
+
         let blob_bytes = load_zstd_blob();
         let blob = Blob(blob_bytes);
 
@@ -242,27 +249,32 @@ mod tests {
         assert_eq!(compressed_batch.len(), 60576);
 
         let origin_batch = super::decompress_batch(&compressed_batch).unwrap();
-        assert_eq!(origin_batch.len(), 124971);
+        assert_eq!(origin_batch.len(), 125091);
 
-        let chunks_len = u16::from_be_bytes(origin_batch[0..2].try_into().expect("chunks_len")); // size of num_valid_chunks is 2bytes.
+        let chunks_len = u16::from_be_bytes(origin_batch[0..2].try_into().expect("chunks_len"));
+        // size of num_valid_chunks is 2bytes.
         assert_eq!(chunks_len, 11);
 
         let tx_payload =
             super::Blob::decode_raw_tx_payload(origin_batch).expect("decode_raw_tx_payload");
+        assert!(tx_payload.len() == 124909, "tx_payload.len()");
 
-        println!("tx_payload.len: {:?}", tx_payload.len());
-
-        assert!(!tx_payload.is_empty(), "tx_payload.len() > 0");
+        let txs_decoded: Vec<TypedTransaction> =
+            decode_transactions_from_blob(tx_payload.as_slice());
+        assert!(txs_decoded.len() == 200, "txs_decoded.len()");
     }
 
     #[test]
     #[allow(clippy::needless_range_loop)]
     fn test_decode_zstd_working_example() {
-        let fake_tx_payload =
-        br#"EIP-4844 introduces a new kind of transaction type to Ethereum which accepts "blobs"
-        of data to be persisted in the beacon node for a short period of time. These changes are
-        forwards compatible with Ethereum's scaling roadmap, and blobs are small enough to keep disk use manageable. and blobs are small enough to keep disk use manageable."#;
-        let batch_data_bytes = encode_test_batch_data_bytes(fake_tx_payload);
+        for i in 1..12 {
+            let random_batch = gen_batch_data(51200 * i);
+            decode_batch_test(&random_batch);
+        }
+    }
+
+    fn decode_batch_test(random_batch: &[u8]) {
+        let batch_data_bytes: Vec<u8> = encode_test_batch_data_bytes(random_batch);
 
         let encoded_bytes = {
             // Compress batch
@@ -281,6 +293,13 @@ mod tests {
             encoded_bytes
         };
 
+        let origin_batch = decompress_batch(&encoded_bytes).unwrap();
+        println!(
+            "=======origin_batch_len: {:?}, batch_data_bytes_len: {:?}",
+            origin_batch.len(),
+            batch_data_bytes.len()
+        );
+
         // Encode to blob
         let mut blob_data = [0u8; MAX_BLOB_TX_PAYLOAD_SIZE];
         for (i, &byte) in encoded_bytes.iter().enumerate() {
@@ -298,12 +317,21 @@ mod tests {
         assert_eq!(compressed_batch, encoded_bytes);
 
         let origin_batch = super::decompress_batch(&compressed_batch).unwrap();
-
-        let decoded_tx_payload =
-            super::Blob::decode_raw_tx_payload(origin_batch).expect("decode_raw_tx_payload");
-        println!("fake_tx_payload: {:?}", String::from_utf8_lossy(&decoded_tx_payload));
+        assert_eq!(origin_batch, batch_data_bytes);
     }
 
+    pub fn gen_batch_data(batch_len: usize) -> Vec<u8> {
+        let mut batch: Vec<u8> = vec![0; batch_len];
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..batch_len {
+            if 1 & i == 0 {
+                batch[i] = (i % 16 + i % 128) as u8 + ((i / 64) % 96) as u8
+            } else {
+                batch[i] = (i % 121) as u8 + 1
+            }
+        }
+        batch
+    }
     pub fn load_zstd_blob() -> [u8; 131072] {
         let blob_data_path = Path::new("data/blob_with_zstd_batch.data");
         let data = fs::read_to_string(blob_data_path).expect("Unable to read file");
@@ -315,7 +343,8 @@ mod tests {
     }
 
     fn encode_test_batch_data_bytes(payload: &[u8]) -> Vec<u8> {
-        let chunks: Vec<&[u8]> = payload.chunks(123).collect();
+        let chunk_size = (payload.len() / 45) + 1;
+        let chunks: Vec<&[u8]> = payload.chunks(chunk_size).collect();
         let chunks_len = chunks.len();
         println!("chunks_len {:?}", chunks_len);
 
@@ -323,12 +352,8 @@ mod tests {
         raw_data.extend_from_slice(&(chunks_len as u16).to_be_bytes());
 
         #[allow(clippy::needless_range_loop)]
-        for i in 0..15 {
-            if i < chunks_len {
-                raw_data.extend_from_slice(&(chunks[i].len() as u32).to_be_bytes());
-            } else {
-                raw_data.extend_from_slice(&(0u32).to_be_bytes());
-            }
+        for i in 0..chunks_len {
+            raw_data.extend_from_slice(&(chunks[i].len() as u32).to_be_bytes());
         }
         for chunk in chunks {
             raw_data.extend_from_slice(chunk);
