@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use eyre::anyhow;
 use tokio::time::{sleep, Duration};
+use transaction::eip2718::TypedTransaction;
 
 use super::{
     blob_client::BeaconNode,
@@ -12,9 +15,10 @@ use crate::{
         gas_price_oracle_abi::GasPriceOracle,
         rollup_abi::{CommitBatchCall, Rollup},
     },
+    external_sign::ExternalSign,
     format_contract_error,
     metrics::ORACLE_SERVICE_METRICS,
-    read_env_var,
+    read_env_var, read_parse_env,
 };
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use lazy_static::lazy_static;
@@ -32,9 +36,11 @@ lazy_static! {
 // Main struct to manage overhead information
 pub struct ScalarUpdater {
     l1_provider: Provider<Http>, // L1 provider for HTTP connections
+    l2_provider: Provider<Http>,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>, // L2 gasPrice Oracle
+    ext_signer: ExternalSign,
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
-    beacon_node: BeaconNode,     // Beacon node for blockchain
+    beacon_node: BeaconNode,           // Beacon node for blockchain
     gas_threshold: u64,
 }
 
@@ -43,7 +49,9 @@ impl ScalarUpdater {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         l1_provider: Provider<Http>,
+        l2_provider: Provider<Http>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
+        ext_signer: ExternalSign,
         l1_rollup: Rollup<Provider<Http>>,
         l1_beacon_rpc: String,
         gas_threshold: u64,
@@ -52,7 +60,15 @@ impl ScalarUpdater {
         let beacon_node = BeaconNode { rpc_url: l1_beacon_rpc };
 
         // Return a new OverHead instance with initialized values
-        Self { l1_provider, l2_oracle, l1_rollup, beacon_node, gas_threshold }
+        Self {
+            l1_provider,
+            l2_provider,
+            l2_oracle,
+            ext_signer,
+            l1_rollup,
+            beacon_node,
+            gas_threshold,
+        }
     }
 
     /// Update commitScalar and blobScalar.
@@ -108,20 +124,20 @@ impl ScalarUpdater {
             "commit_scalar",
         ) {
             // Update commit_scalar
-            let tx = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).legacy();
-            let rt = tx.send().await;
-            let pending_tx = match rt {
-                Ok(pending) => {
-                    log::info!("tx of set_commit_scalar has been sent: {:#?}", pending.tx_hash());
-                    pending
-                }
-                Err(e) => {
-                    log::error!("send tx of set_commit_scalar error, origin msg: {:#?}", e);
-                    return Err(ScalarError::Error(anyhow!(
-                        "set_commit_scalar error: {}",
-                        format_contract_error(e)
-                    )));
-                }
+            let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> =
+                self.l2_oracle.client();
+            let calldata = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).calldata();
+            let req = Eip1559TransactionRequest::new().data(calldata.unwrap());
+            let mut tx = TypedTransaction::Eip1559(req);
+            client.fill_transaction(&mut tx, None).await.map_err(|e| {
+                ScalarError::Error(anyhow!(format!("fill commit_scalar tx error: {:#?}", e)))
+            })?;
+
+            let pending_tx = if read_parse_env("EXTERNAL_SIGN") {
+                let raw_tx = self.ext_signer.request_sign(&tx).await.unwrap();
+                self.l2_provider.send_raw_transaction(raw_tx).await.unwrap()
+            } else {
+                send_with_local_wallet(&client, tx, "set_commit_scalar".to_owned()).await?
             };
             pending_tx.await.map_err(|e| {
                 ScalarError::Error(anyhow!(format!(
@@ -133,21 +149,22 @@ impl ScalarUpdater {
 
         if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64(), "blob_scalar") {
             // Update blob_scalar
-            let tx = self.l2_oracle.set_blob_scalar(U256::from(blob_scalar)).legacy();
-            let rt = tx.send().await;
-            let pending_tx = match rt {
-                Ok(pending) => {
-                    log::info!("tx of set_blob_scalar has been sent: {:#?}", pending.tx_hash());
-                    pending
-                }
-                Err(e) => {
-                    log::error!("send tx of set_blob_scalar error, origin msg: {:#?}", e);
-                    return Err(ScalarError::Error(anyhow!(
-                        "set_blob_scalar error: {}",
-                        format_contract_error(e)
-                    )));
-                }
+            let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> =
+                self.l2_oracle.client();
+            let calldata = self.l2_oracle.set_blob_scalar(U256::from(commit_scalar)).calldata();
+            let req = Eip1559TransactionRequest::new().data(calldata.unwrap());
+            let mut tx = TypedTransaction::Eip1559(req);
+            client.fill_transaction(&mut tx, None).await.map_err(|e| {
+                ScalarError::Error(anyhow!(format!("fill set_blob_scalar tx error: {:#?}", e)))
+            })?;
+
+            let pending_tx = if read_parse_env("EXTERNAL_SIGN") {
+                let raw_tx = self.ext_signer.request_sign(&tx).await.unwrap();
+                self.l2_provider.send_raw_transaction(raw_tx).await.unwrap()
+            } else {
+                send_with_local_wallet(&client, tx, "set_blob_scalar".to_owned()).await?
             };
+
             pending_tx.await.map_err(|e| {
                 ScalarError::Error(anyhow!(format!(
                     "set_blob_scalar check_receipt error: {:#?}",
@@ -200,6 +217,7 @@ impl ScalarUpdater {
             )))
         })?;
 
+        #[allow(clippy::manual_inspect)]
         let (commit_scalar, blob_scalar) = self
             .calculate_from_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
             .await
@@ -405,6 +423,27 @@ impl ScalarUpdater {
     }
 }
 
+async fn send_with_local_wallet(
+    client: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    tx: TypedTransaction,
+    contract_method: String,
+) -> Result<PendingTransaction<Http>, ScalarError> {
+    let rt = client.send_transaction(tx, None).await;
+    rt.map_err(|e| {
+        if e.as_provider_error().is_some() {
+            if let Some(data) = e.as_error_response().and_then(JsonRpcError::as_revert_data) {
+                let contract_error = ContractError::Revert(data);
+                return ScalarError::Error(anyhow!(
+                    "{} {}",
+                    contract_method + "error: {}",
+                    format_contract_error(contract_error)
+                ));
+            };
+        }
+        ScalarError::Error(anyhow!("{} {}", contract_method + "error: {}", e))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,9 +484,13 @@ mod tests {
 
         let l2_oracle_contract = GasPriceOracle::new(l2_oracle_address, l2_signer);
 
+        let ext_signer: ExternalSign =
+            ExternalSign::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
         let mut overhead: ScalarUpdater = ScalarUpdater::new(
             l1_provider,
+            l2_provider,
             l2_oracle_contract,
+            ext_signer,
             l1_rollup_contract,
             var("GAS_ORACLE_L1_BEACON_RPC")
                 .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env empty")

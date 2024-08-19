@@ -1,6 +1,7 @@
 use crate::{
     abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
     da_scalar::l1_scalar::ScalarUpdater,
+    external_sign::ExternalSign,
     l1_base_fee::BaseFeeUpdater,
     read_parse_env,
 };
@@ -46,7 +47,9 @@ impl Config {
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
             )?,
-            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").unwrap_or("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string()),
+            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").unwrap_or(
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
+            ),
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
         })
     }
@@ -114,18 +117,22 @@ async fn prepare_updater(
     let l2_wallet_address = l2_signer.address();
     let l2_oracle = GasPriceOracle::new(config.l2_oracle_address, l2_signer);
     let l1_rollup = Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
-
+    let ext_signer: ExternalSign =
+        ExternalSign::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
     let base_fee_updater = BaseFeeUpdater::new(
         l1_provider.clone(),
         l2_provider.clone(),
         l2_wallet_address,
+        ext_signer.clone(),
         l2_oracle.clone(),
         config.gas_threshold,
     );
 
     let scalar_updater = ScalarUpdater::new(
         l1_provider.clone(),
+        l2_provider.clone(),
         l2_oracle.clone(),
+        ext_signer,
         l1_rollup,
         config.l1_beacon_rpc.clone(),
         config.gas_threshold,

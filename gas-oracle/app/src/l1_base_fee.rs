@@ -4,7 +4,7 @@ use crate::{
     abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, external_sign::ExternalSign,
     format_contract_error, metrics::ORACLE_SERVICE_METRICS, read_parse_env, OracleError,
 };
-use ethers::{prelude::*, middleware::signer::SignerMiddlewareError};
+use ethers::prelude::*;
 use eyre::anyhow;
 use transaction::eip2718::TypedTransaction;
 
@@ -14,6 +14,7 @@ pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
     l2_provider: Provider<Http>,
     l2_wallet: Address,
+    ext_signer: ExternalSign,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
     gas_threshold: u64,
 }
@@ -23,10 +24,11 @@ impl BaseFeeUpdater {
         l1_provider: Provider<Http>,
         l2_provider: Provider<Http>,
         l2_wallet: Address,
+        ext_signer: ExternalSign,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         gas_threshold: u64,
     ) -> Self {
-        BaseFeeUpdater { l1_provider, l2_provider, l2_wallet, l2_oracle, gas_threshold }
+        BaseFeeUpdater { l1_provider, l2_provider, l2_wallet, ext_signer, l2_oracle, gas_threshold }
     }
 
     /// Update baseFee and scalar.
@@ -127,62 +129,19 @@ impl BaseFeeUpdater {
                 .l2_oracle
                 .set_l1_base_fee_and_blob_base_fee(l1_base_fee, l1_blob_base_fee)
                 .calldata();
-            let req = TransactionRequest::new().data(calldata.unwrap());
-            let mut tx = TypedTransaction::Legacy(req);
+            let req = Eip1559TransactionRequest::new().data(calldata.unwrap());
+            let mut tx = TypedTransaction::Eip1559(req);
             client.fill_transaction(&mut tx, None).await.map_err(|e| {
                 OracleError::L1BaseFeeError(anyhow!(format!("fill_transaction error: {:#?}", e)))
             })?;
             let pending_tx = if read_parse_env("EXTERNAL_SIGN") {
-                let ext_signer: ExternalSign =
-                    ExternalSign::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
-                let raw_tx = ext_signer.request_sign(&tx).await.unwrap();
+                let raw_tx = self.ext_signer.request_sign(&tx).await.unwrap();
                 self.l2_provider.send_raw_transaction(raw_tx).await.unwrap()
             } else {
-                let rt = client.send_transaction(tx, None).await;
-                // if let Err(e) = rt {
-                //     log::error!(
-                //         "send tx of set_l1_base_fee_and_blob_base_fee error, origin msg: {:#?}",
-                //         e
-                //     );
-
-                    // if let  SignerMiddlewareError::MiddlewareError(a) = e{
-                    //     let err:Middleware::Error =  Middleware::convert_err(a);
-                    // let erra = err.convert_err();
-
-                    // }
-                    // let err = (e as SignerMiddlewareError::MiddlewareError).from_middleware_error();
-
-                    // return Err(OracleError::L1BaseFeeError(anyhow!(
-                    //     "set_l1_base_fee_and_blob_base_fee error: {}",                        
-                    //     format_contract_error(e)
-                    // )));
-                // }
-                rt.unwrap()
+                send_with_local_wallet(&client, tx, "set_l1_base_fee_and_blob_base_fee".to_owned())
+                    .await?
             };
 
-            // self.l2_provider.estimate_gas()fill_transaction(tx, block);
-            // self.l2_oracle.e
-            // let rt = tx.send().await;
-            // let pending_tx = match rt {
-            //     Ok(pending) => {
-            //         log::info!(
-            //             "tx of set_l1_base_fee_and_blob_base_fee has been sent: {:#?}",
-            //             pending.tx_hash()
-            //         );
-            //         pending
-            //     }
-            //     Err(e) => {
-            //         log::error!(
-            //             "send tx of set_l1_base_fee_and_blob_base_fee error, origin msg: {:#?}",
-            //             e
-            //         );
-
-            //         return Err(OracleError::L1BaseFeeError(anyhow!(
-            //             "set_l1_base_fee_and_blob_base_fee error: {}",
-            //             format_contract_error(e)
-            //         )));
-            //     }
-            // };
             pending_tx.await.map_err(|e| {
                 OracleError::L1BaseFeeError(anyhow!(format!(
                     "set_l1_base_fee_and_blob_base_fee check_receipt error: {:#?}",
@@ -205,20 +164,19 @@ impl BaseFeeUpdater {
         );
         if need_update {
             // Set l1_base_fee for l2.
-            let tx = self.l2_oracle.set_l1_base_fee(l1_base_fee).legacy();
-            let rt = tx.send().await;
-            let pending_tx = match rt {
-                Ok(pending) => {
-                    log::info!("tx of set_l1_base_fee has been sent: {:#?}", pending.tx_hash());
-                    pending
-                }
-                Err(e) => {
-                    log::error!("send tx of set_l1_base_fee error, origin msg: {:#?}", e);
-                    return Err(OracleError::L1BaseFeeError(anyhow!(
-                        "set_l1_base_fee error: {}",
-                        format_contract_error(e)
-                    )));
-                }
+            let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> =
+                self.l2_oracle.client();
+            let calldata = self.l2_oracle.set_l1_base_fee(l1_base_fee).calldata();
+            let req = Eip1559TransactionRequest::new().data(calldata.unwrap());
+            let mut tx = TypedTransaction::Eip1559(req);
+            client.fill_transaction(&mut tx, None).await.map_err(|e| {
+                OracleError::L1BaseFeeError(anyhow!(format!("fill_transaction error: {:#?}", e)))
+            })?;
+            let pending_tx = if read_parse_env("EXTERNAL_SIGN") {
+                let raw_tx = self.ext_signer.request_sign(&tx).await.unwrap();
+                self.l2_provider.send_raw_transaction(raw_tx).await.unwrap()
+            } else {
+                send_with_local_wallet(&client, tx, "set_l1_base_fee".to_owned()).await?
             };
             pending_tx.await.map_err(|e| {
                 OracleError::L1BaseFeeError(anyhow!(format!(
@@ -230,6 +188,27 @@ impl BaseFeeUpdater {
 
         Ok(())
     }
+}
+
+async fn send_with_local_wallet(
+    client: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    tx: TypedTransaction,
+    contract_method: String,
+) -> Result<PendingTransaction<Http>, OracleError> {
+    let rt = client.send_transaction(tx, None).await;
+    rt.map_err(|e| {
+        if e.as_provider_error().is_some() {
+            if let Some(data) = e.as_error_response().and_then(JsonRpcError::as_revert_data) {
+                let contract_error = ContractError::Revert(data);
+                return OracleError::L1BaseFeeError(anyhow!(
+                    "{} {}",
+                    contract_method + "error: {}",
+                    format_contract_error(contract_error)
+                ));
+            };
+        }
+        OracleError::L1BaseFeeError(anyhow!("{} {}", contract_method + "error: {}", e))
+    })
 }
 
 async fn query_l1_base_fee(
