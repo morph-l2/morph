@@ -13,7 +13,7 @@ pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
     l2_provider: Provider<Http>,
     l2_wallet: Address,
-    ext_signer: ExternalSign,
+    ext_signer: Option<ExternalSign>,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
     gas_threshold: u64,
 }
@@ -23,7 +23,7 @@ impl BaseFeeUpdater {
         l1_provider: Provider<Http>,
         l2_provider: Provider<Http>,
         l2_wallet: Address,
-        ext_signer: ExternalSign,
+        ext_signer: Option<ExternalSign>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         gas_threshold: u64,
     ) -> Self {

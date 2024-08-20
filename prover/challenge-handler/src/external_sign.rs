@@ -63,13 +63,7 @@ struct SignData {
 }
 
 impl ExternalSign {
-    pub fn new(
-        appid: &str,
-        privkey_pem: &str,
-        address: &str,
-        chain: &str,
-        url: &str,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn new(appid: &str, privkey_pem: &str, address: &str, chain: &str, url: &str) -> Result<Self, Box<dyn Error>> {
         let privkey = RsaPrivateKey::from_pkcs8_pem(privkey_pem)?;
         let client = Client::new();
         Ok(ExternalSign {
@@ -129,7 +123,11 @@ impl ExternalSign {
 
         let pubkey = self.privkey.to_public_key().to_public_key_der()?;
         let pubkey_base64 = base64::engine::general_purpose::STANDARD.encode(pubkey.as_ref());
-        Ok(ReqData { business_data, biz_signature: hex_sig, public_key: pubkey_base64 })
+        Ok(ReqData {
+            business_data,
+            biz_signature: hex_sig,
+            public_key: pubkey_base64,
+        })
     }
 
     async fn do_request(&self, url: &str, payload: &ReqData) -> Result<String, Box<dyn Error>> {

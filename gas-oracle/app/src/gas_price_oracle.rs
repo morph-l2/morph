@@ -11,6 +11,7 @@ use ethers::{
     signers::Wallet,
     types::Address,
 };
+use eyre::anyhow;
 use std::{env::var, error::Error, str::FromStr, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
@@ -117,8 +118,27 @@ async fn prepare_updater(
     let l2_wallet_address = l2_signer.address();
     let l2_oracle = GasPriceOracle::new(config.l2_oracle_address, l2_signer);
     let l1_rollup = Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
-    let ext_signer: ExternalSign =
-        ExternalSign::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
+
+    //Signer
+    let use_ext_sign: bool = read_env_var("GAS_ORACLE_EXTERNAL_SIGN", false);
+
+    let ext_signer = if use_ext_sign {
+        log::info!("Gas Oracle will use external signer");
+        let gas_oracle_appid: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_APPID");
+        let privkey_pem: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV");
+        let sign_address: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_ADDRESS");
+        let sign_chain: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_CHAIN");
+        let sign_url: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_URL");
+        let signer: ExternalSign =
+            ExternalSign::new(&gas_oracle_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
+                .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
+                .unwrap();
+        Some(signer)
+    } else {
+        log::info!("Gas Oracle will use local signer");
+        None
+    };
+
     let base_fee_updater = BaseFeeUpdater::new(
         l1_provider.clone(),
         l2_provider.clone(),

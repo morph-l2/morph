@@ -54,7 +54,7 @@ pub fn contract_error(e: ContractError<Provider<Http>>) -> String {
 async fn send_transaction(
     calldata: Option<Bytes>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &ExternalSign,
+    ext_signer: &Option<ExternalSign>,
     l2_provider: &Provider<Http>,
 ) -> Result<(), Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
@@ -78,10 +78,10 @@ async fn send_transaction(
 async fn sign_tx(
     tx: TypedTransaction,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &ExternalSign,
+    ext_signer: &Option<ExternalSign>,
 ) -> Result<Bytes, Box<dyn Error>> {
-    if read_parse_env("EXTERNAL_SIGN") {
-        Ok(ext_signer.request_sign(&tx).await?)
+    if let Some(signer) = ext_signer {
+        Ok(signer.request_sign(&tx).await?)
     } else {
         let signature = local_signer.signer().sign_transaction(&tx).await?;
         Ok(tx.rlp_signed(&signature))

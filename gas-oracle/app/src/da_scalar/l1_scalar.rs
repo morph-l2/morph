@@ -36,7 +36,7 @@ pub struct ScalarUpdater {
     l1_provider: Provider<Http>, // L1 provider for HTTP connections
     l2_provider: Provider<Http>,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>, // L2 gasPrice Oracle
-    ext_signer: ExternalSign,
+    ext_signer: Option<ExternalSign>,
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
     beacon_node: BeaconNode,           // Beacon node for blockchain
     gas_threshold: u64,
@@ -49,7 +49,7 @@ impl ScalarUpdater {
         l1_provider: Provider<Http>,
         l2_provider: Provider<Http>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
-        ext_signer: ExternalSign,
+        ext_signer: Option<ExternalSign>,
         l1_rollup: Rollup<Provider<Http>>,
         l1_beacon_rpc: String,
         gas_threshold: u64,
@@ -437,7 +437,7 @@ mod tests {
             l1_provider,
             l2_provider,
             l2_oracle_contract,
-            ext_signer,
+            Some(ext_signer),
             l1_rollup_contract,
             var("GAS_ORACLE_L1_BEACON_RPC")
                 .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env empty")
