@@ -1,12 +1,18 @@
-use ethers::contract::ContractRevert;
-use std::str::FromStr;
+use ethers::{
+    contract::ContractRevert,
+    prelude::*,
+    types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest},
+};
+use external_sign::ExternalSign;
+use eyre::anyhow;
+use std::{error::Error, str::FromStr, sync::Arc};
 pub mod abi;
+mod da_scalar;
 mod error;
+mod external_sign;
 pub mod gas_price_oracle;
 mod l1_base_fee;
 mod metrics;
-mod da_scalar;
-mod external_sign;
 
 use abi::gas_price_oracle_abi::GasPriceOracleErrors;
 pub use error::*;
@@ -32,12 +38,10 @@ pub fn read_parse_env<T: Clone + FromStr>(var_name: &'static str) -> T {
     }
 }
 
-pub fn format_contract_error(
-    e: ContractError<SignerMiddleware<Provider<Http>, LocalWallet>>,
-) -> String {
+pub fn contract_error(e: ContractError<Provider<Http>>) -> String {
     let error_msg = if let Some(contract_err) = e.as_revert() {
         if let Some(data) = GasPriceOracleErrors::decode_with_selector(contract_err.as_ref()) {
-            format!("contract error: {:?}", data)
+            format!("exec error: {:?}", data)
         } else {
             format!("unknown contract error: {:?}", contract_err)
         }
@@ -45,6 +49,43 @@ pub fn format_contract_error(
         format!("error: {:?}", e)
     };
     error_msg
+}
+
+async fn send_transaction(
+    calldata: Option<Bytes>,
+    local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    ext_signer: &ExternalSign,
+    l2_provider: &Provider<Http>,
+) -> Result<(), Box<dyn Error>> {
+    let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
+    let mut tx = TypedTransaction::Eip1559(req);
+    local_signer
+        .fill_transaction(&mut tx, None)
+        .await
+        .map_err(|e| anyhow!("fill_transaction error: {:#?}", e))?;
+
+    let signed_tx =
+        sign_tx(tx, local_signer, ext_signer).await.map_err(|e| anyhow!("sign_tx error: {}", e))?;
+
+    let pending_tx = l2_provider
+        .send_raw_transaction(signed_tx)
+        .await
+        .map_err(|e| anyhow!("call contract error: {}", contract_error(e.into())))?;
+    pending_tx.await.map_err(|e| anyhow!(format!("check_receipt error: {:#?}", e)))?;
+    Ok(())
+}
+
+async fn sign_tx(
+    tx: TypedTransaction,
+    local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    ext_signer: &ExternalSign,
+) -> Result<Bytes, Box<dyn Error>> {
+    if read_parse_env("EXTERNAL_SIGN") {
+        Ok(ext_signer.request_sign(&tx).await?)
+    } else {
+        let signature = local_signer.signer().sign_transaction(&tx).await?;
+        Ok(tx.rlp_signed(&signature))
+    }
 }
 
 /// Minimum gas price for data blobs.

@@ -7,7 +7,7 @@ use rsa::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{error::Error, time::SystemTime};
+use std::{error::Error, time::UNIX_EPOCH};
 use transaction::eip2718::TypedTransaction;
 use uuid::Uuid;
 
@@ -83,22 +83,23 @@ impl ExternalSign {
     }
 
     pub async fn request_sign(&self, tx: &TypedTransaction) -> Result<Bytes, Box<dyn Error>> {
-        let tx_hash = tx.sighash();
-        let data = self.new_data(&hex::encode(tx_hash.encode()))?;
-
+        let data = self.new_data(&hex::encode(tx.sighash().encode()))?;
         let req_data = self.craft_req_data(data)?;
-        let resp = self.do_request(&self.url, &req_data).await?;
 
-        let response: Response = serde_json::from_str(&resp)?;
+        let rt = self.do_request(&self.url, &req_data).await?;
+        log::debug!("ext_sign response: {:?}", rt);
 
+        let response: Response = serde_json::from_str(&rt)?;
         if response.result.sign_datas.is_empty() {
-            return Err("response sha3 empty".into());
+            return Err("ext_sign response sign_datas empty".into());
+        }
+        if response.result.sign_datas[0].sign.len() < 132 {
+            //hex prefix + 65bytes sig
+            return Err("ext_sign response sign data invalid".into());
         }
 
         let sig = hex::decode(&response.result.sign_datas[0].sign[2..])?;
-        // println!("==resp: {:#?}", resp);
-
-        let signed_tx: Bytes = tx.rlp_signed(&Signature::try_from(sig.as_slice()).unwrap());
+        let signed_tx: Bytes = tx.rlp_signed(&Signature::try_from(sig.as_slice())?);
         Ok(signed_tx)
     }
 
@@ -118,11 +119,7 @@ impl ExternalSign {
             appid: self.appid.clone(),
             data: data_bs,
             noncestr: nonce_str,
-            timestamp: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-                .to_string(),
+            timestamp: UNIX_EPOCH.elapsed()?.as_secs().to_string(),
         };
 
         let business_data_bs = serde_json::to_string(&business_data)?;
@@ -130,25 +127,22 @@ impl ExternalSign {
         let signature = self.privkey.sign(Pkcs1v15Sign::new::<Sha256>(), &hashed)?;
         let hex_sig = hex::encode(signature);
 
-        let pubkey = self.privkey.to_public_key().to_public_key_der().unwrap();
-        let pubkey_base64 =
-            base64::engine::general_purpose::STANDARD.encode(pubkey.as_ref());
+        let pubkey = self.privkey.to_public_key().to_public_key_der()?;
+        let pubkey_base64 = base64::engine::general_purpose::STANDARD.encode(pubkey.as_ref());
         Ok(ReqData { business_data, biz_signature: hex_sig, public_key: pubkey_base64 })
     }
 
     async fn do_request(&self, url: &str, payload: &ReqData) -> Result<String, Box<dyn Error>> {
         let response = self.client.post(url).json(&payload).send().await?;
-
-        println!("response: {:#?}", response);
         if !response.status().is_success() {
-            return Err(format!("response status not ok: {:?}", response.status()).into());
+            return Err(format!("ext_sign response status not ok: {:?}", response.status()).into());
         }
-
         Ok(response.text().await?)
     }
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_sign() -> Result<(), Box<dyn Error>> {
     use ethers::{
         middleware::SignerMiddleware,
@@ -163,7 +157,7 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     };
 
     let path = "../../../../applib/ext_signer_private.key";
-    let file = File::open(path).unwrap();
+    let file = File::open(path)?;
     let reader = BufReader::new(file);
 
     let mut privkey_base64 = String::new();
@@ -180,22 +174,19 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     // chain := "QANET-L1"
     // chainid := big.NewInt(900)
     // signer := types.LatestSignerForChainID(chainid)
-
     let l2_provider = Provider::<Http>::try_from("http://localhost:8545")?;
     let l2_signer = Arc::new(SignerMiddleware::new(
         l2_provider.clone(),
-        Wallet::from_str("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-            .unwrap()
-            .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
+        Wallet::from_str("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")?
+            .with_chain_id(l2_provider.get_chainid().await?.as_u64()),
     ));
     let req = Eip1559TransactionRequest::new()
-        .to(Address::from_str("0xA081b6A7Fcb129f1381C1128a9A42c486464c61c").unwrap())
+        .to(Address::from_str("0xA081b6A7Fcb129f1381C1128a9A42c486464c61c")?)
         .data(Bytes::new())
         .value(100)
-        .from(Address::from_str("0x33d5b507868b7e8ac930cd3bde9eadd60c638479").unwrap());
-    //set_from(Address::from_str("0x33d5b507868b7e8ac930cd3bde9eadd60c638479").unwrap())
+        .from(Address::from_str("0x33d5b507868b7e8ac930cd3bde9eadd60c638479")?);
     let mut tx = TypedTransaction::Eip1559(req);
-    l2_signer.fill_transaction(&mut tx, None).await.unwrap();
+    l2_signer.fill_transaction(&mut tx, None).await?;
 
     let ext_signer: ExternalSign = ExternalSign::new(
         "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA",
@@ -203,10 +194,9 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
         "0x33d5b507868b7e8ac930cd3bde9eadd60c638479",
         "QANET-L1",
         "http://localhost:8080/v1/sign/tx_sign",
-    )
-    .unwrap();
-    let raw_tx = ext_signer.request_sign(&tx).await.unwrap();
-    let pending_tx = l2_provider.send_raw_transaction(raw_tx).await.unwrap();
+    )?;
+    let raw_tx = ext_signer.request_sign(&tx).await?;
+    let pending_tx = l2_provider.send_raw_transaction(raw_tx).await?;
     pending_tx.await.expect("send_raw_transaction");
     Ok(())
 }

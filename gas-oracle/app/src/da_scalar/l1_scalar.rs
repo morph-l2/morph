@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use eyre::anyhow;
 use tokio::time::{sleep, Duration};
-use transaction::eip2718::TypedTransaction;
 
 use super::{
     blob_client::BeaconNode,
@@ -16,9 +15,8 @@ use crate::{
         rollup_abi::{CommitBatchCall, Rollup},
     },
     external_sign::ExternalSign,
-    format_contract_error,
     metrics::ORACLE_SERVICE_METRICS,
-    read_env_var, read_parse_env,
+    read_env_var, send_transaction,
 };
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use lazy_static::lazy_static;
@@ -118,59 +116,29 @@ impl ScalarUpdater {
             .set((1000.0 * blob_scalar as f64 / PRECISION as f64).round() / 10000.0);
 
         // Step3. set on L2chain
+        let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l2_oracle.client();
         if self.check_threshold_reached(
             commit_scalar,
             current_commit_scalar.as_u64(),
             "commit_scalar",
         ) {
             // Update commit_scalar
-            let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> =
-                self.l2_oracle.client();
             let calldata = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).calldata();
-            let req = Eip1559TransactionRequest::new().data(calldata.unwrap());
-            let mut tx = TypedTransaction::Eip1559(req);
-            client.fill_transaction(&mut tx, None).await.map_err(|e| {
-                ScalarError::Error(anyhow!(format!("fill commit_scalar tx error: {:#?}", e)))
-            })?;
-
-            let pending_tx = if read_parse_env("EXTERNAL_SIGN") {
-                let raw_tx = self.ext_signer.request_sign(&tx).await.unwrap();
-                self.l2_provider.send_raw_transaction(raw_tx).await.unwrap()
-            } else {
-                send_with_local_wallet(&client, tx, "set_commit_scalar".to_owned()).await?
-            };
-            pending_tx.await.map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "set_commit_scalar check_receipt error: {:#?}",
-                    e
-                )))
-            })?;
+            send_transaction(calldata, &client, &self.ext_signer, &self.l2_provider)
+                .await
+                .map_err(|e| {
+                    ScalarError::Error(anyhow!(format!("set_commit_scalar error: {:#?}", e)))
+                })?;
         }
 
         if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64(), "blob_scalar") {
             // Update blob_scalar
-            let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> =
-                self.l2_oracle.client();
             let calldata = self.l2_oracle.set_blob_scalar(U256::from(commit_scalar)).calldata();
-            let req = Eip1559TransactionRequest::new().data(calldata.unwrap());
-            let mut tx = TypedTransaction::Eip1559(req);
-            client.fill_transaction(&mut tx, None).await.map_err(|e| {
-                ScalarError::Error(anyhow!(format!("fill set_blob_scalar tx error: {:#?}", e)))
-            })?;
-
-            let pending_tx = if read_parse_env("EXTERNAL_SIGN") {
-                let raw_tx = self.ext_signer.request_sign(&tx).await.unwrap();
-                self.l2_provider.send_raw_transaction(raw_tx).await.unwrap()
-            } else {
-                send_with_local_wallet(&client, tx, "set_blob_scalar".to_owned()).await?
-            };
-
-            pending_tx.await.map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "set_blob_scalar check_receipt error: {:#?}",
-                    e
-                )))
-            })?;
+            send_transaction(calldata, &client, &self.ext_signer, &self.l2_provider)
+                .await
+                .map_err(|e| {
+                    ScalarError::Error(anyhow!(format!("set_blob_scalar error: {:#?}", e)))
+                })?;
         }
 
         Ok(())
@@ -421,27 +389,6 @@ impl ScalarUpdater {
 
         Ok(tx_payload.len() as u64)
     }
-}
-
-async fn send_with_local_wallet(
-    client: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    tx: TypedTransaction,
-    contract_method: String,
-) -> Result<PendingTransaction<Http>, ScalarError> {
-    let rt = client.send_transaction(tx, None).await;
-    rt.map_err(|e| {
-        if e.as_provider_error().is_some() {
-            if let Some(data) = e.as_error_response().and_then(JsonRpcError::as_revert_data) {
-                let contract_error = ContractError::Revert(data);
-                return ScalarError::Error(anyhow!(
-                    "{} {}",
-                    contract_method + "error: {}",
-                    format_contract_error(contract_error)
-                ));
-            };
-        }
-        ScalarError::Error(anyhow!("{} {}", contract_method + "error: {}", e))
-    })
 }
 
 #[cfg(test)]
