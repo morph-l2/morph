@@ -636,6 +636,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_owner":         predeploys.L2StandardERC20GatewayAddr,
 		"implementation": predeploys.MorphStandardERC20Addr,
 	}
+	storage["L2USDC"] = state.StorageValues{}
 	return storage, nil
 }
 
