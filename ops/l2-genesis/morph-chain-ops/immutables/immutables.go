@@ -124,7 +124,7 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 		{
 			Name: "L2USDCGateway",
 			Args: []interface{}{
-				immutable["L2USDCGateway"]["L1USDC"],
+				immutable["L2USDCGateway"]["l1USDC"],
 			},
 		},
 		{
@@ -363,7 +363,11 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "L2WithdrawLockERC20Gateway":
 		_, tx, _, err = bindings.DeployL2WithdrawLockERC20Gateway(opts, backend)
 	case "L2USDCGateway":
-		_, tx, _, err = bindings.DeployL2USDCGateway(opts, backend, predeploys.L2USDCAddr, predeploys.L2USDCAddr)
+		l1usdc, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l1usdc")
+		}
+		_, tx, _, err = bindings.DeployL2USDCGateway(opts, backend, l1usdc, predeploys.L2USDCAddr)
 	case "L2USDC":
 		_, tx, _, err = bindings.DeployFiatTokenV1(opts, backend)
 	case "L2WETH":
