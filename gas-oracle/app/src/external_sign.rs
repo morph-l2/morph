@@ -1,5 +1,6 @@
-use base64::Engine;
+use base64::{engine::general_purpose, Engine};
 use ethers::{abi::AbiEncode, types::*};
+use pem::{encode_config, EncodeConfig, Pem};
 use reqwest::Client;
 use rsa::{
     pkcs8::{DecodePrivateKey, EncodePublicKey},
@@ -10,7 +11,6 @@ use sha2::{Digest, Sha256};
 use std::{error::Error, time::UNIX_EPOCH};
 use transaction::eip2718::TypedTransaction;
 use uuid::Uuid;
-
 #[derive(Clone)]
 pub struct ExternalSign {
     appid: String,
@@ -70,7 +70,7 @@ impl ExternalSign {
         chain: &str,
         url: &str,
     ) -> Result<Self, Box<dyn Error>> {
-        let privkey = RsaPrivateKey::from_pkcs8_pem(privkey_pem)?;
+        let privkey = RsaPrivateKey::from_pkcs8_pem(&reformat_pem(privkey_pem))?;
         let client = Client::new();
         Ok(ExternalSign {
             appid: appid.to_string(),
@@ -141,6 +141,18 @@ impl ExternalSign {
     }
 }
 
+fn reformat_pem(pem_string: &str) -> String {
+    // Decode the base64 encoded string
+    let key_bytes = general_purpose::STANDARD.decode(pem_string).expect("Failed to decode base64");
+
+    // Create a PEM object with the required format
+    let pem = Pem { tag: String::from("PRIVATE KEY"), contents: key_bytes };
+
+    // Encode the PEM object to a string with standard line width of 64 characters
+    let config = EncodeConfig { line_ending: pem::LineEnding::LF };
+    encode_config(&pem, config)
+}
+
 #[tokio::test]
 #[ignore]
 async fn test_sign() -> Result<(), Box<dyn Error>> {
@@ -149,23 +161,21 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
         providers::{Http, Middleware, Provider},
         signers::{Signer, Wallet},
     };
-    use std::{
-        fs::File,
-        io::{BufRead, BufReader},
-        str::FromStr,
-        sync::Arc,
-    };
+    use std::{str::FromStr, sync::Arc};
 
-    let path = "../../../../applib/ext_signer_private.key";
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
+    // let path = "./../ext_signer_private.key";
+    // let file = File::open(path)?;
+    // let reader = BufReader::new(file);
 
-    let mut privkey_base64 = String::new();
-    for line in reader.lines() {
-        let line_str = line?;
-        privkey_base64.push_str(&line_str);
-        privkey_base64.push('\n');
-    }
+    // let mut privkey_base64 = String::new();
+    // for line in reader.lines() {
+    //     let line_str = line?;
+    //     privkey_base64.push_str(&line_str);
+    //     privkey_base64.push('\n');
+    // }
+
+    let private_key_str: &str = "MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA4UULobXapYUu1WIlekyWavx5C7Kq7cLjA3Hf2b61gd7TWKQ0Ko/EChGiEoM7l1LJNrVX/Wmxx7ItqO8sixUlBQIDAQABAkEAuGdc7jN/mJ89h0+gfkzTlSC3teu8IIW4b8l4BTcoPfYwvGhFWRVrIcndDgr4AebziCHsetS9y/XO69gyL00SAQIhAPKj0LHru/BgalYnFPzV9OFWPVgGTTYuzZT2y3Zuf80NAiEA7axigMnO/yXGJbUID4KJPxKHK+G6QZF4R+kAN96+adkCIGRbANw15fubxR9w9qtESw5QPvsDUDgSz5DHKowHU/CZAiEA31+2rEf/Lbm4wtOjocATcZ3eQJXD0cAAhcUsmVXVK/ECIENVqErxV/d3u7Ed1iozTARiDQ4p22jYxol+yln59bzg";
+    let formatted_pem = reformat_pem(private_key_str);
 
     // appid := "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA"
     // rsaPrivStr := ""
@@ -174,6 +184,14 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     // chain := "QANET-L1"
     // chainid := big.NewInt(900)
     // signer := types.LatestSignerForChainID(chainid)
+    let ext_signer: ExternalSign = ExternalSign::new(
+        "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA",
+        &formatted_pem,
+        "0x33d5b507868b7e8ac930cd3bde9eadd60c638479",
+        "QANET-L1",
+        "http://localhost:8080/v1/sign/tx_sign",
+    )?;
+
     let l2_provider = Provider::<Http>::try_from("http://localhost:8545")?;
     let l2_signer = Arc::new(SignerMiddleware::new(
         l2_provider.clone(),
@@ -188,13 +206,6 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     let mut tx = TypedTransaction::Eip1559(req);
     l2_signer.fill_transaction(&mut tx, None).await?;
 
-    let ext_signer: ExternalSign = ExternalSign::new(
-        "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA",
-        &privkey_base64,
-        "0x33d5b507868b7e8ac930cd3bde9eadd60c638479",
-        "QANET-L1",
-        "http://localhost:8080/v1/sign/tx_sign",
-    )?;
     let raw_tx = ext_signer.request_sign(&tx).await?;
     let pending_tx = l2_provider.send_raw_transaction(raw_tx).await?;
     pending_tx.await.expect("send_raw_transaction");

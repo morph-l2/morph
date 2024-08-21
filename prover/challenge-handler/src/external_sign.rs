@@ -1,5 +1,6 @@
-use base64::Engine;
+use base64::{engine::general_purpose, Engine};
 use ethers::{abi::AbiEncode, types::*};
+use pem::{encode_config, EncodeConfig, Pem};
 use reqwest::Client;
 use rsa::{
     pkcs8::{DecodePrivateKey, EncodePublicKey},
@@ -64,7 +65,7 @@ struct SignData {
 
 impl ExternalSign {
     pub fn new(appid: &str, privkey_pem: &str, address: &str, chain: &str, url: &str) -> Result<Self, Box<dyn Error>> {
-        let privkey = RsaPrivateKey::from_pkcs8_pem(privkey_pem)?;
+        let privkey = RsaPrivateKey::from_pkcs8_pem(&reformat_pem(privkey_pem))?;
         let client = Client::new();
         Ok(ExternalSign {
             appid: appid.to_string(),
@@ -137,6 +138,23 @@ impl ExternalSign {
         }
         Ok(response.text().await?)
     }
+}
+
+fn reformat_pem(pem_string: &str) -> String {
+    // Decode the base64 encoded string
+    let key_bytes = general_purpose::STANDARD.decode(pem_string).expect("Failed to decode base64");
+
+    // Create a PEM object with the required format
+    let pem = Pem {
+        tag: String::from("PRIVATE KEY"),
+        contents: key_bytes,
+    };
+
+    // Encode the PEM object to a string with standard line width of 64 characters
+    let config = EncodeConfig {
+        line_ending: pem::LineEnding::LF,
+    };
+    encode_config(&pem, config)
 }
 
 #[tokio::test]
