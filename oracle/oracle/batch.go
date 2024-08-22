@@ -19,6 +19,8 @@ import (
 	"github.com/scroll-tech/go-ethereum/log"
 )
 
+const maxBatchSize = 72
+
 type BatchInfoMap map[common.Hash][]BatchInfo
 type RollupBatch struct {
 	TxCount uint64
@@ -154,6 +156,9 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64, next
 			RollupBlock: big.NewInt(int64(lg.BlockNumber)),
 		}
 		recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
+		if len(recordBatchSubmissions) == maxBatchSize {
+			return recordBatchSubmissions, nil
+		}
 	}
 	return recordBatchSubmissions, nil
 }
@@ -224,22 +229,22 @@ func (o *Oracle) submitRecord() error {
 	if err != nil {
 		return fmt.Errorf("new keyed transaction error:%v", err)
 	}
-	i := 0
-	var txHash common.Hash
-	for {
-		batches := batchSubmissions[0 : len(batchSubmissions)-i]
-		tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batches)
-		if err != nil {
-			//return fmt.Errorf("record finalized batch error:%v", err)
-			log.Error("record finalized batch error", "error", err, "length", len(batches))
-			i++
-			continue
-		}
-		txHash = tx.Hash()
-		log.Info("record finalized batch success", "length", len(batches))
-		break
+	//i := 0
+	//var txHash common.Hash
+	//for {
+	//	batches := batchSubmissions[0 : len(batchSubmissions)-i]
+	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
+	if err != nil {
+		return fmt.Errorf("record finalized batch error:%v", err)
+		//log.Error("record finalized batch error", "error", err, "length", len(batches))
+		//i++
+		//continue
 	}
-	receipt, err := o.waitReceiptWithCtx(o.ctx, txHash)
+	//txHash = tx.Hash()
+	log.Info("record finalized batch success", "length", len(batchSubmissions))
+	//break
+	//}
+	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {
 		log.Error("tx receipt failed", "error", err)
 		return fmt.Errorf("wait tx receipt error:%v", err)
