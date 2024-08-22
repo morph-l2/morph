@@ -127,7 +127,7 @@ impl BaseFeeUpdater {
                 .l2_oracle
                 .set_l1_base_fee_and_blob_base_fee(l1_base_fee, l1_blob_base_fee)
                 .calldata();
-            send_transaction(calldata, &client, &self.ext_signer, &self.l2_provider)
+            send_transaction(self.l2_oracle.address(), calldata, &client, &self.ext_signer, &self.l2_provider)
                 .await
                 .map_err(|e| {
                     OracleError::L1BaseFeeError(anyhow!(format!(
@@ -152,7 +152,7 @@ impl BaseFeeUpdater {
         if need_update {
             // Set l1_base_fee for l2.
             let calldata = self.l2_oracle.set_l1_base_fee(l1_base_fee).calldata();
-            send_transaction(calldata, &client, &self.ext_signer, &self.l2_provider)
+            send_transaction(self.l2_oracle.address(), calldata, &client, &self.ext_signer, &self.l2_provider)
                 .await
                 .map_err(|e| {
                     OracleError::L1BaseFeeError(anyhow!(format!("set_l1_base_fee error: {:#?}", e)))

@@ -41,17 +41,18 @@ pub fn read_parse_env<T: Clone + FromStr>(var_name: &'static str) -> T {
 pub fn contract_error(e: ContractError<Provider<Http>>) -> String {
     let error_msg = if let Some(contract_err) = e.as_revert() {
         if let Some(data) = GasPriceOracleErrors::decode_with_selector(contract_err.as_ref()) {
-            format!("exec error: {:?}", data)
+            format!("exec error: {:#?}", data)
         } else {
-            format!("unknown contract error: {:?}", contract_err)
+            format!("unknown contract error: {:#?}", contract_err)
         }
     } else {
-        format!("error: {:?}", e)
+        format!("error: {:#?}", e)
     };
     error_msg
 }
 
 async fn send_transaction(
+    contract: Address,
     calldata: Option<Bytes>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
     ext_signer: &Option<ExternalSign>,
@@ -59,13 +60,20 @@ async fn send_transaction(
 ) -> Result<(), Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
+    tx.set_to(contract);
+    if let Some(signer) = ext_signer {
+        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
+    } else {
+        tx.set_from(local_signer.address());
+    }
     local_signer
         .fill_transaction(&mut tx, None)
         .await
         .map_err(|e| anyhow!("fill_transaction error: {:#?}", e))?;
 
-    let signed_tx =
-        sign_tx(tx, local_signer, ext_signer).await.map_err(|e| anyhow!("sign_tx error: {}", e))?;
+    let signed_tx = sign_tx(&mut tx, local_signer, ext_signer)
+        .await
+        .map_err(|e| anyhow!("sign_tx error: {}", e))?;
 
     let pending_tx = l2_provider
         .send_raw_transaction(signed_tx)
@@ -76,13 +84,15 @@ async fn send_transaction(
 }
 
 async fn sign_tx(
-    tx: TypedTransaction,
+    tx: &mut TypedTransaction,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
     ext_signer: &Option<ExternalSign>,
 ) -> Result<Bytes, Box<dyn Error>> {
     if let Some(signer) = ext_signer {
+        log::info!("request ext sign");
         Ok(signer.request_sign(&tx).await?)
     } else {
+        log::info!("request local sign");
         let signature = local_signer.signer().sign_transaction(&tx).await?;
         Ok(tx.rlp_signed(&signature))
     }

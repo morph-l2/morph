@@ -11,10 +11,11 @@ use sha2::{Digest, Sha256};
 use std::{error::Error, time::UNIX_EPOCH};
 use transaction::eip2718::TypedTransaction;
 use uuid::Uuid;
+
 #[derive(Clone)]
 pub struct ExternalSign {
     appid: String,
-    address: String,
+    pub address: String,
     privkey: RsaPrivateKey,
     chain: String,
     client: Client,
@@ -162,6 +163,7 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
         signers::{Signer, Wallet},
     };
     use std::{str::FromStr, sync::Arc};
+    use crate::read_parse_env;
 
     // let path = "./../ext_signer_private.key";
     // let file = File::open(path)?;
@@ -174,8 +176,11 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     //     privkey_base64.push('\n');
     // }
 
+    dotenv::dotenv().ok();
+
     let private_key_str: &str = "MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA4UULobXapYUu1WIlekyWavx5C7Kq7cLjA3Hf2b61gd7TWKQ0Ko/EChGiEoM7l1LJNrVX/Wmxx7ItqO8sixUlBQIDAQABAkEAuGdc7jN/mJ89h0+gfkzTlSC3teu8IIW4b8l4BTcoPfYwvGhFWRVrIcndDgr4AebziCHsetS9y/XO69gyL00SAQIhAPKj0LHru/BgalYnFPzV9OFWPVgGTTYuzZT2y3Zuf80NAiEA7axigMnO/yXGJbUID4KJPxKHK+G6QZF4R+kAN96+adkCIGRbANw15fubxR9w9qtESw5QPvsDUDgSz5DHKowHU/CZAiEA31+2rEf/Lbm4wtOjocATcZ3eQJXD0cAAhcUsmVXVK/ECIENVqErxV/d3u7Ed1iozTARiDQ4p22jYxol+yln59bzg";
-    let formatted_pem = reformat_pem(private_key_str);
+
+    let privkey_pem: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV");
 
     // appid := "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA"
     // rsaPrivStr := ""
@@ -186,7 +191,7 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     // signer := types.LatestSignerForChainID(chainid)
     let ext_signer: ExternalSign = ExternalSign::new(
         "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA",
-        &formatted_pem,
+        &privkey_pem,
         "0x33d5b507868b7e8ac930cd3bde9eadd60c638479",
         "QANET-L1",
         "http://localhost:8080/v1/sign/tx_sign",
