@@ -143,7 +143,6 @@ dependencies = [
  "ethers",
  "eyre",
  "flexi_logger",
- "hex",
  "lazy_static",
  "log",
  "pem",

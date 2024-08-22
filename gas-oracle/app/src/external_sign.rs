@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose, Engine};
-use ethers::{abi::AbiEncode, types::*};
+use ethers::{abi::AbiEncode, types::*, utils::hex};
 use pem::{encode_config, EncodeConfig, Pem};
 use reqwest::Client;
 use rsa::{
