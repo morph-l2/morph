@@ -40,6 +40,8 @@ pub struct ScalarUpdater {
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
     beacon_node: BeaconNode,           // Beacon node for blockchain
     gas_threshold: u64,
+    commit_scalar_buffer: u64,
+    blob_scalar_buffer: u64,
 }
 
 impl ScalarUpdater {
@@ -53,6 +55,8 @@ impl ScalarUpdater {
         l1_rollup: Rollup<Provider<Http>>,
         l1_beacon_rpc: String,
         gas_threshold: u64,
+        commit_scalar_buffer: u64,
+        blob_scalar_buffer: u64,
     ) -> Self {
         // Create beacon nodes with provided RPC URLs
         let beacon_node = BeaconNode { rpc_url: l1_beacon_rpc };
@@ -66,6 +70,8 @@ impl ScalarUpdater {
             l1_rollup,
             beacon_node,
             gas_threshold,
+            commit_scalar_buffer,
+            blob_scalar_buffer,
         }
     }
 
@@ -107,6 +113,11 @@ impl ScalarUpdater {
         log::info!("set_commit_or_blob_scalar, latest commit_scalar: {:?}, latest blob_scalar: {:?}, current_commit_scalar on l2 is: {:?}, current_blob_scalar on l2 is: {:?}", 
         commit_scalar, blob_scalar, current_commit_scalar.as_u64(), current_blob_scalar.as_u64());
 
+        // Fine tune the actual value
+        commit_scalar += self.commit_scalar_buffer;
+        let fine_tune_value = PRECISION * self.blob_scalar_buffer / 100;
+        blob_scalar += fine_tune_value;
+
         commit_scalar = commit_scalar.min(MAX_COMMIT_SCALAR);
         blob_scalar = blob_scalar.min(MAX_BLOB_SCALAR);
 
@@ -140,7 +151,7 @@ impl ScalarUpdater {
 
         if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64(), "blob_scalar") {
             // Update blob_scalar
-            let calldata = self.l2_oracle.set_blob_scalar(U256::from(commit_scalar)).calldata();
+            let calldata = self.l2_oracle.set_blob_scalar(U256::from(blob_scalar)).calldata();
             let tx_hash = send_transaction(
                 self.l2_oracle.address(),
                 calldata,
@@ -456,6 +467,8 @@ mod tests {
                 .parse()
                 .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var empty"),
             gas_threshold,
+            0u64,
+            0u64,
         );
 
         let latest_overhead =

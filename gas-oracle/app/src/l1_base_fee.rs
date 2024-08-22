@@ -8,6 +8,7 @@ use ethers::prelude::*;
 use eyre::anyhow;
 
 const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
+const MAX_BLOB_BASE_FEE: u128 = 100 * 10i32.pow(9) as u128; // 100Gwei
 
 pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
@@ -15,6 +16,8 @@ pub struct BaseFeeUpdater {
     ext_signer: Option<ExternalSign>,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
     gas_threshold: u64,
+    l1_base_fee_buffer: u64,
+    l1_blob_base_fee_buffer: u64,
 }
 
 impl BaseFeeUpdater {
@@ -24,8 +27,18 @@ impl BaseFeeUpdater {
         ext_signer: Option<ExternalSign>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         gas_threshold: u64,
+        l1_base_fee_buffer: u64,
+        l1_blob_base_fee_buffer: u64,
     ) -> Self {
-        BaseFeeUpdater { l1_provider, l2_provider, ext_signer, l2_oracle, gas_threshold }
+        BaseFeeUpdater {
+            l1_provider,
+            l2_provider,
+            ext_signer,
+            l2_oracle,
+            gas_threshold,
+            l1_base_fee_buffer,
+            l1_blob_base_fee_buffer,
+        }
     }
 
     /// Update baseFee and scalar.
@@ -46,7 +59,7 @@ impl BaseFeeUpdater {
             .set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
 
         // Step1. get l1 data.
-        let (l1_base_fee, l1_blob_base_fee, l1_gas_price) =
+        let (mut l1_base_fee, mut l1_blob_base_fee, l1_gas_price) =
             query_l1_base_fee(&self.l1_provider).await?;
 
         if l1_base_fee.is_zero() || l1_blob_base_fee.is_zero() || l1_gas_price.is_zero() {
@@ -54,6 +67,10 @@ impl BaseFeeUpdater {
                 "current l1 baseFee or l1_blob_base_fee or gas_price is zero/none"
             ))));
         }
+
+        // Fine tune the actual value
+        l1_base_fee += U256::from(self.l1_base_fee_buffer);
+        l1_blob_base_fee += U256::from(self.l1_blob_base_fee_buffer);
 
         #[rustfmt::skip]
         log::debug!("current ethereum baseFee is: {:#?}, l1_blob_base_fee is {:#?}, gas_price is: {:#?}", l1_base_fee,l1_blob_base_fee,l1_gas_price);
@@ -97,7 +114,7 @@ impl BaseFeeUpdater {
                 .unwrap_or(0.0),
         );
 
-        self.update_base_fee(l1_base_fee, l1_blob_base_fee, blob_fee_on_l2, base_fee_on_l2).await?;
+        self.update_base_fee(l1_base_fee, l1_blob_base_fee, base_fee_on_l2, blob_fee_on_l2).await?;
 
         Ok(())
     }
@@ -106,11 +123,11 @@ impl BaseFeeUpdater {
         &self,
         mut l1_base_fee: U256,
         mut l1_blob_base_fee: U256,
-        blob_fee_on_l2: U256,
         base_fee_on_l2: U256,
+        blob_fee_on_l2: U256,
     ) -> Result<(), OracleError> {
         l1_base_fee = l1_base_fee.min(MAX_BASE_FEE.into());
-        l1_blob_base_fee = l1_blob_base_fee.min(MAX_BASE_FEE.into());
+        l1_blob_base_fee = l1_blob_base_fee.min(MAX_BLOB_BASE_FEE.into());
 
         // update_base_fee
         let actual_change = l1_blob_base_fee.abs_diff(blob_fee_on_l2);

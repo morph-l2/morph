@@ -31,6 +31,10 @@ struct Config {
     l2_oracle_address: Address,
     private_key: String,
     l1_beacon_rpc: String,
+    l1_base_fee_buffer: u64,
+    l1_blob_base_fee_buffer: u64,
+    commit_scalar_buffer: u64,
+    blob_scalar_buffer: u64,
 }
 
 impl Config {
@@ -52,6 +56,10 @@ impl Config {
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
             ),
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
+            l1_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BASE_FEE_BUFFER", 0u64),
+            l1_blob_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER", 0u64),
+            commit_scalar_buffer: read_env_var("GAS_ORACLE_COMMIT_SCALAR_BUFFER", 0u64),
+            blob_scalar_buffer: read_env_var("GAS_ORACLE_BLOB_SCALAR_BUFFER", 0u64),
         })
     }
 }
@@ -59,6 +67,37 @@ impl Config {
 /// Update data of gasPriceOrale contract on L2 network.
 pub async fn update() -> Result<(), Box<dyn Error>> {
     let config = Config::new()?;
+    log::info!("Check env config, l1_base_fee_buffer: {:?}, l1_blob_base_fee_buffer: {:?}, commit_scalar_buffer: {:?}, blob_scalar_buffer: {:?}",
+    config.l1_base_fee_buffer,config.l1_blob_base_fee_buffer, config.commit_scalar_buffer, config.blob_scalar_buffer);
+    if config.l1_base_fee_buffer > 100u64 {
+        // 1 means 1Gwei
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_L1_BASE_FEE_BUFFER should be less than 100(means 100 Gwei)"
+        )
+        .into());
+    }
+    if config.l1_blob_base_fee_buffer > 100u64 {
+        // 1 means 1Gwei
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER should be less than 100(means 100 Gwei)"
+        )
+        .into());
+    }
+    if config.commit_scalar_buffer > 10000u64 {
+        // 1 means 1Gas
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_COMMIT_SCALAR_BUFFER should be less than 10000(means 10000 gas)"
+        )
+        .into());
+    }
+    if config.blob_scalar_buffer > 1000u64 {
+        //10 means an increase of 0.1 times
+        //100 means an increase of 1 times
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_BLOB_SCALAR_BUFFER should be less than 1000(means 10 times)"
+        )
+        .into());
+    }
 
     let (base_fee_updater, scalar_updater) = prepare_updater(&config).await?;
 
@@ -149,6 +188,8 @@ async fn prepare_updater(
         ext_signer.clone(),
         l2_oracle.clone(),
         config.gas_threshold,
+        config.l1_base_fee_buffer,
+        config.l1_blob_base_fee_buffer,
     );
 
     let scalar_updater = ScalarUpdater::new(
@@ -159,6 +200,8 @@ async fn prepare_updater(
         l1_rollup,
         config.l1_beacon_rpc.clone(),
         config.gas_threshold,
+        config.commit_scalar_buffer,
+        config.blob_scalar_buffer,
     );
     Ok((base_fee_updater, scalar_updater))
 }
