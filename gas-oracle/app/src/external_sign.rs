@@ -175,13 +175,8 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     //     privkey_base64.push_str(&line_str);
     //     privkey_base64.push('\n');
     // }
-
     dotenv::dotenv().ok();
-
-    let private_key_str: &str = "MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA4UULobXapYUu1WIlekyWavx5C7Kq7cLjA3Hf2b61gd7TWKQ0Ko/EChGiEoM7l1LJNrVX/Wmxx7ItqO8sixUlBQIDAQABAkEAuGdc7jN/mJ89h0+gfkzTlSC3teu8IIW4b8l4BTcoPfYwvGhFWRVrIcndDgr4AebziCHsetS9y/XO69gyL00SAQIhAPKj0LHru/BgalYnFPzV9OFWPVgGTTYuzZT2y3Zuf80NAiEA7axigMnO/yXGJbUID4KJPxKHK+G6QZF4R+kAN96+adkCIGRbANw15fubxR9w9qtESw5QPvsDUDgSz5DHKowHU/CZAiEA31+2rEf/Lbm4wtOjocATcZ3eQJXD0cAAhcUsmVXVK/ECIENVqErxV/d3u7Ed1iozTARiDQ4p22jYxol+yln59bzg";
-
     let privkey_pem: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV");
-
     // appid := "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA"
     // rsaPrivStr := ""
     // url := "http://localhost:8080/v1/sign/tx_sign"

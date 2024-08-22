@@ -124,21 +124,33 @@ impl ScalarUpdater {
         ) {
             // Update commit_scalar
             let calldata = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).calldata();
-            send_transaction(self.l2_oracle.address(), calldata, &client, &self.ext_signer, &self.l2_provider)
-                .await
-                .map_err(|e| {
-                    ScalarError::Error(anyhow!(format!("set_commit_scalar error: {:#?}", e)))
-                })?;
+            let tx_hash = send_transaction(
+                self.l2_oracle.address(),
+                calldata,
+                &client,
+                &self.ext_signer,
+                &self.l2_provider,
+            )
+            .await
+            .map_err(|e| {
+                ScalarError::Error(anyhow!(format!("set_commit_scalar error: {:#?}", e)))
+            })?;
+            log::info!("set_commit_scalar success, tx_hash: {:#?}", tx_hash);
         }
 
         if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64(), "blob_scalar") {
             // Update blob_scalar
             let calldata = self.l2_oracle.set_blob_scalar(U256::from(commit_scalar)).calldata();
-            send_transaction(self.l2_oracle.address(), calldata, &client, &self.ext_signer, &self.l2_provider)
-                .await
-                .map_err(|e| {
-                    ScalarError::Error(anyhow!(format!("set_blob_scalar error: {:#?}", e)))
-                })?;
+            let tx_hash = send_transaction(
+                self.l2_oracle.address(),
+                calldata,
+                &client,
+                &self.ext_signer,
+                &self.l2_provider,
+            )
+            .await
+            .map_err(|e| ScalarError::Error(anyhow!(format!("set_blob_scalar error: {:#?}", e))))?;
+            log::info!("set_blob_scalar success, tx_hash: {:#?}", tx_hash);
         }
 
         Ok(())

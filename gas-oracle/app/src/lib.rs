@@ -57,7 +57,7 @@ async fn send_transaction(
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
     ext_signer: &Option<ExternalSign>,
     l2_provider: &Provider<Http>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<H256, Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
     tx.set_to(contract);
@@ -79,8 +79,19 @@ async fn send_transaction(
         .send_raw_transaction(signed_tx)
         .await
         .map_err(|e| anyhow!("call contract error: {}", contract_error(e.into())))?;
-    pending_tx.await.map_err(|e| anyhow!(format!("check_receipt error: {:#?}", e)))?;
-    Ok(())
+    let tx_hash = pending_tx.tx_hash();
+
+    let receipt = pending_tx
+        .await
+        .map_err(|e| anyhow!(format!("check_receipt of {:#?} is error: {:#?}", tx_hash, e)))?
+        .ok_or(anyhow!(format!("check_receipt is none, tx_hash: {:#?}", tx_hash)))?;
+
+    if receipt.status == Some(1.into()) {
+        Ok(tx_hash)
+    } else {
+        Err(anyhow!(format!("tx exec failed, transaction_hash: {:#?}", receipt.transaction_hash))
+            .into())
+    }
 }
 
 async fn sign_tx(
@@ -90,10 +101,10 @@ async fn sign_tx(
 ) -> Result<Bytes, Box<dyn Error>> {
     if let Some(signer) = ext_signer {
         log::info!("request ext sign");
-        Ok(signer.request_sign(&tx).await?)
+        Ok(signer.request_sign(tx).await?)
     } else {
         log::info!("request local sign");
-        let signature = local_signer.signer().sign_transaction(&tx).await?;
+        let signature = local_signer.signer().sign_transaction(tx).await?;
         Ok(tx.rlp_signed(&signature))
     }
 }

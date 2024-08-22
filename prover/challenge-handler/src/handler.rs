@@ -240,10 +240,10 @@ impl ChallengeHandler {
 
             let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l1_rollup.client();
             let calldata = l1_rollup.prove_state(batch_header.clone(), aggr_proof, kzg_data).calldata();
-            let result = send_transaction(calldata, &client, &self.ext_signer, &self.l1_provider).await;
+            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
             if let Ok(tx_hash) = result {
                 METRICS.verify_result.set(1);
-                log::info!("send tx of prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
+                log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
                 return true;
             }
 
@@ -577,6 +577,7 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<(Vec<Vec<u64>>, u64)> {
 }
 
 async fn send_transaction(
+    contract: Address,
     calldata: Option<Bytes>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
     ext_signer: &Option<ExternalSign>,
@@ -584,6 +585,12 @@ async fn send_transaction(
 ) -> Result<H256, Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
+    tx.set_to(contract);
+    if let Some(signer) = ext_signer {
+        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
+    } else {
+        tx.set_from(local_signer.address());
+    }
     local_signer
         .fill_transaction(&mut tx, None)
         .await

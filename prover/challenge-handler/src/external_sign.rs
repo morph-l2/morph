@@ -15,7 +15,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct ExternalSign {
     appid: String,
-    address: String,
+    pub address: String,
     privkey: RsaPrivateKey,
     chain: String,
     client: Client,
