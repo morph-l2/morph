@@ -12,7 +12,6 @@ const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
 pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
     l2_provider: Provider<Http>,
-    l2_wallet: Address,
     ext_signer: Option<ExternalSign>,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
     gas_threshold: u64,
@@ -22,12 +21,11 @@ impl BaseFeeUpdater {
     pub fn new(
         l1_provider: Provider<Http>,
         l2_provider: Provider<Http>,
-        l2_wallet: Address,
         ext_signer: Option<ExternalSign>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         gas_threshold: u64,
     ) -> Self {
-        BaseFeeUpdater { l1_provider, l2_provider, l2_wallet, ext_signer, l2_oracle, gas_threshold }
+        BaseFeeUpdater { l1_provider, l2_provider, ext_signer, l2_oracle, gas_threshold }
     }
 
     /// Update baseFee and scalar.
@@ -42,7 +40,6 @@ impl BaseFeeUpdater {
         let balance = self.l2_provider.get_balance(wallet, None).await.map_err(|e| {
             OracleError::L1BaseFeeError(anyhow!(format!("l2_wallet.get_balance error: {:#?}", e)))
         })?;
-        log::info!("l2_wallet.get_balance: {:#?}", balance);
 
         ORACLE_SERVICE_METRICS
             .gas_oracle_owner_balance

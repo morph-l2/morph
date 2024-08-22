@@ -115,7 +115,6 @@ async fn prepare_updater(
             .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
     ));
 
-    let l2_wallet_address = l2_signer.address();
     let l2_oracle = GasPriceOracle::new(config.l2_oracle_address, l2_signer);
     let l1_rollup = Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
 
@@ -129,10 +128,15 @@ async fn prepare_updater(
         let sign_address: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_ADDRESS");
         let sign_chain: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_CHAIN");
         let sign_url: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_URL");
-        let signer: ExternalSign =
-            ExternalSign::new(&gas_oracle_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
-                .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
-                .unwrap();
+        let signer: ExternalSign = ExternalSign::new(
+            &gas_oracle_appid,
+            &privkey_pem,
+            &sign_address,
+            &sign_chain,
+            &sign_url,
+        )
+        .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
+        .unwrap();
         Some(signer)
     } else {
         log::info!("Gas Oracle will use local signer");
@@ -142,7 +146,6 @@ async fn prepare_updater(
     let base_fee_updater = BaseFeeUpdater::new(
         l1_provider.clone(),
         l2_provider.clone(),
-        l2_wallet_address,
         ext_signer.clone(),
         l2_oracle.clone(),
         config.gas_threshold,

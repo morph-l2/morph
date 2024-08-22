@@ -50,7 +50,6 @@ const MAX_RETRY_TIMES: u8 = 2;
 pub struct ChallengeHandler {
     l1_rollup: RollupType,
     l1_provider: Provider<Http>,
-    wallet_address: Address,
     l2_rpc: String,
     ext_signer: Option<ExternalSign>,
 }
@@ -72,7 +71,6 @@ impl ChallengeHandler {
                 .unwrap()
                 .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
         ));
-        let wallet_address: Address = l1_signer.address();
         let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str()).unwrap(), l1_signer);
 
         let use_ext_sign: bool = read_env_var("HANDLER_EXTERNAL_SIGN", false);
@@ -96,18 +94,16 @@ impl ChallengeHandler {
         Self {
             l1_rollup,
             l1_provider,
-            wallet_address,
             l2_rpc,
             ext_signer,
         }
     }
 
     pub async fn handle_challenge(&self) -> Result<(), Box<dyn Error>> {
-        self.handle_with_prover(self.wallet_address, self.l2_rpc.clone(), &self.l1_provider, &self.l1_rollup)
-            .await;
+        self.handle_with_prover(self.l2_rpc.clone(), &self.l1_provider, &self.l1_rollup).await;
         Ok(())
     }
-    async fn handle_with_prover(&self, wallet_address: Address, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
+    async fn handle_with_prover(&self, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
         loop {
             sleep(Duration::from_secs(12)).await;
 
@@ -121,8 +117,13 @@ impl ChallengeHandler {
             };
             log::info!("Current L1 block number: {:#?}", latest);
 
+            let wallet = if let Some(signer) = &self.ext_signer {
+                Address::from_str(&signer.address).unwrap_or_default()
+            } else {
+                self.l1_rollup.client().address()
+            };
             // Record wallet balance.
-            let balance = match l1_provider.get_balance(wallet_address, None).await {
+            let balance = match l1_provider.get_balance(wallet, None).await {
                 Ok(b) => b,
                 Err(e) => {
                     log::error!("handler_wallet.get_balance error: {:#?}", e);
