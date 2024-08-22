@@ -16,21 +16,14 @@ use crate::{
     },
     external_sign::ExternalSign,
     metrics::ORACLE_SERVICE_METRICS,
-    read_env_var,
     signer::send_transaction,
 };
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
-use lazy_static::lazy_static;
 use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
 const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 7);
 const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 2);
-const FINALIZE_BATCH_GAS_USED: u64 = 156400;
-
-lazy_static! {
-    pub static ref TXN_PER_BATCH: u64 = read_env_var("TXN_PER_BATCH", 50);
-}
 
 // Main struct to manage overhead information
 pub struct ScalarUpdater {
@@ -43,6 +36,8 @@ pub struct ScalarUpdater {
     gas_threshold: u64,
     commit_scalar_buffer: u64,
     blob_scalar_buffer: u64,
+    finalize_batch_gas_used: u64,
+    txn_per_batch: u64,
 }
 
 impl ScalarUpdater {
@@ -58,6 +53,8 @@ impl ScalarUpdater {
         gas_threshold: u64,
         commit_scalar_buffer: u64,
         blob_scalar_buffer: u64,
+        finalize_batch_gas_used: u64,
+        txn_per_batch: u64,
     ) -> Self {
         // Create beacon nodes with provided RPC URLs
         let beacon_node = BeaconNode { rpc_url: l1_beacon_rpc };
@@ -73,6 +70,8 @@ impl ScalarUpdater {
             gas_threshold,
             commit_scalar_buffer,
             blob_scalar_buffer,
+            finalize_batch_gas_used,
+            txn_per_batch,
         }
     }
 
@@ -295,8 +294,8 @@ impl ScalarUpdater {
         }
 
         //Step4. Calculate scalar
-        let commit_scalar = (rollup_gas_used.as_u64() + FINALIZE_BATCH_GAS_USED) * PRECISION /
-            l2_txn.max(*TXN_PER_BATCH);
+        let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION /
+            l2_txn.max(self.txn_per_batch);
         let blob_scalar = if l2_data_len > 0 {
             MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
         } else {
@@ -470,6 +469,8 @@ mod tests {
             gas_threshold,
             0u64,
             0u64,
+            0u64,
+            50u64,
         );
 
         let latest_overhead =

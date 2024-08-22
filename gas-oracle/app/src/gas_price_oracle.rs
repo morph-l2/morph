@@ -35,13 +35,12 @@ struct Config {
     l1_blob_base_fee_buffer: u64,
     commit_scalar_buffer: u64,
     blob_scalar_buffer: u64,
+    finalize_batch_gas_used: u64,
+    txn_per_batch: u64,
 }
 
 impl Config {
     fn new() -> Result<Self, Box<dyn Error>> {
-        let _: f64 = read_parse_env("TXN_PER_BLOCK");
-        let _: u64 = read_parse_env("TXN_PER_BATCH");
-
         Ok(Self {
             l1_rpc: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env"),
             l2_rpc: var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env"),
@@ -52,7 +51,8 @@ impl Config {
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
             )?,
-            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").unwrap_or(
+            private_key: read_env_var(
+                "L2_GAS_ORACLE_PRIVATE_KEY",
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
             ),
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
@@ -60,6 +60,8 @@ impl Config {
             l1_blob_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER", 0u64),
             commit_scalar_buffer: read_env_var("GAS_ORACLE_COMMIT_SCALAR_BUFFER", 0u64),
             blob_scalar_buffer: read_env_var("GAS_ORACLE_BLOB_SCALAR_BUFFER", 0u64),
+            finalize_batch_gas_used: read_env_var("GAS_ORACLE_FINALIZE_BATCH_GAS_USED", 113100u64),
+            txn_per_batch: read_env_var("TXN_PER_BATCH", 50),
         })
     }
 }
@@ -67,8 +69,24 @@ impl Config {
 /// Update data of gasPriceOrale contract on L2 network.
 pub async fn update() -> Result<(), Box<dyn Error>> {
     let config = Config::new()?;
+    check_config(&config)?;
+
+    let (base_fee_updater, scalar_updater) = prepare_updater(&config).await?;
+
+    // Start updater.
+    let updater = start_updater(config, base_fee_updater, scalar_updater);
+
+    // Start metric management.
+    let metric = metric_mng();
+
+    tokio::join!(updater, metric);
+    Ok(())
+}
+
+fn check_config(config: &Config) -> Result<(), Box<dyn Error>> {
     log::info!("Check env config, l1_base_fee_buffer: {:?}, l1_blob_base_fee_buffer: {:?}, commit_scalar_buffer: {:?}, blob_scalar_buffer: {:?}",
     config.l1_base_fee_buffer,config.l1_blob_base_fee_buffer, config.commit_scalar_buffer, config.blob_scalar_buffer);
+
     if config.l1_base_fee_buffer > 100 * 10u64.pow(9) {
         // 1 means 1wei
         return Err(anyhow!(
@@ -98,16 +116,10 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
         )
         .into());
     }
+    if config.txn_per_batch < 10u64 {
+        return Err(anyhow!("Check env config error, TXN_PER_BATCH should be more than 10").into());
+    }
 
-    let (base_fee_updater, scalar_updater) = prepare_updater(&config).await?;
-
-    // Start updater.
-    let updater = start_updater(config, base_fee_updater, scalar_updater);
-
-    // Start metric management.
-    let metric = metric_mng();
-
-    tokio::join!(updater, metric);
     Ok(())
 }
 
@@ -202,6 +214,8 @@ async fn prepare_updater(
         config.gas_threshold,
         config.commit_scalar_buffer,
         config.blob_scalar_buffer,
+        config.finalize_batch_gas_used,
+        config.txn_per_batch,
     );
     Ok((base_fee_updater, scalar_updater))
 }

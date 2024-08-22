@@ -62,7 +62,10 @@ impl ChallengeHandler {
         let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
         let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
 
-        let private_key = var("CHALLENGE_HANDLER_PRIVATE_KEY").expect("Cannot detect L1_ROLLUP_PRIVATE_KEY env var");
+        let private_key = read_env_var(
+            "CHALLENGE_HANDLER_PRIVATE_KEY",
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
+        );
 
         let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
         let l1_signer = Arc::new(SignerMiddleware::new(
