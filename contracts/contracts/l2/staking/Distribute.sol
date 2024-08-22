@@ -307,22 +307,19 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @param delegator     delegatee address
     function queryAllUnclaimedEpochs(
         address delegator
-    )
-        external
-        view
-        returns (bool[] memory undelegated, uint256[] memory unclaimedStart, uint256[] memory unclaimedEnd)
-    {
+    ) external view returns (address[] memory, bool[] memory, uint256[] memory, uint256[] memory) {
         uint256 length = unclaimed[delegator].delegatees.length();
-
-        undelegated = new bool[](length);
-        unclaimedStart = new uint256[](length);
-        unclaimedEnd = new uint256[](length);
-
+        address[] memory delegatees = new address[](length);
+        bool[] memory undelegated = new bool[](length);
+        uint256[] memory unclaimedStart = new uint256[](length);
+        uint256[] memory unclaimedEnd = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
-            undelegated[i] = unclaimed[delegator].undelegated[unclaimed[delegator].delegatees.at(i)];
-            unclaimedStart[i] = unclaimed[delegator].unclaimedStart[unclaimed[delegator].delegatees.at(i)];
-            unclaimedEnd[i] = unclaimed[delegator].unclaimedEnd[unclaimed[delegator].delegatees.at(i)];
+            delegatees[i] = unclaimed[delegator].delegatees.at(i);
+            undelegated[i] = unclaimed[delegator].undelegated[delegatees[i]];
+            unclaimedStart[i] = unclaimed[delegator].unclaimedStart[delegatees[i]];
+            unclaimedEnd[i] = unclaimed[delegator].unclaimedEnd[delegatees[i]];
         }
+        return (delegatees, undelegated, unclaimedStart, unclaimedEnd);
     }
 
     /**********************
