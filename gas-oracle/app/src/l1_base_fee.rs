@@ -1,8 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use crate::{
-    abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, external_sign::ExternalSign,
-    metrics::ORACLE_SERVICE_METRICS, send_transaction, OracleError,
+    abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, external_sign::ExternalSign, metrics::ORACLE_SERVICE_METRICS, signer::send_transaction, OracleError
 };
 use ethers::prelude::*;
 use eyre::anyhow;

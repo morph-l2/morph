@@ -16,7 +16,8 @@ use crate::{
     },
     external_sign::ExternalSign,
     metrics::ORACLE_SERVICE_METRICS,
-    read_env_var, send_transaction,
+    read_env_var,
+    signer::send_transaction,
 };
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use lazy_static::lazy_static;
@@ -124,7 +125,7 @@ impl ScalarUpdater {
         ORACLE_SERVICE_METRICS.commit_scalar.set((commit_scalar / PRECISION) as i64);
         ORACLE_SERVICE_METRICS
             .blob_scalar
-            .set((1000.0 * blob_scalar as f64 / PRECISION as f64).round() / 10000.0);
+            .set((1000.0 * blob_scalar as f64 / PRECISION as f64).round() / 1000.0);
 
         // Step3. set on L2chain
         let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l2_oracle.client();

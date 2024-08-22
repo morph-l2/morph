@@ -69,24 +69,24 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     let config = Config::new()?;
     log::info!("Check env config, l1_base_fee_buffer: {:?}, l1_blob_base_fee_buffer: {:?}, commit_scalar_buffer: {:?}, blob_scalar_buffer: {:?}",
     config.l1_base_fee_buffer,config.l1_blob_base_fee_buffer, config.commit_scalar_buffer, config.blob_scalar_buffer);
-    if config.l1_base_fee_buffer > 100u64 {
-        // 1 means 1Gwei
+    if config.l1_base_fee_buffer > 100 * 10u64.pow(9) {
+        // 1 means 1wei
         return Err(anyhow!(
-            "Check env config error, GAS_ORACLE_L1_BASE_FEE_BUFFER should be less than 100(means 100 Gwei)"
+            "Check env config error, GAS_ORACLE_L1_BASE_FEE_BUFFER should be less than 100 Gwei)"
         )
         .into());
     }
-    if config.l1_blob_base_fee_buffer > 100u64 {
-        // 1 means 1Gwei
+    if config.l1_blob_base_fee_buffer > 100 * 10u64.pow(9) {
+        // 1 means 1wei
         return Err(anyhow!(
-            "Check env config error, GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER should be less than 100(means 100 Gwei)"
+            "Check env config error, GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER should be less than 100 Gwei"
         )
         .into());
     }
     if config.commit_scalar_buffer > 10000u64 {
         // 1 means 1Gas
         return Err(anyhow!(
-            "Check env config error, GAS_ORACLE_COMMIT_SCALAR_BUFFER should be less than 10000(means 10000 gas)"
+            "Check env config error, GAS_ORACLE_COMMIT_SCALAR_BUFFER should be less than 10000 gas"
         )
         .into());
     }
