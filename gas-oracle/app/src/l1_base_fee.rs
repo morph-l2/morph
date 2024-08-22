@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use crate::{
     abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, external_sign::ExternalSign,
@@ -33,6 +33,21 @@ impl BaseFeeUpdater {
     /// Update baseFee and scalar.
     /// Set the gas data of L1 network to the GasPriceOrale contract on L2.
     pub async fn update(&self) -> Result<(), OracleError> {
+        // Step0. Check & Record wallet balance.
+        let wallet = if let Some(signer) = &self.ext_signer {
+            Address::from_str(&signer.address).unwrap_or_default()
+        } else {
+            self.l2_oracle.client().address()
+        };
+        let balance = self.l2_provider.get_balance(wallet, None).await.map_err(|e| {
+            OracleError::L1BaseFeeError(anyhow!(format!("l2_wallet.get_balance error: {:#?}", e)))
+        })?;
+        log::info!("l2_wallet.get_balance: {:#?}", balance);
+
+        ORACLE_SERVICE_METRICS
+            .gas_oracle_owner_balance
+            .set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+
         // Step1. get l1 data.
         let (l1_base_fee, l1_blob_base_fee, l1_gas_price) =
             query_l1_base_fee(&self.l1_provider).await?;
@@ -87,14 +102,6 @@ impl BaseFeeUpdater {
 
         self.update_base_fee(l1_base_fee, l1_blob_base_fee, blob_fee_on_l2, base_fee_on_l2).await?;
 
-        // Step4. Record wallet balance.
-        let balance = self.l2_provider.get_balance(self.l2_wallet, None).await.map_err(|e| {
-            OracleError::L1BaseFeeError(anyhow!(format!("l2_wallet.get_balance error: {:#?}", e)))
-        })?;
-
-        ORACLE_SERVICE_METRICS
-            .gas_oracle_owner_balance
-            .set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
         Ok(())
     }
 
@@ -184,7 +191,7 @@ async fn query_l1_base_fee(
     let latest_block = l1_provider
         .get_block(BlockNumber::Latest)
         .await
-        .map_err(|e| OracleError::L1BaseFeeError(anyhow!(format!("{:#?}", e))))?
+        .map_err(|e| OracleError::L1BaseFeeError(anyhow!(format!("query_l1_base_fee: {:#?}", e))))?
         .ok_or_else(|| {
             OracleError::L1BaseFeeError(anyhow!(format!("l1 latest block info is none.")))
         })?;
