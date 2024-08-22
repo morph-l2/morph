@@ -5,11 +5,11 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/params"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/params"
 )
 
 // defaultL2GasLimit represents the default gas limit for an L2 block.
@@ -25,12 +25,12 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 
 	maxTxPerBlock := config.MaxTxPerBlock
 	if maxTxPerBlock == 0 {
-		maxTxPerBlock = params.ScrollMaxTxPerBlock
+		maxTxPerBlock = params.MorphMaxTxPerBlock
 	}
 
 	maxTxPayloadBytesPerBlock := config.MaxTxPayloadBytesPerBlock
 	if maxTxPayloadBytesPerBlock == 0 {
-		maxTxPayloadBytesPerBlock = params.ScrollMaxTxPayloadBytesPerBlock
+		maxTxPayloadBytesPerBlock = params.MorphMaxTxPayloadBytesPerBlock
 	}
 
 	morphChainConfig := params.ChainConfig{
@@ -54,7 +54,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		BernoulliBlock:          big.NewInt(0),
 		CurieBlock:              big.NewInt(0),
 		TerminalTotalDifficulty: big.NewInt(0),
-		Scroll: params.ScrollConfig{
+		Morph: params.MorphConfig{
 			UseZktrie:                 true,
 			MaxTxPerBlock:             &maxTxPerBlock,
 			MaxTxPayloadBytesPerBlock: &maxTxPayloadBytesPerBlock,

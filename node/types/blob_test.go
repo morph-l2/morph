@@ -7,11 +7,11 @@ import (
 	"morph-l2/node/zstd"
 	"testing"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	eth "github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/crypto"
-	"github.com/scroll-tech/go-ethereum/crypto/kzg4844"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	eth "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto"
+	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/rand"
 )

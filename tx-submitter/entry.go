@@ -17,11 +17,11 @@ import (
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/externalsign"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/crypto"
-	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/log"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/crypto"
+	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -203,6 +203,7 @@ func Main() func(ctx *cli.Context) error {
 			"journal_path", cfg.JournalFilePath,
 			"gas_rough_estimate", cfg.RoughEstimateGas,
 			"gas_limit_buffer", cfg.GasLimitBuffer,
+			"rotator_buffer", cfg.RotatorBuffer,
 			"rough_estimate_gas", cfg.RoughEstimateGas,
 			"rough_estimate_base_gas", cfg.RollupTxGasBase,
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,

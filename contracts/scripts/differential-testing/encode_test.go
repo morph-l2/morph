@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/iden3/go-iden3-crypto/keccak256"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"morph-l2/contract/scripts/differential-testing/libraries"

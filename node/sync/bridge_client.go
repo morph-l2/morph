@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	eth "github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	eth "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	"morph-l2/bindings/bindings"

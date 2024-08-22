@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/rpc"
 )
 
 type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error

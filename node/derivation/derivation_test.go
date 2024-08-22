@@ -3,9 +3,9 @@ package derivation
 import (
 	"testing"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/eth"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/stretchr/testify/require"
 
 	"morph-l2/bindings/bindings"

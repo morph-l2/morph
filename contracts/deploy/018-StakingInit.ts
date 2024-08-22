@@ -36,6 +36,7 @@ export const StakingInit = async (
         const admin: string = configTmp.contractAdmin
         const stakingChallengerRewardPercentage: number = configTmp.stakingChallengerRewardPercentage
         const limit: number = configTmp.stakingMinDeposit
+        const challengeDeposit: number = configTmp.stakingChallengeDeposit
         const lock: number = configTmp.stakingLockNumber
         const gasLimitAdd: number = configTmp.stakingCrossChainGaslimitAdd
         const gasLimitRemove: number = configTmp.stakingCrossChainGaslimitRemove
@@ -43,6 +44,7 @@ export const StakingInit = async (
         if (!ethers.utils.isAddress(admin)
             || lock <= 0
             || limit <= 0
+            || challengeDeposit <= 0
             || gasLimitAdd <= 0
             || gasLimitRemove <= 0
             || stakingChallengerRewardPercentage > 100
@@ -58,7 +60,8 @@ export const StakingInit = async (
             L1StakingFactory.interface.encodeFunctionData('initialize', [
                 RollupProxyAddress,
                 hre.ethers.utils.parseEther(limit.toString()),
-                hre.ethers.utils.parseEther(lock.toString()),
+                hre.ethers.utils.parseEther(challengeDeposit.toString()),
+                lock.toString(),
                 stakingChallengerRewardPercentage,
                 gasLimitAdd,
                 gasLimitRemove,
@@ -99,7 +102,7 @@ export const StakingInit = async (
         await assertContractVariable(
             contractTmp,
             'withdrawalLockBlocks',
-            hre.ethers.utils.parseEther(lock.toString())
+            lock.toString()
         )
         await assertContractVariable(
             contractTmp,
