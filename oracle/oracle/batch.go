@@ -44,7 +44,7 @@ func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error
 	return bs.RollupBlock.Uint64() + 1, nil
 }
 
-func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]bindings.IRecordBatchSubmission, error) {
+func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSubmissionIndex uint64) ([]bindings.IRecordBatchSubmission, error) {
 	var rLogs []types.Log
 	for {
 		endBlock := startBlock + o.cfg.MaxSize
@@ -70,6 +70,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 	}
 
 	var recordBatchSubmissions []bindings.IRecordBatchSubmission
+	batchIndex := nextBatchSubmissionIndex
 	for _, lg := range rLogs {
 		tx, pending, err := o.l1Client.TransactionByHash(ctx, lg.TxHash)
 		if err != nil {
@@ -101,6 +102,14 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 		if !bytes.Equal(abi.Methods["commitBatch"].ID, tx.Data()[:4]) {
 			continue
 		}
+		if rollupCommitBatch.BatchIndex.Uint64() < batchIndex {
+			continue
+		}
+		if rollupCommitBatch.BatchIndex.Uint64() > batchIndex {
+			return nil, fmt.Errorf(fmt.Sprintf("batch is incontinuity,expect %v,have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64()))
+		}
+		// set batchIndex to new batch index + 1
+		batchIndex = rollupCommitBatch.BatchIndex.Uint64() + 1
 		args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 		if err != nil {
 			log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
@@ -143,6 +152,9 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64) ([]b
 			RollupBlock: big.NewInt(int64(lg.BlockNumber)),
 		}
 		recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
+		if len(recordBatchSubmissions) == maxBatchSize {
+			return recordBatchSubmissions, nil
+		}
 	}
 	return recordBatchSubmissions, nil
 }
@@ -201,7 +213,7 @@ func (o *Oracle) submitRecord() error {
 		log.Error("get pre batch rollup block number failed", "error", err)
 		return fmt.Errorf("get pre batch rollup block number error:%v", err)
 	}
-	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start)
+	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start, nextBatchSubmissionIndex.Uint64())
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}
@@ -215,15 +227,15 @@ func (o *Oracle) submitRecord() error {
 	}
 	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
 	if err != nil {
-		return fmt.Errorf("record finalized batch error:%v", err)
+		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
 	}
+	log.Info("record finalized batch success", "txHash", tx.Hash(), "batchLength", len(batchSubmissions))
 	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {
-		log.Error("tx receipt failed", "error", err)
-		return fmt.Errorf("wait tx receipt error:%v", err)
+		return fmt.Errorf("wait tx receipt error:%v,txHash:%v", err, tx.Hash())
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("record batch not success")
+		return fmt.Errorf("record batch receipt failed,txHash:%v", tx.Hash())
 	}
 	return nil
 }
