@@ -241,7 +241,7 @@ func (o *Oracle) submitRecord() error {
 		//continue
 	}
 	//txHash = tx.Hash()
-	log.Info("record finalized batch success", "length", len(batchSubmissions))
+	log.Info("send record finalized batch tx success", "length", len(batchSubmissions))
 	//break
 	//}
 	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
