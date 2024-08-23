@@ -482,19 +482,22 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice clean staker store
     function _cleanStakerStore() internal {
-        for (uint256 i = 0; i < deleteList.length; i++) {
+        uint256 i = 0;
+        while (i < deleteList.length) {
             if (deleteableHeight[deleteList[i]] <= block.number) {
                 // clean stakerSet
                 delete stakerSet[stakerIndexes[deleteList[i]] - 1];
                 delete stakerIndexes[deleteList[i]];
 
+                // clean staker info
+                delete stakers[deleteList[i]];
+
                 // clean deleteList
                 delete deleteableHeight[deleteList[i]];
                 deleteList[i] = deleteList[deleteList.length - 1];
                 deleteList.pop();
-
-                // clean staker info
-                delete stakers[deleteList[i]];
+            } else {
+                i++;
             }
         }
     }
