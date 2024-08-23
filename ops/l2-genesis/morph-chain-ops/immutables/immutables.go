@@ -235,7 +235,7 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
-			processTx, err := usdc.Initialize(
+			lastTx, err = usdc.Initialize(
 				opts,
 				config.USDCTokenName,
 				config.USDCTokenSymbol,
@@ -253,15 +253,15 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if !success {
 				return nil, nil, errors.New("USDC token mint Supply convert failed")
 			}
-			lastTx, err = usdc.ConfigureMinter(opts, predeploys.L2USDCGatewayAddr, mintSupply)
+			_, err = usdc.ConfigureMinter(opts, predeploys.L2USDCGatewayAddr, mintSupply)
 			if err != nil {
 				return nil, nil, err
 			}
-			processTx, err = usdc.UpdateMasterMinter(opts, config.USDCMasterMinter)
+			_, err = usdc.UpdateMasterMinter(opts, config.USDCMasterMinter)
 			if err != nil {
 				return nil, nil, err
 			}
-			processTx, err = usdc.TransferOwnership(opts, config.USDCOwner)
+			processTx, err := usdc.TransferOwnership(opts, config.USDCOwner)
 			if err != nil {
 				return nil, nil, err
 			}
