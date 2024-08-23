@@ -3,12 +3,9 @@ use ethers::{
     utils::{hex, rlp},
 };
 use eyre::anyhow;
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::ops::Mul;
-
-use crate::read_env_var;
 
 use super::{
     blob::{kzg_to_versioned_hash, Blob},
@@ -16,10 +13,6 @@ use super::{
     typed_tx::TypedTransaction,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
-
-lazy_static! {
-    pub static ref TXN_PER_BATCH: u64 = read_env_var("TXN_PER_BATCH", 50);
-}
 
 pub(super) fn extract_tx_payload(
     indexed_hashes: Vec<IndexedBlobHash>,
