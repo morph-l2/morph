@@ -8,7 +8,7 @@ const config = {
     
     // chainID config
     l1ChainID: 900,
-    l2ChainID: 2818,
+    l2ChainID: 53077,
 
     // L1MessageQueue config 
     l1MessageQueueMaxGasLimit: 100000000,
