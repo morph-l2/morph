@@ -9,6 +9,7 @@ const ContractFactoryName = {
     // tokens
     WETH: 'WrappedEther',
     MockERC20: 'MockERC20',
+    USDC:'FiatTokenV1',
     // messenger
     L1CrossDomainMessenger: 'L1CrossDomainMessenger',
     L1MessageQueueWithGasPriceOracle: 'L1MessageQueueWithGasPriceOracle',

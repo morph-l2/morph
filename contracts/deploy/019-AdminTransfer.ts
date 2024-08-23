@@ -70,6 +70,7 @@ export const AdminTransfer = async (
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
     const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
     const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
+    const L1USDCGatewayProxyStorageName = ProxyStorageName.L1USDCGatewayProxyStorageName
 
     // ************************ messenger contracts admin change ************************
     // L1CrossDomainMessengerProxy admin change
@@ -159,6 +160,11 @@ export const AdminTransfer = async (
         return err
     }
 
+    // L1USDCGatewayProxy admin change
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1USDCGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
     return ''
 }
 

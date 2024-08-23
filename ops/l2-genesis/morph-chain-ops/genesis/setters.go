@@ -163,7 +163,11 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 	// Set the storage values
 	if storageConfig, ok := storage[name]; ok {
 		log.Info("Setting storage", "name", name, "address", proxyAddr)
-		if err := state.SetStorage(name, proxyAddr, storageConfig, db); err != nil {
+		tmpName := name
+		if name == "L2USDC" {
+			tmpName = "FiatTokenV1"
+		}
+		if err := state.SetStorage(tmpName, proxyAddr, storageConfig, db); err != nil {
 			return err
 		}
 	}
@@ -171,7 +175,8 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 	if name == "Sequencer" ||
 		name == "MorphToken" ||
 		name == "L2Staking" ||
-		name == "L2WETH" {
+		name == "L2WETH" ||
+		name == "L2USDC" {
 		// set slots directly
 		if slots, ok := slotResults[name]; ok {
 			for slotK, slotV := range slots {
