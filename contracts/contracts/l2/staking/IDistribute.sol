@@ -82,7 +82,7 @@ interface IDistribute {
     /// @param delegator     delegatee address
     function queryAllUnclaimedEpochs(
         address delegator
-    ) external view returns (bool[] memory undelegated, uint256[] memory unclaimedStart, uint256[] memory unclaimedEnd);
+    ) external view returns (address[] memory, bool[] memory, uint256[] memory, uint256[] memory);
 
     /*****************************
      * Public Mutating Functions *

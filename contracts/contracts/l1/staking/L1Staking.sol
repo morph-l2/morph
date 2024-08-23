@@ -347,6 +347,28 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return stakerSet;
     }
 
+    /// @notice return active stakers
+    function getActiveStakers() external view returns (address[] memory) {
+        uint256 activeStakersNumber;
+        bool[] memory tags = new bool[](255);
+        for (uint256 i = 0; i < 255; i++) {
+            // valid address and not in delete list
+            if (stakerSet[i] != address(0) && deleteableHeight[stakerSet[i]] == 0) {
+                activeStakersNumber++;
+                tags[i] = true;
+            }
+        }
+        address[] memory activeStakers = new address[](activeStakersNumber);
+        uint256 index;
+        for (uint256 i = 0; i < 255; i++) {
+            if (tags[i]) {
+                activeStakers[index] = stakerSet[i];
+                index++;
+            }
+        }
+        return activeStakers;
+    }
+
     /// @notice whether address is staker
     /// @param addr  address to check
     function isStaker(address addr) public view returns (bool) {
