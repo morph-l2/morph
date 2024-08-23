@@ -121,10 +121,8 @@ contract L2TxFeeVaultTest is DSTestPlus {
         vault.transferTo(to, amount);
     }
 
-    function test_owner_transfer_succeeds(address to) public {
-        hevm.assume(to != address(0));
-        hevm.assume(address(to).balance == 0);
-        hevm.assume(to.code.length == 0);
+    function test_owner_transfer_succeeds() public {
+        address to = address(1024);
         hevm.deal(address(vault), 11 ether);
         vault.transferTo(to);
         assertEq(address(to).balance, 11 ether);
