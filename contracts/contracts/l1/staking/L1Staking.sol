@@ -293,21 +293,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice clean staker store
     function cleanStakerStore() external onlyOwner {
-        for (uint256 i = 0; i < deleteList.length; i++) {
-            if (deleteableHeight[deleteList[i]] <= block.number) {
-                // clean stakerSet
-                delete stakerSet[stakerIndexes[deleteList[i]] - 1];
-                delete stakerIndexes[deleteList[i]];
-
-                // clean deleteList
-                delete deleteableHeight[deleteList[i]];
-                deleteList[i] = deleteList[deleteList.length - 1];
-                deleteList.pop();
-
-                // clean staker info
-                delete stakers[deleteList[i]];
-            }
-        }
+        _cleanStakerStore();
     }
 
     /*****************************
@@ -321,7 +307,8 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
 
         delete withdrawals[_msgSender()];
-        delete stakers[_msgSender()];
+        _cleanStakerStore();
+
         emit Claimed(_msgSender(), receiver);
 
         _transfer(receiver, stakingValue);
@@ -469,5 +456,24 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             abi.encodeCall(IL2Staking.removeStakers, (remove)),
             gasLimitRemoveStakers
         );
+    }
+
+    /// @notice clean staker store
+    function _cleanStakerStore() internal {
+        for (uint256 i = 0; i < deleteList.length; i++) {
+            if (deleteableHeight[deleteList[i]] <= block.number) {
+                // clean stakerSet
+                delete stakerSet[stakerIndexes[deleteList[i]] - 1];
+                delete stakerIndexes[deleteList[i]];
+
+                // clean deleteList
+                delete deleteableHeight[deleteList[i]];
+                deleteList[i] = deleteList[deleteList.length - 1];
+                deleteList.pop();
+
+                // clean staker info
+                delete stakers[deleteList[i]];
+            }
+        }
     }
 }
