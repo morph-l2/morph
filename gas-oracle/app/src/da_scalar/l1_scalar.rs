@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use eyre::anyhow;
 use tokio::time::{sleep, Duration};
 
@@ -12,30 +14,30 @@ use crate::{
         gas_price_oracle_abi::GasPriceOracle,
         rollup_abi::{CommitBatchCall, Rollup},
     },
-    format_contract_error,
+    external_sign::ExternalSign,
     metrics::ORACLE_SERVICE_METRICS,
-    read_env_var,
+    signer::send_transaction,
 };
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
-use lazy_static::lazy_static;
 use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
 const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 7);
 const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 2);
-const FINALIZE_BATCH_GAS_USED: u64 = 156400;
-
-lazy_static! {
-    pub static ref TXN_PER_BATCH: u64 = read_env_var("TXN_PER_BATCH", 50);
-}
 
 // Main struct to manage overhead information
 pub struct ScalarUpdater {
     l1_provider: Provider<Http>, // L1 provider for HTTP connections
+    l2_provider: Provider<Http>,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>, // L2 gasPrice Oracle
+    ext_signer: Option<ExternalSign>,
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
-    beacon_node: BeaconNode,     // Beacon node for blockchain
+    beacon_node: BeaconNode,           // Beacon node for blockchain
     gas_threshold: u64,
+    commit_scalar_buffer: u64,
+    blob_scalar_buffer: u64,
+    finalize_batch_gas_used: u64,
+    txn_per_batch: u64,
 }
 
 impl ScalarUpdater {
@@ -43,16 +45,34 @@ impl ScalarUpdater {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         l1_provider: Provider<Http>,
+        l2_provider: Provider<Http>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
+        ext_signer: Option<ExternalSign>,
         l1_rollup: Rollup<Provider<Http>>,
         l1_beacon_rpc: String,
         gas_threshold: u64,
+        commit_scalar_buffer: u64,
+        blob_scalar_buffer: u64,
+        finalize_batch_gas_used: u64,
+        txn_per_batch: u64,
     ) -> Self {
         // Create beacon nodes with provided RPC URLs
         let beacon_node = BeaconNode { rpc_url: l1_beacon_rpc };
 
         // Return a new OverHead instance with initialized values
-        Self { l1_provider, l2_oracle, l1_rollup, beacon_node, gas_threshold }
+        Self {
+            l1_provider,
+            l2_provider,
+            l2_oracle,
+            ext_signer,
+            l1_rollup,
+            beacon_node,
+            gas_threshold,
+            commit_scalar_buffer,
+            blob_scalar_buffer,
+            finalize_batch_gas_used,
+            txn_per_batch,
+        }
     }
 
     /// Update commitScalar and blobScalar.
@@ -93,67 +113,55 @@ impl ScalarUpdater {
         log::info!("set_commit_or_blob_scalar, latest commit_scalar: {:?}, latest blob_scalar: {:?}, current_commit_scalar on l2 is: {:?}, current_blob_scalar on l2 is: {:?}", 
         commit_scalar, blob_scalar, current_commit_scalar.as_u64(), current_blob_scalar.as_u64());
 
+        // Fine tune the actual value
+        commit_scalar += self.commit_scalar_buffer;
+        let fine_tune_value = PRECISION * self.blob_scalar_buffer / 100;
+        blob_scalar += fine_tune_value;
+
         commit_scalar = commit_scalar.min(MAX_COMMIT_SCALAR);
         blob_scalar = blob_scalar.min(MAX_BLOB_SCALAR);
 
         ORACLE_SERVICE_METRICS.commit_scalar.set((commit_scalar / PRECISION) as i64);
         ORACLE_SERVICE_METRICS
             .blob_scalar
-            .set((1000.0 * blob_scalar as f64 / PRECISION as f64).round() / 10000.0);
+            .set((1000.0 * blob_scalar as f64 / PRECISION as f64).round() / 1000.0);
 
         // Step3. set on L2chain
+        let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l2_oracle.client();
         if self.check_threshold_reached(
             commit_scalar,
             current_commit_scalar.as_u64(),
             "commit_scalar",
         ) {
             // Update commit_scalar
-            let tx = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).legacy();
-            let rt = tx.send().await;
-            let pending_tx = match rt {
-                Ok(pending) => {
-                    log::info!("tx of set_commit_scalar has been sent: {:#?}", pending.tx_hash());
-                    pending
-                }
-                Err(e) => {
-                    log::error!("send tx of set_commit_scalar error, origin msg: {:#?}", e);
-                    return Err(ScalarError::Error(anyhow!(
-                        "set_commit_scalar error: {}",
-                        format_contract_error(e)
-                    )));
-                }
-            };
-            pending_tx.await.map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "set_commit_scalar check_receipt error: {:#?}",
-                    e
-                )))
+            let calldata = self.l2_oracle.set_commit_scalar(U256::from(commit_scalar)).calldata();
+            let tx_hash = send_transaction(
+                self.l2_oracle.address(),
+                calldata,
+                &client,
+                &self.ext_signer,
+                &self.l2_provider,
+            )
+            .await
+            .map_err(|e| {
+                ScalarError::Error(anyhow!(format!("set_commit_scalar error: {:#?}", e)))
             })?;
+            log::info!("set_commit_scalar success, tx_hash: {:#?}", tx_hash);
         }
 
         if self.check_threshold_reached(blob_scalar, current_blob_scalar.as_u64(), "blob_scalar") {
             // Update blob_scalar
-            let tx = self.l2_oracle.set_blob_scalar(U256::from(blob_scalar)).legacy();
-            let rt = tx.send().await;
-            let pending_tx = match rt {
-                Ok(pending) => {
-                    log::info!("tx of set_blob_scalar has been sent: {:#?}", pending.tx_hash());
-                    pending
-                }
-                Err(e) => {
-                    log::error!("send tx of set_blob_scalar error, origin msg: {:#?}", e);
-                    return Err(ScalarError::Error(anyhow!(
-                        "set_blob_scalar error: {}",
-                        format_contract_error(e)
-                    )));
-                }
-            };
-            pending_tx.await.map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "set_blob_scalar check_receipt error: {:#?}",
-                    e
-                )))
-            })?;
+            let calldata = self.l2_oracle.set_blob_scalar(U256::from(blob_scalar)).calldata();
+            let tx_hash = send_transaction(
+                self.l2_oracle.address(),
+                calldata,
+                &client,
+                &self.ext_signer,
+                &self.l2_provider,
+            )
+            .await
+            .map_err(|e| ScalarError::Error(anyhow!(format!("set_blob_scalar error: {:#?}", e))))?;
+            log::info!("set_blob_scalar success, tx_hash: {:#?}", tx_hash);
         }
 
         Ok(())
@@ -200,6 +208,7 @@ impl ScalarUpdater {
             )))
         })?;
 
+        #[allow(clippy::manual_inspect)]
         let (commit_scalar, blob_scalar) = self
             .calculate_from_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
             .await
@@ -285,8 +294,8 @@ impl ScalarUpdater {
         }
 
         //Step4. Calculate scalar
-        let commit_scalar = (rollup_gas_used.as_u64() + FINALIZE_BATCH_GAS_USED) * PRECISION /
-            l2_txn.max(*TXN_PER_BATCH);
+        let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION /
+            l2_txn.max(self.txn_per_batch);
         let blob_scalar = if l2_data_len > 0 {
             MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
         } else {
@@ -445,15 +454,23 @@ mod tests {
 
         let l2_oracle_contract = GasPriceOracle::new(l2_oracle_address, l2_signer);
 
+        let ext_signer: ExternalSign =
+            ExternalSign::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
         let mut overhead: ScalarUpdater = ScalarUpdater::new(
             l1_provider,
+            l2_provider,
             l2_oracle_contract,
+            Some(ext_signer),
             l1_rollup_contract,
             var("GAS_ORACLE_L1_BEACON_RPC")
                 .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env empty")
                 .parse()
                 .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var empty"),
             gas_threshold,
+            0u64,
+            0u64,
+            0u64,
+            50u64,
         );
 
         let latest_overhead =

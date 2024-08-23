@@ -16,22 +16,19 @@ pub struct OracleServiceMetrics {
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
     pub static ref ORACLE_SERVICE_METRICS: OracleServiceMetrics = OracleServiceMetrics {
-        l1_base_fee: Gauge::new("l1_base_fee", "l1 base fee").expect("metric can be created"),
-        l1_base_fee_on_l2: Gauge::new("l1_base_fee_on_l2", "l1 base fee on l2")
-        .expect("metric can be created"),
-        l1_blob_base_fee_on_l2: Gauge::new("l1_blob_base_fee_on_l2", "l1 blob base fee on l2")
+        l1_base_fee: Gauge::new("l1BaseFee", "l1 base fee").expect("metric can be created"),
+        l1_base_fee_on_l2: Gauge::new("l1BaseFeeOnL2", "l1 base fee on l2")
             .expect("metric can be created"),
-        base_fee_scalar: Gauge::new("base_fee_scalar", "base fee scalar")
+        l1_blob_base_fee_on_l2: Gauge::new("l1BlobBaseFeeOnL2", "l1 blob base fee on l2")
             .expect("metric can be created"),
-        commit_scalar: IntGauge::new("commit_scalar", "commit scalar")
+        base_fee_scalar: Gauge::new("baseFeeScalar", "base fee scalar")
             .expect("metric can be created"),
-        blob_scalar: Gauge::new("blob_scalar", "blob scalar").expect("metric can be created"),
-        txn_per_batch: Gauge::new("txn_per_batch", "txn per batch").expect("metric can be created"),
-        gas_oracle_owner_balance: Gauge::new(
-            "gas_oracle_owner_balance",
-            "gas oracle owner balance"
-        )
-        .expect("metric can be created"),
-        l1_rpc_status: IntGauge::new("l1_rpc_status", "l1 prc").expect("metric can be created"),
+        commit_scalar: IntGauge::new("commitScalar", "commit scalar")
+            .expect("metric can be created"),
+        blob_scalar: Gauge::new("blobScalar", "blob scalar").expect("metric can be created"),
+        txn_per_batch: Gauge::new("txnPerBatch", "txn per batch").expect("metric can be created"),
+        gas_oracle_owner_balance: Gauge::new("gasOracleOwnerBalance", "gas oracle owner balance")
+            .expect("metric can be created"),
+        l1_rpc_status: IntGauge::new("l1RpcStatus", "l1 prc").expect("metric can be created"),
     };
 }

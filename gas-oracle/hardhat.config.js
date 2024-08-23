@@ -42,7 +42,7 @@ module.exports = {
   networks: {
     local: {
       url: `http://localhost:8545`,
-      accounts: ['3915789465ce806e8b40bb6409e42771e862456e3029ba9a9110e3f5b4aa6abd']
+      accounts: ['ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80']
     },
     devnet: {
       url: `http://localhost:8547`,
