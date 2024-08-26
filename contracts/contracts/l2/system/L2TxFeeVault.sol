@@ -68,9 +68,14 @@ contract L2TxFeeVault is OwnableBase {
     /// @param newMinWithdrawAmount The value of new `minWithdrawAmount`.
     event UpdateMinWithdrawAmount(uint256 oldMinWithdrawAmount, uint256 newMinWithdrawAmount);
 
+    /// @notice Emits each time the owner updates the value of `minWithdrawAmount`.
+    /// @param account The address of account whose status is changed.
+    /// @param status The current receive allowed status.
+    event UpdateReceiveAllowed(address account, bool status);
+
     /// @notice Emitted when account transfer allowed status changed.
     /// @param account The address of account whose status is changed.
-    /// @param status The current whitelist status.
+    /// @param status The current transfer allowed status.
     event UpdateTransferAllowed(address account, bool status);
 
     /*************
@@ -89,8 +94,11 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Total amount of wei processed by the contract.
     uint256 public totalProcessed;
 
-    /// @notice Keep track whether the account is allowed.
-    mapping(address => bool) public transferAllowed;
+    /// @notice Keep track whether the account is allowed to transfer funds.
+    mapping(address transferAddr => bool allowed) public transferAllowed;
+
+    /// @notice Keep track whether the address can receive funds.
+    mapping(address receiveAddr => bool allowed) public receiveAllowed;
 
     /**********************
      * Function Modifiers *
@@ -158,9 +166,10 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Transfer funds to the address.
     /// @param _to The address of recipient.
-    /// @param _value The amount of ETH to tranfer.
+    /// @param _value The amount of ETH to transfer.
     function transferTo(address _to, uint256 _value) public onlyAllowedAndOwner {
         require(_to != address(0), "FeeVault: recipient address cannot be address(0)");
+        require(isReceiveAllowed(_to), "FeeVault: recipient address not allowed");
 
         uint256 _balance = address(this).balance;
         require(_value <= _balance, "FeeVault: insufficient balance to transfer");
@@ -187,11 +196,22 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Update the transfer allowed status
     /// @param _accounts The list of addresses to update.
-    /// @param _status The ransfer allowed status to update.
+    /// @param _status The transfer allowed status to update.
     function updateTransferAllowedStatus(address[] memory _accounts, bool _status) external onlyOwner {
         for (uint256 i = 0; i < _accounts.length; i++) {
             transferAllowed[_accounts[i]] = _status;
             emit UpdateTransferAllowed(_accounts[i], _status);
+        }
+    }
+
+    /// @notice Update the receive allowed status
+    /// @param _accounts The list of addresses to update.
+    /// @param _status The receive allowed status to update.
+    function updateReceiveAllowed(address[] memory _accounts, bool _status) external onlyOwner {
+        for (uint256 i = 0; i < _accounts.length; i++) {
+            require(_accounts[i] != address(0), "FeeVault: address cannot be address(0)");
+            receiveAllowed[_accounts[i]] = _status;
+            emit UpdateReceiveAllowed(_accounts[i], _status);
         }
     }
 
@@ -220,5 +240,15 @@ contract L2TxFeeVault is OwnableBase {
         minWithdrawAmount = _newMinWithdrawAmount;
 
         emit UpdateMinWithdrawAmount(_oldMinWithdrawAmount, _newMinWithdrawAmount);
+    }
+
+    /*************************
+     * Public View Functions *
+     *************************/
+
+    /// @dev Returns whether the address can receive funds.
+    /// @param _to Check whether the address can receive funds.
+    function isReceiveAllowed(address _to) public view returns (bool) {
+        return receiveAllowed[_to];
     }
 }
