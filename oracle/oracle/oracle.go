@@ -6,8 +6,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
-	"github.com/morph-l2/externalsign"
-	"github.com/morph-l2/go-ethereum/accounts/abi"
+
 	"io"
 	"math/big"
 	"os"
@@ -19,7 +18,9 @@ import (
 	"morph-l2/oracle/config"
 	"morph-l2/oracle/metrics"
 
+	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
