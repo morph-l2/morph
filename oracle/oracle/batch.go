@@ -217,15 +217,7 @@ func (o *Oracle) submitRecord() error {
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}
-	chainId, err := o.l2Client.ChainID(o.ctx)
-	if err != nil {
-		return fmt.Errorf("get chain id error:%v", err)
-	}
-	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	if err != nil {
-		return fmt.Errorf("new keyed transaction error:%v", err)
-	}
-	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
+	tx, err := o.newRecordTxAndSign("recordFinalizedBatchSubmissions", batchSubmissions)
 	if err != nil {
 		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
 	}

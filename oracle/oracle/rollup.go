@@ -169,15 +169,7 @@ func (o *Oracle) recordRollupEpoch() error {
 }
 
 func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) error {
-	chainId, err := o.l2Client.ChainID(o.ctx)
-	if err != nil {
-		return err
-	}
-	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	if err != nil {
-		return err
-	}
-	tx, err := o.record.RecordRollupEpochs(opts, epochs)
+	tx, err := o.newRecordTxAndSign("recordRollupEpochs", epochs)
 	if err != nil {
 		return err
 	}

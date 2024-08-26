@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/morph-l2/externalsign"
+	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"io"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -74,12 +76,15 @@ type Oracle struct {
 	gov                 *bindings.Gov
 	rollup              *bindings.Rollup
 	record              *bindings.Record
+	recordAddr          common.Address
+	recordAbi           *abi.ABI
 	TmClient            *jsonrpcclient.Client
 	rewardEpoch         time.Duration
 	cfg                 *config.Config
 	privKey             *ecdsa.PrivateKey
 	externalRsaPriv     *rsa.PrivateKey
 	signer              types.Signer
+	chainId             *big.Int
 	isFinalized         bool
 	enable              bool
 	rollupEpochMaxBlock uint64
@@ -157,6 +162,10 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	if err != nil {
 		return nil, err
 	}
+	abi, err := bindings.RecordMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
 	sequencer, err := bindings.NewSequencer(predeploys.SequencerAddr, l2Client)
 	if err != nil {
 		return nil, err
@@ -190,6 +199,8 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		rollup:              rollup,
 		l2Staking:           l2Staking,
 		record:              record,
+		recordAddr:          predeploys.RecordAddr,
+		recordAbi:           abi,
 		sequencer:           sequencer,
 		gov:                 gov,
 		TmClient:            tmClient,
@@ -198,6 +209,7 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		privKey:             privKey,
 		externalRsaPriv:     rsaPriv,
 		signer:              types.LatestSignerForChainID(chainId),
+		chainId:             chainId,
 		ctx:                 context.TODO(),
 		rollupEpochMaxBlock: cfg.MaxSize,
 		metrics:             m,
