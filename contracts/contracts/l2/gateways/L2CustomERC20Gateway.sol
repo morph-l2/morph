@@ -35,6 +35,7 @@ contract L2CustomERC20Gateway is L2ERC20Gateway {
     /***************
      * Constructor *
      ***************/
+
     constructor() {
         _disableInitializers();
     }

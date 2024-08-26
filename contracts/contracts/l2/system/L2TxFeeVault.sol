@@ -48,7 +48,7 @@ contract L2TxFeeVault is OwnableBase {
 
     /// @notice Emits each time that a transfer occurs.
     ///
-    /// @param value Amount that was transferd (in wei).
+    /// @param value Amount that was transferred (in wei).
     /// @param to    Address that the funds were sent to.
     /// @param from  Address that triggered the transfer.
     event Transfer(uint256 value, address to, address from);
