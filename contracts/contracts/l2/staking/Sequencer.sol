@@ -50,7 +50,6 @@ contract Sequencer is ISequencer, OwnableUpgradeable {
     /// @notice constructor
     constructor() {
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
-        _disableInitializers();
     }
 
     /***************

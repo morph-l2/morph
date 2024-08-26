@@ -72,7 +72,6 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
         DISTRIBUTE_CONTRACT = Predeploys.DISTRIBUTE;
         RECORD_CONTRACT = Predeploys.RECORD;
-        _disableInitializers();
     }
 
     /**************
