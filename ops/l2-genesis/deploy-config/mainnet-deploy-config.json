@@ -2,10 +2,10 @@
   "l1ChainID": 1,
   "l2ChainID": 2818,
 
-  "finalSystemOwner": "",
-  "proxyAdminOwner": "",
+  "finalSystemOwner": "0x2818a3aF785975a32611155A6eE36C21Cec068ca",
+  "proxyAdminOwner": "0x2818a3aF785975a32611155A6eE36C21Cec068ca",
 
-  "l1FeeVaultRecipient": "",
+  "l1FeeVaultRecipient": "0x2818a3aF785975a32611155A6eE36C21Cec068ca",
   "fundDevAccounts": false,
 
   "l1StartingBlockTag": "earliest",
@@ -13,7 +13,7 @@
 
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
-  "gasPriceOracleOwner": "",
+  "gasPriceOracleOwner": "0x2818a3aF785975a32611155A6eE36C21Cec068ca",
 
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 600,
