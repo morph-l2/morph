@@ -26,7 +26,7 @@ interface IDistribute {
         uint256 delegationAmount;
         uint256 remainsNumber;
         EnumerableSetUpgradeable.AddressSet delegators;
-        mapping(address delegator => uint256) amounts;
+        mapping(address delegator => uint256 amount) amounts;
     }
 
     /// @notice Unclaimed representing a unclaimd info of a delegator
@@ -37,9 +37,9 @@ interface IDistribute {
     /// @custom:field unclaimedEnd       unclaimed end epoch index, set 0 if undelegated is false or all claimed
     struct Unclaimed {
         EnumerableSetUpgradeable.AddressSet delegatees;
-        mapping(address delegator => bool) undelegated;
-        mapping(address delegator => uint256) unclaimedStart;
-        mapping(address delegator => uint256) unclaimedEnd;
+        mapping(address delegator => bool undelegated) undelegated;
+        mapping(address delegator => uint256 startEpoch) unclaimedStart;
+        mapping(address delegator => uint256 endEpoch) unclaimedEnd;
     }
 
     /**********
