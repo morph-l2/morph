@@ -39,6 +39,7 @@ contract L2ERC1155Gateway is ERC1155HolderUpgradeable, GatewayBase, IL2ERC1155Ga
     /***************
      * Constructor *
      ***************/
+
     constructor() {
         _disableInitializers();
     }

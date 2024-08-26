@@ -56,10 +56,10 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
 
     /// @notice Mapping from verifier version to the list of legacy zkevm verifiers.
     /// The verifiers are sorted by batchIndex in increasing order.
-    mapping(uint256 => Verifier[]) public legacyVerifiers;
+    mapping(uint256 version => Verifier[]) public legacyVerifiers;
 
     /// @notice Mapping from verifier version to the lastest used zkevm verifier.
-    mapping(uint256 => Verifier) public latestVerifier;
+    mapping(uint256 version => Verifier) public latestVerifier;
 
     /***************
      * Constructor *

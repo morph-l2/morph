@@ -50,7 +50,7 @@ contract GasPriceOracle is Ownable {
     // Enable permission list
     bool public allowListEnabled;
     // Address list with permission to update price oracle.
-    mapping(address => bool) public isAllowed;
+    mapping(address addr => bool allowed) public isAllowed;
     /// l1 blob base fee
     uint256 public l1BlobBaseFee;
     /// commit scalar

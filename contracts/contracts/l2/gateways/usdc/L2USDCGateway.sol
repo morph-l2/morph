@@ -54,10 +54,7 @@ contract L2USDCGateway is L2ERC20Gateway, IUSDCDestinationBridge {
     ///
     /// @param _l1USDC The address of USDC in L1.
     /// @param _l2USDC The address of USDC in L2.
-    constructor(
-        address _l1USDC,
-        address _l2USDC
-    )  {
+    constructor(address _l1USDC, address _l2USDC) {
         _disableInitializers();
 
         l1USDC = _l1USDC;
@@ -71,11 +68,7 @@ contract L2USDCGateway is L2ERC20Gateway, IUSDCDestinationBridge {
     /// @param _counterpart The address of `L1USDCGateway` contract in L1.
     /// @param _router The address of `L2GatewayRouter` contract in L2.
     /// @param _messenger The address of `L2CrossDomainMessenger` contract in L2.
-    function initialize(
-        address _counterpart,
-        address _router,
-        address _messenger
-    ) external initializer {
+    function initialize(address _counterpart, address _router, address _messenger) external initializer {
         GatewayBase._initialize(_counterpart, _router, _messenger);
     }
 
@@ -186,6 +179,6 @@ contract L2USDCGateway is L2ERC20Gateway, IUSDCDestinationBridge {
         // 4. Send message to L2CrossDomainMessenger.
         IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
 
-        emit WithdrawERC20(_l1USDC, _token, _from, _to, _amount, _data,nonce);
+        emit WithdrawERC20(_l1USDC, _token, _from, _to, _amount, _data, nonce);
     }
 }

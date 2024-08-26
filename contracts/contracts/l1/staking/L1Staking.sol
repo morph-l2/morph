@@ -37,34 +37,34 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     uint256 public slashRemaining;
 
     /// @notice staker whitelist
-    mapping(address => bool) public whitelist;
+    mapping(address stakerAddr => bool inWhitelist) public whitelist;
 
     /// @notice staker removed list
-    mapping(address => bool) public removedList;
+    mapping(address stakerAddr => bool removed) public removedList;
 
     /// @notice all stakers (0-254)
     address[255] public stakerSet;
 
     /// @notice all stakers indexes (1-255). '0' means not exist. stakerIndexes[1] releated to stakerSet[0]
-    mapping(address => uint8) public stakerIndexes;
+    mapping(address stakerAddr => uint8 index) public stakerIndexes;
 
     /// @notice stakers to delete
     address[] public deleteList;
 
     /// @notice staker deleteable height
-    mapping(address => uint256) public deleteableHeight;
+    mapping(address stakerAddr => uint256 height) public deleteableHeight;
 
     /// @notice all stakers info
-    mapping(address => Types.StakerInfo) public stakers;
+    mapping(address stakerAddr => Types.StakerInfo) public stakers;
 
     /// @notice bls key map
-    mapping(bytes blsPubkey => bool) public blsKeys;
+    mapping(bytes blsPubkey => bool exist) public blsKeys;
 
     /// @notice tendermint key map
-    mapping(bytes32 tmPubkey => bool) public tmKeys;
+    mapping(bytes32 tmPubkey => bool exist) public tmKeys;
 
     /// @notice withdraw unlock block height
-    mapping(address staker => uint256) public withdrawals;
+    mapping(address staker => uint256 amount) public withdrawals;
 
     /// @notice challenge deposit value
     uint256 public challengeDeposit;
@@ -90,7 +90,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
      ***************/
 
     /// @param _messenger   Address of CrossDomainMessenger on this network.
-    constructor(address payable _messenger) Staking(_messenger, payable(Predeploys.L2_STAKING)) {}
+    constructor(address payable _messenger) Staking(_messenger, payable(Predeploys.L2_STAKING)) {
+        _disableInitializers();
+    }
 
     /***************
      * Initializer *
