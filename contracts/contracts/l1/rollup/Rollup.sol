@@ -122,6 +122,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _chainID     The chain ID
     constructor(uint64 _chainID) {
         LAYER_2_CHAIN_ID = _chainID;
+        _disableInitializers();
     }
 
     /// @notice Allow the contract to receive ETH.

@@ -104,6 +104,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         MORPH_TOKEN_CONTRACT = Predeploys.MORPH_TOKEN;
         SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
         DISTRIBUTE_CONTRACT = Predeploys.DISTRIBUTE;
+        _disableInitializers();
     }
 
     /***************
