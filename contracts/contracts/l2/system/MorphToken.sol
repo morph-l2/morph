@@ -39,10 +39,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     uint256 private _totalSupply;
 
     /// @notice balances
-    mapping(address owner => uint256) private _balances;
+    mapping(address owner => uint256 amount) private _balances;
 
     /// @notice allowances
-    mapping(address owner => mapping(address spender => uint256)) private _allowances;
+    mapping(address owner => mapping(address spender => uint256 amount)) private _allowances;
 
     /// @notice per epoch inflation rate
     EpochInflationRate[] private _epochInflationRates;
