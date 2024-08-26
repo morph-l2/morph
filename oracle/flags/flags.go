@@ -111,6 +111,43 @@ var (
 		Value:  6060,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	// external sign
+	ExternalSign = cli.BoolFlag{
+		Name:   "EXTERNAL_SIGN",
+		Usage:  "Enable external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
+	}
+
+	// address
+	ExternalSignAddress = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_ADDRESS",
+		Usage:  "The address of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_ADDRESS"),
+	}
+	// appid
+	ExternalSignAppid = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_APPID",
+		Usage:  "The appid of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_APPID"),
+	}
+	// chain
+	ExternalSignChain = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_CHAIN",
+		Usage:  "The chain of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_CHAIN"),
+	}
+	// url
+	ExternalSignUrl = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_URL",
+		Usage:  "The url of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
+	}
+	ExternalSignRsaPriv = cli.StringFlag{
+		Name:   "EXTERNAL_RSA_PRIV",
+		Usage:  "The rsa private key of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_RSA_PRIV"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
