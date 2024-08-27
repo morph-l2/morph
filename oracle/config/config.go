@@ -157,12 +157,7 @@ func ValidateConfig(cfg *Config) error {
 			cfg.ExternalSignAppid == "" ||
 			cfg.ExternalSignChain == "" ||
 			cfg.ExternalSignRsaPriv == "") {
-		return fmt.Errorf("invalid external sign config,"+
-			"ExternalSignAddress:%v\n,"+
-			"ExternalSignUrl:%v\n,"+
-			"ExternalSignAppid:%v\n,"+
-			"ExternalSignChain:%v\n"+
-			"ExternalSignRsaPriv:%v\n",
+		return fmt.Errorf("invalid external sign config,ExternalSignAddress:%v,ExternalSignUrl:%v,ExternalSignAppid:%v,ExternalSignChain:%vExternalSignRsaPriv:%v",
 			cfg.ExternalSignAddress,
 			cfg.ExternalSignUrl,
 			cfg.ExternalSignAppid,
