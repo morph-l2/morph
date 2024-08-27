@@ -58,6 +58,9 @@ func (o *Oracle) newRecordTxAndSign(name string, args ...interface{}) (*types.Tr
 		gasFeeCap = new(big.Int).Set(tip)
 	}
 	callData, err := o.recordAbi.Pack(name, args)
+	if err != nil {
+		return nil, err
+	}
 	gas, err := o.l2Client.EstimateGas(o.ctx, ethereum.CallMsg{
 		From:      from,
 		To:        &predeploys.RecordAddr,
