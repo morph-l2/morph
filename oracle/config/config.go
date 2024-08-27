@@ -102,6 +102,11 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
 		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 	}
+	fmt.Println("ExternalSignAppid:", cfg.ExternalSignAppid)
+	fmt.Println("ExternalSignAddress:", cfg.ExternalSignAddress)
+	fmt.Println("ExternalSignChain:", cfg.ExternalSignChain)
+	fmt.Println("ExternalSignUrl:", cfg.ExternalSignUrl)
+	fmt.Println("ExternalSignRsaPriv:", cfg.ExternalSignRsaPriv)
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {
 		cfg.LogFilename = ctx.GlobalString(flags.LogFilenameFlag.Name)
@@ -144,6 +149,25 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf(
 			"invalied address,RollupAddress:%v",
 			cfg.RollupAddr.String(),
+		)
+	}
+	if cfg.ExternalSign &&
+		(cfg.ExternalSignAddress == "" ||
+			cfg.ExternalSignUrl == "" ||
+			cfg.ExternalSignAppid == "" ||
+			cfg.ExternalSignChain == "" ||
+			cfg.ExternalSignRsaPriv == "") {
+		return fmt.Errorf("invalid external sign config,"+
+			"ExternalSignAddress:%v\n,"+
+			"ExternalSignUrl:%v\n,"+
+			"ExternalSignAppid:%v\n,"+
+			"ExternalSignChain:%v\n"+
+			"ExternalSignRsaPriv:%v\n",
+			cfg.ExternalSignAddress,
+			cfg.ExternalSignUrl,
+			cfg.ExternalSignAppid,
+			cfg.ExternalSignChain,
+			cfg.ExternalSignRsaPriv,
 		)
 	}
 	return nil
