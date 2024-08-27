@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/oracle/backoff"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -178,7 +179,12 @@ func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) err
 		return err
 	}
 	log.Info("send record rollup epoch tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
-	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
+	var receipt *types.Receipt
+	err = backoff.Do(30, backoff.Exponential(), func() error {
+		var err error
+		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("receipt record rollup epochs error:%v", err)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
+	"morph-l2/oracle/backoff"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -226,7 +227,12 @@ func (o *Oracle) submitRecord() error {
 		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
 	}
 	log.Info("record finalized batch success", "txHash", tx.Hash(), "batchLength", len(batchSubmissions))
-	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
+	var receipt *types.Receipt
+	err = backoff.Do(30, backoff.Exponential(), func() error {
+		var err error
+		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("wait tx receipt error:%v,txHash:%v", err, tx.Hash())
 	}

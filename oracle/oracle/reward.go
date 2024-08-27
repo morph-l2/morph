@@ -85,7 +85,12 @@ func (o *Oracle) syncRewardEpoch() error {
 		return fmt.Errorf("send transaction error:%v", err)
 	}
 	log.Info("send record reward tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
-	receipt, err := o.l2Client.TransactionReceipt(o.ctx, tx.Hash())
+	var receipt *types.Receipt
+	err = backoff.Do(30, backoff.Exponential(), func() error {
+		var err error
+		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("receipt record reward epochs error:%v", err)
 	}
@@ -355,7 +360,7 @@ func (o *Oracle) setStartBlock() {
 				return fmt.Errorf("send transaction error:%v", err)
 			}
 			var receipt *types.Receipt
-			err = backoff.Do(3, backoff.Exponential(), func() error {
+			err = backoff.Do(30, backoff.Exponential(), func() error {
 				var err error
 				receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
 				return err
