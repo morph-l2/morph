@@ -171,6 +171,14 @@ var optionalFlags = []cli.Flag{
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,
+
+	// external sign
+	ExternalSign,
+	ExternalSignAddress,
+	ExternalSignAppid,
+	ExternalSignChain,
+	ExternalSignUrl,
+	ExternalSignRsaPriv,
 }
 
 // Flags contains the list of configuration options available to the binary.
