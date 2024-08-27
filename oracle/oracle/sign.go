@@ -35,7 +35,7 @@ func (o *Oracle) sign(tx *types.Transaction) (*types.Transaction, error) {
 	}
 }
 
-func (o *Oracle) newRecordTxAndSign(name string, args ...interface{}) (*types.Transaction, error) {
+func (o *Oracle) newRecordTxAndSign(callData []byte) (*types.Transaction, error) {
 	from := common.HexToAddress(o.cfg.ExternalSignAddress)
 	if !o.cfg.ExternalSign {
 		from = crypto.PubkeyToAddress(o.privKey.PublicKey)
@@ -61,10 +61,6 @@ func (o *Oracle) newRecordTxAndSign(name string, args ...interface{}) (*types.Tr
 		)
 	} else {
 		gasFeeCap = new(big.Int).Set(tip)
-	}
-	callData, err := o.recordAbi.Pack(name, args)
-	if err != nil {
-		return nil, err
 	}
 	gas, err := o.l2Client.EstimateGas(o.ctx, ethereum.CallMsg{
 		From:      from,

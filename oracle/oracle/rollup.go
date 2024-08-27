@@ -169,7 +169,11 @@ func (o *Oracle) recordRollupEpoch() error {
 }
 
 func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) error {
-	tx, err := o.newRecordTxAndSign("recordRollupEpochs", epochs)
+	callData, err := o.recordAbi.Pack("recordRollupEpochs", epochs)
+	if err != nil {
+		return err
+	}
+	tx, err := o.newRecordTxAndSign(callData)
 	if err != nil {
 		return err
 	}

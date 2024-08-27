@@ -72,7 +72,11 @@ func (o *Oracle) syncRewardEpoch() error {
 	if err != nil {
 		return err
 	}
-	tx, err := o.newRecordTxAndSign("recordRewardEpochs", []bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
+	callData, err := o.recordAbi.Pack("recordRewardEpochs", []bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
+	if err != nil {
+		return err
+	}
+	tx, err := o.newRecordTxAndSign(callData)
 	if err != nil {
 		return fmt.Errorf("record reward epochs error:%v", err)
 	}
@@ -338,7 +342,11 @@ func (o *Oracle) setStartBlock() {
 			if err != nil {
 				return fmt.Errorf("find start block error:%v", err)
 			}
-			tx, err := o.newRecordTxAndSign("setLatestRewardEpochBlock", big.NewInt(startBlock))
+			callData, err := o.recordAbi.Pack("setLatestRewardEpochBlock", big.NewInt(startBlock))
+			if err != nil {
+				return err
+			}
+			tx, err := o.newRecordTxAndSign(callData)
 			if err != nil {
 				return err
 			}
