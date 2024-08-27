@@ -8,6 +8,7 @@ import (
 
 	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 )
@@ -35,7 +36,10 @@ func (o *Oracle) sign(tx *types.Transaction) (*types.Transaction, error) {
 }
 
 func (o *Oracle) newRecordTxAndSign(name string, args ...interface{}) (*types.Transaction, error) {
-	from := crypto.PubkeyToAddress(o.privKey.PublicKey)
+	from := common.HexToAddress(o.cfg.ExternalSignAddress)
+	if !o.cfg.ExternalSign {
+		from = crypto.PubkeyToAddress(o.privKey.PublicKey)
+	}
 	nonce, err := o.l2Client.NonceAt(o.ctx, from, nil)
 	if err != nil {
 		return nil, err
