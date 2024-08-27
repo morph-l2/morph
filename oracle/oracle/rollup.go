@@ -11,10 +11,10 @@ import (
 
 	"morph-l2/bindings/bindings"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/log"
 )
 
 var (
@@ -169,15 +169,7 @@ func (o *Oracle) recordRollupEpoch() error {
 }
 
 func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) error {
-	chainId, err := o.l2Client.ChainID(o.ctx)
-	if err != nil {
-		return err
-	}
-	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	if err != nil {
-		return err
-	}
-	tx, err := o.record.RecordRollupEpochs(opts, epochs)
+	tx, err := o.newRecordTxAndSign("recordRollupEpochs", epochs)
 	if err != nil {
 		return err
 	}

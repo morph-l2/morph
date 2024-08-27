@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"morph-l2/oracle/flags"
@@ -65,6 +65,14 @@ type Config struct {
 	MinSize    uint64
 	StartBlock uint64
 	PrivKey    string
+
+	// external sign
+	ExternalSign        bool
+	ExternalSignAddress string
+	ExternalSignAppid   string
+	ExternalSignChain   string
+	ExternalSignUrl     string
+	ExternalSignRsaPriv string
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -86,6 +94,13 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
+		// external sign
+		ExternalSign:        ctx.GlobalBool(flags.ExternalSign.Name),
+		ExternalSignAppid:   ctx.GlobalString(flags.ExternalSignAppid.Name),
+		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddress.Name),
+		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
+		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
+		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 	}
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {

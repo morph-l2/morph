@@ -31,7 +31,8 @@ const config = {
 
     // staking initialize config
     stakingLockNumber: 3,
-    stakingMinDeposit: 1, // limit
+    stakingChallengeDeposit: 1, // 1 ether
+    stakingMinDeposit: 1, // 1 ether
     stakingChallengerRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [

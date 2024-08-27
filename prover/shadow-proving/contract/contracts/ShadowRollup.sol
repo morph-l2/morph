@@ -36,6 +36,7 @@ contract ShadowRollup is Ownable {
     /***************
      * Constructor *
      ***************/
+
     constructor(uint64 _chainId, address _verifier) {
         layer2ChainId = _chainId;
         zkevm_verifier = _verifier;

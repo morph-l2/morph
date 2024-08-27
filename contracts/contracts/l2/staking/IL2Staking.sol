@@ -108,12 +108,26 @@ interface IL2Staking {
     function currentEpoch() external view returns (uint256);
 
     /// @notice check if the user has staked to staker
-    /// @param staker    address
+    /// @param staker   staker address
     function isStakingTo(address staker) external view returns (bool);
 
     /// @notice Get all the delegators which staked to staker
-    /// @param staker    address
-    function getDelegators(address staker) external view returns (address[] memory);
+    /// @param staker staker address
+    function getAllDelegators(address staker) external view returns (address[] memory);
+
+    /// @notice Get the delegators length which staked to staker
+    /// @param staker staker address
+    function getDelegatorsLength(address staker) external view returns (uint256);
+
+    /// @notice Get the delegators which staked to staker in pagination
+    /// @param staker       staker address
+    /// @param pageSize     page size
+    /// @param pageIndex    page index
+    function getAllDelegatorsInPagination(
+        address staker,
+        uint256 pageSize,
+        uint256 pageIndex
+    ) external view returns (uint256 delegatorsTotalNumber, address[] memory delegatorsInPage);
 
     /// @notice get stakers info
     /// @param _stakerAddresses    staker's addresses

@@ -11,15 +11,13 @@ import (
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
 
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/eth"
-	"github.com/scroll-tech/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/eth"
+	"github.com/morph-l2/go-ethereum/log"
 )
-
-const maxBatchSize = 72
 
 type BatchInfoMap map[common.Hash][]BatchInfo
 type RollupBatch struct {
@@ -46,7 +44,7 @@ func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error
 	return bs.RollupBlock.Uint64() + 1, nil
 }
 
-func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64, nextBatchSubmissionIndex *big.Int) ([]bindings.IRecordBatchSubmission, error) {
+func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSubmissionIndex uint64) ([]bindings.IRecordBatchSubmission, error) {
 	var rLogs []types.Log
 	for {
 		endBlock := startBlock + o.cfg.MaxSize
@@ -72,7 +70,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64, next
 	}
 
 	var recordBatchSubmissions []bindings.IRecordBatchSubmission
-	batchIndex := nextBatchSubmissionIndex.Uint64()
+	batchIndex := nextBatchSubmissionIndex
 	for _, lg := range rLogs {
 		tx, pending, err := o.l1Client.TransactionByHash(ctx, lg.TxHash)
 		if err != nil {
@@ -104,11 +102,9 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock uint64, next
 		if !bytes.Equal(abi.Methods["commitBatch"].ID, tx.Data()[:4]) {
 			continue
 		}
-
 		if rollupCommitBatch.BatchIndex.Uint64() < batchIndex {
 			continue
 		}
-
 		if rollupCommitBatch.BatchIndex.Uint64() > batchIndex {
 			return nil, fmt.Errorf(fmt.Sprintf("batch is incontinuity,expect %v,have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64()))
 		}
@@ -217,40 +213,21 @@ func (o *Oracle) submitRecord() error {
 		log.Error("get pre batch rollup block number failed", "error", err)
 		return fmt.Errorf("get pre batch rollup block number error:%v", err)
 	}
-	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start, nextBatchSubmissionIndex)
+	batchSubmissions, err := o.GetBatchSubmission(context.Background(), start, nextBatchSubmissionIndex.Uint64())
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}
-	chainId, err := o.l2Client.ChainID(o.ctx)
+	tx, err := o.newRecordTxAndSign("recordFinalizedBatchSubmissions", batchSubmissions)
 	if err != nil {
-		return fmt.Errorf("get chain id error:%v", err)
+		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
 	}
-	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	if err != nil {
-		return fmt.Errorf("new keyed transaction error:%v", err)
-	}
-	//i := 0
-	//var txHash common.Hash
-	//for {
-	//	batches := batchSubmissions[0 : len(batchSubmissions)-i]
-	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
-	if err != nil {
-		return fmt.Errorf("record finalized batch error:%v", err)
-		//log.Error("record finalized batch error", "error", err, "length", len(batches))
-		//i++
-		//continue
-	}
-	//txHash = tx.Hash()
-	log.Info("send record finalized batch tx success", "length", len(batchSubmissions))
-	//break
-	//}
+	log.Info("record finalized batch success", "txHash", tx.Hash(), "batchLength", len(batchSubmissions))
 	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
 	if err != nil {
-		log.Error("tx receipt failed", "error", err)
-		return fmt.Errorf("wait tx receipt error:%v", err)
+		return fmt.Errorf("wait tx receipt error:%v,txHash:%v", err, tx.Hash())
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("record batch not success")
+		return fmt.Errorf("record batch receipt failed,txHash:%v", tx.Hash())
 	}
 	return nil
 }

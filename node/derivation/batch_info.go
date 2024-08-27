@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	eth "github.com/scroll-tech/go-ethereum/core/types"
-	geth "github.com/scroll-tech/go-ethereum/eth"
-	"github.com/scroll-tech/go-ethereum/eth/catalyst"
+	"github.com/morph-l2/go-ethereum/common"
+	eth "github.com/morph-l2/go-ethereum/core/types"
+	geth "github.com/morph-l2/go-ethereum/eth"
+	"github.com/morph-l2/go-ethereum/eth/catalyst"
 
 	"morph-l2/node/types"
 )

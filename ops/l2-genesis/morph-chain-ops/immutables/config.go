@@ -1,10 +1,20 @@
 package immutables
 
 import (
-	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common"
 )
 
 type InitConfig struct {
+	// USDC
+	USDCTokenName     string         `json:"USDCTokenName"`
+	USDCTokenSymbol   string         `json:"USDCTokenSymbol"`
+	USDCTokenCurrency string         `json:"USDCTokenCurrency"`
+	USDCTokenDecimals uint8          `json:"USDCTokenDecimals"`
+	USDCMasterMinter  common.Address `json:"USDCTMasterMinter"`
+	USDCPauser        common.Address `json:"USDCPauser"`
+	USDCBlackLister   common.Address `json:"USDCBlackLister"`
+	USDCOwner         common.Address `json:"USDCOwner"`
+
 	// MorphToken
 	MorphTokenOwner              common.Address `json:"morphTokenOwner"`
 	MorphTokenName               string         `json:"morphTokenName"`

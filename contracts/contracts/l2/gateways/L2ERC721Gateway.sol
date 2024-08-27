@@ -39,6 +39,7 @@ contract L2ERC721Gateway is ERC721HolderUpgradeable, GatewayBase, IL2ERC721Gatew
     /***************
      * Constructor *
      ***************/
+
     constructor() {
         _disableInitializers();
     }

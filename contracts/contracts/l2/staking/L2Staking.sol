@@ -58,13 +58,13 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     address[] public stakerAddresses;
 
     /// @notice staker rankings
-    mapping(address staker => uint256) public stakerRankings;
+    mapping(address staker => uint256 ranking) public stakerRankings;
 
     /// @notice stakers info
     mapping(address staker => Types.StakerInfo) public stakers;
 
     /// @notice staker commissions, default commission is zero if not set
-    mapping(address staker => uint256) public commissions;
+    mapping(address staker => uint256 amount) public commissions;
 
     /// @notice staker's total delegation amount
     mapping(address staker => uint256 totalDelegationAmount) public stakerDelegations;
@@ -73,7 +73,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     mapping(address staker => EnumerableSetUpgradeable.AddressSet) internal delegators;
 
     /// @notice delegations of a staker
-    mapping(address staker => mapping(address delegator => uint256)) public delegations;
+    mapping(address staker => mapping(address delegator => uint256 amount)) public delegations;
 
     /// @notice delegator's undelegations
     mapping(address delegator => Undelegation[]) public undelegations;
@@ -461,9 +461,40 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /// @notice Get all the delegators which staked to staker
-    /// @param staker sequencers size
-    function getDelegators(address staker) external view returns (address[] memory) {
+    /// @param staker staker address
+    function getAllDelegators(address staker) external view returns (address[] memory) {
         return delegators[staker].values();
+    }
+
+    /// @notice Get the delegators length which staked to staker
+    /// @param staker staker address
+    function getDelegatorsLength(address staker) external view returns (uint256) {
+        return delegators[staker].length();
+    }
+
+    /// @notice Get the delegators which staked to staker in pagination
+    /// @param staker       staker address
+    /// @param pageSize     page size
+    /// @param pageIndex    page index
+    function getAllDelegatorsInPagination(
+        address staker,
+        uint256 pageSize,
+        uint256 pageIndex
+    ) external view returns (uint256 delegatorsTotalNumber, address[] memory delegatorsInPage) {
+        require(pageSize > 0, "invalid page size");
+
+        delegatorsTotalNumber = delegators[staker].length();
+        delegatorsInPage = new address[](pageSize);
+
+        uint256 start = pageSize * pageIndex;
+        uint256 end = pageSize * (pageIndex + 1) - 1;
+        if (end > (delegatorsTotalNumber - 1)) {
+            end = delegatorsTotalNumber - 1;
+        }
+        for (uint256 i = start; i <= end; i++) {
+            delegatorsInPage[i] = delegators[staker].at(i);
+        }
+        return (delegatorsTotalNumber, delegatorsInPage);
     }
 
     /// @notice get stakers info

@@ -8,21 +8,21 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/scroll-tech/go-ethereum"
-	"github.com/scroll-tech/go-ethereum/accounts/abi"
-	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/crypto"
-	"github.com/scroll-tech/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/accounts/abi"
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto"
+	"github.com/morph-l2/go-ethereum/ethclient"
 )
 
 var (
 	chainId     *big.Int
-	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode(""))
+	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"))
 	url         = "http://localhost:8545"
-	senderNum   = 2
+	senderNum   = 30
 	duration    = 120 * time.Minute
 )
 
@@ -60,7 +60,7 @@ func main() {
 			}(sender)
 		}
 		count++
-		time.Sleep(3000 * time.Millisecond)
+		time.Sleep(400 * time.Millisecond)
 		fmt.Println()
 	}
 }

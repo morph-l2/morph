@@ -111,4 +111,9 @@ library Predeploys {
      * @notice Address of the SEQUENCER predeploy.
      */
     address internal constant SEQUENCER = 0x5300000000000000000000000000000000000017;
+
+    /**
+     * @notice Address of the L2_REVERSE_ERC20_GATEWAY predeploy.
+     */
+    address internal constant L2_REVERSE_ERC20_GATEWAY = 0x5300000000000000000000000000000000000018;
 }
