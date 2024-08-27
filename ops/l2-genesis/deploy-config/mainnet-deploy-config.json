@@ -22,7 +22,13 @@
   "govRollupEpoch": 600,
   "govBatchMaxChunks": 45,
   "l2SequencerAddresses": [
-
+    "0xda45453f31586b62a896f56b3583d920a1812afb",
+    "0x6b3ee6e4bab76f1d69ef444563d2bf62f9d305bb",
+    "0xde6a1bcb20ead491417749f563c8e21fbc304d8a",
+    "0x14cf142ba337f0fe20452935497bc68c7e77e7ef",
+    "0x3c6828f7888b0419e480ad53762864ac4ad0b38c",
+    "0xf8d6f0070d6dde49538dbebff9a9b26a10a758f7",
+    "0x61fb6895a286f9be0946597158415a0b72722792"
   ],
   "l2SequencerTmKeys": [
     "0x2d7dcd2b93fcadef45fcdf65453118aa5d3efae27e3146d50464531b19fcafb4",
