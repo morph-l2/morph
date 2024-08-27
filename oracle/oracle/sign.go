@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
+	"morph-l2/bindings/predeploys"
+
 	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
-	"morph-l2/bindings/predeploys"
 )
 
 var externalSigner *externalsign.ExternalSign
