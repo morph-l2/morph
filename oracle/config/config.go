@@ -146,5 +146,19 @@ func ValidateConfig(cfg *Config) error {
 			cfg.RollupAddr.String(),
 		)
 	}
+	if cfg.ExternalSign &&
+		(cfg.ExternalSignAddress == "" ||
+			cfg.ExternalSignUrl == "" ||
+			cfg.ExternalSignAppid == "" ||
+			cfg.ExternalSignChain == "" ||
+			cfg.ExternalSignRsaPriv == "") {
+		return fmt.Errorf("invalid external sign config,ExternalSignAddress:%v,ExternalSignUrl:%v,ExternalSignAppid:%v,ExternalSignChain:%vExternalSignRsaPriv:%v",
+			cfg.ExternalSignAddress,
+			cfg.ExternalSignUrl,
+			cfg.ExternalSignAppid,
+			cfg.ExternalSignChain,
+			cfg.ExternalSignRsaPriv,
+		)
+	}
 	return nil
 }

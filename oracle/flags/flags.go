@@ -146,7 +146,7 @@ var (
 	ExternalSignRsaPriv = cli.StringFlag{
 		Name:   "EXTERNAL_RSA_PRIV",
 		Usage:  "The rsa private key of the external sign",
-		EnvVar: prefixEnvVar("EXTERNAL_RSA_PRIV"),
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_RSA_PRIV"),
 	}
 )
 
