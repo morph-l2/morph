@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"time"
 
+	"morph-l2/bindings/predeploys"
+
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core"
@@ -33,6 +35,11 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		maxTxPayloadBytesPerBlock = params.MorphMaxTxPayloadBytesPerBlock
 	}
 
+	sequencerFeeVaultReceipt := config.SequencerFeeVaultRecipient
+	if sequencerFeeVaultReceipt == types.EmptyAddress {
+		sequencerFeeVaultReceipt = predeploys.L2TxFeeVaultAddr
+	}
+
 	morphChainConfig := params.ChainConfig{
 		ChainID:                 new(big.Int).SetUint64(config.L2ChainID),
 		HomesteadBlock:          big.NewInt(0),
@@ -58,7 +65,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 			UseZktrie:                 true,
 			MaxTxPerBlock:             &maxTxPerBlock,
 			MaxTxPayloadBytesPerBlock: &maxTxPayloadBytesPerBlock,
-			FeeVaultAddress:           &config.SequencerFeeVaultRecipient,
+			FeeVaultAddress:           &sequencerFeeVaultReceipt,
 		},
 	}
 
