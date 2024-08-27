@@ -408,10 +408,6 @@ func (d *DeployConfig) Check() error {
 	if d.L1FeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
-
-	if d.L2BridgeFeeVaultRecipient == (common.Address{}) {
-		return fmt.Errorf("L2BridgeFeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
-	}
 	if d.GovVotingDuration <= 0 {
 		return fmt.Errorf("GovVotingDuration must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
@@ -475,6 +471,10 @@ func (d *DeployConfig) Check() error {
 // NewL2StorageConfig will create a StorageConfig given an instance of a
 // Hardhat and a DeployConfig.
 func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageConfig, error) {
+	l2BridgeFeeVaultRecipient := config.L2BridgeFeeVaultRecipient
+	if l2BridgeFeeVaultRecipient == types.EmptyAddress {
+		l2BridgeFeeVaultRecipient = predeploys.L2TxFeeVaultAddr
+	}
 	storage := make(state.StorageConfig)
 	err := config.Check()
 	if err != nil {
@@ -495,7 +495,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_paused":              false,
 		"xDomainMessageSender": "0x000000000000000000000000000000000000dEaD",
 		"counterpart":          config.L1CrossDomainMessengerProxy,
-		"feeVault":             config.L2BridgeFeeVaultRecipient,
+		"feeVault":             l2BridgeFeeVaultRecipient,
 	}
 	storage["MorphToken"] = state.StorageValues{
 		"_initialized":  1,

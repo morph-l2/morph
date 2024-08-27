@@ -217,7 +217,11 @@ func (o *Oracle) submitRecord() error {
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}
-	tx, err := o.newRecordTxAndSign("recordFinalizedBatchSubmissions", batchSubmissions)
+	callData, err := o.recordAbi.Pack("recordFinalizedBatchSubmissions", batchSubmissions)
+	if err != nil {
+		return err
+	}
+	tx, err := o.newRecordTxAndSign(callData)
 	if err != nil {
 		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
 	}
