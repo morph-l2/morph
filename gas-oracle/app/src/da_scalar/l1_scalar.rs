@@ -22,7 +22,7 @@ use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
-const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 7);
+const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 6);
 const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 2);
 
 // Main struct to manage overhead information
@@ -115,8 +115,7 @@ impl ScalarUpdater {
 
         // Fine tune the actual value
         commit_scalar += self.commit_scalar_buffer;
-        let fine_tune_value = PRECISION * self.blob_scalar_buffer / 100;
-        blob_scalar += fine_tune_value;
+        blob_scalar += self.blob_scalar_buffer;
 
         commit_scalar = commit_scalar.min(MAX_COMMIT_SCALAR);
         blob_scalar = blob_scalar.min(MAX_BLOB_SCALAR);
