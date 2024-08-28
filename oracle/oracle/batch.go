@@ -10,6 +10,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
+	"morph-l2/oracle/backoff"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -217,20 +218,21 @@ func (o *Oracle) submitRecord() error {
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}
-	chainId, err := o.l2Client.ChainID(o.ctx)
+	callData, err := o.recordAbi.Pack("recordFinalizedBatchSubmissions", batchSubmissions)
 	if err != nil {
-		return fmt.Errorf("get chain id error:%v", err)
+		return err
 	}
-	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	if err != nil {
-		return fmt.Errorf("new keyed transaction error:%v", err)
-	}
-	tx, err := o.record.RecordFinalizedBatchSubmissions(opts, batchSubmissions)
+	tx, err := o.newRecordTxAndSign(callData)
 	if err != nil {
 		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
 	}
 	log.Info("record finalized batch success", "txHash", tx.Hash(), "batchLength", len(batchSubmissions))
-	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
+	var receipt *types.Receipt
+	err = backoff.Do(30, backoff.Exponential(), func() error {
+		var err error
+		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("wait tx receipt error:%v,txHash:%v", err, tx.Hash())
 	}
