@@ -41,7 +41,7 @@ var (
 		Name:     "L1_PRIVATE_KEY",
 		Usage:    "The private key to use for sending to the rollup contract",
 		EnvVar:   prefixEnvVar("L1_PRIVATE_KEY"),
-		Required: true,
+		Required: false,
 	}
 
 	TxTimeoutFlag = cli.DurationFlag{
@@ -279,8 +279,6 @@ var requiredFlags = []cli.Flag{
 	TxTimeoutFlag,
 	FinalizeFlag,
 	PriorityRollupFlag,
-
-	PrivateKeyFlag,
 	TxFeeLimitFlag,
 	L1StakingAddressFlag,
 }
@@ -306,6 +304,7 @@ var optionalFlags = []cli.Flag{
 
 	JournalFlag,
 
+	PrivateKeyFlag,
 	L2SequencerAddressFlag,
 	L2GovAddressFlag,
 	CalldataFeeBumpFlag,
