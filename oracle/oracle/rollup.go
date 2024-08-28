@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/oracle/backoff"
 
 	"github.com/scroll-tech/go-ethereum/accounts/abi/bind"
 	"github.com/scroll-tech/go-ethereum/common"
@@ -169,20 +170,21 @@ func (o *Oracle) recordRollupEpoch() error {
 }
 
 func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) error {
-	chainId, err := o.l2Client.ChainID(o.ctx)
+	callData, err := o.recordAbi.Pack("recordRollupEpochs", epochs)
 	if err != nil {
 		return err
 	}
-	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	if err != nil {
-		return err
-	}
-	tx, err := o.record.RecordRollupEpochs(opts, epochs)
+	tx, err := o.newRecordTxAndSign(callData)
 	if err != nil {
 		return err
 	}
 	log.Info("send record rollup epoch tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
-	receipt, err := o.waitReceiptWithCtx(o.ctx, tx.Hash())
+	var receipt *types.Receipt
+	err = backoff.Do(30, backoff.Exponential(), func() error {
+		var err error
+		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("receipt record rollup epochs error:%v", err)
 	}
