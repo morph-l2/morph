@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
 	"morph-l2/node/flags"

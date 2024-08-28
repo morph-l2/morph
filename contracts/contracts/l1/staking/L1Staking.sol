@@ -37,34 +37,34 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     uint256 public slashRemaining;
 
     /// @notice staker whitelist
-    mapping(address => bool) public whitelist;
+    mapping(address stakerAddr => bool inWhitelist) public whitelist;
 
     /// @notice staker removed list
-    mapping(address => bool) public removedList;
+    mapping(address stakerAddr => bool removed) public removedList;
 
     /// @notice all stakers (0-254)
     address[255] public stakerSet;
 
     /// @notice all stakers indexes (1-255). '0' means not exist. stakerIndexes[1] releated to stakerSet[0]
-    mapping(address => uint8) public stakerIndexes;
+    mapping(address stakerAddr => uint8 index) public stakerIndexes;
 
     /// @notice stakers to delete
     address[] public deleteList;
 
     /// @notice staker deleteable height
-    mapping(address => uint256) public deleteableHeight;
+    mapping(address stakerAddr => uint256 height) public deleteableHeight;
 
     /// @notice all stakers info
-    mapping(address => Types.StakerInfo) public stakers;
+    mapping(address stakerAddr => Types.StakerInfo) public stakers;
 
     /// @notice bls key map
-    mapping(bytes blsPubkey => bool) public blsKeys;
+    mapping(bytes blsPubkey => bool exist) public blsKeys;
 
     /// @notice tendermint key map
-    mapping(bytes32 tmPubkey => bool) public tmKeys;
+    mapping(bytes32 tmPubkey => bool exist) public tmKeys;
 
     /// @notice withdraw unlock block height
-    mapping(address staker => uint256) public withdrawals;
+    mapping(address staker => uint256 amount) public withdrawals;
 
     /// @notice challenge deposit value
     uint256 public challengeDeposit;
@@ -90,7 +90,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
      ***************/
 
     /// @param _messenger   Address of CrossDomainMessenger on this network.
-    constructor(address payable _messenger) Staking(_messenger, payable(Predeploys.L2_STAKING)) {}
+    constructor(address payable _messenger) Staking(_messenger, payable(Predeploys.L2_STAKING)) {
+        _disableInitializers();
+    }
 
     /***************
      * Initializer *
@@ -293,21 +295,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice clean staker store
     function cleanStakerStore() external onlyOwner {
-        for (uint256 i = 0; i < deleteList.length; i++) {
-            if (deleteableHeight[deleteList[i]] <= block.number) {
-                // clean stakerSet
-                delete stakerSet[stakerIndexes[deleteList[i]] - 1];
-                delete stakerIndexes[deleteList[i]];
-
-                // clean deleteList
-                delete deleteableHeight[deleteList[i]];
-                deleteList[i] = deleteList[deleteList.length - 1];
-                deleteList.pop();
-
-                // clean staker info
-                delete stakers[deleteList[i]];
-            }
-        }
+        _cleanStakerStore();
     }
 
     /*****************************
@@ -321,7 +309,8 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
 
         delete withdrawals[_msgSender()];
-        delete stakers[_msgSender()];
+        _cleanStakerStore();
+
         emit Claimed(_msgSender(), receiver);
 
         _transfer(receiver, stakingValue);
@@ -345,6 +334,28 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice return all stakers
     function getStakers() external view returns (address[255] memory) {
         return stakerSet;
+    }
+
+    /// @notice return active stakers
+    function getActiveStakers() external view returns (address[] memory) {
+        uint256 activeStakersNumber;
+        bool[] memory tags = new bool[](255);
+        for (uint256 i = 0; i < 255; i++) {
+            // valid address and not in delete list
+            if (stakerSet[i] != address(0) && deleteableHeight[stakerSet[i]] == 0) {
+                activeStakersNumber++;
+                tags[i] = true;
+            }
+        }
+        address[] memory activeStakers = new address[](activeStakersNumber);
+        uint256 index;
+        for (uint256 i = 0; i < 255; i++) {
+            if (tags[i]) {
+                activeStakers[index] = stakerSet[i];
+                index++;
+            }
+        }
+        return activeStakers;
     }
 
     /// @notice whether address is staker
@@ -469,5 +480,27 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             abi.encodeCall(IL2Staking.removeStakers, (remove)),
             gasLimitRemoveStakers
         );
+    }
+
+    /// @notice clean staker store
+    function _cleanStakerStore() internal {
+        uint256 i = 0;
+        while (i < deleteList.length) {
+            if (deleteableHeight[deleteList[i]] <= block.number) {
+                // clean stakerSet
+                delete stakerSet[stakerIndexes[deleteList[i]] - 1];
+                delete stakerIndexes[deleteList[i]];
+
+                // clean staker info
+                delete stakers[deleteList[i]];
+
+                // clean deleteList
+                delete deleteableHeight[deleteList[i]];
+                deleteList[i] = deleteList[deleteList.length - 1];
+                deleteList.pop();
+            } else {
+                i++;
+            }
+        }
     }
 }

@@ -1,7 +1,7 @@
 package genesis
 
 import (
-	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common"
 
 	"morph-l2/bindings/predeploys"
 )

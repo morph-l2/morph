@@ -1,6 +1,7 @@
 use crate::{
     abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
     da_scalar::l1_scalar::ScalarUpdater,
+    external_sign::ExternalSign,
     l1_base_fee::BaseFeeUpdater,
     read_parse_env,
 };
@@ -10,6 +11,7 @@ use ethers::{
     signers::Wallet,
     types::Address,
 };
+use eyre::anyhow;
 use std::{env::var, error::Error, str::FromStr, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
@@ -29,13 +31,16 @@ struct Config {
     l2_oracle_address: Address,
     private_key: String,
     l1_beacon_rpc: String,
+    l1_base_fee_buffer: u64,
+    l1_blob_base_fee_buffer: u64,
+    commit_scalar_buffer: u64,
+    blob_scalar_buffer: u64,
+    finalize_batch_gas_used: u64,
+    txn_per_batch: u64,
 }
 
 impl Config {
     fn new() -> Result<Self, Box<dyn Error>> {
-        let _: f64 = read_parse_env("TXN_PER_BLOCK");
-        let _: u64 = read_parse_env("TXN_PER_BATCH");
-
         Ok(Self {
             l1_rpc: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env"),
             l2_rpc: var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env"),
@@ -46,8 +51,17 @@ impl Config {
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
             )?,
-            private_key: var("L2_GAS_ORACLE_PRIVATE_KEY").expect("L2_GAS_ORACLE_PRIVATE_KEY env"),
+            private_key: read_env_var(
+                "L2_GAS_ORACLE_PRIVATE_KEY",
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
+            ),
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
+            l1_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BASE_FEE_BUFFER", 0u64),
+            l1_blob_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER", 0u64),
+            commit_scalar_buffer: read_env_var("GAS_ORACLE_COMMIT_SCALAR_BUFFER", 0u64),
+            blob_scalar_buffer: read_env_var("GAS_ORACLE_BLOB_SCALAR_BUFFER", 0u64),
+            finalize_batch_gas_used: read_env_var("GAS_ORACLE_FINALIZE_BATCH_GAS_USED", 113100u64),
+            txn_per_batch: read_env_var("TXN_PER_BATCH", 50),
         })
     }
 }
@@ -55,6 +69,7 @@ impl Config {
 /// Update data of gasPriceOrale contract on L2 network.
 pub async fn update() -> Result<(), Box<dyn Error>> {
     let config = Config::new()?;
+    check_config(&config)?;
 
     let (base_fee_updater, scalar_updater) = prepare_updater(&config).await?;
 
@@ -65,6 +80,45 @@ pub async fn update() -> Result<(), Box<dyn Error>> {
     let metric = metric_mng();
 
     tokio::join!(updater, metric);
+    Ok(())
+}
+
+fn check_config(config: &Config) -> Result<(), Box<dyn Error>> {
+    log::info!("Check env config, l1_base_fee_buffer: {:?}, l1_blob_base_fee_buffer: {:?}, commit_scalar_buffer: {:?}, blob_scalar_buffer: {:?}",
+    config.l1_base_fee_buffer,config.l1_blob_base_fee_buffer, config.commit_scalar_buffer, config.blob_scalar_buffer);
+
+    if config.l1_base_fee_buffer > 100 * 10u64.pow(9) {
+        // 1 means 1wei
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_L1_BASE_FEE_BUFFER should be less than 100 Gwei)"
+        )
+        .into());
+    }
+    if config.l1_blob_base_fee_buffer > 100 * 10u64.pow(9) {
+        // 1 means 1wei
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER should be less than 100 Gwei"
+        )
+        .into());
+    }
+    if config.commit_scalar_buffer > 10000 * 10u64.pow(9) {
+        // 1 means 1Gas
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_COMMIT_SCALAR_BUFFER should be less than 10000 gas"
+        )
+        .into());
+    }
+    if config.blob_scalar_buffer > 10 * 10u64.pow(9) {
+        //1*10^9 means an increase of 1 times
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_BLOB_SCALAR_BUFFER should be less than 10(means 10 times)"
+        )
+        .into());
+    }
+    if config.txn_per_batch < 10u64 {
+        return Err(anyhow!("Check env config error, TXN_PER_BATCH should be more than 10").into());
+    }
+
     Ok(())
 }
 
@@ -111,24 +165,56 @@ async fn prepare_updater(
             .with_chain_id(l2_provider.get_chainid().await.unwrap().as_u64()),
     ));
 
-    let l2_wallet_address = l2_signer.address();
     let l2_oracle = GasPriceOracle::new(config.l2_oracle_address, l2_signer);
     let l1_rollup = Rollup::new(config.l1_rollup_address, Arc::new(l1_provider.clone()));
+
+    //Signer
+    let use_ext_sign: bool = read_env_var("GAS_ORACLE_EXTERNAL_SIGN", false);
+
+    let ext_signer = if use_ext_sign {
+        log::info!("Gas Oracle will use external signer");
+        let gas_oracle_appid: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_APPID");
+        let privkey_pem: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV");
+        let sign_address: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_ADDRESS");
+        let sign_chain: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_CHAIN");
+        let sign_url: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_URL");
+        let signer: ExternalSign = ExternalSign::new(
+            &gas_oracle_appid,
+            &privkey_pem,
+            &sign_address,
+            &sign_chain,
+            &sign_url,
+        )
+        .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
+        .unwrap();
+        Some(signer)
+    } else {
+        log::info!("Gas Oracle will use local signer");
+        None
+    };
 
     let base_fee_updater = BaseFeeUpdater::new(
         l1_provider.clone(),
         l2_provider.clone(),
-        l2_wallet_address,
+        ext_signer.clone(),
         l2_oracle.clone(),
         config.gas_threshold,
+        config.l1_base_fee_buffer,
+        config.l1_blob_base_fee_buffer,
     );
 
     let scalar_updater = ScalarUpdater::new(
         l1_provider.clone(),
+        l2_provider.clone(),
         l2_oracle.clone(),
+        ext_signer,
         l1_rollup,
         config.l1_beacon_rpc.clone(),
         config.gas_threshold,
+        config.commit_scalar_buffer,
+        config.blob_scalar_buffer,
+        config.finalize_batch_gas_used,
+        config.txn_per_batch,
     );
     Ok((base_fee_updater, scalar_updater))
 }

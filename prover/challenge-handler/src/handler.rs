@@ -1,11 +1,14 @@
 use crate::abi::rollup_abi::{CommitBatchCall, Rollup, RollupErrors};
+use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
-use crate::util;
+use crate::util::read_env_var;
+use crate::util::{self, read_parse_env};
 use ethers::providers::{Http, Provider};
 use ethers::signers::Wallet;
 use ethers::types::Address;
 use ethers::types::Bytes;
 use ethers::{abi::AbiDecode, prelude::*};
+use eyre::anyhow;
 use serde::{Deserialize, Serialize};
 use std::env::var;
 use std::error::Error;
@@ -14,6 +17,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use transaction::eip2718::TypedTransaction;
 
 #[derive(Serialize)]
 pub struct ProveRequest {
@@ -42,12 +46,12 @@ type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 
 const MAX_RETRY_TIMES: u8 = 2;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ChallengeHandler {
     l1_rollup: RollupType,
     l1_provider: Provider<Http>,
-    wallet_address: Address,
     l2_rpc: String,
+    ext_signer: Option<ExternalSign>,
 }
 
 impl ChallengeHandler {
@@ -58,7 +62,10 @@ impl ChallengeHandler {
         let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
         let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
 
-        let private_key = var("CHALLENGE_HANDLER_PRIVATE_KEY").expect("Cannot detect L1_ROLLUP_PRIVATE_KEY env var");
+        let private_key = read_env_var(
+            "CHALLENGE_HANDLER_PRIVATE_KEY",
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
+        );
 
         let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
         let l1_signer = Arc::new(SignerMiddleware::new(
@@ -67,198 +74,191 @@ impl ChallengeHandler {
                 .unwrap()
                 .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
         ));
-        let wallet_address: Address = l1_signer.address();
         let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str()).unwrap(), l1_signer);
+
+        let use_ext_sign: bool = read_env_var("HANDLER_EXTERNAL_SIGN", false);
+
+        let ext_signer = if use_ext_sign {
+            log::info!("Challenge handler will use external signer");
+            let handler_appid: String = read_parse_env("HANDLER_EXTERNAL_SIGN_APPID");
+            let privkey_pem: String = read_parse_env("HANDLER_EXTERNAL_SIGN_RSA_PRIV");
+            let sign_address: String = read_parse_env("HANDLER_EXTERNAL_SIGN_ADDRESS");
+            let sign_chain: String = read_parse_env("HANDLER_EXTERNAL_SIGN_CHAIN");
+            let sign_url: String = read_parse_env("HANDLER_EXTERNAL_SIGN_URL");
+            let signer: ExternalSign = ExternalSign::new(&handler_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
+                .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
+                .unwrap();
+            Some(signer)
+        } else {
+            log::info!("Challenge handler will use local signer");
+            None
+        };
 
         Self {
             l1_rollup,
             l1_provider,
-            wallet_address,
             l2_rpc,
+            ext_signer,
         }
     }
 
     pub async fn handle_challenge(&self) -> Result<(), Box<dyn Error>> {
-        handle_with_prover(self.wallet_address, self.l2_rpc.clone(), &self.l1_provider, &self.l1_rollup).await;
+        self.handle_with_prover(self.l2_rpc.clone(), &self.l1_provider, &self.l1_rollup).await;
         Ok(())
     }
-}
+    async fn handle_with_prover(&self, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
+        loop {
+            sleep(Duration::from_secs(12)).await;
 
-async fn handle_with_prover(wallet_address: Address, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
-    loop {
-        sleep(Duration::from_secs(12)).await;
+            // Step1. fetch latest blocknum.
+            let latest = match l1_provider.get_block_number().await {
+                Ok(bn) => bn,
+                Err(e) => {
+                    log::error!("L1 provider.get_block_number error: {:#?}", e);
+                    continue;
+                }
+            };
+            log::info!("Current L1 block number: {:#?}", latest);
 
-        // Step1. fetch latest blocknum.
-        let latest = match l1_provider.get_block_number().await {
-            Ok(bn) => bn,
-            Err(e) => {
-                log::error!("L1 provider.get_block_number error: {:#?}", e);
-                continue;
+            let wallet = if let Some(signer) = &self.ext_signer {
+                Address::from_str(&signer.address).unwrap_or_default()
+            } else {
+                self.l1_rollup.client().address()
+            };
+            // Record wallet balance.
+            let balance = match l1_provider.get_balance(wallet, None).await {
+                Ok(b) => b,
+                Err(e) => {
+                    log::error!("handler_wallet.get_balance error: {:#?}", e);
+                    return;
+                }
+            };
+            METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+
+            // Step2. detect challenge events from the past 3 days.
+            let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
+                Some(value) => value,
+                None => continue,
+            };
+            log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
+            METRICS.detected_batch_index.set(batch_index as i64);
+
+            // Step3. query challenged batch info.
+            let (challenged_rollup_hash, batch_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
+                Some(value) => value,
+                None => continue,
+            };
+
+            let mut batch_info = match batch_inspect(l1_provider, challenged_rollup_hash).await {
+                Some(mut b) => {
+                    b.batch_index = batch_index;
+                    b.parent_batch_hash = batch_hash.as_bytes().try_into().unwrap_or_default();
+                    b
+                }
+                None => continue,
+            };
+
+            let chunks = &batch_info.chunks_info;
+            log::info!(
+                "batch inspect of: {:?}, chunks.len = {:?}, chunks = {:#?}",
+                batch_index,
+                chunks.len(),
+                chunks
+            );
+            METRICS.chunks_len.set(chunks.len() as i64);
+
+            if let Some(batch_proof) = query_proof(batch_index).await {
+                if !batch_proof.proof_data.is_empty() {
+                    log::info!("query proof and prove state: {:#?}", batch_index);
+                    let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
+                    self.prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
+                    continue;
+                }
             }
-        };
-        log::info!("Current L1 block number: {:#?}", latest);
 
-        // Record wallet balance.
-        let balance = match l1_provider.get_balance(wallet_address, None).await {
-            Ok(b) => b,
-            Err(e) => {
-                log::error!("handler_wallet.get_balance error: {:#?}", e);
-                return;
-            }
-        };
-        METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+            // Step4. Make a call to the Prove server.
+            let request = ProveRequest {
+                batch_index,
+                chunks: chunks.clone(),
+                rpc: l2_rpc.to_owned(),
+            };
+            let rt = tokio::task::spawn_blocking(move || util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch"))
+                .await
+                .unwrap();
 
-        // Step2. detect challenge events from the past 3 days.
-        let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
-            Some(value) => value,
-            None => continue,
-        };
-        log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
-        METRICS.detected_batch_index.set(batch_index as i64);
-
-        // Step3. query challenged batch info.
-        let (challenged_rollup_hash, batch_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
-            Some(value) => value,
-            None => continue,
-        };
-
-        let mut batch_info = match batch_inspect(l1_provider, challenged_rollup_hash).await {
-            Some(mut b) => {
-                b.batch_index = batch_index;
-                b.parent_batch_hash = batch_hash.as_bytes().try_into().unwrap_or_default();
-                b
-            }
-            None => continue,
-        };
-
-        let chunks = &batch_info.chunks_info;
-        log::info!(
-            "batch inspect of: {:?}, chunks.len = {:?}, chunks = {:#?}",
-            batch_index,
-            chunks.len(),
-            chunks
-        );
-        METRICS.chunks_len.set(chunks.len() as i64);
-
-        if let Some(batch_proof) = query_proof(batch_index).await {
-            if !batch_proof.proof_data.is_empty() {
-                log::info!("query proof and prove state: {:#?}", batch_index);
-                let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
-                prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
-                continue;
-            }
-        }
-
-        // Step4. Make a call to the Prove server.
-        let request = ProveRequest {
-            batch_index,
-            chunks: chunks.clone(),
-            rpc: l2_rpc.to_owned(),
-        };
-        let rt = tokio::task::spawn_blocking(move || util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch"))
-            .await
-            .unwrap();
-
-        match rt {
-            Some(info) => match info.as_str() {
-                task_status::STARTED => log::info!("successfully submitted prove task, waiting for proof to be generated"),
-                task_status::PROVING => log::info!("waiting for prev proof to be generated"),
-                task_status::PROVED => {
-                    log::info!("proof already generated");
-                    if let Some(batch_proof) = query_proof(batch_index).await {
-                        if !batch_proof.proof_data.is_empty() {
-                            log::info!("query proof and prove state: {:#?}", batch_index);
-                            let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
-                            prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
+            match rt {
+                Some(info) => match info.as_str() {
+                    task_status::STARTED => log::info!("successfully submitted prove task, waiting for proof to be generated"),
+                    task_status::PROVING => log::info!("waiting for prev proof to be generated"),
+                    task_status::PROVED => {
+                        log::info!("proof already generated");
+                        if let Some(batch_proof) = query_proof(batch_index).await {
+                            if !batch_proof.proof_data.is_empty() {
+                                log::info!("query proof and prove state: {:#?}", batch_index);
+                                let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
+                                self.prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
+                            }
                         }
+                        continue;
                     }
-                    continue;
-                }
-                _ => {
-                    log::error!("submit prove task failed: {:#?}", info);
-                    continue;
-                }
-            },
-            None => {
-                log::error!("submit prove task failed");
-                continue;
-            }
-        }
-
-        // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 4800 * chunks.len() + 2400; //chunk_prove_time =1h 20min，batch_prove_time = 24min
-        while max_waiting_time > 300 {
-            sleep(Duration::from_secs(300)).await;
-            max_waiting_time -= 300;
-            match query_proof(batch_index).await {
-                Some(batch_proof) => {
-                    log::debug!("query proof and prove state: {:#?}", batch_index);
-                    if !batch_proof.proof_data.is_empty() {
-                        let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
-                        prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
-                        break;
+                    _ => {
+                        log::error!("submit prove task failed: {:#?}", info);
+                        continue;
                     }
-                }
+                },
                 None => {
-                    log::error!("prover status unknown, resubmit task");
-                    break;
+                    log::error!("submit prove task failed");
+                    continue;
                 }
             }
-        }
-    }
-}
 
-async fn prove_state(batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
-    for _ in 0..MAX_RETRY_TIMES {
-        sleep(Duration::from_secs(12)).await;
-
-        log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
-        let aggr_proof = Bytes::from(batch_proof.proof_data.clone());
-        let kzg_data = Bytes::from(batch_proof.blob_kzg.clone());
-
-        let call = l1_rollup.prove_state(batch_header.clone(), aggr_proof, kzg_data);
-        let rt = call.send().await;
-        let pending_tx = match rt {
-            Ok(pending_tx) => {
-                log::info!("tx of prove_state has been sent: {:#?}", pending_tx.tx_hash());
-                pending_tx
-            }
-            Err(err) => {
-                METRICS.verify_result.set(2);
-                log::error!("send tx of prove_state error, err_msg: {:#?}", format_contract_error(err));
-                continue;
-            }
-        };
-        match pending_tx.await {
-            Ok(receipt) => {
-                match receipt {
-                    Some(receipt) => {
-                        // Check the status of the tx receipt
-                        if receipt.status == Some(1.into()) {
-                            log::info!(
-                                "tx of prove_state success, batch_index: {:?}, gasUsed: {:?}, txHash: {:?}",
-                                batch_index,
-                                receipt.gas_used,
-                                receipt.transaction_hash
-                            );
-                            return true;
-                        } else {
-                            log::error!(
-                                "tx of prove_state failed, batch_index: {:?}, txHash: {:?}",
-                                batch_index,
-                                receipt.transaction_hash
-                            );
+            // Step5. query proof and prove onchain state.
+            let mut max_waiting_time: usize = 4800 * chunks.len() + 2400; //chunk_prove_time =1h 20min，batch_prove_time = 24min
+            while max_waiting_time > 300 {
+                sleep(Duration::from_secs(300)).await;
+                max_waiting_time -= 300;
+                match query_proof(batch_index).await {
+                    Some(batch_proof) => {
+                        log::debug!("query proof and prove state: {:#?}", batch_index);
+                        if !batch_proof.proof_data.is_empty() {
+                            let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
+                            self.prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
+                            break;
                         }
                     }
                     None => {
-                        log::error!("No tx receipt found, may still be in pending status or has been dropped");
+                        log::error!("prover status unknown, resubmit task");
+                        break;
                     }
                 }
             }
-            Err(error) => log::error!("provider error: {:?}", error),
         }
     }
-    false
+
+    async fn prove_state(&self, batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
+        for _ in 0..MAX_RETRY_TIMES {
+            sleep(Duration::from_secs(12)).await;
+            log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
+            let aggr_proof = Bytes::from(batch_proof.proof_data.clone());
+            let kzg_data = Bytes::from(batch_proof.blob_kzg.clone());
+
+            let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l1_rollup.client();
+            let calldata = l1_rollup.prove_state(batch_header.clone(), aggr_proof, kzg_data).calldata();
+            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
+            if let Ok(tx_hash) = result {
+                METRICS.verify_result.set(1);
+                log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
+                return true;
+            }
+
+            if let Err(e) = result {
+                METRICS.verify_result.set(2);
+                log::error!("send tx of prove_state error, batch_index: {:?}, err_msg: {:#?}", batch_index, e);
+                continue;
+            }
+        }
+        false
+    }
 }
 
 /**
@@ -580,10 +580,66 @@ fn decode_chunks(chunks: Vec<Bytes>) -> Option<(Vec<Vec<u64>>, u64)> {
     Some((chunk_with_blocks, total_l1_txn))
 }
 
-pub fn format_contract_error(e: ContractError<SignerMiddleware<Provider<Http>, LocalWallet>>) -> String {
+async fn send_transaction(
+    contract: Address,
+    calldata: Option<Bytes>,
+    local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    ext_signer: &Option<ExternalSign>,
+    l2_provider: &Provider<Http>,
+) -> Result<H256, Box<dyn Error>> {
+    let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
+    let mut tx = TypedTransaction::Eip1559(req);
+    tx.set_to(contract);
+    if let Some(signer) = ext_signer {
+        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
+    } else {
+        tx.set_from(local_signer.address());
+    }
+    local_signer.fill_transaction(&mut tx, None).await.map_err(|e| {
+        let msg = contract_error(ContractError::<SignerMiddleware<Provider<Http>, LocalWallet>>::from_middleware_error(e));
+        anyhow!("prove_state fill_transaction error: {:#?}", msg)
+    })?;
+
+    let signed_tx = sign_tx(tx, local_signer, ext_signer)
+        .await
+        .map_err(|e| anyhow!("prove_state sign_tx error: {}", e))?;
+
+    let pending_tx = l2_provider.send_raw_transaction(signed_tx).await.map_err(|e| {
+        let msg = contract_error(ContractError::<Provider<Http>>::from(e));
+        anyhow!("prove_state call contract error: {}", msg)
+    })?;
+
+    let tx_hash = pending_tx.tx_hash();
+
+    let receipt = pending_tx
+        .await
+        .map_err(|e| anyhow!(format!("prove_state check_receipt of {:#?} is error: {:#?}", tx_hash, e)))?
+        .ok_or(anyhow!(format!("prove_state check_receipt is none, tx_hash: {:#?}", tx_hash)))?;
+
+    if receipt.status == Some(1.into()) {
+        Ok(tx_hash)
+    } else {
+        Err(anyhow!(format!("tx of prove_state failed, transaction_hash: {:#?}", receipt.transaction_hash)).into())
+    }
+}
+
+async fn sign_tx(
+    tx: TypedTransaction,
+    local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    ext_signer: &Option<ExternalSign>,
+) -> Result<Bytes, Box<dyn Error>> {
+    if let Some(signer) = ext_signer {
+        Ok(signer.request_sign(&tx).await?)
+    } else {
+        let signature = local_signer.signer().sign_transaction(&tx).await?;
+        Ok(tx.rlp_signed(&signature))
+    }
+}
+
+pub fn contract_error<M: Middleware>(e: ContractError<M>) -> String {
     let error_msg = if let Some(contract_err) = e.as_revert() {
         if let Some(data) = RollupErrors::decode_with_selector(contract_err.as_ref()) {
-            format!("contract error: {:?}", data)
+            format!("exec error: {:?}", data)
         } else {
             format!("unknown contract error: {:?}", contract_err)
         }

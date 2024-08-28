@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/rpc"
 
 	"morph-l2/bindings/hardhat"
 	"morph-l2/bindings/predeploys"
@@ -69,16 +69,24 @@ type DeployConfig struct {
 	L1StandardERC20GatewayProxy common.Address `json:"l1StandardERC20GatewayProxy"`
 	// L1CustomERC20GatewayProxy proxy address on L1
 	L1CustomERC20GatewayProxy common.Address `json:"l1CustomERC20GatewayProxy"`
+	// L1ReverseCustomGatewayProxy proxy address on L1
+	L1ReverseCustomGatewayProxy common.Address `json:"l1ReverseCustomGatewayProxy"`
 	// L1ETHGateway proxy address on L1
 	L1ETHGatewayProxy common.Address `json:"l1ETHGatewayProxy"`
 	// L1ERC721Gateway proxy address on L1
 	L1ERC721GatewayProxy common.Address `json:"l1ERC721GatewayProxy"`
 	// L1ERC1155Gateway proxy address on L1
 	L1ERC1155GatewayProxy common.Address `json:"l1ERC1155GatewayProxy"`
+	// L1USDCGatewayProxy proxy address on L1
+	L1USDCGatewayProxy common.Address `json:"l1USDCGatewayProxy"`
 	// L1WETHGatewayProxy proxy address on L1
 	L1WETHGatewayProxy common.Address `json:"l1WETHGatewayProxy"`
 	// L1WETH address on L1
 	L1WETH common.Address `json:"l1WETH"`
+	// L1USDC address on L1
+	L1USDC common.Address `json:"l1USDC"`
+	// L1WithdrawLockERC20GatewayProxy proxy address on L1
+	L1WithdrawLockERC20Gateway common.Address `json:"l1WithdrawLockERC20Gateway"`
 
 	// GasPriceOracle config
 	// The initial value of the gas overhead
@@ -179,6 +187,14 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.L1CustomERC20GatewayProxy = deployment.Address
 	}
 
+	if d.L1ReverseCustomGatewayProxy == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Proxy__L1ReverseCustomGateway")
+		if err != nil {
+			return err
+		}
+		d.L1ReverseCustomGatewayProxy = deployment.Address
+	}
+
 	if d.L1ETHGatewayProxy == (common.Address{}) {
 		deployment, err := hh.GetDeployment("Proxy__L1ETHGateway")
 		if err != nil {
@@ -211,12 +227,36 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.L1WETHGatewayProxy = deployment.Address
 	}
 
+	if d.L1USDCGatewayProxy == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Proxy__L1USDCGateway")
+		if err != nil {
+			return err
+		}
+		d.L1USDCGatewayProxy = deployment.Address
+	}
+
 	if d.L1WETH == (common.Address{}) {
 		deployment, err := hh.GetDeployment("Impl__WETH")
 		if err != nil {
 			return err
 		}
 		d.L1WETH = deployment.Address
+	}
+
+	if d.L1USDC == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Impl__USDC")
+		if err != nil {
+			return err
+		}
+		d.L1USDC = deployment.Address
+	}
+
+	if d.L1WithdrawLockERC20Gateway == (common.Address{}) {
+		deployment, err := hh.GetDeployment("Proxy__L1WithdrawLockERC20Gateway")
+		if err != nil {
+			return err
+		}
+		d.L1WithdrawLockERC20Gateway = deployment.Address
 	}
 	return nil
 }
@@ -289,6 +329,9 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	if config.L1CustomERC20GatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1CustomERC20GatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.L1ReverseCustomGatewayProxy == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1ReverseCustomGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	if config.L1ETHGatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1ETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
@@ -301,8 +344,17 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	if config.L1WETHGatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1WETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.L1USDCGatewayProxy == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1USDCGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1WithdrawLockERC20Gateway == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1WithdrawLockERC20Gateway cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	if config.L1WETH == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1WETH cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1USDC == (common.Address{}) {
+		return immutable, nil, fmt.Errorf("L1USDC cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	immutable["L2Staking"] = immutables.ImmutableValues{
 		"OTHER_STAKING": config.L1StakingProxy,
@@ -310,13 +362,24 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	immutable["L2WETHGateway"] = immutables.ImmutableValues{
 		"l1WETH": config.L1WETH,
 	}
-
+	immutable["L2USDCGateway"] = immutables.ImmutableValues{
+		"l1USDC": config.L1USDC,
+	}
 	blsKeys := make([][]byte, len(config.L2StakingBlsKeys))
 	for i, v := range config.L2StakingBlsKeys {
 		blsKeys[i] = v
 	}
 
 	imConfig := &immutables.InitConfig{
+		// L2USDC
+		USDCTokenName:     "Bridged USDC",
+		USDCTokenSymbol:   "USDC.e",
+		USDCTokenCurrency: "USD",
+		USDCTokenDecimals: 18,
+		USDCMasterMinter:  config.FinalSystemOwner,
+		USDCPauser:        config.FinalSystemOwner,
+		USDCBlackLister:   config.FinalSystemOwner,
+		USDCOwner:         config.FinalSystemOwner,
 		// MorphToken
 		MorphTokenOwner:              config.MorphTokenOwner,
 		MorphTokenName:               config.MorphTokenName,
@@ -344,10 +407,6 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L1FeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
-	}
-
-	if d.L2BridgeFeeVaultRecipient == (common.Address{}) {
-		return fmt.Errorf("L2BridgeFeeVaultRecipient cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
 	if d.GovVotingDuration <= 0 {
 		return fmt.Errorf("GovVotingDuration must be greater than 0: %w", ErrInvalidDeployConfig)
@@ -412,6 +471,10 @@ func (d *DeployConfig) Check() error {
 // NewL2StorageConfig will create a StorageConfig given an instance of a
 // Hardhat and a DeployConfig.
 func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageConfig, error) {
+	l2BridgeFeeVaultRecipient := config.L2BridgeFeeVaultRecipient
+	if l2BridgeFeeVaultRecipient == types.EmptyAddress {
+		l2BridgeFeeVaultRecipient = predeploys.L2TxFeeVaultAddr
+	}
 	storage := make(state.StorageConfig)
 	err := config.Check()
 	if err != nil {
@@ -432,7 +495,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_paused":              false,
 		"xDomainMessageSender": "0x000000000000000000000000000000000000dEaD",
 		"counterpart":          config.L1CrossDomainMessengerProxy,
-		"feeVault":             config.L2BridgeFeeVaultRecipient,
+		"feeVault":             l2BridgeFeeVaultRecipient,
 	}
 	storage["MorphToken"] = state.StorageValues{
 		"_initialized":  1,
@@ -506,6 +569,15 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"counterpart":   config.L1CustomERC20GatewayProxy,
 	}
+	storage["L2ReverseCustomGateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+		"counterpart":   config.L1ReverseCustomGatewayProxy,
+	}
 	storage["L2ETHGateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard
 		"_initialized":  1,
@@ -523,6 +595,24 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"counterpart":   config.L1WETHGatewayProxy,
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["L2USDCGateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"counterpart":   config.L1USDCGatewayProxy,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["L2WithdrawLockERC20Gateway"] = state.StorageValues{
+		"_status":       1, // ReentrancyGuard
+		"_initialized":  1,
+		"_initializing": false,
+		"_owner":        config.FinalSystemOwner,
+		"router":        predeploys.L2GatewayRouterAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+		"counterpart":   config.L1WithdrawLockERC20Gateway,
 	}
 	storage["L2ERC721Gateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard
@@ -546,6 +636,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_owner":         predeploys.L2StandardERC20GatewayAddr,
 		"implementation": predeploys.MorphStandardERC20Addr,
 	}
+	storage["L2USDC"] = state.StorageValues{}
 	return storage, nil
 }
 

@@ -64,10 +64,13 @@ export const AdminTransfer = async (
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
     const L1StandardERC20GatewayProxyStorageName = ProxyStorageName.L1StandardERC20GatewayProxyStorageName
     const L1CustomERC20GatewayProxyStorageName = ProxyStorageName.L1CustomERC20GatewayProxyStorageName
+    const L1WithdrawLockERC20GatewayProxyStorageName = ProxyStorageName.L1WithdrawLockERC20GatewayProxyStorageName
+    const L1ReverseCustomGatewayProxyStorageName = ProxyStorageName.L1ReverseCustomGatewayProxyStorageName
     const L1ERC721GatewayProxyStorageName = ProxyStorageName.L1ERC721GatewayProxyStorageName
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
-    // const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
+    const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
     const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
+    const L1USDCGatewayProxyStorageName = ProxyStorageName.L1USDCGatewayProxyStorageName
 
     // ************************ messenger contracts admin change ************************
     // L1CrossDomainMessengerProxy admin change
@@ -120,6 +123,19 @@ export const AdminTransfer = async (
     if (err != '') {
         return err
     }
+
+    // L1WithdrawLockERC20GatewayProxy admin change
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1WithdrawLockERC20GatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
+    // L1ReverseCustomGatewayProxy admin change
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ReverseCustomGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
     // L1ERC721GatewayProxy admin change
     err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
     if (err != '') {
@@ -133,16 +149,22 @@ export const AdminTransfer = async (
     }
 
     // EnforcedTxGatewayProxy admin change
-    // err = await AdminTransferByProxyStorageName(hre, path, deployer, EnforcedTxGatewayProxyStorageName)
-    // if (err != '') {
-    //     return err
-    // }
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, EnforcedTxGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
 
+    // L1WETHGatewayProxy admin change
     err = await AdminTransferByProxyStorageName(hre, path, deployer, L1WETHGatewayProxyStorageName)
     if (err != '') {
         return err
     }
 
+    // L1USDCGatewayProxy admin change
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1USDCGatewayProxyStorageName)
+    if (err != '') {
+        return err
+    }
     return ''
 }
 

@@ -28,13 +28,15 @@ task("deploy")
         // Initialization parameters
         const storagePath = taskArgs.storagepath
         const deployer = await hre.ethers.provider.getSigner();
+        const config = hre.deployConfig
         let component = taskArgs.component || '';
 
         console.log('################################## console parameters ##################################')
         console.log('deployer :', await deployer.getAddress())
 
         if (component === '') {
-            component = 'abcdefghijklmnop';
+            component = 'abcdefghijklmnopqrs';
+            // component = 't';
         }
         let err = '';
 
@@ -58,16 +60,16 @@ task("deploy")
             }
         }
 
-        if (/[c-o]/.test(component)) {
+        if (/[c-s]/.test(component)) {
             console.log('\n---------------------------------- deploy  Proxys ----------------------------------')
-            err = await deployContractProxies(hre, storagePath, deployer, component)
+            err = await deployContractProxies(hre, storagePath, deployer, config, component)
             if (err != '') {
                 console.log('Deploy Proxys failed, err: ', err)
                 return
             }
         }
 
-        if (component.includes('p')) {
+        if (component.includes('t')) {
             console.log('\n---------------------------------- deploy  ZkEvmVerifierV1 ----------------------------------')
             err = await deployZkEvmVerifierV1(hre, storagePath, deployer)
             if (err != '') {

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/common/hexutil"
-	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	node "morph-l2/node/core"
@@ -31,11 +31,15 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		L1GatewayRouterProxy:        address1,
 		L1StandardERC20GatewayProxy: address1,
 		L1CustomERC20GatewayProxy:   address1,
+		L1ReverseCustomGatewayProxy: address1,
 		L1ETHGatewayProxy:           address1,
 		L1ERC721GatewayProxy:        address1,
 		L1ERC1155GatewayProxy:       address1,
 		L1WETHGatewayProxy:          address1,
 		L1WETH:                      address1,
+		L1USDC:                      address1,
+		L1USDCGatewayProxy:          address1,
+		L1WithdrawLockERC20Gateway:  address1,
 
 		GasPriceOracleOverhead: 1,
 		GasPriceOracleScalar:   1,

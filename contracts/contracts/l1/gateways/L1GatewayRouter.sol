@@ -186,10 +186,16 @@ contract L1GatewayRouter is OwnableUpgradeable, IL1GatewayRouter {
         address _gateway = ethGateway;
         require(_gateway != address(0), "eth gateway available");
 
+        // enter deposit context
+        gatewayInContext = _gateway;
+
         // encode msg.sender with _data
         bytes memory _routerData = abi.encode(_msgSender(), _data);
 
         IL1ETHGateway(_gateway).depositETHAndCall{value: msg.value}(_to, _amount, _routerData, _gasLimit);
+
+        // leave deposit context
+        gatewayInContext = address(0);
     }
 
     /// @inheritdoc IL1ETHGateway

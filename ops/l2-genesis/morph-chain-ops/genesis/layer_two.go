@@ -3,11 +3,11 @@ package genesis
 import (
 	"fmt"
 
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/core"
-	"github.com/scroll-tech/go-ethereum/core/types"
-	"github.com/scroll-tech/go-ethereum/rollup/rcfg"
-	"github.com/scroll-tech/go-ethereum/rollup/withdrawtrie"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/rollup/rcfg"
+	"github.com/morph-l2/go-ethereum/rollup/withdrawtrie"
 
 	"morph-l2/morph-deployer/morph-chain-ops/state"
 )
