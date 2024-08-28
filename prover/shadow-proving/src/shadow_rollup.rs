@@ -83,7 +83,11 @@ impl BatchSyncer {
         let pending_tx = match rt {
             Ok(pending_tx) => pending_tx,
             Err(e) => {
-                log::error!("send tx of shadow_rollup.commit_batch error hex: {:#?}", e);
+                log::error!("send tx of shadow_rollup.commit_batch error: {:#?}", e);
+                if let ContractError::Revert(data) = e {
+                    let msg = String::decode_with_selector(&data).unwrap_or(String::from("unknown, decode contract revert error"));
+                    log::error!("send tx of shadow_rollup.commit_batch error, exec msg: {:#?}", msg);
+                }
                 return Ok(None);
             }
         };
