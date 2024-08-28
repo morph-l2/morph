@@ -41,7 +41,7 @@ var (
 		Name:     "L1_PRIVATE_KEY",
 		Usage:    "The private key to use for sending to the rollup contract",
 		EnvVar:   prefixEnvVar("L1_PRIVATE_KEY"),
-		Required: true,
+		Required: false,
 	}
 
 	TxTimeoutFlag = cli.DurationFlag{
