@@ -1,4 +1,4 @@
-use ethers::contract::ContractRevert;
+use ethers::{contract::ContractRevert, providers::Middleware};
 use std::str::FromStr;
 pub mod abi;
 mod error;
@@ -11,10 +11,7 @@ mod external_sign;
 mod signer;
 use abi::gas_price_oracle_abi::GasPriceOracleErrors;
 pub use error::*;
-use ethers::{
-    contract::ContractError,
-    providers::{Http, Provider},
-};
+use ethers::contract::ContractError;
 
 pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
     std::env::var(var_name)
@@ -31,7 +28,7 @@ pub fn read_parse_env<T: Clone + FromStr>(var_name: &'static str) -> T {
     }
 }
 
-pub fn contract_error(e: ContractError<Provider<Http>>) -> String {
+pub fn contract_error<M: Middleware>(e: ContractError<M>) -> String {
     let error_msg = if let Some(contract_err) = e.as_revert() {
         if let Some(data) = GasPriceOracleErrors::decode_with_selector(contract_err.as_ref()) {
             format!("exec error: {:#?}", data)

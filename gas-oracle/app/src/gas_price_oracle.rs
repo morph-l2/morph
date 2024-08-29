@@ -101,18 +101,17 @@ fn check_config(config: &Config) -> Result<(), Box<dyn Error>> {
         )
         .into());
     }
-    if config.commit_scalar_buffer > 10000u64 {
+    if config.commit_scalar_buffer > 10000 * 10u64.pow(9) {
         // 1 means 1Gas
         return Err(anyhow!(
             "Check env config error, GAS_ORACLE_COMMIT_SCALAR_BUFFER should be less than 10000 gas"
         )
         .into());
     }
-    if config.blob_scalar_buffer > 1000u64 {
-        //10 means an increase of 0.1 times
-        //100 means an increase of 1 times
+    if config.blob_scalar_buffer > 10 * 10u64.pow(9) {
+        //1*10^9 means an increase of 1 times
         return Err(anyhow!(
-            "Check env config error, GAS_ORACLE_BLOB_SCALAR_BUFFER should be less than 1000(means 10 times)"
+            "Check env config error, GAS_ORACLE_BLOB_SCALAR_BUFFER should be less than 10(means 10 times)"
         )
         .into());
     }

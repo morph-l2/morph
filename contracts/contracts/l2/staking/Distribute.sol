@@ -53,7 +53,6 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @notice Ensures that the caller message from record contract.
     modifier onlyRecordContract() {
         require(_msgSender() == RECORD_CONTRACT, "only record contract allowed");
-
         _;
     }
 

@@ -17,6 +17,7 @@ contract L2ETHGateway is GatewayBase, IL2ETHGateway {
     /***************
      * Constructor *
      ***************/
+
     constructor() {
         _disableInitializers();
     }

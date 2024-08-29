@@ -58,13 +58,13 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     address[] public stakerAddresses;
 
     /// @notice staker rankings
-    mapping(address staker => uint256) public stakerRankings;
+    mapping(address staker => uint256 ranking) public stakerRankings;
 
     /// @notice stakers info
     mapping(address staker => Types.StakerInfo) public stakers;
 
     /// @notice staker commissions, default commission is zero if not set
-    mapping(address staker => uint256) public commissions;
+    mapping(address staker => uint256 amount) public commissions;
 
     /// @notice staker's total delegation amount
     mapping(address staker => uint256 totalDelegationAmount) public stakerDelegations;
@@ -73,7 +73,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     mapping(address staker => EnumerableSetUpgradeable.AddressSet) internal delegators;
 
     /// @notice delegations of a staker
-    mapping(address staker => mapping(address delegator => uint256)) public delegations;
+    mapping(address staker => mapping(address delegator => uint256 amount)) public delegations;
 
     /// @notice delegator's undelegations
     mapping(address delegator => Undelegation[]) public undelegations;

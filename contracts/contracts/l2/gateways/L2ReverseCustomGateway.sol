@@ -35,6 +35,7 @@ contract L2ReverseCustomGateway is L2ERC20Gateway {
     /***************
      * Constructor *
      ***************/
+
     constructor() {
         _disableInitializers();
     }
