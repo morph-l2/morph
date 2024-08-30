@@ -29,7 +29,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export L1_ROLLUP=$(R
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_L1_BASE_FEE_BUFFER=100000000
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_COMMIT_SCALAR_BUFFER=20000000000
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle:
-	app
+	./app
 
 
 # prover
@@ -49,7 +49,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_PROOF_DIR=/data/
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export GENERATE_EVM_VERIFIER=false
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export CHAIN_ID=$(L2_CHAIN_ID)
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
-	prover_server
+	./prover_server
 
 
 # challenge-handler
@@ -70,7 +70,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_PROV
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_ROLLUP=$(Rollup)
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export CHALLENGE_HANDLER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
-	challenge-handler
+	./challenge-handler
 
 
 # shadow-proving
@@ -86,4 +86,4 @@ start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_SHADOW_ROLLUP=0x0000000000000000000000000000000000000000
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
-	shadow-proving
+	./shadow-proving
