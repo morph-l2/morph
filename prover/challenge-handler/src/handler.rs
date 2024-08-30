@@ -595,19 +595,19 @@ async fn send_transaction(
     } else {
         tx.set_from(local_signer.address());
     }
-    local_signer
-        .fill_transaction(&mut tx, None)
-        .await
-        .map_err(|e| anyhow!("prove_state fill_transaction error: {:#?}", e))?;
+    local_signer.fill_transaction(&mut tx, None).await.map_err(|e| {
+        let msg = contract_error(ContractError::<SignerMiddleware<Provider<Http>, LocalWallet>>::from_middleware_error(e));
+        anyhow!("prove_state fill_transaction error: {:#?}", msg)
+    })?;
 
     let signed_tx = sign_tx(tx, local_signer, ext_signer)
         .await
         .map_err(|e| anyhow!("prove_state sign_tx error: {}", e))?;
 
-    let pending_tx = l2_provider
-        .send_raw_transaction(signed_tx)
-        .await
-        .map_err(|e| anyhow!("prove_state call contract error: {}", contract_error(e.into())))?;
+    let pending_tx = l2_provider.send_raw_transaction(signed_tx).await.map_err(|e| {
+        let msg = contract_error(ContractError::<Provider<Http>>::from(e));
+        anyhow!("prove_state call contract error: {}", msg)
+    })?;
 
     let tx_hash = pending_tx.tx_hash();
 
@@ -636,7 +636,7 @@ async fn sign_tx(
     }
 }
 
-pub fn contract_error(e: ContractError<Provider<Http>>) -> String {
+pub fn contract_error<M: Middleware>(e: ContractError<M>) -> String {
     let error_msg = if let Some(contract_err) = e.as_revert() {
         if let Some(data) = RollupErrors::decode_with_selector(contract_err.as_ref()) {
             format!("exec error: {:?}", data)

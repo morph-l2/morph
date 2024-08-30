@@ -16,7 +16,6 @@ import (
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
@@ -73,20 +72,25 @@ func (o *Oracle) syncRewardEpoch() error {
 	if err != nil {
 		return err
 	}
-	chainId, err := o.l2Client.ChainID(o.ctx)
+	callData, err := o.recordAbi.Pack("recordRewardEpochs", []bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
 	if err != nil {
 		return err
 	}
-	opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainId)
-	if err != nil {
-		return err
-	}
-	tx, err := o.record.RecordRewardEpochs(opts, []bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
+	tx, err := o.newRecordTxAndSign(callData)
 	if err != nil {
 		return fmt.Errorf("record reward epochs error:%v", err)
 	}
+	err = o.l2Client.SendTransaction(o.ctx, tx)
+	if err != nil {
+		return fmt.Errorf("send transaction error:%v", err)
+	}
 	log.Info("send record reward tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
-	receipt, err := o.l2Client.TransactionReceipt(o.ctx, tx.Hash())
+	var receipt *types.Receipt
+	err = backoff.Do(30, backoff.Exponential(), func() error {
+		var err error
+		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("receipt record reward epochs error:%v", err)
 	}
@@ -343,35 +347,20 @@ func (o *Oracle) setStartBlock() {
 			if err != nil {
 				return fmt.Errorf("find start block error:%v", err)
 			}
-
-			chainID, err := o.l2Client.ChainID(o.ctx)
-			if err != nil {
-				return fmt.Errorf("get chain id error:%v", err)
-			}
-			opts, err := bind.NewKeyedTransactorWithChainID(o.privKey, chainID)
-			if err != nil {
-				log.Error(fmt.Sprintf("new opts error:%v", err))
-			}
-			nonce, err := o.l2Client.NonceAt(context.Background(), crypto.PubkeyToAddress(o.privKey.PublicKey), nil)
+			callData, err := o.recordAbi.Pack("setLatestRewardEpochBlock", big.NewInt(startBlock))
 			if err != nil {
 				return err
 			}
-			opts.NoSend = true
-			opts.Nonce = big.NewInt(int64(nonce))
-			tx, err := o.record.SetLatestRewardEpochBlock(opts, big.NewInt(startBlock))
-			if err != nil {
-				return fmt.Errorf("set latestReward epoch block error:%v", err)
-			}
-			signedTx, err := opts.Signer(opts.From, tx)
+			tx, err := o.newRecordTxAndSign(callData)
 			if err != nil {
 				return err
 			}
-			err = o.l2Client.SendTransaction(o.ctx, signedTx)
+			err = o.l2Client.SendTransaction(o.ctx, tx)
 			if err != nil {
 				return fmt.Errorf("send transaction error:%v", err)
 			}
 			var receipt *types.Receipt
-			err = backoff.Do(3, backoff.Exponential(), func() error {
+			err = backoff.Do(30, backoff.Exponential(), func() error {
 				var err error
 				receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
 				return err
