@@ -50,7 +50,7 @@ contract Ownable {
     /**
      * @dev The constructor sets the original owner of the contract to the sender account.
      */
-    constructor() public {
+    constructor() {
         setOwner(msg.sender);
     }
 

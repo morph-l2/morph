@@ -1591,9 +1591,9 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        address[] memory delegator0 = l2Staking.getAllDelegators(firstStaker);
-        address[] memory delegator1 = l2Staking.getAllDelegators(secondStaker);
-        address[] memory delegator2 = l2Staking.getAllDelegators(thirdStaker);
+        (, address[] memory delegator0) = l2Staking.getAllDelegatorsInPagination(firstStaker, 100, 0);
+        (, address[] memory delegator1) = l2Staking.getAllDelegatorsInPagination(secondStaker, 100, 0);
+        (, address[] memory delegator2) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 100, 0);
 
         assertEq(delegator0.length, 1);
         assertEq(delegator1.length, 1);
