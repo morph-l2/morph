@@ -176,8 +176,7 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     //     privkey_base64.push('\n');
     // }
     dotenv::dotenv().ok();
-    // let privkey_pem: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV");
-    let privkey_pem: String = "xxxx".to_string();
+    let privkey_pem: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV");
     // appid := "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA"
     // rsaPrivStr := ""
     // url := "http://localhost:8080/v1/sign/tx_sign"
