@@ -25,7 +25,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export OVERHEAD_INTE
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export MAX_OVERHEAD=200000
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export TXN_PER_BLOCK=1
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export TXN_PER_BATCH=50
-start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export L1_ROLLUP=$(Rollup)
+start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export L1_ROLLUP=0x1dc010026af6fd4a6dc3686446c752094bda8d4d
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_L1_BASE_FEE_BUFFER=100000000
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_COMMIT_SCALAR_BUFFER=20000000000
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle:
@@ -67,7 +67,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTE
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_RPC=$(L1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L2_RPC=$(L2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_PROVER_RPC=http://morph-prover:3030
-start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_ROLLUP=$(Rollup)
+start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_ROLLUP=0x1dc010026af6fd4a6dc3686446c752094bda8d4d
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export CHALLENGE_HANDLER_PRIVATE_KEY=0x1
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 	challenge-handler
@@ -83,7 +83,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_VERIFY_L1_RPC=https://ethereum-holesky.publicnode.com
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L2_RPC=$(L2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_PROVER_RPC=http://morph-prover:3030
-start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_ROLLUP=$(Rollup)
+start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_ROLLUP=0x1dc010026af6fd4a6dc3686446c752094bda8d4d
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_SHADOW_ROLLUP=0x21c7FCE94d71aFC4e9787362C8c02Ea182520A22
 # start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_PRIVATE_KEY=0x1
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
