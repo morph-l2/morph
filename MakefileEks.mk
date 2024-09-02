@@ -92,3 +92,31 @@ start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_
 # start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_PRIVATE_KEY=0x1
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	/data/secret-manager-wrapper  ./shadow-proving
+
+build-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o oracle/staking-oracle .oracle/cmd/staking-oracle
+	cp oracle/staking-oracle dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -czvf staking-oracle.tar.gz dist
+
+
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_BUILD_ENV=mainnet
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L1_ETH_RPC=$(L1_RPC)
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_ETH_RPC=$(L2_RPC)
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_TENDERMINT_RPC=http://morph-node-3:26657
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_ROLLUP=$(Rollup)
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_START_HEIGHT=$(START_HEIGHT)
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILENAME=/data/logs/morph-staking-oracle/staking-oracle.log
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILE_MAX_SIZE=200
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILE_MAX_AGE=30
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_COMPRESS=true
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_METRICS_SERVER_ENABLE=true
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN=true
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_ADDRESS=0x0000000000000000000000000000000000000000
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_APPID=xxxxx
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_CHAIN=MAINNET-L2
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_URL=http://127.0.0.1:8080/v1/sign/tx_sign
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_RSA_PRIV=xxxx
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
+	/data/secret-manager-wrapper  ./staking-oracle
