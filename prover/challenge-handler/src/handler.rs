@@ -45,6 +45,8 @@ mod task_status {
 type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 
 const MAX_RETRY_TIMES: u8 = 2;
+const DEFAULT_PRIVATE_KEY: &str =
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 #[derive(Clone)]
 pub struct ChallengeHandler {
@@ -57,15 +59,17 @@ pub struct ChallengeHandler {
 impl ChallengeHandler {
     pub async fn prepare() -> Self {
         // Prepare parameter.
+        let use_ext_sign: bool = read_env_var("HANDLER_EXTERNAL_SIGN", false);
+        let private_key = if use_ext_sign {
+            DEFAULT_PRIVATE_KEY.to_string()
+        } else {
+            read_parse_env("CHALLENGE_HANDLER_PRIVATE_KEY")
+        };
+
         let l1_rpc = var("HANDLER_L1_RPC").expect("Cannot detect L1_RPC env var");
         let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
         let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
         let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
-
-        let private_key = read_env_var(
-            "CHALLENGE_HANDLER_PRIVATE_KEY",
-            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
-        );
 
         let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
         let l1_signer = Arc::new(SignerMiddleware::new(
