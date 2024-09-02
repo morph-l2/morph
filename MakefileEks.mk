@@ -68,7 +68,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_R
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L2_RPC=$(L2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_PROVER_RPC=http://morph-prover:3030
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_ROLLUP=$(Rollup)
-start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export CHALLENGE_HANDLER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export CHALLENGE_HANDLER_PRIVATE_KEY=0x1
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 	challenge-handler
 
@@ -80,10 +80,11 @@ build-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	cp prover/shadow-proving/target/release/shadow-proving dist/
 
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_RPC=$(L1_RPC)
+start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_VERIFY_L1_RPC=https://ethereum-holesky.publicnode.com
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L2_RPC=$(L2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_PROVER_RPC=http://morph-prover:3030
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_ROLLUP=$(Rollup)
-start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_SHADOW_ROLLUP=0x0000000000000000000000000000000000000000
-start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_SHADOW_ROLLUP=0x21c7FCE94d71aFC4e9787362C8c02Ea182520A22
+# start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_PRIVATE_KEY=0x1
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
-	shadow-proving
+	/data/secret-manager-wrapper  shadow-proving
