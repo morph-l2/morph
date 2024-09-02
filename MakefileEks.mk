@@ -103,7 +103,6 @@ build-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
 
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_BUILD_ENV=mainnet
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L1_ETH_RPC=$(L1_RPC)
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_RECORD_PRIVATE_KEY=0x25be2526bfa43e06832ab7aef2fc7a3d6895703b1c0ad84b316b762d451c84b9
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_ETH_RPC=$(L2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_TENDERMINT_RPC=http://morph-node-3:26657
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_ROLLUP=$(Rollup)
