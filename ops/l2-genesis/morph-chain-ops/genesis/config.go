@@ -480,6 +480,9 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	if err != nil {
 		return nil, err
 	}
+	storage["ProxyAdmin"] = state.StorageValues{
+		"_owner": config.FinalSystemOwner,
+	}
 	storage["GasPriceOracle"] = state.StorageValues{
 		"_owner":           config.GasPriceOracleOwner,
 		"overhead":         config.GasPriceOracleOverhead,
