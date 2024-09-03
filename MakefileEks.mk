@@ -20,8 +20,8 @@ build-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle:
 	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN=true
-start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_ADDRESS=0x0000000000000000000000000000000000000000
-start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_APPID=xxxx
+start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_ADDRESS=0xa478a762c79cd3245da45e2a0169810136a697fd
+start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_APPID=gas-oracle-EA07BFE6-5138-4ABA-A78A-16CDAA251D7A
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_CHAIN=MORPH
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_URL=morph-proxy-backend
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV=xxxx
@@ -74,9 +74,9 @@ build-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN=true
-start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_ADDRESS=0x0000000000000000000000000000000000000000
-start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_APPID=xxxx
-start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_CHAIN=MAINNET-L1
+start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_ADDRESS=0xe00a22c0a262df40e7a65441441bebc08e248469
+start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_APPID=handler-3A43346E-25F3-458B-9E93-88B92ACAA963
+start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_CHAIN=ETH
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_URL=morph-proxy-backend
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_RSA_PRIV=xxxxx
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_RPC=$(LAYER1_RPC)
@@ -124,7 +124,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_COMPRESS=true
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_METRICS_SERVER_ENABLE=true
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN=true
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_ADDRESS=0x0000000000000000000000000000000000000000
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_ADDRESS=0xf720410eeb471e97000afdcfb4e6c515ecf5fa98
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_APPID=staking-oracle-83276E92-0198-4CE0-A990-4835743403CC
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_CHAIN=MORPH
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_URL=morph-proxy-backend
