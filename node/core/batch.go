@@ -216,7 +216,7 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 		blobHashes = sidecar.BlobHashes()
 	}
 
-	sequencerSetVerifyHash, err := e.sequencer.SequencerSetVerifyHash(nil)
+	sequencerSetVerifyHash, err := e.sequencerCaller.SequencerSetVerifyHash(nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get sequencerSetVerifyHash, err: %w", err)
 	}
@@ -295,7 +295,7 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	callOpts := &bind.CallOpts{
 		BlockNumber: big.NewInt(int64(curHeight - 1)),
 	}
-	sequencerSetBytes, err := e.sequencer.GetSequencerSetBytes(callOpts)
+	sequencerSetBytes, err := e.sequencerCaller.GetSequencerSetBytes(callOpts)
 	if err != nil {
 		e.logger.Error("failed to GetSequencerSetBytes", "query at height of", curHeight-1, "error", err)
 		return err
