@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
@@ -171,6 +172,42 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 		resp, respErr := rc.ethClient.HeaderByNumber(ctx, blockNumber)
 		if respErr != nil {
 			rc.logger.Info("failed to call BlockNumber", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
+
+func (rc *RetryableClient) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) (ret []byte, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.ethClient.CallContract(ctx, call, blockNumber)
+		if respErr != nil {
+			rc.logger.Info("failed to call eth_call", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
+
+func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) (ret []byte, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.ethClient.CodeAt(ctx, contract, blockNumber)
+		if respErr != nil {
+			rc.logger.Info("failed to call eth_getCode", "error", respErr)
 			if retryableError(respErr) {
 				return respErr
 			}
