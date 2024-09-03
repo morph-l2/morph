@@ -23,7 +23,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EX
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_ADDRESS=0x0000000000000000000000000000000000000000
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_APPID=xxxx
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_CHAIN=MORPH
-start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_URL=http://127.0.0.1:8080/v1/sign/tx_sign
+start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_URL=morph-proxy-backend
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV=xxxx
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_L1_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_L2_RPC=$(LAYER2_RPC)
@@ -77,7 +77,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTE
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_ADDRESS=0x0000000000000000000000000000000000000000
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_APPID=xxxx
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_CHAIN=MAINNET-L1
-start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_URL=http://127.0.0.1:8080/v1/sign/tx_sign
+start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_URL=morph-proxy-backend
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_RSA_PRIV=xxxxx
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L2_RPC=$(LAYER2_RPC)
@@ -118,16 +118,16 @@ start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_TENDERMINT_RPC=http://morph-node-3:26657
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_ROLLUP=$(ROLLUP)
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_START_HEIGHT=$(START_HEIGHT)
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILENAME=/data/logs/morph-staking-oracle/staking-oracle.log
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILENAME=/data/logs/morph-staking-oracle/app_info.log
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILE_MAX_SIZE=200
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILE_MAX_AGE=30
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_COMPRESS=true
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_METRICS_SERVER_ENABLE=true
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN=true
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_ADDRESS=0x0000000000000000000000000000000000000000
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_APPID=xxxxx
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_APPID=staking-oracle-83276E92-0198-4CE0-A990-4835743403CC
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_CHAIN=MORPH
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_URL=http://127.0.0.1:8080/v1/sign/tx_sign
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_URL=morph-proxy-backend
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_RSA_PRIV=xxxx
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
 	/data/secret-manager-wrapper  ./staking-oracle
