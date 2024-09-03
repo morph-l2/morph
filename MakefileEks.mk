@@ -95,7 +95,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 
 build-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o oracle/staking-oracle .oracle/cmd/staking-oracle
+	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o oracle/staking-oracle ./oracle/cmd/staking-oracle
 	cp oracle/staking-oracle dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -czvf staking-oracle.tar.gz dist
