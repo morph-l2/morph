@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/morph-l2/go-ethereum"
-	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
@@ -20,12 +19,11 @@ type EventListener struct {
 	lastBlock       *big.Int // Last block number processed
 	deployBlock     *big.Int // Block number of contract deployment
 	storageFileName string
-	outputChan      chan<- types.Log
-	contract        common.Address
+	eventChan       chan types.Log
 	filterQuery     ethereum.FilterQuery
 }
 
-func NewEventListener(storageFileName string, wsurl string, deployedBlock *big.Int, outputChan chan<- types.Log, contractAddress common.Address) (*EventListener, error) {
+func NewEventListener(storageFileName string, wsurl string, deployedBlock *big.Int, eventChan chan types.Log, filter ethereum.FilterQuery) (*EventListener, error) {
 	client, err := ethclient.Dial(wsurl)
 	if err != nil {
 		return nil, err
@@ -33,8 +31,7 @@ func NewEventListener(storageFileName string, wsurl string, deployedBlock *big.I
 
 	listener := &EventListener{
 		client:          client,
-		outputChan:      outputChan,
-		contract:        contractAddress,
+		eventChan:       eventChan,
 		deployBlock:     deployedBlock,
 		storageFileName: storageFileName,
 	}
@@ -43,10 +40,9 @@ func NewEventListener(storageFileName string, wsurl string, deployedBlock *big.I
 	if err != nil {
 		return nil, fmt.Errorf("failed to load last block: %w", err)
 	}
-	listener.filterQuery = ethereum.FilterQuery{
-		Addresses: []common.Address{contractAddress},
-		FromBlock: listener.lastBlock,
-	}
+	// filter build
+	filter.FromBlock = listener.lastBlock
+	listener.filterQuery = filter
 
 	return listener, nil
 }
@@ -70,7 +66,7 @@ func (l *EventListener) loadLastBlock() error {
 	return nil
 }
 
-func (l *EventListener) saveLastBlock() error {
+func (l *EventListener) SaveLastBlock() error {
 	data, err := json.Marshal(l.lastBlock)
 	if err != nil {
 		return fmt.Errorf("failed to marshal last block")
@@ -88,24 +84,41 @@ outerLoop:
 		logs := make(chan types.Log)
 		sub, err := l.client.SubscribeFilterLogs(context.Background(), l.filterQuery, logs)
 		if err != nil {
-			log.Error("Failed to subscribe to logs: %v", err)
+			log.Error("failed to subscribe to logs", "err", err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
+		log.Info(fmt.Sprintf("subscribed to logs from block %d", l.lastBlock))
 
 		for {
 			select {
 			case lg := <-logs:
-				l.outputChan <- lg
+				l.eventChan <- lg
 				l.lastBlock = big.NewInt(0).SetUint64(lg.BlockNumber)
-				err = l.saveLastBlock()
+				err = l.SaveLastBlock()
 				if err != nil {
-					log.Error("Failed to save last block: %v", err)
+					log.Error("failed to save last block: %v", err)
 				}
 			case err := <-sub.Err():
-				log.Error("Subscription error: %v", err)
+				log.Error("subscription error: %v", err)
 				break outerLoop
 			}
+			time.Sleep(time.Second)
 		}
 	}
+}
+
+func (l *EventListener) GetOutputChan() <-chan types.Log {
+	return l.eventChan
+}
+
+func (l *EventListener) GetLastBlockNumber() *big.Int {
+	return l.lastBlock
+}
+
+func (l *EventListener) GetFilter() ethereum.FilterQuery {
+	return l.filterQuery
+}
+func (l *EventListener) SetLaskBlockNumber(last *big.Int) {
+	l.lastBlock = last
 }

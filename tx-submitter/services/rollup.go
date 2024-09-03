@@ -495,6 +495,10 @@ func (r *Rollup) finalize() error {
 func (r *Rollup) rollup() error {
 
 	if !r.cfg.PriorityRollup {
+		if !r.rotator.listenerStart {
+			log.Info("waiting for rotator listener start")
+			return nil
+		}
 		cur, err := r.rotator.CurrentSubmitter(r.L2Clients)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)

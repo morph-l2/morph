@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"math/big"
+
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 )
@@ -23,4 +25,22 @@ func ToCallArg(msg ethereum.CallMsg) interface{} {
 		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
 	}
 	return arg
+}
+
+func MaxOfThreeBig(a, b, c *big.Int) *big.Int {
+	max := a
+
+	if b.Cmp(max) > 0 {
+		max = b
+	}
+
+	if c.Cmp(max) > 0 {
+		max = c
+	}
+
+	return max
+}
+
+func MustSuccess(f func() error) {
+
 }

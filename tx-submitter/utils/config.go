@@ -20,6 +20,8 @@ type Config struct {
 
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
+	// l1 ws rpc provider url
+	L1WsRpc string
 
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpcs []string
@@ -96,6 +98,10 @@ type Config struct {
 	RoughEstimateGas bool
 	// rotator interval buffer
 	RotatorBuffer int64
+	// listener process path
+	ListenerProcessPath string
+	// l1 staking deployed block number
+	L1StakingDeployedBlockNumber uint64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -156,6 +162,13 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 		// rotator interval buffer
 		RotatorBuffer: ctx.GlobalInt64(flags.RotatorBufferFlag.Name),
+
+		// path
+		ListenerProcessPath: ctx.GlobalString(flags.ListenerPathFlag.Name),
+		// ws rpc
+		L1WsRpc: ctx.GlobalString(flags.L1EthWsFlag.Name),
+		// l1 staking deployed block number
+		L1StakingDeployedBlockNumber: ctx.GlobalUint64(flags.L1StakingDeployedBlocknumFlag.Name),
 	}
 
 	return cfg, nil

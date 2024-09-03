@@ -6,18 +6,22 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"os/signal"
 	"strings"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/externalsign"
+	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
@@ -137,8 +141,18 @@ func Main() func(ctx *cli.Context) error {
 
 		}
 
+		logs := make(chan types.Log)
+		// new event listener
+		filter := ethereum.FilterQuery{
+			Addresses: []common.Address{common.HexToAddress(cfg.L1StakingAddress)},
+		}
+		listener, err := event.NewEventListener(cfg.ListenerProcessPath, cfg.L1WsRpc, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), logs, filter)
+		if err != nil {
+			return fmt.Errorf("failed to create event listener: %w", err)
+		}
+
 		// new rotator
-		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress))
+		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), listener)
 
 		sr := services.NewRollup(
 			ctx,
