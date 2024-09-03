@@ -244,7 +244,7 @@ contract DistributeTest is L2StakingBaseTest {
      * @notice claimCommission: expect revert if tokens are not minted yet
      */
     function test_claimCommission_notMinted_reverts() public {
-        hevm.expectRevert("not minted yet");
+        hevm.expectRevert("no commission to claim");
         hevm.prank(address(l2Staking));
         distribute.claimCommission(address(0));
     }
@@ -293,7 +293,7 @@ contract DistributeTest is L2StakingBaseTest {
         hevm.prank(address(l2Staking));
         distribute.claimCommission(firstStaker);
 
-        hevm.expectRevert("all commission claimed");
+        hevm.expectRevert("no commission to claim");
         hevm.prank(address(l2Staking));
         distribute.claimCommission(firstStaker);
     }
