@@ -4,6 +4,12 @@ LAYER1_BEACON_RPC := http://ethereum.upex30.net:3500
 LAYER2_RPC := http://morph-geth-0:8545
 LAYER2_CHAIN_ID := 2818
 ROLLUP := 0x1dc010026af6fd4a6dc3686446c752094bda8d4d
+START_HEIGHT := 20626326
+
+LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
+LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
+LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
+LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 # gas-oracle
 build-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle:
