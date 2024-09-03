@@ -3,7 +3,6 @@ package types
 import (
 	"context"
 	"math/big"
-	"strings"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/morph-l2/go-ethereum"
@@ -221,12 +220,14 @@ func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, 
 	return
 }
 
+// currently we want every error retryable
 func retryableError(err error) bool {
-	return strings.Contains(err.Error(), ConnectionRefused) ||
-		strings.Contains(err.Error(), EOFError) ||
-		strings.Contains(err.Error(), JWTStaleToken) ||
-		strings.Contains(err.Error(), JWTExpiredToken) ||
-		strings.Contains(err.Error(), MinerClosed) ||
-		strings.Contains(err.Error(), ExecutionAborted) ||
-		strings.Contains(err.Error(), Timeout)
+	// return strings.Contains(err.Error(), ConnectionRefused) ||
+	// 	strings.Contains(err.Error(), EOFError) ||
+	// 	strings.Contains(err.Error(), JWTStaleToken) ||
+	// 	strings.Contains(err.Error(), JWTExpiredToken) ||
+	// 	strings.Contains(err.Error(), MinerClosed) ||
+	// 	strings.Contains(err.Error(), ExecutionAborted) ||
+	// 	strings.Contains(err.Error(), Timeout)
+	return true
 }
