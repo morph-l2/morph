@@ -21,6 +21,7 @@ const (
 	JWTExpiredToken   = "token is expired"
 	MinerClosed       = "miner closed"
 	ExecutionAborted  = "execution aborted"
+	Timeout           = "timed out"
 )
 
 type RetryableClient struct {
@@ -189,5 +190,6 @@ func retryableError(err error) bool {
 		strings.Contains(err.Error(), JWTStaleToken) ||
 		strings.Contains(err.Error(), JWTExpiredToken) ||
 		strings.Contains(err.Error(), MinerClosed) ||
-		strings.Contains(err.Error(), ExecutionAborted)
+		strings.Contains(err.Error(), ExecutionAborted) ||
+		strings.Contains(err.Error(), Timeout)
 }
