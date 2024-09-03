@@ -5,12 +5,12 @@ import (
 	"math/big"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/morph-l2/go-ethereum"
-	"github.com/morph-l2/go-ethereum/common"
-	eth "github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/go-ethereum/eth/catalyst"
-	"github.com/morph-l2/go-ethereum/ethclient"
-	"github.com/morph-l2/go-ethereum/ethclient/authclient"
+	"github.com/scroll-tech/go-ethereum"
+	"github.com/scroll-tech/go-ethereum/common"
+	eth "github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/scroll-tech/go-ethereum/eth/catalyst"
+	"github.com/scroll-tech/go-ethereum/ethclient"
+	"github.com/scroll-tech/go-ethereum/ethclient/authclient"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 )
 
