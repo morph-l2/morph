@@ -109,7 +109,7 @@ build-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
 	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o oracle/staking-oracle ./oracle/cmd/staking-oracle
 	cp oracle/staking-oracle dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -czvf staking-oracle.tar.gz dist
+	tar -xvzf secret-manager-wrapper.tar.gz
 
 
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_BUILD_ENV=mainnet
