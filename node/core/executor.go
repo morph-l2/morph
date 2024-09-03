@@ -38,9 +38,9 @@ type Executor struct {
 	newSyncerFunc NewSyncerFunc
 	syncer        *sync.Syncer
 
-	govContract *bindings.Gov
-	sequencer   *bindings.Sequencer
-	l2Staking   *bindings.L2Staking
+	govCaller       *bindings.GovCaller
+	sequencerCaller *bindings.SequencerCaller
+	l2StakingCaller *bindings.L2StakingCaller
 
 	currentSeqHash *[32]byte
 	valsByTmKey    map[[tmKeySize]byte]validatorInfo
@@ -85,15 +85,15 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	}
 	logger.Info("obtained next L1Message index when initilize executor", "index", index)
 
-	sequencer, err := bindings.NewSequencer(config.SequencerAddress, eClient)
+	sequencer, err := bindings.NewSequencerCaller(config.SequencerAddress, l2Client)
 	if err != nil {
 		return nil, err
 	}
-	gov, err := bindings.NewGov(config.GovAddress, eClient)
+	gov, err := bindings.NewGovCaller(config.GovAddress, l2Client)
 	if err != nil {
 		return nil, err
 	}
-	l2Staking, err := bindings.NewL2Staking(config.L2StakingAddress, eClient)
+	l2Staking, err := bindings.NewL2StakingCaller(config.L2StakingAddress, l2Client)
 	if err != nil {
 		return nil, err
 	}
@@ -109,9 +109,9 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	executor := &Executor{
 		l2Client:            l2Client,
 		bc:                  &Version1Converter{},
-		govContract:         gov,
-		sequencer:           sequencer,
-		l2Staking:           l2Staking,
+		govCaller:           gov,
+		sequencerCaller:     sequencer,
+		l2StakingCaller:     l2Staking,
 		tmPubKey:            tmPubKeyBytes,
 		nextL1MsgIndex:      index,
 		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
@@ -378,28 +378,28 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 	callOpts := &bind.CallOpts{
 		BlockNumber: big.NewInt(height),
 	}
-	batchBlockInterval, err := e.govContract.BatchBlockInterval(callOpts)
+	batchBlockInterval, err := e.govCaller.BatchBlockInterval(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
-	batchMaxBytes, err := e.govContract.BatchMaxBytes(callOpts)
+	batchMaxBytes, err := e.govCaller.BatchMaxBytes(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
-	batchTimeout, err := e.govContract.BatchTimeout(callOpts)
+	batchTimeout, err := e.govCaller.BatchTimeout(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
-	batchMaxChunks, err := e.govContract.MaxChunks(callOpts)
+	batchMaxChunks, err := e.govCaller.MaxChunks(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
 	// fetch current sequencerSet info at certain height
-	addrs, err := e.sequencer.GetSequencerSet2(callOpts)
+	addrs, err := e.sequencerCaller.GetSequencerSet2(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
-	stakesInfo, err := e.l2Staking.GetStakesInfo(callOpts, addrs)
+	stakesInfo, err := e.l2StakingCaller.GetStakesInfo(callOpts, addrs)
 	if err != nil {
 		return nil, nil, err
 	}
