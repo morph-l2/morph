@@ -25,11 +25,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
-	PrivateKeyFlag = cli.StringFlag{
-		Name:   "private-key",
-		Usage:  "The private key to use for sending to the rollup contract",
-		EnvVar: prefixEnvVar("RECORD_PRIVATE_KEY"),
-	}
 	TendermintFlag = cli.StringFlag{
 		Name:     "l2-tendermint-rpc",
 		Usage:    "HTTP provider Tendermint URL for L2",
@@ -42,6 +37,12 @@ var (
 		Usage:    "Address of the rollup",
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP"),
+	}
+
+	PrivateKeyFlag = cli.StringFlag{
+		Name:   "private-key",
+		Usage:  "The private key to use for sending to the rollup contract",
+		EnvVar: prefixEnvVar("RECORD_PRIVATE_KEY"),
 	}
 
 	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
@@ -152,7 +153,6 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRPCFlag,
 	L2EthRPCFlag,
-	PrivateKeyFlag,
 	TendermintFlag,
 	RollupAddress,
 }
@@ -171,6 +171,7 @@ var optionalFlags = []cli.Flag{
 	MetricsHostnameFlag,
 	MetricsPortFlag,
 
+	PrivateKeyFlag,
 	// external sign
 	ExternalSign,
 	ExternalSignAddress,
