@@ -159,5 +159,8 @@ func ValidateConfig(cfg *Config) error {
 	} else if cfg.PrivKey == "" {
 		return fmt.Errorf("invalid privkey,address:%v", cfg.PrivKey)
 	}
+	if !cfg.ExternalSign && cfg.PrivKey == "" {
+		return fmt.Errorf("invalid privkey,address:%v", cfg.PrivKey)
+	}
 	return nil
 }

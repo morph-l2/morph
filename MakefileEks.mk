@@ -25,7 +25,6 @@ start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EX
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_APPID=gas-oracle-EA07BFE6-5138-4ABA-A78A-16CDAA251D7A
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_CHAIN=MORPH
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_URL=$(EXTERNAL_SIGN_URL)
-start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV=xxxx
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_L1_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_L2_RPC=$(LAYER2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle: export GAS_ORACLE_L1_BEACON_RPC=$(LAYER1_BEACON_RPC)
@@ -79,7 +78,6 @@ start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTE
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_APPID=handler-3A43346E-25F3-458B-9E93-88B92ACAA963
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_CHAIN=ETH
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_URL=$(EXTERNAL_SIGN_URL)
-start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_EXTERNAL_SIGN_RSA_PRIV=xxxxx
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L1_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_L2_RPC=$(LAYER2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler: export HANDLER_PROVER_RPC=http://morph-prover:3030
@@ -129,6 +127,5 @@ start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_APPID=staking-oracle-83276E92-0198-4CE0-A990-4835743403CC
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_CHAIN=MORPH
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_URL=$(EXTERNAL_SIGN_URL)
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_EXTERNAL_SIGN_RSA_PRIV=xxxx
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
 	/data/secret-manager-wrapper  ./staking-oracle
