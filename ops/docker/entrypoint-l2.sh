@@ -44,7 +44,7 @@ COMMAND="geth \
 --mine \
 --miner.gasprice="100000000" \
 --miner.etherbase=$MINER_ETHERBASE \
---miner.gaslimit=10000000 \
+--miner.gaslimit=200000000 \
 --metrics \
 --metrics.addr=0.0.0.0 $optional_bootnodes"
 
