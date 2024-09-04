@@ -504,9 +504,9 @@ func (r *Rollup) rollup() error {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
 		}
 
-		past := (time.Now().Unix() - r.rotator.GetStartTime().Int64()) % r.rotator.GetEpoch().Int64()
+		past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
 		start := time.Now().Unix() - past
-		end := start + r.rotator.GetEpoch().Int64()
+		end := start + r.rotator.epoch.Int64()
 
 		log.Info("rotator info",
 			"turn", cur.Hex(),

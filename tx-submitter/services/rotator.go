@@ -88,7 +88,7 @@ func (r *Rotator) StartListen(l1client *ethclient.Client) {
 						continue
 					} else {
 						r.UpdateStakerSetChangeTime(new(big.Int).SetUint64(block.Time()))
-						log.Info("history log found", "block", lg.BlockNumber, "time", block.Time())
+						log.Info("history log found", "block", lg.BlockNumber, "block_time", block.Time())
 						break
 					}
 				}
@@ -111,20 +111,16 @@ func (r *Rotator) StartListen(l1client *ethclient.Client) {
 	go r.listener.Listen()
 	logChan := r.listener.GetOutputChan()
 	// process logs
-	for {
-		select {
-		case lg := <-logChan:
-			for {
-				bk, err := l1client.BlockByNumber(nil, new(big.Int).SetUint64(lg.BlockNumber))
-				if err != nil {
-					log.Error("failed to get block by number", "err", err)
-					time.Sleep(time.Second * 5)
-					continue
-				}
-				r.UpdateStakerSetChangeTime(new(big.Int).SetUint64(bk.Time()))
-				break
+	for lg := range logChan {
+		for {
+			bk, err := l1client.BlockByNumber(context.Background(), new(big.Int).SetUint64(lg.BlockNumber))
+			if err != nil {
+				log.Error("failed to get block by number", "err", err)
+				time.Sleep(time.Second * 5)
+				continue
 			}
-
+			r.UpdateStakerSetChangeTime(new(big.Int).SetUint64(bk.Time()))
+			break
 		}
 	}
 

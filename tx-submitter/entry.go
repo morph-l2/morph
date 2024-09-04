@@ -114,7 +114,10 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to rollup contract: %w", err)
 		}
 		m := metrics.NewMetrics()
-		abi, _ := bindings.RollupMetaData.GetAbi()
+		rollupAbi, err := bindings.RollupMetaData.GetAbi()
+		if err != nil {
+			return fmt.Errorf("failed to get rollup abi: %w", err)
+		}
 
 		// l1 staking
 		l1Staking, err := bindings.NewL1Staking(common.HexToAddress(cfg.L1StakingAddress), l1Client)
@@ -141,10 +144,17 @@ func Main() func(ctx *cli.Context) error {
 
 		}
 
+		l1StakingAbi, err := bindings.L1StakingMetaData.GetAbi()
+		if err != nil {
+			return fmt.Errorf("failed to get l1 staking abi: %w", err)
+		}
 		logs := make(chan types.Log)
 		// new event listener
 		filter := ethereum.FilterQuery{
 			Addresses: []common.Address{common.HexToAddress(cfg.L1StakingAddress)},
+			Topics: [][]common.Hash{
+				{l1StakingAbi.Events["StakersRemoved"].ID},
+			},
 		}
 		listener, err := event.NewEventListener(cfg.ListenerProcessPath, cfg.L1WsRpc, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), logs, filter)
 		if err != nil {
@@ -165,7 +175,7 @@ func Main() func(ctx *cli.Context) error {
 			chainID,
 			privKey,
 			rollupAddr,
-			abi,
+			rollupAbi,
 			cfg,
 			rsaPriv,
 			rotator,
