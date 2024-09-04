@@ -26,10 +26,9 @@ var (
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
 	PrivateKeyFlag = cli.StringFlag{
-		Name:     "private-key",
-		Usage:    "The private key to use for sending to the rollup contract",
-		EnvVar:   prefixEnvVar("RECORD_PRIVATE_KEY"),
-		Required: true,
+		Name:   "private-key",
+		Usage:  "The private key to use for sending to the rollup contract",
+		EnvVar: prefixEnvVar("RECORD_PRIVATE_KEY"),
 	}
 	TendermintFlag = cli.StringFlag{
 		Name:     "l2-tendermint-rpc",
