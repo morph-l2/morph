@@ -40,6 +40,11 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		sequencerFeeVaultReceipt = predeploys.L2TxFeeVaultAddr
 	}
 
+	var useZKTrie = true
+	if config.UseMPT {
+		useZKTrie = false
+	}
+
 	morphChainConfig := params.ChainConfig{
 		ChainID:                 new(big.Int).SetUint64(config.L2ChainID),
 		HomesteadBlock:          big.NewInt(0),
@@ -62,7 +67,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		CurieBlock:              big.NewInt(0),
 		TerminalTotalDifficulty: big.NewInt(0),
 		Morph: params.MorphConfig{
-			UseZktrie:                 true,
+			UseZktrie:                 useZKTrie,
 			MaxTxPerBlock:             &maxTxPerBlock,
 			MaxTxPayloadBytesPerBlock: &maxTxPayloadBytesPerBlock,
 			FeeVaultAddress:           &sequencerFeeVaultReceipt,

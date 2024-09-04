@@ -132,6 +132,7 @@ type DeployConfig struct {
 	MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
+	UseMPT          bool `json:"useMPT"`
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts

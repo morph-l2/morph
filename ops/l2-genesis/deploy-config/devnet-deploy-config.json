@@ -29,6 +29,7 @@
   "govBatchMaxChunks": 45,
 
   "l2GenesisBlockGasLimit": "0xbebc200",
+  "useMPT": true,
 
   "recordOracleAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "recordNextBatchSubmissionIndex": 1,
