@@ -2,6 +2,7 @@ PWD := $(shell pwd)
 LAYER1_RPC := http://ethereum.upex30.net:8545
 LAYER1_BEACON_RPC := http://ethereum.upex30.net:3500
 LAYER2_RPC := http://morph-geth-0:8545
+L2_TENDERMINT_RPC := http://morph-node-0:26657
 LAYER2_CHAIN_ID := 2818
 ROLLUP := 0x1dc010026af6fd4a6dc3686446c752094bda8d4d
 START_HEIGHT := 20626146
@@ -114,7 +115,7 @@ build-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_BUILD_ENV=mainnet
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L1_ETH_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_ETH_RPC=$(LAYER2_RPC)
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_TENDERMINT_RPC=http://morph-node-2:26657
+start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_L2_TENDERMINT_RPC=$(L2_TENDERMINT_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_ROLLUP=$(ROLLUP)
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_START_HEIGHT=$(START_HEIGHT)
 start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle: export STAKING_ORACLE_LOG_FILENAME=/data/logs/morph-staking-oracle/app_info.log
