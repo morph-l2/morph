@@ -499,7 +499,7 @@ func (r *Rollup) rollup() error {
 			log.Info("waiting for rotator listener start")
 			return nil
 		}
-		cur, err := r.rotator.CurrentSubmitter(r.L2Clients)
+		cur, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
 		}
@@ -854,7 +854,7 @@ func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRoll
 }
 
 // query sequencer set from sequencer contract on l2
-func GetSequencerSet(addr common.Address, clients []iface.L2Client) ([]common.Address, error) {
+func QuerySequencerSet(addr common.Address, clients []iface.L2Client) ([]common.Address, error) {
 	if len(clients) < 1 {
 		return nil, fmt.Errorf("no client to query sequencer set")
 	}

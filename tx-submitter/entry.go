@@ -21,7 +21,6 @@ import (
 	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
@@ -148,7 +147,6 @@ func Main() func(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to get l1 staking abi: %w", err)
 		}
-		logs := make(chan types.Log)
 		// new event listener
 		filter := ethereum.FilterQuery{
 			Addresses: []common.Address{common.HexToAddress(cfg.L1StakingAddress)},
@@ -156,14 +154,15 @@ func Main() func(ctx *cli.Context) error {
 				{l1StakingAbi.Events["StakersRemoved"].ID},
 			},
 		}
-		listener, err := event.NewEventListener(cfg.ListenerProcessPath, cfg.L1WsRpc, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), logs, filter)
-		if err != nil {
-			return fmt.Errorf("failed to create event listener: %w", err)
-		}
+
+		eventIndexer := event.NewEventIndexer(cfg.StakingEventStorePath, l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter)
 
 		// new rotator
-		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), listener)
+		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
+		// start rorator event indexer
+		rotator.StartEventIndexer()
 
+		// new rollup service
 		sr := services.NewRollup(
 			ctx,
 			m,
@@ -180,6 +179,7 @@ func Main() func(ctx *cli.Context) error {
 			rsaPriv,
 			rotator,
 		)
+		// init rollup service
 		if err := sr.Init(); err != nil {
 			return err
 		}
@@ -208,6 +208,7 @@ func Main() func(ctx *cli.Context) error {
 			signMethod = "local_sign"
 		}
 
+		// log start info
 		log.Info("starting tx submitter",
 			"l1_rpc", cfg.L1EthRpc,
 			"l2_rpcs", cfg.L2EthRpcs,
@@ -235,6 +236,7 @@ func Main() func(ctx *cli.Context) error {
 			"addr", sr.WalletAddr().Hex(),
 		)
 
+		// log external sign info
 		if cfg.ExternalSign {
 			log.Info("external sign info",
 				"appid", cfg.ExternalSignAppid,

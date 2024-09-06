@@ -99,7 +99,7 @@ type Config struct {
 	// rotator interval buffer
 	RotatorBuffer int64
 	// listener process path
-	ListenerProcessPath string
+	StakingEventStorePath string
 	// l1 staking deployed block number
 	L1StakingDeployedBlockNumber uint64
 }
@@ -164,9 +164,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		RotatorBuffer: ctx.GlobalInt64(flags.RotatorBufferFlag.Name),
 
 		// path
-		ListenerProcessPath: ctx.GlobalString(flags.ListenerPathFlag.Name),
-		// ws rpc
-		L1WsRpc: ctx.GlobalString(flags.L1EthWsFlag.Name),
+		StakingEventStorePath: ctx.GlobalString(flags.StakingEventStorePathFlag.Name),
 		// l1 staking deployed block number
 		L1StakingDeployedBlockNumber: ctx.GlobalUint64(flags.L1StakingDeployedBlocknumFlag.Name),
 	}

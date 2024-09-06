@@ -30,12 +30,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
-	L1EthWsFlag = cli.StringFlag{
-		Name:     "L1_ETH_WS",
-		Usage:    "Websocket provider URL for L1",
-		Required: true,
-		EnvVar:   prefixEnvVar("L1_ETH_WS"),
-	}
 	L2EthRpcsFlag = cli.StringSliceFlag{
 		Name:     "L2_ETH_RPCS",
 		Usage:    "HTTP provider URLs for L2",
@@ -213,11 +207,11 @@ var (
 		Value:  "journal.rlp",
 	}
 	// listener processed block record path
-	ListenerPathFlag = cli.StringFlag{
-		Name:   "LISTENER_FILE_PATH",
+	StakingEventStorePathFlag = cli.StringFlag{
+		Name:   "StakingEventStorePath",
 		Usage:  "The path of the storage",
-		EnvVar: prefixEnvVar("STORAGE_PATH"),
-		Value:  "listener_process.txt",
+		EnvVar: prefixEnvVar("StakingEventStorePath"),
+		Value:  "StakingEventStorePath.json",
 	}
 
 	CalldataFeeBumpFlag = cli.Uint64Flag{
@@ -295,7 +289,6 @@ var (
 var requiredFlags = []cli.Flag{
 	BuildEnvFlag,
 	L1EthRpcFlag,
-	L1EthWsFlag,
 	L2EthRpcsFlag,
 	RollupAddressFlag,
 	TxTimeoutFlag,
@@ -343,7 +336,7 @@ var optionalFlags = []cli.Flag{
 	ExternalSignRsaPriv,
 	RoughEstimateGasFlag,
 	RotatorBufferFlag,
-	ListenerPathFlag,
+	StakingEventStorePathFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
