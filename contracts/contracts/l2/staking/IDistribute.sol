@@ -75,9 +75,13 @@ interface IDistribute {
         address delegator
     ) external view returns (address[] memory, bool[] memory, uint256[] memory, uint256[] memory);
 
+    /// @notice query oldest distribution
+    /// @param delegatee     delegatee address
+    function queryOldestDistribution(address delegatee) external view returns (uint256 epochIndex);
+
     /// @notice query all unclaimed commission of a staker
-    /// @param staker     staker address
-    function queryUnclaimedCommission(address staker) external view returns (uint256 amount);
+    /// @param delegatee     delegatee address
+    function queryUnclaimedCommission(address delegatee) external view returns (uint256 amount);
 
     /*****************************
      * Public Mutating Functions *

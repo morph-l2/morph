@@ -243,10 +243,16 @@ contract Distribute is IDistribute, OwnableUpgradeable {
      * Public View Functions *
      *************************/
 
-    /// @notice query all unclaimed commission of a staker
-    /// @param staker     staker address
-    function queryUnclaimedCommission(address staker) external view returns (uint256 amount) {
-        return commissions[staker];
+    /// @notice query oldest distribution
+    /// @param delegatee     delegatee address
+    function queryOldestDistribution(address delegatee) external view returns (uint256 epochIndex) {
+        return oldestDistribution[delegatee];
+    }
+
+    /// @notice query all unclaimed commission of a delegatee
+    /// @param delegatee     delegatee address
+    function queryUnclaimedCommission(address delegatee) external view returns (uint256 amount) {
+        return commissions[delegatee];
     }
 
     /// @notice query unclaimed morph reward on a delegatee
