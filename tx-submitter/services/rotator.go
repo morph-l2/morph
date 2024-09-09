@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -25,7 +26,6 @@ type Rotator struct {
 	l2SequencerAddr common.Address
 	l2GovAddr       common.Address
 	indexer         *event.EventIndexer
-	listenerStart   bool
 }
 
 func NewRotator(l2SeqencerAddr, l2GovAddr common.Address, indexer *event.EventIndexer) *Rotator {
@@ -61,6 +61,10 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 	if err != nil {
 		log.Error("failed to load storage", "err", err)
 		return fmt.Errorf("GetCurrentSubmitter: failed to load storage: %w", err)
+	}
+	// if index not complete
+	if storage.BlockProcessed == 0 {
+		return errors.New("wait event index service to complete")
 	}
 
 	r.startTime = utils.MaxOfThreeBig(epochUpdateTime, sequcerUpdateTime, big.NewInt(int64(storage.BlockTime)))

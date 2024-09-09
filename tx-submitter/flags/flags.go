@@ -284,6 +284,14 @@ var (
 		EnvVar:   prefixEnvVar("L1_STAKING_DEPLOYED_BLOCKNUM"),
 		Required: true,
 	}
+
+	// event indexer
+	EventIndexStepFlag = cli.Uint64Flag{
+		Name:   "EVENT_INDEX_STEP",
+		Usage:  "The step size for event indexing",
+		Value:  100,
+		EnvVar: prefixEnvVar("EVENT_INDEX_STEP"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -337,6 +345,7 @@ var optionalFlags = []cli.Flag{
 	RoughEstimateGasFlag,
 	RotatorBufferFlag,
 	StakingEventStorePathFlag,
+	EventIndexStepFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
