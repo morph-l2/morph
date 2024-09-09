@@ -34,6 +34,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     /// @notice distribution info, delete after all claimed
     mapping(address delegatee => mapping(uint256 epochIndex => Distribution)) private distributions;
 
+    /// oldest distribution
+    mapping(address delegatee => uint256 epochIndex) private oldestDistribution;
+
     /// @notice delegatee's unclaimed commission
     mapping(address delegatee => uint256 amount) private commissions;
 
@@ -165,6 +168,19 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             distributions[sequencers[i]][epochIndex].delegatorRewardAmount = delegatorRewards[i];
             commissions[sequencers[i]] += commissionsAmount[i];
         }
+    }
+
+    /// @dev clean distributions
+    /// @param delegatee         delegatee address
+    /// @param targetEpochIndex  the epoch index to delete up to
+    ///
+    /// check off-chain that all rewards have been claimed
+    function cleanDistributions(address delegatee, uint256 targetEpochIndex) external onlyOwner {
+        uint256 i = oldestDistribution[delegatee];
+        for (; i <= targetEpochIndex; i++) {
+            delete distributions[delegatee][i];
+        }
+        oldestDistribution[delegatee] = i;
     }
 
     /// @dev claim delegation reward of a delegatee.
