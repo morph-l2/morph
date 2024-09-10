@@ -5,4 +5,6 @@ RUN cargo prove --version
 COPY . /app
 WORKDIR /app
 RUN cd tests/keccak256/client && cargo prove build
+
+ENV SP1_DEV=1
 RUN cd tests/keccak256/host && RUST_LOG=debug RUST_BACKTRACE=full cargo run --release
