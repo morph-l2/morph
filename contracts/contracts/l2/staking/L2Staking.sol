@@ -210,10 +210,9 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         emit CommissionUpdated(_msgSender(), commission, epochEffective);
     }
 
-    /// @notice claimCommission claim commission reward
-    /// @param targetEpochIndex   up to the epoch index that the staker wants to claim
-    function claimCommission(uint256 targetEpochIndex) external onlyStaker nonReentrant {
-        IDistribute(DISTRIBUTE_CONTRACT).claimCommission(_msgSender(), targetEpochIndex);
+    /// @notice claimCommission claim unclaimed commission reward of a staker
+    function claimCommission() external nonReentrant {
+        IDistribute(DISTRIBUTE_CONTRACT).claimCommission(_msgSender());
     }
 
     /// @notice update params
@@ -325,7 +324,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             effectiveEpoch,
             delegations[delegatee][_msgSender()],
             stakerDelegations[delegatee],
-            delegators[delegatee].length(),
             delegations[delegatee][_msgSender()] == amount
         );
 
@@ -386,8 +384,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             delegatee,
             _msgSender(),
             effectiveEpoch,
-            stakerDelegations[delegatee],
-            delegators[delegatee].length()
+            stakerDelegations[delegatee]
         );
 
         emit Undelegated(delegatee, _msgSender(), undelegation.amount, effectiveEpoch, unlockEpoch);
@@ -458,12 +455,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param staker sequencers size
     function isStakingTo(address staker) external view returns (bool) {
         return _isStakingTo(staker);
-    }
-
-    /// @notice Get all the delegators which staked to staker
-    /// @param staker staker address
-    function getAllDelegators(address staker) external view returns (address[] memory) {
-        return delegators[staker].values();
     }
 
     /// @notice Get the delegators length which staked to staker

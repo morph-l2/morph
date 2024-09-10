@@ -25,12 +25,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
-	PrivateKeyFlag = cli.StringFlag{
-		Name:     "private-key",
-		Usage:    "The private key to use for sending to the rollup contract",
-		EnvVar:   prefixEnvVar("RECORD_PRIVATE_KEY"),
-		Required: true,
-	}
 	TendermintFlag = cli.StringFlag{
 		Name:     "l2-tendermint-rpc",
 		Usage:    "HTTP provider Tendermint URL for L2",
@@ -43,6 +37,12 @@ var (
 		Usage:    "Address of the rollup",
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP"),
+	}
+
+	PrivateKeyFlag = cli.StringFlag{
+		Name:   "private-key",
+		Usage:  "The private key to use for sending to the rollup contract",
+		EnvVar: prefixEnvVar("RECORD_PRIVATE_KEY"),
 	}
 
 	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
@@ -111,12 +111,48 @@ var (
 		Value:  6060,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	// external sign
+	ExternalSign = cli.BoolFlag{
+		Name:   "EXTERNAL_SIGN",
+		Usage:  "Enable external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
+	}
+
+	// address
+	ExternalSignAddress = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_ADDRESS",
+		Usage:  "The address of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_ADDRESS"),
+	}
+	// appid
+	ExternalSignAppid = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_APPID",
+		Usage:  "The appid of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_APPID"),
+	}
+	// chain
+	ExternalSignChain = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_CHAIN",
+		Usage:  "The chain of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_CHAIN"),
+	}
+	// url
+	ExternalSignUrl = cli.StringFlag{
+		Name:   "EXTERNAL_SIGN_URL",
+		Usage:  "The url of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
+	}
+	ExternalSignRsaPriv = cli.StringFlag{
+		Name:   "EXTERNAL_RSA_PRIV",
+		Usage:  "The rsa private key of the external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_RSA_PRIV"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
 	L1EthRPCFlag,
 	L2EthRPCFlag,
-	PrivateKeyFlag,
 	TendermintFlag,
 	RollupAddress,
 }
@@ -134,6 +170,15 @@ var optionalFlags = []cli.Flag{
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,
+
+	PrivateKeyFlag,
+	// external sign
+	ExternalSign,
+	ExternalSignAddress,
+	ExternalSignAppid,
+	ExternalSignChain,
+	ExternalSignUrl,
+	ExternalSignRsaPriv,
 }
 
 // Flags contains the list of configuration options available to the binary.

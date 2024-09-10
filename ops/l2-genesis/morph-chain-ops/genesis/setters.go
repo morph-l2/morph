@@ -18,7 +18,7 @@ var (
 	// UntouchablePredeploys are addresses in the predeploy namespace
 	// that should not be touched by the migration process.
 	UntouchablePredeploys = map[common.Address]bool{
-		predeploys.ProxyAdminAddr:         true,
+		//predeploys.ProxyAdminAddr:         true,
 		predeploys.MorphStandardERC20Addr: true,
 		predeploys.L2WETHAddr:             true,
 	}

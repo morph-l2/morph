@@ -48,7 +48,7 @@ pub struct ShadowProver {
 
 impl ShadowProver {
     pub async fn prepare() -> Self {
-        let l1_rpc = var("SHADOW_PROVING_L1_RPC").expect("Cannot detect L1_RPC env var");
+        let l1_rpc = var("SHADOW_PROVING_VERIFY_L1_RPC").unwrap_or(var("SHADOW_PROVING_L1_RPC").expect("Shadow prove cannot detect L1_RPC env var"));
         let l1_shadow_rollup_address = var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
         let _ = var("SHADOW_PROVING_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
         let private_key = var("SHADOW_PROVING_PRIVATE_KEY").expect("Cannot detect SHADOW_PROVING_PRIVATE_KEY env var");
