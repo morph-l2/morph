@@ -5,4 +5,4 @@ RUN cargo prove --version
 COPY . /app
 WORKDIR /app
 RUN cd tests/keccak256/client && cargo prove build
-RUN cd tests/keccak256/host && cargo run --release -- --prove
+RUN cd tests/keccak256/host && RUST_LOG=debug RUST_BACKTRACE=full cargo run --release
