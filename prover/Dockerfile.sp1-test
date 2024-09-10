@@ -1,0 +1,8 @@
+FROM sp1-base:latest
+
+RUN cargo prove --version
+
+COPY . /app
+WORKDIR /app
+RUN cd tests/keccak256/client && cargo prove build
+RUN cd tests/keccak256/host && cargo run --release -- --prove
