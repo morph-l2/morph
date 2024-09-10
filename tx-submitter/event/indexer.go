@@ -75,9 +75,9 @@ func (l *EventIndexer) Index() {
 		// Update storage
 		err = storage.Store()
 		if err != nil {
-			log.Error("failed to update storage", "error", err, "file_name", storage.Filename)
+			log.Error("event index complete, failed to update storage", "error", err, "file_name", storage.Filename)
 		} else {
-			log.Info("storage updated", "processed_block", storage.EventInfo.BlockProcessed, "block_time", storage.EventInfo.BlockTime)
+			log.Info("event index complete storage updated", "processed_block", storage.EventInfo.BlockProcessed, "block_time", storage.EventInfo.BlockTime)
 		}
 
 	}
