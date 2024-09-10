@@ -1,0 +1,38 @@
+[package]
+version = "0.1.0"
+name = "morph-prover"
+edition = "2021"
+default-run = "prover"
+
+[[bin]]
+name = "prover"
+path = "src/main.rs"
+
+
+[[bin]]
+name = "evm"
+path = "src/evm.rs"
+
+[[bin]]
+name = "vkey"
+path = "src/vkey.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+
+anyhow.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+#log = { workspace = true }
+#env_logger = { workspace = true }
+
+
+# workspace
+morph-executor = { workspace = true }
+sbv-primitives= { workspace = true }
+
+[build-dependencies]
+sp1-helper = "1.1.0"
