@@ -63,8 +63,8 @@ start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_PROOF_DIR=/data/
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export GENERATE_EVM_VERIFIER=false
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export CHAIN_ID=$(LAYER2_CHAIN_ID)
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
-	sleep 10000
-
+	if [ ! -d morph-prover-data/prove_params ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/prove_params morph-prover-data/; fi
+	./prover_server
 
 # challenge-handler
 build-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
