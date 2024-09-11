@@ -52,6 +52,7 @@ build-bk-prod-morph-prod-mainnet-to-morph-prover:
 	cd $(PWD)/prover && cargo build --release
 	cp prover/target/release/prover_server dist/
 	cp -r prover/configs dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/prove_params dist/morph-prover-data/
 
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_L1_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_L2_RPC=$(LAYER2_RPC)
@@ -63,7 +64,6 @@ start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_PROOF_DIR=/data/
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export GENERATE_EVM_VERIFIER=false
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export CHAIN_ID=$(LAYER2_CHAIN_ID)
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
-	if [ ! -d morph-prover-data/prove_params ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/prove_params morph-prover-data/; fi
 	./prover_server
 
 # challenge-handler
