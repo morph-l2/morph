@@ -19,7 +19,6 @@ impl EVMVerifier {
         let root_after = l2_trace.root_after();
         let withdraw_root = l2_trace.withdraw_root();
         let sequencer_set_root: Vec<u8> = vec![];
-
         let revm_root_after = execute(l2_trace)?;
 
         if root_after != revm_root_after {

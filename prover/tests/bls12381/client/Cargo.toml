@@ -1,0 +1,18 @@
+[package]
+version = "0.1.0"
+name = "bls12381-client"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+sha2 = { workspace = true }
+
+[dependencies.bls12_381]
+version = "0.8.0"
+features = [
+    "groups",
+    "pairings",
+    "alloc",
+]
+default-features = false
+package = "sp1_bls12_381"

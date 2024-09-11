@@ -37,4 +37,4 @@ morph-executor-client = { workspace = true }
 sbv-primitives= { workspace = true }
 
 [build-dependencies]
-sp1-helper = "1.1.0"
+sp1-helper = { workspace = true }

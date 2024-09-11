@@ -7,6 +7,7 @@ pub fn main() {
     // Read the input.
     let x = sp1_zkvm::io::read::<String>();
     let input: ClientInput = serde_json::from_str(&x).unwrap();
+    println!("serde_json");
 
     // Execute the block.
     let pi_hash = verify(&input).unwrap();
