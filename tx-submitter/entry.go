@@ -6,22 +6,25 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"os/signal"
 	"strings"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/externalsign"
-	"github.com/scroll-tech/go-ethereum/common"
-	"github.com/scroll-tech/go-ethereum/crypto"
-	"github.com/scroll-tech/go-ethereum/ethclient"
-	"github.com/scroll-tech/go-ethereum/log"
-	"github.com/scroll-tech/go-ethereum/rpc"
+	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/crypto"
+	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/log"
+	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -110,7 +113,10 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to rollup contract: %w", err)
 		}
 		m := metrics.NewMetrics()
-		abi, _ := bindings.RollupMetaData.GetAbi()
+		rollupAbi, err := bindings.RollupMetaData.GetAbi()
+		if err != nil {
+			return fmt.Errorf("failed to get rollup abi: %w", err)
+		}
 
 		// l1 staking
 		l1Staking, err := bindings.NewL1Staking(common.HexToAddress(cfg.L1StakingAddress), l1Client)
@@ -137,9 +143,26 @@ func Main() func(ctx *cli.Context) error {
 
 		}
 
-		// new rotator
-		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress))
+		l1StakingAbi, err := bindings.L1StakingMetaData.GetAbi()
+		if err != nil {
+			return fmt.Errorf("failed to get l1 staking abi: %w", err)
+		}
+		// new event listener
+		filter := ethereum.FilterQuery{
+			Addresses: []common.Address{common.HexToAddress(cfg.L1StakingAddress)},
+			Topics: [][]common.Hash{
+				{l1StakingAbi.Events["StakersRemoved"].ID},
+			},
+		}
 
+		eventIndexer := event.NewEventIndexer(cfg.StakingEventStorePath, l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep)
+
+		// new rotator
+		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
+		// start rorator event indexer
+		rotator.StartEventIndexer()
+
+		// new rollup service
 		sr := services.NewRollup(
 			ctx,
 			m,
@@ -151,11 +174,12 @@ func Main() func(ctx *cli.Context) error {
 			chainID,
 			privKey,
 			rollupAddr,
-			abi,
+			rollupAbi,
 			cfg,
 			rsaPriv,
 			rotator,
 		)
+		// init rollup service
 		if err := sr.Init(); err != nil {
 			return err
 		}
@@ -184,6 +208,7 @@ func Main() func(ctx *cli.Context) error {
 			signMethod = "local_sign"
 		}
 
+		// log start info
 		log.Info("starting tx submitter",
 			"l1_rpc", cfg.L1EthRpc,
 			"l2_rpcs", cfg.L2EthRpcs,
@@ -211,6 +236,7 @@ func Main() func(ctx *cli.Context) error {
 			"addr", sr.WalletAddr().Hex(),
 		)
 
+		// log external sign info
 		if cfg.ExternalSign {
 			log.Info("external sign info",
 				"appid", cfg.ExternalSignAppid,
