@@ -27,6 +27,7 @@ import (
 	"github.com/tendermint/tendermint/blssignatures"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
@@ -498,6 +499,27 @@ func (r *Rollup) rollup() error {
 		cur, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
+		}
+
+		storage := event.NewEventInfoStorage(r.rotator.indexer.GetStorePath())
+		err = storage.Load()
+		if err != nil {
+			return fmt.Errorf("failed to load storage in rollup: %w", err)
+		}
+		// get current blocknumber
+		blockNumber, err := r.L1Client.BlockNumber(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to get block number in rollup: %w", err)
+		}
+		// set metrics
+		r.metrics.SetIndexerBlockProcessed(storage.EventInfo.BlockProcessed)
+		// check if indexed block number is too old
+		if blockNumber > storage.EventInfo.BlockProcessed+100 {
+			log.Info("indexed block number is too old, wait indexer to catch up",
+				"module", r.GetModuleName(),
+				"block_number", blockNumber,
+				"processed_block", storage.EventInfo.BlockProcessed)
+			return nil
 		}
 
 		past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
@@ -1172,4 +1194,8 @@ func (r *Rollup) RoughRollupGasEstimate(msgcnt uint64) uint64 {
 
 func (r *Rollup) RoughFinalizeGasEstimate() uint64 {
 	return 500_000
+}
+
+func (r *Rollup) GetModuleName() string {
+	return "rollup"
 }
