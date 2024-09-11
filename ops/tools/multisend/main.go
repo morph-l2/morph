@@ -21,21 +21,26 @@ import (
 var (
 	chainId     *big.Int
 	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"))
-	url         = "http://localhost:8545"
-	senderNum   = 30
+	urls        = []string{"http://localhost:8945", "http://localhost:8545", "http://localhost:8645", "http://localhost:8745", "http://localhost:8845"}
+	senderNum   = 500
 	duration    = 120 * time.Minute
 )
 
 func main() {
-	client, err := ethclient.Dial(url)
+	var err error
+	clients := make([]*ethclient.Client, len(urls))
+	for i, url := range urls {
+		client, err := ethclient.Dial(url)
+		if err != nil {
+			panic(err)
+		}
+		clients[i] = client
+	}
+	chainId, err = clients[0].ChainID(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	chainId, err = client.ChainID(context.Background())
-	if err != nil {
-		panic(err)
-	}
-	senderPks := distribute(client)
+	senderPks := distribute(clients[0])
 	receiver, _ := crypto.GenerateKey()
 	to := crypto.PubkeyToAddress(receiver.PublicKey)
 	start := time.Now()
@@ -45,22 +50,24 @@ func main() {
 			fmt.Println("completed")
 			break
 		}
-		for _, sender := range senderPks {
-			go func(s *ecdsa.PrivateKey) {
+		for i, sender := range senderPks {
+			go func(s *ecdsa.PrivateKey, senderIndex int) {
 				transactOpts, err := bind.NewKeyedTransactorWithChainID(s, chainId)
 				if err != nil {
 					panic(err)
 				}
 				transactOpts.Value = big.NewInt(10)
+				index := senderIndex % len(clients)
+				client := clients[index]
 				_, err = Transfer(transactOpts, to, client)
 				if err != nil {
 					fmt.Printf("error found when transfer: %v \n", err)
 				}
 				fmt.Println("sent tx done")
-			}(sender)
+			}(sender, i)
 		}
 		count++
-		time.Sleep(400 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 		fmt.Println()
 	}
 }
