@@ -31,5 +31,4 @@ type IL2Gov interface {
 type IL1Staking interface {
 	IsStaker(opts *bind.CallOpts, addr common.Address) (bool, error)
 	GetStakersBitmap(opts *bind.CallOpts, _stakers []common.Address) (*big.Int, error)
-	GetActiveStakers(opts *bind.CallOpts) ([]common.Address, error)
 }
