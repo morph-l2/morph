@@ -13,11 +13,11 @@ import (
 const metricsNamespace = "submitter"
 
 type Metrics struct {
-	RpcErrors     prometheus.Counter
-	WalletBalance prometheus.Gauge
-
-	RollupCost   prometheus.Gauge
-	FinalizeCost prometheus.Gauge
+	RpcErrors             prometheus.Counter
+	WalletBalance         prometheus.Gauge
+	RollupCost            prometheus.Gauge
+	FinalizeCost          prometheus.Gauge
+	IndexerBlockProcessed prometheus.Gauge
 }
 
 func NewMetrics() *Metrics {
@@ -41,6 +41,11 @@ func NewMetrics() *Metrics {
 		FinalizeCost: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "submitter_finalize_cost",
 			Help:      "Finalize cost",
+			Namespace: metricsNamespace,
+		}),
+		IndexerBlockProcessed: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "submitter_indexer_block_processed",
+			Help:      "Indexer block processed",
 			Namespace: metricsNamespace,
 		}),
 	}
@@ -70,4 +75,8 @@ func (m *Metrics) SetRollupCost(cost float64) {
 
 func (m *Metrics) SetFinalizeCost(cost float64) {
 	m.FinalizeCost.Set(cost)
+}
+
+func (m *Metrics) SetIndexerBlockProcessed(blockNumber uint64) {
+	m.IndexerBlockProcessed.Set(float64(blockNumber))
 }
