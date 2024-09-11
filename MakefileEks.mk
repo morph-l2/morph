@@ -93,6 +93,8 @@ build-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	cd $(PWD)/prover/shadow-proving && cargo build --release
 	cp prover/shadow-proving/target/release/shadow-proving dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_L1_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving: export SHADOW_PROVING_VERIFY_L1_RPC=https://ethereum-holesky.publicnode.com
