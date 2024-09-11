@@ -7,10 +7,10 @@ import (
 	"morph-l2/bindings/predeploys"
 
 	"github.com/morph-l2/externalsign"
-	"github.com/morph-l2/go-ethereum"
-	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/go-ethereum/crypto"
+	"github.com/scroll-tech/go-ethereum"
+	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/core/types"
+	"github.com/scroll-tech/go-ethereum/crypto"
 )
 
 var externalSigner *externalsign.ExternalSign
