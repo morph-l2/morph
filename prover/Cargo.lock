@@ -1166,7 +1166,7 @@ checksum = "a3c196a77437e7cc2fb515ce413a6401291578b5afc8ecb29a3c7ab957f05941"
 dependencies = [
  "ff 0.12.1",
  "group 0.12.1",
- "pairing",
+ "pairing 0.22.0",
  "rand_core",
  "subtle",
 ]
@@ -3211,6 +3211,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "kzg-rs"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0850eb19206463a61bede4f7b7e6b21731807137619044b1f3c287ebcfe2b3b0"
+dependencies = [
+ "ff 0.13.0",
+ "hex",
+ "sha2",
+ "sp1_bls12_381",
+ "spin 0.9.8",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3373,13 +3386,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "morph-executor"
+name = "morph-executor-client"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "anyhow",
+ "kzg-rs",
  "sbv-core",
  "sbv-primitives",
  "sbv-utils",
+ "serde",
+ "serde_with",
+ "sha2",
+]
+
+[[package]]
+name = "morph-executor-host"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "c-kzg",
+ "morph-executor-client",
+ "once_cell",
+ "sbv-primitives",
+ "sha2",
 ]
 
 [[package]]
@@ -3389,7 +3419,8 @@ dependencies = [
  "anyhow",
  "clap",
  "hex",
- "morph-executor",
+ "morph-executor-client",
+ "morph-executor-host",
  "sbv-primitives",
  "serde",
  "serde_json",
@@ -4014,6 +4045,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "135590d8bdba2b31346f9cd1fb2a912329f5135e832a4f422942eb6ead8b6b3b"
 dependencies = [
  "group 0.12.1",
+]
+
+[[package]]
+name = "pairing"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81fec4625e73cf41ef4bb6846cafa6d44736525f442ba45e407c4a000a13996f"
+dependencies = [
+ "group 0.13.0",
 ]
 
 [[package]]
@@ -5715,6 +5755,20 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bea7811abd2d3a991007fcb284f41152840b8388c171288d0c52c6793956609c"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "hex",
+ "serde",
+ "snowbridge-amcl",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "1.2.0"
 source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0830#8db9e57eea537596760466fcdf3e7341a9168579"
 dependencies = [
  "anyhow",
@@ -6063,7 +6117,22 @@ dependencies = [
  "rand",
  "serde",
  "sha2",
- "sp1-lib",
+ "sp1-lib 1.2.0 (git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0830)",
+]
+
+[[package]]
+name = "sp1_bls12_381"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a27c4b8901334dc09099dd82f80a72ddfc76b0046f4b342584c808f1931bed5a"
+dependencies = [
+ "cfg-if",
+ "ff 0.13.0",
+ "group 0.13.0",
+ "pairing 0.23.0",
+ "rand_core",
+ "sp1-lib 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "subtle",
 ]
 
 [[package]]
@@ -6819,7 +6888,7 @@ name = "verifier-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "morph-executor",
+ "morph-executor-client",
  "sbv-primitives",
  "serde",
  "serde_json",

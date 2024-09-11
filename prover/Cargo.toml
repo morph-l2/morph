@@ -2,7 +2,13 @@
 members = [
     "bin/host",
     "bin/client",
-    "crates/*",
+    "crates/morph-executor/host",
+    "crates/morph-executor/client",
+    "crates/core",
+    "crates/mpt",
+    "crates/primitives",
+    "crates/sbv",
+    "crates/utils",
     "tests/*/*"
 ]
 resolver = "2"
@@ -29,6 +35,11 @@ tiny-keccak = "2.0"
 getrandom = { version = "*", features = ["custom"] } # just for disable
 log = "0.4"
 
+# crypto
+c-kzg = "1.0.3"
+kzg-rs = { version = "0.2.2" }
+sha2 = "0.10.8"
+
 sp1-zkvm =  { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0830" }
 sp1-sdk = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0830" }
 
@@ -48,6 +59,7 @@ serde_json = "1.0"
 serde_with = "3.9"
 tokio = { version = "1", default-features = false }
 url = "2.5"
+eyre = "0.6"
 
 # optional dependencies
 csv = "1.3"
@@ -69,7 +81,8 @@ sbv = { path = "crates/sbv" }
 sbv-core = { path = "crates/core" }
 sbv-primitives = { path = "crates/primitives" }
 sbv-utils = { path = "crates/utils" }
-morph-executor = { path = "crates/morph-executor" }
+morph-executor-host = { path = "crates/morph-executor/host" }
+morph-executor-client = { path = "crates/morph-executor/client" }
 
 [workspace.dependencies.revm] # v42
 git = "https://github.com/morph-l2/revm"
@@ -114,6 +127,7 @@ alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v
 
 alloy-core = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
 alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
+
 
 # for local development
 # [patch."https://github.com/scroll-tech/revm"]

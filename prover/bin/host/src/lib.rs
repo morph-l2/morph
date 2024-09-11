@@ -1,6 +1,7 @@
 use std::{fs::File, time::Instant};
 
 use clap::Parser;
+use morph_executor_host::populate_kzg;
 use sp1_sdk::{ProverClient, SP1Stdin};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
@@ -15,7 +16,10 @@ struct Args {
     prove: bool,
 }
 
-use morph_executor::verify;
+use morph_executor_client::{
+    types::{blob::get_blob_data, input::ClientInput},
+    verify,
+};
 use sbv_primitives::{types::BlockTrace, Block, B256};
 
 fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
@@ -47,8 +51,16 @@ pub fn prove(trace_path: &str) {
     );
     block_trace.flatten();
 
+    let blob_bytes = get_blob_data(block_trace);
+    let blob_info = populate_kzg(&blob_bytes).unwrap();
+
+    let client_input = ClientInput {
+        l2_trace: block_trace.clone(),
+        blob_info,
+    };
+
     // Execute the program in native
-    let expected_hash = verify(block_trace).unwrap_or_default();
+    let expected_hash = verify(&client_input).unwrap_or_default();
     println!(
         "pi_hash generated with native execution: {}",
         hex::encode(expected_hash.as_slice())
@@ -58,7 +70,7 @@ pub fn prove(trace_path: &str) {
     let client = ProverClient::new();
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
-    let trace_str = serde_json::to_string(block_trace).unwrap();
+    let trace_str = serde_json::to_string(&client_input).unwrap();
     stdin.write(&trace_str);
 
     // Execute the program in sp1-vm

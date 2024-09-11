@@ -30,8 +30,10 @@ clap = { workspace = true }
 #env_logger = { workspace = true }
 
 
+
 # workspace
-morph-executor = { workspace = true }
+morph-executor-host = { workspace = true }
+morph-executor-client = { workspace = true }
 sbv-primitives= { workspace = true }
 
 [build-dependencies]

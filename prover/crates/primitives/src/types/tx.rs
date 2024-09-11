@@ -3,7 +3,7 @@ use alloy::{
     consensus::{Transaction, TxEnvelope, TxType},
     eips::{eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization},
     primitives::{Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64},
-    rlp::{BufMut, BytesMut, Encodable, Header},
+    rlp::{self, BufMut, BytesMut, Decodable, Encodable, Header},
 };
 use serde_with::{serde_as, DefaultOnNull};
 
@@ -192,11 +192,17 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn max_fee_per_gas(&self) -> u128 {
-        self.gas_fee_cap.as_ref().map(|v| v.to()).unwrap_or_default()
+        self.gas_fee_cap
+            .as_ref()
+            .map(|v| v.to())
+            .unwrap_or_default()
     }
 
     fn max_priority_fee_per_gas(&self) -> u128 {
-        self.gas_tip_cap.as_ref().map(|v| v.to()).unwrap_or_default()
+        self.gas_tip_cap
+            .as_ref()
+            .map(|v| v.to())
+            .unwrap_or_default()
     }
 
     unsafe fn get_from_unchecked(&self) -> Address {
@@ -436,12 +442,20 @@ impl Encodable2718 for TxL1Msg {
 
     fn encode_2718_len(&self) -> usize {
         let payload_length = self.fields_len();
-        1 + Header { list: true, payload_length }.length() + payload_length
+        1 + Header {
+            list: true,
+            payload_length,
+        }
+        .length()
+            + payload_length
     }
 
     fn encode_2718(&self, out: &mut dyn BufMut) {
         0x7eu8.encode(out);
-        let header = Header { list: true, payload_length: self.fields_len() };
+        let header = Header {
+            list: true,
+            payload_length: self.fields_len(),
+        };
         header.encode(out);
         self.encode(out)
     }
@@ -504,6 +518,18 @@ impl TypedTransaction {
     /// Check if the transaction is an L1 transaction
     pub fn is_l1_msg(&self) -> bool {
         matches!(self, TypedTransaction::L1Msg(_))
+    }
+}
+
+/// Get a TypedTransaction directly from a rlp encoded byte stream
+impl Decodable for TypedTransaction {
+    fn decode(buf: &mut &[u8]) -> alloy::rlp::Result<Self> {
+        if buf.is_empty() {
+            return Err(alloy::rlp::Error::InputTooShort);
+        }
+        Ok(TypedTransaction::Enveloped(
+            TxEnvelope::decode(buf).unwrap(),
+        ))
     }
 }
 
