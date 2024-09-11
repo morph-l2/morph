@@ -57,13 +57,13 @@ start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_L1_RPC=$(LAYER1_
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_L2_RPC=$(LAYER2_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export COINBASE=0x530000000000000000000000000000000000000a
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export MORPH_MAINNET_CURIE_BLOCK = 0
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export SCROLL_PROVER_ASSETS_DIR=/data/morph-prover/make-conf/configs
+start-bk-prod-morph-prod-mainnet-to-morph-prover: export SCROLL_PROVER_ASSETS_DIR=/data/morph-prover/configs
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_PARAMS_DIR=/data/morph-prover-data/prove_params
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_PROOF_DIR=/data/morph-prover-data/proof
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export GENERATE_EVM_VERIFIER=false
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export CHAIN_ID=$(LAYER2_CHAIN_ID)
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
-	./prover_server
+	sleep 10000
 
 
 # challenge-handler
