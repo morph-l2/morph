@@ -111,10 +111,6 @@ interface IL2Staking {
     /// @param staker   staker address
     function isStakingTo(address staker) external view returns (bool);
 
-    /// @notice Get all the delegators which staked to staker
-    /// @param staker staker address
-    function getAllDelegators(address staker) external view returns (address[] memory);
-
     /// @notice Get the delegators length which staked to staker
     /// @param staker staker address
     function getDelegatorsLength(address staker) external view returns (uint256);
@@ -172,7 +168,6 @@ interface IL2Staking {
     /// @param targetEpochIndex  up to the epoch index that the delegator wants to claim
     function claimReward(address delegatee, uint256 targetEpochIndex) external;
 
-    /// @notice claimCommission claim commission reward
-    /// @param targetEpochIndex   up to the epoch index that the staker wants to claim
-    function claimCommission(uint256 targetEpochIndex) external;
+    /// @notice claimCommission claim unclaimed commission reward of a staker
+    function claimCommission() external;
 }

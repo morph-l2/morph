@@ -17,6 +17,13 @@ RUN sed -i 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval =
 RUN sed -i 's#prometheus = false#prometheus = true#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
 RUN sed -i 's#block_sync = false#block_sync = true#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
 RUN sed -i 's#laddr = "tcp://127.0.0.1:26657"#laddr = "tcp://0.0.0.0:26657"#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+# overwrite p2p and consensus configs
+RUN sed -i 's#peer_gossip_sleep_duration = "100ms"#peer_gossip_sleep_duration = "10ms"#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN sed -i 's#flush_throttle_timeout = "100ms"#flush_throttle_timeout = "10ms"#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN sed -i 's#max_packet_msg_payload_size = 1024#max_packet_msg_payload_size = 10485760#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN sed -i 's#send_rate = 5120000#send_rate = 52428800#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+RUN sed -i 's#recv_rate = 5120000#recv_rate = 102428800#g' /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml
+
 RUN persistent_peers_string="93e27ea2306e158a8146d5f44caaab97496797d2@node-0:26656,7f78b7d7a7e6bad4faf68d5731d437f4288d96d0@node-1:26656,06c699be2f9aeb9f7ec79f508a95ff80576deb12@node-2:26656,b1a131f40d5d3abefe0dd787513c936ef62ac2d6@node-3:26656,dae813274913aaf39e7cd3226a0aa8bce00644e1@sentry-node-0:26656" && \
 sed -i  "s#persistent_peers = \".*\"#persistent_peers = \"$persistent_peers_string\"#g" /data/node0/config/config.toml /data/node1/config/config.toml /data/node2/config/config.toml /data/node3/config/config.toml /data/node4/config/config.toml && \
 sequencer0=$(echo $persistent_peers_string | cut -d "," -f 1 | cut -d "@" -f 1) && \
