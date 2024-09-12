@@ -27,6 +27,7 @@ import (
 	"github.com/tendermint/tendermint/blssignatures"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
@@ -495,14 +496,35 @@ func (r *Rollup) finalize() error {
 func (r *Rollup) rollup() error {
 
 	if !r.cfg.PriorityRollup {
-		cur, err := r.rotator.CurrentSubmitter(r.L2Clients)
+		cur, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
 		}
 
-		past := (time.Now().Unix() - r.rotator.GetStartTime().Int64()) % r.rotator.GetEpoch().Int64()
+		storage := event.NewEventInfoStorage(r.rotator.indexer.GetStorePath())
+		err = storage.Load()
+		if err != nil {
+			return fmt.Errorf("failed to load storage in rollup: %w", err)
+		}
+		// get current blocknumber
+		blockNumber, err := r.L1Client.BlockNumber(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to get block number in rollup: %w", err)
+		}
+		// set metrics
+		r.metrics.SetIndexerBlockProcessed(storage.EventInfo.BlockProcessed)
+		// check if indexed block number is too old
+		if blockNumber > storage.EventInfo.BlockProcessed+100 {
+			log.Info("indexed block number is too old, wait indexer to catch up",
+				"module", r.GetModuleName(),
+				"block_number", blockNumber,
+				"processed_block", storage.EventInfo.BlockProcessed)
+			return nil
+		}
+
+		past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
 		start := time.Now().Unix() - past
-		end := start + r.rotator.GetEpoch().Int64()
+		end := start + r.rotator.epoch.Int64()
 
 		log.Info("rotator info",
 			"turn", cur.Hex(),
@@ -846,7 +868,7 @@ func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRoll
 }
 
 // query sequencer set from sequencer contract on l2
-func GetSequencerSet(addr common.Address, clients []iface.L2Client) ([]common.Address, error) {
+func QuerySequencerSet(addr common.Address, clients []iface.L2Client) ([]common.Address, error) {
 	if len(clients) < 1 {
 		return nil, fmt.Errorf("no client to query sequencer set")
 	}
@@ -1168,4 +1190,8 @@ func (r *Rollup) RoughRollupGasEstimate(msgcnt uint64) uint64 {
 
 func (r *Rollup) RoughFinalizeGasEstimate() uint64 {
 	return 500_000
+}
+
+func (r *Rollup) GetModuleName() string {
+	return "rollup"
 }
