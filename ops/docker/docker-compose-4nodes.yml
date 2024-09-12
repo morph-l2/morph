@@ -357,10 +357,10 @@ services:
     depends_on:
       node-3:
         condition: service_started
-    image: sentry-geth:latest
+    image: morph-geth:latest
     build:
       context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-geth-sentry
+      dockerfile: ops/docker/Dockerfile.l2-geth
     restart: unless-stopped
     ports:
       - "8945:8545"
@@ -410,302 +410,302 @@ services:
       --home $NODE_DATA_DIR    
     
 
-  validator_geth:
-     container_name: validator_geth
-     image: sentry-geth:latest
-     depends_on:
-       tx-submitter-0:
-         condition: service_started
-     ports:
-       - "7545:8545"
-       - "7546:8546"
-       - "7551:8551"
-     healthcheck:
-       test: curl -f http://localhost:8545
-       interval: 30s
-       timeout: 5s
-       retries: 3
-     volumes:
-       - "validator_geth_data:${GETH_DATA_DIR}"
-       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
-     entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
-       - "/bin/bash"
-       - "/entrypoint.sh"
+  # validator_geth:
+  #    container_name: validator_geth
+  #    image: morph-geth:latest
+  #    depends_on:
+  #      tx-submitter-0:
+  #        condition: service_started
+  #    ports:
+  #      - "7545:8545"
+  #      - "7546:8546"
+  #      - "7551:8551"
+  #    healthcheck:
+  #      test: curl -f http://localhost:8545
+  #      interval: 30s
+  #      timeout: 5s
+  #      retries: 3
+  #    volumes:
+  #      - "validator_geth_data:${GETH_DATA_DIR}"
+  #      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+  #      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+  #    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+  #      - "/bin/bash"
+  #      - "/entrypoint.sh"
 
-  validator_node:
-     container_name: validator_node
-     depends_on:
-       validator_geth:
-           condition: service_started
-     build:
-       context: ../..
-       dockerfile: ops/docker/Dockerfile.l2-node-1
-     image: morph-node:latest
-     ports:
-       - "26660"
-     environment:
-       - MORPH_NODE_L2_ETH_RPC=http://validator_geth:8545
-       - MORPH_NODE_L2_ENGINE_RPC=http://validator_geth:8551
-       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
-       ## todo need to replace it to a public network
-       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-       - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-       - MORPH_NODE_VALIDATOR_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-       - MORPH_NODE_DERIVATION_START_HEIGHT=1
-       - MORPH_NODE_SYNC_START_HEIGHT=1
-       - MORPH_NODE_DERIVATION_FETCH_BLOCK_RANGE=5000
-       - MORPH_NODE_L1_CHAIN_ID=900
-       - MORPH_NODE_VALIDATOR=true
-       - MORPH_NODE_MOCK_SEQUENCER=false
-       - MORPH_NODE_L1_CONFIRMATIONS=1
-       - MORPH_NODE_METRICS_SERVER_ENABLE=true
-       - MORPH_NODE_METRICS_PORT=26660
-     volumes:
-       - "validator_node_data:${NODE_DATA_DIR}"
-       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-     command: >
-       morphnode
-       --validator
-       --home $NODE_DATA_DIR
+  # validator_node:
+  #    container_name: validator_node
+  #    depends_on:
+  #      validator_geth:
+  #          condition: service_started
+  #    build:
+  #      context: ../..
+  #      dockerfile: ops/docker/Dockerfile.l2-node-1
+  #    image: morph-node:latest
+  #    ports:
+  #      - "26660"
+  #    environment:
+  #      - MORPH_NODE_L2_ETH_RPC=http://validator_geth:8545
+  #      - MORPH_NODE_L2_ENGINE_RPC=http://validator_geth:8551
+  #      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+  #      ## todo need to replace it to a public network
+  #      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+  #      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+  #      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+  #      - MORPH_NODE_VALIDATOR_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  #      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #      - MORPH_NODE_DERIVATION_START_HEIGHT=1
+  #      - MORPH_NODE_SYNC_START_HEIGHT=1
+  #      - MORPH_NODE_DERIVATION_FETCH_BLOCK_RANGE=5000
+  #      - MORPH_NODE_L1_CHAIN_ID=900
+  #      - MORPH_NODE_VALIDATOR=true
+  #      - MORPH_NODE_MOCK_SEQUENCER=false
+  #      - MORPH_NODE_L1_CONFIRMATIONS=1
+  #      - MORPH_NODE_METRICS_SERVER_ENABLE=true
+  #      - MORPH_NODE_METRICS_PORT=26660
+  #    volumes:
+  #      - "validator_node_data:${NODE_DATA_DIR}"
+  #      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+  #    command: >
+  #      morphnode
+  #      --validator
+  #      --home $NODE_DATA_DIR
 
-  tx-submitter-0:
-    container_name:   tx-submitter-0
-    depends_on:
-      node-0:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.submitter
-    image: morph-tx-submitter:latest
-    restart: unless-stopped
-    command: tx-submitter
-    ports:
-      - "8060:6060"
-    environment:
-      # change the env variables to your own
-      - TX_SUBMITTER_BUILD_ENV=dev
-      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-      - TX_SUBMITTER_TX_TIMEOUT=60s
-      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
-      - TX_SUBMITTER_FINALIZE=true
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100 #MB
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7 #day
-      - TX_SUBMITTER_LOG_COMPRESS=true
-      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-      - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
-
-
-  tx-submitter-1:
-    container_name: tx-submitter-1
-    depends_on:
-      node-1:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.submitter
-    image: morph-tx-submitter:latest
-    restart: unless-stopped
-    command: tx-submitter
-    ports:
-      - "8061:6060"
-    environment:
-      # change the env variables to your own
-      - TX_SUBMITTER_BUILD_ENV=dev
-      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-      - TX_SUBMITTER_TX_TIMEOUT=60s
-      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
-      - TX_SUBMITTER_FINALIZE=false
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
-      - TX_SUBMITTER_LOG_COMPRESS=true
-      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-      - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
+  # tx-submitter-0:
+  #   container_name:   tx-submitter-0
+  #   depends_on:
+  #     node-0:
+  #       condition: service_started
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.submitter
+  #   image: morph-tx-submitter:latest
+  #   restart: unless-stopped
+  #   command: tx-submitter
+  #   ports:
+  #     - "8060:6060"
+  #   environment:
+  #     # change the env variables to your own
+  #     - TX_SUBMITTER_BUILD_ENV=dev
+  #     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+  #     - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+  #     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
+  #     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+  #     - TX_SUBMITTER_MAX_TX_SIZE=125952
+  #     - TX_SUBMITTER_POLL_INTERVAL=3s
+  #     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+  #     - TX_SUBMITTER_TX_TIMEOUT=60s
+  #     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+  #     - TX_SUBMITTER_MAX_BLOCK=1000
+  #     - TX_SUBMITTER_MIN_BLOCK=50
+  #     - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
+  #     - TX_SUBMITTER_FINALIZE=true
+  #     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
+  #     - TX_SUBMITTER_PRIORITY_ROLLUP=false
+  #     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
+  #     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
+  #     - TX_SUBMITTER_METRICS_PORT=6060
+  #     - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
+  #     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
+  #     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
+  #     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100 #MB
+  #     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7 #day
+  #     - TX_SUBMITTER_LOG_COMPRESS=true
+  #     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
+  #     - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
 
 
-
-  tx-submitter-2:
-    container_name: tx-submitter-2
-    depends_on:
-      node-2:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.submitter
-    image: morph-tx-submitter:latest
-    restart: unless-stopped
-    command: tx-submitter
-    ports:
-      - "8062:6060"
-    environment:
-      # change the env variables to your own
-      - TX_SUBMITTER_BUILD_ENV=dev
-      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0x6fd437eef7a83c486bd2e0a802ae071b3912d125ac31ac08f60841fd891559ae
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-2:8545,http://morph-geth-3:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-      - TX_SUBMITTER_TX_TIMEOUT=60s
-      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
-      - TX_SUBMITTER_FINALIZE=false
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
-      - TX_SUBMITTER_LOG_COMPRESS=true
-      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-      - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
-
-
-  tx-submitter-3:
-    container_name: tx-submitter-3
-    depends_on:
-      node-3:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.submitter
-    image: morph-tx-submitter:latest
-    restart: unless-stopped
-    command: tx-submitter
-    ports:
-      - "8063:6060"
-    environment:
-      # change the env variables to your own
-      - TX_SUBMITTER_BUILD_ENV=dev
-      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0x9ae53aecdaebe4dcbfec96f3123a2a8c53f9596bf4b3d5adc9a388ccb361b4c0
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-2:8545,http://morph-geth-3:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-      - TX_SUBMITTER_TX_TIMEOUT=60s
-      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
-      - TX_SUBMITTER_FINALIZE=false
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
-      - TX_SUBMITTER_LOG_COMPRESS=true
-      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-      - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
+  # tx-submitter-1:
+  #   container_name: tx-submitter-1
+  #   depends_on:
+  #     node-1:
+  #       condition: service_started
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.submitter
+  #   image: morph-tx-submitter:latest
+  #   restart: unless-stopped
+  #   command: tx-submitter
+  #   ports:
+  #     - "8061:6060"
+  #   environment:
+  #     # change the env variables to your own
+  #     - TX_SUBMITTER_BUILD_ENV=dev
+  #     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+  #     - TX_SUBMITTER_L1_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
+  #     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
+  #     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+  #     - TX_SUBMITTER_MAX_TX_SIZE=125952
+  #     - TX_SUBMITTER_POLL_INTERVAL=3s
+  #     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+  #     - TX_SUBMITTER_TX_TIMEOUT=60s
+  #     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+  #     - TX_SUBMITTER_MAX_BLOCK=1000
+  #     - TX_SUBMITTER_MIN_BLOCK=50
+  #     - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
+  #     - TX_SUBMITTER_FINALIZE=false
+  #     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
+  #     - TX_SUBMITTER_PRIORITY_ROLLUP=false
+  #     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
+  #     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
+  #     - TX_SUBMITTER_METRICS_PORT=6060
+  #     - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
+  #     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
+  #     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
+  #     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
+  #     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
+  #     - TX_SUBMITTER_LOG_COMPRESS=true
+  #     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
+  #     - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
 
 
-  gas-price-oracle:
-    container_name: gas-price-oracle
-    depends_on:
-      node-3:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.oracle
-    image: morph-oracle:latest
-    restart: unless-stopped
-    ports:
-      - "6070:6060"
-    command: >
-      ./app
-    environment:
-      - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
-      - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - GAS_ORACLE_L2_RPC=http://morph-geth-0:8545
-      - GAS_THRESHOLD=5
-      - INTERVAL=28000
-      - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
-      - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-      - OVERHEAD_THRESHOLD=200
-      - OVERHEAD_INTERVAL=10
-      - TXN_PER_BLOCK=1
-      - TXN_PER_BATCH=50
-      - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - OVERHEAD_SWITCH=${OVERHEAD_SWITCH}
-      - MAX_OVERHEAD=${MAX_OVERHEAD}
+
+  # tx-submitter-2:
+  #   container_name: tx-submitter-2
+  #   depends_on:
+  #     node-2:
+  #       condition: service_started
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.submitter
+  #   image: morph-tx-submitter:latest
+  #   restart: unless-stopped
+  #   command: tx-submitter
+  #   ports:
+  #     - "8062:6060"
+  #   environment:
+  #     # change the env variables to your own
+  #     - TX_SUBMITTER_BUILD_ENV=dev
+  #     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+  #     - TX_SUBMITTER_L1_PRIVATE_KEY=0x6fd437eef7a83c486bd2e0a802ae071b3912d125ac31ac08f60841fd891559ae
+  #     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-2:8545,http://morph-geth-3:8545
+  #     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+  #     - TX_SUBMITTER_MAX_TX_SIZE=125952
+  #     - TX_SUBMITTER_POLL_INTERVAL=3s
+  #     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+  #     - TX_SUBMITTER_TX_TIMEOUT=60s
+  #     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+  #     - TX_SUBMITTER_MAX_BLOCK=1000
+  #     - TX_SUBMITTER_MIN_BLOCK=50
+  #     - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
+  #     - TX_SUBMITTER_FINALIZE=false
+  #     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
+  #     - TX_SUBMITTER_PRIORITY_ROLLUP=false
+  #     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
+  #     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
+  #     - TX_SUBMITTER_METRICS_PORT=6060
+  #     - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
+  #     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
+  #     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
+  #     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
+  #     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
+  #     - TX_SUBMITTER_LOG_COMPRESS=true
+  #     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
+  #     - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
+
+
+  # tx-submitter-3:
+  #   container_name: tx-submitter-3
+  #   depends_on:
+  #     node-3:
+  #       condition: service_started
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.submitter
+  #   image: morph-tx-submitter:latest
+  #   restart: unless-stopped
+  #   command: tx-submitter
+  #   ports:
+  #     - "8063:6060"
+  #   environment:
+  #     # change the env variables to your own
+  #     - TX_SUBMITTER_BUILD_ENV=dev
+  #     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+  #     - TX_SUBMITTER_L1_PRIVATE_KEY=0x9ae53aecdaebe4dcbfec96f3123a2a8c53f9596bf4b3d5adc9a388ccb361b4c0
+  #     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-2:8545,http://morph-geth-3:8545
+  #     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+  #     - TX_SUBMITTER_MAX_TX_SIZE=125952
+  #     - TX_SUBMITTER_POLL_INTERVAL=3s
+  #     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+  #     - TX_SUBMITTER_TX_TIMEOUT=60s
+  #     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+  #     - TX_SUBMITTER_MAX_BLOCK=1000
+  #     - TX_SUBMITTER_MIN_BLOCK=50
+  #     - TX_SUBMITTER_L2_SUBMITTER_ADDRESS=0x5300000000000000000000000000000000000005
+  #     - TX_SUBMITTER_FINALIZE=false
+  #     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
+  #     - TX_SUBMITTER_PRIORITY_ROLLUP=false
+  #     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
+  #     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
+  #     - TX_SUBMITTER_METRICS_PORT=6060
+  #     - TX_SUBMITTER_L2_SEQUENCER_ADDRESS=0x5300000000000000000000000000000000000017
+  #     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
+  #     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
+  #     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
+  #     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
+  #     - TX_SUBMITTER_LOG_COMPRESS=true
+  #     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
+  #     - TX_SUBMITTER_L2_GOV_ADDRESS=0x5300000000000000000000000000000000000004
+
+
+  # gas-price-oracle:
+  #   container_name: gas-price-oracle
+  #   depends_on:
+  #     node-3:
+  #       condition: service_started
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.oracle
+  #   image: morph-oracle:latest
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6070:6060"
+  #   command: >
+  #     ./app
+  #   environment:
+  #     - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
+  #     - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+  #     - GAS_ORACLE_L2_RPC=http://morph-geth-0:8545
+  #     - GAS_THRESHOLD=5
+  #     - INTERVAL=28000
+  #     - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
+  #     - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  #     - OVERHEAD_THRESHOLD=200
+  #     - OVERHEAD_INTERVAL=10
+  #     - TXN_PER_BLOCK=1
+  #     - TXN_PER_BATCH=50
+  #     - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #     - OVERHEAD_SWITCH=${OVERHEAD_SWITCH}
+  #     - MAX_OVERHEAD=${MAX_OVERHEAD}
       
-  staking-oracle:
-    container_name: staking-oracle
-    depends_on:
-      node-0:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.staking-oracle
-    image: morph-staking-oracle:latest
-    restart: unless-stopped
-    command: staking-oracle
-    ports:
-      - "9060:6060"
-    environment:
-      # change the env variables to your own
-      - STAKING_ORACLE_BUILD_ENV=dev
-      - STAKING_ORACLE_L1_ETH_RPC=${L1_ETH_RPC}
-      - STAKING_ORACLE_RECORD_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-      - STAKING_ORACLE_L2_ETH_RPC=http://morph-geth-0:8545
-      - STAKING_ORACLE_L2_TENDERMINT_RPC=http://node-0:26657
-      - STAKING_ORACLE_L2_WS_ENDPOINT=http://node-0:26656
-      - STAKING_ORACLE_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - STAKING_ORACLE_LOG_FILENAME=staking-oracle.log
-      - STAKING_ORACLE_LOG_FILE_MAX_SIZE=100 #MB
-      - STAKING_ORACLE_LOG_FILE_MAX_AGE=7 #day
-      - STAKING_ORACLE_LOG_COMPRESS=true
-      - STAKING_ORACLE_METRICS_SERVER_ENABLE=true
+  # staking-oracle:
+  #   container_name: staking-oracle
+  #   depends_on:
+  #     node-0:
+  #       condition: service_started
+  #   build:
+  #     context: ../..
+  #     dockerfile: ops/docker/Dockerfile.staking-oracle
+  #   image: morph-staking-oracle:latest
+  #   restart: unless-stopped
+  #   command: staking-oracle
+  #   ports:
+  #     - "9060:6060"
+  #   environment:
+  #     # change the env variables to your own
+  #     - STAKING_ORACLE_BUILD_ENV=dev
+  #     - STAKING_ORACLE_L1_ETH_RPC=${L1_ETH_RPC}
+  #     - STAKING_ORACLE_RECORD_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  #     - STAKING_ORACLE_L2_ETH_RPC=http://morph-geth-0:8545
+  #     - STAKING_ORACLE_L2_TENDERMINT_RPC=http://node-0:26657
+  #     - STAKING_ORACLE_L2_WS_ENDPOINT=http://node-0:26656
+  #     - STAKING_ORACLE_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+  #     - STAKING_ORACLE_LOG_FILENAME=staking-oracle.log
+  #     - STAKING_ORACLE_LOG_FILE_MAX_SIZE=100 #MB
+  #     - STAKING_ORACLE_LOG_FILE_MAX_AGE=7 #day
+  #     - STAKING_ORACLE_LOG_COMPRESS=true
+  #     - STAKING_ORACLE_METRICS_SERVER_ENABLE=true

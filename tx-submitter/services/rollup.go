@@ -585,11 +585,7 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	var chunks [][]byte
-	// var blobChunk []byte
-	for _, chunk := range batch.Chunks {
-		chunks = append(chunks, chunk)
-	}
+	blockContexts := batch.BlockContexts
 
 	signature, err := r.buildSignatureInput(batch)
 	if err != nil {
@@ -598,7 +594,7 @@ func (r *Rollup) rollup() error {
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:                uint8(batch.Version),
 		ParentBatchHeader:      batch.ParentBatchHeader,
-		Chunks:                 chunks,
+		Chunks:                 blockContexts,
 		SkippedL1MessageBitmap: batch.SkippedL1MessageBitmap,
 		PrevStateRoot:          batch.PrevStateRoot,
 		PostStateRoot:          batch.PostStateRoot,
@@ -630,7 +626,7 @@ func (r *Rollup) rollup() error {
 		}
 
 		if r.cfg.RoughEstimateGas {
-			msgcnt := utils.ParseL1MessageCnt(batch.Chunks)
+			msgcnt := utils.ParseL1MessageCnt(batch.BlockContexts)
 			gas = r.RoughRollupGasEstimate(msgcnt)
 			log.Info("rough estimate rollup tx gas", "gas", gas, "msgcnt", msgcnt)
 		} else {
