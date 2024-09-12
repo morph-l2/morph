@@ -37,14 +37,21 @@ pub fn get_blob_info(block_trace: &BlockTrace) -> Result<BlobInfo, anyhow::Error
 pub fn get_blob_data(block_trace: &BlockTrace) -> [u8; BLOB_DATA_SIZE] {
     let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
 
-    let tx_bytes = block_trace
+    let tx_bytes: Vec<u8> = block_trace
         .transactions
         .iter()
         .filter(|tx| !tx.is_l1_tx())
-        .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp())
+        .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp_da())
         .collect::<Vec<u8>>();
 
-    for (i, byte) in tx_bytes.into_iter().enumerate() {
+    // fake data
+    let tx_data_len = (tx_bytes.len() as u64).to_be_bytes(); // Direct conversion to bytes
+    let mut data_bytes = Vec::with_capacity(32 + tx_bytes.len());
+    data_bytes.extend_from_slice(&tx_data_len); // Reserve only what is needed
+    data_bytes.extend_from_slice(&[0; 24]); // Directly extend 24 zero bytes
+    data_bytes.extend_from_slice(&tx_bytes);
+
+    for (i, byte) in data_bytes.into_iter().enumerate() {
         coefficients[i / 31][1 + (i % 31)] = byte;
     }
 
@@ -70,7 +77,6 @@ pub fn populate_kzg(blob_bytes: &[u8; BLOB_DATA_SIZE]) -> Result<BlobInfo, anyho
         &kzg_settings,
     )
     .map_err(|e| anyhow!(format!("generate KzgCommitment error: {:?}", e)))?;
-    println!("populate kzg commitment successfully");
 
     let blob_info = BlobInfo {
         blob_data: blob_bytes.to_vec(),

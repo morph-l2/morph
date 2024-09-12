@@ -31,7 +31,7 @@ pub fn prove(trace_path: &str) {
     sp1_sdk::utils::setup_logger();
     let args = Args::parse();
     let mut traces: Vec<Vec<BlockTrace>> = load_trace(trace_path);
-    let block_trace: &mut BlockTrace = &mut traces[0][1];
+    let block_trace: &mut BlockTrace = &mut traces[0][2];
     println!(
         "traces' post_state_root: {:?}, transactions.len: {:?}",
         block_trace.root_after(),

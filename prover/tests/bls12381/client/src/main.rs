@@ -10,7 +10,9 @@ pub fn main() {
     let mut evaluation: [u8; 32] = Sha256::digest(&x).into();
     // let evaluation: [u8; 32] = [0; 32];
     evaluation[0] = 0;
+    evaluation[1] = 0;
     evaluation[evaluation.len() - 1] = 0;
+    evaluation[evaluation.len() - 2] = 0;
     let y: Scalar = Scalar::from_bytes(&evaluation).unwrap();
     let y: G1Projective = G1Projective::generator() * y;
 

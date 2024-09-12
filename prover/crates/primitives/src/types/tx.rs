@@ -502,6 +502,17 @@ impl TypedTransaction {
         Bytes(bytes.freeze())
     }
 
+    /// Encode the transaction according to [EIP-2718] rules. First a 1-byte
+    /// type flag in the range 0x0-0x7f, then the body of the transaction.
+    pub fn rlp_da(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        match self {
+            TypedTransaction::Enveloped(tx) => tx.encode(&mut bytes),
+            TypedTransaction::L1Msg(tx) => tx.encode(&mut bytes),
+        }
+        Bytes(bytes.freeze())
+    }
+
     /// Get `data`
     pub fn data(&self) -> Bytes {
         match self {

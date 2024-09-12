@@ -14,6 +14,13 @@ pub struct BlobVerifier;
 
 impl BlobVerifier {
     pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<TypedTransaction>), anyhow::Error> {
+        // decode
+        let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
+        let raw_tx_payload = decode_raw_tx_payload(origin_batch).unwrap();
+
+        let tx_list: Vec<TypedTransaction> = decode_transactions(raw_tx_payload.as_slice());
+        println!("decoded tx_list_len: {:?}", tx_list.len());
+
         // verify kzg
         let versioned_hash = kzg_to_versioned_hash(&blob_info.commitment);
 
@@ -27,13 +34,6 @@ impl BlobVerifier {
             "verify_blob_kzg_proof successfully, versioned_hash: {:?}",
             B256::from_slice(&versioned_hash)
         );
-
-        // decode
-        let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
-        let raw_tx_payload = decode_raw_tx_payload(origin_batch).unwrap();
-        // rlp decode
-        // TODO
-        let tx_list: Vec<TypedTransaction> = decode_transactions(raw_tx_payload.as_slice());
 
         Ok((B256::from_slice(&versioned_hash), tx_list))
     }
