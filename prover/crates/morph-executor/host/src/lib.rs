@@ -51,10 +51,12 @@ pub fn get_blob_data(block_trace: &BlockTrace) -> [u8; BLOB_DATA_SIZE] {
     data_bytes.extend_from_slice(&[0; 24]); // Directly extend 24 zero bytes
     data_bytes.extend_from_slice(&tx_bytes);
 
+    // zstd compresse
+
+    // bls element convert
     for (i, byte) in data_bytes.into_iter().enumerate() {
         coefficients[i / 31][1 + (i % 31)] = byte;
     }
-
     let mut blob_bytes = [0u8; BLOB_DATA_SIZE];
     for (index, value) in coefficients.iter().enumerate() {
         blob_bytes[index * 32..(index + 1) * 32].copy_from_slice(value.as_slice());
@@ -63,7 +65,7 @@ pub fn get_blob_data(block_trace: &BlockTrace) -> [u8; BLOB_DATA_SIZE] {
 }
 
 /// Populate kzg info.
-pub fn populate_kzg(blob_bytes: &[u8; BLOB_DATA_SIZE]) -> Result<BlobInfo, anyhow::Error> {
+fn populate_kzg(blob_bytes: &[u8; BLOB_DATA_SIZE]) -> Result<BlobInfo, anyhow::Error> {
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
     let commitment = KzgCommitment::blob_to_kzg_commitment(
         &Blob::from_bytes(blob_bytes).unwrap(),

@@ -45,7 +45,7 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<TypedTransaction> {
     decode_transactions_from_blob(bs)
 }
 
-pub(super) fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {
+fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {
     let mut txs_decoded: Vec<TypedTransaction> = Vec::new();
 
     let mut offset: usize = 0;
@@ -54,7 +54,7 @@ pub(super) fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> 
         let tx_bytes = bs[offset..offset + tx_len].to_vec();
         let tx_decoded: TypedTransaction = TypedTransaction::decode(&mut tx_bytes.as_slice())
             .inspect_err(|e| {
-                println!("decode_transactions error: {e:?}");
+                println!("decode_transaction error: {e:?}");
             })
             .unwrap();
         txs_decoded.push(tx_decoded);

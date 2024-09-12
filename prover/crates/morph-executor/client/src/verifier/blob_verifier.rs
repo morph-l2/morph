@@ -23,7 +23,6 @@ impl BlobVerifier {
 
         // verify kzg
         let versioned_hash = kzg_to_versioned_hash(&blob_info.commitment);
-
         let blob = KzgRsBlob::from_slice(&blob_info.blob_data).unwrap();
         let commitent = Bytes48::from_slice(&blob_info.commitment).unwrap();
         let proof = Bytes48::from_slice(&blob_info.proof).unwrap();

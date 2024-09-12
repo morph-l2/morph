@@ -11,10 +11,8 @@ fn main() {
     // Setup the prover client.
     let client = ProverClient::new();
 
-    
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
-
 
     let data = vec![1, 2];
     stdin.write(&data);
@@ -42,7 +40,6 @@ fn main() {
     // Generate the proof
     let proof = client
         .prove(&pk, stdin)
-        .plonk()
         .run()
         .expect("failed to generate proof");
 

@@ -11,7 +11,6 @@ pub fn verify(input: &ClientInput) -> Result<B256, VerificationError> {
     let (versioned_hash, txns) = BlobVerifier::verify(&input.blob_info).unwrap();
 
     // Verify EVM exec.
-    // &input.l2_trace.transactions(txns);
     let state_root = EVMVerifier::verify(&input.l2_trace).unwrap();
 
     // calc public input hash.

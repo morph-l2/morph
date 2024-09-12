@@ -1,5 +1,15 @@
+use clap::Parser;
 use morph_prover::prove;
 
+/// The arguments for the command.
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(long)]
+    prove: bool,
+}
+
 fn main() {
-    prove("../../testdata/mainnet_batch_traces.json");
+    let args = Args::parse();
+    prove("../../testdata/mainnet_batch_traces.json", args.prove);
 }
