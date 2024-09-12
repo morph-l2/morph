@@ -13,7 +13,7 @@ use crate::types::{
 pub struct BlobVerifier;
 
 impl BlobVerifier {
-    pub fn verify(blob_info: &BlobInfo) -> Result<B256, anyhow::Error> {
+    pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<TypedTransaction>), anyhow::Error> {
         // verify kzg
         let versioned_hash = kzg_to_versioned_hash(&blob_info.commitment);
 
@@ -35,7 +35,7 @@ impl BlobVerifier {
         // TODO
         let tx_list: Vec<TypedTransaction> = decode_transactions(raw_tx_payload.as_slice());
 
-        Ok(B256::from_slice(&versioned_hash))
+        Ok((B256::from_slice(&versioned_hash), tx_list))
     }
 }
 

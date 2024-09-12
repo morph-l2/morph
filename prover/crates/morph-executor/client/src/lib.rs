@@ -8,9 +8,10 @@ use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 
 pub fn verify(input: &ClientInput) -> Result<B256, VerificationError> {
     // Verify DA
-    let versioned_hash = BlobVerifier::verify(&input.blob_info).unwrap();
+    let (versioned_hash, txns) = BlobVerifier::verify(&input.blob_info).unwrap();
 
     // Verify EVM exec.
+    // &input.l2_trace.transactions(txns);
     let state_root = EVMVerifier::verify(&input.l2_trace).unwrap();
 
     // calc public input hash.
