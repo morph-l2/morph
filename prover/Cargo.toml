@@ -34,6 +34,7 @@ thiserror = "1.0"
 tiny-keccak = "2.0"
 getrandom = { version = "*", features = ["custom"] } # just for disable
 log = "0.4"
+zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = ["experimental"]}
 
 # crypto
 c-kzg = "1.0.3"

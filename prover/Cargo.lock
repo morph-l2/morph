@@ -7469,3 +7469,46 @@ dependencies = [
  "strum 0.24.1",
  "strum_macros 0.24.3",
 ]
+
+[[package]]
+name = "zstd"
+version = "0.13.0"
+source = "git+https://github.com/scroll-tech/zstd-rs?branch=hack/mul-block#5c0892b6567dab31394d701477183ce9d6a32aca"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "sp1-zkvm",
+ "zstd",
+]
+
+[[package]]
+name = "zstd-host"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "sp1-helper",
+ "sp1-sdk",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "7.0.0"
+source = "git+https://github.com/scroll-tech/zstd-rs?branch=hack/mul-block#5c0892b6567dab31394d701477183ce9d6a32aca"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.0.9+zstd.1.5.5"
+source = "git+https://github.com/scroll-tech/zstd-rs?branch=hack/mul-block#5c0892b6567dab31394d701477183ce9d6a32aca"
+dependencies = [
+ "cc",
+ "pkg-config",
+]
