@@ -369,7 +369,12 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 break;
             }
         }
+
         unclaimed[delegator].unclaimedStart[delegatee] = endEpochIndex + 1;
+        if (distributions[delegatee][endEpochIndex + 1].delegationAmount == 0) {
+            distributions[delegatee][endEpochIndex + 1].delegationAmount = delegateeAmount;
+        }
+
         emit RewardClaimed(delegator, delegatee, endEpochIndex, reward);
     }
 }
