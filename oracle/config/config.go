@@ -59,7 +59,8 @@ type Config struct {
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
 
-	RollupAddr common.Address
+	RollupAddr    common.Address
+	L1StakingAddr common.Address
 
 	MaxSize    uint64
 	MinSize    uint64

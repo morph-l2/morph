@@ -16,13 +16,15 @@ import (
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
 	"morph-l2/oracle/config"
+	"morph-l2/oracle/db"
 	"morph-l2/oracle/metrics"
+	"morph-l2/oracle/types"
 
 	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/core/types"
+	coretypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
@@ -72,6 +74,7 @@ type Oracle struct {
 	ctx                 context.Context
 	l1Client            *ethclient.Client
 	l2Client            *ethclient.Client
+	l1Staking           *bindings.L1Staking
 	l2Staking           *bindings.L2Staking
 	sequencer           *bindings.Sequencer
 	gov                 *bindings.Gov
@@ -84,12 +87,14 @@ type Oracle struct {
 	cfg                 *config.Config
 	privKey             *ecdsa.PrivateKey
 	externalRsaPriv     *rsa.PrivateKey
-	signer              types.Signer
+	signer              coretypes.Signer
 	chainId             *big.Int
 	isFinalized         bool
 	enable              bool
 	rollupEpochMaxBlock uint64
 	metrics             *metrics.Metrics
+	db                  *db.Store
+	ChangeCtx           types.ChangeContext
 }
 
 func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
@@ -130,6 +135,11 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	}
 
 	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
+
+	store, err := db.NewStore(nil, "staking-oracle")
+	if err != nil {
+		return nil, err
+	}
 	l1Client, err := ethclient.Dial(cfg.L1EthRpc)
 	if err != nil {
 		return nil, err
@@ -155,6 +165,10 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	if err != nil {
 		return nil, err
 	}
+	l1Staking, err := bindings.NewL1Staking(cfg.L1StakingAddr, l1Client)
+	if err != nil {
+		return nil, err
+	}
 	l2Staking, err := bindings.NewL2Staking(predeploys.L2StakingAddr, l2Client)
 	if err != nil {
 		return nil, err
@@ -163,7 +177,7 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	if err != nil {
 		return nil, err
 	}
-	abi, err := bindings.RecordMetaData.GetAbi()
+	recordAbi, err := bindings.RecordMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
@@ -191,17 +205,18 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse privkey err:%w", err)
 		}
-
 	}
-
 	return &Oracle{
 		l1Client:            l1Client,
 		l2Client:            l2Client,
+		db:                  store,
 		rollup:              rollup,
+		l1Staking:           l1Staking,
 		l2Staking:           l2Staking,
 		record:              record,
 		recordAddr:          predeploys.RecordAddr,
-		recordAbi:           abi,
+		recordAbi:           recordAbi,
+		ChangeCtx:           store.ReadLatestChangePoints(),
 		sequencer:           sequencer,
 		gov:                 gov,
 		TmClient:            tmClient,
@@ -209,7 +224,7 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		rewardEpoch:         defaultRewardEpoch,
 		privKey:             privKey,
 		externalRsaPriv:     rsaPriv,
-		signer:              types.LatestSignerForChainID(chainId),
+		signer:              coretypes.LatestSignerForChainID(chainId),
 		chainId:             chainId,
 		ctx:                 context.TODO(),
 		rollupEpochMaxBlock: cfg.MaxSize,
@@ -250,7 +265,7 @@ func (o *Oracle) Start() {
 
 }
 
-func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*coretypes.Receipt, error) {
 	t := time.NewTicker(time.Second)
 	for {
 		select {
