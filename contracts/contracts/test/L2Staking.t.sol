@@ -557,7 +557,6 @@ contract L2StakingTest is L2StakingBaseTest {
                 0,
                 morphBalance,
                 morphBalance,
-                1,
                 true
             )
         );
@@ -706,7 +705,7 @@ contract L2StakingTest is L2StakingBaseTest {
         // Expect call method notifyUndelegation.
         hevm.expectCall(
             address(l2Staking.DISTRIBUTE_CONTRACT()),
-            abi.encodeWithSelector(IDistribute.notifyUndelegation.selector, firstStaker, bob, 0, 0, 0)
+            abi.encodeWithSelector(IDistribute.notifyUndelegation.selector, firstStaker, bob, 0, 0)
         );
 
         l2Staking.undelegateStake(firstStaker);
@@ -1591,13 +1590,13 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        address[] memory delegator0 = l2Staking.getAllDelegators(firstStaker);
-        address[] memory delegator1 = l2Staking.getAllDelegators(secondStaker);
-        address[] memory delegator2 = l2Staking.getAllDelegators(thirdStaker);
+        (, address[] memory delegator0) = l2Staking.getAllDelegatorsInPagination(firstStaker, 10, 0);
+        (, address[] memory delegator1) = l2Staking.getAllDelegatorsInPagination(secondStaker, 10, 0);
+        (, address[] memory delegator2) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 10, 0);
 
-        assertEq(delegator0.length, 1);
-        assertEq(delegator1.length, 1);
-        assertEq(delegator2.length, 1);
+        assertEq(delegator0.length, 10);
+        assertEq(delegator1.length, 10);
+        assertEq(delegator2.length, 10);
 
         assertEq(delegator0[0], alice);
         assertEq(delegator1[0], alice);

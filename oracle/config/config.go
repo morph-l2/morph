@@ -23,8 +23,6 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
-	PrivateKey string
-
 	TendermintRpc string
 
 	// PollInterval is the delay between querying L2 for more transaction
@@ -83,7 +81,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		/* Required Flags */
 		L1EthRpc:      ctx.GlobalString(flags.L1EthRPCFlag.Name),
 		L2EthRpc:      ctx.GlobalString(flags.L2EthRPCFlag.Name),
-		PrivateKey:    ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		TendermintRpc: ctx.GlobalString(flags.TendermintFlag.Name),
 		RollupAddr:    common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
 		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
@@ -160,6 +157,9 @@ func ValidateConfig(cfg *Config) error {
 			cfg.ExternalSignChain,
 			cfg.ExternalSignRsaPriv,
 		)
+	}
+	if !cfg.ExternalSign && cfg.PrivKey == "" {
+		return fmt.Errorf("invalid privkey,address:%v", cfg.PrivKey)
 	}
 	return nil
 }

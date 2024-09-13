@@ -206,6 +206,13 @@ var (
 		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
 		Value:  "journal.rlp",
 	}
+	// listener processed block record path
+	StakingEventStorePathFlag = cli.StringFlag{
+		Name:   "StakingEventStorePath",
+		Usage:  "The path of the storage",
+		EnvVar: prefixEnvVar("StakingEventStorePath"),
+		Value:  "StakingEventStorePath.json",
+	}
 
 	CalldataFeeBumpFlag = cli.Uint64Flag{
 		Name:   "CALL_DATA_FEE_BUMP",
@@ -269,6 +276,22 @@ var (
 		Value:  15,
 		EnvVar: prefixEnvVar("ROTATOR_BUFFER"),
 	}
+
+	// l1 staking deployed blocknum
+	L1StakingDeployedBlocknumFlag = cli.Uint64Flag{
+		Name:     "L1_STAKING_DEPLOYED_BLOCKNUM",
+		Usage:    "The deployed block number of L1Staking",
+		EnvVar:   prefixEnvVar("L1_STAKING_DEPLOYED_BLOCKNUM"),
+		Required: true,
+	}
+
+	// event indexer
+	EventIndexStepFlag = cli.Uint64Flag{
+		Name:   "EVENT_INDEX_STEP",
+		Usage:  "The step size for event indexing",
+		Value:  100,
+		EnvVar: prefixEnvVar("EVENT_INDEX_STEP"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -281,6 +304,7 @@ var requiredFlags = []cli.Flag{
 	PriorityRollupFlag,
 	TxFeeLimitFlag,
 	L1StakingAddressFlag,
+	L1StakingDeployedBlocknumFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -319,6 +343,8 @@ var optionalFlags = []cli.Flag{
 	ExternalSignRsaPriv,
 	RoughEstimateGasFlag,
 	RotatorBufferFlag,
+	StakingEventStorePathFlag,
+	EventIndexStepFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

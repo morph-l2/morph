@@ -313,7 +313,7 @@ async fn query_status(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>
 
 // Constants for configuration
 const LOG_LEVEL: &str = "info";
-const LOG_FILE_BASENAME: &str = "prover";
+const LOG_FILE_BASENAME: &str = "app_info";
 const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
                                                      // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
 const LOG_FILES_TO_KEEP: usize = 3;
@@ -323,14 +323,17 @@ fn setup_logging() {
         .unwrap()
         .log_to_file(
             FileSpec::default()
-                .directory(read_env_var("LOG_DIR", String::from("/data/logs/morph-prover")))
+                .directory(read_env_var("PROVER_LOG_DIR", String::from("/data/logs/morph-prover")))
                 .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)
         .duplicate_to_stdout(Duplicate::All)
         .rotate(
-            Criterion::Size(LOG_FILE_SIZE_LIMIT),     // Scroll when file size reaches 10MB
-            Naming::Timestamps,                       // Using timestamps as part of scrolling files
+            Criterion::Size(LOG_FILE_SIZE_LIMIT), // Scroll when file size reaches 200MB
+            Naming::TimestampsCustomFormat {
+                current_infix: Some(""),
+                format: "r%Y-%m-%d_%H-%M-%S",
+            }, // Using timestamps as part of scrolling files
             Cleanup::KeepLogFiles(LOG_FILES_TO_KEEP), // Keep the latest 3 scrolling files
         )
         .write_mode(WriteMode::BufferAndFlush)

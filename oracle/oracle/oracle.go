@@ -200,7 +200,7 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		}
 	} else {
 		// parse priv key
-		hex := strings.TrimPrefix(cfg.PrivateKey, "0x")
+		hex := strings.TrimPrefix(cfg.PrivKey, "0x")
 		privKey, err = crypto.HexToECDSA(hex)
 		if err != nil {
 			return nil, fmt.Errorf("parse privkey err:%w", err)
