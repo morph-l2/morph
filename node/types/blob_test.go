@@ -120,7 +120,7 @@ func TestDecodeTxsFromBlob(t *testing.T) {
 	require.NoError(t, err)
 	b, err := MakeBlobCanonical(compressedBlobBytes)
 	require.NoError(t, err)
-	txs, err := DecodeTxsFromBlob2(b)
+	txs, err := DecodeTxsFromBlob(b)
 	require.NoError(t, err)
 	require.EqualValues(t, 3, txs.Len())
 	require.EqualValues(t, transferTx.Hash(), txs[0].Hash())

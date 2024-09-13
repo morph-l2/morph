@@ -166,36 +166,6 @@ func DecodeLegacyTxsFromBlob(b *kzg4844.Blob) (eth.Transactions, error) {
 	return decoded, nil
 }
 
-func DecodeTxsFromBlob2(blob *kzg4844.Blob) (eth.Transactions, error) {
-	if isEmptyBlob(blob) {
-		return eth.Transactions{}, nil
-	}
-	data, err := RetrieveBlobBytes(blob)
-	if err != nil {
-		return nil, err
-	}
-	batchBytes, err := zstd.DecompressBatchBytes(data)
-	if err != nil {
-		return nil, err
-	}
-	reader := bytes.NewReader(batchBytes)
-	txs := make(eth.Transactions, 0)
-
-	stream := rlp.NewStream(reader, 0)
-	for {
-		// Parse the next transaction and terminate on error
-		tx := new(eth.Transaction)
-		if err = stream.Decode(tx); err != nil {
-			if err != io.EOF {
-				return nil, err
-			}
-			break
-		}
-		txs = append(txs, tx)
-	}
-	return txs, nil
-}
-
 func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 	if isEmptyBlob(blob) {
 		return eth.Transactions{}, nil
