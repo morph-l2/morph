@@ -3,9 +3,9 @@ package types
 import (
 	"context"
 	"math/big"
-	"strings"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
@@ -20,6 +20,8 @@ const (
 	JWTStaleToken     = "stale token"
 	JWTExpiredToken   = "token is expired"
 	MinerClosed       = "miner closed"
+	ExecutionAborted  = "execution aborted"
+	Timeout           = "timed out"
 )
 
 type RetryableClient struct {
@@ -182,11 +184,50 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 	return
 }
 
-func retryableError(err error) bool {
-	return strings.Contains(err.Error(), ConnectionRefused) ||
-		strings.Contains(err.Error(), EOFError) ||
-		strings.Contains(err.Error(), JWTStaleToken) ||
-		strings.Contains(err.Error(), JWTExpiredToken) ||
-		strings.Contains(err.Error(), MinerClosed)
+func (rc *RetryableClient) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) (ret []byte, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.ethClient.CallContract(ctx, call, blockNumber)
+		if respErr != nil {
+			rc.logger.Info("failed to call eth_call", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
 
+func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) (ret []byte, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.ethClient.CodeAt(ctx, contract, blockNumber)
+		if respErr != nil {
+			rc.logger.Info("failed to call eth_getCode", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
+
+// currently we want every error retryable
+func retryableError(err error) bool {
+	// return strings.Contains(err.Error(), ConnectionRefused) ||
+	// 	strings.Contains(err.Error(), EOFError) ||
+	// 	strings.Contains(err.Error(), JWTStaleToken) ||
+	// 	strings.Contains(err.Error(), JWTExpiredToken) ||
+	// 	strings.Contains(err.Error(), MinerClosed) ||
+	// 	strings.Contains(err.Error(), ExecutionAborted) ||
+	// 	strings.Contains(err.Error(), Timeout)
+	return true
 }

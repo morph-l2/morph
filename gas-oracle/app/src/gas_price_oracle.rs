@@ -21,6 +21,9 @@ use tower_http::trace::TraceLayer;
 
 use crate::{metrics::*, read_env_var};
 
+const DEFAULT_PRIVATE_KEY: &str =
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+
 struct Config {
     l1_rpc: String,
     l2_rpc: String,
@@ -41,6 +44,13 @@ struct Config {
 
 impl Config {
     fn new() -> Result<Self, Box<dyn Error>> {
+        let use_ext_sign: bool = read_env_var("GAS_ORACLE_EXTERNAL_SIGN", false);
+        let private_key = if use_ext_sign {
+            DEFAULT_PRIVATE_KEY.to_string()
+        } else {
+            read_parse_env("L2_GAS_ORACLE_PRIVATE_KEY")
+        };
+
         Ok(Self {
             l1_rpc: var("GAS_ORACLE_L1_RPC").expect("GAS_ORACLE_L1_RPC env"),
             l2_rpc: var("GAS_ORACLE_L2_RPC").expect("GAS_ORACLE_L2_RPC env"),
@@ -51,10 +61,7 @@ impl Config {
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
             )?,
-            private_key: read_env_var(
-                "L2_GAS_ORACLE_PRIVATE_KEY",
-                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
-            ),
+            private_key,
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
             l1_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BASE_FEE_BUFFER", 0u64),
             l1_blob_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER", 0u64),
@@ -101,18 +108,17 @@ fn check_config(config: &Config) -> Result<(), Box<dyn Error>> {
         )
         .into());
     }
-    if config.commit_scalar_buffer > 10000u64 {
+    if config.commit_scalar_buffer > 10000 * 10u64.pow(9) {
         // 1 means 1Gas
         return Err(anyhow!(
             "Check env config error, GAS_ORACLE_COMMIT_SCALAR_BUFFER should be less than 10000 gas"
         )
         .into());
     }
-    if config.blob_scalar_buffer > 1000u64 {
-        //10 means an increase of 0.1 times
-        //100 means an increase of 1 times
+    if config.blob_scalar_buffer > 10 * 10u64.pow(9) {
+        //1*10^9 means an increase of 1 times
         return Err(anyhow!(
-            "Check env config error, GAS_ORACLE_BLOB_SCALAR_BUFFER should be less than 1000(means 10 times)"
+            "Check env config error, GAS_ORACLE_BLOB_SCALAR_BUFFER should be less than 10(means 10 times)"
         )
         .into());
     }

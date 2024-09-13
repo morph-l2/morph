@@ -3,9 +3,12 @@ package oracle
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/rsa"
 	"errors"
 	"fmt"
+
 	"io"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -15,7 +18,9 @@ import (
 	"morph-l2/oracle/config"
 	"morph-l2/oracle/metrics"
 
+	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
+	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
@@ -72,10 +77,15 @@ type Oracle struct {
 	gov                 *bindings.Gov
 	rollup              *bindings.Rollup
 	record              *bindings.Record
+	recordAddr          common.Address
+	recordAbi           *abi.ABI
 	TmClient            *jsonrpcclient.Client
 	rewardEpoch         time.Duration
 	cfg                 *config.Config
 	privKey             *ecdsa.PrivateKey
+	externalRsaPriv     *rsa.PrivateKey
+	signer              types.Signer
+	chainId             *big.Int
 	isFinalized         bool
 	enable              bool
 	rollupEpochMaxBlock uint64
@@ -122,11 +132,15 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 	l1Client, err := ethclient.Dial(cfg.L1EthRpc)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	l2Client, err := ethclient.Dial(cfg.L2EthRpc)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+	chainId, err := l2Client.ChainID(context.Background())
+	if err != nil {
+		return nil, err
 	}
 	httpClient, err := jsonrpcclient.DefaultHTTPClient(cfg.TendermintRpc)
 	if err != nil {
@@ -139,28 +153,45 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 
 	rollup, err := bindings.NewRollup(cfg.RollupAddr, l1Client)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	l2Staking, err := bindings.NewL2Staking(predeploys.L2StakingAddr, l2Client)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	record, err := bindings.NewRecord(predeploys.RecordAddr, l2Client)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+	abi, err := bindings.RecordMetaData.GetAbi()
+	if err != nil {
+		return nil, err
 	}
 	sequencer, err := bindings.NewSequencer(predeploys.SequencerAddr, l2Client)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	gov, err := bindings.NewGov(predeploys.GovAddr, l2Client)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	hex := strings.TrimPrefix(cfg.PrivKey, "0x")
-	privKey, err := crypto.HexToECDSA(hex)
-	if err != nil {
-		panic(err)
+	var rsaPriv *rsa.PrivateKey
+	var privKey *ecdsa.PrivateKey
+	// external sign
+	if cfg.ExternalSign {
+		// parse rsa private key
+		rsaPriv, err = externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse rsa private key: %w", err)
+		}
+	} else {
+		// parse priv key
+		hex := strings.TrimPrefix(cfg.PrivKey, "0x")
+		privKey, err = crypto.HexToECDSA(hex)
+		if err != nil {
+			return nil, fmt.Errorf("parse privkey err:%w", err)
+		}
+
 	}
 
 	return &Oracle{
@@ -169,12 +200,17 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		rollup:              rollup,
 		l2Staking:           l2Staking,
 		record:              record,
+		recordAddr:          predeploys.RecordAddr,
+		recordAbi:           abi,
 		sequencer:           sequencer,
 		gov:                 gov,
 		TmClient:            tmClient,
 		cfg:                 cfg,
 		rewardEpoch:         defaultRewardEpoch,
 		privKey:             privKey,
+		externalRsaPriv:     rsaPriv,
+		signer:              types.LatestSignerForChainID(chainId),
+		chainId:             chainId,
 		ctx:                 context.TODO(),
 		rollupEpochMaxBlock: cfg.MaxSize,
 		metrics:             m,

@@ -56,7 +56,7 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 }
 
 func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
-	seqHash, err := e.sequencer.SequencerSetVerifyHash(nil)
+	seqHash, err := e.sequencerCaller.SequencerSetVerifyHash(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,15 +64,15 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 		return e.nextValidators, nil
 	}
 
-	sequencerSet0, err := e.sequencer.GetSequencerSet0(nil)
+	sequencerSet0, err := e.sequencerCaller.GetSequencerSet0(nil)
 	if err != nil {
 		return nil, err
 	}
-	sequencerSet1, err := e.sequencer.GetSequencerSet1(nil)
+	sequencerSet1, err := e.sequencerCaller.GetSequencerSet1(nil)
 	if err != nil {
 		return nil, err
 	}
-	sequencerSet2, err := e.sequencer.GetSequencerSet2(nil)
+	sequencerSet2, err := e.sequencerCaller.GetSequencerSet2(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 			requestAddrs = append(requestAddrs, addr)
 		}
 	}
-	stakesInfo, err := e.l2Staking.GetStakesInfo(nil, requestAddrs)
+	stakesInfo, err := e.l2StakingCaller.GetStakesInfo(nil, requestAddrs)
 	if err != nil {
 		e.logger.Error("failed to GetStakesInfo", "error", err)
 		return nil, err
@@ -123,13 +123,13 @@ func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, erro
 		err                                              error
 	)
 
-	if batchBlockInterval, err = e.govContract.BatchBlockInterval(nil); err != nil {
+	if batchBlockInterval, err = e.govCaller.BatchBlockInterval(nil); err != nil {
 		return nil, err
 	}
-	if batchTimeout, err = e.govContract.BatchTimeout(nil); err != nil {
+	if batchTimeout, err = e.govCaller.BatchTimeout(nil); err != nil {
 		return nil, err
 	}
-	if batchMaxChunks, err = e.govContract.MaxChunks(nil); err != nil {
+	if batchMaxChunks, err = e.govCaller.MaxChunks(nil); err != nil {
 		return nil, err
 	}
 

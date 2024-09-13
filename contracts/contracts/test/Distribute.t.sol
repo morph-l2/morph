@@ -53,7 +53,7 @@ contract DistributeTest is L2StakingBaseTest {
     function test_notifyDelegation_onlyCaller_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
-        distribute.notifyDelegation(address(0), address(0), 0, 0, 0, 0, false);
+        distribute.notifyDelegation(address(0), address(0), 0, 0, 0, false);
     }
 
     /**
@@ -62,7 +62,7 @@ contract DistributeTest is L2StakingBaseTest {
     function test_notifyUndelegation_onlyCaller_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
-        distribute.notifyUndelegation(address(0), address(0), 0, 0, 0);
+        distribute.notifyUndelegation(address(0), address(0), 0, 0);
     }
 
     /**
@@ -93,7 +93,7 @@ contract DistributeTest is L2StakingBaseTest {
      */
     function test_claim_succeeds() public {
         hevm.prank(address(l2Staking));
-        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, true);
 
         _update_epoch_reward(0);
 
@@ -115,13 +115,10 @@ contract DistributeTest is L2StakingBaseTest {
         uint256 balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter - balanceBefore, mockReward);
 
-        uint256 unclaimedCommissionEpoch = distribute.nextEpochToClaimCommission(firstStaker);
-        assertEq(unclaimedCommissionEpoch, 0);
-
         // delegatee claimCommission
         balanceBefore = morphToken.balanceOf(firstStaker);
         hevm.prank(address(l2Staking));
-        distribute.claimCommission(firstStaker, 0);
+        distribute.claimCommission(firstStaker);
         balanceAfter = morphToken.balanceOf(firstStaker);
         assertEq(balanceAfter - balanceBefore, mockCommission);
 
@@ -138,7 +135,7 @@ contract DistributeTest is L2StakingBaseTest {
      */
     function test_claim_works() public {
         hevm.prank(address(l2Staking));
-        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, true);
 
         _update_epoch_reward(0);
 
@@ -158,13 +155,10 @@ contract DistributeTest is L2StakingBaseTest {
         uint256 balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter - balanceBefore, mockReward);
 
-        uint256 unclaimedCommissionEpoch = distribute.nextEpochToClaimCommission(firstStaker);
-        assertEq(unclaimedCommissionEpoch, 0);
-
         // delegatee claimCommission
         balanceBefore = morphToken.balanceOf(firstStaker);
         hevm.prank(address(l2Staking));
-        distribute.claimCommission(firstStaker, target_epoch_index);
+        distribute.claimCommission(firstStaker);
         balanceAfter = morphToken.balanceOf(firstStaker);
         assertEq(balanceAfter - balanceBefore, mockCommission);
 
@@ -192,8 +186,8 @@ contract DistributeTest is L2StakingBaseTest {
     function test_claimAll_multipleDelegatees_succeeds() public {
         // Notify delegation from two stakers: 10 ether and 5 ether to Alice
         hevm.startPrank(address(l2Staking));
-        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
-        distribute.notifyDelegation(secondStaker, alice, 0, 5 ether, 5 ether, 1, true);
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, true);
+        distribute.notifyDelegation(secondStaker, alice, 0, 5 ether, 5 ether, true);
         hevm.stopPrank();
 
         // Update the epoch reward for epoch 0.
@@ -243,25 +237,25 @@ contract DistributeTest is L2StakingBaseTest {
     function test_claimCommission_onlyCaller_reverts() public {
         hevm.expectRevert("only l2 staking contract allowed");
         hevm.prank(alice);
-        distribute.claimCommission(address(0), 0);
+        distribute.claimCommission(address(0));
     }
 
     /**
      * @notice claimCommission: expect revert if tokens are not minted yet
      */
     function test_claimCommission_notMinted_reverts() public {
-        hevm.expectRevert("not minted yet");
+        hevm.expectRevert("no commission to claim");
         hevm.prank(address(l2Staking));
-        distribute.claimCommission(address(0), 0);
+        distribute.claimCommission(address(0));
     }
 
     /**
-     * @notice claimCommission: claim commission and update nextEpochToClaimCommission
+     * @notice claimCommission: claim commission
      */
     function test_claimCommission_succeeds() public {
         // Simulate l2Staking address to notify delegation.
         hevm.prank(address(l2Staking));
-        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, true);
 
         // Update the epoch reward for epoch 0.
         _update_epoch_reward(0);
@@ -272,20 +266,17 @@ contract DistributeTest is L2StakingBaseTest {
 
         // Expect the CommissionClaimed event to be emitted successfully.
         hevm.expectEmit(true, true, true, true);
-        emit IDistribute.CommissionClaimed(firstStaker, 0, 1 ether);
+        emit IDistribute.CommissionClaimed(firstStaker, 1 ether);
 
         uint256 beforeReward = morphToken.balanceOf(firstStaker);
 
         // Simulate l2Staking address to claim the commission for the first staker for epoch 0
         hevm.prank(address(l2Staking));
-        distribute.claimCommission(firstStaker, 0);
+        distribute.claimCommission(firstStaker);
         uint256 afterReward = morphToken.balanceOf(firstStaker);
 
         // Verify the reward after claiming is the reward before plus the mock commission.
         assertEq(afterReward, beforeReward + mockCommission);
-
-        // Verify the next epoch to claim commission for firstStaker is updated to 1.
-        assertEq(distribute.nextEpochToClaimCommission(firstStaker), 1);
     }
 
     /**
@@ -293,17 +284,17 @@ contract DistributeTest is L2StakingBaseTest {
      */
     function test_claimCommission_allCommissionClaimed_reverts() public {
         hevm.prank(address(l2Staking));
-        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, 1, true);
+        distribute.notifyDelegation(firstStaker, alice, 0, 10 ether, 10 ether, true);
         _update_epoch_reward(0);
 
         hevm.prank(multisig);
         morphToken.transfer(address(distribute), 10 ether);
 
         hevm.prank(address(l2Staking));
-        distribute.claimCommission(firstStaker, 0);
+        distribute.claimCommission(firstStaker);
 
-        hevm.expectRevert("all commission claimed");
+        hevm.expectRevert("no commission to claim");
         hevm.prank(address(l2Staking));
-        distribute.claimCommission(firstStaker, 0);
+        distribute.claimCommission(firstStaker);
     }
 }
