@@ -95,7 +95,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
 		// external sign
-		ExternalSign:        ctx.GlobalBool(flags.ExternalSign.Name),
+		//ExternalSign:        ctx.GlobalBool(flags.ExternalSign.Name),
+		ExternalSign:        false,
 		ExternalSignAppid:   ctx.GlobalString(flags.ExternalSignAppid.Name),
 		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddress.Name),
 		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
