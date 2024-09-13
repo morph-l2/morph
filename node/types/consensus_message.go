@@ -84,6 +84,7 @@ type WrappedBlock struct {
 	ReceiptRoot        common.Hash    `json:"receiptsRoot"`
 	LogsBloom          []byte         `json:"logsBloom"`
 	WithdrawTrieRoot   common.Hash    `json:"withdrawTrieRoot"`
+	RowConsumption     interface{}    `json:"rowConsumption"` // keep this field for compatibility
 	NextL1MessageIndex uint64         `json:"nextL1MessageIndex"`
 	Hash               common.Hash    `json:"hash"`
 
