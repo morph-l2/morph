@@ -5,7 +5,7 @@ use sbv_primitives::{types::TypedTransaction, B256};
 use sha2::{Digest as _, Sha256};
 
 use crate::types::{
-    blob::{decode_raw_tx_payload, decode_transactions, get_origin_batch},
+    blob::{decode_transactions, get_origin_batch},
     input::BlobInfo,
 };
 
@@ -16,9 +16,9 @@ impl BlobVerifier {
     pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<TypedTransaction>), anyhow::Error> {
         // decode
         let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
-        let raw_tx_payload = decode_raw_tx_payload(origin_batch).unwrap();
+        // let raw_tx_payload = decode_raw_tx_payload(origin_batch).unwrap();
 
-        let tx_list: Vec<TypedTransaction> = decode_transactions(raw_tx_payload.as_slice());
+        let tx_list: Vec<TypedTransaction> = decode_transactions(origin_batch.as_slice());
         println!("decoded tx_list_len: {:?}", tx_list.len());
 
         // verify kzg

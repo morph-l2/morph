@@ -1,5 +1,6 @@
 use sp1_sdk::{ProverClient, SP1Stdin};
-use std::time::Instant;
+use std::io::Read;
+use std::{fs::File, path::Path, time::Instant};
 
 fn main() {
     // Setup the logger.
@@ -8,15 +9,17 @@ fn main() {
     // The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
     let dev_elf: &[u8] = include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
 
-    // Setup the prover client.
-    let client = ProverClient::new();
+    let data_path = Path::new("./abc.txt.zst");
+    let mut file = File::open(data_path).unwrap();
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).unwrap();
 
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
 
-    let data = vec![1, 2];
-    stdin.write(&data);
+    stdin.write_slice(&data);
 
+    let client = ProverClient::new();
     // Execute the program in sp1-vm
     let (public_values, execution_report) = client.execute(dev_elf, stdin.clone()).run().unwrap();
     println!("Program executed successfully.");
@@ -40,7 +43,6 @@ fn main() {
     // Generate the proof
     let proof = client
         .prove(&pk, stdin)
-        .plonk()
         .run()
         .expect("failed to generate proof");
 
@@ -53,4 +55,26 @@ fn main() {
     // Verify the proof.
     client.verify(&proof, &vk).expect("failed to verify proof");
     println!("Successfully verified proof!");
+}
+
+#[test]
+fn test() {
+    use ruzstd::StreamingDecoder;
+    use std::io::Read;
+
+    let data_path = Path::new("./decoded_blob_with_compressed_batch.data");
+    let mut file = File::open(data_path).unwrap();
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).unwrap();
+
+    // This magic number is included at the start of a single Zstandard frame
+    let mut content = 0xFD2F_B528u32.to_le_bytes().to_vec();
+    content.append(&mut data);
+    let mut x = content.as_slice();
+
+    let mut decoder = StreamingDecoder::new(&mut x).unwrap();
+    let mut result = Vec::new();
+    decoder.read_to_end(&mut result).unwrap();
+    println!("decoded data len: {:?}", result.len());
+    assert_eq!(result.len(), 125091);
 }

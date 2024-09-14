@@ -1,13 +1,17 @@
 use anyhow::anyhow;
 use sbv_primitives::types::BlockTrace;
 use sbv_primitives::TxTrace;
+use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
+use zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 
 use c_kzg::{Blob, KzgCommitment, KzgProof};
 use c_kzg::{Bytes48, KzgSettings};
 use morph_executor_client::types::input::BlobInfo;
 use once_cell::sync::Lazy;
+
+mod zstd_util;
 
 /// The number of bytes to represent an unsigned 256 bit number.
 const N_BYTES_U256: usize = 32;
@@ -31,12 +35,14 @@ pub fn load_trusted_setup() -> KzgSettings {
 }
 
 pub fn get_blob_info(block_trace: &BlockTrace) -> Result<BlobInfo, anyhow::Error> {
-    populate_kzg(&get_blob_data(block_trace))
+    let batch_info = get_blob_data(block_trace);
+    populate_kzg(&batch_info)
 }
 
 pub fn get_blob_data(block_trace: &BlockTrace) -> [u8; BLOB_DATA_SIZE] {
     let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
 
+    // collect txns
     let tx_bytes: Vec<u8> = block_trace
         .transactions
         .iter()
@@ -44,17 +50,11 @@ pub fn get_blob_data(block_trace: &BlockTrace) -> [u8; BLOB_DATA_SIZE] {
         .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp_da())
         .collect::<Vec<u8>>();
 
-    // fake data
-    let tx_data_len = (tx_bytes.len() as u64).to_be_bytes(); // Direct conversion to bytes
-    let mut data_bytes = Vec::with_capacity(32 + tx_bytes.len());
-    data_bytes.extend_from_slice(&tx_data_len); // Reserve only what is needed
-    data_bytes.extend_from_slice(&[0; 24]); // Directly extend 24 zero bytes
-    data_bytes.extend_from_slice(&tx_bytes);
-
     // zstd compresse
+    let compressed_batch = compresse_batch(tx_bytes.as_slice()).unwrap();
 
     // bls element convert
-    for (i, byte) in data_bytes.into_iter().enumerate() {
+    for (i, byte) in compressed_batch.into_iter().enumerate() {
         coefficients[i / 31][1 + (i % 31)] = byte;
     }
     let mut blob_bytes = [0u8; BLOB_DATA_SIZE];
@@ -65,7 +65,7 @@ pub fn get_blob_data(block_trace: &BlockTrace) -> [u8; BLOB_DATA_SIZE] {
 }
 
 /// Populate kzg info.
-fn populate_kzg(blob_bytes: &[u8; BLOB_DATA_SIZE]) -> Result<BlobInfo, anyhow::Error> {
+fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo, anyhow::Error> {
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
     let commitment = KzgCommitment::blob_to_kzg_commitment(
         &Blob::from_bytes(blob_bytes).unwrap(),
@@ -86,4 +86,15 @@ fn populate_kzg(blob_bytes: &[u8; BLOB_DATA_SIZE]) -> Result<BlobInfo, anyhow::E
         proof: proof.as_slice().to_vec(),
     };
     Ok(blob_info)
+}
+
+pub fn compresse_batch(batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+    let mut encoder = init_zstd_encoder(N_BLOCK_SIZE_TARGET);
+    encoder
+        .set_pledged_src_size(Some(batch.len() as u64))
+        .expect("infallible");
+    encoder.write_all(batch).expect("infallible");
+
+    let encoded_bytes: Vec<u8> = encoder.finish().expect("infallible");
+    Ok(encoded_bytes)
 }

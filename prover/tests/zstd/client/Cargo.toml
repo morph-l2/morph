@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 sp1-zkvm = { workspace = true }
-zstd =  { workspace = true }
+ruzstd =  { workspace = true }
 anyhow = { workspace = true }

@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 c-kzg = { workspace = true }
+zstd = { workspace = true }
 anyhow = { workspace = true }
 once_cell = { workspace = true }
 sbv-primitives = { workspace = true }

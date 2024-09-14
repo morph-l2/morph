@@ -1,6 +1,11 @@
 use alloy::rlp::Decodable;
 use anyhow::anyhow;
+use ruzstd::StreamingDecoder;
 use sbv_primitives::types::TypedTransaction;
+use std::io::Read;
+
+/// This magic number is included at the start of a single Zstandard frame
+pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 
 /// The number of coefficients (BLS12-381 scalars) to represent the blob polynomial in evaluationform.
 pub const BLOB_WIDTH: usize = 4096;
@@ -27,8 +32,14 @@ pub fn get_origin_batch(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
 }
 
 pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-    // let mut decoder = init_zstd_decoder(cursor);
-    Ok(compressed_batch.to_vec())
+    let mut content = MAGIC_NUM.to_le_bytes().to_vec();
+    content.append(&mut compressed_batch.to_vec());
+    let mut x = content.as_slice();
+
+    let mut decoder = StreamingDecoder::new(&mut x)?;
+    let mut result = Vec::new();
+    decoder.read_to_end(&mut result).unwrap();
+    Ok(result.to_vec())
 }
 
 pub fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {

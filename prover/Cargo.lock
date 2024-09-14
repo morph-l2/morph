@@ -3441,6 +3441,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "kzg-rs",
+ "ruzstd",
  "sbv-core",
  "sbv-primitives",
  "sbv-utils",
@@ -3458,6 +3459,7 @@ dependencies = [
  "morph-executor-client",
  "once_cell",
  "sbv-primitives",
+ "zstd",
 ]
 
 [[package]]
@@ -5154,6 +5156,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruzstd"
+version = "0.7.2"
+source = "git+https://github.com/KillingSpark/zstd-rs.git?branch=master#603ee2dfa5f0abe3a8bfc5fad6cb9782cdf37a68"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6801,6 +6811,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "twox-hash"
+version = "1.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
+dependencies = [
+ "cfg-if",
+ "static_assertions",
+]
+
+[[package]]
 name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7483,8 +7503,8 @@ name = "zstd-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ruzstd",
  "sp1-zkvm",
- "zstd",
 ]
 
 [[package]]
@@ -7492,6 +7512,7 @@ name = "zstd-host"
 version = "0.1.0"
 dependencies = [
  "hex",
+ "ruzstd",
  "sp1-helper",
  "sp1-sdk",
 ]
