@@ -15,6 +15,12 @@ import (
 
 const MaxBlobBytesSize = 4096 * 31
 
+var (
+	emptyBlob          = new(kzg4844.Blob)
+	emptyBlobCommit, _ = kzg4844.BlobToCommitment(emptyBlob)
+	emptyBlobProof, _  = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
+)
+
 // MakeBlobCanonical converts the raw blob data into the canonical blob representation of 4096 BLSFieldElements.
 func MakeBlobCanonical(blobBytes []byte) (b *kzg4844.Blob, err error) {
 	if len(blobBytes) > MaxBlobBytesSize {
@@ -46,37 +52,6 @@ func RetrieveBlobBytes(blob *kzg4844.Blob) ([]byte, error) {
 	return data, nil
 }
 
-func DecodeRawTxPayload(b *kzg4844.Blob) ([]byte, error) {
-	data, err := RetrieveBlobBytes(b)
-	if err != nil {
-		return nil, err
-	}
-
-	var offset uint32
-	var chunkIndex uint16
-	var payload []byte
-	for {
-		if offset >= MaxBlobBytesSize {
-			break
-		}
-		dataLen := binary.LittleEndian.Uint32(data[offset : offset+4])
-		remainingLen := MaxBlobBytesSize - offset - 4
-		if dataLen > remainingLen {
-			return nil, fmt.Errorf("decode error: dataLen is bigger than remainingLen. chunkIndex: %d, dataLen: %d, remaingLen: %d", chunkIndex, dataLen, remainingLen)
-		}
-		payload = append(payload, data[offset+4:offset+4+dataLen]...)
-
-		ret := (4 + dataLen) / 31
-		remainder := (4 + dataLen) % 31
-		if remainder > 0 {
-			ret += 1
-		}
-		offset += ret * 31
-		chunkIndex++
-	}
-	return payload, nil
-}
-
 func makeBCP(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, p kzg4844.Proof, err error) {
 	blob, err := MakeBlobCanonical(bz)
 	if err != nil {
@@ -96,7 +71,11 @@ func makeBCP(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, p kzg4844.Proof, 
 
 func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 	if len(blobBytes) == 0 {
-		return nil, nil
+		return &eth.BlobTxSidecar{
+			Blobs:       []kzg4844.Blob{*emptyBlob},
+			Commitments: []kzg4844.Commitment{emptyBlobCommit},
+			Proofs:      []kzg4844.Proof{emptyBlobProof},
+		}, nil
 	}
 	if len(blobBytes) > 2*MaxBlobBytesSize {
 		return nil, errors.New("only 2 blobs at most is allowed")
@@ -131,7 +110,10 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 	}, nil
 }
 
-func EncodeBatchBytesToBlob(batchBytes []byte) (*eth.BlobTxSidecar, error) {
+func EncodeTxsPayloadToBlob(batchBytes []byte) (*eth.BlobTxSidecar, error) {
+	if len(batchBytes) == 0 {
+		return MakeBlobTxSidecar(batchBytes)
+	}
 	compressedBatchBytes, err := zstd.CompressBatchBytes(batchBytes)
 	if err != nil {
 		return nil, err
@@ -185,6 +167,9 @@ func DecodeLegacyTxsFromBlob(b *kzg4844.Blob) (eth.Transactions, error) {
 }
 
 func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
+	if isEmptyBlob(blob) {
+		return eth.Transactions{}, nil
+	}
 	data, err := RetrieveBlobBytes(blob)
 	if err != nil {
 		return nil, err
@@ -193,14 +178,7 @@ func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 	if err != nil {
 		return nil, err
 	}
-	data = batchBytes
-	nonEmptyChunkNum := binary.BigEndian.Uint16(data[:2])
-	if nonEmptyChunkNum == 0 {
-		return nil, nil
-	}
-	// skip metadata: 2bytes(chunkNum) + maxChunks*4bytes(size per chunk)
-	skipBytes := 2 + MaxChunks*4
-	reader := bytes.NewReader(data[skipBytes:])
+	reader := bytes.NewReader(batchBytes)
 	txs := make(eth.Transactions, 0)
 	for {
 		var (
@@ -258,6 +236,15 @@ func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
 		txs = append(txs, eth.NewTx(innerTx))
 	}
 	return txs, nil
+}
+
+func isEmptyBlob(blob *kzg4844.Blob) bool {
+	for _, b := range blob {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {

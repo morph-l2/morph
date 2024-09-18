@@ -192,7 +192,6 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 		ReceiptRoot:         l2Block.ReceiptRoot,
 		LogsBloom:           l2Block.LogsBloom,
 		WithdrawTrieRoot:    l2Block.WithdrawTrieRoot,
-		RowConsumption:      l2Block.RowUsages,
 		NextL1MessageIndex:  l2Block.NextL1MessageIndex,
 		Hash:                l2Block.Hash,
 		CollectedL1TxHashes: collectedL1TxHashes,
@@ -202,8 +201,7 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 	txs = l2Block.Transactions
 	e.logger.Info("RequestBlockData response",
 		"txs.length", len(txs),
-		"collectedL1Msgs", collectedL1Msgs,
-		"row consumption", fmt.Sprintf("%v", l2Block.RowUsages))
+		"collectedL1Msgs", collectedL1Msgs)
 	return
 }
 
@@ -239,7 +237,6 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 		ReceiptRoot:        wrappedBlock.ReceiptRoot,
 		LogsBloom:          wrappedBlock.LogsBloom,
 		WithdrawTrieRoot:   wrappedBlock.WithdrawTrieRoot,
-		RowUsages:          wrappedBlock.RowConsumption,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
 		Hash:               wrappedBlock.Hash,
 		SkippedTxs:         wrappedBlock.SkippedL1Txs,
@@ -308,7 +305,6 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		ReceiptRoot:        wrappedBlock.ReceiptRoot,
 		LogsBloom:          wrappedBlock.LogsBloom,
 		WithdrawTrieRoot:   wrappedBlock.WithdrawTrieRoot,
-		RowUsages:          wrappedBlock.RowConsumption,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
 		SkippedTxs:         wrappedBlock.SkippedL1Txs,
 		Hash:               wrappedBlock.Hash,

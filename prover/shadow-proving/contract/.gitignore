@@ -1,8 +1,0 @@
-node_modules
-.idea
-.env
-*.lock
-
-#Hardhat files
-cache
-artifacts

@@ -56,7 +56,6 @@ export const RollupInit = async (
         console.log('Upgrading the Rollup proxy...')
         const finalizationPeriodSeconds: number = config.finalizationPeriodSeconds
         const proofWindow: number = config.rollupProofWindow
-        const maxNumTxInChunk: number = config.rollupMaxNumTxInChunk
 
         if (!ethers.utils.isAddress(L1MessageQueueWithGasPriceOracleProxyAddress)
             || !ethers.utils.isAddress(MultipleVersionRollupVerifierContract.address)
@@ -73,7 +72,6 @@ export const RollupInit = async (
                 L1StakingProxyAddress,
                 L1MessageQueueWithGasPriceOracleProxyAddress,
                 MultipleVersionRollupVerifierContract.address,
-                maxNumTxInChunk,
                 finalizationPeriodSeconds,
                 proofWindow
             ])
@@ -109,11 +107,6 @@ export const RollupInit = async (
             contractTmp,
             'verifier',
             MultipleVersionRollupVerifierContract.address,
-        )
-        await assertContractVariable(
-            contractTmp,
-            'maxNumTxInChunk',
-            maxNumTxInChunk,
         )
         await assertContractVariable(
             contractTmp,

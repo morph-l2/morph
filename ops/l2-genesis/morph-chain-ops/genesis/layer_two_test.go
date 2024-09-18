@@ -75,7 +75,6 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		MorphTokenDailyInflationRate: 1,
 
 		FundDevAccounts: true,
-		MaxTxPerBlock:   1000,
 	}
 	curHeader := &types.Header{}
 	curHeader.BaseFee = new(big.Int).SetUint64(1)

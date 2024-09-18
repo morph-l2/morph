@@ -15,7 +15,6 @@ const config = {
 
     // rollup contract config
     // initialize config
-    rollupMaxNumTxInChunk: 100,
     finalizationPeriodSeconds: 600,
     rollupProofWindow: 86400,
     // challenge config

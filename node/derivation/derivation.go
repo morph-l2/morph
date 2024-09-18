@@ -12,7 +12,6 @@ import (
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	geth "github.com/morph-l2/go-ethereum/eth"
@@ -274,7 +273,7 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	rollupBatchData := args[0].(struct {
 		Version                uint8     "json:\"version\""
 		ParentBatchHeader      []uint8   "json:\"parentBatchHeader\""
-		Chunks                 [][]uint8 "json:\"chunks\""
+		BlockContexts          []uint8   "json:\"blockContexts\""
 		SkippedL1MessageBitmap []uint8   "json:\"skippedL1MessageBitmap\""
 		PrevStateRoot          [32]uint8 "json:\"prevStateRoot\""
 		PostStateRoot          [32]uint8 "json:\"postStateRoot\""
@@ -301,14 +300,10 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		}
 	}
 
-	var chunks []hexutil.Bytes
-	for _, chunk := range rollupBatchData.Chunks {
-		chunks = append(chunks, chunk)
-	}
 	batch := geth.RPCRollupBatch{
 		Version:                uint(rollupBatchData.Version),
 		ParentBatchHeader:      rollupBatchData.ParentBatchHeader,
-		Chunks:                 chunks,
+		BlockContexts:          rollupBatchData.BlockContexts,
 		SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
 		PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
 		PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
@@ -346,26 +341,25 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 
 func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped uint64) error {
 	totalL1MessagePopped := parentTotalL1MessagePopped
-	for index, chunk := range rollupData.chunks {
-		for bIndex, block := range chunk.blockContextes {
-			var l1Transactions []*eth.Transaction
-			l1Messages, err := d.getL1Message(totalL1MessagePopped, uint64(block.l1MsgNum))
-			if err != nil {
-				return fmt.Errorf("get l1 message error:%v", err)
-			}
-			totalL1MessagePopped += uint64(block.l1MsgNum)
-			if len(l1Messages) > 0 {
-				for _, l1Message := range l1Messages {
-					if rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentTotalL1MessagePopped)) == 1 {
-						continue
-					}
-					transaction := eth.NewTx(&l1Message.L1MessageTx)
-					l1Transactions = append(l1Transactions, transaction)
-				}
-			}
-			rollupData.chunks[index].blockContextes[bIndex].SafeL2Data.Transactions = append(encodeTransactions(l1Transactions), chunk.blockContextes[bIndex].SafeL2Data.Transactions...)
+	for bIndex, block := range rollupData.blockContexts {
+		var l1Transactions []*eth.Transaction
+		l1Messages, err := d.getL1Message(totalL1MessagePopped, uint64(block.l1MsgNum))
+		if err != nil {
+			return fmt.Errorf("get l1 message error:%v", err)
 		}
+		totalL1MessagePopped += uint64(block.l1MsgNum)
+		if len(l1Messages) > 0 {
+			for _, l1Message := range l1Messages {
+				if rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentTotalL1MessagePopped)) == 1 {
+					continue
+				}
+				transaction := eth.NewTx(&l1Message.L1MessageTx)
+				l1Transactions = append(l1Transactions, transaction)
+			}
+		}
+		rollupData.blockContexts[bIndex].SafeL2Data.Transactions = append(encodeTransactions(l1Transactions), rollupData.blockContexts[bIndex].SafeL2Data.Transactions...)
 	}
+
 	return nil
 }
 
@@ -378,35 +372,33 @@ func (d *Derivation) getL1Message(l1MessagePopped, l1MsgNum uint64) ([]types.L1M
 
 func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	var lastHeader *eth.Header
-	for _, chunk := range rollupData.chunks {
-		for _, blockData := range chunk.blockContextes {
-			latestBlockNumber, err := d.l2Client.BlockNumber(context.Background())
-			if err != nil {
-				return nil, fmt.Errorf("get derivation geth block number error:%v", err)
-			}
-			if blockData.SafeL2Data.Number <= latestBlockNumber {
-				d.logger.Info("new L2 Data block number less than latestBlockNumber", "safeL2DataNumber", blockData.SafeL2Data.Number, "latestBlockNumber", latestBlockNumber)
-				lastHeader, err = d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockData.SafeL2Data.Number)))
-				if err != nil {
-					return nil, fmt.Errorf("query header by number error:%v", err)
-				}
-				continue
-			}
-			err = func() error {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
-				defer cancel()
-				lastHeader, err = d.l2Client.NewSafeL2Block(ctx, blockData.SafeL2Data)
-				if err != nil {
-					d.logger.Error("new l2 block failed", "latestBlockNumber", latestBlockNumber, "error", err)
-					return err
-				}
-				return nil
-			}()
-			if err != nil {
-				return nil, fmt.Errorf("derivation error:%v", err)
-			}
-			d.logger.Info("new l2 block success", "blockNumber", blockData.Number)
+	for _, blockData := range rollupData.blockContexts {
+		latestBlockNumber, err := d.l2Client.BlockNumber(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("get derivation geth block number error:%v", err)
 		}
+		if blockData.SafeL2Data.Number <= latestBlockNumber {
+			d.logger.Info("new L2 Data block number less than latestBlockNumber", "safeL2DataNumber", blockData.SafeL2Data.Number, "latestBlockNumber", latestBlockNumber)
+			lastHeader, err = d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockData.SafeL2Data.Number)))
+			if err != nil {
+				return nil, fmt.Errorf("query header by number error:%v", err)
+			}
+			continue
+		}
+		err = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
+			defer cancel()
+			lastHeader, err = d.l2Client.NewSafeL2Block(ctx, blockData.SafeL2Data)
+			if err != nil {
+				d.logger.Error("new l2 block failed", "latestBlockNumber", latestBlockNumber, "error", err)
+				return err
+			}
+			return nil
+		}()
+		if err != nil {
+			return nil, fmt.Errorf("derivation error:%v", err)
+		}
+		d.logger.Info("new l2 block success", "blockNumber", blockData.Number)
 	}
 
 	return lastHeader, nil

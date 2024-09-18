@@ -47,7 +47,6 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 
-	MaxTxPerBlock             int `json:"maxTxPerBlock"`
 	MaxTxPayloadBytesPerBlock int `json:"maxTxPayloadBytesPerBlock"`
 
 	// System config

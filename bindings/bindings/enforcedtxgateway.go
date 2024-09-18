@@ -26,7 +26,6 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
-	_ = abi.ConvertType
 )
 
 // EnforcedTxGatewayMetaData contains all meta data concerning the EnforcedTxGateway contract.
@@ -157,11 +156,11 @@ func NewEnforcedTxGatewayFilterer(address common.Address, filterer bind.Contract
 
 // bindEnforcedTxGateway binds a generic wrapper to an already deployed contract.
 func bindEnforcedTxGateway(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := EnforcedTxGatewayMetaData.GetAbi()
+	parsed, err := abi.JSON(strings.NewReader(EnforcedTxGatewayABI))
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and

@@ -1,6 +1,7 @@
 package derivation
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/big"
 
@@ -12,10 +13,9 @@ import (
 	"morph-l2/node/types"
 )
 
-type Chunk struct {
-	blockContextes []*BlockContext
-	Raw            *types.Chunk
-}
+//type Chunk struct {
+//	blockContextes []*BlockContext
+//}
 
 type BlockContext struct {
 	Number    uint64 `json:"number"`
@@ -50,7 +50,7 @@ type BatchInfo struct {
 	blockNum         uint64
 	txNum            uint64
 	version          uint64
-	chunks           []*Chunk
+	blockContexts    []*BlockContext
 	l1BlockNumber    uint64
 	txHash           common.Hash
 	nonce            uint64
@@ -93,56 +93,53 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		}
 		tq.enqueue(data)
 	}
-	for cbIndex, chunkByte := range batch.Chunks {
-		chunk := new(types.Chunk)
-		if err := chunk.Decode(chunkByte); err != nil {
-			return fmt.Errorf("parse chunk error:%v", err)
+
+	blockNum := binary.BigEndian.Uint16(batch.BlockContexts[:2])
+	rawBlockContexts := batch.BlockContexts[2:]
+	var txsNum uint64
+	var l1MsgNum uint64
+	blockContexts := make([]*BlockContext, int(blockNum))
+	for i := 0; i < int(blockNum); i++ {
+		var block BlockContext
+		if err := block.Decode(rawBlockContexts[i*60 : i*60+60]); err != nil {
+			return fmt.Errorf("decode chunk block context error:%v", err)
 		}
-		bi.blockNum += uint64(chunk.BlockNum())
-		var ck Chunk
-		var txsNum uint64
-		var l1MsgNum uint64
-		for i := 0; i < chunk.BlockNum(); i++ {
-			var block BlockContext
-			if err := block.Decode(chunk.BlockContext()[i*60 : i*60+60]); err != nil {
-				return fmt.Errorf("decode chunk block context error:%v", err)
-			}
-			if cbIndex == 0 && i == 0 {
-				bi.firstBlockNumber = block.Number
-			}
-			if cbIndex == len(batch.Chunks)-1 && i == chunk.BlockNum()-1 {
-				bi.lastBlockNumber = block.Number
-			}
-			var safeL2Data catalyst.SafeL2Data
-			safeL2Data.Number = block.Number
-			safeL2Data.GasLimit = block.GasLimit
-			safeL2Data.BaseFee = block.BaseFee
-			safeL2Data.Timestamp = block.Timestamp
-			if block.BaseFee != nil && block.BaseFee.Cmp(big.NewInt(0)) == 0 {
-				safeL2Data.BaseFee = nil
-			}
-			if block.txsNum < block.l1MsgNum {
-				return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
-			}
-			var txs []*eth.Transaction
-			var err error
-			if len(batch.Sidecar.Blobs) != 0 {
-				txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
-				if err != nil {
-					return fmt.Errorf("decode txsPayload error:%v", err)
-				}
-			}
-			txsNum += uint64(block.txsNum)
-			l1MsgNum += uint64(block.l1MsgNum)
-			// l1 transactions will be inserted later in front of L2 transactions
-			safeL2Data.Transactions = encodeTransactions(txs)
-			block.SafeL2Data = &safeL2Data
-			ck.blockContextes = append(ck.blockContextes, &block)
+		if i == 0 {
+			bi.firstBlockNumber = block.Number
 		}
-		bi.txNum += txsNum
-		ck.Raw = chunk
-		bi.chunks = append(bi.chunks, &ck)
+		if i == int(blockNum)-1 {
+			bi.lastBlockNumber = block.Number
+		}
+		var safeL2Data catalyst.SafeL2Data
+		safeL2Data.Number = block.Number
+		safeL2Data.GasLimit = block.GasLimit
+		safeL2Data.BaseFee = block.BaseFee
+		safeL2Data.Timestamp = block.Timestamp
+		if block.BaseFee != nil && block.BaseFee.Cmp(big.NewInt(0)) == 0 {
+			safeL2Data.BaseFee = nil
+		}
+		if block.txsNum < block.l1MsgNum {
+			return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
+		}
+		var txs []*eth.Transaction
+		var err error
+		if len(batch.Sidecar.Blobs) != 0 {
+			txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
+			if err != nil {
+				return fmt.Errorf("decode txsPayload error:%v", err)
+			}
+		}
+		txsNum += uint64(block.txsNum)
+		l1MsgNum += uint64(block.l1MsgNum)
+		// l1 transactions will be inserted later in front of L2 transactions
+		safeL2Data.Transactions = encodeTransactions(txs)
+		block.SafeL2Data = &safeL2Data
+
+		blockContexts[i] = &block
 	}
+	bi.txNum += txsNum
+	bi.blockContexts = blockContexts
+
 	return nil
 }
 

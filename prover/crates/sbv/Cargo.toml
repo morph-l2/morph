@@ -1,0 +1,26 @@
+[package]
+name = "sbv"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sbv-core.workspace = true
+sbv-primitives.workspace = true
+sbv-utils.workspace = true
+
+[features]
+debug-account = ["sbv-core/debug-account", "sbv-utils/debug-account"]
+debug-storage = ["sbv-core/debug-storage", "sbv-utils/debug-storage"]
+dev = ["sbv-core/dev", "sbv-utils/dev"]
+metrics = ["sbv-core/metrics", "sbv-utils/metrics"]
+
+# sp1 related
+sp1 = ["sbv-core/sp1"]
+cycle-tracker = ["sbv-core/cycle-tracker"]
+ordered-db = ["sbv-core/ordered-db"]
