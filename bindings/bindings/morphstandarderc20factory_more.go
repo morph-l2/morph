@@ -9,7 +9,7 @@ import (
 	"morph-l2/bindings/solc"
 )
 
-const MorphStandardERC20FactoryStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/libraries/token/MorphStandardERC20Factory.sol:MorphStandardERC20Factory\",\"label\":\"_owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"contracts/libraries/token/MorphStandardERC20Factory.sol:MorphStandardERC20Factory\",\"label\":\"implementation\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_address\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"}}}"
+const MorphStandardERC20FactoryStorageLayoutJSON = "{\"storage\":null,\"types\":{}}"
 
 var MorphStandardERC20FactoryStorageLayout = new(solc.StorageLayout)
 

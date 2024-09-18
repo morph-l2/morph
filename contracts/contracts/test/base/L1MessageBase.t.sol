@@ -30,7 +30,6 @@ contract L1MessageBaseTest is CommonTest {
     MockZkEvmVerifier public verifier = new MockZkEvmVerifier();
 
     uint256 public proofWindow = 100;
-    uint256 public maxNumTxInChunk = 10;
     uint64 public layer2ChainID = 53077;
 
     // whitelist config
@@ -94,7 +93,6 @@ contract L1MessageBaseTest is CommonTest {
                     address(l1StakingProxy),
                     address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
                     address(verifier), // _verifier
-                    maxNumTxInChunk, // _maxNumTxInChunk
                     finalizationPeriodSeconds, // _finalizationPeriodSeconds
                     proofWindow // _proofWindow
                 )

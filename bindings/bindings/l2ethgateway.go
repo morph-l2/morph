@@ -26,7 +26,6 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
-	_ = abi.ConvertType
 )
 
 // L2ETHGatewayMetaData contains all meta data concerning the L2ETHGateway contract.
@@ -157,11 +156,11 @@ func NewL2ETHGatewayFilterer(address common.Address, filterer bind.ContractFilte
 
 // bindL2ETHGateway binds a generic wrapper to an already deployed contract.
 func bindL2ETHGateway(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := L2ETHGatewayMetaData.GetAbi()
+	parsed, err := abi.JSON(strings.NewReader(L2ETHGatewayABI))
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
