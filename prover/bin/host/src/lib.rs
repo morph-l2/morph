@@ -1,6 +1,6 @@
 use morph_executor_client::{types::input::ClientInput, verify};
 use morph_executor_host::get_blob_info;
-use sbv_primitives::{types::BlockTrace, Block, B256};
+use sbv_primitives::{types::BlockTrace, B256};
 use sp1_sdk::{ProverClient, SP1Stdin};
 use std::io::BufReader;
 use std::{fs::File, time::Instant};
