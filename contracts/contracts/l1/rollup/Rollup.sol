@@ -5,7 +5,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
-import {ChunkCodecV0} from "../../libraries/codec/ChunkCodecV0.sol";
+import {BatchCodecV0} from "../../libraries/codec/BatchCodecV0.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -47,8 +47,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The time when zkProof was generated and executed.
     uint256 public proofWindow;
 
-    /// @notice The maximum number of transactions allowed in each chunk.
-    uint256 public maxNumTxInChunk;
+    /// @notice The maximum number of transactions allowed in each batch.
+    uint256 public maxNumTxInBatch;
 
     /// @notice The address of L1MessageQueue.
     address public messageQueue;
@@ -136,14 +136,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _l1StakingContract         l1 staking contract
     /// @param _messageQueue              message queue
     /// @param _verifier                  verifier
-    /// @param _maxNumTxInChunk           max num tx in chunk
+    /// @param _maxNumTxInBatch           max num tx in batch
     /// @param _finalizationPeriodSeconds finalization period seconds
     /// @param _proofWindow               proof window
     function initialize(
         address _l1StakingContract,
         address _messageQueue,
         address _verifier,
-        uint256 _maxNumTxInChunk,
+        uint256 _maxNumTxInBatch,
         uint256 _finalizationPeriodSeconds,
         uint256 _proofWindow
     ) public initializer {
@@ -158,12 +158,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         l1StakingContract = _l1StakingContract;
         messageQueue = _messageQueue;
         verifier = _verifier;
-        maxNumTxInChunk = _maxNumTxInChunk;
+        maxNumTxInBatch = _maxNumTxInBatch;
         finalizationPeriodSeconds = _finalizationPeriodSeconds;
         proofWindow = _proofWindow;
 
         emit UpdateVerifier(address(0), _verifier);
-        emit UpdateMaxNumTxInChunk(0, _maxNumTxInChunk);
+        emit UpdateMaxNumTxInBatch(0, _maxNumTxInBatch);
         emit UpdateFinalizationPeriodSeconds(0, _finalizationPeriodSeconds);
         emit UpdateProofWindow(0, _proofWindow);
     }
@@ -204,22 +204,20 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     ) external payable override OnlyActiveStaker nonReqRevert whenNotPaused {
         require(batchDataInput.version == 0, "invalid version");
         // check whether the batch is empty
-        uint256 _chunksLength = batchDataInput.chunks.length;
-        require(_chunksLength > 0, "batch is empty");
+        uint256 _blockContextsLength = batchDataInput.blockContexts.length;
+        require(_blockContextsLength > 0, "batch is empty");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
         require(batchDataInput.postStateRoot != bytes32(0), "new state root is zero");
 
         // The overall memory layout in this function is organized as follows
         // +---------------------+-------------------+------------------+
-        // | parent batch header | chunk data hashes | new batch header |
+        // | parent batch header | batch data hashes | new batch header |
         // +---------------------+-------------------+------------------+
         // ^                     ^                   ^
         // batchPtr              dataPtr             newBatchPtr (re-use var batchPtr)
         //
         // 1. We copy the parent batch header from calldata to memory starting at batchPtr
-        // 2. We store `_chunksLength` number of Keccak hashes starting at `dataPtr`. Each Keccak
-        //    hash corresponds to the data hash of a chunk. So we reserve the memory region from
-        //    `dataPtr` to `dataPtr + _chunkLength * 32` for the chunk data hashes.
+        // 2. we store the batch data hash
         // 3. The memory starting at `newBatchPtr` is used to store the new batch header and compute
         //    the batch hash.
         // the variable `batchPtr` will be reused later for the current batch
@@ -230,32 +228,20 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0.getTotalL1MessagePopped(_batchPtr);
-
-        // load `dataPtr` and reserve the memory region for chunk data hashes
-        uint256 dataPtr;
-        assembly {
-            dataPtr := mload(0x40)
-            mstore(0x40, add(dataPtr, mul(_chunksLength, 32)))
-        }
-        // compute the data hash for each chunk
+        
+        // compute the data hash for batch
         uint256 _totalL1MessagesPoppedInBatch;
-        for (uint256 i = 0; i < _chunksLength; i++) {
-            uint256 _totalNumL1MessagesInChunk;
-            bytes32 _chunkDataHash;
-            (_chunkDataHash, _totalNumL1MessagesInChunk) = _commitChunk(
-                batchDataInput.chunks[i],
-                _totalL1MessagesPoppedInBatch,
-                _totalL1MessagesPoppedOverall,
-                batchDataInput.skippedL1MessageBitmap
-            );
-            unchecked {
-                _totalL1MessagesPoppedInBatch += _totalNumL1MessagesInChunk;
-                _totalL1MessagesPoppedOverall += _totalNumL1MessagesInChunk;
-            }
-            assembly {
-                mstore(dataPtr, _chunkDataHash)
-                dataPtr := add(dataPtr, 0x20)
-            }
+        uint256 _totalNumL1Messages;
+        bytes32 _l1DataHash;
+        (_l1DataHash, _totalNumL1Messages) = _commitBatch(
+            batchDataInput.blockContexts,
+            _totalL1MessagesPoppedInBatch,
+            _totalL1MessagesPoppedOverall,
+            batchDataInput.skippedL1MessageBitmap
+        );
+        unchecked {
+            _totalL1MessagesPoppedInBatch += _totalNumL1Messages;
+            _totalL1MessagesPoppedOverall += _totalNumL1Messages;
         }
         // check the length of bitmap
         unchecked {
@@ -264,11 +250,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 "wrong bitmap length"
             );
         }
-        // compute the data hash for current batch
-        bytes32 _l1DataHash;
         assembly {
-            let dataLen := mul(_chunksLength, 0x20)
-            _l1DataHash := keccak256(sub(dataPtr, dataLen), dataLen)
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
@@ -298,7 +280,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,
                 block.timestamp + finalizationPeriodSeconds,
-                _loadL2BlockNumber(batchDataInput.chunks[_chunksLength - 1]),
+                _loadL2BlockNumber(batchDataInput.blockContexts),
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
                 IL1Staking(l1StakingContract).getStakerBitmap(_msgSender()) // => batchSignature.signedSequencersBitmap
@@ -430,13 +412,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit UpdateVerifier(_oldVerifier, _newVerifier);
     }
 
-    /// @notice Update the value of `maxNumTxInChunk`.
-    /// @param _maxNumTxInChunk The new value of `maxNumTxInChunk`.
-    function updateMaxNumTxInChunk(uint256 _maxNumTxInChunk) external onlyOwner {
-        require(_maxNumTxInChunk > 0 && _maxNumTxInChunk != maxNumTxInChunk, "invalid new maxNumTxInChunk");
-        uint256 _oldMaxNumTxInChunk = maxNumTxInChunk;
-        maxNumTxInChunk = _maxNumTxInChunk;
-        emit UpdateMaxNumTxInChunk(_oldMaxNumTxInChunk, _maxNumTxInChunk);
+    /// @notice Update the value of `maxNumTxInBatch`.
+    /// @param _maxNumTxInBatch The new value of `maxNumTxInBatch`.
+    function updateMaxNumTxInBatch(uint256 _maxNumTxInBatch) external onlyOwner {
+        require(_maxNumTxInBatch > 0 && _maxNumTxInBatch != maxNumTxInBatch, "invalid new maxNumTxInBatch");
+        uint256 _oldMaxNumTxInBatch = maxNumTxInBatch;
+        maxNumTxInBatch = _maxNumTxInBatch;
+        emit UpdateMaxNumTxInBatch(_oldMaxNumTxInBatch, _maxNumTxInBatch);
     }
 
     /// @notice Pause the contract
@@ -730,68 +712,68 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     }
 
     /// @dev Internal function to load the latestL2BlockNumber.
-    /// @param _chunk The batch chunk in memory.
-    function _loadL2BlockNumber(bytes memory _chunk) internal pure returns (uint256) {
+    /// @param _blockContexts The batch block contexts in memory.
+    function _loadL2BlockNumber(bytes memory _blockContexts) internal pure returns (uint256) {
         uint256 blockPtr;
-        uint256 chunkPtr;
+        uint256 batchPtr;
         assembly {
-            chunkPtr := add(_chunk, 0x20)
-            blockPtr := add(chunkPtr, 1)
+            batchPtr := add(_blockContexts, 0x20)
+            blockPtr := add(batchPtr, 1)
         }
-        uint256 _numBlocks = ChunkCodecV0.validateChunkLength(chunkPtr, _chunk.length);
+        uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
         for (uint256 i = 0; i < _numBlocks - 1; i++) {
             unchecked {
-                blockPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
+                blockPtr += BatchCodecV0.BLOCK_CONTEXT_LENGTH;
             }
         }
-        uint256 l2BlockNumber = ChunkCodecV0.getBlockNumber(blockPtr);
+        uint256 l2BlockNumber = BatchCodecV0.getBlockNumber(blockPtr);
         return l2BlockNumber;
     }
 
-    /// @dev Internal function to commit a chunk with version 1.
-    /// @param _chunk The encoded chunk to commit.
+    /// @dev Internal function to commit a batch with version 1.
+    /// @param _blockContexts The encoded block contexts to commit.
     /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
     /// @param _skippedL1MessageBitmap The bitmap indicates whether each L1 message is skipped or not.
-    /// @return _dataHash The computed data hash for this chunk.
-    /// @return _totalNumL1MessagesInChunk The total number of L1 message popped in current chunk
-    function _commitChunk(
-        bytes memory _chunk,
+    /// @return _dataHash The computed data hash for this batch.
+    /// @return _totalNumL1MessagesInBatch The total number of L1 message popped in current batch
+    function _commitBatch(
+        bytes memory _blockContexts,
         uint256 _totalL1MessagesPoppedInBatch,
         uint256 _totalL1MessagesPoppedOverall,
         bytes calldata _skippedL1MessageBitmap
-    ) internal view returns (bytes32 _dataHash, uint256 _totalNumL1MessagesInChunk) {
-        uint256 chunkPtr;
+    ) internal view returns (bytes32 _dataHash, uint256 _totalNumL1MessagesInBatch) {
+        uint256 batchPtr;
         uint256 startDataPtr;
         uint256 dataPtr;
 
         assembly {
             dataPtr := mload(0x40)
             startDataPtr := dataPtr
-            chunkPtr := add(_chunk, 0x20) // skip chunkLength
+            batchPtr := add(_blockContexts, 0x20) // skip batchContexts.length
         }
 
-        uint256 _numBlocks = ChunkCodecV0.validateChunkLength(chunkPtr, _chunk.length);
+        uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
         // concatenate block contexts, use scope to avoid stack too deep
         for (uint256 i = 0; i < _numBlocks; i++) {
-            dataPtr = ChunkCodecV0.copyBlockContext(chunkPtr, dataPtr, i);
-            uint256 blockPtr = chunkPtr + 1 + i * ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
-            uint256 _numL1MessagesInBlock = ChunkCodecV0.getNumL1Messages(blockPtr);
+            dataPtr = BatchCodecV0.copyBlockContext(batchPtr, dataPtr, i);
+            uint256 blockPtr = batchPtr + 2 + i * BatchCodecV0.BLOCK_CONTEXT_LENGTH;
+            uint256 _numL1MessagesInBlock = BatchCodecV0.getNumL1Messages(blockPtr);
             unchecked {
-                _totalNumL1MessagesInChunk += _numL1MessagesInBlock;
+                _totalNumL1MessagesInBatch += _numL1MessagesInBlock;
             }
         }
         assembly {
-            mstore(0x40, add(dataPtr, mul(_totalNumL1MessagesInChunk, 0x20))) // reserve memory for l1 message hashes
-            chunkPtr := add(chunkPtr, 1)
+            mstore(0x40, add(dataPtr, mul(_totalNumL1MessagesInBatch, 0x20))) // reserve memory for l1 message hashes
+            batchPtr := add(batchPtr, 1)
         }
 
-        // the number of actual transactions in one chunk: non-skipped l1 messages + l2 txs
-        uint256 _totalTransactionsInChunk;
+        // the number of actual transactions in one batch: non-skipped l1 messages + l2 txs
+        uint256 _totalTransactionsInBatch;
         // concatenate tx hashes
         while (_numBlocks > 0) {
             // concatenate l1 message hashes
-            uint256 _numL1MessagesInBlock = ChunkCodecV0.getNumL1Messages(chunkPtr);
+            uint256 _numL1MessagesInBlock = BatchCodecV0.getNumL1Messages(batchPtr);
             uint256 startPtr = dataPtr;
             dataPtr = _loadL1MessageHashes(
                 dataPtr,
@@ -800,21 +782,21 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 _totalL1MessagesPoppedOverall,
                 _skippedL1MessageBitmap
             );
-            uint256 _numTransactionsInBlock = ChunkCodecV0.getNumTransactions(chunkPtr);
+            uint256 _numTransactionsInBlock = BatchCodecV0.getNumTransactions(batchPtr);
             require(_numTransactionsInBlock >= _numL1MessagesInBlock, "num txs less than num L1 msgs");
             unchecked {
-                _totalTransactionsInChunk += (dataPtr - startPtr) / 32; // number of non-skipped l1 messages
-                _totalTransactionsInChunk += _numTransactionsInBlock - _numL1MessagesInBlock; // number of l2 txs
+                _totalTransactionsInBatch += (dataPtr - startPtr) / 32; // number of non-skipped l1 messages
+                _totalTransactionsInBatch += _numTransactionsInBlock - _numL1MessagesInBlock; // number of l2 txs
                 _totalL1MessagesPoppedInBatch += _numL1MessagesInBlock;
                 _totalL1MessagesPoppedOverall += _numL1MessagesInBlock;
 
                 _numBlocks -= 1;
-                chunkPtr += ChunkCodecV0.BLOCK_CONTEXT_LENGTH;
+                batchPtr += BatchCodecV0.BLOCK_CONTEXT_LENGTH;
             }
         }
 
-        // check the actual number of transactions in the chunk
-        require(_totalTransactionsInChunk <= maxNumTxInChunk, "too many txs in one chunk");
+        // check the actual number of transactions in the batch
+        require(_totalTransactionsInBatch <= maxNumTxInBatch, "too many txs in one batch");
 
         // compute data hash and store to memory
         assembly {
