@@ -3,14 +3,12 @@ package sequencer
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/spf13/viper"
 	tmtypes "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/blssignatures"
 	"github.com/tendermint/tendermint/config"
-	tmflags "github.com/tendermint/tendermint/libs/cli/flags"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmos "github.com/tendermint/tendermint/libs/os"
 	tmnode "github.com/tendermint/tendermint/node"
@@ -54,14 +52,7 @@ func LoadTmConfig(ctx *cli.Context, home string) (*config.Config, error) {
 }
 
 func SetupNode(tmCfg *config.Config, privValidator types.PrivValidator, executor *node.Executor, logger tmlog.Logger) (*tmnode.Node, error) {
-	if tmCfg.LogFormat == config.LogFormatJSON {
-		logger = tmlog.NewTMJSONLogger(tmlog.NewSyncWriter(os.Stdout))
-	}
-	nodeLogger, err := tmflags.ParseLogLevel(tmCfg.LogLevel, logger, config.DefaultLogLevel)
-	if err != nil {
-		return nil, err
-	}
-	nodeLogger = nodeLogger.With("module", "main")
+	nodeLogger := logger.With("module", "main")
 
 	nodeKey, err := p2p.LoadOrGenNodeKey(tmCfg.NodeKeyFile())
 	if err != nil {

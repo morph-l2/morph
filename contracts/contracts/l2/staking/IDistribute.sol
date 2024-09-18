@@ -15,16 +15,12 @@ interface IDistribute {
     /// @notice Distribution representing a distribution
     ///
     /// @custom:field delegatorRewardAmount  total reward amount minus commission
-    /// @custom:field commissionAmount       delegate commission amount
     /// @custom:field delegationAmount       total delegation amount
-    /// @custom:field remainsNumber          unclaimed delegator number
     /// @custom:field delegators             delegator set
     /// @custom:field amounts                delegators delegation amount
     struct Distribution {
         uint256 delegatorRewardAmount;
-        uint256 commissionAmount;
         uint256 delegationAmount;
-        uint256 remainsNumber;
         EnumerableSetUpgradeable.AddressSet delegators;
         mapping(address delegator => uint256 amount) amounts;
     }
@@ -55,17 +51,12 @@ interface IDistribute {
 
     /// @notice commission claimed
     /// @param delegatee    delegatee
-    /// @param upToEpoch    up to epoch index
     /// @param amount       amount
-    event CommissionClaimed(address indexed delegatee, uint256 upToEpoch, uint256 amount);
+    event CommissionClaimed(address indexed delegatee, uint256 amount);
 
     /*************************
      * Public View Functions *
      *************************/
-
-    /// @dev return the next epoch to claim commission for a delegatee
-    /// @param delegatee    delegatee
-    function nextEpochToClaimCommission(address delegatee) external view returns (uint256);
 
     /// @notice query unclaimed morph reward on a delegatee
     /// @param delegatee     delegatee address
@@ -84,6 +75,14 @@ interface IDistribute {
         address delegator
     ) external view returns (address[] memory, bool[] memory, uint256[] memory, uint256[] memory);
 
+    /// @notice query oldest distribution
+    /// @param delegatee     delegatee address
+    function queryOldestDistribution(address delegatee) external view returns (uint256 epochIndex);
+
+    /// @notice query all unclaimed commission of a staker
+    /// @param delegatee     delegatee address
+    function queryUnclaimedCommission(address delegatee) external view returns (uint256 amount);
+
     /*****************************
      * Public Mutating Functions *
      *****************************/
@@ -94,7 +93,6 @@ interface IDistribute {
     /// @param effectiveEpoch    delegation effective epoch
     /// @param amount            delegator amount
     /// @param totalAmount       delegatee total amount
-    /// @param remainsNumber     delegator number
     /// @param newDelegation     first delegate or additional delegate
     function notifyDelegation(
         address delegatee,
@@ -102,7 +100,6 @@ interface IDistribute {
         uint256 effectiveEpoch,
         uint256 amount,
         uint256 totalAmount,
-        uint256 remainsNumber,
         bool newDelegation
     ) external;
 
@@ -111,25 +108,23 @@ interface IDistribute {
     /// @param delegator         delegator address
     /// @param effectiveEpoch    delegation effective epoch
     /// @param totalAmount       delegatee total amount
-    /// @param remainsNumber     delegator number
     function notifyUndelegation(
         address delegatee,
         address delegator,
         uint256 effectiveEpoch,
-        uint256 totalAmount,
-        uint256 remainsNumber
+        uint256 totalAmount
     ) external;
 
     /// @dev update epoch reward
-    /// @param epochIndex        epoch index
-    /// @param sequencers        sequencers
-    /// @param delegatorRewards  sequencer's delegatorRewardAmount
-    /// @param commissions       sequencers commission
+    /// @param epochIndex         epoch index
+    /// @param sequencers         sequencers
+    /// @param delegatorRewards   sequencer's delegator reward amount
+    /// @param commissionsAmount  sequencers commission amount
     function updateEpochReward(
         uint256 epochIndex,
         address[] calldata sequencers,
         uint256[] calldata delegatorRewards,
-        uint256[] calldata commissions
+        uint256[] calldata commissionsAmount
     ) external;
 
     /// @dev claim delegation reward of all sequencers.
@@ -151,6 +146,5 @@ interface IDistribute {
 
     /// @dev claim commission reward
     /// @param delegatee         delegatee address
-    /// @param targetEpochIndex  the epoch index that the user wants to claim up to
-    function claimCommission(address delegatee, uint256 targetEpochIndex) external;
+    function claimCommission(address delegatee) external;
 }
