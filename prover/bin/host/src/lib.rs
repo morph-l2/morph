@@ -19,6 +19,7 @@ pub fn prove_for_queue() {}
 pub fn prove(trace_path: &str, prove: bool) {
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
+    // Prepare input.
     let mut traces: Vec<Vec<BlockTrace>> = load_trace(trace_path);
     let block_trace: &mut BlockTrace = &mut traces[0][2];
     println!(
@@ -26,9 +27,7 @@ pub fn prove(trace_path: &str, prove: bool) {
         block_trace.root_after(),
         block_trace.transactions.len()
     );
-
-    // Convert the traces' format to reduce conversion costs in the client.
-    block_trace.flatten();
+    block_trace.flatten(); // Convert the traces' format to reduce conversion costs in the client.
     let client_input = ClientInput {
         l2_trace: block_trace.clone(),
         blob_info: get_blob_info(block_trace).unwrap(),
@@ -41,11 +40,9 @@ pub fn prove(trace_path: &str, prove: bool) {
         hex::encode(expected_hash.as_slice())
     );
 
-    let mut stdin = SP1Stdin::new();
-    let trace_str = serde_json::to_string(&client_input).unwrap();
-    stdin.write(&trace_str);
-
     // Execute the program in sp1-vm
+    let mut stdin = SP1Stdin::new();
+    stdin.write(&serde_json::to_string(&client_input).unwrap());
     let client = ProverClient::new();
     let (mut public_values, execution_report) =
         client.execute(VERIFIER_ELF, stdin.clone()).run().unwrap();

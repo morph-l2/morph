@@ -82,6 +82,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "algebra-client"
+version = "0.1.0"
+dependencies = [
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "algebra-host"
+version = "0.1.0"
+dependencies = [
+ "sp1-helper",
+ "sp1-sdk",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
