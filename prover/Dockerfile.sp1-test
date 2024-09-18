@@ -12,4 +12,5 @@ COPY . /app
 WORKDIR /app
 RUN cd tests/algebra/client && cargo prove build
 
+ENV SP1_DEV=1
 RUN cd tests/algebra/host && RUST_LOG=debug RUST_BACKTRACE=full cargo run --release
