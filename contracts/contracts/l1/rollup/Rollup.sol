@@ -47,9 +47,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The time when zkProof was generated and executed.
     uint256 public proofWindow;
 
-    /// @notice The maximum number of transactions allowed in each batch.
-    uint256 public maxNumTxInBatch;
-
     /// @notice The address of L1MessageQueue.
     address public messageQueue;
 
@@ -136,14 +133,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _l1StakingContract         l1 staking contract
     /// @param _messageQueue              message queue
     /// @param _verifier                  verifier
-    /// @param _maxNumTxInBatch           max num tx in batch
     /// @param _finalizationPeriodSeconds finalization period seconds
     /// @param _proofWindow               proof window
     function initialize(
         address _l1StakingContract,
         address _messageQueue,
         address _verifier,
-        uint256 _maxNumTxInBatch,
         uint256 _finalizationPeriodSeconds,
         uint256 _proofWindow
     ) public initializer {
@@ -158,12 +153,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         l1StakingContract = _l1StakingContract;
         messageQueue = _messageQueue;
         verifier = _verifier;
-        maxNumTxInBatch = _maxNumTxInBatch;
         finalizationPeriodSeconds = _finalizationPeriodSeconds;
         proofWindow = _proofWindow;
 
         emit UpdateVerifier(address(0), _verifier);
-        emit UpdateMaxNumTxInBatch(0, _maxNumTxInBatch);
         emit UpdateFinalizationPeriodSeconds(0, _finalizationPeriodSeconds);
         emit UpdateProofWindow(0, _proofWindow);
     }
@@ -410,15 +403,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         address _oldVerifier = verifier;
         verifier = _newVerifier;
         emit UpdateVerifier(_oldVerifier, _newVerifier);
-    }
-
-    /// @notice Update the value of `maxNumTxInBatch`.
-    /// @param _maxNumTxInBatch The new value of `maxNumTxInBatch`.
-    function updateMaxNumTxInBatch(uint256 _maxNumTxInBatch) external onlyOwner {
-        require(_maxNumTxInBatch > 0 && _maxNumTxInBatch != maxNumTxInBatch, "invalid new maxNumTxInBatch");
-        uint256 _oldMaxNumTxInBatch = maxNumTxInBatch;
-        maxNumTxInBatch = _maxNumTxInBatch;
-        emit UpdateMaxNumTxInBatch(_oldMaxNumTxInBatch, _maxNumTxInBatch);
     }
 
     /// @notice Pause the contract
@@ -768,13 +752,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchPtr := add(batchPtr, 1)
         }
 
-        // the number of actual transactions in one batch: non-skipped l1 messages + l2 txs
-        uint256 _totalTransactionsInBatch;
         // concatenate tx hashes
         while (_numBlocks > 0) {
             // concatenate l1 message hashes
             uint256 _numL1MessagesInBlock = BatchCodecV0.getNumL1Messages(batchPtr);
-            uint256 startPtr = dataPtr;
             dataPtr = _loadL1MessageHashes(
                 dataPtr,
                 _numL1MessagesInBlock,
@@ -785,8 +766,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             uint256 _numTransactionsInBlock = BatchCodecV0.getNumTransactions(batchPtr);
             require(_numTransactionsInBlock >= _numL1MessagesInBlock, "num txs less than num L1 msgs");
             unchecked {
-                _totalTransactionsInBatch += (dataPtr - startPtr) / 32; // number of non-skipped l1 messages
-                _totalTransactionsInBatch += _numTransactionsInBlock - _numL1MessagesInBlock; // number of l2 txs
                 _totalL1MessagesPoppedInBatch += _numL1MessagesInBlock;
                 _totalL1MessagesPoppedOverall += _numL1MessagesInBlock;
 
@@ -794,9 +773,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchPtr += BatchCodecV0.BLOCK_CONTEXT_LENGTH;
             }
         }
-
-        // check the actual number of transactions in the batch
-        require(_totalTransactionsInBatch <= maxNumTxInBatch, "too many txs in one batch");
 
         // compute data hash and store to memory
         assembly {

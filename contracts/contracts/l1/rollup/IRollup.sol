@@ -113,11 +113,6 @@ interface IRollup {
     /// @param newVerifier  The address of new rollup verifier.
     event UpdateVerifier(address indexed oldVerifier, address indexed newVerifier);
 
-    /// @notice Emitted when the value of `maxNumTxInBatch` is updated.
-    /// @param oldMaxNumTxInBatch   The old value of `maxNumTxInBatch`.
-    /// @param newMaxNumTxInBatch   The new value of `maxNumTxInBatch`.
-    event UpdateMaxNumTxInBatch(uint256 oldMaxNumTxInBatch, uint256 newMaxNumTxInBatch);
-
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex       The index of the batch.
     /// @param challenger       The address of challenger.

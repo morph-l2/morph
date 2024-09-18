@@ -228,46 +228,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(bitmap, add(0x20, 32)), 42) // bitmap1
         }
 
-        // too many txs in one batch, revert
         hevm.prank(multisig);
-        rollup.updateMaxNumTxInBatch(2);
-        hevm.mockCall(
-            address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
-            abi.encode(true)
-        );
-        hevm.mockCall(
-            address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
-            abi.encode(2)
-        );
-        hevm.startPrank(address(0));
-        hevm.expectRevert("too many txs in one chunk");
-
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader1, batch, bitmap, bytesData1, bytesData1, bytesData4);
-        rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
-        hevm.stopPrank();
-
-        hevm.prank(multisig);
-        rollup.updateMaxNumTxInBatch(10);
-        hevm.mockCall(
-            address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
-            abi.encode(true)
-        );
-        hevm.mockCall(
-            address(rollup.l1StakingContract()),
-            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
-            abi.encode(2)
-        );
-        hevm.startPrank(address(0));
-        hevm.expectRevert("too many txs in one chunk");
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader1, batch, bitmap, bytesData1, bytesData1, bytesData4);
-        rollup.commitBatch(batchDataInput, batchSignatureInput); // second chunk with too many txs
-        hevm.stopPrank();
-
-        hevm.prank(multisig);
-        rollup.updateMaxNumTxInBatch(186);
         hevm.mockCall(
             address(rollup.l1StakingContract()),
             abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
@@ -754,27 +715,6 @@ contract RollupTest is L1MessageBaseTest {
         assertEq(rollup.verifier(), address(verifier));
         rollup.updateVerifier(_newVerifier);
         assertEq(rollup.verifier(), _newVerifier);
-    }
-
-    function test_updateMaxNumTxInBatch_succeeds(uint256 _maxNumTxInBatch) public {
-        hevm.assume(_maxNumTxInBatch > 0);
-        hevm.assume(_maxNumTxInBatch != 10);
-
-        hevm.prank(multisig);
-        rollup.transferOwnership(address(this));
-        // set by non-owner, should revert
-        hevm.startPrank(address(1));
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.updateMaxNumTxInBatch(_maxNumTxInBatch);
-        hevm.stopPrank();
-
-        // change to random operator
-        hevm.expectEmit(false, false, false, true);
-        emit IRollup.UpdateMaxNumTxInBatch(10, _maxNumTxInBatch);
-
-        assertEq(rollup.maxNumTxInBatch(), 10);
-        rollup.updateMaxNumTxInBatch(_maxNumTxInBatch);
-        assertEq(rollup.maxNumTxInBatch(), _maxNumTxInBatch);
     }
 
     function test_importGenesisBlock_succeeds() public {
