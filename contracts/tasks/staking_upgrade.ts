@@ -126,7 +126,6 @@ task("rollup-deploy-init")
             console.log("Upgrading the Rollup proxy...")
             const finalizationPeriodSeconds: number = config.finalizationPeriodSeconds
             const proofWindow: number = config.rollupProofWindow
-            const maxNumTxInChunk: number = config.rollupMaxNumTxInChunk
 
             const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(
                 storagePath,
@@ -156,7 +155,6 @@ task("rollup-deploy-init")
                     L1StakingProxyAddress,
                     L1MessageQueueWithGasPriceOracleProxyAddress,
                     MultipleVersionRollupVerifierContractAddress,
-                    maxNumTxInChunk,
                     finalizationPeriodSeconds,
                     proofWindow,
                 ])
@@ -177,7 +175,6 @@ task("rollup-deploy-init")
             await assertContractVariable(contractTmp, "l1StakingContract", L1StakingProxyAddress)
             await assertContractVariable(contractTmp, "messageQueue", L1MessageQueueWithGasPriceOracleProxyAddress)
             await assertContractVariable(contractTmp, "verifier", MultipleVersionRollupVerifierContractAddress)
-            await assertContractVariable(contractTmp, "maxNumTxInChunk", maxNumTxInChunk)
             await assertContractVariable(contractTmp, "finalizationPeriodSeconds", finalizationPeriodSeconds)
             await assertContractVariable(contractTmp, "proofWindow", proofWindow)
             await assertContractVariable(contractTmp, "owner", await deployer.getAddress())
