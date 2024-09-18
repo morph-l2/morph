@@ -2,6 +2,12 @@ FROM sp1-base:latest
 
 RUN cargo prove --version
 
+ARG GO_VERSION=1.22
+RUN wget https://go.dev/dl/go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
+RUN tar -C /usr/local -xzf go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
+RUN rm go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz && rm /tmp/arch
+ENV PATH="/usr/local/go/bin:${PATH}"
+
 COPY . /app
 WORKDIR /app
 RUN cd tests/algebra/client && cargo prove build
