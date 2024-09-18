@@ -68,6 +68,7 @@ pub fn prove(trace_path: &str, prove: bool) {
     let start = Instant::now();
     let proof = client
         .prove(&pk, stdin)
+        .plonk()
         .run()
         .expect("failed to generate proof");
 
