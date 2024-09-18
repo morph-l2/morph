@@ -3,7 +3,7 @@ FROM sp1-base:latest
 RUN cargo prove --version
 
 ARG GO_VERSION=1.22
-RUN wget https://raw.githubusercontent.com/anylots/golangTemp/blob/main/go1.22.1.linux-amd64.tar.gz
+RUN wget https://raw.githubusercontent.com/anylots/golangTemp/main/go1.22.1.linux-amd64.tar.gz
 RUN tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz
 RUN rm go1.22.1.linux-amd64.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
