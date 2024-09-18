@@ -32,6 +32,7 @@ pub fn get_origin_batch(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
 }
 
 pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+    println!("cycle-tracker-start: decompress_batch");
     let mut content = MAGIC_NUM.to_le_bytes().to_vec();
     content.append(&mut compressed_batch.to_vec());
     let mut x = content.as_slice();
@@ -39,6 +40,7 @@ pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Erro
     let mut decoder = StreamingDecoder::new(&mut x)?;
     let mut result = Vec::new();
     decoder.read_to_end(&mut result).unwrap();
+    println!("cycle-tracker-end: decompress_batch");
     Ok(result.to_vec())
 }
 

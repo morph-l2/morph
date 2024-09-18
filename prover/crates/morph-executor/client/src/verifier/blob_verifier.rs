@@ -13,7 +13,7 @@ use crate::types::{
 pub struct BlobVerifier;
 
 impl BlobVerifier {
-    pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<TypedTransaction>), anyhow::Error> {
+    pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<u8>), anyhow::Error> {
         // decode
         let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
         // let raw_tx_payload = decode_raw_tx_payload(origin_batch).unwrap();
@@ -27,14 +27,16 @@ impl BlobVerifier {
         let commitent = Bytes48::from_slice(&blob_info.commitment).unwrap();
         let proof = Bytes48::from_slice(&blob_info.proof).unwrap();
 
+        println!("cycle-tracker-start: verify_blob_kzg_proof");
         kzg_rs::KzgProof::verify_blob_kzg_proof(blob, &commitent, &proof, &get_kzg_settings())
             .map_err(|e| anyhow!("blob verification failed: {:?}", e))?;
+        println!("cycle-tracker-end: verify_blob_kzg_proof");
         println!(
             "verify_blob_kzg_proof successfully, versioned_hash: {:?}",
             B256::from_slice(&versioned_hash)
         );
 
-        Ok((B256::from_slice(&versioned_hash), tx_list))
+        Ok((B256::from_slice(&versioned_hash), origin_batch))
     }
 }
 
