@@ -34,7 +34,7 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
     else \
     echo "Unsupported architecture"; exit 1; \
     fi
-RUN wget https://github.com/anylots/golangTemp/blob/main/go1.22.1.linux-amd64.tar.gz
+RUN wget https://go.dev/dl/go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
 RUN tar -C /usr/local -xzf go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
 RUN rm go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz && rm /tmp/arch
 ENV PATH="/usr/local/go/bin:${PATH}"
