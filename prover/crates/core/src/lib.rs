@@ -3,8 +3,8 @@
 #[macro_use]
 extern crate sbv_utils;
 
-mod chunk;
-pub use chunk::ChunkInfo;
+mod batch;
+pub use batch::BatchInfo;
 
 mod database;
 pub use database::ReadOnlyDB;

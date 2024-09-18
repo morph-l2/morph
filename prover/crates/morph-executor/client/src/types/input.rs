@@ -13,6 +13,6 @@ pub struct BlobInfo {
 #[serde_as]
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ClientInput {
-    pub l2_trace: BlockTrace,
+    pub l2_traces: Vec<BlockTrace>,
     pub blob_info: BlobInfo,
 }

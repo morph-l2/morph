@@ -4,7 +4,7 @@ use std::rc::Rc;
 use tiny_keccak::{Hasher, Keccak};
 
 /// A chunk is a set of continuous blocks.
-/// ChunkInfo is metadata of chunk, with following fields:
+/// BatchInfo is metadata of chunk, with following fields:
 /// - state root before this chunk
 /// - state root after this chunk
 /// - the withdraw root after this chunk
@@ -12,7 +12,7 @@ use tiny_keccak::{Hasher, Keccak};
 /// - the tx data hash of this chunk
 /// - flattened L2 tx bytes hash
 #[derive(Debug)]
-pub struct ChunkInfo {
+pub struct BatchInfo {
     chain_id: u64,
     prev_state_root: B256,
     post_state_root: B256,
@@ -20,11 +20,14 @@ pub struct ChunkInfo {
     data_hash: B256,
 }
 
-impl ChunkInfo {
+impl BatchInfo {
     /// Construct by block traces
     pub fn from_block_traces<T: Block>(traces: &[T]) -> (Self, Rc<ZkMemoryDb>) {
         let chain_id = traces.first().unwrap().chain_id();
-        let prev_state_root = traces.first().expect("at least 1 block needed").root_before();
+        let prev_state_root = traces
+            .first()
+            .expect("at least 1 block needed")
+            .root_before();
         let post_state_root = traces.last().expect("at least 1 block needed").root_after();
         let withdraw_root = traces.last().unwrap().withdraw_root();
 
@@ -47,8 +50,13 @@ impl ChunkInfo {
         }
         let zktrie_db = Rc::new(zktrie_db);
 
-        let info =
-            ChunkInfo { chain_id, prev_state_root, post_state_root, withdraw_root, data_hash };
+        let info = BatchInfo {
+            chain_id,
+            prev_state_root,
+            post_state_root,
+            withdraw_root,
+            data_hash,
+        };
 
         (info, zktrie_db)
     }
@@ -62,7 +70,7 @@ impl ChunkInfo {
     ///     chunk data hash ||
     ///     chunk txdata hash
     /// )
-    pub fn public_input_hash(&self, tx_bytes_hash: &B256) -> B256 {
+    pub fn public_input_hash(&self, versioned_hash: &B256) -> B256 {
         let mut hasher = Keccak::v256();
 
         hasher.update(&self.chain_id.to_be_bytes());
@@ -70,7 +78,7 @@ impl ChunkInfo {
         hasher.update(self.post_state_root.as_slice());
         hasher.update(self.withdraw_root.as_slice());
         hasher.update(self.data_hash.as_slice());
-        hasher.update(tx_bytes_hash.as_slice());
+        hasher.update(versioned_hash.as_slice());
 
         let mut public_input_hash = B256::ZERO;
         hasher.finalize(&mut public_input_hash.0);
@@ -125,11 +133,13 @@ mod tests {
             pub struct BlockTraceJsonRpcResult {
                 pub result: BlockTrace,
             }
-            serde_json::from_str::<BlockTraceJsonRpcResult>(s).unwrap().result
+            serde_json::from_str::<BlockTraceJsonRpcResult>(s)
+                .unwrap()
+                .result
         });
 
         let fork_config = HardforkConfig::default_from_chain_id(traces[0].chain_id());
-        let (chunk_info, zktrie_db) = ChunkInfo::from_block_traces(&traces);
+        let (batch_info, zktrie_db) = BatchInfo::from_block_traces(&traces);
 
         let tx_bytes_hasher = RefCell::new(Keccak::v256());
 
@@ -150,12 +160,12 @@ mod tests {
         }
 
         let post_state_root = executor.commit_changes(&zktrie_db);
-        assert_eq!(post_state_root, chunk_info.post_state_root);
+        assert_eq!(post_state_root, batch_info.post_state_root);
         drop(executor); // drop executor to release Rc<Keccek>
 
         let mut tx_bytes_hash = B256::ZERO;
         tx_bytes_hasher.into_inner().finalize(&mut tx_bytes_hash.0);
-        let public_input_hash = chunk_info.public_input_hash(&tx_bytes_hash);
+        let public_input_hash = batch_info.public_input_hash(&tx_bytes_hash);
         assert_eq!(
             public_input_hash,
             b256!("764bffabc9fd4227d447a46d8bb04e5448ed64d89d6e5f4215fcf3593e00f109")

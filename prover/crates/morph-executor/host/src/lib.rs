@@ -34,21 +34,25 @@ pub fn load_trusted_setup() -> KzgSettings {
     KzgSettings::load_trusted_setup_file(trusted_setup_file).unwrap()
 }
 
-pub fn get_blob_info(block_trace: &BlockTrace) -> Result<BlobInfo, anyhow::Error> {
+pub fn get_blob_info(block_trace: &Vec<BlockTrace>) -> Result<BlobInfo, anyhow::Error> {
     let batch_info = get_blob_data(block_trace);
     populate_kzg(&batch_info)
 }
 
-pub fn get_blob_data(block_trace: &BlockTrace) -> [u8; BLOB_DATA_SIZE] {
+pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
     let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
 
     // collect txns
-    let tx_bytes: Vec<u8> = block_trace
-        .transactions
-        .iter()
-        .filter(|tx| !tx.is_l1_tx())
-        .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp_da())
-        .collect::<Vec<u8>>();
+    let mut tx_bytes: Vec<u8> = vec![];
+    for trace in block_trace {
+        let x = trace
+            .transactions
+            .iter()
+            .filter(|tx| !tx.is_l1_tx())
+            .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp_da())
+            .collect::<Vec<u8>>();
+        tx_bytes.extend(x);
+    }
 
     // zstd compresse
     let compressed_batch = compresse_batch(tx_bytes.as_slice()).unwrap();

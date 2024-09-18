@@ -21,16 +21,13 @@ pub fn prove(trace_path: &str, prove: bool) {
     sp1_sdk::utils::setup_logger();
     // Prepare input.
     let mut traces: Vec<Vec<BlockTrace>> = load_trace(trace_path);
-    let block_trace: &mut BlockTrace = &mut traces[0][2];
-    println!(
-        "traces' post_state_root: {:?}, transactions.len: {:?}",
-        block_trace.root_after(),
-        block_trace.transactions.len()
-    );
-    block_trace.flatten(); // Convert the traces' format to reduce conversion costs in the client.
+    let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
+    // Convert the traces' format to reduce conversion costs in the client.
+    block_traces.iter_mut().for_each(|blobk| blobk.flatten());
+
     let client_input = ClientInput {
-        l2_trace: block_trace.clone(),
-        blob_info: get_blob_info(block_trace).unwrap(),
+        l2_traces: block_traces.clone(),
+        blob_info: get_blob_info(block_traces).unwrap(),
     };
 
     // Execute the program in native

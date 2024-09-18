@@ -1,84 +1,43 @@
-use std::rc::Rc;
-
-use alloy::primitives::keccak256;
-use sbv_core::{EvmExecutorBuilder, HardforkConfig, VerificationError};
-use sbv_primitives::{types::BlockTrace, zk_trie::ZkMemoryDb, Block, B256};
-use sbv_utils::{cycle_track, dev_error, dev_info};
+use sbv_core::{BatchInfo, EvmExecutorBuilder, HardforkConfig, VerificationError};
+use sbv_primitives::types::BlockTrace;
+use sbv_utils::dev_error;
 
 // use Verifier;
 pub struct EVMVerifier;
 
 impl EVMVerifier {
-    pub fn verify(l2_trace: &BlockTrace) -> Result<B256, VerificationError> {
-        // Step1. verify blob
-        // TODO
-        let versioned_hash: Vec<u8> = vec![];
-
-        // Step2. execute all transactions
-        let root_before = l2_trace.root_before();
-        let root_after = l2_trace.root_after();
-        let withdraw_root = l2_trace.withdraw_root();
-        let sequencer_set_root: Vec<u8> = vec![];
-        let revm_root_after = execute(l2_trace)?;
-
-        if root_after != revm_root_after {
-            dev_error!(
-                "Block #{}({:?}) root mismatch: root after in trace = {root_after:x}, root after in
-    revm = {revm_root_after:x}",
-                l2_trace.number(),
-                l2_trace.block_hash(),
-            );
-
-            return Err(VerificationError::RootMismatch {
-                root_trace: root_after,
-                root_revm: revm_root_after,
-            });
-        }
-        dev_info!(
-            "Block #{}({}) verified successfully",
-            l2_trace.number(),
-            l2_trace.block_hash(),
-        );
-
-        // Step3. compute pi hash
-        let pi_hash = keccak256(
-            [
-                versioned_hash,
-                withdraw_root.to_vec(),
-                sequencer_set_root,
-                root_before.to_vec(),
-                revm_root_after.to_vec(),
-            ]
-            .concat(),
-        );
-
-        Ok(B256::from_slice(pi_hash.as_slice()))
+    pub fn verify(l2_traces: &Vec<BlockTrace>) -> Result<BatchInfo, VerificationError> {
+        let batch_info = execute(l2_traces)?;
+        Ok(batch_info)
     }
 }
 
-fn execute(l2_trace: &BlockTrace) -> Result<alloy::primitives::FixedBytes<32>, VerificationError> {
+fn execute(traces: &Vec<BlockTrace>) -> Result<BatchInfo, VerificationError> {
+    let (batch_info, zktrie_db) = BatchInfo::from_block_traces(&traces);
+
     let fork_config: HardforkConfig = HardforkConfig::default_from_chain_id(2818);
-    let zktrie_db = cycle_track!(
-        {
-            let mut zktrie_db = ZkMemoryDb::new();
-            l2_trace.build_zktrie_db(&mut zktrie_db);
-            Rc::new(zktrie_db)
-        },
-        "build ZktrieState"
-    );
     let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
         .hardfork_config(fork_config)
-        .build(&l2_trace)?;
+        .build(&traces[0])?;
     #[allow(clippy::map_identity)]
     #[allow(clippy::manual_inspect)]
-    executor.handle_block(&l2_trace).map_err(|e| {
-        dev_error!(
-            "Error occurs when executing block #{}({:?}): {e:?}",
-            l2_trace.number(),
-            l2_trace.block_hash()
-        );
-        e
-    })?;
+    executor.handle_block(&traces[0])?;
+    for trace in traces[1..].iter() {
+        executor.update_db(trace)?;
+        executor.handle_block(trace)?;
+    }
+
+    let trace_root_after = batch_info.post_state_root();
     let revm_root_after = executor.commit_changes(&zktrie_db);
-    Ok(revm_root_after)
+    if revm_root_after != batch_info.post_state_root() {
+        dev_error!(
+        "root mismatch: root after in trace = {trace_root_after:x}, root after in revm = {revm_root_after:x}" );
+        return Err(VerificationError::RootMismatch {
+            root_trace: trace_root_after,
+            root_revm: revm_root_after,
+        });
+    }
+
+    drop(executor);
+    Ok(batch_info)
 }
