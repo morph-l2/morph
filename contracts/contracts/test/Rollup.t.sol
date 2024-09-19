@@ -537,14 +537,14 @@ contract RollupTest is L1MessageBaseTest {
         );
         rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
         hevm.stopPrank();
-        assertEq(rollup.committedBatches(1), 0x5c84f469c62cd712c33f1b15b538fa771c7a223aefc911089978d8de5cf4bc5c);
+        assertEq(rollup.committedBatches(1), 0xb7cb76cf9e9f5878136c1d14e095f5d5b435fe8252cad6eb100e51110033b6ed);
         bytes memory batchHeader1 = new bytes(249);
         assembly {
             mstore(add(batchHeader1, 0x20), 0) // version
             mstore(add(batchHeader1, add(0x20, 1)), shl(192, 1)) // batchIndex
             mstore(add(batchHeader1, add(0x20, 9)), 0) // l1MessagePopped
             mstore(add(batchHeader1, add(0x20, 17)), 0) // totalL1MessagePopped
-            mstore(add(batchHeader1, add(0x20, 25)), 0x5cc7985ff03945d904d4e5a8376ef8371d42c22395eab1b3e227583388adc3a1) // dataHash
+            mstore(add(batchHeader1, add(0x20, 25)), 0x7cdb9d7f02ea58dfeb797ed6b4f7ea68846e4f2b0e30ed1535fc98b60c4ec809) // dataHash
             mstore(add(batchHeader1, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader1, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader1, add(0x20, 121)), bytesData1) // postStateHash
