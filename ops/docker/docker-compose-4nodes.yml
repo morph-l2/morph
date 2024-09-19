@@ -357,10 +357,10 @@ services:
     depends_on:
       node-3:
         condition: service_started
-    image: sentry-geth:latest
+    image: morph-geth:latest
     build:
       context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-geth-sentry
+      dockerfile: ops/docker/Dockerfile.l2-geth
     restart: unless-stopped
     ports:
       - "8945:8545"
@@ -412,7 +412,7 @@ services:
 
   validator_geth:
      container_name: validator_geth
-     image: sentry-geth:latest
+     image: morph-geth:latest
      depends_on:
        tx-submitter-0:
          condition: service_started
@@ -472,90 +472,89 @@ services:
        --home $NODE_DATA_DIR
 
   tx-submitter-0:
-    container_name:   tx-submitter-0
-    depends_on:
-      node-0:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.submitter
-    image: morph-tx-submitter:latest
-    restart: unless-stopped
-    command: tx-submitter
-    ports:
-      - "8060:6060"
-    environment:
-      # change the env variables to your own
-      - TX_SUBMITTER_BUILD_ENV=dev
-      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-      - TX_SUBMITTER_TX_TIMEOUT=60s
-      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_FINALIZE=true
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100 #MB
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7 #day
-      - TX_SUBMITTER_LOG_COMPRESS=true
-      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-      - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
+   container_name:   tx-submitter-0
+   depends_on:
+     node-0:
+       condition: service_started
+   build:
+     context: ../..
+     dockerfile: ops/docker/Dockerfile.submitter
+   image: morph-tx-submitter:latest
+   restart: unless-stopped
+   command: tx-submitter
+   ports:
+     - "8060:6060"
+   environment:
+     # change the env variables to your own
+     - TX_SUBMITTER_BUILD_ENV=dev
+     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+     - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
+     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+     - TX_SUBMITTER_MAX_TX_SIZE=125952
+     - TX_SUBMITTER_POLL_INTERVAL=3s
+     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+     - TX_SUBMITTER_TX_TIMEOUT=60s
+     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+     - TX_SUBMITTER_MAX_BLOCK=1000
+     - TX_SUBMITTER_MIN_BLOCK=50
+     - TX_SUBMITTER_FINALIZE=true
+     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
+     - TX_SUBMITTER_PRIORITY_ROLLUP=false
+     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
+     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
+     - TX_SUBMITTER_METRICS_PORT=6060
+     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
+     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
+     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100 #MB
+     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7 #day
+     - TX_SUBMITTER_LOG_COMPRESS=true
+     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
+     - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
 
 
   tx-submitter-1:
-    container_name: tx-submitter-1
-    depends_on:
-      node-1:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.submitter
-    image: morph-tx-submitter:latest
-    restart: unless-stopped
-    command: tx-submitter
-    ports:
-      - "8061:6060"
-    environment:
-      # change the env variables to your own
-      - TX_SUBMITTER_BUILD_ENV=dev
-      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-      - TX_SUBMITTER_TX_TIMEOUT=60s
-      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_FINALIZE=false
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
-      - TX_SUBMITTER_LOG_COMPRESS=true
-      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-      - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
-
+   container_name: tx-submitter-1
+   depends_on:
+     node-1:
+       condition: service_started
+   build:
+     context: ../..
+     dockerfile: ops/docker/Dockerfile.submitter
+   image: morph-tx-submitter:latest
+   restart: unless-stopped
+   command: tx-submitter
+   ports:
+     - "8061:6060"
+   environment:
+     # change the env variables to your own
+     - TX_SUBMITTER_BUILD_ENV=dev
+     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+     - TX_SUBMITTER_L1_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
+     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
+     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
+     - TX_SUBMITTER_MAX_TX_SIZE=125952
+     - TX_SUBMITTER_POLL_INTERVAL=3s
+     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
+     - TX_SUBMITTER_TX_TIMEOUT=60s
+     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
+     - TX_SUBMITTER_MAX_BLOCK=1000
+     - TX_SUBMITTER_MIN_BLOCK=50
+     - TX_SUBMITTER_FINALIZE=false
+     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
+     - TX_SUBMITTER_PRIORITY_ROLLUP=false
+     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
+     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
+     - TX_SUBMITTER_METRICS_PORT=6060
+     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
+     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
+     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
+     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
+     - TX_SUBMITTER_LOG_COMPRESS=true
+     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
+     - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
 
 
   tx-submitter-2:
@@ -642,9 +641,6 @@ services:
       - TX_SUBMITTER_LOG_COMPRESS=true
       - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
       - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
-
-
-
 
   gas-price-oracle:
     container_name: gas-price-oracle
