@@ -54,12 +54,12 @@ library BatchCodecV0 {
     /// @return _numBlocks The number of blocks in current batch.
     function getNumBlocks(uint256 batchPtr) internal pure returns (uint256 _numBlocks) {
         assembly {
-            _numBlocks := shr(248, mload(batchPtr))
+            _numBlocks := shr(240, mload(batchPtr))
         }
     }
 
     /// @notice Copy the block context to another memory.
-    /// @param batchPtr The start memory offset of the chunk in memory.
+    /// @param batchPtr The start memory offset of the batch in memory.
     /// @param dstPtr The destination memory offset to store the block context.
     /// @param index The index of block context to copy.
     /// @return uint256 The new destination memory offset after copy.
