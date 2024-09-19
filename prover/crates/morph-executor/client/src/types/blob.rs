@@ -41,7 +41,8 @@ pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Erro
     let mut result = Vec::new();
     decoder.read_to_end(&mut result).unwrap();
     println!("cycle-tracker-end: decompress_batch");
-    Ok(result.to_vec())
+    println!("decompress_batch: {:?}", result.len());
+    Ok(result)
 }
 
 pub fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
@@ -63,15 +64,19 @@ fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {
 
     let mut offset: usize = 0;
     while offset < bs.len() {
-        let tx_len = *bs.get(offset).unwrap() as usize - 2;
-        let tx_bytes = bs[offset..offset + tx_len].to_vec();
+        let tx_len = *bs.get(offset).unwrap() as usize;
+        if offset + 2 + tx_len > bs.len() {
+            break;
+        }
+        let tx_bytes = bs[offset..offset + 2 + tx_len].to_vec();
         let tx_decoded: TypedTransaction = TypedTransaction::decode(&mut tx_bytes.as_slice())
             .inspect_err(|e| {
                 println!("decode_transaction error: {e:?}");
             })
             .unwrap();
+
         txs_decoded.push(tx_decoded);
-        offset += tx_len
+        offset += tx_len + 2
     }
     txs_decoded
 }

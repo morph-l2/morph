@@ -11,5 +11,5 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    prove("../../testdata/mainnet_batch_traces.json", args.prove);
+    prove("../../testdata/devnet_batch_traces.json", args.prove);
 }
