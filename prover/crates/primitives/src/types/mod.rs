@@ -119,9 +119,6 @@ pub struct BlockTrace {
     /// l1 tx queue
     #[serde(rename = "startL1QueueIndex", default)]
     start_l1_queue_index: u64,
-    /// Withdraw root
-    // a
-    withdraw_trie_root: Option<B256>,
 }
 
 const MAGICSMTBYTES: &[u8] = "THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI".as_bytes();
@@ -210,10 +207,6 @@ impl Block for BlockTrace {
         self.storage_trace.root_after
     }
 
-    fn withdraw_root(&self) -> B256 {
-        self.withdraw_trie_root.unwrap_or_default()
-    }
-
     fn codes(&self) -> impl ExactSizeIterator<Item = &[u8]> {
         self.codes.iter().map(|code| code.code.as_ref())
     }
@@ -280,10 +273,6 @@ impl Block for ArchivedBlockTrace {
 
     fn root_after(&self) -> B256 {
         self.storage_trace.root_after
-    }
-
-    fn withdraw_root(&self) -> B256 {
-        B256::default()
     }
 
     fn codes(&self) -> impl ExactSizeIterator<Item = &[u8]> {

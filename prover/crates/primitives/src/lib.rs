@@ -75,8 +75,6 @@ pub trait Block: Debug {
     fn root_before(&self) -> B256;
     /// root after
     fn root_after(&self) -> B256;
-    /// withdraw root
-    fn withdraw_root(&self) -> B256;
     /// codes
     fn codes(&self) -> impl ExactSizeIterator<Item = &[u8]>;
     /// start l1 queue index
@@ -316,10 +314,6 @@ impl<T: Block> Block for &T {
 
     fn root_after(&self) -> B256 {
         (*self).root_after()
-    }
-
-    fn withdraw_root(&self) -> B256 {
-        (*self).withdraw_root()
     }
 
     fn codes(&self) -> impl ExactSizeIterator<Item = &[u8]> {
