@@ -61,13 +61,13 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
 
         // commit batch1, one batch with one block, 1 tx, 1 L1 message, no skip
         // => l1 data hash for batch
-        //   0xf1f131b7336b7621026325f6b5519cebcdf42a1fcb520bec47af5a9bd54848af
+        //   0x9ef1e5694bdb014a1eea42be756a8f63bfd8781d6332e9ef3b5126d90c62f110
         // => payload for batch header
         //   00
         //   0000000000000001
         //   0000000000000001
         //   0000000000000001
-        //   f1f131b7336b7621026325f6b5519cebcdf42a1fcb520bec47af5a9bd54848af
+        //   9ef1e5694bdb014a1eea42be756a8f63bfd8781d6332e9ef3b5126d90c62f110
         //   010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014
         //   0000000000000000000000000000000000000000000000000000000000000001
         //   0000000000000000000000000000000000000000000000000000000000000002
@@ -82,7 +82,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(batchHeader1, add(0x20, 1)), shl(192, 1)) // batchIndex = 1
             mstore(add(batchHeader1, add(0x20, 9)), shl(192, 1)) // l1MessagePopped = 1
             mstore(add(batchHeader1, add(0x20, 17)), shl(192, 1)) // totalL1MessagePopped = 1
-            mstore(add(batchHeader1, add(0x20, 25)), 0xf1f131b7336b7621026325f6b5519cebcdf42a1fcb520bec47af5a9bd54848af) // l1dataHash
+            mstore(add(batchHeader1, add(0x20, 25)), 0x9ef1e5694bdb014a1eea42be756a8f63bfd8781d6332e9ef3b5126d90c62f110) // dataHash
             mstore(add(batchHeader1, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader1, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader1, add(0x20, 121)), bytesData1) // postStateHash
@@ -113,14 +113,14 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
-        emit IRollup.CommitBatch(1, bytes32(0x936ca0be1c54c890ff243f3b4aea6aa8aefd1292fecae5da57f9f60f66a78bdb));
+        emit IRollup.CommitBatch(1, bytes32(0x135ab7153517794b38566492dee2a60426285da9764f8ad07da93cf7dd560a59));
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, batch, bitmap, bytesData1, bytesData1, bytesData3);
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
         assertFalse(rollup.isBatchFinalized(1));
         bytes32 batchHash1 = rollup.committedBatches(1);
-        assertEq(batchHash1, bytes32(0x936ca0be1c54c890ff243f3b4aea6aa8aefd1292fecae5da57f9f60f66a78bdb));
+        assertEq(batchHash1, bytes32(0x135ab7153517794b38566492dee2a60426285da9764f8ad07da93cf7dd560a59));
 
         emit log_bytes32(batchHash0);
         // finalize batch1
@@ -144,7 +144,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(batchHeader2, add(0x20, 1)), shl(192, 2)) // batchIndex = 2
             mstore(add(batchHeader2, add(0x20, 9)), shl(192, 264)) // l1MessagePopped = 264
             mstore(add(batchHeader2, add(0x20, 17)), shl(192, 265)) // totalL1MessagePopped = 265
-            mstore(add(batchHeader2, add(0x20, 25)), 0x1fd1f1462d3818d690c872d065fa1196321a153a22f017d593e0cf774b5ad405) // dataHash
+            mstore(add(batchHeader2, add(0x20, 25)), 0xc67045fcf768071021f5acec08a921553fdae4c33a675d38e4c4a25589c91120) // dataHash
             mstore(add(batchHeader2, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader2, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader2, add(0x20, 121)), bytesData1) // postStateHash
@@ -195,7 +195,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
-        emit IRollup.CommitBatch(2, bytes32(0xbf4a9c9cafaa1979143075687a43a464e05c8a2723ed41d12c7c6a58a4b04cd1));
+        emit IRollup.CommitBatch(2, bytes32(0x71259c7573b1db248381cef917270058e2ca20620c6eae975a1aa76b9858392a));
 
         batchDataInput = IRollup.BatchDataInput(0, batchHeader1, batch, bitmap, bytesData1, bytesData1, bytesData4);
         rollup.commitBatch(batchDataInput, batchSignatureInput);
@@ -203,7 +203,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         hevm.stopPrank();
         assertFalse(rollup.isBatchFinalized(2));
         bytes32 batchHash2 = rollup.committedBatches(2);
-        assertEq(batchHash2, bytes32(0xbf4a9c9cafaa1979143075687a43a464e05c8a2723ed41d12c7c6a58a4b04cd1));
+        assertEq(batchHash2, bytes32(0x71259c7573b1db248381cef917270058e2ca20620c6eae975a1aa76b9858392a));
 
         // verify committed batch correctly
         hevm.startPrank(address(0));
@@ -537,14 +537,14 @@ contract RollupTest is L1MessageBaseTest {
         );
         rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
         hevm.stopPrank();
-        assertEq(rollup.committedBatches(1), 0x5c84f469c62cd712c33f1b15b538fa771c7a223aefc911089978d8de5cf4bc5c);
+        assertEq(rollup.committedBatches(1), 0xb7cb76cf9e9f5878136c1d14e095f5d5b435fe8252cad6eb100e51110033b6ed);
         bytes memory batchHeader1 = new bytes(249);
         assembly {
             mstore(add(batchHeader1, 0x20), 0) // version
             mstore(add(batchHeader1, add(0x20, 1)), shl(192, 1)) // batchIndex
             mstore(add(batchHeader1, add(0x20, 9)), 0) // l1MessagePopped
             mstore(add(batchHeader1, add(0x20, 17)), 0) // totalL1MessagePopped
-            mstore(add(batchHeader1, add(0x20, 25)), 0x5cc7985ff03945d904d4e5a8376ef8371d42c22395eab1b3e227583388adc3a1) // l1dataHash
+            mstore(add(batchHeader1, add(0x20, 25)), 0x7cdb9d7f02ea58dfeb797ed6b4f7ea68846e4f2b0e30ed1535fc98b60c4ec809) // dataHash
             mstore(add(batchHeader1, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader1, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader1, add(0x20, 121)), bytesData1) // postStateHash
