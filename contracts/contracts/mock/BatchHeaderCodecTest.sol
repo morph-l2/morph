@@ -52,9 +52,9 @@ contract BatchHeaderCodecTest {
         return BatchHeaderCodecV0.getTotalL1MessagePopped(batchPtr);
     }
 
-    function getL1DataHash(bytes calldata _batchHeader) public pure returns (bytes32 _dataHash) {
+    function getDataHash(bytes calldata _batchHeader) public pure returns (bytes32 _dataHash) {
         (uint256 batchPtr, ) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
-        return BatchHeaderCodecV0.getL1DataHash(batchPtr);
+        return BatchHeaderCodecV0.getDataHash(batchPtr);
     }
 
     function getBlobVersionedHash(bytes calldata _batchHeader) public pure returns (bytes32 _blobVersionedHash) {
