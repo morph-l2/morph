@@ -3,7 +3,6 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchCodecV0} from "../../libraries/codec/BatchCodecV0.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
@@ -221,7 +220,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0.getTotalL1MessagePopped(_batchPtr);
-        
         // compute the data hash for batch
         uint256 _totalL1MessagesPoppedInBatch;
         uint256 _totalNumL1Messages;
@@ -749,7 +747,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         assembly {
             mstore(0x40, add(dataPtr, mul(_totalNumL1MessagesInBatch, 0x20))) // reserve memory for l1 message hashes
-            batchPtr := add(batchPtr, 1)
+            batchPtr := add(batchPtr, 2) // skip numBlocks
         }
 
         // concatenate tx hashes
