@@ -9,6 +9,7 @@ replace (
 
 require (
 	github.com/go-kit/kit v0.12.0
+	github.com/morph-l2/externalsign v0.2.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/scroll-tech/go-ethereum v1.11.4
 	github.com/stretchr/testify v1.9.0
