@@ -38,6 +38,8 @@ struct ReqData {
     biz_signature: String,
     #[serde(rename = "publicKey")]
     public_key: String,
+    #[serde(rename = "txData")]
+    tx_data: String, // hex string of tx
 }
 
 #[derive(Serialize, Debug)]
@@ -85,7 +87,8 @@ impl ExternalSign {
 
     pub async fn request_sign(&self, tx: &TypedTransaction) -> Result<Bytes, Box<dyn Error>> {
         let data = self.new_data(&hex::encode(tx.sighash().encode()))?;
-        let req_data = self.craft_req_data(data)?;
+        let tx_info = hex::encode(tx.rlp());
+        let req_data = self.craft_req_data(data, tx_info)?;
 
         let rt = self.do_request(&self.url, &req_data).await?;
         log::debug!("ext_sign response: {:?}", rt);
@@ -112,7 +115,7 @@ impl ExternalSign {
         })
     }
 
-    fn craft_req_data(&self, data: Data) -> Result<ReqData, Box<dyn Error>> {
+    fn craft_req_data(&self, data: Data, tx_info: String) -> Result<ReqData, Box<dyn Error>> {
         let nonce_str = Uuid::new_v4().to_string();
         let data_bs = serde_json::to_string(&data)?;
 
@@ -130,7 +133,12 @@ impl ExternalSign {
 
         let pubkey = self.privkey.to_public_key().to_public_key_der()?;
         let pubkey_base64 = base64::engine::general_purpose::STANDARD.encode(pubkey.as_ref());
-        Ok(ReqData { business_data, biz_signature: hex_sig, public_key: pubkey_base64 })
+        Ok(ReqData {
+            business_data,
+            biz_signature: hex_sig,
+            public_key: pubkey_base64,
+            tx_data: tx_info,
+        })
     }
 
     async fn do_request(&self, url: &str, payload: &ReqData) -> Result<String, Box<dyn Error>> {
@@ -157,13 +165,13 @@ fn reformat_pem(pem_string: &str) -> String {
 #[tokio::test]
 #[ignore]
 async fn test_sign() -> Result<(), Box<dyn Error>> {
+    use crate::read_parse_env;
     use ethers::{
         middleware::SignerMiddleware,
         providers::{Http, Middleware, Provider},
         signers::{Signer, Wallet},
     };
     use std::{str::FromStr, sync::Arc};
-    use crate::read_parse_env;
 
     // let path = "./../ext_signer_private.key";
     // let file = File::open(path)?;
