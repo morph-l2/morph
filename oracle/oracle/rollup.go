@@ -8,11 +8,9 @@ import (
 	"math/big"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/oracle/backoff"
 	"morph-l2/oracle/types"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
-	coretypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
 )
 
@@ -24,7 +22,7 @@ func (o *Oracle) getLatestUsingL2ChangePoint() types.ChangePoint {
 	return types.ChangePoint{}
 }
 
-func (o *Oracle) generateEpochs(lastEpoch bindings.IRecordRollupEpochInfo, syncedEndTime uint64) ([]bindings.IRecordRollupEpochInfo, error) {
+func (o *Oracle) generateEpochs(lastEpoch *bindings.IRecordRollupEpochInfo, syncedEndTime uint64) ([]bindings.IRecordRollupEpochInfo, error) {
 	// Check that lastEpoch.EndTime is valid
 	// TODO
 	if len(o.ChangeCtx.ChangePoints) < 2 {
@@ -80,32 +78,6 @@ func (o *Oracle) generateEpochs(lastEpoch bindings.IRecordRollupEpochInfo, synce
 		}
 	}
 	return epochs, nil
-}
-
-func (o *Oracle) submitRollupEpoch(epochs []bindings.IRecordRollupEpochInfo) error {
-	callData, err := o.recordAbi.Pack("recordRollupEpochs", epochs)
-	if err != nil {
-		return err
-	}
-	tx, err := o.newRecordTxAndSign(callData)
-	if err != nil {
-		return err
-	}
-	log.Info("send record rollup epoch tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
-	var receipt *coretypes.Receipt
-	err = backoff.Do(30, backoff.Exponential(), func() error {
-		var err error
-		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("receipt record rollup epochs error:%v", err)
-	}
-	if receipt.Status != coretypes.ReceiptStatusSuccessful {
-		return fmt.Errorf("record rollup epochs not success")
-	}
-	log.Info("wait receipt success", "txHash", tx.Hash())
-	return nil
 }
 
 func (o *Oracle) GetUpdateTime(blockNumber int64) (int64, error) {

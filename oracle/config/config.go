@@ -72,6 +72,8 @@ type Config struct {
 	ExternalSignChain   string
 	ExternalSignUrl     string
 	ExternalSignRsaPriv string
+
+	MockRecord bool
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -99,6 +101,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
 		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
 		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
+		// mock flag
+		MockRecord: ctx.GlobalBool(flags.MockRecordFlag.Name),
 	}
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {

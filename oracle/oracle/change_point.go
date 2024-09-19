@@ -13,15 +13,6 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 )
 
-//func (o *Oracle) queryActiveStakersByTime(timestamp uint64) ([]common.Address, error) {
-//	for _, activeStakers := range o.ChangeCtx.ActiveStakersByTime {
-//		if timestamp >= activeStakers.TimeStamp {
-//			return activeStakers.Addresses, nil
-//		}
-//	}
-//	return nil, fmt.Errorf("not found,invalid timestamp,expect bigger or equal than %v but have :%v ", o.ChangeCtx.ActiveStakersByTime[0].TimeStamp, timestamp)
-//}
-
 func (o *Oracle) syncL1ChangePoint(start, end, startTime, endTime uint64) error {
 	var epochBlock []int
 	stakerAddedPoint, err := o.fetchL1StakerAdded(o.ctx, start, end)
@@ -153,18 +144,23 @@ func (o *Oracle) recordRollupEpoch() error {
 	if l2Start+o.rollupEpochMaxBlock < l2Latest {
 		l2End = l2Start + o.rollupEpochMaxBlock - 1
 	}
-	epochIndex, err := o.record.NextRollupEpochIndex(nil)
+	lastEpoch, err := o.rm.LatestRollupEpoch()
 	if err != nil {
 		return err
 	}
-	lastEpoch, err := o.record.RollupEpochs(nil, epochIndex.Sub(epochIndex, big.NewInt(1)))
-	if err != nil {
-		return err
+
+	if lastEpoch.Index == nil {
+		header, err := o.l2Client.HeaderByNumber(o.ctx, big.NewInt(1))
+		if err != nil {
+			return fmt.Errorf("quert first block header error:%v", err)
+		}
+		lastEpoch.EndTime = big.NewInt(int64(header.Time))
+		lastEpoch.Index = big.NewInt(0)
 	}
 	//o.PruneChangeCtx()
 	changePointIndex := 0
-	for i, cps := range o.ChangeCtx.ChangePoints {
-		if cps.TimeStamp > lastEpoch.EndTime.Uint64() {
+	for i, cp := range o.ChangeCtx.ChangePoints {
+		if cp.TimeStamp > lastEpoch.EndTime.Uint64() {
 			changePointIndex = i
 			break
 		}
@@ -186,6 +182,11 @@ func (o *Oracle) recordRollupEpoch() error {
 	}
 	startTime := startHeader.Time
 	endTime := endHeader.Time
+	if endTime-startTime < o.ChangeCtx.ChangePoints[0].EpochInterval*uint64(types.MaxEpochCount) {
+		time.Sleep(time.Duration(o.ChangeCtx.ChangePoints[0].EpochInterval*uint64(types.MaxEpochCount)) * time.Second)
+		log.Info("Too few epochs,wait... ", "startTime", startTime, "endTime", endTime)
+		return nil
+	}
 	// clean fake point
 	if o.ChangeCtx.ChangePoints[len(o.ChangeCtx.ChangePoints)-1].ChangeType != types.L1ChangePoint && o.ChangeCtx.ChangePoints[len(o.ChangeCtx.ChangePoints)-1].ChangeType != types.L2ChangePoint {
 		o.ChangeCtx.ChangePoints = o.ChangeCtx.ChangePoints[:len(o.ChangeCtx.ChangePoints)-1]
@@ -225,7 +226,7 @@ func (o *Oracle) recordRollupEpoch() error {
 		return nil
 	}
 	log.Info("submit rollup epoch infos", "l1Start", l1Start, "l1End", l1End, "l2Start", l2Start, "l2End", l2End, "infoLength", len(epochs))
-	err = o.submitRollupEpoch(epochs)
+	err = o.rm.UploadRollupEpoch(epochs)
 	if err != nil {
 		if len(epochs) > 50 {
 			if o.cfg.MinSize*2 <= o.rollupEpochMaxBlock {
@@ -234,13 +235,13 @@ func (o *Oracle) recordRollupEpoch() error {
 				o.rollupEpochMaxBlock = o.rollupEpochMaxBlock / 2
 			}
 		}
-		return fmt.Errorf("submit rollup epoch info error:%v,rollupEpochMaxBlock:%v", err, o.rollupEpochMaxBlock)
+		return fmt.Errorf("submit rollup epoch info error:%v", err)
 	}
-	if o.rollupEpochMaxBlock+o.cfg.MinSize <= o.cfg.MaxSize {
-		o.rollupEpochMaxBlock += o.cfg.MinSize
-	}
+	//if o.rollupEpochMaxBlock+o.cfg.MinSize <= o.cfg.MaxSize {
+	//	o.rollupEpochMaxBlock += o.cfg.MinSize
+	//}
 
-	log.Info("submit rollup epoch info success", "rollupEpochMaxBlock", o.rollupEpochMaxBlock)
+	log.Info("submit rollup epoch info success")
 	return nil
 
 }

@@ -8,16 +8,14 @@ import (
 	"math/big"
 	"time"
 
-	"morph-l2/bindings/bindings"
-	"morph-l2/node/derivation"
-	"morph-l2/oracle/backoff"
-
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/log"
+	"morph-l2/bindings/bindings"
+	"morph-l2/node/derivation"
 )
 
 type BatchInfoMap map[common.Hash][]BatchInfo
@@ -195,7 +193,7 @@ func (o *Oracle) LastBatchIndex(opts *bind.CallOpts) (*big.Int, error) {
 }
 
 func (o *Oracle) submitRecord() error {
-	nextBatchSubmissionIndex, err := o.GetNextBatchSubmissionIndex()
+	nextBatchSubmissionIndex, err := o.rm.NextBatchEpochIndex()
 	if err != nil {
 		return fmt.Errorf("get next batch submission index failed:%v", err)
 	}
@@ -218,26 +216,5 @@ func (o *Oracle) submitRecord() error {
 	if err != nil {
 		return fmt.Errorf("get batch submission error:%v", err)
 	}
-	callData, err := o.recordAbi.Pack("recordFinalizedBatchSubmissions", batchSubmissions)
-	if err != nil {
-		return err
-	}
-	tx, err := o.newRecordTxAndSign(callData)
-	if err != nil {
-		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
-	}
-	log.Info("record finalized batch success", "txHash", tx.Hash(), "batchLength", len(batchSubmissions))
-	var receipt *types.Receipt
-	err = backoff.Do(30, backoff.Exponential(), func() error {
-		var err error
-		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("wait tx receipt error:%v,txHash:%v", err, tx.Hash())
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("record batch receipt failed,txHash:%v", tx.Hash())
-	}
-	return nil
+	return o.rm.UploadBatchEpoch(batchSubmissions)
 }

@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
-
 	"io"
 	"math/big"
 	"os"
@@ -88,6 +87,7 @@ type Oracle struct {
 	privKey             *ecdsa.PrivateKey
 	externalRsaPriv     *rsa.PrivateKey
 	signer              coretypes.Signer
+	rm                  RecordManager
 	chainId             *big.Int
 	isFinalized         bool
 	enable              bool
@@ -206,6 +206,27 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 			return nil, fmt.Errorf("parse privkey err:%w", err)
 		}
 	}
+	ctx := context.TODO()
+	recordAddr := predeploys.RecordAddr
+	signer := coretypes.LatestSignerForChainID(chainId)
+	var recordManager RecordManager
+	if cfg.MockRecord {
+
+	} else {
+		recordManager = NewRecordClient(
+			l2Client,
+			record,
+			recordAddr,
+			recordAbi,
+			ctx,
+			privKey,
+			rsaPriv,
+			signer,
+			cfg,
+			chainId,
+		)
+	}
+
 	return &Oracle{
 		l1Client:            l1Client,
 		l2Client:            l2Client,
@@ -214,8 +235,9 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		l1Staking:           l1Staking,
 		l2Staking:           l2Staking,
 		record:              record,
-		recordAddr:          predeploys.RecordAddr,
+		recordAddr:          recordAddr,
 		recordAbi:           recordAbi,
+		rm:                  recordManager,
 		ChangeCtx:           store.ReadLatestChangePoints(),
 		sequencer:           sequencer,
 		gov:                 gov,
@@ -224,9 +246,9 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		rewardEpoch:         defaultRewardEpoch,
 		privKey:             privKey,
 		externalRsaPriv:     rsaPriv,
-		signer:              coretypes.LatestSignerForChainID(chainId),
+		signer:              signer,
 		chainId:             chainId,
-		ctx:                 context.TODO(),
+		ctx:                 ctx,
 		rollupEpochMaxBlock: cfg.MaxSize,
 		metrics:             m,
 	}, nil

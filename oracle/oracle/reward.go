@@ -72,32 +72,7 @@ func (o *Oracle) syncRewardEpoch() error {
 	if err != nil {
 		return err
 	}
-	callData, err := o.recordAbi.Pack("recordRewardEpochs", []bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
-	if err != nil {
-		return err
-	}
-	tx, err := o.newRecordTxAndSign(callData)
-	if err != nil {
-		return fmt.Errorf("record reward epochs error:%v", err)
-	}
-	err = o.l2Client.SendTransaction(o.ctx, tx)
-	if err != nil {
-		return fmt.Errorf("send transaction error:%v", err)
-	}
-	log.Info("send record reward tx success", "txHash", tx.Hash().Hex(), "nonce", tx.Nonce())
-	var receipt *types.Receipt
-	err = backoff.Do(30, backoff.Exponential(), func() error {
-		var err error
-		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("receipt record reward epochs error:%v", err)
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("record reward epochs not success")
-	}
-	return nil
+	return o.rm.UploadRewardsEpoch([]bindings.IRecordRewardEpochInfo{*recordRewardEpochInfo})
 }
 
 func (o *Oracle) getRewardEpochs(startRewardEpochIndex, startHeight *big.Int) (*bindings.IRecordRewardEpochInfo, error) {
