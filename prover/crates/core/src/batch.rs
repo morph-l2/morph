@@ -16,7 +16,10 @@ pub struct BatchInfo {
     chain_id: u64,
     prev_state_root: B256,
     post_state_root: B256,
-    withdraw_root: B256,
+    /// withdraw_root
+    pub withdraw_root: Option<B256>,
+    /// sequencer_root
+    pub sequencer_root: Option<B256>,
     data_hash: B256,
 }
 
@@ -29,7 +32,6 @@ impl BatchInfo {
             .expect("at least 1 block needed")
             .root_before();
         let post_state_root = traces.last().expect("at least 1 block needed").root_after();
-        let withdraw_root = traces.last().unwrap().withdraw_root();
 
         let mut data_hasher = Keccak::v256();
         for trace in traces.iter() {
@@ -54,21 +56,23 @@ impl BatchInfo {
             chain_id,
             prev_state_root,
             post_state_root,
-            withdraw_root,
+            withdraw_root: None,
+            sequencer_root: None,
             data_hash,
         };
 
         (info, zktrie_db)
     }
 
-    /// Public input hash for a given chunk is defined as
+    /// Public input hash for a given batch is defined as
     /// keccak(
     ///     chain id ||
     ///     prev state root ||
     ///     post state root ||
     ///     withdraw root ||
-    ///     chunk data hash ||
-    ///     chunk txdata hash
+    ///     sequencer root ||
+    ///     txdata hash ||
+    ///     blob versioned hash
     /// )
     pub fn public_input_hash(&self, versioned_hash: &B256) -> B256 {
         let mut hasher = Keccak::v256();
@@ -76,7 +80,8 @@ impl BatchInfo {
         hasher.update(&self.chain_id.to_be_bytes());
         hasher.update(self.prev_state_root.as_ref());
         hasher.update(self.post_state_root.as_slice());
-        hasher.update(self.withdraw_root.as_slice());
+        hasher.update(self.withdraw_root.unwrap().as_slice());
+        hasher.update(self.sequencer_root.unwrap().as_slice());
         hasher.update(self.data_hash.as_slice());
         hasher.update(versioned_hash.as_slice());
 
@@ -102,7 +107,12 @@ impl BatchInfo {
 
     /// Withdraw root after this chunk
     pub fn withdraw_root(&self) -> B256 {
-        self.withdraw_root
+        self.withdraw_root.expect("get withdraw_root")
+    }
+
+    /// Sequencer root after this chunk
+    pub fn sequencer_root(&self) -> B256 {
+        self.sequencer_root.expect("get sequencer_root")
     }
 
     /// Data hash of this chunk

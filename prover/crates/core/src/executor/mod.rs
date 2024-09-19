@@ -8,8 +8,9 @@ use revm::{
     primitives::{
         AccountInfo, BlockEnv, Env, SpecId, TxEnv, B256, KECCAK_EMPTY, POSEIDON_EMPTY, U256,
     },
+    Database,
 };
-use sbv_primitives::{zk_trie::ZkMemoryDb, Block, Transaction, TxTrace};
+use sbv_primitives::{zk_trie::ZkMemoryDb, Address, Block, Transaction, TxTrace};
 use std::{fmt::Debug, rc::Rc};
 
 mod builder;
@@ -30,6 +31,11 @@ impl EvmExecutor<'_> {
     /// Get reference to the DB
     pub fn db(&self) -> &CacheDB<ReadOnlyDB> {
         &self.db
+    }
+
+    /// Get slot
+    pub fn get_storage_value(&mut self, address: Address, index: U256) -> U256 {
+        self.db.storage(address, index).expect("load storage error")
     }
 
     /// Update the DB

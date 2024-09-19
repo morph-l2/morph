@@ -1,19 +1,21 @@
+use alloy::primitives::ruint::aliases::U256;
 use sbv_core::{BatchInfo, EvmExecutorBuilder, HardforkConfig, VerificationError};
-use sbv_primitives::types::BlockTrace;
+use sbv_primitives::{types::BlockTrace, Address};
 use sbv_utils::dev_error;
+use std::str::FromStr;
 
 // use Verifier;
 pub struct EVMVerifier;
 
 impl EVMVerifier {
-    pub fn verify(l2_traces: &Vec<BlockTrace>) -> Result<BatchInfo, VerificationError> {
+    pub fn verify(l2_traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
         let batch_info = execute(l2_traces)?;
         Ok(batch_info)
     }
 }
 
-fn execute(traces: &Vec<BlockTrace>) -> Result<BatchInfo, VerificationError> {
-    let (batch_info, zktrie_db) = BatchInfo::from_block_traces(&traces);
+fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
+    let (mut batch_info, zktrie_db) = BatchInfo::from_block_traces(traces);
 
     let fork_config: HardforkConfig = HardforkConfig::default_from_chain_id(2818);
     let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
@@ -37,6 +39,20 @@ fn execute(traces: &Vec<BlockTrace>) -> Result<BatchInfo, VerificationError> {
             root_revm: revm_root_after,
         });
     }
+
+    // post_sequencer_root;
+    let withdraw_root = executor.get_storage_value(
+        Address::from_str("0x5300000000000000000000000000000000000001").unwrap(),
+        U256::from(33),
+    );
+    // post_sequencer_root;
+    let sequencer_root = executor.get_storage_value(
+        Address::from_str("0x5300000000000000000000000000000000000017").unwrap(),
+        U256::from(101),
+    );
+
+    batch_info.withdraw_root = Some(withdraw_root.into());
+    batch_info.sequencer_root = Some(sequencer_root.into());
 
     drop(executor);
     Ok(batch_info)
