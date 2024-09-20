@@ -141,6 +141,8 @@ contract GasPriceOracleTest is Test {
         assertTrue(gasPriceOracle.isAllowed(bob));
 
         vals[0] = false;
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.AllowListAddressSet(allowed[0], vals[0]);
         vm.prank(multisig);
         gasPriceOracle.setAllowList(allowed, vals);
         assertFalse(gasPriceOracle.isAllowed(bob));
@@ -160,6 +162,8 @@ contract GasPriceOracleTest is Test {
         gasPriceOracle.setAllowListEnabled(val);
 
         val = !gasPriceOracle.allowListEnabled();
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.AllowListEnabledUpdated(val);
         vm.prank(multisig);
         gasPriceOracle.setAllowListEnabled(val);
         assertEq(val, gasPriceOracle.allowListEnabled());
@@ -172,6 +176,9 @@ contract GasPriceOracleTest is Test {
         vm.expectRevert(bytes4(keccak256("ErrCallerNotAllowed()")));
         vm.prank(alice);
         gasPriceOracle.setL1BaseFee(100);
+
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.L1BaseFeeUpdated(100);
 
         vm.prank(multisig);
         gasPriceOracle.setL1BaseFee(100);
@@ -190,6 +197,9 @@ contract GasPriceOracleTest is Test {
         vm.expectRevert(bytes4(keccak256("ErrExceedMaxOverhead()")));
         gasPriceOracle.setOverhead(30000000 / 16 + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.OverheadUpdated(1);
+
         vm.prank(multisig);
         gasPriceOracle.setOverhead(1);
         assertEq(1, gasPriceOracle.overhead());
@@ -207,6 +217,9 @@ contract GasPriceOracleTest is Test {
         vm.expectRevert(bytes4(keccak256("ErrExceedMaxScalar()")));
         gasPriceOracle.setScalar(1000 * 1e9 + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.ScalarUpdated(1);
+
         vm.prank(multisig);
         gasPriceOracle.setScalar(1);
         assertEq(1, gasPriceOracle.scalar());
@@ -219,6 +232,12 @@ contract GasPriceOracleTest is Test {
         vm.expectRevert(bytes4(keccak256("ErrCallerNotAllowed()")));
         vm.prank(alice);
         gasPriceOracle.setL1BaseFeeAndBlobBaseFee(100, 200);
+
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.L1BaseFeeUpdated(100);
+
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.L1BlobBaseFeeUpdated(200);
 
         vm.prank(multisig);
         gasPriceOracle.setL1BaseFeeAndBlobBaseFee(100, 200);
@@ -238,6 +257,9 @@ contract GasPriceOracleTest is Test {
         vm.expectRevert(bytes4(keccak256("ErrExceedMaxCommitScalar()")));
         gasPriceOracle.setCommitScalar(10 ** 9 * 1e9 + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.CommitScalarUpdated(100);
+
         vm.prank(multisig);
         gasPriceOracle.setCommitScalar(100);
         assertEq(100, gasPriceOracle.commitScalar());
@@ -254,6 +276,9 @@ contract GasPriceOracleTest is Test {
         vm.prank(multisig);
         vm.expectRevert(bytes4(keccak256("ErrExceedMaxBlobScalar()")));
         gasPriceOracle.setBlobScalar(10 ** 9 * 1e9 + 1);
+
+        vm.expectEmit(true, true, true, true);
+        emit GasPriceOracle.BlobScalarUpdated(100);
 
         vm.prank(multisig);
         gasPriceOracle.setBlobScalar(100);
