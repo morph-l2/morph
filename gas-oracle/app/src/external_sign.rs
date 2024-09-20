@@ -87,9 +87,8 @@ impl ExternalSign {
 
     pub async fn request_sign(&self, tx: &TypedTransaction) -> Result<Bytes, Box<dyn Error>> {
         let data = self.new_data(&hex::encode_prefixed(tx.sighash().encode()))?;
-        // let tx_info = hex::encode(tx.rlp());
-        let tx_info = hex::encode(tx.rlp_signed(&Signature::try_from(vec![0u8;65].as_slice()).unwrap()));
-        log::debug!("===encode_prefixed: {:?}", tx_info);
+        let tx_info =
+            hex::encode(tx.rlp_signed(&Signature::try_from(vec![0u8; 65].as_slice()).unwrap()));
 
         let req_data = self.craft_req_data(data, tx_info)?;
 
@@ -126,7 +125,7 @@ impl ExternalSign {
             appid: self.appid.clone(),
             data: data_bs,
             noncestr: nonce_str,
-            timestamp: "1726739687198".to_string(),
+            timestamp: UNIX_EPOCH.elapsed()?.as_secs().to_string(),
         };
 
         let business_data_bs = serde_json::to_string(&business_data)?;
@@ -146,10 +145,7 @@ impl ExternalSign {
 
     async fn do_request(&self, url: &str, payload: &ReqData) -> Result<String, Box<dyn Error>> {
         log::debug!("===payload: {:?}", serde_json::to_string(payload).unwrap());
-
         let response: reqwest::Response = self.client.post(url).json(&payload).send().await?;
-        log::debug!("===response: {:?}", response);
-
         if !response.status().is_success() {
             return Err(format!("ext_sign response status not ok: {:?}", response.status()).into());
         }
@@ -200,10 +196,10 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
     // chainid := big.NewInt(900)
     // signer := types.LatestSignerForChainID(chainid)
     let ext_signer: ExternalSign = ExternalSign::new(
-        "morph-tx-submitter-399A1722-3F2C-4E39-ABD2-1B65D02C66BA",
+        "gas-oracle-165B3138-0C01-430C-9845-37459D5BEB46",
         &privkey_pem,
-        "0x33d5b507868b7e8ac930cd3bde9eadd60c638479",
-        "QANET-L1",
+        "0x4faad0ea547e75b0e4a026d766aaef4339762ac3",
+        "QANET-L2",
         "http://localhost:8080/v1/sign/tx_sign",
     )?;
 
@@ -214,14 +210,12 @@ async fn test_sign() -> Result<(), Box<dyn Error>> {
             .with_chain_id(l2_provider.get_chainid().await?.as_u64()),
     ));
     let req = Eip1559TransactionRequest::new()
-        .to(Address::from_str("0xc5eb133df513af12580bf898428d24825d90821a")?)
-        .from(Address::from_str("0x33d5b507868b7e8ac930cd3bde9eadd60c638479")?).chain_id(900);
+        .to(Address::from_str("0x099f9e4ecc7fb2b4fd759ce0c2c2c3072b77e9bc")?)
+        .from(Address::from_str("0x4faad0ea547e75b0e4a026d766aaef4339762ac3")?);
     let mut tx = TypedTransaction::Eip1559(req);
-    tx.set_from(Address::from_str("0x33d5b507868b7e8ac930cd3bde9eadd60c638479").unwrap());
     l2_signer.fill_transaction(&mut tx, None).await?;
-    log::info!("====>tx: {:?}",tx);
 
-    log::info!("====>request_sign");
+    log::info!("====request_sign");
     let raw_tx = ext_signer.request_sign(&tx).await?;
     let pending_tx = l2_provider.send_raw_transaction(raw_tx).await?;
     pending_tx.await.expect("send_raw_transaction");

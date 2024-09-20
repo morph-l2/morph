@@ -41,7 +41,7 @@ module.exports = {
   solidity: "0.8.24",
   networks: {
     hardhat: {
-      chainId:900
+      chainId:53077
     },
     local: {
       url: `http://localhost:8545`,
