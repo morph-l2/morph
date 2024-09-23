@@ -160,9 +160,21 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		db.SetCode(implAddr, depBytecode)
 	}
 
-	// Set the storage values
+	// Set the impl storage values
 	if storageConfig, ok := storage[name]; ok {
-		log.Info("Setting storage", "name", name, "address", proxyAddr)
+		log.Info("Setting storage", "name", name, "impl_addr", implAddr)
+		tmpName := name
+		if name == "L2USDC" {
+			tmpName = "FiatTokenV1"
+		}
+		if err := state.SetStorage(tmpName, implAddr, storageConfig, db); err != nil {
+			return err
+		}
+	}
+
+	// Set the proxy storage values
+	if storageConfig, ok := storage[name]; ok {
+		log.Info("Setting storage", "name", name, "proxy_addr", proxyAddr)
 		tmpName := name
 		if name == "L2USDC" {
 			tmpName = "FiatTokenV1"
@@ -177,7 +189,7 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		name == "L2Staking" ||
 		name == "L2WETH" ||
 		name == "L2USDC" {
-		// set slots directly
+		// set proxy slots directly
 		if slots, ok := slotResults[name]; ok {
 			for slotK, slotV := range slots {
 				db.SetState(proxyAddr, slotK, slotV)
