@@ -3,7 +3,7 @@ use alloy::{
     consensus::{Transaction, TxEnvelope, TxType},
     eips::{eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization},
     primitives::{Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64},
-    rlp::{self, BufMut, BytesMut, Decodable, Encodable, Header},
+    rlp::{BufMut, BytesMut, Decodable, Encodable, Header},
 };
 use serde_with::{serde_as, DefaultOnNull};
 

@@ -92,7 +92,37 @@ macro_rules! dev_warn {
 
 /// This macro is for measuring duration to metrics
 #[macro_export]
-macro_rules! measure_duration_histogram {
+macro_rules! measure_duration_millis {
+    ($label:ident, $e:expr) => {{
+        #[cfg(feature = "metrics")]
+        let __measure_duration_histogram_start = std::time::Instant::now();
+
+        #[allow(clippy::let_and_return)]
+        let __measure_duration_histogram_result = $e;
+
+        #[cfg(feature = "metrics")]
+        let __measure_duration_histogram_elasped = __measure_duration_histogram_start.elapsed();
+        #[cfg(feature = "metrics")]
+        let __duration_millis = __measure_duration_histogram_elasped.as_secs() as f64 * 1_000.0
+            + __measure_duration_histogram_elasped.subsec_nanos() as f64 / 1_000_000.0;
+
+        #[cfg(feature = "metrics")]
+        $crate::metrics::REGISTRY.$label.observe(__duration_millis);
+
+        #[cfg(feature = "metrics")]
+        dev_debug!(
+            "measured duration {} = {:?}ms",
+            stringify!($label),
+            __duration_millis,
+        );
+
+        __measure_duration_histogram_result
+    }};
+}
+
+/// This macro is for measuring duration to metrics
+#[macro_export]
+macro_rules! measure_duration_micros {
     ($label:ident, $e:expr) => {{
         #[cfg(feature = "metrics")]
         let __measure_duration_histogram_start = std::time::Instant::now();
@@ -103,13 +133,13 @@ macro_rules! measure_duration_histogram {
         #[cfg(feature = "metrics")]
         $crate::metrics::REGISTRY
             .$label
-            .observe(__measure_duration_histogram_start.elapsed().as_millis() as f64);
+            .observe(__measure_duration_histogram_start.elapsed().as_micros() as f64);
 
         #[cfg(feature = "metrics")]
         dev_debug!(
-            "measured duration {} = {:?}",
+            "measured duration {} = {:?}us",
             stringify!($label),
-            __measure_duration_histogram_start.elapsed(),
+            __measure_duration_histogram_start.elapsed().as_micros() as f64,
         );
 
         __measure_duration_histogram_result

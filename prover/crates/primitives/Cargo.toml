@@ -19,8 +19,13 @@ serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true
 tiny-keccak.workspace = true
 
+sbv-utils.workspace = true
+
 poseidon-bn254.workspace = true
-zktrie.workspace = true
+zktrie-ng.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+
+[features]
+dev = ["sbv-utils/dev"]

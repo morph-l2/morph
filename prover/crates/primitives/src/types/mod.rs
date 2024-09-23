@@ -1,8 +1,8 @@
-use crate::{init_hash_scheme, Block};
+use crate::Block;
 use alloy::primitives::{Address, Bytes, B256, U256};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Map};
-use zktrie::ZkTrieNode;
+use zktrie_ng::{hash::poseidon::Poseidon, trie::Node};
 
 mod tx;
 pub use tx::{ArchivedTransactionTrace, TransactionTrace, TxL1Msg, TypedTransaction};
@@ -147,14 +147,17 @@ impl BlockTrace {
             .chain(storage_proofs.flat_map(|(_, _, bytes)| bytes));
 
         let mut rt = vec![];
-        init_hash_scheme();
         for bytes in proofs {
             if bytes == MAGICSMTBYTES {
                 continue;
             }
-            let n = ZkTrieNode::parse(bytes).expect("Blocktrace ZkTrieNode::parse");
-            let k: [u8; 32] = n.node_hash();
-            rt.push((B256::from_slice(&k), Bytes::copy_from_slice(bytes)));
+            let node = Node::<Poseidon>::try_from(bytes).expect("invalid node");
+            let node_hash: &[u8; 32] = node
+                .get_or_calculate_node_hash()
+                .expect("infallible")
+                .into();
+
+            rt.push((B256::from_slice(node_hash), Bytes::copy_from_slice(bytes)));
         }
         self.storage_trace.flatten_proofs = Some(rt);
     }

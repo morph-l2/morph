@@ -1,8 +1,8 @@
 use alloy::primitives::ruint::aliases::U256;
 use sbv_core::{BatchInfo, EvmExecutorBuilder, HardforkConfig, VerificationError};
-use sbv_primitives::{types::BlockTrace, Address};
+use sbv_primitives::{types::BlockTrace, zk_trie::db::HashMapDb, Address};
 use sbv_utils::dev_error;
-use std::str::FromStr;
+use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 // use Verifier;
 pub struct EVMVerifier;
@@ -16,9 +16,10 @@ impl EVMVerifier {
 
 fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
     let (mut batch_info, zktrie_db) = BatchInfo::from_block_traces(traces);
+    let zktrie_db = Rc::new(RefCell::new(zktrie_db));
 
     let fork_config: HardforkConfig = HardforkConfig::default_from_chain_id(2818);
-    let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
+    let mut executor = EvmExecutorBuilder::new(HashMapDb::default(), zktrie_db.clone())
         .hardfork_config(fork_config)
         .build(&traces[0])?;
     #[allow(clippy::map_identity)]
@@ -30,8 +31,8 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
     }
 
     let trace_root_after = batch_info.post_state_root();
-    let revm_root_after = executor.commit_changes(&zktrie_db);
-    if revm_root_after != batch_info.post_state_root() {
+    let revm_root_after = executor.commit_changes(zktrie_db.clone())?;
+    if revm_root_after != trace_root_after {
         dev_error!(
         "root mismatch: root after in trace = {trace_root_after:x}, root after in revm = {revm_root_after:x}" );
         return Err(VerificationError::RootMismatch {

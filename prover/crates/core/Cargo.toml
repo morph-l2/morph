@@ -33,7 +33,7 @@ tracing-subscriber.workspace = true
 [features]
 debug-account = ["sbv-utils/debug-account"]
 debug-storage = ["sbv-utils/debug-storage"]
-dev = ["sbv-utils/dev"]
+dev = ["sbv-primitives/dev", "sbv-utils/dev"]
 metrics = ["sbv-utils/metrics"]
 
 # sp1 related

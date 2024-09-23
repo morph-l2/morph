@@ -7,7 +7,7 @@ mod batch;
 pub use batch::BatchInfo;
 
 mod database;
-pub use database::ReadOnlyDB;
+pub use database::EvmDatabase;
 
 mod error;
 pub use error::VerificationError;

@@ -1,5 +1,5 @@
 use revm::primitives::B256;
-use sbv_primitives::{zk_trie::ZkMemoryDb, Block};
+use sbv_primitives::{zk_trie::db::HashMapDb, Block};
 use std::rc::Rc;
 use tiny_keccak::{Hasher, Keccak};
 
@@ -25,7 +25,7 @@ pub struct BatchInfo {
 
 impl BatchInfo {
     /// Construct by block traces
-    pub fn from_block_traces<T: Block>(traces: &[T]) -> (Self, Rc<ZkMemoryDb>) {
+    pub fn from_block_traces<T: Block>(traces: &[T]) -> (Self, HashMapDb) {
         let chain_id = traces.first().unwrap().chain_id();
         let prev_state_root = traces
             .first()
@@ -43,14 +43,13 @@ impl BatchInfo {
         let mut data_hash = B256::ZERO;
         data_hasher.finalize(&mut data_hash.0);
 
-        let mut zktrie_db = ZkMemoryDb::new();
+        let mut zktrie_db = HashMapDb::default();
         for trace in traces.iter() {
-            measure_duration_histogram!(
-                build_zktrie_db_duration_microseconds,
-                trace.build_zktrie_db(&mut zktrie_db)
+            measure_duration_millis!(
+                build_zktrie_db_duration_milliseconds,
+                trace.build_zktrie_db(&mut zktrie_db).unwrap()
             );
         }
-        let zktrie_db = Rc::new(zktrie_db);
 
         let info = BatchInfo {
             chain_id,
@@ -149,18 +148,18 @@ mod tests {
         });
 
         let fork_config = HardforkConfig::default_from_chain_id(traces[0].chain_id());
-        let (batch_info, zktrie_db) = BatchInfo::from_block_traces(&traces);
+        let (chunk_info, zktrie_db) = BatchInfo::from_block_traces(&traces);
+        let zktrie_db = Rc::new(RefCell::new(zktrie_db));
 
         let tx_bytes_hasher = RefCell::new(Keccak::v256());
 
-        let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
+        let mut executor = EvmExecutorBuilder::new(HashMapDb::default(), zktrie_db.clone())
             .hardfork_config(fork_config)
-            .with_execute_hooks(|hooks| {
+            .with_hooks(&traces[0], |hooks| {
                 hooks.add_tx_rlp_handler(|_, rlp| {
                     tx_bytes_hasher.borrow_mut().update(rlp);
                 });
             })
-            .build(&traces[0])
             .unwrap();
         executor.handle_block(&traces[0]).unwrap();
 
@@ -169,13 +168,13 @@ mod tests {
             executor.handle_block(trace).unwrap();
         }
 
-        let post_state_root = executor.commit_changes(&zktrie_db);
-        assert_eq!(post_state_root, batch_info.post_state_root);
+        let post_state_root = executor.commit_changes(zktrie_db.clone()).unwrap();
+        assert_eq!(post_state_root, chunk_info.post_state_root);
         drop(executor); // drop executor to release Rc<Keccek>
 
         let mut tx_bytes_hash = B256::ZERO;
         tx_bytes_hasher.into_inner().finalize(&mut tx_bytes_hash.0);
-        let public_input_hash = batch_info.public_input_hash(&tx_bytes_hash);
+        let public_input_hash = chunk_info.public_input_hash(&tx_bytes_hash);
         assert_eq!(
             public_input_hash,
             b256!("764bffabc9fd4227d447a46d8bb04e5448ed64d89d6e5f4215fcf3593e00f109")

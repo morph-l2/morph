@@ -1,4 +1,4 @@
-use revm::primitives::{Address, B256, U256};
+use revm::primitives::{AccountInfo, Address, B256, U256};
 use std::collections::BTreeMap;
 
 #[derive(Debug, serde::Serialize)]
@@ -39,25 +39,16 @@ impl DebugRecorder {
     /// Record the account data.
     #[cfg(feature = "debug-account")]
     #[allow(clippy::too_many_arguments)]
-    pub fn record_account(
-        &mut self,
-        addr: Address,
-        nonce: u64,
-        balance: U256,
-        code_hash: B256,
-        poseidon_code_hash: B256,
-        code_size: u64,
-        storage_root: B256,
-    ) {
+    pub fn record_account(&mut self, addr: Address, info: AccountInfo, storage_root: B256) {
         self.accounts.insert(
             addr,
             AccountData {
                 addr,
-                nonce,
-                balance,
-                code_hash,
-                poseidon_code_hash,
-                code_size,
+                nonce: info.nonce,
+                balance: info.balance,
+                code_hash: info.code_hash,
+                poseidon_code_hash: info.poseidon_code_hash,
+                code_size: info.code_size as u64,
                 storage_root,
             },
         );
