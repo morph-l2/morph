@@ -6,7 +6,7 @@ Morph is an innovative force reshaping the consumer blockchain landscape for pra
 
 ## Dive deeper into our vision and objectives here
 
-1. [What is & Why Responsive Validity Proof?](https://docs.morphl2.io/docs/how-morph-works/responsive-validity-proof/why-rvp)
+1. [What is & Why Responsive Validity Proof?](https://docs.morphl2.io/docs/how-morph-works/optimistic-zkevm)
 
 2. [How Does RVP Run in Morph?](https://medium.com/@morphlayer2/how-does-rvp-run-in-morph-6025233a21cc)
 
