@@ -46,6 +46,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The time when zkProof was generated and executed.
     uint256 public proofWindow;
 
+    /// @notice The maximum number of transactions allowed in each chunk. Deprecated.
+    uint256 public __maxNumTxInChunk;
+
     /// @notice The address of L1MessageQueue.
     address public messageQueue;
 
