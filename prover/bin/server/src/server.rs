@@ -47,7 +47,7 @@ pub async fn start() {
     dotenv().ok();
 
     // Initialize logger.
-    setup_logging();
+    // setup_logging();
 
     // Step2. start prover management
     let queue: Arc<Mutex<Vec<ProveRequest>>> = Arc::new(Mutex::new(Vec::new()));
