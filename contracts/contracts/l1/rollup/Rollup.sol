@@ -3,7 +3,6 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchCodecV0} from "../../libraries/codec/BatchCodecV0.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
@@ -174,9 +173,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         bytes32 _postStateRoot = BatchHeaderCodecV0.getPostStateHash(memPtr);
         require(_postStateRoot != bytes32(0), "zero state root");
-        // check all fields except `l1DataHash` and `lastBlockHash` are zero
+        // check all fields except `dataHash` and `lastBlockHash` are zero
         require(BatchHeaderCodecV0.getL1MessagePopped(memPtr) == 0, "l1 message popped should be 0");
-        require(BatchHeaderCodecV0.getL1DataHash(memPtr) != bytes32(0), "zero data hash");
+        require(BatchHeaderCodecV0.getDataHash(memPtr) != bytes32(0), "zero data hash");
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
@@ -221,12 +220,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0.getTotalL1MessagePopped(_batchPtr);
-        
         // compute the data hash for batch
         uint256 _totalL1MessagesPoppedInBatch;
         uint256 _totalNumL1Messages;
-        bytes32 _l1DataHash;
-        (_l1DataHash, _totalNumL1Messages) = _commitBatch(
+        bytes32 dataHash;
+        (dataHash, _totalNumL1Messages) = _commitBatch(
             batchDataInput.blockContexts,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall,
@@ -260,7 +258,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
             BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, _totalL1MessagesPoppedInBatch);
             BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
-            BatchHeaderCodecV0.storeDataHash(_batchPtr, _l1DataHash);
+            BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
             BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
             BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
             BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
@@ -605,7 +603,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 BatchHeaderCodecV0.getPostStateHash(memPtr),
                 BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
                 BatchHeaderCodecV0.getSequencerSetVerifyHash(memPtr),
-                BatchHeaderCodecV0.getL1DataHash(memPtr),
+                BatchHeaderCodecV0.getDataHash(memPtr),
                 _kzgDataProof[0:64],
                 _blobVersionedHash
             )
@@ -738,10 +736,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
 
         uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
+        assembly {
+            batchPtr := add(batchPtr, 2) // skip numBlocks
+        }
         // concatenate block contexts, use scope to avoid stack too deep
         for (uint256 i = 0; i < _numBlocks; i++) {
             dataPtr = BatchCodecV0.copyBlockContext(batchPtr, dataPtr, i);
-            uint256 blockPtr = batchPtr + 2 + i * BatchCodecV0.BLOCK_CONTEXT_LENGTH;
+            uint256 blockPtr = batchPtr + i * BatchCodecV0.BLOCK_CONTEXT_LENGTH;
             uint256 _numL1MessagesInBlock = BatchCodecV0.getNumL1Messages(blockPtr);
             unchecked {
                 _totalNumL1MessagesInBatch += _numL1MessagesInBlock;
@@ -749,7 +750,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         assembly {
             mstore(0x40, add(dataPtr, mul(_totalNumL1MessagesInBatch, 0x20))) // reserve memory for l1 message hashes
-            batchPtr := add(batchPtr, 1)
         }
 
         // concatenate tx hashes

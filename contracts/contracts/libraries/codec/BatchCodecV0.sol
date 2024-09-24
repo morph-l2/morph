@@ -54,23 +54,23 @@ library BatchCodecV0 {
     /// @return _numBlocks The number of blocks in current batch.
     function getNumBlocks(uint256 batchPtr) internal pure returns (uint256 _numBlocks) {
         assembly {
-            _numBlocks := shr(248, mload(batchPtr))
+            _numBlocks := shr(240, mload(batchPtr))
         }
     }
 
     /// @notice Copy the block context to another memory.
-    /// @param batchPtr The start memory offset of the chunk in memory.
+    /// @param blockPtr The start memory offset of the first block context in memory.
     /// @param dstPtr The destination memory offset to store the block context.
     /// @param index The index of block context to copy.
     /// @return uint256 The new destination memory offset after copy.
-    function copyBlockContext(uint256 batchPtr, uint256 dstPtr, uint256 index) internal pure returns (uint256) {
+    function copyBlockContext(uint256 blockPtr, uint256 dstPtr, uint256 index) internal pure returns (uint256) {
         // only first 58 bytes is needed.
         assembly {
-            batchPtr := add(batchPtr, add(1, mul(BLOCK_CONTEXT_LENGTH, index)))
-            mstore(dstPtr, mload(batchPtr)) // first 32 bytes
+            blockPtr := add(blockPtr, mul(BLOCK_CONTEXT_LENGTH, index))
+            mstore(dstPtr, mload(blockPtr)) // first 32 bytes
             mstore(
                 add(dstPtr, 0x20),
-                and(mload(add(batchPtr, 0x20)), 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000)
+                and(mload(add(blockPtr, 0x20)), 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000)
             ) // next 26 bytes
 
             dstPtr := add(dstPtr, 58)
