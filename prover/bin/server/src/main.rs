@@ -1,3 +1,6 @@
-fn main() {
-    // prover_server::start();
+use prover_server::server;
+
+#[tokio::main]
+async fn main() {
+    server::start().await;
 }

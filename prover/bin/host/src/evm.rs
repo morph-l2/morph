@@ -13,8 +13,7 @@ use serde::{Deserialize, Serialize};
 use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1Stdin, SP1VerifyingKey};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const STATELESS_VERIFIER_ELF: &[u8] =
-    include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
+pub const STATELESS_VERIFIER_ELF: &[u8] = include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
 /// The arguments for the EVM command.
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -55,7 +54,11 @@ fn main() {
     println!("n: {}", args.n);
 
     // Generate the proof.
-    let proof = client.prove(&pk, stdin).plonk().run().expect("failed to generate proof");
+    let proof = client
+        .prove(&pk, stdin)
+        .plonk()
+        .run()
+        .expect("failed to generate proof");
 
     create_plonk_fixture(&proof, &vk);
 }

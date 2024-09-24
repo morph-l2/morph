@@ -1,5 +1,9 @@
+use std::fs::File;
+use std::io::BufReader;
+
 use clap::Parser;
-use morph_prover::prove;
+use morph_prove::prove;
+use sbv_primitives::types::BlockTrace;
 
 /// The arguments for the command.
 #[derive(Parser, Debug)]
@@ -11,5 +15,14 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    prove("../../testdata/devnet_batch_traces.json", args.prove);
+    let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace("../../testdata/mainnet_batch_traces.json");
+    let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
+
+    prove(block_traces, args.prove);
+}
+
+fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
+    let file = File::open(file_path).unwrap();
+    let reader = BufReader::new(file);
+    serde_json::from_reader(reader).unwrap()
 }

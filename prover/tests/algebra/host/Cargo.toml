@@ -6,6 +6,8 @@ edition = "2021"
 
 [dependencies]
 sp1-sdk = { workspace = true }
+serde_json = { workspace = true }
+
 
 
 [build-dependencies]

@@ -1,11 +1,11 @@
 [package]
 version = "0.1.0"
-name = "morph-prover"
+name = "morph-prove"
 edition = "2021"
-default-run = "prover"
+default-run = "prove"
 
 [[bin]]
-name = "prover"
+name = "prove"
 path = "src/main.rs"
 
 
