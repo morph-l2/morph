@@ -28,11 +28,13 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice batch block interval
     uint256 public override batchBlockInterval;
 
+    /// @notice deprecated, to delete
     uint256 private batchMaxBytes;
 
     /// @notice batch timeout
     uint256 public override batchTimeout;
 
+    /// @notice deprecated, to delete
     uint256 private maxChunks;
 
     /// @notice rollup epoch
