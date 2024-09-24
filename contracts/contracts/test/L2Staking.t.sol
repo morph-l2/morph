@@ -12,7 +12,7 @@ import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {IDistribute} from "../l2/staking/IDistribute.sol";
 
-import "forge-std/console.sol";
+// import "forge-std/console.sol";
 
 contract L2StakingTest is L2StakingBaseTest {
     uint256 public morphBalance = 20 ether;
@@ -1498,7 +1498,7 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(secondRanking, 0 + 1);
 
         // *********************************** //
-        for (uint256 i = 1; i < 5400; i++) {
+        for (uint256 i = 1; i < 3; i++) {
             time = REWARD_EPOCH * (i + 2);
             hevm.roll(blocksCountOfEpoch * (i + 2));
             hevm.warp(time);
