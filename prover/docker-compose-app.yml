@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile.sp1-test
     image: sp1-test:latest
     volumes:
-    - /data/develop/sp1-apps/morph/prover/app/build:~/.sp1/circuits/v3.0.0-rc1-scroll
+    - /data/develop/sp1-apps/morph/prover/app/build:.sp1/circuits/v3.0.0-rc1-scroll
     - /data/develop/sp1-apps/morph/prover/app/proof:/data/proof
     restart: unless-stopped
     container_name: 'sp1-test'
