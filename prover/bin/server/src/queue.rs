@@ -50,7 +50,7 @@ impl Prover {
                     log::info!(
                         "received prove request, batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, end_block = {:#?}",
                         req.batch_index,
-                        req.end_block - req.start_block,
+                        req.end_block - req.start_block + 1,
                         req.start_block,
                         req.end_block,
                     );
@@ -108,7 +108,7 @@ async fn get_block_traces(
             }
         }
     }
-    if (end_block - start_block) as usize != block_traces.len() {
+    if (end_block + 1 - start_block) as usize != block_traces.len() {
         log::error!("block_traces.len not expected, batch index = {:#?}", batch_index);
         return None;
     }
