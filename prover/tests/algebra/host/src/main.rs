@@ -47,7 +47,7 @@ fn main() {
 
     // Save the fixture to a file.
     let proof_dir: String = read_env_var("PROOF_DIR", "/data/proof".to_string());
-    let fixture_path = PathBuf::from(proof_dir).join("../contracts/src/fixtures");
+    let fixture_path = PathBuf::from(proof_dir).join("./contracts/src/fixtures");
     std::fs::create_dir_all(&fixture_path).expect("failed to create fixture path");
     std::fs::write(
         fixture_path.join("proof.json"),

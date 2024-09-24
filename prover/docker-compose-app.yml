@@ -17,7 +17,7 @@ services:
     command: >
       ./algebra-host
     ports:
-      - "6060:6060"
+      - "3030:3030"
     environment:
       - RUST_LOG=info
       - PROOF_DIR=/root/data/proof
