@@ -54,6 +54,7 @@ fn main() {
         serde_json::to_string_pretty(&proof).unwrap(),
     )
     .expect("failed to write fixture");
+    println!("Successfully saved proof!");
 }
 
 fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {

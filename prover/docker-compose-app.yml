@@ -11,7 +11,7 @@ services:
     image: sp1-test:latest
     volumes:
     - /data/develop/sp1-apps/morph/prover/app/build:/root/.sp1/circuits/v1.3.0-rc2-scroll
-    - /data/develop/sp1-apps/morph/prover/app/proof:/data/proof
+    - /data/develop/sp1-apps/morph/prover/app/proof:/root/data/proof
     restart: no
     container_name: 'sp1-test'
     command: >
@@ -20,4 +20,4 @@ services:
       - "6060:6060"
     environment:
       - RUST_LOG=info
-      - PROOF_DIR=/data/proof
+      - PROOF_DIR=/root/data/proof
