@@ -1,23 +1,22 @@
 version: '3.4'
 
-volumes:
-  plonk_circuits:
-
 services:
-  sp1-test:
+  sp1-app:
     build:
       context: .
-      dockerfile: Dockerfile.sp1-test
-    image: sp1-test:latest
+      dockerfile: Dockerfile.sp1-app
+    image: sp1-app:latest
     volumes:
     - /data/develop/sp1-apps/morph/prover/app/build:/root/.sp1/circuits/v1.3.0-rc2-scroll
     - /data/develop/sp1-apps/morph/prover/app/proof:/root/data/proof
     restart: no
-    container_name: 'sp1-test'
+    container_name: 'sp1-app'
     command: >
-      ./algebra-host
+      ./prover-server
     ports:
       - "3030:3030"
+      - "7061:6060"
     environment:
       - RUST_LOG=info
+      - RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f"
       - PROOF_DIR=/root/data/proof
