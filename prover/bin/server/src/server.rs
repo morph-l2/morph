@@ -140,8 +140,8 @@ async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>
     );
 
     // Verify block number is greater than 0
-    if prove_request.blocks.is_empty() {
-        return String::from("blocks is empty");
+    if prove_request.start_block == 0 || prove_request.start_block > prove_request.end_block {
+        return String::from("blocks index invalid");
     }
 
     // Verify RPC URL format
