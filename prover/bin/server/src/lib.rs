@@ -1,7 +1,7 @@
-pub mod queue;
 pub mod server;
 
 use std::str::FromStr;
+pub mod queue;
 
 use once_cell::sync::Lazy;
 use prometheus::{IntGauge, Registry};

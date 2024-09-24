@@ -3,6 +3,7 @@ use sbv_primitives::types::BlockTrace;
 use sbv_primitives::TxTrace;
 use std::io::Write;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 
@@ -23,13 +24,12 @@ const BLOB_WIDTH: usize = 4096;
 const BLOB_DATA_SIZE: usize = BLOB_WIDTH * N_BYTES_U256;
 
 /// 4844 trusted setup config
-pub static MAINNET_KZG_TRUSTED_SETUP: Lazy<Arc<KzgSettings>> =
-    Lazy::new(|| Arc::new(load_trusted_setup()));
+pub static MAINNET_KZG_TRUSTED_SETUP: Lazy<Arc<KzgSettings>> = Lazy::new(|| Arc::new(load_trusted_setup()));
 
 /// Loads the trusted setup parameters from the given bytes and returns the [KzgSettings].
 pub fn load_trusted_setup() -> KzgSettings {
-    let setup_config = "../../configs/4844_trusted_setup.txt";
-    let trusted_setup_file = Path::new(setup_config);
+    let setup_config = read_env_var("TRUSTED_SETUP_4844", "configs/4844_trusted_setup.txt".to_string());
+    let trusted_setup_file = Path::new(&setup_config);
     assert!(trusted_setup_file.exists());
     KzgSettings::load_trusted_setup_file(trusted_setup_file).unwrap()
 }
@@ -71,11 +71,8 @@ pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
 /// Populate kzg info.
 fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo, anyhow::Error> {
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
-    let commitment = KzgCommitment::blob_to_kzg_commitment(
-        &Blob::from_bytes(blob_bytes).unwrap(),
-        &kzg_settings,
-    )
-    .map_err(|e| anyhow!(format!("generate KzgCommitment error: {:?}", e)))?;
+    let commitment = KzgCommitment::blob_to_kzg_commitment(&Blob::from_bytes(blob_bytes).unwrap(), &kzg_settings)
+        .map_err(|e| anyhow!(format!("generate KzgCommitment error: {:?}", e)))?;
 
     let proof = KzgProof::compute_blob_kzg_proof(
         &Blob::from_bytes(blob_bytes).unwrap(),
@@ -101,4 +98,10 @@ pub fn compresse_batch(batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
 
     let encoded_bytes: Vec<u8> = encoder.finish().expect("infallible");
     Ok(encoded_bytes)
+}
+
+pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
+    std::env::var(var_name)
+        .map(|s| s.parse::<T>().unwrap_or_else(|_| default.clone()))
+        .unwrap_or(default)
 }

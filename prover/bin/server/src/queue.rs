@@ -1,3 +1,6 @@
+use morph_prove::prove;
+use std::fs::File;
+use std::io::BufReader;
 use std::{sync::Arc, thread, time::Duration};
 
 use crate::{PROVER_L2_RPC, PROVE_RESULT, PROVE_TIME};
@@ -7,7 +10,6 @@ use alloy::{
     transports::http::reqwest,
 };
 use anyhow::anyhow;
-use morph_prove::prove;
 use sbv_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -58,6 +60,9 @@ impl Prover {
             };
 
             // Step2. Fetch trace
+            // let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace("testdata/mainnet_batch_traces.json");
+            // let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
+
             log::info!("Requesting trace of batch: {:#?}", batch_index);
             let res_provider = &mut get_block_traces(batch_index, blocks, &self.provider).await;
             let block_traces = match res_provider {
@@ -72,6 +77,12 @@ impl Prover {
             prove(block_traces, true);
         }
     }
+}
+
+fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
+    let file = File::open(file_path).unwrap();
+    let reader = BufReader::new(file);
+    serde_json::from_reader(reader).unwrap()
 }
 
 // Fetches block traces by provider
