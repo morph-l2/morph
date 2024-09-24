@@ -58,6 +58,11 @@ interface IDistribute {
      * Public View Functions *
      *************************/
 
+    /// @notice query whether all rewards have been claimed for a delegatee
+    /// @param delegator     delegatee address
+    /// @param delegatee     delegatee address
+    function isRewardClaimed(address delegator, address delegatee) external view returns (bool claimed);
+
     /// @notice query unclaimed morph reward on a delegatee
     /// @param delegatee     delegatee address
     /// @param delegator     delegatee address
