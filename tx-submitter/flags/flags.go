@@ -207,11 +207,11 @@ var (
 		Value:  "journal.rlp",
 	}
 	// listener processed block record path
-	StakingEventStorePathFlag = cli.StringFlag{
-		Name:   "StakingEventStorePath",
-		Usage:  "The path of the storage",
-		EnvVar: prefixEnvVar("StakingEventStorePath"),
-		Value:  "StakingEventStorePath.json",
+	StakingEventStoreFileFlag = cli.StringFlag{
+		Name:   "StakingEventStoreFileName",
+		Usage:  "The file name of the storage",
+		EnvVar: prefixEnvVar("STAKING_EVENT_STORE_FILENAME"),
+		Value:  "StakingEventStore.json",
 	}
 
 	CalldataFeeBumpFlag = cli.Uint64Flag{
@@ -343,7 +343,7 @@ var optionalFlags = []cli.Flag{
 	ExternalSignRsaPriv,
 	RoughEstimateGasFlag,
 	RotatorBufferFlag,
-	StakingEventStorePathFlag,
+	StakingEventStoreFileFlag,
 	EventIndexStepFlag,
 }
 

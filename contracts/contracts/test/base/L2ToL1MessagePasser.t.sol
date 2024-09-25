@@ -6,6 +6,12 @@ import {L2ToL1MessagePasser} from "../../l2/system/L2ToL1MessagePasser.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 
 contract L2ToL1MessagePasserTest is L2MessageBaseTest {
+    function test_appendMessage_notMessenger_reverts() public {
+        bytes32 messageHash = keccak256(abi.encodePacked("invalid test message"));
+        hevm.expectRevert("only messenger");
+        l2ToL1MessagePasser.appendMessage(messageHash);
+    }
+
     function test_appendMessage_succeeds() external {
         for (uint256 i = 0; i < 1024; i++) {
             bytes32 leafHash = bytes32(i);

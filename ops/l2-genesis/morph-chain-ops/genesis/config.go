@@ -638,7 +638,17 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_owner":         predeploys.L2StandardERC20GatewayAddr,
 		"implementation": predeploys.MorphStandardERC20Addr,
 	}
-	storage["L2USDC"] = state.StorageValues{}
+	storage["L2USDC"] = state.StorageValues{
+		"initialized":  true,
+		"name":         "Bridged USDC",
+		"symbol":       "USDC.e",
+		"currency":     "USD",
+		"decimals":     18,
+		"masterMinter": config.FinalSystemOwner,
+		"pauser":       config.FinalSystemOwner,
+		"blacklister":  config.FinalSystemOwner,
+		"_owner":       config.FinalSystemOwner,
+	}
 	return storage, nil
 }
 
