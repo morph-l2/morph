@@ -17,6 +17,7 @@ const config = {
     // initialize config
     rollupMaxNumTxInChunk: 100,
     finalizationPeriodSeconds: 600,
+    rollupBatchIndex: 0,
     rollupProofWindow: 86400,
     // challenge config
     rollupProposer: '0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d',
