@@ -19,3 +19,5 @@ pgo-data.profdata
 .env
 
 Dockerfile.test
+
+shadow-proving
