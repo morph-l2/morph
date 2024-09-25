@@ -1,3 +1,5 @@
+build-prover:
+	cargo build
 
 save-plonk-circuits:
 	rm -rf plonk-circuits && \
