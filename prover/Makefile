@@ -1,5 +1,5 @@
 build-prover:
-	./sp1up.sh && cargo build
+	./sp1up.sh && sp1up && cargo build
 
 save-plonk-circuits:
 	rm -rf plonk-circuits && \
