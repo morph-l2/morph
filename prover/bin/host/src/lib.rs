@@ -54,6 +54,7 @@ pub fn prove(blocks: &mut Vec<BlockTrace>, prove: bool) {
     // Generate the proof
     let start = Instant::now();
     let proof = client.prove(&pk, stdin).plonk().run().expect("proving failed");
+    println!("plonk proof: {:#?}", proof);
 
     let duration_mins = start.elapsed().as_secs() / 60;
     println!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
