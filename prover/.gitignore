@@ -18,6 +18,4 @@ pgo-data.profdata
 # Env
 .env
 
-contracts
-
 Dockerfile.test
