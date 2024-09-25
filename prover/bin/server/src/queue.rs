@@ -67,6 +67,7 @@ impl Prover {
 
             // Step2. Fetch trace
             log::info!("Requesting trace of batch: {:#?}", batch_index);
+            println!("Requesting trace");
             let res_provider = &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
             let block_traces = match res_provider {
                 Some(block_traces) => block_traces,
@@ -80,6 +81,7 @@ impl Prover {
                 save_trace(batch_index, block_traces);
             }
 
+            println!("Generate evm proof");
             // Step3. Generate evm proof
             prove(block_traces, true);
         }

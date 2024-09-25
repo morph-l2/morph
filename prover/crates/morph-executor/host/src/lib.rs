@@ -40,8 +40,6 @@ pub fn get_blob_info(block_trace: &Vec<BlockTrace>) -> Result<BlobInfo, anyhow::
 }
 
 pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
-    let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
-
     // collect txns
     let mut tx_bytes: Vec<u8> = vec![];
     for trace in block_trace {
@@ -49,14 +47,19 @@ pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
             .transactions
             .iter()
             .filter(|tx| !tx.is_l1_tx())
-            .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp_da())
+            .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp())
             .collect::<Vec<u8>>();
         tx_bytes.extend(x);
     }
 
+    encode_blob(tx_bytes)
+}
+
+pub fn encode_blob(tx_bytes: Vec<u8>) -> [u8; 131072] {
     // zstd compresse
     let compressed_batch = compresse_batch(tx_bytes.as_slice()).unwrap();
 
+    let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
     // bls element convert
     for (i, byte) in compressed_batch.into_iter().enumerate() {
         coefficients[i / 31][1 + (i % 31)] = byte;

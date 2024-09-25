@@ -28,3 +28,6 @@ fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
     let reader = BufReader::new(file);
     serde_json::from_reader(reader).unwrap()
 }
+
+
+
