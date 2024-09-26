@@ -2,9 +2,7 @@ package types
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"math"
 
 	"morph-l2/node/zstd"
 
@@ -131,9 +129,6 @@ func (cks *BatchData) Append(blockContext, txsPayload []byte, l1TxHashes []commo
 func (cks *BatchData) Encode() ([]byte, error) {
 	if cks == nil || cks.blockNum == 0 {
 		return []byte{}, nil
-	}
-	if cks.blockNum > math.MaxUint16 {
-		return nil, errors.New("number of blocks exceeds 2 byte")
 	}
 
 	data := make([]byte, 2)
