@@ -99,7 +99,8 @@ pub fn prove(
     Ok(Some(fixture))
 }
 
-mod test {
+#[cfg(test)]
+mod tests {
     use morph_executor_client::{
         types::{
             blob::{decode_transactions, get_origin_batch},
@@ -133,18 +134,6 @@ mod test {
 
         std::env::set_var("TRUSTED_SETUP_4844", "../../configs/4844_trusted_setup.txt");
         let blob_info: BlobInfo = populate_kzg(&blob).unwrap();
-
-        // let blob_info = BlobInfo {
-        //     blob_data: blob.to_vec(),
-        //     commitment: hex::decode(
-        //         "0x83a5d1ffa11a6c5246a91002415ce9b815c31a8e204b09411ac478f0eef5f9b832ce8d0588ebf4e1000f6fa811372a72",
-        //     )
-        //     .unwrap(),
-        //     proof: hex::decode(
-        //         "0x8fb9142aa00410565ba9469f9fe7a56c0f6655966cddd0b9d51f6f91a4a88b050279b8d875f0da1e6b4694dfe33b0c90",
-        //     )
-        //     .unwrap(),
-        // };
 
         let (versioned_hash, batch_data) = BlobVerifier::verify(&blob_info).unwrap();
         println!(

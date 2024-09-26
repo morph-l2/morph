@@ -12,6 +12,7 @@ pub struct BlobVerifier;
 impl BlobVerifier {
     pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<u8>), anyhow::Error> {
         // decode
+        println!("cycle-tracker-start: decode_blob");
         let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
         cfg_if::cfg_if! {
             if #[cfg(not(target_os = "zkvm"))] {
@@ -19,14 +20,15 @@ impl BlobVerifier {
                 println!("decoded tx_list_len: {:?}", tx_list.len());
             }
         }
+        println!("cycle-tracker-end: decode_blob");
 
         // verify kzg
+        println!("cycle-tracker-start: verify_blob_kzg_proof");
         let versioned_hash = kzg_to_versioned_hash(&blob_info.commitment);
         let blob = KzgRsBlob::from_slice(&blob_info.blob_data).unwrap();
         let commitent = Bytes48::from_slice(&blob_info.commitment).unwrap();
         let proof = Bytes48::from_slice(&blob_info.proof).unwrap();
 
-        println!("cycle-tracker-start: verify_blob_kzg_proof");
         let verify_result =
             kzg_rs::KzgProof::verify_blob_kzg_proof(blob, &commitent, &proof, &get_kzg_settings())
                 .map_err(|e| anyhow!("blob verification failed, kzg err: {:?}", e))?;
