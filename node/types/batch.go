@@ -131,8 +131,8 @@ func (cks *BatchData) Encode() ([]byte, error) {
 	if cks == nil || cks.blockNum == 0 {
 		return []byte{}, nil
 	}
-	if cks.blockNum > 255 {
-		return nil, errors.New("number of blocks exceeds 1 byte")
+	if cks.blockNum > 65535 {
+		return nil, errors.New("number of blocks exceeds 2 byte")
 	}
 
 	data := make([]byte, 2)
