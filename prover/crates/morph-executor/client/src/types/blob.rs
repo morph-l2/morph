@@ -54,11 +54,8 @@ pub fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Result<Vec<u8>, anyhow::E
     Ok(origin_batch[32..tx_data_len + 32].to_vec())
 }
 
+#[cfg(not(target_os = "zkvm"))]
 pub fn decode_transactions(bs: &[u8]) -> Vec<TypedTransaction> {
-    decode_transactions_from_blob(bs)
-}
-
-fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {
     let mut txs_decoded: Vec<TypedTransaction> = Vec::new();
 
     let mut offset: usize = 0;
@@ -101,7 +98,6 @@ fn decode_transactions_from_blob(bs: &[u8]) -> Vec<TypedTransaction> {
                 println!("decode_transaction error: {e:?}");
             })
             .unwrap();
-        // println!("tx_decoded: {:?}", tx_decoded.tx_hash());
 
         txs_decoded.push(tx_decoded);
         offset += rlp_tx_len;

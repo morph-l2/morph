@@ -1,24 +1,20 @@
-use crate::{read_env_var, PROVE_RESULT, REGISTRY};
-use crate::{PROVER_PROOF_DIR, PROVE_TIME};
-use axum::extract::Extension;
-use axum::routing::get;
-use axum::{routing::post, Router};
+use crate::{read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY};
+use axum::{
+    extract::Extension,
+    routing::{get, post},
+    Router,
+};
 use dotenv::dotenv;
+use once_cell::sync::Lazy;
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::Read;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::Mutex;
-use tokio::time::timeout;
+use std::{fs, io::Read, sync::Arc, time::Duration};
+use tokio::{sync::Mutex, time::timeout};
 
 use crate::queue::{ProveRequest, Prover};
 use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
 use log::Record;
-use tower_http::add_extension::AddExtensionLayer;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::{add_extension::AddExtensionLayer, cors::CorsLayer, trace::TraceLayer};
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProveResult {
     pub error_msg: String,
@@ -34,6 +30,8 @@ mod task_status {
     pub const PROVING: &str = "Proving";
     pub const PROVED: &str = "Proved";
 }
+
+pub static MAX_PROVE_BLOCKS: Lazy<usize> = Lazy::new(|| read_env_var("MAX_PROVE_BLOCKS", 4096));
 
 // Main async function to start prover service.
 // 1. Initializes environment.
@@ -84,9 +82,8 @@ async fn metric_mng() {
     REGISTRY.register(Box::new(PROVE_TIME.clone())).unwrap();
 
     tokio::spawn(async move {
-        let metrics = Router::new()
-            .route("/metrics", get(handle_metrics))
-            .layer(TraceLayer::new_for_http());
+        let metrics =
+            Router::new().route("/metrics", get(handle_metrics)).layer(TraceLayer::new_for_http());
         let metric_address = read_env_var("PROVER_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
         axum::Server::bind(&metric_address.parse().unwrap())
             .serve(metrics.into_make_service())
@@ -119,7 +116,10 @@ async fn handle_metrics() -> String {
 }
 
 // Add pending prove request to queue.
-async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>, param: String) -> String {
+async fn add_pending_req(
+    Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>,
+    param: String,
+) -> String {
     // Verify parameter is not empty
     if param.is_empty() {
         return String::from("request is empty");
@@ -139,9 +139,19 @@ async fn add_pending_req(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>
         prove_request.shadow.unwrap_or(false)
     );
 
+    let blocks_len =
+        prove_request.end_block.checked_sub(prove_request.start_block).unwrap_or_default();
+
     // Verify block number is greater than 0
-    if prove_request.start_block == 0 || prove_request.start_block > prove_request.end_block {
+    if prove_request.start_block == 0 || blocks_len == 0 {
         return String::from("blocks index invalid");
+    }
+
+    if blocks_len as usize > *MAX_PROVE_BLOCKS {
+        return format!(
+            "blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
+            blocks_len, MAX_PROVE_BLOCKS
+        );
     }
 
     // Verify RPC URL format
@@ -220,11 +230,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             }
         };
 
-        if path
-            .to_str()
-            .unwrap_or("nothing")
-            .ends_with(format!("batch_{}", batch_index).as_str())
-        {
+        if path.to_str().unwrap_or("nothing").ends_with(format!("batch_{}", batch_index).as_str()) {
             //pi_batch_agg.data
             let proof_path = path.join("proof_batch_agg.data");
             if !proof_path.exists() {

@@ -5,6 +5,7 @@ members = [
     "bin/server",
     "crates/morph-executor/host",
     "crates/morph-executor/client",
+    "crates/morph-executor/utils",
     "crates/core",
     "crates/mpt",
     "crates/primitives",
@@ -81,6 +82,7 @@ prometheus-client = "0.22"
 pprof = { version = "0.13", features = ["flamegraph"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+cfg-if = "1.0.0"
 
 # dev dependencies
 rand = "0.8"
@@ -93,6 +95,7 @@ sbv-primitives = { path = "crates/primitives" }
 sbv-utils = { path = "crates/utils" }
 morph-executor-host = { path = "crates/morph-executor/host" }
 morph-executor-client = { path = "crates/morph-executor/client" }
+morph-executor-utils = { path = "crates/morph-executor/utils" }
 morph-prove = { path = "bin/host" }
 
 [workspace.dependencies.revm] # v42

@@ -3683,6 +3683,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "cfg-if 1.0.0",
  "kzg-rs",
  "ruzstd",
  "sbv-core",
@@ -3700,9 +3701,17 @@ dependencies = [
  "anyhow",
  "c-kzg",
  "morph-executor-client",
+ "morph-executor-utils",
  "once_cell",
  "sbv-primitives",
  "zstd 0.13.0",
+]
+
+[[package]]
+name = "morph-executor-utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
 ]
 
 [[package]]
@@ -3714,6 +3723,8 @@ dependencies = [
  "hex",
  "morph-executor-client",
  "morph-executor-host",
+ "morph-executor-utils",
+ "once_cell",
  "sbv-primitives",
  "serde",
  "serde_json",

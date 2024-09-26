@@ -1,12 +1,16 @@
-use morph_prove::prove;
-use std::fs::{self, File};
-use std::io::{BufReader, BufWriter};
-use std::{sync::Arc, thread, time::Duration};
+use morph_prove::{evm::EvmProofFixture, prove};
+use std::{
+    fs::{self, File},
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 
-use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
-use alloy::providers::Provider;
+use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT};
 use alloy::{
-    providers::{ProviderBuilder, ReqwestProvider, RootProvider},
+    providers::{Provider, ProviderBuilder, ReqwestProvider, RootProvider},
     transports::http::reqwest,
 };
 use anyhow::anyhow;
@@ -31,7 +35,8 @@ pub struct Prover {
 
 impl Prover {
     pub fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
-        let url = reqwest::Url::parse(PROVER_L2_RPC.as_str()).map_err(|_| anyhow!("Invalid L2 RPC URL"))?;
+        let url = reqwest::Url::parse(PROVER_L2_RPC.as_str())
+            .map_err(|_| anyhow!("Invalid L2 RPC URL"))?;
         let provider = ProviderBuilder::new().on_provider(RootProvider::new_http(url));
 
         Ok(Self { prove_queue, provider })
@@ -62,13 +67,15 @@ impl Prover {
                 }
             };
 
-            // let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace("testdata/mainnet_batch_traces.json");
-            // let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
+            // let traces: &mut Vec<Vec<BlockTrace>> = &mut
+            // load_trace("testdata/mainnet_batch_traces.json"); let block_traces: &mut
+            // Vec<BlockTrace> = &mut traces[0];
 
             // Step2. Fetch trace
             log::info!("Requesting trace of batch: {:#?}", batch_index);
             println!("Requesting trace");
-            let res_provider = &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
+            let res_provider =
+                &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
             let block_traces = match res_provider {
                 Some(block_traces) => block_traces,
                 None => {
@@ -81,11 +88,29 @@ impl Prover {
                 save_trace(batch_index, block_traces);
             }
 
-            println!("Generate evm proof");
             // Step3. Generate evm proof
-            prove(block_traces, true);
+            println!("Generate evm proof");
+            let prove_rt = prove(block_traces, true);
+
+            match prove_rt {
+                Ok(Some(proof)) => save_proof(batch_index, proof),
+                Ok(None) => println!("proof is none"),
+                Err(e) => println!("prove err: {:?}", e),
+            }
         }
     }
+}
+
+fn save_proof(batch_index: u64, proof: EvmProofFixture) {
+    let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+    // let batch_dir = format!("{}/{}", proof_dir, batch_index);
+    let batch_dir = PathBuf::from(proof_dir);
+    std::fs::create_dir_all(&batch_dir).expect("failed to create fixture path");
+    std::fs::write(
+        batch_dir.join("plonk_proof.json"),
+        serde_json::to_string_pretty(&proof).unwrap(),
+    )
+    .expect("failed to write proof");
 }
 
 // Fetches block traces by provider

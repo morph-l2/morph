@@ -8,11 +8,6 @@ default-run = "prove"
 name = "prove"
 path = "src/main.rs"
 
-
-[[bin]]
-name = "evm"
-path = "src/evm.rs"
-
 [[bin]]
 name = "vkey"
 path = "src/vkey.rs"
@@ -28,12 +23,14 @@ tokio = { workspace = true }
 clap = { workspace = true }
 #log = { workspace = true }
 #env_logger = { workspace = true }
+once_cell = { workspace = true }
 
 
 
 # workspace
 morph-executor-host = { workspace = true }
 morph-executor-client = { workspace = true }
+morph-executor-utils = { workspace = true }
 sbv-primitives= { workspace = true }
 
 [build-dependencies]

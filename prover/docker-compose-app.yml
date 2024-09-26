@@ -19,6 +19,6 @@ services:
     environment:
       - RUST_LOG=info
       - RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f"
-      - PROOF_DIR=/root/data/proof
+      - PROVER_PROOF_DIR=/root/data/proof
       - SAVE_TRACE=true
       - PROVER_L2_RPC=http://127.0.0.1:8545
