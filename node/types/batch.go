@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 
 	"morph-l2/node/zstd"
 
@@ -131,7 +132,7 @@ func (cks *BatchData) Encode() ([]byte, error) {
 	if cks == nil || cks.blockNum == 0 {
 		return []byte{}, nil
 	}
-	if cks.blockNum > 65535 {
+	if cks.blockNum > math.MaxUint16 {
 		return nil, errors.New("number of blocks exceeds 2 byte")
 	}
 
