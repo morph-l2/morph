@@ -1,4 +1,4 @@
-use morph_prove::{evm::EvmProofFixture, prove};
+use morph_prove::{agg, evm::EvmProofFixture, shard};
 use std::{
     fs::{self, File},
     io::{BufReader, BufWriter},
@@ -14,8 +14,9 @@ use alloy::{
     transports::http::reqwest,
 };
 use anyhow::anyhow;
-use sbv_primitives::types::BlockTrace;
+use sbv_primitives::{types::BlockTrace, Block};
 use serde::{Deserialize, Serialize};
+use sp1_sdk::SP1ProofWithPublicValues;
 use tokio::sync::Mutex;
 
 // proveRequest
@@ -44,6 +45,7 @@ impl Prover {
 
     /// Processes prove requests from a queue.
     pub async fn prove_for_queue(&mut self) {
+        // TODO
         println!("Waiting for prove request");
         log::info!("Waiting for prove request");
         loop {
@@ -88,12 +90,24 @@ impl Prover {
                 save_trace(batch_index, block_traces);
             }
 
-            // Step3. Generate evm proof
-            println!("Generate evm proof");
-            let prove_rt = prove(block_traces, true);
-
+            // Step3. Generate proof
+            println!("Generate shard proof");
+            let mut shard_proofs: Vec<SP1ProofWithPublicValues> = vec![];
+            block_traces.chunks_mut(20).for_each(|blocks| {
+                let prove_rt = shard::prove(&mut blocks.to_vec(), true);
+                match prove_rt {
+                    Ok(Some(proof)) => {
+                        shard_proofs.push(proof.clone());
+                        save_shard_proof(batch_index, blocks[0].number(), proof)
+                    }
+                    Ok(None) => println!("proof is none"),
+                    Err(e) => println!("prove error: {:?}", e),
+                }
+            });
+            println!("Generate agg proof");
+            let prove_rt = agg::prove(shard_proofs, true);
             match prove_rt {
-                Ok(Some(proof)) => save_proof(batch_index, proof),
+                Ok(Some(proof)) => save_agg_proof(batch_index, proof),
                 Ok(None) => println!("proof is none"),
                 Err(e) => println!("prove err: {:?}", e),
             }
@@ -101,9 +115,17 @@ impl Prover {
     }
 }
 
-fn save_proof(batch_index: u64, proof: EvmProofFixture) {
+fn load_shard_proof() {}
+
+fn save_shard_proof(batch_index: u64, start_num: u64, proof: SP1ProofWithPublicValues) {
     let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
-    // let batch_dir = format!("{}/{}", proof_dir, batch_index);
+    let batch_dir = PathBuf::from(proof_dir.clone());
+    std::fs::create_dir_all(&batch_dir).expect("failed to create fixture path");
+    proof.save(format!("{}/{}.bin", proof_dir, start_num)).expect("saving stark proof failed");
+}
+
+fn save_agg_proof(batch_index: u64, proof: EvmProofFixture) {
+    let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     let batch_dir = PathBuf::from(proof_dir);
     std::fs::create_dir_all(&batch_dir).expect("failed to create fixture path");
     std::fs::write(

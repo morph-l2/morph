@@ -1,8 +1,7 @@
-use std::fs::File;
-use std::io::BufReader;
+use std::{fs::File, io::BufReader};
 
 use clap::Parser;
-use morph_prove::prove;
+use morph_prove::shard::prove;
 use sbv_primitives::types::BlockTrace;
 
 /// The arguments for the command.
@@ -28,6 +27,3 @@ fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
     let reader = BufReader::new(file);
     serde_json::from_reader(reader).unwrap()
 }
-
-
-

@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "bin/host",
-    "bin/client",
+    "bin/client/agg",
+    "bin/client/shard",
     "bin/server",
     "crates/morph-executor/host",
     "crates/morph-executor/client",
@@ -48,6 +49,7 @@ sha2 = "0.10.8"
 sp1-zkvm =  { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909"}
 sp1-sdk = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909", features = ["native-gnark"]}
 sp1-helper = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909"}
+sp1-lib = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909"}
 
 # dependencies from scroll-tech
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master", features = ["bn254"] }

@@ -7,17 +7,8 @@
 //! ```
 
 use morph_executor_utils::read_env_var;
-use sp1_sdk::HashableKey;
-use std::path::PathBuf;
-// use alloy_sol_types::SolType;
-use clap::Parser;
-// use evm_lib::PublicValuesStruct;
 use serde::{Deserialize, Serialize};
-use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1Stdin, SP1VerifyingKey};
-
-/// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const STATELESS_VERIFIER_ELF: &[u8] =
-    include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
+use std::path::PathBuf;
 
 /// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
 #[derive(Debug, Clone, Serialize, Deserialize)]

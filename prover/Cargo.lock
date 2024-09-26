@@ -62,6 +62,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "agg-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "morph-executor-client",
+ "sbv-primitives",
+ "serde",
+ "serde_json",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "ahash"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3692,6 +3704,7 @@ dependencies = [
  "serde",
  "serde_with",
  "sha2",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -4814,6 +4827,7 @@ dependencies = [
  "sbv-primitives",
  "serde",
  "serde_json",
+ "sp1-sdk",
  "tokio",
  "tower",
  "tower-http 0.4.4",
@@ -5890,6 +5904,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "shard-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "morph-executor-client",
+ "sbv-primitives",
+ "serde",
+ "serde_json",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6521,10 +6547,13 @@ dependencies = [
  "lazy_static",
  "libm",
  "once_cell",
+ "p3-baby-bear",
+ "p3-field",
  "rand",
  "serde",
  "sha2",
  "sp1-lib",
+ "sp1-primitives",
 ]
 
 [[package]]
@@ -7352,18 +7381,6 @@ dependencies = [
  "git2",
  "rustversion",
  "time",
-]
-
-[[package]]
-name = "verifier-client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "morph-executor-client",
- "sbv-primitives",
- "serde",
- "serde_json",
- "sp1-zkvm",
 ]
 
 [[package]]
