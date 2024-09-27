@@ -55,7 +55,7 @@ task("deploy")
         }
 
         console.log('\n---------------------------------- deploy  ZkEvmVerifierV1 ----------------------------------')
-        err = await deployZkEvmVerifierV1(hre, storagePath, deployer)
+        err = await deployZkEvmVerifierV1(hre, storagePath, deployer, config)
         if (err != '') {
             console.log('Deploy deploy ZkEvmVerifierV1 failed, err: ', err)
             return

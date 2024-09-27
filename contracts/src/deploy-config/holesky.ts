@@ -11,8 +11,10 @@ const config = {
     l1MessageQueueMaxGasLimit: 100000000,
 
     // gasPriceOracle config
-    l2BaseFee: 0.1,  // Gwei 
+    l2BaseFee: 0.1,  // Gwei
 
+    // verify contract config
+    programVkey: '0x002eb156d12ee3c6433b5aa28767f398859bbff9b03d1cde4ea7e5635e86f402',
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 600,
