@@ -1,3 +1,4 @@
 forge-artifacts/
 node_modules/
 test/
+contracts/libraries/verifier/PlonkVerifier.sol
