@@ -1071,7 +1071,7 @@ contract StakingClaimWithdrawalTest is L1MessageBaseTest {
         l1Staking.withdraw();
 
         // set block number
-        hevm.roll(block.number + l1Staking.withdrawalLockBlocks());
+        hevm.roll(block.number + l1Staking.withdrawalLockBlocks() - 1);
         hevm.expectRevert("withdrawal locked");
         l1Staking.claimWithdrawal(bob);
         hevm.stopPrank();

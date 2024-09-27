@@ -306,7 +306,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param receiver  receiver address
     function claimWithdrawal(address receiver) external nonReentrant {
         require(withdrawals[_msgSender()] > 0, "withdrawal not exist");
-        require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
+        require(withdrawals[_msgSender()] <= block.number, "withdrawal locked");
 
         delete withdrawals[_msgSender()];
         _cleanStakerStore();
