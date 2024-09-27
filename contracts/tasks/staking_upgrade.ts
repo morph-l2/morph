@@ -61,18 +61,10 @@ task("rollup-deploy-init")
             // deploy ZkEvmVerifierV1
             const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
             const ZkEvmVerifierV1ImplStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
-            const network = hre.network.name
-            const bytecode = hexlify(fs.readFileSync(`./contracts/libraries/verifier/plonk-verifier/${network}/plonk_verifier_0.10.3.bin`));
-            const tx = await deployer.sendTransaction({ data: bytecode });
-            const receipt = await tx.wait();
-            console.log("%s=%s ; TX_HASH: %s", "plonk_verifier.bin", receipt.contractAddress.toLocaleLowerCase(), tx.hash);
-
             const Factory = await hre.ethers.getContractFactory(ZkEvmVerifierV1ContractFactoryName)
-            const contract = await Factory.deploy(receipt.contractAddress)
+            const contract = await Factory.deploy(config.programVkey)
             await contract.deployed()
             console.log("%s=%s ; TX_HASH: %s", ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-            // check params
-            await assertContractVariable(contract, 'PLONK_VERIFIER', receipt.contractAddress)
             let blockNumber = await hre.ethers.provider.getBlockNumber()
             console.log("BLOCK_NUMBER: %s", blockNumber)
             let err = await storage(newPath, ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
