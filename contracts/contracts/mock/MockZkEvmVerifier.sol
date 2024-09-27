@@ -8,7 +8,7 @@ contract MockZkEvmVerifier is IZkEvmVerifier {
     event Called(address);
 
     /// @inheritdoc IZkEvmVerifier
-    function verify(bytes calldata, bytes32) external view {
+    function verifyBatch(bytes calldata, bytes32) external view {
         revert(string(abi.encode(address(this))));
     }
 }

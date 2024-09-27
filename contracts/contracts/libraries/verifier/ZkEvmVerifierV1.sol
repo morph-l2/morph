@@ -20,7 +20,7 @@ contract ZkEvmVerifierV1 is IZkEvmVerifier, SP1Verifier {
      *************************/
 
     /// @inheritdoc IZkEvmVerifier
-    function verify(bytes calldata proof, bytes32 publicInputHash) external view override {
+    function verifyBatch(bytes calldata proof, bytes32 publicInputHash) external view override {
         this.verifyPlonk(proof, bytes.concat(publicInputHash));
     }
 
