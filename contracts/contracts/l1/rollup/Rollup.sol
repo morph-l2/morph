@@ -23,8 +23,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The zero versioned hash.
     bytes32 internal constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
 
-    /// @notice The BLS MODULUS
-    uint256 internal constant BLS_MODULUS =
+    /// @notice The BLS MODULUS. Deprecated.
+    uint256 internal constant __BLS_MODULUS =
         52435875175126190479447740508185965837690552500527637822603658699938581184513;
 
     /// @dev Address of the point evaluation precompile used for EIP-4844 blob verification.
@@ -428,11 +428,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    /// _kzgData: [y(32) | commitment(48) | proof(48)]
     function proveState(
         bytes calldata _batchHeader,
-        bytes calldata _aggrProof,
-        bytes calldata _kzgDataProof
+        bytes calldata _batchProof
     ) external nonReqRevert whenNotPaused {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
@@ -453,7 +451,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             challenges[_batchIndex].challengeSuccess = true;
             _challengerWin(_batchIndex, batchDataStore[_batchIndex].signedSequencersBitmap, "Timeout");
         } else {
-            _verifyProof(memPtr, _aggrProof, _kzgDataProof);
+            _verifyProof(memPtr, _batchProof);
             // Record defender win
             _defenderWin(_batchIndex, _msgSender(), "Proof success");
         }
@@ -576,28 +574,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
     }
 
-    /// @dev Internal function to verify the blob proof and zk proof.
-    function _verifyProof(uint256 memPtr, bytes calldata _aggrProof, bytes calldata _kzgDataProof) private view {
+    /// @dev Internal function to verify the zk proof.
+    function _verifyProof(uint256 memPtr, bytes calldata _batchProof) private view {
         // Check validity of proof
-        require(_aggrProof.length > 0, "Invalid aggregation proof");
-
-        // Check validity of KZG data
-        require(_kzgDataProof.length == 160, "Invalid KZG data proof");
+        require(_batchProof.length > 0, "Invalid batch proof");
 
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         bytes32 _blobVersionedHash = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
-
-        // Calls the point evaluation precompile and verifies the output
-        {
-            (bool success, bytes memory data) = POINT_EVALUATION_PRECOMPILE_ADDR.staticcall(
-                abi.encodePacked(_blobVersionedHash, _kzgDataProof)
-            );
-            // We verify that the point evaluation precompile call was successful by testing the latter 32 bytes of the
-            // response is equal to BLS_MODULUS as defined in https://eips.ethereum.org/EIPS/eip-4844#point-evaluation-precompile
-            require(success, "failed to call point evaluation precompile");
-            (, uint256 result) = abi.decode(data, (uint256, uint256));
-            require(result == BLS_MODULUS, "precompile unexpected output");
-        }
 
         bytes32 _publicInputHash = keccak256(
             abi.encodePacked(
@@ -607,7 +590,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
                 BatchHeaderCodecV0.getSequencerSetVerifyHash(memPtr),
                 BatchHeaderCodecV0.getDataHash(memPtr),
-                _kzgDataProof[0:64],
                 _blobVersionedHash
             )
         );
@@ -615,7 +597,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         IRollupVerifier(verifier).verifyAggregateProof(
             BatchHeaderCodecV0.getVersion(memPtr),
             _batchIndex,
-            _aggrProof,
+            _batchProof,
             _publicInputHash
         );
     }
