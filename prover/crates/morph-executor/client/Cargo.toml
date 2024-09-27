@@ -17,3 +17,4 @@ serde_with.workspace = true
 ruzstd =  { workspace = true }
 cfg-if =  { workspace = true }
 sp1-zkvm = { workspace = true, features = ["verify"] }
+bincode =  { workspace = true }

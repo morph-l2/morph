@@ -58,14 +58,17 @@ pub fn verify_agg(agg_input: AggregationInput) -> Result<B256, anyhow::Error> {
         // In the range program, the public values digest is just the hash of the ABI encoded
         // boot info.
         // let serialized_boot_info = bincode::serialize(&boot_info).unwrap();
-        let mut shard_bytes: Vec<u8> = vec![];
-        shard_bytes.extend(boot_info.chain_id.to_be_bytes());
-        shard_bytes.extend(boot_info.prev_state_root.as_slice());
-        shard_bytes.extend(boot_info.post_state_root.as_slice());
-        shard_bytes.extend(boot_info.withdraw_root.as_slice());
-        shard_bytes.extend(boot_info.sequencer_root.as_slice());
-        shard_bytes.extend(boot_info.versioned_hash.as_slice());
-        let pv_digest = Sha256::digest(shard_bytes);
+        // let mut shard_bytes: Vec<u8> = vec![];
+        // shard_bytes.extend(boot_info.chain_id.to_be_bytes());
+        // shard_bytes.extend(boot_info.prev_state_root.as_slice());
+        // shard_bytes.extend(boot_info.post_state_root.as_slice());
+        // shard_bytes.extend(boot_info.withdraw_root.as_slice());
+        // shard_bytes.extend(boot_info.sequencer_root.as_slice());
+        // shard_bytes.extend(boot_info.versioned_hash.as_slice());
+        // let pv_digest = Sha256::digest(shard_bytes);
+
+        let serialized_boot_info = bincode::serialize(&boot_info).unwrap();
+        let pv_digest = Sha256::digest(serialized_boot_info);
 
         if cfg!(target_os = "zkvm") {
             sp1_zkvm::lib::verify::verify_sp1_proof(&agg_input.shard_vkey, &pv_digest.into());

@@ -3695,6 +3695,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "bincode",
  "cfg-if 1.0.0",
  "kzg-rs",
  "ruzstd",

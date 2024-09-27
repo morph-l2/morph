@@ -127,6 +127,7 @@ fn save_shard_proof(batch_index: u64, start_num: u64, proof: SP1ProofWithPublicV
     let batch_dir = PathBuf::from(proof_dir.clone());
     std::fs::create_dir_all(&batch_dir).expect("failed to create fixture path");
     proof.save(format!("{}/{}.bin", proof_dir, start_num)).expect("saving stark proof failed");
+    println!("saved shard_proof");
 }
 
 fn save_agg_proof(batch_index: u64, proof: EvmProofFixture) {
@@ -138,6 +139,7 @@ fn save_agg_proof(batch_index: u64, proof: EvmProofFixture) {
         serde_json::to_string_pretty(&proof).unwrap(),
     )
     .expect("failed to write proof");
+    println!("saved agg_proof");
 }
 
 // Fetches block traces by provider
