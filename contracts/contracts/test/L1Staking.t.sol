@@ -9,6 +9,8 @@ import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 import {L1Staking} from "../l1/staking/L1Staking.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 
+// import "forge-std/console.sol";
+
 contract StakingInitializeTest is L1MessageBaseTest {
     function test_initialize_initializeAgain_revert() external {
         // verify the initialize only can be called once.
@@ -362,6 +364,35 @@ contract StakingTest is L1MessageBaseTest {
         assertEq(bob.balance, 5 * STAKING_VALUE);
         assertEq(l1Staking.withdrawals(bob), 0);
         hevm.stopPrank();
+    }
+
+    function test_stakersBitmap_succeeds() external {
+        address[] memory stakersAddr = new address[](255);
+        for (uint256 i = 0; i < 255; i++) {
+            stakersAddr[i] = address(bytes20(bytes32(keccak256(abi.encodePacked(1500 + i)))));
+            hevm.deal(stakersAddr[i], 5 * STAKING_VALUE);
+        }
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(stakersAddr, new address[](0));
+
+        for (uint256 i = 0; i < 255; i++) {
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(stakersAddr[i]);
+            hevm.startPrank(stakersAddr[i]);
+            l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
+            hevm.stopPrank();
+        }
+
+        uint256 bitmap = l1Staking.getStakersBitmap(stakersAddr);
+        address[] memory stakersConvert = l1Staking.getStakersFromBitmap(bitmap);
+        assertEq(stakersAddr.length, stakersConvert.length);
+        assertEq(stakersAddr[0], stakersConvert[0]);
+        assertEq(stakersAddr[stakersAddr.length - 1], stakersConvert[stakersConvert.length - 1]);
+
+        // console.logString("......................");
+        // console.logUint(bitmap);
+        // console.logUint(stakersAddr.length);
+        // console.logUint(stakersConvert.length);
+        // console.logString("......................");
     }
 
     function test_slash_succeeds() external {
