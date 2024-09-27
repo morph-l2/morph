@@ -7,13 +7,17 @@ use once_cell::sync::Lazy;
 use prometheus::{IntGauge, Registry};
 
 // environment variables
-pub static PROVER_PROOF_DIR: Lazy<String> = Lazy::new(|| read_env_var("PROVER_PROOF_DIR", "./proof".to_string()));
-pub static PROVER_L2_RPC: Lazy<String> = Lazy::new(|| read_env_var("PROVER_L2_RPC", "localhost:8545".to_string()));
+pub static PROVER_PROOF_DIR: Lazy<String> =
+    Lazy::new(|| read_env_var("PROVER_PROOF_DIR", "./proof".to_string()));
+pub static PROVER_L2_RPC: Lazy<String> =
+    Lazy::new(|| read_env_var("PROVER_L2_RPC", "localhost:8545".to_string()));
+pub static MAX_BLOCK_RANGE: Lazy<usize> = Lazy::new(|| read_env_var("MAX_BLOCK_RANGE", 20usize));
 
 // metrics
 pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
-pub static PROVE_RESULT: Lazy<IntGauge> =
-    Lazy::new(|| IntGauge::new("prove_result", "prove result").expect("prove metric can be created")); // 1 = Ok, 2 = Fail
+pub static PROVE_RESULT: Lazy<IntGauge> = Lazy::new(|| {
+    IntGauge::new("prove_result", "prove result").expect("prove metric can be created")
+}); // 1 = Ok, 2 = Fail
 pub static PROVE_TIME: Lazy<IntGauge> =
     Lazy::new(|| IntGauge::new("prove_time", "prove time").expect("time metric can be created"));
 

@@ -21,6 +21,7 @@ pub fn verify(input: &ClientInput) -> Result<ShardInfo, anyhow::Error> {
         tx_bytes.extend(x);
     }
     println!("cycle-tracker-end: traces-to-data");
+    //TODO
     assert_eq!(batch_data, tx_bytes, "blob data mismatch!");
 
     // Verify EVM exec.

@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT};
+use crate::{read_env_var, MAX_BLOCK_RANGE, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT};
 use alloy::{
     providers::{Provider, ProviderBuilder, ReqwestProvider, RootProvider},
     transports::http::reqwest,
@@ -92,26 +92,31 @@ impl Prover {
 
             // Step3. Generate proof
             println!("Generate shard proof");
-            let mut shard_proofs: Vec<SP1ProofWithPublicValues> = vec![];
-            block_traces.chunks_mut(20).for_each(|blocks| {
-                let prove_rt = shard::prove(&mut blocks.to_vec(), true);
-                match prove_rt {
-                    Ok(Some(proof)) => {
-                        shard_proofs.push(proof.clone());
-                        save_shard_proof(batch_index, blocks[0].number(), proof)
-                    }
-                    Ok(None) => println!("proof is none"),
-                    Err(e) => println!("prove error: {:?}", e),
-                }
-            });
-            println!("Generate agg proof");
-            let prove_rt = agg::prove(shard_proofs, true);
-            match prove_rt {
-                Ok(Some(proof)) => save_agg_proof(batch_index, proof),
-                Ok(None) => println!("proof is none"),
-                Err(e) => println!("prove err: {:?}", e),
-            }
+            generate_proof(batch_index, block_traces);
         }
+    }
+}
+
+fn generate_proof(batch_index: u64, block_traces: &mut [BlockTrace]) {
+    let mut shard_proofs: Vec<SP1ProofWithPublicValues> = vec![];
+    block_traces.chunks_mut(*MAX_BLOCK_RANGE).for_each(|blocks| {
+        println!("==========start shard prove");
+        let prove_rt = shard::prove(&mut blocks.to_vec(), true);
+        match prove_rt {
+            Ok(Some(proof)) => {
+                shard_proofs.push(proof.clone());
+                save_shard_proof(batch_index, blocks[0].number(), proof)
+            }
+            Ok(None) => println!("proof is none"),
+            Err(e) => println!("prove error: {:?}", e),
+        }
+    });
+    println!("=============start generate agg proof");
+    let prove_rt = agg::prove(shard_proofs, true);
+    match prove_rt {
+        Ok(Some(proof)) => save_agg_proof(batch_index, proof),
+        Ok(None) => println!("proof is none"),
+        Err(e) => println!("prove err: {:?}", e),
     }
 }
 
@@ -162,6 +167,12 @@ async fn get_block_traces(
         return None;
     }
     Some(block_traces)
+}
+
+pub fn test_prove() {
+    let block_traces = &mut load_trace("../../testdata/mainnet_batch_traces.json");
+    println!("block_traces: {:?}", block_traces[0].len());
+    generate_proof(100001, block_traces[0].as_mut_slice());
 }
 
 #[allow(dead_code)]

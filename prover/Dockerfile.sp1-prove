@@ -1,0 +1,9 @@
+FROM sp1-base:latest
+
+RUN cargo prove --version
+
+COPY . /app
+WORKDIR /app
+RUN cd bin/client/agg && cargo prove build
+RUN cd bin/client/shard && cargo prove build
+RUN cd bin/server && RUST_LOG=info MAX_BLOCK_RANGE=1 TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo run --release
