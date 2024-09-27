@@ -685,7 +685,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 batchPtr;
         assembly {
             batchPtr := add(_blockContexts, 0x20)
-            blockPtr := add(batchPtr, 1)
+            blockPtr := add(batchPtr, 2)
         }
         uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
         for (uint256 i = 0; i < _numBlocks - 1; i++) {
