@@ -7,22 +7,24 @@ members = [
     "crates/morph-executor/client",
     "crates/morph-executor/utils",
     "crates/core",
-    "crates/mpt",
     "crates/primitives",
     "crates/sbv",
     "crates/utils",
     "tests/*/*"
 ]
+exclude = ["bin/shadow-prove"]
 resolver = "2"
 
 [workspace.package]
 version = "2.0.0"
 edition = "2021"
 rust-version = "1.75"
-authors = ["Scroll developers"]
+authors = ["developers"]
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 repository = "https://github.com/morph-l2/morph/tree/main/prover"
+
+
 
 
 
@@ -79,7 +81,7 @@ hyper = { version = "1.4", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 prometheus-client = "0.22"
-pprof = { version = "0.13", features = ["flamegraph"] }
+# pprof = { version = "0.13", features = ["flamegraph"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 cfg-if = "1.0.0"
@@ -97,6 +99,7 @@ morph-executor-host = { path = "crates/morph-executor/host" }
 morph-executor-client = { path = "crates/morph-executor/client" }
 morph-executor-utils = { path = "crates/morph-executor/utils" }
 morph-prove = { path = "bin/host" }
+# shadow-prove = { path = "shadow-prove" }
 
 [workspace.dependencies.revm] # v42
 git = "https://github.com/morph-l2/revm"
@@ -143,10 +146,6 @@ alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v
 alloy-core = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
 alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
 
-
-# for local development
-# [patch."https://github.com/scroll-tech/revm"]
-# revm = { path = "../revm/crates/revm" }
 
 #[profile.release]
 #debug-assertions = true

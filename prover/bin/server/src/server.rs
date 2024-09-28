@@ -21,7 +21,6 @@ pub struct ProveResult {
     pub error_code: String,
     pub proof_data: Vec<u8>,
     pub pi_data: Vec<u8>,
-    pub blob_kzg: Vec<u8>,
     pub batch_header: Vec<u8>,
 }
 
@@ -216,7 +215,6 @@ async fn query_proof(batch_index: String) -> ProveResult {
         error_code: String::new(),
         proof_data: Vec::new(),
         pi_data: Vec::new(),
-        blob_kzg: Vec::new(),
         batch_header: Vec::new(),
     };
     log::info!("query proof of batch_index: {:#?}", batch_index);
@@ -264,33 +262,19 @@ async fn query_proof(batch_index: String) -> ProveResult {
             }
             result.pi_data = pi_data;
 
-            // Eip4844 kzg data
-            let blob_kzg_path = path.join("blob_kzg.data");
-            let mut blob_kzg = Vec::new();
-            match fs::File::open(blob_kzg_path) {
-                Ok(mut file) => {
-                    file.read_to_end(&mut blob_kzg).unwrap();
-                }
-                Err(e) => {
-                    log::error!("Failed to load blob_kzg: {:#?}", e);
-                    result.error_msg = String::from("Failed to load blob_kzg");
-                }
-            }
-            result.blob_kzg = blob_kzg;
-
             // Batch header data
-            let batch_header_path = path.join("batch_header.data");
-            let mut batch_header = Vec::new();
-            match fs::File::open(batch_header_path) {
-                Ok(mut file) => {
-                    file.read_to_end(&mut batch_header).unwrap();
-                }
-                Err(e) => {
-                    log::error!("Failed to load batch_header: {:#?}", e);
-                    result.error_msg = String::from("Failed to load batch_header");
-                }
-            }
-            result.batch_header = batch_header;
+            // let batch_header_path = path.join("batch_header.data");
+            // let mut batch_header = Vec::new();
+            // match fs::File::open(batch_header_path) {
+            //     Ok(mut file) => {
+            //         file.read_to_end(&mut batch_header).unwrap();
+            //     }
+            //     Err(e) => {
+            //         log::error!("Failed to load batch_header: {:#?}", e);
+            //         result.error_msg = String::from("Failed to load batch_header");
+            //     }
+            // }
+            // result.batch_header = batch_header;
             break;
         }
     }
