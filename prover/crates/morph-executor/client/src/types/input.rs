@@ -14,7 +14,6 @@ pub struct BlobInfo {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ClientInput {
     pub l2_traces: Vec<BlockTrace>,
-    pub blob_info: BlobInfo,
 }
 
 #[serde_as]
@@ -27,11 +26,14 @@ pub struct ShardInfo {
     pub withdraw_root: B256,
     /// sequencer_root
     pub sequencer_root: B256,
-    pub versioned_hash: B256,
+    pub l1_data_hash: B256,
+    pub l2_data_hash: B256,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AggregationInput {
     pub shard_infos: Vec<ShardInfo>,
     pub shard_vkey: [u32; 8],
+    pub l2_traces: Vec<Vec<BlockTrace>>,
+    pub blob_info: BlobInfo,
 }

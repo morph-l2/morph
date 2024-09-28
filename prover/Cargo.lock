@@ -3706,6 +3706,7 @@ dependencies = [
  "serde_with",
  "sha2",
  "sp1-zkvm",
+ "tiny-keccak",
 ]
 
 [[package]]

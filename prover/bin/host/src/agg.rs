@@ -4,8 +4,9 @@ use morph_executor_client::{
     types::input::{AggregationInput, ShardInfo},
     verify_agg,
 };
+use morph_executor_host::get_blob_info;
 use morph_executor_utils::read_env_var;
-use sbv_primitives::{alloy_primitives::keccak256, B256};
+use sbv_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
 use sp1_sdk::{HashableKey, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1Stdin};
 
 use std::time::Instant;
@@ -19,6 +20,7 @@ pub const AGG_VERIFIER_ELF: &[u8] =
 
 pub fn prove(
     shard_proofs: Vec<SP1ProofWithPublicValues>,
+    blocks: Vec<Vec<BlockTrace>>,
     prove: bool,
 ) -> Result<Option<EvmProofFixture>, anyhow::Error> {
     // Setup the logger.
@@ -37,7 +39,7 @@ pub fn prove(
     }
 
     let (_, vkey) = client.setup(SHARD_VERIFIER_ELF);
-    let stdin = get_agg_proof_stdin(shard_infos, proofs, &vkey).unwrap();
+    let stdin = get_agg_proof_stdin(blocks, shard_infos, proofs, &vkey).unwrap();
 
     // // Execute the program in native
     // let native_rt =
@@ -94,6 +96,7 @@ pub fn prove(
 
 /// Get the stdin for the aggregation proof.
 fn get_agg_proof_stdin(
+    blocks: Vec<Vec<BlockTrace>>,
     shard_infos: Vec<ShardInfo>,
     proofs: Vec<SP1Proof>,
     shard_vkey: &sp1_sdk::SP1VerifyingKey,
@@ -107,7 +110,13 @@ fn get_agg_proof_stdin(
     }
 
     // Write the aggregation inputs to the stdin.
-    stdin.write(&AggregationInput { shard_infos, shard_vkey: shard_vkey.hash_u32() });
+    stdin.write(&AggregationInput {
+        shard_infos,
+        shard_vkey: shard_vkey.hash_u32(),
+        // TODO
+        blob_info: get_blob_info(&blocks[0]).unwrap(),
+        l2_traces: blocks,
+    });
 
     Ok(stdin)
 }

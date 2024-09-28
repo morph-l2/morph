@@ -112,7 +112,9 @@ fn generate_proof(batch_index: u64, block_traces: &mut [BlockTrace]) {
         }
     });
     println!("=============start generate agg proof");
-    let prove_rt = agg::prove(shard_proofs, true);
+    let shard_blocks: Vec<Vec<_>> =
+        block_traces.chunks_mut(*MAX_BLOCK_RANGE).map(|blocks| blocks.to_vec()).collect();
+    let prove_rt = agg::prove(shard_proofs, shard_blocks, true);
     match prove_rt {
         Ok(Some(proof)) => save_agg_proof(batch_index, proof),
         Ok(None) => println!("proof is none"),
