@@ -1,17 +1,12 @@
 [package]
 version = "0.1.0"
-name = "morph-prover"
+name = "morph-prove"
 edition = "2021"
-default-run = "prover"
+default-run = "prove"
 
 [[bin]]
-name = "prover"
+name = "prove"
 path = "src/main.rs"
-
-
-[[bin]]
-name = "evm"
-path = "src/evm.rs"
 
 [[bin]]
 name = "vkey"
@@ -28,12 +23,14 @@ tokio = { workspace = true }
 clap = { workspace = true }
 #log = { workspace = true }
 #env_logger = { workspace = true }
+once_cell = { workspace = true }
 
 
 
 # workspace
 morph-executor-host = { workspace = true }
 morph-executor-client = { workspace = true }
+morph-executor-utils = { workspace = true }
 sbv-primitives= { workspace = true }
 
 [build-dependencies]
