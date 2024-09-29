@@ -186,11 +186,9 @@ where
 
     let (batch_index, tx_hash) = match logs.get(logs.len() - 2) {
         Some(log) => {
-            let _index = u64::from_be_bytes(
-                log.topics()[1][..8].try_into().expect("Slice with incorrect length"),
-            );
+            let _index = U256::from_be_slice(log.topics()[1].as_slice());
             let _tx_hash = log.transaction_hash.unwrap_or_default();
-            (_index, _tx_hash)
+            (_index.to::<u64>(), _tx_hash)
         }
         None => {
             return Err("find commit_batch log error".to_string());
