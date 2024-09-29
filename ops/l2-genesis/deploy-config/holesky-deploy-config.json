@@ -19,10 +19,8 @@
 
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 600,
-  "govBatchMaxBytes": 124928,
   "govBatchTimeout": 1200,
   "govRollupEpoch": 600,
-  "govBatchMaxChunks": 15,
   "l2SequencerAddresses": [
     "0x48446b07A04307F320fa34790116d73aD4A51810",
     "0x48447a9d66D8eAE067e59E3F9f7E6B5f1b5E7581",

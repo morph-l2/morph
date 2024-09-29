@@ -62,10 +62,8 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 
 		GovVotingDuration:     1000,
 		GovBatchBlockInterval: 20,
-		GovBatchMaxBytes:      124928,
 		GovRollupEpoch:        600,
 		GovBatchTimeout:       100,
-		GovBatchMaxChunks:     15,
 
 		// MorphToken
 		MorphTokenOwner:              address1,
@@ -75,7 +73,6 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		MorphTokenDailyInflationRate: 1,
 
 		FundDevAccounts: true,
-		MaxTxPerBlock:   1000,
 	}
 	curHeader := &types.Header{}
 	curHeader.BaseFee = new(big.Int).SetUint64(1)

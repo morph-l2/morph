@@ -1,0 +1,31 @@
+FROM ubuntu:22.04
+
+RUN apt-get update --fix-missing
+# Install basic packages
+RUN apt-get install build-essential curl wget git pkg-config -y
+# Install dev-packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libclang-dev libssl-dev llvm && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+ENV CARGO_HOME=/root/.cargo
+RUN rustup install nightly-2024-07-07  
+RUN rustup default nightly-2024-07-07
+RUN rustup component add llvm-tools rustc-dev --toolchain nightly-2024-07-07
+
+# Install Golang
+ARG GO_VERSION=1.22
+RUN wget https://raw.githubusercontent.com/anylots/golangTemp/main/go1.22.1.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz
+RUN rm go1.22.1.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Install sp1 cli
+COPY ./sp1up.sh .
+RUN chmod +x ./sp1up.sh
+RUN ./sp1up.sh && . /root/.bashrc && sp1up && cargo prove --version
+ENV PATH="/root/.sp1/bin:${PATH}"
+RUN . /root/.bashrc

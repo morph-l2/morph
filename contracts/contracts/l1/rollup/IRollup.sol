@@ -8,7 +8,7 @@ interface IRollup {
 
     /// @param version                  The version of current batch.
     /// @param parentBatchHeader        The header of parent batch, see the comments of `BatchHeaderV0Codec`.
-    /// @param chunks                   The list of encoded chunks, see the comments of `ChunkCodec`.
+    /// @param blockContexts            The block contexts of current batch.
     /// @param skippedL1MessageBitmap   The bitmap indicates whether each L1 message is skipped or not.
     /// @param prevStateRoot            The state root of parent batch.
     /// @param postStateRoot            The state root of current batch.
@@ -16,7 +16,7 @@ interface IRollup {
     struct BatchDataInput {
         uint8 version;
         bytes parentBatchHeader;
-        bytes[] chunks;
+        bytes blockContexts;
         bytes skippedL1MessageBitmap;
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
@@ -112,11 +112,6 @@ interface IRollup {
     /// @param oldVerifier  The address of old rollup verifier.
     /// @param newVerifier  The address of new rollup verifier.
     event UpdateVerifier(address indexed oldVerifier, address indexed newVerifier);
-
-    /// @notice Emitted when the value of `maxNumTxInChunk` is updated.
-    /// @param oldMaxNumTxInChunk   The old value of `maxNumTxInChunk`.
-    /// @param newMaxNumTxInChunk   The new value of `maxNumTxInChunk`.
-    event UpdateMaxNumTxInChunk(uint256 oldMaxNumTxInChunk, uint256 newMaxNumTxInChunk);
 
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex       The index of the batch.

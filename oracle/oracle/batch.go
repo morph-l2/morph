@@ -14,7 +14,6 @@ import (
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/log"
@@ -119,21 +118,17 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		rollupBatchData := args[0].(struct {
 			Version                uint8     "json:\"version\""
 			ParentBatchHeader      []uint8   "json:\"parentBatchHeader\""
-			Chunks                 [][]uint8 "json:\"chunks\""
+			BlockContexts          []uint8   "json:\"blockContexts\""
 			SkippedL1MessageBitmap []uint8   "json:\"skippedL1MessageBitmap\""
 			PrevStateRoot          [32]uint8 "json:\"prevStateRoot\""
 			PostStateRoot          [32]uint8 "json:\"postStateRoot\""
 			WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
 		})
 
-		var chunks []hexutil.Bytes
-		for _, chunk := range rollupBatchData.Chunks {
-			chunks = append(chunks, chunk)
-		}
 		batch := eth.RPCRollupBatch{
 			Version:                uint(rollupBatchData.Version),
 			ParentBatchHeader:      rollupBatchData.ParentBatchHeader,
-			Chunks:                 chunks,
+			BlockContexts:          rollupBatchData.BlockContexts,
 			SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
 			PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
 			PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
