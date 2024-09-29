@@ -1,5 +1,5 @@
 use alloy::rlp::Decodable;
-use anyhow::anyhow;
+use anyhow::{anyhow, Ok};
 use ruzstd::StreamingDecoder;
 use sbv_primitives::types::TypedTransaction;
 use std::io::Read;
@@ -33,6 +33,11 @@ pub fn get_origin_batch(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
 }
 
 pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+    if compressed_batch.iter().all(|&x| x == 0) {
+        // empty batch
+        return Ok(Vec::new());
+    }
+
     println!("cycle-tracker-start: decompress_batch");
     let mut content = MAGIC_NUM.to_le_bytes().to_vec();
     content.append(&mut compressed_batch.to_vec());

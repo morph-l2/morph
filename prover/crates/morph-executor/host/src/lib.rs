@@ -56,6 +56,9 @@ pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
 
 pub fn encode_blob(tx_bytes: Vec<u8>) -> [u8; 131072] {
     // zstd compresse
+    if tx_bytes.is_empty() {
+        return [0; 131072];
+    }
     let compressed_batch = compresse_batch(tx_bytes.as_slice()).unwrap();
 
     let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];

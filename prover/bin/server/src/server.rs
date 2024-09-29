@@ -273,6 +273,8 @@ async fn query_proof(batch_index: String) -> ProveResult {
             // result.batch_header = batch_header;
             break;
         }
+    }
+    if result.proof_data.is_empty() {
         result.error_msg = String::from("No proof was found");
     }
     result

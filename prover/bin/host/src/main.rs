@@ -1,5 +1,4 @@
-use std::fs::File;
-use std::io::BufReader;
+use std::{fs::File, io::BufReader};
 
 use clap::Parser;
 use morph_prove::prove;
@@ -20,7 +19,7 @@ fn main() {
     let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace(&args.block_path);
     let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
 
-    prove(block_traces, args.prove);
+    let _ = prove(block_traces, args.prove);
 }
 
 fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
@@ -28,6 +27,3 @@ fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
     let reader = BufReader::new(file);
     serde_json::from_reader(reader).unwrap()
 }
-
-
-
