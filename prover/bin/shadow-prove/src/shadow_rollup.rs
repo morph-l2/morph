@@ -197,13 +197,16 @@ where
         }
     };
 
+    if batch_index == 0 {
+        return Err(String::from("batch_index == 0"));
+    }
     let blocks = match batch_inspect(l1_provider, tx_hash).await {
         Some(blocks) => blocks,
         None => vec![],
     };
 
-    if batch_index == 0 || blocks.is_empty() {
-        return Err(String::from("batch_index == 0 or blocks.is_empty()"));
+    if blocks.is_empty() {
+        return Err(String::from("blocks.is_empty()"));
     }
 
     let batch_info: BatchInfo = BatchInfo { batch_index, blocks };
@@ -317,6 +320,7 @@ fn decode_blocks(block_contexts: Bytes) -> Option<Vec<u64>> {
 
     METRICS.shadow_txn_len.set(txn_in_batch.into());
     log::debug!("total_l2txn_in_batch: {:#?}", txn_in_batch);
+    log::debug!("num_blocks: {:#?}, decode_blocks: {:#?}", num_blocks, blocks);
     Some(blocks)
 }
 
