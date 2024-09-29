@@ -340,7 +340,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     }
 
     /// @dev challengeState challenges a batch by submitting a deposit.
-    function challengeState(uint64 batchIndex) external payable onlyChallenger nonReqRevert whenNotPaused {
+    function challengeState(bytes calldata _batchHeader) external payable onlyChallenger nonReqRevert whenNotPaused {
+        // get batch data from batch header
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        // check batch hash
+        uint256 batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[batchIndex] == _batchHash, "incorrect batch hash");
+
         require(!inChallenge, "already in challenge");
         require(lastFinalizedBatchIndex < batchIndex, "batch already finalized");
         require(committedBatches[batchIndex] != 0, "batch not exist");
@@ -351,8 +357,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(msg.value >= IL1Staking(l1StakingContract).challengeDeposit(), "insufficient value");
 
         batchChallenged = batchIndex;
-        challenges[batchIndex] = BatchChallenge(batchIndex, _msgSender(), msg.value, block.timestamp, false, false);
-        emit ChallengeState(batchIndex, _msgSender(), msg.value);
+        challenges[batchIndex] = BatchChallenge(uint64(batchIndex), _msgSender(), msg.value, block.timestamp, false, false);
+        emit ChallengeState(uint64(batchIndex), _msgSender(), msg.value);
 
         for (uint256 i = lastFinalizedBatchIndex + 1; i <= lastCommittedBatchIndex; i++) {
             if (i != batchIndex) {
