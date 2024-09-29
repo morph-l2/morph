@@ -340,16 +340,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     }
 
     /// @dev challengeState challenges a batch by submitting a deposit.
-    function challengeState(bytes calldata _batchHeader) external payable onlyChallenger nonReqRevert whenNotPaused {
-        // get batch data from batch header
-        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
-        // check batch hash
-        uint256 batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-        require(committedBatches[batchIndex] == _batchHash, "incorrect batch hash");
-
+    function challengeState(
+        uint64 batchIndex,
+        bytes32 _batchHash
+    ) external payable onlyChallenger nonReqRevert whenNotPaused {
         require(!inChallenge, "already in challenge");
         require(lastFinalizedBatchIndex < batchIndex, "batch already finalized");
-        require(committedBatches[batchIndex] != 0, "batch not exist");
+        require(committedBatches[batchIndex] == _batchHash, "incorrect batch hash");
+        require(committedBatches[batchIndex] != bytes32(0), "batch not exist");
         require(challenges[batchIndex].challenger == address(0), "batch already challenged");
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
@@ -357,8 +355,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(msg.value >= IL1Staking(l1StakingContract).challengeDeposit(), "insufficient value");
 
         batchChallenged = batchIndex;
-        challenges[batchIndex] = BatchChallenge(uint64(batchIndex), _msgSender(), msg.value, block.timestamp, false, false);
-        emit ChallengeState(uint64(batchIndex), _msgSender(), msg.value);
+        challenges[batchIndex] = BatchChallenge(batchIndex, _msgSender(), msg.value, block.timestamp, false, false);
+        emit ChallengeState(batchIndex, _msgSender(), msg.value);
 
         for (uint256 i = lastFinalizedBatchIndex + 1; i <= lastCommittedBatchIndex; i++) {
             if (i != batchIndex) {
@@ -434,10 +432,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(
-        bytes calldata _batchHeader,
-        bytes calldata _batchProof
-    ) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
