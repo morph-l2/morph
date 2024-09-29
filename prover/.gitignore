@@ -21,3 +21,6 @@ pgo-data.profdata
 Dockerfile.test
 
 shadow-proving
+contracts/cache
+out
+lib
