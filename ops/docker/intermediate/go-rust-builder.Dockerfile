@@ -25,16 +25,8 @@ RUN cargo install cargo-chef --locked --version ${CARGO_CHEF_TAG} \
     && rm -rf $CARGO_HOME/registry/
 
 # Install Go
-ARG GO_VERSION
 RUN rm -rf /usr/local/go
-RUN if [ "$(uname -m)" = "x86_64" ]; then \
-    echo amd64 >/tmp/arch; \
-    elif [ "$(uname -m)" = "aarch64" ]; then \
-    echo arm64 >/tmp/arch; \
-    else \
-    echo "Unsupported architecture"; exit 1; \
-    fi
-RUN wget https://go.dev/dl/go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
-RUN tar -C /usr/local -xzf go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
-RUN rm go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz && rm /tmp/arch
+RUN wget https://raw.githubusercontent.com/anylots/golangTemp/main/go1.22.1.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz
+RUN rm go1.22.1.linux-amd64.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
