@@ -1,4 +1,3 @@
-use morph_prove::{evm::EvmProofFixture, prove};
 use std::{
     fs::{self, File},
     io::{BufReader, BufWriter},
@@ -14,6 +13,7 @@ use alloy::{
     transports::http::reqwest,
 };
 use anyhow::anyhow;
+use morph_prove::{evm::EvmProofFixture, prove};
 use sbv_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -29,7 +29,7 @@ pub struct ProveRequest {
 }
 
 pub struct Prover {
-    prove_queue: Arc<Mutex<Vec<ProveRequest>>>,
+    pub prove_queue: Arc<Mutex<Vec<ProveRequest>>>,
     provider: ReqwestProvider,
 }
 
@@ -67,9 +67,9 @@ impl Prover {
                 }
             };
 
-            // let traces: &mut Vec<Vec<BlockTrace>> = &mut
-            // load_trace("testdata/mainnet_batch_traces.json"); let block_traces: &mut
-            // Vec<BlockTrace> = &mut traces[0];
+            // let traces: &mut Vec<Vec<BlockTrace>> =
+            //     &mut load_trace("testdata/mainnet_batch_traces.json");
+            // let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
 
             // Step2. Fetch trace
             log::info!("Requesting trace of batch: {:#?}", batch_index);

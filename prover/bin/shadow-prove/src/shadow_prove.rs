@@ -250,3 +250,25 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 
     Some(prove_result)
 }
+
+#[test]
+fn test() {
+    use crate::abi::SP1Verifier;
+    use alloy::rpc::json_rpc::ErrorPayload;
+    // Sample JSON error payload from an Ethereum JSON RPC response.
+    let json = r#"{"code":3,"message":"execution reverted: ","data":"0x810f00230000000000000000000000000000000000000000000000000000000000000001"}"#;
+
+    // Parse the JSON into an `ErrorPayload` struct.
+    let payload: ErrorPayload = serde_json::from_str(json).unwrap();
+
+    let err = payload.as_decoded_error::<SP1Verifier::SP1VerifierErrors>(false).unwrap();
+    match err {
+        SP1Verifier::SP1VerifierErrors::WrongVerifierSelector(s) => {
+            println!(
+                "WrongVerifierSelector -  expected: {:?}, received: {:?}",
+                s.expected, s.received
+            );
+        }
+        SP1Verifier::SP1VerifierErrors::InvalidProof(_) => println!("WrongVerifierSelector"),
+    }
+}

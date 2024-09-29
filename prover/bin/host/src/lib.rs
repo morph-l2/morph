@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+pub mod evm;
 use evm::{save_plonk_fixture, EvmProofFixture};
 use morph_executor_client::{types::input::ClientInput, verify};
 use morph_executor_host::get_blob_info;
@@ -6,8 +7,6 @@ use morph_executor_utils::read_env_var;
 use sbv_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
 use sp1_sdk::{HashableKey, ProverClient, SP1Stdin};
 use std::time::Instant;
-
-pub mod evm;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const BATCH_VERIFIER_ELF: &[u8] =
@@ -23,14 +22,14 @@ pub fn prove(
     sp1_sdk::utils::setup_logger();
     let program_hash = keccak256(BATCH_VERIFIER_ELF);
     println!("Program Hash [view on Explorer]:");
-    println!("0x{}", hex::encode(program_hash));
+    println!("{}", alloy::hex::encode_prefixed(program_hash));
 
     if blocks.len() > MAX_PROVE_BLOCKS {
         return Err(anyhow!(format!(
             "check block_tracs, blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
             blocks.len(),
             MAX_PROVE_BLOCKS
-        )))
+        )));
     }
 
     // Prepare input.
@@ -43,7 +42,10 @@ pub fn prove(
     // Execute the program in native
     let expected_hash =
         verify(&client_input).map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
-    println!("pi_hash generated with native execution: {}", hex::encode(expected_hash.as_slice()));
+    println!(
+        "pi_hash generated with native execution: {}",
+        alloy::hex::encode_prefixed(expected_hash.as_slice())
+    );
 
     // Execute the program in sp1-vm
     let mut stdin = SP1Stdin::new();
@@ -58,8 +60,13 @@ pub fn prove(
         "Program executed successfully, Number of cycles: {:?}",
         execution_report.total_instruction_count()
     );
-    let pi_hash = public_values.read::<B256>();
-    println!("pi_hash generated with sp1-vm execution: {}", hex::encode(pi_hash.as_slice()));
+    let pi_hash = public_values.read::<[u8; 32]>();
+    let public_values = B256::from_slice(&pi_hash);
+
+    println!(
+        "pi_hash generated with sp1-vm execution: {}",
+        alloy::hex::encode_prefixed(public_values.as_slice())
+    );
     assert_eq!(pi_hash, expected_hash, "pi_hash == expected_pi_hash ");
     println!("Values are correct!");
 
@@ -74,7 +81,7 @@ pub fn prove(
 
     // Generate the proof
     let start = Instant::now();
-    let proof = client.prove(&pk, stdin).plonk().run().expect("proving failed");
+    let mut proof = client.prove(&pk, stdin).plonk().run().expect("proving failed");
 
     let duration_mins = start.elapsed().as_secs() / 60;
     println!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
@@ -84,12 +91,12 @@ pub fn prove(
     println!("Successfully verified proof!");
 
     // Deserialize the public values.
-    let pi_bytes = proof.public_values.as_slice();
-
+    let pi_bytes = proof.public_values.read::<[u8; 32]>();
+    println!("pi_hash generated with sp1-vm prove: {}", alloy::hex::encode_prefixed(pi_bytes));
     let fixture = EvmProofFixture {
         vkey: vk.bytes32().to_string(),
-        public_values: format!("0x{}", hex::encode(pi_bytes)),
-        proof: format!("0x{}", hex::encode(proof.bytes())),
+        public_values: B256::from_slice(&pi_bytes).to_string(),
+        proof: alloy::hex::encode_prefixed(proof.bytes()),
     };
 
     if read_env_var("SAVE_FIXTURE", false) {

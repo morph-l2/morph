@@ -1,21 +1,20 @@
-use crate::{read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY};
+use crate::{
+    queue::{ProveRequest, Prover},
+    read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY,
+};
 use axum::{
-    extract::Extension,
     routing::{get, post},
     Router,
 };
 use dotenv::dotenv;
+use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
+use log::Record;
 use morph_prove::evm::EvmProofFixture;
 use once_cell::sync::Lazy;
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
 use std::{fs, io::BufReader, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, time::timeout};
-
-use crate::queue::{ProveRequest, Prover};
-use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
-use log::Record;
-use tower_http::{add_extension::AddExtensionLayer, cors::CorsLayer, trace::TraceLayer};
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProveResult {
     pub error_msg: String,
@@ -33,6 +32,9 @@ mod task_status {
 
 pub static MAX_PROVE_BLOCKS: Lazy<usize> = Lazy::new(|| read_env_var("MAX_PROVE_BLOCKS", 4096));
 
+pub static PROVE_QUEUE: Lazy<Arc<Mutex<Vec<ProveRequest>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(vec![])));
+
 // Main async function to start prover service.
 // 1. Initializes environment.
 // 2. Spawns prover mng.
@@ -48,25 +50,21 @@ pub async fn start() {
     // setup_logging();
 
     // Step2. start prover management
-    let queue: Arc<Mutex<Vec<ProveRequest>>> = Arc::new(Mutex::new(Vec::new()));
-    prover_mng(Arc::clone(&queue)).await;
+    prover_mng().await;
 
     // Step3. start metric management
     metric_mng().await;
 
     // Step4. start prover
-    start_prover(Arc::clone(&queue)).await;
+    start_prover().await;
 }
 
-async fn prover_mng(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
+async fn prover_mng() {
     tokio::spawn(async {
         let service = Router::new()
             .route("/prove_batch", post(add_pending_req))
             .route("/query_proof", post(query_prove_result))
-            .route("/query_status", post(query_status))
-            .layer(AddExtensionLayer::new(task_queue))
-            .layer(CorsLayer::permissive())
-            .layer(TraceLayer::new_for_http());
+            .route("/query_status", post(query_status));
 
         let mng_address = read_env_var("PROVER_MNG_ADDRESS", "0.0.0.0:3030".to_string());
         axum::Server::bind(&mng_address.parse().unwrap())
@@ -82,8 +80,7 @@ async fn metric_mng() {
     REGISTRY.register(Box::new(PROVE_TIME.clone())).unwrap();
 
     tokio::spawn(async move {
-        let metrics =
-            Router::new().route("/metrics", get(handle_metrics)).layer(TraceLayer::new_for_http());
+        let metrics = Router::new().route("/metrics", get(handle_metrics));
         let metric_address = read_env_var("PROVER_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
         axum::Server::bind(&metric_address.parse().unwrap())
             .serve(metrics.into_make_service())
@@ -92,8 +89,8 @@ async fn metric_mng() {
     });
 }
 
-async fn start_prover(task_queue: Arc<Mutex<Vec<ProveRequest>>>) {
-    let mut prover = Prover::new(task_queue).unwrap();
+async fn start_prover() {
+    let mut prover = Prover::new(Arc::clone(&PROVE_QUEUE)).unwrap();
     prover.prove_for_queue().await;
 }
 
@@ -116,10 +113,7 @@ async fn handle_metrics() -> String {
 }
 
 // Add pending prove request to queue.
-async fn add_pending_req(
-    Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>,
-    param: String,
-) -> String {
+async fn add_pending_req(param: String) -> String {
     // Verify parameter is not empty
     if param.is_empty() {
         return String::from("request is empty");
@@ -163,7 +157,7 @@ async fn add_pending_req(
         return value;
     }
 
-    let mut queue_lock = match timeout(Duration::from_secs(1), queue.lock()).await {
+    let mut queue_lock = match timeout(Duration::from_secs(1), PROVE_QUEUE.lock()).await {
         Ok(queue_lock) => queue_lock,
         Err(_) => return String::from(task_status::PROVING),
     };
@@ -203,7 +197,7 @@ async fn query_prove_result(batch_index: String) -> String {
 
 async fn query_proof(batch_index: String) -> ProveResult {
     if batch_index.is_empty() {
-        return ProveResult { error_msg: "batch_index is empty ".to_string(), ..Default::default() }
+        return ProveResult { error_msg: "batch_index is empty ".to_string(), ..Default::default() };
     }
     let proof_dir = match fs::read_dir(PROVER_PROOF_DIR.to_string()) {
         Ok(dir) => dir,
@@ -249,7 +243,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 Ok(file) => {
                     let reader = BufReader::new(file);
                     let proof: EvmProofFixture = serde_json::from_reader(reader).unwrap();
-                    proof_data.extend(proof.proof.as_bytes());
+                    proof_data.extend(alloy::hex::decode(proof.proof).unwrap());
                 }
                 Err(e) => {
                     log::error!("Failed to load proof_data: {:#?}", e);
@@ -282,8 +276,8 @@ async fn query_proof(batch_index: String) -> ProveResult {
 
 // Async function to check queue status.
 // Locks queue and returns length > 0 ? "not empty" : "empty"
-async fn query_status(Extension(queue): Extension<Arc<Mutex<Vec<ProveRequest>>>>) -> String {
-    let queue_try_lock = queue.try_lock();
+async fn query_status() -> String {
+    let queue_try_lock = PROVE_QUEUE.try_lock();
     if queue_try_lock.is_err() {
         return String::from("1");
     }

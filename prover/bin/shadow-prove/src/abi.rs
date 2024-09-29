@@ -12,3 +12,9 @@ sol!(
     ShadowRollup,
     "abi/ShadowRollup.json"
 );
+
+sol!(
+    #[sol(rpc)]
+    SP1Verifier,
+    "abi/SP1Verifier.json"
+);
