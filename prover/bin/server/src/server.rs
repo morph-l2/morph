@@ -5,10 +5,11 @@ use axum::{
     Router,
 };
 use dotenv::dotenv;
+use morph_prove::evm::EvmProofFixture;
 use once_cell::sync::Lazy;
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Read, sync::Arc, time::Duration};
+use std::{fs, io::BufReader, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, time::timeout};
 
 use crate::queue::{ProveRequest, Prover};
@@ -201,6 +202,9 @@ async fn query_prove_result(batch_index: String) -> String {
 }
 
 async fn query_proof(batch_index: String) -> ProveResult {
+    if batch_index.is_empty() {
+        return ProveResult { error_msg: "batch_index is empty ".to_string(), ..Default::default() }
+    }
     let proof_dir = match fs::read_dir(PROVER_PROOF_DIR.to_string()) {
         Ok(dir) => dir,
         Err(_) => {
@@ -228,18 +232,24 @@ async fn query_proof(batch_index: String) -> ProveResult {
             }
         };
 
-        if path.to_str().unwrap_or("nothing").ends_with(format!("batch_{}", batch_index).as_str()) {
+        if path
+            .to_str()
+            .unwrap_or("nothing")
+            .ends_with(format!("batch_{}", batch_index.trim()).as_str())
+        {
             //pi_batch_agg.data
-            let proof_path = path.join("proof_batch_agg.data");
+            let proof_path = path.join("plonk_proof.json");
             if !proof_path.exists() {
-                result.error_msg = String::from("No proof_batch_agg file");
+                result.error_msg = String::from("No plonk_proof file was found");
                 return result;
             }
             // Proof
             let mut proof_data = Vec::new();
             match fs::File::open(proof_path) {
-                Ok(mut file) => {
-                    file.read_to_end(&mut proof_data).unwrap();
+                Ok(file) => {
+                    let reader = BufReader::new(file);
+                    let proof: EvmProofFixture = serde_json::from_reader(reader).unwrap();
+                    proof_data.extend(proof.proof.as_bytes());
                 }
                 Err(e) => {
                     log::error!("Failed to load proof_data: {:#?}", e);
@@ -247,20 +257,6 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 }
             }
             result.proof_data = proof_data;
-
-            // Public input
-            let pi_path = path.join("pi_batch_agg.data");
-            let mut pi_data = Vec::new();
-            match fs::File::open(pi_path) {
-                Ok(mut file) => {
-                    file.read_to_end(&mut pi_data).unwrap();
-                }
-                Err(e) => {
-                    log::error!("Failed to load pi_data: {:#?}", e);
-                    result.error_msg = String::from("Failed to load pi_data");
-                }
-            }
-            result.pi_data = pi_data;
 
             // Batch header data
             // let batch_header_path = path.join("batch_header.data");
@@ -277,6 +273,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             // result.batch_header = batch_header;
             break;
         }
+        result.error_msg = String::from("No proof was found");
     }
     result
 }

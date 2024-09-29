@@ -102,11 +102,11 @@ async fn handle_with_prover<T, P, N>(
     for _ in 0..MAX_RETRY_TIMES {
         sleep(Duration::from_secs(12)).await;
 
-        log::debug!(
-            "Start prove batch of: {:?}, chunks.len = {:?}, chunks = {:#?}",
+        log::info!(
+            "Start prove batch of: {:?}, blocks.len = {:?}, block_start = {:#?}",
             batch_index,
             blocks_len,
-            blocks
+            blocks[0]
         );
 
         // Query existing proof
@@ -196,6 +196,7 @@ where
             log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
             continue;
         }
+        log::info!("proof_data {:#?}", prove_result.proof_data);
 
         log::info!(">Starting prove state onchain, batch index = {:#?}", batch_index);
         let aggr_proof = Bytes::from(prove_result.proof_data);
