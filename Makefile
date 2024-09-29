@@ -1,7 +1,7 @@
 ################## update dependencies ####################
 
-ETHEREUM_TARGET_VERSION := v0.5.0
-TENDERMINT_TARGET_VERSION := v0.3.0
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20240928131248-d5897cc977af
+TENDERMINT_TARGET_VERSION := v0.3.1
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
 TENDERMINT_MODULE_NAME := github.com/morph-l2/tendermint
@@ -128,13 +128,9 @@ go-ubuntu-builder:
 
 ################## devnet 4 nodes ####################
 
-devnet-up: submodules go-ubuntu-builder go-rust-builder
+devnet-up: submodules go-ubuntu-builder
 	python3 ops/devnet-morph/main.py --polyrepo-dir=.
 .PHONY: devnet-up
-
-devnet-up-mockccc:
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --mockccc
-.PHONY: devnet-up-mockccc
 
 devnet-up-debugccc:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --debugccc
@@ -179,5 +175,5 @@ start-all-tx-submitter:
 	done
 
 # build geth
-nccc_geth: submodules
+geth: submodules
 	cd go-ethereum && env GO111MODULE=on GOWORK=off go run build/ci.go install ./cmd/geth

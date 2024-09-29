@@ -1,0 +1,9 @@
+FROM sp1-base:latest
+
+RUN cargo prove --version
+
+COPY . /app
+WORKDIR /app
+RUN cd bin/client && cargo prove build
+ENV SP1_DEV=1
+RUN cd bin/host && RUST_LOG=info RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo run --release -- --prove

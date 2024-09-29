@@ -23,10 +23,8 @@
 
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 600,
-  "govBatchMaxBytes": 124928,
   "govBatchTimeout": 1200,
   "govRollupEpoch": 100,
-  "govBatchMaxChunks": 45,
 
   "l2GenesisBlockGasLimit": "0xbebc200",
   "useMPT": false,

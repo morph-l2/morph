@@ -1,0 +1,14 @@
+FROM sp1-base:latest
+
+
+ARG GO_VERSION=1.22
+RUN wget https://raw.githubusercontent.com/anylots/golangTemp/main/go1.22.1.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz
+RUN rm go1.22.1.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+WORKDIR /app
+RUN git clone https://github.com/scroll-tech/sp1.git && cd sp1 && git checkout scroll-dev-0909
+
+WORKDIR /app/sp1/crates/prover
+RUN make build-circuits

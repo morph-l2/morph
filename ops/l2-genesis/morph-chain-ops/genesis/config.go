@@ -47,7 +47,6 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 
-	MaxTxPerBlock             int `json:"maxTxPerBlock"`
 	MaxTxPayloadBytesPerBlock int `json:"maxTxPayloadBytesPerBlock"`
 
 	// System config
@@ -107,10 +106,8 @@ type DeployConfig struct {
 	// Gov configs
 	GovVotingDuration     uint64 `json:"govVotingDuration"`
 	GovBatchBlockInterval uint64 `json:"govBatchBlockInterval"`
-	GovBatchMaxBytes      uint64 `json:"govBatchMaxBytes"`
 	GovRollupEpoch        uint64 `json:"govRollupEpoch"`
 	GovBatchTimeout       uint64 `json:"govBatchTimeout"`
-	GovBatchMaxChunks     uint64 `json:"govBatchMaxChunks"`
 
 	// L2Staking configs
 	L2StakingSequencerMaxSize      uint64           `json:"l2StakingSequencerMaxSize"`
@@ -414,17 +411,11 @@ func (d *DeployConfig) Check() error {
 	if d.GovBatchBlockInterval <= 0 {
 		return fmt.Errorf("GovBatchBlockInterval must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
-	if d.GovBatchMaxBytes <= 0 {
-		return fmt.Errorf("GovBatchMaxBytes must be greater than 0: %w", ErrInvalidDeployConfig)
-	}
 	if d.GovBatchTimeout <= 0 {
 		return fmt.Errorf("GovBatchTimeout must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
 	if d.GovRollupEpoch <= 0 {
 		return fmt.Errorf("GovRollupEpoch must be greater than 0: %w", ErrInvalidDeployConfig)
-	}
-	if d.GovBatchMaxChunks <= 0 {
-		return fmt.Errorf("GovBatchMaxChunks must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
 	if d.GasPriceOracleOwner == (common.Address{}) {
 		return fmt.Errorf("GasPriceOracleOwner cannot be address(0): %w", ErrInvalidDeployConfig)
@@ -530,9 +521,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"_owner":             config.FinalSystemOwner,
 		"votingDuration":     config.GovVotingDuration,
 		"batchBlockInterval": config.GovBatchBlockInterval,
-		"batchMaxBytes":      config.GovBatchMaxBytes,
 		"batchTimeout":       config.GovBatchTimeout,
-		"maxChunks":          config.GovBatchMaxChunks,
 		"rollupEpoch":        config.GovRollupEpoch,
 	}
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
