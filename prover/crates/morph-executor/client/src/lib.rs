@@ -1,5 +1,6 @@
 pub mod types;
 mod verifier;
+use alloy::hex;
 use sbv_primitives::{TxTrace, B256};
 use sbv_utils::dev_info;
 use types::input::ClientInput;
@@ -30,6 +31,16 @@ pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
 
     // Calc public input hash.
     println!("cycle-tracker-start: cacl_public_input_hash");
+    println!(
+        "cacl pi hash, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
+        dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
+        hex::encode(batch_info.prev_state_root().as_slice()),
+        hex::encode(batch_info.post_state_root().as_slice()),
+        hex::encode(batch_info.withdraw_root().as_slice()),
+        hex::encode(batch_info.data_hash().as_slice()),
+        hex::encode(versioned_hash.as_slice()),
+        hex::encode(batch_info.sequencer_root().as_slice()),
+    );
     let public_input_hash = batch_info.public_input_hash(&versioned_hash);
     println!("cycle-tracker-end: cacl_public_input_hash");
     dev_info!("public input hash: {:?}", public_input_hash);

@@ -30,24 +30,6 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    // pub fn prepare() -> Self {
-    //     let l1_rpc: String =
-    //         var("SHADOW_PROVING_VERIFY_L1_RPC").unwrap_or(var("SHADOW_PROVING_L1_RPC").expect("
-    // Shadow prove cannot detect L1_RPC env var"));     let private_key =
-    // var("SHADOW_PROVING_PRIVATE_KEY").expect("Cannot detect SHADOW_PROVING_PRIVATE_KEY env var");
-
-    //     let rollup = var("SHADOW_PROVING_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
-    //     let shadow_rollup = var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect
-    // L1_SHADOW_ROLLUP env var");
-
-    //     BatchSyncer::new(
-    //         Address::from_str(&rollup).unwrap(),
-    //         Address::from_str(&shadow_rollup).unwrap(),
-    //         provider,
-    //         l1_signer,
-    //     )
-    // }
-
     pub fn new(
         rollup_address: Address,
         shadow_rollup_address: Address,
@@ -88,42 +70,49 @@ where
             return Ok(None);
         };
 
-        // Prepare shadow batch
-        let shadow_tx = self.l1_shadow_rollup.commitBatch(
+        let batch_store = ShadowRollup::BatchStore {
+            prevStateRoot: batch_header
+                .get(89..121)
+                .unwrap_or_default()
+                .try_into()
+                .unwrap_or_default(),
+            postStateRoot: batch_header
+                .get(121..153)
+                .unwrap_or_default()
+                .try_into()
+                .unwrap_or_default(),
+            withdrawalRoot: batch_header
+                .get(153..185)
+                .unwrap_or_default()
+                .try_into()
+                .unwrap_or_default(),
+            dataHash: batch_header.get(25..57).unwrap_or_default().try_into().unwrap_or_default(),
+            blobVersionedHash: batch_header
+                .get(57..89)
+                .unwrap_or_default()
+                .try_into()
+                .unwrap_or_default(),
+            sequencerSetVerifyHash: batch_header
+                .get(185..217)
+                .unwrap_or_default()
+                .try_into()
+                .unwrap_or_default(),
+        };
+
+        log::info!(
+            "sync batch of {:?}, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
+            dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
             batch_info.batch_index,
-            ShadowRollup::BatchStore {
-                prevStateRoot: batch_header
-                    .get(89..121)
-                    .unwrap_or_default()
-                    .try_into()
-                    .unwrap_or_default(),
-                postStateRoot: batch_header
-                    .get(121..153)
-                    .unwrap_or_default()
-                    .try_into()
-                    .unwrap_or_default(),
-                withdrawalRoot: batch_header
-                    .get(153..185)
-                    .unwrap_or_default()
-                    .try_into()
-                    .unwrap_or_default(),
-                dataHash: batch_header
-                    .get(25..57)
-                    .unwrap_or_default()
-                    .try_into()
-                    .unwrap_or_default(),
-                blobVersionedHash: batch_header
-                    .get(57..89)
-                    .unwrap_or_default()
-                    .try_into()
-                    .unwrap_or_default(),
-                sequencerSetVerifyHash: batch_header
-                    .get(185..217)
-                    .unwrap_or_default()
-                    .try_into()
-                    .unwrap_or_default(),
-            },
+            hex::encode(batch_store.prevStateRoot.as_slice()),
+            hex::encode(batch_store.postStateRoot.as_slice()),
+            hex::encode(batch_store.withdrawalRoot.as_slice()),
+            hex::encode(batch_store.dataHash.as_slice()),
+            hex::encode(batch_store.blobVersionedHash.as_slice()),
+            hex::encode(batch_store.sequencerSetVerifyHash.as_slice()),
         );
+
+        // Prepare shadow batch
+        let shadow_tx = self.l1_shadow_rollup.commitBatch(batch_info.batch_index, batch_store);
         let rt = shadow_tx.send().await;
 
         let pending_tx = match rt {
