@@ -347,7 +347,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(!inChallenge, "already in challenge");
         require(lastFinalizedBatchIndex < batchIndex, "batch already finalized");
         require(committedBatches[batchIndex] == _batchHash, "incorrect batch hash");
-        require(committedBatches[batchIndex] != bytes32(0), "batch not exist");
+        require(batchExist(batchIndex), "batch not exist");
         require(challenges[batchIndex].challenger == address(0), "batch already challenged");
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
