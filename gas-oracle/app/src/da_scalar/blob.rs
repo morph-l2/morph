@@ -9,8 +9,6 @@ use ethers::{
 use super::zstd_util::init_zstd_decoder;
 
 const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4 * 32 = 128kb
-const MAX_AGG_SNARKS: usize = 45;
-const METADATA_LENGTH: usize = 2 + 4 * MAX_AGG_SNARKS;
 
 #[derive(Debug, Clone)]
 pub struct Blob(pub [u8; MAX_BLOB_TX_PAYLOAD_SIZE]);
@@ -20,7 +18,7 @@ impl Blob {
         let compressed_data = self.get_compressed_batch()?;
         decompress_batch(&compressed_data)
     }
-    
+
     pub fn get_compressed_batch(&self) -> Result<Vec<u8>, BlobError> {
         // Decode blob, recovering BLS12-381 scalars.
         let mut data = vec![0u8; MAX_BLOB_TX_PAYLOAD_SIZE];
@@ -36,9 +34,7 @@ impl Blob {
         }
 
         // detect_zstd_compressed
-        let compressed_batch = Self::detect_zstd_compressed(data)?;
-
-        Ok(compressed_batch)
+        Ok(Self::detect_zstd_compressed(data)?)
     }
 
     fn detect_zstd_compressed(decoded_blob: Vec<u8>) -> Result<Vec<u8>, BlobError> {
@@ -112,39 +108,7 @@ impl Blob {
             compressed_data.len() as f32 / MAX_BLOB_TX_PAYLOAD_SIZE as f32,
             orgin_content_size as f32 / compressed_data.len() as f32
         );
-
-        Self::decode_raw_tx_payload(origin_batch)?;
         Ok(())
-    }
-
-    // The format of batch is as follows:
-    // origin_batch = be_bytes(num_valid_chunks as u16) || be_bytes(chunks[0].chunk_size as u32) ||
-    // ...be_bytes(chunks[MAX_AGG_SNARKS-1].chunk_size as u32)||all_l2_tx_signed_rlp_in_batch
-    pub fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Result<Vec<u8>, BlobError> {
-        if origin_batch.len() < METADATA_LENGTH {
-            log::warn!("batch.len < METADATA_LENGTH ");
-            return Ok(Vec::new());
-        }
-        let num_valid_chunks = u16::from_be_bytes(origin_batch[0..2].try_into().unwrap()); // size of num_valid_chunks is 2bytes.
-        if num_valid_chunks as usize > MAX_AGG_SNARKS {
-            return Err(BlobError::InvalidData(anyhow!(format!(
-                "Invalid blob data: num_valid_chunks bigger than MAX_AGG_SNARKS. parsed num_valid_chunks: {}",
-                num_valid_chunks
-            ))));
-        }
-
-        let data_size: u64 = origin_batch[2..2 + 4 * num_valid_chunks as usize]
-            .chunks_exact(4)
-            .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()) as u64)
-            .sum();
-
-        let tx_payload_end = METADATA_LENGTH + data_size as usize;
-        if origin_batch.len() < tx_payload_end {
-            return Err(BlobError::InvalidData(anyhow!(
-                "The batch does not contain the complete tx_payload"
-            )));
-        }
-        Ok(origin_batch[METADATA_LENGTH..tx_payload_end].to_vec())
     }
 }
 
@@ -212,8 +176,6 @@ pub enum BlobError {
     Error(eyre::Error),
     #[error("{0}")]
     InvalidBlob(eyre::Error),
-    #[error("{0}")]
-    InvalidData(eyre::Error),
 }
 
 pub fn kzg_to_versioned_hash(commitment: &[u8]) -> H256 {
@@ -235,10 +197,6 @@ mod tests {
 
     #[test]
     fn test_decode_blob_with_zstd_batch() {
-        use crate::da_scalar::{
-            calculate::decode_transactions_from_blob, typed_tx::TypedTransaction,
-        };
-
         let blob_bytes = load_zstd_blob();
         let blob = Blob(blob_bytes);
 
@@ -250,18 +208,6 @@ mod tests {
 
         let origin_batch = super::decompress_batch(&compressed_batch).unwrap();
         assert_eq!(origin_batch.len(), 125091);
-
-        let chunks_len = u16::from_be_bytes(origin_batch[0..2].try_into().expect("chunks_len"));
-        // size of num_valid_chunks is 2bytes.
-        assert_eq!(chunks_len, 11);
-
-        let tx_payload =
-            super::Blob::decode_raw_tx_payload(origin_batch).expect("decode_raw_tx_payload");
-        assert!(tx_payload.len() == 124909, "tx_payload.len()");
-
-        let txs_decoded: Vec<TypedTransaction> =
-            decode_transactions_from_blob(tx_payload.as_slice());
-        assert!(txs_decoded.len() == 200, "txs_decoded.len()");
     }
 
     #[test]
