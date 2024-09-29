@@ -62,10 +62,8 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 
 		GovVotingDuration:     1000,
 		GovBatchBlockInterval: 20,
-		GovBatchMaxBytes:      124928,
 		GovRollupEpoch:        600,
 		GovBatchTimeout:       100,
-		GovBatchMaxChunks:     15,
 
 		// MorphToken
 		MorphTokenOwner:              address1,

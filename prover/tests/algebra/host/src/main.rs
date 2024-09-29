@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{HashableKey, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 use std::{
@@ -7,6 +8,10 @@ use std::{
     str::FromStr,
     time::Instant,
 };
+=======
+use sp1_sdk::{ProverClient, SP1Stdin};
+use std::time::Instant;
+>>>>>>> main
 
 fn main() {
     // Setup the logger.
@@ -28,9 +33,21 @@ fn main() {
     let (public_values, execution_report) = client.execute(dev_elf, stdin.clone()).run().unwrap();
     println!("Program executed successfully.");
     // Record the number of cycles executed.
+<<<<<<< HEAD
     println!("Number of cycles: {}", execution_report.total_instruction_count());
 
     println!("pi_hash generated with sp1-vm execution: {:?}", public_values);
+=======
+    println!(
+        "Number of cycles: {}",
+        execution_report.total_instruction_count()
+    );
+
+    println!(
+        "pi_hash generated with sp1-vm execution: {:?}",
+        public_values
+    );
+>>>>>>> main
 
     println!("Start proving...");
     let start = Instant::now();
@@ -39,14 +56,29 @@ fn main() {
     let (pk, vk) = client.setup(dev_elf);
 
     // Generate the proof
+<<<<<<< HEAD
     let proof = client.prove(&pk, stdin).plonk().run().expect("failed to generate proof");
 
     let duration_mins = start.elapsed().as_secs() / 60;
     println!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
+=======
+    let proof = client
+        .prove(&pk, stdin)
+        .plonk()
+        .run()
+        .expect("failed to generate proof");
+
+    let duration_mins = start.elapsed().as_secs() / 60;
+    println!(
+        "Successfully generated proof!, time use: {:?} minutes",
+        duration_mins
+    );
+>>>>>>> main
 
     // Verify the proof.
     client.verify(&proof, &vk).expect("failed to verify proof");
     println!("Successfully verified proof!");
+<<<<<<< HEAD
 
     // Save the fixture to a file.
     let proof_dir: String = read_env_var("PROVER_PROOF_DIR", "/data/proof".to_string());
@@ -104,4 +136,6 @@ fn test_verify_plonk() {
         serde_json::to_string_pretty(&fixture).unwrap(),
     )
     .expect("failed to write fixture");
+=======
+>>>>>>> main
 }

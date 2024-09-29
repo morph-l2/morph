@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 sp1-sdk = { workspace = true }
+<<<<<<< HEAD
 serde = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
@@ -13,3 +14,9 @@ hex = { workspace = true }
 
 [build-dependencies]
 sp1-helper = { workspace = true }
+=======
+
+
+[build-dependencies]
+sp1-helper = { workspace = true }
+>>>>>>> main

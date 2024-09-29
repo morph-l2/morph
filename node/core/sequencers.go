@@ -119,8 +119,8 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 
 func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, error) {
 	var (
-		batchBlockInterval, batchTimeout, batchMaxChunks *big.Int
-		err                                              error
+		batchBlockInterval, batchTimeout *big.Int
+		err                              error
 	)
 
 	if batchBlockInterval, err = e.govCaller.BatchBlockInterval(nil); err != nil {
@@ -129,26 +129,19 @@ func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, erro
 	if batchTimeout, err = e.govCaller.BatchTimeout(nil); err != nil {
 		return nil, err
 	}
-	if batchMaxChunks, err = e.govCaller.MaxChunks(nil); err != nil {
-		return nil, err
-	}
 
 	changed := e.batchParams.BlocksInterval != batchBlockInterval.Int64() ||
-		int64(e.batchParams.Timeout.Seconds()) != batchTimeout.Int64() ||
-		e.batchParams.MaxChunks != batchMaxChunks.Int64()
+		int64(e.batchParams.Timeout.Seconds()) != batchTimeout.Int64()
 
 	if changed {
 		e.batchParams.BlocksInterval = batchBlockInterval.Int64()
 		e.batchParams.Timeout = time.Duration(batchTimeout.Int64() * int64(time.Second))
-		e.batchParams.MaxChunks = batchMaxChunks.Int64()
 		e.logger.Info("batch params changed", "height", height,
 			"batchBlockInterval", batchBlockInterval.Int64(),
-			"batchTimeout", batchTimeout.Int64(),
-			"batchMaxChunks", batchMaxChunks.Int64())
+			"batchTimeout", batchTimeout.Int64())
 		return &tmproto.BatchParams{
 			BlocksInterval: batchBlockInterval.Int64(),
 			Timeout:        time.Duration(batchTimeout.Int64() * int64(time.Second)),
-			MaxChunks:      batchMaxChunks.Int64(),
 		}, nil
 	}
 	return nil, nil

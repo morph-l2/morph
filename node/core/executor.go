@@ -378,15 +378,7 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 	if err != nil {
 		return nil, nil, err
 	}
-	batchMaxBytes, err := e.govCaller.BatchMaxBytes(callOpts)
-	if err != nil {
-		return nil, nil, err
-	}
 	batchTimeout, err := e.govCaller.BatchTimeout(callOpts)
-	if err != nil {
-		return nil, nil, err
-	}
-	batchMaxChunks, err := e.govCaller.MaxChunks(callOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,9 +398,7 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 
 	return &tmproto.BatchParams{
 		BlocksInterval: batchBlockInterval.Int64(),
-		MaxBytes:       batchMaxBytes.Int64(),
 		Timeout:        time.Duration(batchTimeout.Int64() * int64(time.Second)),
-		MaxChunks:      batchMaxChunks.Int64(),
 	}, newValidators, nil
 }
 

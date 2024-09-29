@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+<<<<<<< HEAD
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,3 +20,5 @@ tower = { workspace = true }
 tower-http = { workspace = true }
 dotenv = { workspace = true }
 flexi_logger = { workspace = true }
+=======
+>>>>>>> main

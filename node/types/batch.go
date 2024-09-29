@@ -131,9 +131,12 @@ func (cks *BatchData) Encode() ([]byte, error) {
 	if cks == nil || cks.blockNum == 0 {
 		return []byte{}, nil
 	}
+<<<<<<< HEAD
 	if cks.blockNum > 255 {
 		return nil, errors.New("number of blocks exceeds 1 byte")
 	}
+=======
+>>>>>>> main
 
 	data := make([]byte, 2)
 	binary.BigEndian.PutUint16(data, cks.blockNum)

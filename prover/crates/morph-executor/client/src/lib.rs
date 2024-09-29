@@ -3,7 +3,11 @@ mod verifier;
 use sbv_primitives::{TxTrace, B256};
 use sbv_utils::dev_info;
 use types::input::ClientInput;
+<<<<<<< HEAD
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
+=======
+use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
+>>>>>>> main
 
 pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
     // Verify DA
@@ -16,17 +20,30 @@ pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
             .transactions
             .iter()
             .filter(|tx| !tx.is_l1_tx())
+<<<<<<< HEAD
             .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp())
+=======
+            .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp_da())
+>>>>>>> main
             .collect::<Vec<u8>>();
         tx_bytes.extend(x);
     }
     println!("cycle-tracker-end: traces-to-data");
+<<<<<<< HEAD
     assert_eq!(batch_data, tx_bytes, "blob data mismatch!");
 
     // Verify EVM exec.
     println!("cycle-tracker-start: evm-verify");
     let batch_info = EVMVerifier::verify(&input.l2_traces).unwrap();
     println!("cycle-tracker-end: evm-verify");
+=======
+    println!("cycle-tracker-start: batch-check");
+    assert_eq!(batch_data, tx_bytes, "blob data mismatch!");
+    println!("cycle-tracker-end: batch-check");
+
+    // Verify EVM exec.
+    let batch_info = EVMVerifier::verify(&input.l2_traces).unwrap();
+>>>>>>> main
 
     // Calc public input hash.
     println!("cycle-tracker-start: cacl_public_input_hash");

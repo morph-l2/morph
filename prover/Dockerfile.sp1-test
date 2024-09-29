@@ -2,11 +2,25 @@ FROM sp1-base:latest
 
 RUN cargo prove --version
 
+<<<<<<< HEAD
+=======
+ARG GO_VERSION=1.22
+RUN wget https://raw.githubusercontent.com/anylots/golangTemp/main/go1.22.1.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz
+RUN rm go1.22.1.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+>>>>>>> main
 COPY . /app
 WORKDIR /app
 RUN cd tests/algebra/client && cargo prove build
 
+<<<<<<< HEAD
 RUN cd tests/algebra/host && RUST_LOG=info cargo build --release
 RUN cp target/release/algebra-host ./
 
 CMD ["./algebra-host"]
+=======
+ENV SP1_DEV=1
+RUN cd tests/algebra/host && RUST_LOG=debug RUST_BACKTRACE=full cargo run --release
+>>>>>>> main

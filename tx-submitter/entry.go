@@ -155,7 +155,7 @@ func Main() func(ctx *cli.Context) error {
 			},
 		}
 
-		eventIndexer := event.NewEventIndexer(cfg.StakingEventStorePath, l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep)
+		eventIndexer := event.NewEventIndexer(cfg.StakingEventStoreFilename, l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep)
 
 		// new rotator
 		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)

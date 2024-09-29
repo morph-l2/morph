@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
 save-plonk-circuits:
 	rm -rf plonk-circuits && \
 	mkdir -p plonk-circuits && \
@@ -6,4 +9,8 @@ save-plonk-circuits:
     docker cp -r sp1-plonk-temp:/app/sp1/crates/prover/build ./plonk-circuits
 	cd plonk-circuits/build
 	tar --exclude='srs.bin' --exclude='srs_lagrange.bin' -czvf "../morph-dev.tar.gz" .
+<<<<<<< HEAD
 	docker rm sp1-plonk-temp
+=======
+	docker rm sp1-plonk-temp
+>>>>>>> main

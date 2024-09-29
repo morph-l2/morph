@@ -5,6 +5,10 @@ homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+<<<<<<< HEAD
+=======
+authors.workspace = true
+>>>>>>> main
 license.workspace = true
 repository.workspace = true
 

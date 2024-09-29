@@ -22,10 +22,8 @@
 
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 20,
-  "govBatchMaxBytes": 124928,
   "govBatchTimeout": 600,
   "govRollupEpoch": 100,
-  "govBatchMaxChunks": 15,
 
   "recordOracleAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "recordNextBatchSubmissionIndex": 1,

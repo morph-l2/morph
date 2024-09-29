@@ -18,6 +18,12 @@ pgo-data.profdata
 # Env
 .env
 
+<<<<<<< HEAD
 Dockerfile.test
 
 shadow-proving
+=======
+contracts
+
+Dockerfile.test
+>>>>>>> main

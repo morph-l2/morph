@@ -1,6 +1,7 @@
 use crate::TxTrace;
 use alloy::{
     consensus::{Transaction, TxEnvelope, TxType},
+<<<<<<< HEAD
     eips::{
         eip2718::{Decodable2718, Encodable2718},
         eip2930::AccessList,
@@ -8,6 +9,11 @@ use alloy::{
     },
     primitives::{Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64},
     rlp::{self, BufMut, BytesMut, Decodable, Encodable, Header},
+=======
+    eips::{eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization},
+    primitives::{Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64},
+    rlp::{BufMut, BytesMut, Decodable, Encodable, Header},
+>>>>>>> main
 };
 use serde_with::{serde_as, DefaultOnNull};
 
@@ -54,7 +60,18 @@ pub struct TxL1Msg {
 /// Transaction Trace
 #[serde_as]
 #[derive(
+<<<<<<< HEAD
     rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, Default, Debug, Clone,
+=======
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    Clone,
+>>>>>>> main
 )]
 #[archive(check_bytes)]
 #[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
@@ -189,11 +206,25 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn max_fee_per_gas(&self) -> u128 {
+<<<<<<< HEAD
         self.gas_fee_cap.as_ref().map(|v| v.to()).unwrap_or_default()
     }
 
     fn max_priority_fee_per_gas(&self) -> u128 {
         self.gas_tip_cap.as_ref().map(|v| v.to()).unwrap_or_default()
+=======
+        self.gas_fee_cap
+            .as_ref()
+            .map(|v| v.to())
+            .unwrap_or_default()
+    }
+
+    fn max_priority_fee_per_gas(&self) -> u128 {
+        self.gas_tip_cap
+            .as_ref()
+            .map(|v| v.to())
+            .unwrap_or_default()
+>>>>>>> main
     }
 
     unsafe fn get_from_unchecked(&self) -> Address {
@@ -222,7 +253,12 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn access_list(&self) -> AccessList {
+<<<<<<< HEAD
         rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible).unwrap()
+=======
+        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible)
+            .unwrap()
+>>>>>>> main
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {
@@ -528,7 +564,13 @@ impl Decodable for TypedTransaction {
         if buf.is_empty() {
             return Err(alloy::rlp::Error::InputTooShort);
         }
+<<<<<<< HEAD
         Ok(TypedTransaction::Enveloped(TxEnvelope::decode_2718(buf).unwrap()))
+=======
+        Ok(TypedTransaction::Enveloped(
+            TxEnvelope::decode(buf).unwrap(),
+        ))
+>>>>>>> main
     }
 }
 

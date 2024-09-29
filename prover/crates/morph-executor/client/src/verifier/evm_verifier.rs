@@ -15,9 +15,13 @@ impl EVMVerifier {
 }
 
 fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
+<<<<<<< HEAD
     println!("cycle-tracker-start: zktrie_db");
     let (mut batch_info, zktrie_db) = BatchInfo::from_block_traces(traces);
     println!("cycle-tracker-end: zktrie_db");
+=======
+    let (mut batch_info, zktrie_db) = BatchInfo::from_block_traces(traces);
+>>>>>>> main
 
     let fork_config: HardforkConfig = HardforkConfig::default_from_chain_id(2818);
     let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
@@ -35,8 +39,12 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
     let revm_root_after = executor.commit_changes(&zktrie_db);
     if revm_root_after != batch_info.post_state_root() {
         dev_error!(
+<<<<<<< HEAD
             "root mismatch: root after in trace = {trace_root_after:x}, root after in revm = {revm_root_after:x}"
         );
+=======
+        "root mismatch: root after in trace = {trace_root_after:x}, root after in revm = {revm_root_after:x}" );
+>>>>>>> main
         return Err(VerificationError::RootMismatch {
             root_trace: trace_root_after,
             root_revm: revm_root_after,

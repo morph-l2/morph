@@ -1,24 +1,24 @@
 name: Prover
 
-on:
-    push:
-        branches:
-            - main
-        paths:
-            - "prover/**"
-            - ".github/workflows/prover.yaml"
-    pull_request:
-        paths:
-            - "prover/**"
-            - ".github/workflows/prover.yaml"
-
-defaults:
-    run:
-        working-directory: "prover"
-
+# on:
+#     push:
+#         branches:
+#             - main
+#         paths:
+#             - "prover/**"
+#             - ".github/workflows/prover.yaml"
+#     pull_request:
+#         paths:
+#             - "prover/**"
+#             - ".github/workflows/prover.yaml"
+#
+# defaults:
+#     run:
+#         working-directory: "prover"
+#
 # jobs:
 #     check:
-#         runs-on: ubuntu-latest
+#         runs-on: ubuntu-22.04
 #         steps:
 #             - uses: actions/checkout@v3
 #             - name: Run build

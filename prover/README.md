@@ -7,12 +7,15 @@ Generate zk proof for the l2 batch.
 - [SP1](https://succinctlabs.github.io/sp1/getting-started/install.html)
 
 
+<<<<<<< HEAD
 ### Fast Run 
 ```sh
 cd bin/host
 RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt cargo run --release
 ```
 
+=======
+>>>>>>> main
 ### Build the Program
 
 
@@ -21,7 +24,11 @@ To build the program to risc-v bin:
 ```sh
 cd bin/client
 cargo prove build
+<<<<<<< HEAD
 
+=======
+```
+>>>>>>> main
 
 This will output the compiled ELF to the file program/elf/riscv32im-succinct-zkvm-elf.
 
