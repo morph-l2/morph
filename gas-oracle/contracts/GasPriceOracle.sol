@@ -50,13 +50,15 @@ contract GasPriceOracle is Ownable {
     // Enable permission list
     bool public allowListEnabled;
     // Address list with permission to update price oracle.
-    mapping(address => bool) public isAllowed;
+    mapping(address addr => bool allowed) public isAllowed;
     /// l1 blob base fee
     uint256 public l1BlobBaseFee;
     /// commit scalar
     uint256 public commitScalar;
     /// blob scalar
     uint256 public blobScalar;
+    /// @notice Indicates whether the network has gone through the Curie upgrade.
+    bool public isCurie;
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
@@ -94,6 +96,9 @@ contract GasPriceOracle is Ownable {
     /// @dev Thrown when setting values to different lengths for keys.
     error ErrDifferentLength();
 
+    /// @dev Thrown when we enable Curie fork after Curie fork.
+    error ErrAlreadyInCurieFork();
+
     /**
      * @param owner_ Address that will initially own this contract.
      */
@@ -129,29 +134,22 @@ contract GasPriceOracle is Ownable {
         _;
     }
 
-    /// @dev External function to compute the L1 portion of the fee based on the size of the rlp encoded input
-    ///      transaction, the current L1 base fee, and the various dynamic parameters.
-    /// @param _data Signed fully RLP-encoded transaction to get the L1 fee for.
-    /// @return L1 fee that should be paid for the tx
+    /// Compatibility with old logic
     function getL1Fee(bytes memory _data) external view returns (uint256) {
-        // We have bounded the value of `commitScalar` and `blobScalar`, the whole expression won't overflow.
-        return (commitScalar * l1BaseFee + blobScalar * _data.length * l1BlobBaseFee) / PRECISION;
+        if (isCurie) {
+            return getL1FeeCurie(_data);
+        } else {
+            return getL1FeeBeforeCurie(_data);
+        }
     }
 
-    /// @param _data The `_data` is the RLP-encoded transaction with signature. And we also reserve additional
-    /// 4 bytes in the non-zero bytes to store the number of bytes in the RLP-encoded transaction.
-    function getL1GasUsed(bytes memory _data) public view returns (uint256) {
-        uint256 _total = 0;
-        uint256 _length = _data.length;
-        unchecked {
-            for (uint256 i = 0; i < _length; i++) {
-                if (_data[i] == 0) {
-                    _total += 4;
-                } else {
-                    _total += 16;
-                }
-            }
-            return _total + overhead + (4 * 16);
+    /// Compatibility with old logic
+    function getL1GasUsed(bytes memory _data) external view returns (uint256) {
+        if (isCurie) {
+            // It is near zero since we put all transactions to blob.
+            return 0;
+        } else {
+            return getL1GasUsedBeforeCurie(_data);
         }
     }
 
@@ -211,5 +209,54 @@ contract GasPriceOracle is Ownable {
 
         blobScalar = _scalar;
         emit BlobScalarUpdated(_scalar);
+    }
+
+    /// @notice Enable the Curie fork.
+    function enableCurie() external onlyAllowed {
+        if (isCurie) revert ErrAlreadyInCurieFork();
+        isCurie = true;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        * Internal Functions * 
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev Internal function to computes the amount of L1 gas used for a transaction before Curie fork.
+    ///   The `_data` is the RLP-encoded transaction with signature. And we also reserve additional
+    ///   4 bytes in the non-zero bytes to store the number of bytes in the RLP-encoded transaction.
+    /// @param _data Signed fully RLP-encoded transaction to get the L1 gas for.
+    /// @return Amount of L1 gas used to publish the transaction.
+    function getL1GasUsedBeforeCurie(bytes memory _data) internal view returns (uint256) {
+        uint256 _total = 0;
+        uint256 _length = _data.length;
+        unchecked {
+            for (uint256 i = 0; i < _length; i++) {
+                if (_data[i] == 0) {
+                    _total += 4;
+                } else {
+                    _total += 16;
+                }
+            }
+            return _total + overhead + (4 * 16);
+        }
+    }
+
+    /// @dev Internal function to compute the L1 portion of the fee based on the size of the rlp encoded input
+    ///   transaction, the current L1 base fee, and the various dynamic parameters, before Curie fork.
+    /// @param _data Signed fully RLP-encoded transaction to get the L1 fee for.
+    /// @return L1 fee that should be paid for the tx
+    function getL1FeeBeforeCurie(bytes memory _data) internal view returns (uint256) {
+        uint256 _l1GasUsed = getL1GasUsedBeforeCurie(_data);
+        uint256 _l1Fee = _l1GasUsed * l1BaseFee;
+        return (_l1Fee * scalar) / PRECISION;
+    }
+
+    /// @dev Internal function to compute the L1 portion of the fee based on the size of the rlp encoded input
+    ///   transaction, the current L1 base fee, and the various dynamic parameters, after Curie fork.
+    /// @param _data Signed fully RLP-encoded transaction to get the L1 fee for.
+    /// @return L1 fee that should be paid for the tx
+    function getL1FeeCurie(bytes memory _data) internal view returns (uint256) {
+        // We have bounded the value of `commitScalar` and `blobScalar`, the whole expression won't overflow.
+        return (commitScalar * l1BaseFee + blobScalar * _data.length * l1BlobBaseFee) / PRECISION;
     }
 }

@@ -1,0 +1,14 @@
+{
+    "local": {
+        "layer2ChainId": 53077
+    },
+    "qanetl1": {
+        "layer2ChainId": 53077
+    },
+    "holesky": {
+        "layer2ChainId": 2810
+    },
+    "mainnet": {
+        "layer2ChainId": 2818
+    }
+}
