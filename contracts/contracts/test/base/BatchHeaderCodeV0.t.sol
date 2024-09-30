@@ -23,7 +23,7 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
             mstore(add(batchHeader0, add(0x20, 1)), shl(192, 1)) // batchIndex = 1
             mstore(add(batchHeader0, add(0x20, 9)), shl(192, 1)) // l1MessagePopped = 1
             mstore(add(batchHeader0, add(0x20, 17)), shl(192, 1)) // totalL1MessagePopped = 1
-            mstore(add(batchHeader0, add(0x20, 25)), ZERO_VERSIONED_HASH) // l1dataHash
+            mstore(add(batchHeader0, add(0x20, 25)), ZERO_VERSIONED_HASH) // dataHash
             mstore(add(batchHeader0, add(0x20, 57)), ZERO_VERSIONED_HASH) // l2 tx blob versioned hash
             mstore(add(batchHeader0, add(0x20, 89)), ZERO_VERSIONED_HASH) // prevStateHash
             mstore(add(batchHeader0, add(0x20, 121)), ZERO_VERSIONED_HASH) // postStateHash
@@ -36,7 +36,7 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
         uint256 version = codecTest.getVersion(batchHeader0);
         uint256 index = codecTest.getBatchIndex(batchHeader0);
         uint256 l1MessagePopped = codecTest.getL1MessagePopped(batchHeader0);
-        bytes32 l1dataHash = codecTest.getL1DataHash(batchHeader0);
+        bytes32 dataHash = codecTest.getDataHash(batchHeader0);
         bytes32 blobVersionedHash = codecTest.getBlobVersionedHash(batchHeader0);
         bytes32 prevStateHash = codecTest.getPrevStateHash(batchHeader0);
         bytes32 postStateHash = codecTest.getPostStateHash(batchHeader0);
@@ -47,7 +47,7 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
         assertEq(version, 1);
         assertEq(index, 1);
         assertEq(l1MessagePopped, 1);
-        assertEq(l1dataHash, ZERO_VERSIONED_HASH);
+        assertEq(dataHash, ZERO_VERSIONED_HASH);
         assertEq(blobVersionedHash, ZERO_VERSIONED_HASH);
         assertEq(prevStateHash, ZERO_VERSIONED_HASH);
         assertEq(postStateHash, ZERO_VERSIONED_HASH);
@@ -65,7 +65,7 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
             mstore(add(batchHeader0, add(0x20, 1)), shl(192, 1)) // batchIndex
             mstore(add(batchHeader0, add(0x20, 9)), 0) // l1MessagePopped
             mstore(add(batchHeader0, add(0x20, 17)), 0) // totalL1MessagePopped
-            mstore(add(batchHeader0, add(0x20, 25)), 0x246394445f4fe64ed5598554d55d1682d6fb3fe04bf58eb54ef81d1189fafb51) // l1dataHash
+            mstore(add(batchHeader0, add(0x20, 25)), 0x246394445f4fe64ed5598554d55d1682d6fb3fe04bf58eb54ef81d1189fafb51) // dataHash
             mstore(add(batchHeader0, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader0, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader0, add(0x20, 121)), bytesData1) // postStateHash
@@ -84,7 +84,7 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
             uint256 version = codecTest.getVersion(batchHeader0);
             uint256 index = codecTest.getBatchIndex(batchHeader0);
             uint256 l1MessagePopped = codecTest.getL1MessagePopped(batchHeader0);
-            bytes32 l1dataHash = codecTest.getL1DataHash(batchHeader0);
+            bytes32 dataHash = codecTest.getDataHash(batchHeader0);
             bytes32 blobVersionedHash = codecTest.getBlobVersionedHash(batchHeader0);
             bytes32 prevStateHash = codecTest.getPrevStateHash(batchHeader0);
             bytes32 postStateHash = codecTest.getPostStateHash(batchHeader0);
@@ -97,7 +97,7 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
             assertEq(version, 0);
             assertEq(index, 1);
             assertEq(l1MessagePopped, 0);
-            assertEq(l1dataHash, 0x246394445f4fe64ed5598554d55d1682d6fb3fe04bf58eb54ef81d1189fafb51);
+            assertEq(dataHash, 0x246394445f4fe64ed5598554d55d1682d6fb3fe04bf58eb54ef81d1189fafb51);
             assertEq(blobVersionedHash, 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014);
             assertEq(prevStateHash, bytesData1);
             assertEq(postStateHash, bytesData1);

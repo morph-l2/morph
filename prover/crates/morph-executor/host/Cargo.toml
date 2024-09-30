@@ -1,0 +1,14 @@
+[package]
+name = "morph-executor-host"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+c-kzg = { workspace = true }
+zstd = { workspace = true }
+anyhow = { workspace = true }
+once_cell = { workspace = true }
+sbv-primitives = { workspace = true }
+morph-executor-client = { workspace = true }
+morph-executor-utils = { workspace = true }

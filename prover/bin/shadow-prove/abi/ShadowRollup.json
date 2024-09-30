@@ -1,0 +1,675 @@
+{
+  "abi": [
+      {
+          "type": "constructor",
+          "inputs": [
+              {
+                  "name": "_chainId",
+                  "type": "uint64",
+                  "internalType": "uint64"
+              },
+              {
+                  "name": "_verifier",
+                  "type": "address",
+                  "internalType": "address"
+              }
+          ],
+          "stateMutability": "nonpayable"
+      },
+      {
+          "type": "function",
+          "name": "commitBatch",
+          "inputs": [
+              {
+                  "name": "_batchIndex",
+                  "type": "uint64",
+                  "internalType": "uint64"
+              },
+              {
+                  "name": "_batchData",
+                  "type": "tuple",
+                  "internalType": "struct ShadowRollup.BatchStore",
+                  "components": [
+                      {
+                          "name": "prevStateRoot",
+                          "type": "bytes32",
+                          "internalType": "bytes32"
+                      },
+                      {
+                          "name": "postStateRoot",
+                          "type": "bytes32",
+                          "internalType": "bytes32"
+                      },
+                      {
+                          "name": "withdrawalRoot",
+                          "type": "bytes32",
+                          "internalType": "bytes32"
+                      },
+                      {
+                          "name": "dataHash",
+                          "type": "bytes32",
+                          "internalType": "bytes32"
+                      },
+                      {
+                          "name": "blobVersionedHash",
+                          "type": "bytes32",
+                          "internalType": "bytes32"
+                      },
+                      {
+                          "name": "sequencerSetVerifyHash",
+                          "type": "bytes32",
+                          "internalType": "bytes32"
+                      }
+                  ]
+              }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+      },
+      {
+          "type": "function",
+          "name": "committedBatchStores",
+          "inputs": [
+              {
+                  "name": "",
+                  "type": "uint256",
+                  "internalType": "uint256"
+              }
+          ],
+          "outputs": [
+              {
+                  "name": "prevStateRoot",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+              },
+              {
+                  "name": "postStateRoot",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+              },
+              {
+                  "name": "withdrawalRoot",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+              },
+              {
+                  "name": "dataHash",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+              },
+              {
+                  "name": "blobVersionedHash",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+              },
+              {
+                  "name": "sequencerSetVerifyHash",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+              }
+          ],
+          "stateMutability": "view"
+      },
+      {
+          "type": "function",
+          "name": "isProveSuccess",
+          "inputs": [
+              {
+                  "name": "_batchIndex",
+                  "type": "uint256",
+                  "internalType": "uint256"
+              }
+          ],
+          "outputs": [
+              {
+                  "name": "",
+                  "type": "bool",
+                  "internalType": "bool"
+              }
+          ],
+          "stateMutability": "view"
+      },
+      {
+          "type": "function",
+          "name": "layer2ChainId",
+          "inputs": [],
+          "outputs": [
+              {
+                  "name": "",
+                  "type": "uint64",
+                  "internalType": "uint64"
+              }
+          ],
+          "stateMutability": "view"
+      },
+      {
+          "type": "function",
+          "name": "owner",
+          "inputs": [],
+          "outputs": [
+              {
+                  "name": "",
+                  "type": "address",
+                  "internalType": "address"
+              }
+          ],
+          "stateMutability": "view"
+      },
+      {
+          "type": "function",
+          "name": "proveState",
+          "inputs": [
+              {
+                  "name": "_batchIndex",
+                  "type": "uint64",
+                  "internalType": "uint64"
+              },
+              {
+                  "name": "_proof",
+                  "type": "bytes",
+                  "internalType": "bytes"
+              }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+      },
+      {
+          "type": "function",
+          "name": "proveStatus",
+          "inputs": [
+              {
+                  "name": "",
+                  "type": "uint256",
+                  "internalType": "uint256"
+              }
+          ],
+          "outputs": [
+              {
+                  "name": "",
+                  "type": "bool",
+                  "internalType": "bool"
+              }
+          ],
+          "stateMutability": "view"
+      },
+      {
+          "type": "function",
+          "name": "renounceOwnership",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+      },
+      {
+          "type": "function",
+          "name": "transferOwnership",
+          "inputs": [
+              {
+                  "name": "newOwner",
+                  "type": "address",
+                  "internalType": "address"
+              }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+      },
+      {
+          "type": "function",
+          "name": "updateVerifier",
+          "inputs": [
+              {
+                  "name": "_verifier",
+                  "type": "address",
+                  "internalType": "address"
+              }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+      },
+      {
+          "type": "function",
+          "name": "verifier",
+          "inputs": [],
+          "outputs": [
+              {
+                  "name": "",
+                  "type": "address",
+                  "internalType": "address"
+              }
+          ],
+          "stateMutability": "view"
+      },
+      {
+          "type": "event",
+          "name": "OwnershipTransferred",
+          "inputs": [
+              {
+                  "name": "previousOwner",
+                  "type": "address",
+                  "indexed": true,
+                  "internalType": "address"
+              },
+              {
+                  "name": "newOwner",
+                  "type": "address",
+                  "indexed": true,
+                  "internalType": "address"
+              }
+          ],
+          "anonymous": false
+      }
+  ],
+  "bytecode": {
+      "object": "0x60a060405234801561001057600080fd5b5060405161091138038061091183398101604081905261002f916100bb565b6100383361006b565b6001600160401b0391909116608052600180546001600160a01b0319166001600160a01b0390921691909117905561010d565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600080604083850312156100ce57600080fd5b82516001600160401b03811681146100e557600080fd5b60208401519092506001600160a01b038116811461010257600080fd5b809150509250929050565b6080516107e361012e6000396000818160b3015261032201526107e36000f3fe608060405234801561001057600080fd5b50600436106100a95760003560e01c8063715018a611610071578063715018a6146101c85780638da5cb5b146101d057806397fc007c146101e15780639d049dda146101f4578063e7047c0414610207578063f2fde38b1461022a57600080fd5b806303c7f4af146100ae5780630b79cdda146100f357806325684280146101655780632b7ac3f31461018857806359ef1120146101b3575b600080fd5b6100d57f000000000000000000000000000000000000000000000000000000000000000081565b60405167ffffffffffffffff90911681526020015b60405180910390f35b610138610101366004610607565b6002602081905260009182526040909120805460018201549282015460038301546004840154600590940154929493919290919086565b604080519687526020870195909552938501929092526060840152608083015260a082015260c0016100ea565b610178610173366004610607565b61023d565b60405190151581526020016100ea565b60015461019b906001600160a01b031681565b6040516001600160a01b0390911681526020016100ea565b6101c66101c136600461063d565b61029e565b005b6101c661043e565b6000546001600160a01b031661019b565b6101c66101ef3660046106c0565b610452565b6101c66102023660046106f0565b61047c565b610178610215366004610607565b60036020526000908152604090205460ff1681565b6101c66102383660046106c0565b6104e4565b60008082116102885760405162461bcd60e51b81526020600482015260126024820152710d2dcecc2d8d2c840c4c2e8c6d092dcc8caf60731b60448201526064015b60405180910390fd5b5060009081526003602052604090205460ff1690565b806102de5760405162461bcd60e51b815260206004820152601060248201526f24b73b30b634b2103d3590383937b7b360811b604482015260640161027f565b67ffffffffffffffff8316600090815260026020818152604080842080546001820154948201546005830154600384015460049094015494516001600160c01b03197f000000000000000000000000000000000000000000000000000000000000000060c01b1696810196909652602886019290925260488501959095526068840194909452608883019390935260a882019290925260c881019190915260e80160408051808303601f19018152828252805160209182012060015491840181905293506001600160a01b03169163b768f1c99186918691016040516020818303038152906040526040518463ffffffff1660e01b81526004016103e49392919061072f565b60006040518083038186803b1580156103fc57600080fd5b505afa158015610410573d6000803e3d6000fd5b50505067ffffffffffffffff9094166000908152600360205260409020805460ff1916600117905550505050565b61044661055d565b61045060006105b7565b565b61045a61055d565b600180546001600160a01b0319166001600160a01b0392909216919091179055565b61048461055d565b67ffffffffffffffff8216600090815260026020526040902081906104de8282813581556020820135600182015560408201356002820155606082013560038201556080820135600482015560a082013560058201555050565b50505050565b6104ec61055d565b6001600160a01b0381166105515760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b606482015260840161027f565b61055a816105b7565b50565b6000546001600160a01b031633146104505760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161027f565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60006020828403121561061957600080fd5b5035919050565b803567ffffffffffffffff8116811461063857600080fd5b919050565b60008060006040848603121561065257600080fd5b61065b84610620565b9250602084013567ffffffffffffffff8082111561067857600080fd5b818601915086601f83011261068c57600080fd5b81358181111561069b57600080fd5b8760208285010111156106ad57600080fd5b6020830194508093505050509250925092565b6000602082840312156106d257600080fd5b81356001600160a01b03811681146106e957600080fd5b9392505050565b60008082840360e081121561070457600080fd5b61070d84610620565b925060c0601f198201121561072157600080fd5b506020830190509250929050565b60408152826040820152828460608301376000606084830101526000601f1980601f860116830160206060858303016020860152855180606084015260005b8181101561078a5787810183015184820160800152820161076e565b50600060808285010152608084601f83011684010194505050505094935050505056fea2646970667358221220f1cf592fa16f148c60584b254200a54483c2809be910a3ee9581d0c69de4d9de64736f6c63430008180033",
+      "sourceMap": "219:2419:25:-:0;;;878:119;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;929:32:24;734:10:23;929:18:24;:32::i;:::-;-1:-1:-1;;;;;936:24:25;;;;;;970:8;:20;;-1:-1:-1;;;;;;970:20:25;-1:-1:-1;;;;;970:20:25;;;;;;;;;219:2419;;2419:187:24;2492:16;2511:6;;-1:-1:-1;;;;;2527:17:24;;;-1:-1:-1;;;;;;2527:17:24;;;;;;2559:40;;2511:6;;;;;;;2559:40;;2492:16;2559:40;2482:124;2419:187;:::o;14:463:31:-;92:6;100;153:2;141:9;132:7;128:23;124:32;121:52;;;169:1;166;159:12;121:52;195:16;;-1:-1:-1;;;;;240:30:31;;230:41;;220:69;;285:1;282;275:12;220:69;358:2;343:18;;337:25;308:5;;-1:-1:-1;;;;;;393:33:31;;381:46;;371:74;;441:1;438;431:12;371:74;464:7;454:17;;;14:463;;;;;:::o;:::-;219:2419:25;;;;;;;;;;;;;;;;;",
+      "linkReferences": {}
+  },
+  "deployedBytecode": {
+      "object": "0x608060405234801561001057600080fd5b50600436106100a95760003560e01c8063715018a611610071578063715018a6146101c85780638da5cb5b146101d057806397fc007c146101e15780639d049dda146101f4578063e7047c0414610207578063f2fde38b1461022a57600080fd5b806303c7f4af146100ae5780630b79cdda146100f357806325684280146101655780632b7ac3f31461018857806359ef1120146101b3575b600080fd5b6100d57f000000000000000000000000000000000000000000000000000000000000000081565b60405167ffffffffffffffff90911681526020015b60405180910390f35b610138610101366004610607565b6002602081905260009182526040909120805460018201549282015460038301546004840154600590940154929493919290919086565b604080519687526020870195909552938501929092526060840152608083015260a082015260c0016100ea565b610178610173366004610607565b61023d565b60405190151581526020016100ea565b60015461019b906001600160a01b031681565b6040516001600160a01b0390911681526020016100ea565b6101c66101c136600461063d565b61029e565b005b6101c661043e565b6000546001600160a01b031661019b565b6101c66101ef3660046106c0565b610452565b6101c66102023660046106f0565b61047c565b610178610215366004610607565b60036020526000908152604090205460ff1681565b6101c66102383660046106c0565b6104e4565b60008082116102885760405162461bcd60e51b81526020600482015260126024820152710d2dcecc2d8d2c840c4c2e8c6d092dcc8caf60731b60448201526064015b60405180910390fd5b5060009081526003602052604090205460ff1690565b806102de5760405162461bcd60e51b815260206004820152601060248201526f24b73b30b634b2103d3590383937b7b360811b604482015260640161027f565b67ffffffffffffffff8316600090815260026020818152604080842080546001820154948201546005830154600384015460049094015494516001600160c01b03197f000000000000000000000000000000000000000000000000000000000000000060c01b1696810196909652602886019290925260488501959095526068840194909452608883019390935260a882019290925260c881019190915260e80160408051808303601f19018152828252805160209182012060015491840181905293506001600160a01b03169163b768f1c99186918691016040516020818303038152906040526040518463ffffffff1660e01b81526004016103e49392919061072f565b60006040518083038186803b1580156103fc57600080fd5b505afa158015610410573d6000803e3d6000fd5b50505067ffffffffffffffff9094166000908152600360205260409020805460ff1916600117905550505050565b61044661055d565b61045060006105b7565b565b61045a61055d565b600180546001600160a01b0319166001600160a01b0392909216919091179055565b61048461055d565b67ffffffffffffffff8216600090815260026020526040902081906104de8282813581556020820135600182015560408201356002820155606082013560038201556080820135600482015560a082013560058201555050565b50505050565b6104ec61055d565b6001600160a01b0381166105515760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b606482015260840161027f565b61055a816105b7565b50565b6000546001600160a01b031633146104505760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161027f565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60006020828403121561061957600080fd5b5035919050565b803567ffffffffffffffff8116811461063857600080fd5b919050565b60008060006040848603121561065257600080fd5b61065b84610620565b9250602084013567ffffffffffffffff8082111561067857600080fd5b818601915086601f83011261068c57600080fd5b81358181111561069b57600080fd5b8760208285010111156106ad57600080fd5b6020830194508093505050509250925092565b6000602082840312156106d257600080fd5b81356001600160a01b03811681146106e957600080fd5b9392505050565b60008082840360e081121561070457600080fd5b61070d84610620565b925060c0601f198201121561072157600080fd5b506020830190509250929050565b60408152826040820152828460608301376000606084830101526000601f1980601f860116830160206060858303016020860152855180606084015260005b8181101561078a5787810183015184820160800152820161076e565b50600060808285010152608084601f83011684010194505050505094935050505056fea2646970667358221220f1cf592fa16f148c60584b254200a54483c2809be910a3ee9581d0c69de4d9de64736f6c63430008180033",
+      "sourceMap": "219:2419:25:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;324:37;;;;;;;;188:18:31;176:31;;;158:50;;146:2;131:18;324:37:25;;;;;;;;670:58;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;691:25:31;;;747:2;732:18;;725:34;;;;775:18;;;768:34;;;;833:2;818:18;;811:34;876:3;861:19;;854:35;920:3;905:19;;898:35;678:3;663:19;670:58:25;404:535:31;2458:178:25;;;;;;:::i;:::-;;:::i;:::-;;;1109:14:31;;1102:22;1084:41;;1072:2;1057:18;2458:178:25;944:187:31;414:23:25;;;;;-1:-1:-1;;;;;414:23:25;;;;;;-1:-1:-1;;;;;1300:32:31;;;1282:51;;1270:2;1255:18;414:23:25;1136:203:31;1396:897:25;;;;;;:::i;:::-;;:::i;:::-;;1817:101:24;;;:::i;1194:85::-;1240:7;1266:6;-1:-1:-1;;;;;1266:6:24;1194:85;;2353:99:25;;;;;;:::i;:::-;;:::i;1157:177::-;;;;;;:::i;:::-;;:::i;763:43::-;;;;;;:::i;:::-;;;;;;;;;;;;;;;;2067:198:24;;;;;;:::i;:::-;;:::i;2458:178:25:-;2526:4;2564:1;2550:11;:15;2542:46;;;;-1:-1:-1;;;2542:46:25;;3032:2:31;2542:46:25;;;3014:21:31;3071:2;3051:18;;;3044:30;-1:-1:-1;;;3090:18:31;;;3083:48;3148:18;;2542:46:25;;;;;;;;;-1:-1:-1;2605:24:25;;;;:11;:24;;;;;;;;;2458:178::o;1396:897::-;1521:17;1513:46;;;;-1:-1:-1;;;1513:46:25;;3379:2:31;1513:46:25;;;3361:21:31;3418:2;3398:18;;;3391:30;-1:-1:-1;;;3437:18:31;;;3430:46;3493:18;;1513:46:25;3177:340:31;1513:46:25;1685:33;;;1570:24;1685:33;;;:20;:33;;;;;;;;:47;;1750;;;;1815:48;;;;1881:56;;;;1955:42;;;;2015:51;;;;;1620:460;;-1:-1:-1;;;;;;1654:13:25;3855:3:31;3833:16;3829:51;1620:460:25;;;3817:64:31;;;;3897:11;;;3890:27;;;;3933:12;;;3926:28;;;;3970:12;;;3963:28;;;;4007:13;;;4000:29;;;;4045:13;;;4038:29;;;;4083:13;;;4076:29;;;;4121:13;;1620:460:25;;;;;;-1:-1:-1;;1620:460:25;;;;;;1597:493;;1620:460;1597:493;;;;2140:8;;2200:34;;;4274:19:31;;;1597:493:25;-1:-1:-1;;;;;;2140:8:25;;2128:38;;2180:6;;;;4309:12:31;2200:34:25;;;;;;;;;;;;2128:116;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;2255:24:25;;;;;;;;:11;:24;;;;;:31;;-1:-1:-1;;2255:31:25;2282:4;2255:31;;;-1:-1:-1;;;;1396:897:25:o;1817:101:24:-;1087:13;:11;:13::i;:::-;1881:30:::1;1908:1;1881:18;:30::i;:::-;1817:101::o:0;2353:99:25:-;1087:13:24;:11;:13::i;:::-;2425:8:25::1;:20:::0;;-1:-1:-1;;;;;;2425:20:25::1;-1:-1:-1::0;;;;;2425:20:25;;;::::1;::::0;;;::::1;::::0;;2353:99::o;1157:177::-;1087:13:24;:11;:13::i;:::-;1281:33:25::1;::::0;::::1;;::::0;;;:20:::1;:33;::::0;;;;1317:10;;1281:46:::1;1317:10:::0;1281:33;5384:5:31;5371:19;5365:4;5358:33;5445:2;5438:5;5434:14;5421:28;5417:1;5411:4;5407:12;5400:50;5504:2;5497:5;5493:14;5480:28;5476:1;5470:4;5466:12;5459:50;5563:2;5556:5;5552:14;5539:28;5535:1;5529:4;5525:12;5518:50;5622:3;5615:5;5611:15;5598:29;5594:1;5588:4;5584:12;5577:51;5682:3;5675:5;5671:15;5658:29;5654:1;5648:4;5644:12;5637:51;;;5213:481;1281:46:25::1;-1:-1:-1::0;;;;1157:177:25:o;2067:198:24:-;1087:13;:11;:13::i;:::-;-1:-1:-1;;;;;2155:22:24;::::1;2147:73;;;::::0;-1:-1:-1;;;2147:73:24;;5901:2:31;2147:73:24::1;::::0;::::1;5883:21:31::0;5940:2;5920:18;;;5913:30;5979:34;5959:18;;;5952:62;-1:-1:-1;;;6030:18:31;;;6023:36;6076:19;;2147:73:24::1;5699:402:31::0;2147:73:24::1;2230:28;2249:8;2230:18;:28::i;:::-;2067:198:::0;:::o;1352:130::-;1240:7;1266:6;-1:-1:-1;;;;;1266:6:24;734:10:23;1415:23:24;1407:68;;;;-1:-1:-1;;;1407:68:24;;6308:2:31;1407:68:24;;;6290:21:31;;;6327:18;;;6320:30;6386:34;6366:18;;;6359:62;6438:18;;1407:68:24;6106:356:31;2419:187:24;2492:16;2511:6;;-1:-1:-1;;;;;2527:17:24;;;-1:-1:-1;;;;;;2527:17:24;;;;;;2559:40;;2511:6;;;;;;;2559:40;;2492:16;2559:40;2482:124;2419:187;:::o;219:180:31:-;278:6;331:2;319:9;310:7;306:23;302:32;299:52;;;347:1;344;337:12;299:52;-1:-1:-1;370:23:31;;219:180;-1:-1:-1;219:180:31:o;1344:171::-;1411:20;;1471:18;1460:30;;1450:41;;1440:69;;1505:1;1502;1495:12;1440:69;1344:171;;;:::o;1520:663::-;1598:6;1606;1614;1667:2;1655:9;1646:7;1642:23;1638:32;1635:52;;;1683:1;1680;1673:12;1635:52;1706:28;1724:9;1706:28;:::i;:::-;1696:38;;1785:2;1774:9;1770:18;1757:32;1808:18;1849:2;1841:6;1838:14;1835:34;;;1865:1;1862;1855:12;1835:34;1903:6;1892:9;1888:22;1878:32;;1948:7;1941:4;1937:2;1933:13;1929:27;1919:55;;1970:1;1967;1960:12;1919:55;2010:2;1997:16;2036:2;2028:6;2025:14;2022:34;;;2052:1;2049;2042:12;2022:34;2097:7;2092:2;2083:6;2079:2;2075:15;2071:24;2068:37;2065:57;;;2118:1;2115;2108:12;2065:57;2149:2;2145;2141:11;2131:21;;2171:6;2161:16;;;;;1520:663;;;;;:::o;2188:286::-;2247:6;2300:2;2288:9;2279:7;2275:23;2271:32;2268:52;;;2316:1;2313;2306:12;2268:52;2342:23;;-1:-1:-1;;;;;2394:31:31;;2384:42;;2374:70;;2440:1;2437;2430:12;2374:70;2463:5;2188:286;-1:-1:-1;;;2188:286:31:o;2479:346::-;2577:6;2585;2629:9;2620:7;2616:23;2659:3;2655:2;2651:12;2648:32;;;2676:1;2673;2666:12;2648:32;2699:28;2717:9;2699:28;:::i;:::-;2689:38;-1:-1:-1;2761:3:31;-1:-1:-1;;2743:16:31;;2739:26;2736:46;;;2778:1;2775;2768:12;2736:46;;2816:2;2805:9;2801:18;2791:28;;2479:346;;;;;:::o;4332:876::-;4535:2;4524:9;4517:21;4574:6;4569:2;4558:9;4554:18;4547:34;4631:6;4623;4618:2;4607:9;4603:18;4590:48;4687:1;4682:2;4673:6;4662:9;4658:22;4654:31;4647:42;4498:4;4712:2;4708:7;4770:2;4765;4757:6;4753:15;4749:24;4738:9;4734:40;4793:4;4859:2;4847:9;4843:2;4839:18;4835:27;4828:4;4817:9;4813:20;4806:57;4892:6;4886:13;4928:6;4923:2;4919;4915:11;4908:27;4953:1;4963:134;4977:6;4974:1;4971:13;4963:134;;;5066:14;;;5062:23;;5056:30;5038:10;;;5050:3;5034:20;5027:60;4992:10;;4963:134;;;4967:3;5140:1;5134:3;5125:6;5121:2;5117:15;5113:25;5106:36;5198:3;5192:2;5187;5179:6;5175:15;5171:24;5167:2;5163:33;5159:43;5151:51;;;;;;4332:876;;;;;;:::o",
+      "linkReferences": {},
+      "immutableReferences": {
+          "40031": [
+              {
+                  "start": 179,
+                  "length": 32
+              },
+              {
+                  "start": 802,
+                  "length": 32
+              }
+          ]
+      }
+  },
+  "methodIdentifiers": {
+      "commitBatch(uint64,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))": "9d049dda",
+      "committedBatchStores(uint256)": "0b79cdda",
+      "isProveSuccess(uint256)": "25684280",
+      "layer2ChainId()": "03c7f4af",
+      "owner()": "8da5cb5b",
+      "proveState(uint64,bytes)": "59ef1120",
+      "proveStatus(uint256)": "e7047c04",
+      "renounceOwnership()": "715018a6",
+      "transferOwnership(address)": "f2fde38b",
+      "updateVerifier(address)": "97fc007c",
+      "verifier()": "2b7ac3f3"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_chainId\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"_verifier\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_batchIndex\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"prevStateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"postStateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"withdrawalRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"blobVersionedHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"sequencerSetVerifyHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct ShadowRollup.BatchStore\",\"name\":\"_batchData\",\"type\":\"tuple\"}],\"name\":\"commitBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"committedBatchStores\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"prevStateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"postStateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"withdrawalRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"blobVersionedHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"sequencerSetVerifyHash\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_batchIndex\",\"type\":\"uint256\"}],\"name\":\"isProveSuccess\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"layer2ChainId\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_batchIndex\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"_proof\",\"type\":\"bytes\"}],\"name\":\"proveState\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"proveStatus\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_verifier\",\"type\":\"address\"}],\"name\":\"updateVerifier\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"verifier\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"commitBatch(uint64,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))\":{\"params\":{\"_batchData\":\"The batch data\",\"_batchIndex\":\"The index of batch\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"title\":\"ShadowRollup\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"commitBatch(uint64,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))\":{\"notice\":\"Commit a batch of transactions on layer 1.\"},\"layer2ChainId()\":{\"notice\":\"The chain id of the corresponding layer 2 chain.\"},\"updateVerifier(address)\":{\"notice\":\"Update the address verifier contract.\"},\"verifier()\":{\"notice\":\"The address of zkvm verifier.\"}},\"notice\":\"This contract maintains data for shadow rollup.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/ShadowRollup.sol\":\"ShadowRollup\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":forge-std/=lib/forge-std/src/\"]},\"sources\":{\"src/Context.sol\":{\"keccak256\":\"0xa92e4fa126feb6907daa0513ddd816b2eb91f30a808de54f63c17d0e162c3439\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://a367861093b74443b137564d3f3c472f70bcf114739e62059c939f25e315706c\",\"dweb:/ipfs/Qmd7JMpcxD9RuQjK3uM3EzJUgSqdN8vzp8eytEiuwxQJ6h\"]},\"src/Ownable.sol\":{\"keccak256\":\"0x7c03cdb0bdf0104db4f87451fc7dd8fb4f94f06dbf176dfc06fd616c1b5937e8\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://cb707ccdda3e4c3a868bf01293d4c77729a2b0253d5bde0d9bcfea3b940adf7a\",\"dweb:/ipfs/QmT7w8g3fZNY3uQKrPbm1uyLm1Md7kWsQB9QudgCWEBjaB\"]},\"src/ShadowRollup.sol\":{\"keccak256\":\"0x7f2b4137ac3d0247c894349f6a3c43397a85e4fc46a52d527ef423f6952ffda9\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://1a6e967d36f0f7b0a4c61c441314f19486f8f1288c2f61d1e2aa113001f8647a\",\"dweb:/ipfs/QmY2pZQAKL2QRDW746pmbvHegfLkYtbiShpXcqWNvXKARd\"]},\"src/libs/EvmVerifier.sol\":{\"keccak256\":\"0x3dec49b04a203d4e6a883cbc4102f34258177cebea53f01db262d3311aa19ecb\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9c5cec511c6683e92aef789739b66535f07b19e542eb976e6b4efb6ef6c22ee2\",\"dweb:/ipfs/QmPwWSkBDNQrANnJp2zAMFbHg98MRAsvQZKwxBA7b5gGDR\"]},\"src/libs/ISP1Verifier.sol\":{\"keccak256\":\"0xa2b12c98dab270cd8cf31437ed098fac584f46402c4a8a6abc4916762cf2f25a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://afaf82202de8cfa5931655d64736cb60f3fe4ea7e8de3f7783c8b7b5f64279a0\",\"dweb:/ipfs/QmSd2jcaJ3EZFLZyomhsDZVZqCeQaWWAwi5EUsE4fznB7d\"]},\"src/libs/PlonkVerifier.sol\":{\"keccak256\":\"0xd48c175491e3e69523ab78edce43662c44e6b3149b6aaca8689b5f11f1dbc7e4\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://d487e6c4270fd354d76217e50d979379cb3a19c31415a6af9fac63e8de06ef7e\",\"dweb:/ipfs/Qmcrr1pkQc6aoUGoX5sKoeQeXUH9b1T1p2Xyd3ZJUot4iX\"]},\"src/libs/SP1VerifierPlonk.sol\":{\"keccak256\":\"0xce6301ea7c14ca3756bb845316e4e25267ce3004f330f0b47e4ac07a39a0ab76\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://15cc4090f17e9d37478c4b49367d0b6fa466a3169c5431fc0aff76ba0a5f86f3\",\"dweb:/ipfs/QmWH1z6p2yeExs9yVA2p1b9X4WjFy3R9KJHKNghn7rmsWp\"]}},\"version\":1}",
+  "metadata": {
+      "compiler": {
+          "version": "0.8.24+commit.e11b9ed9"
+      },
+      "language": "Solidity",
+      "output": {
+          "abi": [
+              {
+                  "inputs": [
+                      {
+                          "internalType": "uint64",
+                          "name": "_chainId",
+                          "type": "uint64"
+                      },
+                      {
+                          "internalType": "address",
+                          "name": "_verifier",
+                          "type": "address"
+                      }
+                  ],
+                  "stateMutability": "nonpayable",
+                  "type": "constructor"
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "address",
+                          "name": "previousOwner",
+                          "type": "address",
+                          "indexed": true
+                      },
+                      {
+                          "internalType": "address",
+                          "name": "newOwner",
+                          "type": "address",
+                          "indexed": true
+                      }
+                  ],
+                  "type": "event",
+                  "name": "OwnershipTransferred",
+                  "anonymous": false
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "uint64",
+                          "name": "_batchIndex",
+                          "type": "uint64"
+                      },
+                      {
+                          "internalType": "struct ShadowRollup.BatchStore",
+                          "name": "_batchData",
+                          "type": "tuple",
+                          "components": [
+                              {
+                                  "internalType": "bytes32",
+                                  "name": "prevStateRoot",
+                                  "type": "bytes32"
+                              },
+                              {
+                                  "internalType": "bytes32",
+                                  "name": "postStateRoot",
+                                  "type": "bytes32"
+                              },
+                              {
+                                  "internalType": "bytes32",
+                                  "name": "withdrawalRoot",
+                                  "type": "bytes32"
+                              },
+                              {
+                                  "internalType": "bytes32",
+                                  "name": "dataHash",
+                                  "type": "bytes32"
+                              },
+                              {
+                                  "internalType": "bytes32",
+                                  "name": "blobVersionedHash",
+                                  "type": "bytes32"
+                              },
+                              {
+                                  "internalType": "bytes32",
+                                  "name": "sequencerSetVerifyHash",
+                                  "type": "bytes32"
+                              }
+                          ]
+                      }
+                  ],
+                  "stateMutability": "nonpayable",
+                  "type": "function",
+                  "name": "commitBatch"
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "uint256",
+                          "name": "",
+                          "type": "uint256"
+                      }
+                  ],
+                  "stateMutability": "view",
+                  "type": "function",
+                  "name": "committedBatchStores",
+                  "outputs": [
+                      {
+                          "internalType": "bytes32",
+                          "name": "prevStateRoot",
+                          "type": "bytes32"
+                      },
+                      {
+                          "internalType": "bytes32",
+                          "name": "postStateRoot",
+                          "type": "bytes32"
+                      },
+                      {
+                          "internalType": "bytes32",
+                          "name": "withdrawalRoot",
+                          "type": "bytes32"
+                      },
+                      {
+                          "internalType": "bytes32",
+                          "name": "dataHash",
+                          "type": "bytes32"
+                      },
+                      {
+                          "internalType": "bytes32",
+                          "name": "blobVersionedHash",
+                          "type": "bytes32"
+                      },
+                      {
+                          "internalType": "bytes32",
+                          "name": "sequencerSetVerifyHash",
+                          "type": "bytes32"
+                      }
+                  ]
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "uint256",
+                          "name": "_batchIndex",
+                          "type": "uint256"
+                      }
+                  ],
+                  "stateMutability": "view",
+                  "type": "function",
+                  "name": "isProveSuccess",
+                  "outputs": [
+                      {
+                          "internalType": "bool",
+                          "name": "",
+                          "type": "bool"
+                      }
+                  ]
+              },
+              {
+                  "inputs": [],
+                  "stateMutability": "view",
+                  "type": "function",
+                  "name": "layer2ChainId",
+                  "outputs": [
+                      {
+                          "internalType": "uint64",
+                          "name": "",
+                          "type": "uint64"
+                      }
+                  ]
+              },
+              {
+                  "inputs": [],
+                  "stateMutability": "view",
+                  "type": "function",
+                  "name": "owner",
+                  "outputs": [
+                      {
+                          "internalType": "address",
+                          "name": "",
+                          "type": "address"
+                      }
+                  ]
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "uint64",
+                          "name": "_batchIndex",
+                          "type": "uint64"
+                      },
+                      {
+                          "internalType": "bytes",
+                          "name": "_proof",
+                          "type": "bytes"
+                      }
+                  ],
+                  "stateMutability": "nonpayable",
+                  "type": "function",
+                  "name": "proveState"
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "uint256",
+                          "name": "",
+                          "type": "uint256"
+                      }
+                  ],
+                  "stateMutability": "view",
+                  "type": "function",
+                  "name": "proveStatus",
+                  "outputs": [
+                      {
+                          "internalType": "bool",
+                          "name": "",
+                          "type": "bool"
+                      }
+                  ]
+              },
+              {
+                  "inputs": [],
+                  "stateMutability": "nonpayable",
+                  "type": "function",
+                  "name": "renounceOwnership"
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "address",
+                          "name": "newOwner",
+                          "type": "address"
+                      }
+                  ],
+                  "stateMutability": "nonpayable",
+                  "type": "function",
+                  "name": "transferOwnership"
+              },
+              {
+                  "inputs": [
+                      {
+                          "internalType": "address",
+                          "name": "_verifier",
+                          "type": "address"
+                      }
+                  ],
+                  "stateMutability": "nonpayable",
+                  "type": "function",
+                  "name": "updateVerifier"
+              },
+              {
+                  "inputs": [],
+                  "stateMutability": "view",
+                  "type": "function",
+                  "name": "verifier",
+                  "outputs": [
+                      {
+                          "internalType": "address",
+                          "name": "",
+                          "type": "address"
+                      }
+                  ]
+              }
+          ],
+          "devdoc": {
+              "kind": "dev",
+              "methods": {
+                  "commitBatch(uint64,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))": {
+                      "params": {
+                          "_batchData": "The batch data",
+                          "_batchIndex": "The index of batch"
+                      }
+                  },
+                  "owner()": {
+                      "details": "Returns the address of the current owner."
+                  },
+                  "renounceOwnership()": {
+                      "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
+                  },
+                  "transferOwnership(address)": {
+                      "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+                  }
+              },
+              "version": 1
+          },
+          "userdoc": {
+              "kind": "user",
+              "methods": {
+                  "commitBatch(uint64,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))": {
+                      "notice": "Commit a batch of transactions on layer 1."
+                  },
+                  "layer2ChainId()": {
+                      "notice": "The chain id of the corresponding layer 2 chain."
+                  },
+                  "updateVerifier(address)": {
+                      "notice": "Update the address verifier contract."
+                  },
+                  "verifier()": {
+                      "notice": "The address of zkvm verifier."
+                  }
+              },
+              "version": 1
+          }
+      },
+      "settings": {
+          "remappings": [
+              "forge-std/=lib/forge-std/src/"
+          ],
+          "optimizer": {
+              "enabled": true,
+              "runs": 200
+          },
+          "metadata": {
+              "bytecodeHash": "ipfs"
+          },
+          "compilationTarget": {
+              "src/ShadowRollup.sol": "ShadowRollup"
+          },
+          "evmVersion": "paris",
+          "libraries": {}
+      },
+      "sources": {
+          "src/Context.sol": {
+              "keccak256": "0xa92e4fa126feb6907daa0513ddd816b2eb91f30a808de54f63c17d0e162c3439",
+              "urls": [
+                  "bzz-raw://a367861093b74443b137564d3f3c472f70bcf114739e62059c939f25e315706c",
+                  "dweb:/ipfs/Qmd7JMpcxD9RuQjK3uM3EzJUgSqdN8vzp8eytEiuwxQJ6h"
+              ],
+              "license": "MIT"
+          },
+          "src/Ownable.sol": {
+              "keccak256": "0x7c03cdb0bdf0104db4f87451fc7dd8fb4f94f06dbf176dfc06fd616c1b5937e8",
+              "urls": [
+                  "bzz-raw://cb707ccdda3e4c3a868bf01293d4c77729a2b0253d5bde0d9bcfea3b940adf7a",
+                  "dweb:/ipfs/QmT7w8g3fZNY3uQKrPbm1uyLm1Md7kWsQB9QudgCWEBjaB"
+              ],
+              "license": "MIT"
+          },
+          "src/ShadowRollup.sol": {
+              "keccak256": "0x7f2b4137ac3d0247c894349f6a3c43397a85e4fc46a52d527ef423f6952ffda9",
+              "urls": [
+                  "bzz-raw://1a6e967d36f0f7b0a4c61c441314f19486f8f1288c2f61d1e2aa113001f8647a",
+                  "dweb:/ipfs/QmY2pZQAKL2QRDW746pmbvHegfLkYtbiShpXcqWNvXKARd"
+              ],
+              "license": "MIT"
+          },
+          "src/libs/EvmVerifier.sol": {
+              "keccak256": "0x3dec49b04a203d4e6a883cbc4102f34258177cebea53f01db262d3311aa19ecb",
+              "urls": [
+                  "bzz-raw://9c5cec511c6683e92aef789739b66535f07b19e542eb976e6b4efb6ef6c22ee2",
+                  "dweb:/ipfs/QmPwWSkBDNQrANnJp2zAMFbHg98MRAsvQZKwxBA7b5gGDR"
+              ],
+              "license": "MIT"
+          },
+          "src/libs/ISP1Verifier.sol": {
+              "keccak256": "0xa2b12c98dab270cd8cf31437ed098fac584f46402c4a8a6abc4916762cf2f25a",
+              "urls": [
+                  "bzz-raw://afaf82202de8cfa5931655d64736cb60f3fe4ea7e8de3f7783c8b7b5f64279a0",
+                  "dweb:/ipfs/QmSd2jcaJ3EZFLZyomhsDZVZqCeQaWWAwi5EUsE4fznB7d"
+              ],
+              "license": "MIT"
+          },
+          "src/libs/PlonkVerifier.sol": {
+              "keccak256": "0xd48c175491e3e69523ab78edce43662c44e6b3149b6aaca8689b5f11f1dbc7e4",
+              "urls": [
+                  "bzz-raw://d487e6c4270fd354d76217e50d979379cb3a19c31415a6af9fac63e8de06ef7e",
+                  "dweb:/ipfs/Qmcrr1pkQc6aoUGoX5sKoeQeXUH9b1T1p2Xyd3ZJUot4iX"
+              ],
+              "license": "Apache-2.0"
+          },
+          "src/libs/SP1VerifierPlonk.sol": {
+              "keccak256": "0xce6301ea7c14ca3756bb845316e4e25267ce3004f330f0b47e4ac07a39a0ab76",
+              "urls": [
+                  "bzz-raw://15cc4090f17e9d37478c4b49367d0b6fa466a3169c5431fc0aff76ba0a5f86f3",
+                  "dweb:/ipfs/QmWH1z6p2yeExs9yVA2p1b9X4WjFy3R9KJHKNghn7rmsWp"
+              ],
+              "license": "MIT"
+          }
+      },
+      "version": 1
+  },
+  "id": 25
+}

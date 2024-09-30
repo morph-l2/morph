@@ -123,9 +123,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                     multisig,
                     VOTING_DURATION, // _votingDuration
                     0, // _batchBlockInterval
-                    0, // _batchMaxBytes
                     finalizationPeriodSeconds, // _batchTimeout
-                    MAX_CHUNKS, // maxChunks
                     ROLLUP_EPOCH // rollupEpoch
                 )
             )

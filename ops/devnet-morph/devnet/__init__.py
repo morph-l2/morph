@@ -22,7 +22,6 @@ parser = argparse.ArgumentParser(description='devnet launcher')
 parser.add_argument('--polyrepo-dir', help='Directory of the polyrepo', default=os.getcwd())
 parser.add_argument('--only-l1', help='Only bootstrap l1 geth', action="store_true")
 # parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
-parser.add_argument('--mockccc', help='Whether the use mockccc way to build sequencer geth', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
 log = logging.getLogger()
@@ -201,12 +200,6 @@ def devnet_deploy(paths, args):
                      '--private-key', deploy_config['l2StakingPks'][i]
                      ])
 
-    build_geth_target = 'l2-geth'
-    if platform.system().lower() != 'darwin':
-        build_geth_target = 'l2-geth-x86'
-    if args.mockccc:
-        build_geth_target = 'l2-geth-mockccc'
-
     rust_log_level = 'info'
     if args.debugccc:
         rust_log_level = 'debug'
@@ -223,7 +216,6 @@ def devnet_deploy(paths, args):
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
         env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueueWithGasPriceOracle']
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
-        env_data['BUILD_GETH'] = build_geth_target
         env_data['RUST_LOG'] = rust_log_level
         env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
         envfile.seek(0)
@@ -248,7 +240,6 @@ def devnet_deploy(paths, args):
                     'GENESIS_FILE_PATH': '/genesis.json',
                     'L1_ETH_RPC': 'http://l1:8545',
                     'L1_BEACON_CHAIN_RPC': 'http://beacon-chain:3500',
-                    'BUILD_GETH': build_geth_target,  
                 })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')

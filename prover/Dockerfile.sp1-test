@@ -1,0 +1,12 @@
+FROM sp1-base:latest
+
+RUN cargo prove --version
+
+COPY . /app
+WORKDIR /app
+RUN cd tests/algebra/client && cargo prove build
+
+RUN cd tests/algebra/host && RUST_LOG=info cargo build --release
+RUN cp target/release/algebra-host ./
+
+CMD ["./algebra-host"]

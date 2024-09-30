@@ -81,37 +81,38 @@ pub(super) fn extract_tx_payload(
     Ok(tx_payload)
 }
 
-pub(super) fn extract_txn_num(chunks: Vec<Bytes>) -> Option<u64> {
-    if chunks.is_empty() {
+pub fn extract_txn_num(block_contexts: Bytes) -> Option<u64> {
+    if block_contexts.is_empty() || block_contexts.len() < 2 {
         return None;
     }
 
-    let mut txn_in_batch = 0;
-    let mut l1_txn_in_batch = 0;
-    for chunk in chunks.iter() {
-        let mut chunk_bn: Vec<u64> = vec![];
-        let bs: &[u8] = chunk;
-        // decode blockcontext from chunk
-        // |   1 byte   | 60 bytes | ... | 60 bytes |
-        // | num blocks |  block 1 | ... |  block n |
-        let num_blocks = U256::from_big_endian(bs.get(..1)?);
-        for i in 0..num_blocks.as_usize() {
-            let block_num = U256::from_big_endian(bs.get((60.mul(i) + 1)..(60.mul(i) + 1 + 8))?);
-            let txs_num =
-                U256::from_big_endian(bs.get((60.mul(i) + 1 + 56)..(60.mul(i) + 1 + 58))?);
-            let l1_txs_num =
-                U256::from_big_endian(bs.get((60.mul(i) + 1 + 58)..(60.mul(i) + 1 + 60))?);
-            txn_in_batch += txs_num.as_u32();
-            l1_txn_in_batch += l1_txs_num.as_u32();
-            chunk_bn.push(block_num.as_u64());
-        }
+    let mut txn_in_batch = 0u64;
+    let mut l1_txn_in_batch = 0u64;
+    let bs: &[u8] = &block_contexts;
+
+    // decode blocks from batch
+    // |   2 byte   | 60 bytes | ... | 60 bytes |
+    // | num blocks |  block 1 | ... |  block n |
+    // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
+    let num_blocks: u16 = ((bs[0] as u16) << 8) | (bs[1] as u16);
+
+    for i in 0..num_blocks as usize {
+        let txs_num = u16::from_be_bytes(
+            bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().ok()?,
+        );
+        let l1_txs_num = u16::from_be_bytes(
+            bs.get((60.mul(i) + 2 + 58)..(60.mul(i) + 2 + 60))?.try_into().ok()?,
+        );
+        txn_in_batch += txs_num as u64;
+        l1_txn_in_batch += l1_txs_num as u64;
     }
+
     log::debug!("total_txn_in_batch: {:#?}, l1_txn_in_batch: {:#?}", txn_in_batch, l1_txn_in_batch);
     if txn_in_batch < l1_txn_in_batch {
         log::error!("total_txn_in_batch < l1_txn_in_batch");
         return None;
     }
-    Some((txn_in_batch - l1_txn_in_batch) as u64)
+    Some(txn_in_batch - l1_txn_in_batch)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
