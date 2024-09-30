@@ -24,13 +24,30 @@ pub struct BatchInfo {
 }
 
 impl BatchInfo {
+    /// Cacl data_hash
+    pub fn batch_data_hash<T: Block>(traces_vec: &[Vec<T>]) -> B256 {
+        let mut data_hasher = Keccak::v256();
+        for traces in traces_vec.iter() {
+            for trace in traces.iter() {
+                trace.hash_da_header(&mut data_hasher);
+            }
+        }
+
+        for traces in traces_vec.iter() {
+            for trace in traces.iter() {
+                trace.hash_l1_msg(&mut data_hasher);
+            }
+        }
+
+        let mut data_hash = B256::ZERO;
+        data_hasher.finalize(&mut data_hash.0);
+        data_hash
+    }
+
     /// Construct by block traces
     pub fn from_block_traces<T: Block>(traces: &[T]) -> (Self, Rc<ZkMemoryDb>) {
         let chain_id = traces.first().unwrap().chain_id();
-        let prev_state_root = traces
-            .first()
-            .expect("at least 1 block needed")
-            .root_before();
+        let prev_state_root = traces.first().expect("at least 1 block needed").root_before();
         let post_state_root = traces.last().expect("at least 1 block needed").root_after();
 
         let mut data_hasher = Keccak::v256();
@@ -78,7 +95,7 @@ impl BatchInfo {
         let mut hasher = Keccak::v256();
 
         hasher.update(&self.chain_id.to_be_bytes());
-        hasher.update(self.prev_state_root.as_slice());
+        hasher.update(self.prev_state_root.as_ref());
         hasher.update(self.post_state_root.as_slice());
         hasher.update(self.withdraw_root.unwrap().as_slice());
         hasher.update(self.sequencer_root.unwrap().as_slice());
@@ -143,9 +160,7 @@ mod tests {
             pub struct BlockTraceJsonRpcResult {
                 pub result: BlockTrace,
             }
-            serde_json::from_str::<BlockTraceJsonRpcResult>(s)
-                .unwrap()
-                .result
+            serde_json::from_str::<BlockTraceJsonRpcResult>(s).unwrap().result
         });
 
         let fork_config = HardforkConfig::default_from_chain_id(traces[0].chain_id());

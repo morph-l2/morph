@@ -1,7 +1,7 @@
 use std::{fs::File, io::BufReader};
 
 use clap::Parser;
-use morph_prove::prove;
+use morph_prove::shard::prove;
 use sbv_primitives::types::BlockTrace;
 
 /// The arguments for the command.
@@ -19,7 +19,7 @@ fn main() {
     let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace(&args.block_path);
     let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
 
-    let _ = prove(block_traces, args.prove);
+    prove(block_traces, args.prove);
 }
 
 fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
