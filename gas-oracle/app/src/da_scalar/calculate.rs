@@ -82,7 +82,7 @@ pub(super) fn extract_tx_payload(
 }
 
 pub fn extract_txn_num(block_contexts: Bytes) -> Option<u64> {
-    if block_contexts.is_empty() {
+    if block_contexts.is_empty() || block_contexts.len() < 2 {
         return None;
     }
 
