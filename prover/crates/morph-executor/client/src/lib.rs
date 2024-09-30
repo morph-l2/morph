@@ -1,6 +1,6 @@
 pub mod types;
 mod verifier;
-use alloy::primitives::FixedBytes;
+use alloy::{hex, primitives::FixedBytes};
 use sbv_core::BatchInfo;
 use sbv_primitives::{TxTrace, B256};
 use sbv_utils::dev_info;
@@ -106,6 +106,16 @@ pub fn verify_agg(agg_input: AggregationInput) -> Result<B256, anyhow::Error> {
 
     // public_values
     let batch_data_hash = BatchInfo::batch_data_hash(&agg_input.l2_traces);
+    println!(
+        "cacl pi hash, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
+        dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
+        hex::encode(agg_input.shard_infos[0].prev_state_root.as_slice()),
+        hex::encode(agg_input.shard_infos.last().unwrap().post_state_root.as_slice()),
+        hex::encode(agg_input.shard_infos.last().unwrap().withdraw_root.as_slice()),
+        hex::encode(batch_data_hash.as_slice()),
+        hex::encode(versioned_hash.as_slice()),
+        hex::encode(agg_input.shard_infos.last().unwrap().sequencer_root.as_slice()),
+    );
     let public_input_hash = pi_hash(agg_input, batch_data_hash, versioned_hash);
     dev_info!("public input hash: {:?}", public_input_hash);
     Ok(public_input_hash)
@@ -117,8 +127,8 @@ fn pi_hash(
     versioned_hash: FixedBytes<32>,
 ) -> FixedBytes<32> {
     let mut hasher = Keccak::v256();
-    hasher.update(agg_input.shard_infos[0].chain_id.to_be_bytes().as_ref());
-    hasher.update(agg_input.shard_infos[0].prev_state_root.as_ref());
+    hasher.update(agg_input.shard_infos[0].chain_id.to_be_bytes().as_slice());
+    hasher.update(agg_input.shard_infos[0].prev_state_root.as_slice());
     hasher.update(agg_input.shard_infos.last().unwrap().post_state_root.as_slice());
     hasher.update(agg_input.shard_infos.last().unwrap().withdraw_root.as_slice());
     hasher.update(agg_input.shard_infos.last().unwrap().sequencer_root.as_slice());
