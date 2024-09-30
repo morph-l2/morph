@@ -13,7 +13,8 @@ contracts/yarn.lock
 */build
 
 build/bin
-
+cache
+out
 ops/l2-genesis/.devnet
 ops/l2-genesis/.qanet
 ops/l2-genesis/.testnet

@@ -18,6 +18,9 @@ pgo-data.profdata
 # Env
 .env
 
-contracts
-
 Dockerfile.test
+
+shadow-proving
+contracts/cache
+out
+lib
