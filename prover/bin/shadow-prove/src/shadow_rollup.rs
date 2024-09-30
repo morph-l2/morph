@@ -171,18 +171,17 @@ where
     }
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
 
-    let batch_header = {
-        let tx_hash = match logs.last() {
-            Some(log) => log.transaction_hash.unwrap_or_default(),
+    // A rollup commit_batch_input contains prev batch_header.
+    let next_tx_hash = match logs.last() {
+        Some(log) => log.transaction_hash.unwrap_or_default(),
 
-            None => {
-                return Err("find commit_batch log error".to_string());
-            }
-        };
-        batch_header_inspect(l1_provider, tx_hash)
-            .await
-            .ok_or_else(|| "Failed to inspect batch header".to_string())?
+        None => {
+            return Err("find commit_batch log error".to_string());
+        }
     };
+    let batch_header = batch_header_inspect(l1_provider, next_tx_hash)
+        .await
+        .ok_or_else(|| "Failed to inspect batch header".to_string())?;
 
     let (batch_index, tx_hash) = match logs.get(logs.len() - 2) {
         Some(log) => {
@@ -402,4 +401,65 @@ async fn test_sync_batch() {
         l1_signer,
     );
     bs.sync_batch().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_inspect_batch_header() {
+    use alloy::{primitives::B256, providers::ProviderBuilder};
+    use std::str::FromStr;
+
+    let provider: RootProvider<Http<Client>> = ProviderBuilder::new().on_http(
+        "https://eth-holesky.g.alchemy.com/v2/xxxxxxx".parse().expect("parse l1_rpc to Url"),
+    );
+    let next_tx_hash =
+        B256::from_str("0x2bdfb2bd0b8c9210bfb593cc5734e3f092fcdd54fe74c46a938448b0422089f7")
+            .unwrap();
+    let batch_header = batch_header_inspect(&provider, next_tx_hash)
+        .await
+        .ok_or_else(|| "Failed to inspect batch header".to_string())
+        .unwrap();
+
+    let batch_store = ShadowRollup::BatchStore {
+        prevStateRoot: batch_header.get(89..121).unwrap_or_default().try_into().unwrap_or_default(),
+        postStateRoot: batch_header
+            .get(121..153)
+            .unwrap_or_default()
+            .try_into()
+            .unwrap_or_default(),
+        withdrawalRoot: batch_header
+            .get(153..185)
+            .unwrap_or_default()
+            .try_into()
+            .unwrap_or_default(),
+        dataHash: batch_header.get(25..57).unwrap_or_default().try_into().unwrap_or_default(),
+        blobVersionedHash: batch_header
+            .get(57..89)
+            .unwrap_or_default()
+            .try_into()
+            .unwrap_or_default(),
+        sequencerSetVerifyHash: batch_header
+            .get(185..217)
+            .unwrap_or_default()
+            .try_into()
+            .unwrap_or_default(),
+    };
+
+    println!(
+        "sync batch of {:?}, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
+            dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
+        "batch_info.batch_index",
+        hex::encode(batch_store.prevStateRoot.as_slice()),
+        hex::encode(batch_store.postStateRoot.as_slice()),
+        hex::encode(batch_store.withdrawalRoot.as_slice()),
+        hex::encode(batch_store.dataHash.as_slice()),
+        hex::encode(batch_store.blobVersionedHash.as_slice()),
+        hex::encode(batch_store.sequencerSetVerifyHash.as_slice()),
+    );
+    // prevStateRoot =
+    // "13a862a764f09e1300ad485fadcc130741d400e8d5be3dbb968901e6590e25ca", postStateRoot =
+    // "20a6aa14638839f76d2b233499439e45cd315434f9628902793c421ec71fcb0c", withdrawalRoot =
+    // "eda0cccc67b86712eea4536d186be3d412b86c4c56741d641d1bbfdd26b5d40b",         dataHash =
+    // "89a1c4692d97c7a4a516b35bc46963da3425af5273cb5a7b8ee2cdcf41c6fa65", blobVersionedHash =
+    // "013f8fabf23fba03c52572d3403d175d952937cdd78bb8e9e06eb6ffa751fd2a", sequencerSetVerifyHash =
+    // "60f10881edf25485d6d9db1c3a634c002bf4da64cce0f9a0f528e00f1ead3dec"
 }
