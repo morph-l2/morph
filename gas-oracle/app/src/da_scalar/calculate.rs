@@ -98,10 +98,10 @@ pub fn extract_txn_num(block_contexts: Bytes) -> Option<u64> {
 
     for i in 0..num_blocks as usize {
         let txs_num = u16::from_be_bytes(
-            bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().unwrap(),
+            bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().ok()?,
         );
         let l1_txs_num = u16::from_be_bytes(
-            bs.get((60.mul(i) + 2 + 58)..(60.mul(i) + 2 + 60))?.try_into().unwrap(),
+            bs.get((60.mul(i) + 2 + 58)..(60.mul(i) + 2 + 60))?.try_into().ok()?,
         );
         txn_in_batch += txs_num as u64;
         l1_txn_in_batch += l1_txs_num as u64;
