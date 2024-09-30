@@ -196,7 +196,6 @@ where
             log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
             continue;
         }
-        log::info!("proof_data {:#?}", prove_result.proof_data);
 
         log::info!(">Starting prove state onchain, batch index = {:#?}", batch_index);
         let aggr_proof = Bytes::from(prove_result.proof_data);

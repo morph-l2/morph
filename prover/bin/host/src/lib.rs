@@ -123,18 +123,16 @@ mod tests {
         println!("blob_bytes len: {:?}", blob_bytes.len());
 
         let origin_batch = get_origin_batch(&blob_bytes).unwrap();
+        println!("origin_batch len: {:?}", origin_batch.len());
 
-        let origin_tx_bytes = decode_raw_tx_payload(origin_batch);
-        println!("origin_tx_bytes len: {:?}", origin_tx_bytes.len());
-
-        let tx_list: Vec<TypedTransaction> = decode_transactions(origin_tx_bytes.as_slice());
+        let tx_list: Vec<TypedTransaction> = decode_transactions(origin_batch.as_slice());
         println!("decoded tx_list_len: {:?}", tx_list.len());
 
         //txn to blob
         let mut tx_bytes: Vec<u8> = vec![];
         let x = tx_list.iter().flat_map(|tx| tx.rlp()).collect::<Vec<u8>>();
         tx_bytes.extend(x);
-        assert!(tx_bytes == origin_tx_bytes, "tx_bytes==origin_tx_bytes");
+        assert!(tx_bytes == origin_batch, "tx_bytes==origin_batch");
         // tx_bytes[121..1000].fill(0);
         let blob = encode_blob(tx_bytes);
 
@@ -175,7 +173,7 @@ mod tests {
 
         //https://holesky.etherscan.io/blob/0x018494ae7657bebd9e590baf3736ac9207a5d2275ef98c025dad3232b7875278?bid=2391294
         //https://explorer-holesky.morphl2.io/batches/223946
-        let blob_data_path = Path::new("../../testdata/blob/blob_with_zstd_batch_holesky.data");
+        let blob_data_path = Path::new("../../testdata/blob/sp1_batch.data");
         let data = fs::read_to_string(blob_data_path).expect("Unable to read file");
         let hex_data: Vec<u8> = hex::decode(data.trim()).unwrap();
         let mut array = [0u8; 131072];
