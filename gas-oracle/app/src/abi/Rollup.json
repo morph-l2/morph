@@ -17,12 +17,12 @@
   },
   {
     "inputs": [],
-    "name": "ErrorIncorrectChunkLength",
+    "name": "ErrorIncorrectBatchLength",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "ErrorNoBlockInChunk",
+    "name": "ErrorNoBlockInBatch",
     "type": "error"
   },
   {
@@ -246,25 +246,6 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "oldMaxNumTxInChunk",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newMaxNumTxInChunk",
-        "type": "uint256"
-      }
-    ],
-    "name": "UpdateMaxNumTxInChunk",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
         "name": "oldWindow",
         "type": "uint256"
       },
@@ -305,6 +286,19 @@
         "internalType": "uint64",
         "name": "",
         "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "__maxNumTxInChunk",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -550,9 +544,9 @@
             "type": "bytes"
           },
           {
-            "internalType": "bytes[]",
-            "name": "chunks",
-            "type": "bytes[]"
+            "internalType": "bytes",
+            "name": "blockContexts",
+            "type": "bytes"
           },
           {
             "internalType": "bytes",
@@ -674,11 +668,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_batchIndex",
-        "type": "uint256"
-      },
-      {
         "internalType": "bytes",
         "name": "_batchHeader",
         "type": "bytes"
@@ -718,11 +707,6 @@
         "internalType": "address",
         "name": "_verifier",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_maxNumTxInChunk",
-        "type": "uint256"
       },
       {
         "internalType": "uint256",
@@ -819,19 +803,6 @@
   },
   {
     "inputs": [],
-    "name": "maxNumTxInChunk",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "messageQueue",
     "outputs": [
       {
@@ -891,12 +862,7 @@
       },
       {
         "internalType": "bytes",
-        "name": "_aggrProof",
-        "type": "bytes"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_kzgDataProof",
+        "name": "_batchProof",
         "type": "bytes"
       }
     ],
@@ -991,19 +957,6 @@
       }
     ],
     "name": "updateFinalizePeriodSeconds",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_maxNumTxInChunk",
-        "type": "uint256"
-      }
-    ],
-    "name": "updateMaxNumTxInChunk",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

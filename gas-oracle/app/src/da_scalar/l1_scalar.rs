@@ -259,8 +259,8 @@ impl ScalarUpdater {
             )))
         })?;
 
-        let chunks: Vec<Bytes> = param.batch_data_input.chunks;
-        let l2_txn = extract_txn_num(chunks).unwrap_or(0);
+        let block_contexts: Bytes = param.batch_data_input.block_contexts;
+        let l2_txn = extract_txn_num(block_contexts).unwrap_or(0);
 
         //Step3. Calculate l2 data gas
         let l2_data_len = self
