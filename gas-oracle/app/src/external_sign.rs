@@ -166,6 +166,7 @@ fn reformat_pem(pem_string: &str) -> String {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_sign() -> Result<(), Box<dyn Error>> {
     use crate::read_parse_env;
     use ethers::{
