@@ -91,8 +91,9 @@ pub fn extract_txn_num(block_contexts: Bytes) -> Option<u64> {
     let bs: &[u8] = &block_contexts;
 
     // decode blocks from batch
-    // |   1 byte   | 60 bytes | ... | 60 bytes |
+    // |   2 byte   | 60 bytes | ... | 60 bytes |
     // | num blocks |  block 1 | ... |  block n |
+    // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
     let num_blocks: u16 = ((bs[0] as u16) << 8) | (bs[1] as u16);
 
     for i in 0..num_blocks as usize {
