@@ -26,8 +26,7 @@ pub struct ShardInfo {
     pub withdraw_root: B256,
     /// sequencer_root
     pub sequencer_root: B256,
-    pub l1_data_hash: B256,
-    pub l2_data_hash: B256,
+    pub shard_data_hash: B256,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

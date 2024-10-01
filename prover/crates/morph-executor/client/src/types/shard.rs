@@ -1,36 +1,23 @@
-use super::input::ClientInput;
-use sbv_primitives::{TxTrace, B256};
+use sbv_primitives::{types::BlockTrace, Block, TxTrace, B256};
 use tiny_keccak::{Hasher, Keccak};
 
-pub fn shard_hash(input: &ClientInput) -> Result<(B256, B256), anyhow::Error> {
-    // Verify DA
+pub fn shard_bytes_hash(l2_traces: &Vec<BlockTrace>) -> Result<(B256, Vec<u8>), anyhow::Error> {
+    println!("cycle-tracker-start: shard_data_hash");
+    let mut data_hasher = Keccak::v256();
     let mut l2_tx_bytes: Vec<u8> = vec![];
-    let mut l1_tx_bytes: Vec<u8> = vec![];
-
-    for trace in &input.l2_traces {
+    for trace in l2_traces {
+        trace.hash_da_header(&mut data_hasher);
         for tx in &trace.transactions {
             let tx_data = tx.try_build_typed_tx().unwrap().rlp();
-            if tx.is_l1_tx() {
-                l1_tx_bytes.extend(tx_data);
-            } else {
-                l2_tx_bytes.extend(tx_data);
+            data_hasher.update(&tx_data);
+            if !tx.is_l1_tx() {
+                l2_tx_bytes.extend(&tx_data);
             }
         }
     }
+    let mut shard_data_hash = B256::ZERO;
+    data_hasher.finalize(&mut shard_data_hash.0);
+    println!("cycle-tracker-end: shard_data_hash");
 
-    println!("cycle-tracker-start: l1_data_hash");
-    let mut l1_hasher = Keccak::v256();
-    l1_hasher.update(&l1_tx_bytes);
-    let mut l1_data_hash = B256::ZERO;
-    l1_hasher.finalize(&mut l1_data_hash.0);
-    println!("cycle-tracker-end: l1_data_hash");
-
-    println!("cycle-tracker-start: l2_data_hash");
-    let mut l2_hasher = Keccak::v256();
-    l2_hasher.update(&l2_tx_bytes);
-    let mut l2_data_hash = B256::ZERO;
-    l2_hasher.finalize(&mut l2_data_hash.0);
-    println!("cycle-tracker-start: l2_data_hash");
-
-    Ok((l1_data_hash, l2_data_hash))
+    Ok((shard_data_hash, l2_tx_bytes))
 }

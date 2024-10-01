@@ -12,3 +12,4 @@ serde_json = { workspace = true }
 # workspace
 morph-executor-client = { workspace = true }
 sbv-primitives= { workspace = true }
+morph-executor-utils = { workspace = true }

@@ -19,7 +19,7 @@ fn main() {
     let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace(&args.block_path);
     let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
 
-    prove(block_traces, args.prove);
+    let _ = prove(block_traces, args.prove);
 }
 
 fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {

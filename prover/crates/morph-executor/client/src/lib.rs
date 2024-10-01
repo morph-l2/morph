@@ -12,7 +12,7 @@ pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 
 pub fn verify(input: &ClientInput) -> Result<ShardInfo, anyhow::Error> {
     // Shard blocks hash
-    let (l1_data_hash, l2_data_hash) = types::shard::shard_hash(input).unwrap();
+    let (shard_data_hash, _) = types::shard::shard_bytes_hash(&input.l2_traces).unwrap();
 
     // Verify EVM exec.
     println!("cycle-tracker-start: evm-verify");
@@ -25,59 +25,32 @@ pub fn verify(input: &ClientInput) -> Result<ShardInfo, anyhow::Error> {
         post_state_root: batch_info.post_state_root(),
         withdraw_root: batch_info.withdraw_root(),
         sequencer_root: batch_info.sequencer_root(),
-        l1_data_hash,
-        l2_data_hash,
+        shard_data_hash,
     };
     Ok(shard_info)
 }
 
-pub fn verify_agg(agg_input: AggregationInput) -> Result<B256, anyhow::Error> {
+pub fn verify_agg(agg_input: &AggregationInput) -> Result<B256, anyhow::Error> {
     // Verify Blob
     let (versioned_hash, tx_from_blob) = BlobVerifier::verify(&agg_input.blob_info).unwrap();
 
     let mut tx_from_traces: Vec<u8> = vec![];
-    let mut shard_hash: Vec<(B256, B256)> = vec![];
+    let mut shard_hashs: Vec<B256> = vec![];
 
+    println!("cycle-tracker-start: shards_data_hash");
     for shard in &agg_input.l2_traces {
-        let mut l1_tx_bytes: Vec<u8> = vec![];
-        let mut l2_tx_bytes: Vec<u8> = vec![];
-
-        for trace in shard {
-            for tx in &trace.transactions {
-                let tx_data = tx.try_build_typed_tx().unwrap().rlp();
-                if tx.is_l1_tx() {
-                    l1_tx_bytes.extend(tx_data);
-                } else {
-                    l2_tx_bytes.extend(tx_data);
-                }
-            }
-        }
-        tx_from_traces.extend(l2_tx_bytes.clone());
-
-        println!("cycle-tracker-start: agg_l1_data_hash");
-        let mut l1_hasher = Keccak::v256();
-        l1_hasher.update(&l1_tx_bytes);
-        let mut l1_data_hash = B256::ZERO;
-        l1_hasher.finalize(&mut l1_data_hash.0);
-        println!("cycle-tracker-end: agg_l1_data_hash");
-
-        println!("cycle-tracker-start: agg_l2_data_hash");
-        let mut l2_hasher = Keccak::v256();
-        l2_hasher.update(&l2_tx_bytes);
-        let mut l2_data_hash = B256::ZERO;
-        l2_hasher.finalize(&mut l2_data_hash.0);
-        println!("cycle-tracker-start: agg_l2_data_hash");
-
-        shard_hash.push((l1_data_hash, l2_data_hash));
+        let (shard_data_hash, l2_bytes) = types::shard::shard_bytes_hash(shard).unwrap();
+        shard_hashs.push(shard_data_hash);
+        tx_from_traces.extend(l2_bytes);
     }
+    println!("cycle-tracker-end: shards_data_hash");
 
     // Constraint for tx_data_from_blob==tx_from_traces
     assert_eq!(tx_from_blob, tx_from_traces, "blob data mismatch!");
 
     // Constraint all_traces(equivalent to blob) contains shard_trace
-    for (shard, shard_info) in shard_hash.iter().zip(agg_input.shard_infos.iter()) {
-        assert!(shard.0 == shard_info.l1_data_hash, "shard_info.l1_data_hash");
-        assert!(shard.1 == shard_info.l2_data_hash, "shard_info.l2_data_hash");
+    for (shard_hash, shard_info) in shard_hashs.iter().zip(agg_input.shard_infos.iter()) {
+        assert!(shard_hash == &shard_info.shard_data_hash, "shard_info.shard_data_hash");
     }
 
     // Constraint for state transition
@@ -116,13 +89,13 @@ pub fn verify_agg(agg_input: AggregationInput) -> Result<B256, anyhow::Error> {
         hex::encode(versioned_hash.as_slice()),
         hex::encode(agg_input.shard_infos.last().unwrap().sequencer_root.as_slice()),
     );
-    let public_input_hash = pi_hash(agg_input, batch_data_hash, versioned_hash);
-    dev_info!("public input hash: {:?}", public_input_hash);
-    Ok(public_input_hash)
+    let agg_output = output_hash(agg_input, batch_data_hash, versioned_hash);
+    dev_info!("agg input hash: {:?}", agg_output);
+    Ok(agg_output)
 }
 
-fn pi_hash(
-    agg_input: AggregationInput,
+fn output_hash(
+    agg_input: &AggregationInput,
     batch_data_hash: FixedBytes<32>,
     versioned_hash: FixedBytes<32>,
 ) -> FixedBytes<32> {
@@ -135,7 +108,7 @@ fn pi_hash(
     hasher.update(batch_data_hash.as_slice());
     hasher.update(versioned_hash.as_slice());
 
-    let mut public_input_hash = B256::ZERO;
-    hasher.finalize(&mut public_input_hash.0);
-    public_input_hash
+    let mut output_hash = B256::ZERO;
+    hasher.finalize(&mut output_hash.0);
+    output_hash
 }
