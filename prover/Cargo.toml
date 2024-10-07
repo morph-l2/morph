@@ -12,7 +12,7 @@ members = [
     "crates/utils",
     "tests/*/*"
 ]
-exclude = ["bin/shadow-prove"]
+exclude = ["bin/shadow-prove","bin/challenge"]
 resolver = "2"
 
 [workspace.package]
