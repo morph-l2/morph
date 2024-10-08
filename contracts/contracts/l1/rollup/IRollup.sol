@@ -113,6 +113,11 @@ interface IRollup {
     /// @param newVerifier  The address of new rollup verifier.
     event UpdateVerifier(address indexed oldVerifier, address indexed newVerifier);
 
+    /// @notice Emitted when the proof reward percent is updated.
+    /// @param oldPercent  The old proofRewardPercent.
+    /// @param newPercent  The new proofRewardPercent.
+    event UpdateProofRewardPercent(uint256 oldPercent, uint256 newPercent);
+
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex       The index of the batch.
     /// @param challenger       The address of challenger.

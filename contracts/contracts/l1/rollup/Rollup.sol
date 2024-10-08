@@ -91,6 +91,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The index of the revert request.
     uint256 public revertReqIndex;
 
+    /// @notice percentage awarded to prover
+    uint256 public proofRewardPercent;
+
+    /// @notice prove remaining
+    uint256 public proveRemaining;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -142,7 +148,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         address _messageQueue,
         address _verifier,
         uint256 _finalizationPeriodSeconds,
-        uint256 _proofWindow
+        uint256 _proofWindow,
+        uint256 _proofRewardPercent
     ) public initializer {
         if (_messageQueue == address(0) || _verifier == address(0)) {
             revert ErrZeroAddress();
@@ -157,10 +164,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         verifier = _verifier;
         finalizationPeriodSeconds = _finalizationPeriodSeconds;
         proofWindow = _proofWindow;
-
+        proofRewardPercent = _proofRewardPercent;
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateFinalizationPeriodSeconds(0, _finalizationPeriodSeconds);
         emit UpdateProofWindow(0, _proofWindow);
+        emit UpdateProofRewardPercent(0, _proofRewardPercent);
     }
 
     /************************
@@ -428,10 +436,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(
-        bytes calldata _batchHeader,
-        bytes calldata _batchProof
-    ) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
@@ -639,7 +644,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _type        Description of the challenge type.
     function _defenderWin(uint256 batchIndex, address prover, string memory _type) internal {
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        batchChallengeReward[prover] += challengeDeposit;
+        uint256 reward = (challengeDeposit * proofRewardPercent) / 100;
+        proveRemaining += challengeDeposit - reward;
+        batchChallengeReward[prover] += reward;
         emit ChallengeRes(batchIndex, prover, _type);
     }
 
