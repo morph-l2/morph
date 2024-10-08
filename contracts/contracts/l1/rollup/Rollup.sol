@@ -318,7 +318,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
             committedBatches[_batchIndex] = bytes32(0);
             // if challenge exist and not finished yet, return challenge deposit to challenger
-            if (!challenges[_batchIndex].finished) {
+            if (batchInChallenge(_batchIndex)) {
                 batchChallengeReward[challenges[_batchIndex].challenger] += challenges[_batchIndex].challengeDeposit;
                 inChallenge = false;
             }
@@ -428,10 +428,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(
-        bytes calldata _batchHeader,
-        bytes calldata _batchProof
-    ) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
