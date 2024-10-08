@@ -6,8 +6,10 @@ use alloy::{
         eip2930::AccessList,
         eip7702::SignedAuthorization,
     },
-    primitives::{Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64},
-    rlp::{self, BufMut, BytesMut, Decodable, Encodable, Header},
+    primitives::{
+        keccak256, Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64,
+    },
+    rlp::{BufMut, BytesMut, Decodable, Encodable, Header},
 };
 use serde_with::{serde_as, DefaultOnNull};
 
@@ -54,7 +56,14 @@ pub struct TxL1Msg {
 /// Transaction Trace
 #[serde_as]
 #[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, Default, Debug, Clone,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    Clone,
 )]
 #[archive(check_bytes)]
 #[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
@@ -222,7 +231,8 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn access_list(&self) -> AccessList {
-        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible).unwrap()
+        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible)
+            .unwrap()
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {
@@ -432,20 +442,12 @@ impl Encodable2718 for TxL1Msg {
 
     fn encode_2718_len(&self) -> usize {
         let payload_length = self.fields_len();
-        1 + Header {
-            list: true,
-            payload_length,
-        }
-        .length()
-            + payload_length
+        1 + Header { list: true, payload_length }.length() + payload_length
     }
 
     fn encode_2718(&self, out: &mut dyn BufMut) {
         0x7eu8.encode(out);
-        let header = Header {
-            list: true,
-            payload_length: self.fields_len(),
-        };
+        let header = Header { list: true, payload_length: self.fields_len() };
         header.encode(out);
         self.encode(out)
     }
@@ -492,15 +494,12 @@ impl TypedTransaction {
         Bytes(bytes.freeze())
     }
 
-    /// Encode the transaction according to [EIP-2718] rules. First a 1-byte
-    /// type flag in the range 0x0-0x7f, then the body of the transaction.
-    pub fn rlp_da(&self) -> Bytes {
-        let mut bytes = BytesMut::new();
+    /// Calculate the signing hash for the transaction.
+    pub fn signature_hash(&self) -> B256 {
         match self {
-            TypedTransaction::Enveloped(tx) => tx.encode(&mut bytes),
-            TypedTransaction::L1Msg(tx) => tx.encode(&mut bytes),
+            TypedTransaction::Enveloped(tx) => tx.signature_hash(),
+            TypedTransaction::L1Msg(_) => keccak256(self.rlp()),
         }
-        Bytes(bytes.freeze())
     }
 
     /// Get `data`

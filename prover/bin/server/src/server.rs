@@ -13,7 +13,12 @@ use morph_prove::evm::EvmProofFixture;
 use once_cell::sync::Lazy;
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::BufReader, sync::Arc, time::Duration};
+use std::{
+    fs,
+    io::{BufReader, Read},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{sync::Mutex, time::timeout};
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProveResult {
@@ -252,19 +257,19 @@ async fn query_proof(batch_index: String) -> ProveResult {
             }
             result.proof_data = proof_data;
 
-            // Batch header data
-            // let batch_header_path = path.join("batch_header.data");
-            // let mut batch_header = Vec::new();
-            // match fs::File::open(batch_header_path) {
-            //     Ok(mut file) => {
-            //         file.read_to_end(&mut batch_header).unwrap();
-            //     }
-            //     Err(e) => {
-            //         log::error!("Failed to load batch_header: {:#?}", e);
-            //         result.error_msg = String::from("Failed to load batch_header");
-            //     }
-            // }
-            // result.batch_header = batch_header;
+            //Batch header data
+            let batch_header_path = path.join("batch_header.data");
+            let mut batch_header = Vec::new();
+            match fs::File::open(batch_header_path) {
+                Ok(mut file) => {
+                    file.read_to_end(&mut batch_header).unwrap();
+                }
+                Err(e) => {
+                    log::warn!("Failed to load batch_header: {:#?}", e);
+                    result.error_msg = String::from("Failed to load batch_header");
+                }
+            }
+            result.batch_header = batch_header;
             break;
         }
     }

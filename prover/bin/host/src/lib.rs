@@ -35,7 +35,6 @@ pub fn prove(
     // Prepare input.
     // Convert the traces' format to reduce conversion costs in the client.
     blocks.iter_mut().for_each(|blobk| blobk.flatten());
-
     let client_input =
         ClientInput { l2_traces: blocks.clone(), blob_info: get_blob_info(blocks).unwrap() };
 
@@ -51,24 +50,27 @@ pub fn prove(
     let mut stdin = SP1Stdin::new();
     stdin.write(&serde_json::to_string(&client_input).unwrap());
     let client = ProverClient::new();
-    // let (mut public_values, execution_report) = client
-    //     .execute(BATCH_VERIFIER_ELF, stdin.clone())
-    //     .run()
-    //     .map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
 
-    // println!(
-    //     "Program executed successfully, Number of cycles: {:?}",
-    //     execution_report.total_instruction_count()
-    // );
-    // let pi_hash = public_values.read::<[u8; 32]>();
-    // let public_values = B256::from_slice(&pi_hash);
+    if read_env_var("DEVNET", false) {
+        let (mut public_values, execution_report) = client
+            .execute(BATCH_VERIFIER_ELF, stdin.clone())
+            .run()
+            .map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
 
-    // println!(
-    //     "pi_hash generated with sp1-vm execution: {}",
-    //     alloy::hex::encode_prefixed(public_values.as_slice())
-    // );
-    // assert_eq!(pi_hash, expected_hash, "pi_hash == expected_pi_hash ");
-    // println!("Values are correct!");
+        println!(
+            "Program executed successfully, Number of cycles: {:?}",
+            execution_report.total_instruction_count()
+        );
+        let pi_hash = public_values.read::<[u8; 32]>();
+        let public_values = B256::from_slice(&pi_hash);
+
+        println!(
+            "pi_hash generated with sp1-vm execution: {}",
+            alloy::hex::encode_prefixed(public_values.as_slice())
+        );
+        assert_eq!(pi_hash, expected_hash, "pi_hash == expected_pi_hash ");
+        println!("Values are correct!");
+    }
 
     if !prove {
         println!("Execution completed, No prove request, skipping...");

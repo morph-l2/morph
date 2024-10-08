@@ -224,7 +224,7 @@ where
 ///   * parentBatchHash         32          bytes32     89      The parent batch hash
 ///   * skippedL1MessageBitmap  dynamic     uint256[]   121     A bitmap to indicate which L1 messages are skipped in the batch
 /// ``
-async fn batch_header_inspect(
+pub async fn batch_header_inspect(
     l1_provider: &RootProvider<Http<Client>>,
     hash: TxHash,
 ) -> Option<Bytes> {

@@ -25,6 +25,7 @@ clap = { workspace = true }
 #env_logger = { workspace = true }
 once_cell = { workspace = true }
 alloy = { workspace = true }
+dotenv = { workspace = true }
 
 
 # workspace
