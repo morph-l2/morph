@@ -196,7 +196,8 @@ async fn test_prove_batch() {
     dotenv().ok();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let l1_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
+    let l1_rpc: String = read_parse_env("SHADOW_PROVING_L1_RPC");
+    let l1_verify_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
     let private_key: String = read_parse_env("SHADOW_PROVING_PRIVATE_KEY");
     let next_tx_hash: String = read_parse_env("NEXT_TX_HASH");
     let batch_index: u64 = read_parse_env("BATCH_INDEX");
@@ -206,13 +207,16 @@ async fn test_prove_batch() {
     let provider: RootProvider<Http<Client>> =
         ProviderBuilder::new().on_http(l1_rpc.parse().unwrap());
 
+    let verify_provider: RootProvider<Http<Client>> =
+        ProviderBuilder::new().on_http(l1_verify_rpc.parse().unwrap());
+
     let shadow_rollup =
         var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
 
     let l1_signer = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(wallet)
-        .on_http(l1_rpc.parse().unwrap());
+        .on_http(l1_verify_rpc.parse().unwrap());
 
     let l1_shadow_rollup =
         ShadowRollup::new(Address::from_str(&shadow_rollup).unwrap(), l1_signer.clone());
@@ -220,7 +224,7 @@ async fn test_prove_batch() {
     let shadow_prover = ShadowProver::new(
         signer.address(),
         Address::from_str(&shadow_rollup).unwrap(),
-        provider.clone(),
+        verify_provider.clone(),
         l1_signer,
     );
 
