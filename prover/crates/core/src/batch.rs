@@ -78,7 +78,7 @@ impl BatchInfo {
         let mut hasher = Keccak::v256();
 
         hasher.update(&self.chain_id.to_be_bytes());
-        hasher.update(self.prev_state_root.as_ref());
+        hasher.update(self.prev_state_root.as_slice());
         hasher.update(self.post_state_root.as_slice());
         hasher.update(self.withdraw_root.unwrap().as_slice());
         hasher.update(self.sequencer_root.unwrap().as_slice());

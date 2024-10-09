@@ -11,3 +11,4 @@ anyhow = { workspace = true }
 once_cell = { workspace = true }
 sbv-primitives = { workspace = true }
 morph-executor-client = { workspace = true }
+morph-executor-utils = { workspace = true }
