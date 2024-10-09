@@ -135,6 +135,11 @@ interface IRollup {
     /// @param res          The result of challenge.
     event ChallengeRes(uint256 indexed batchIndex, address indexed winner, string indexed res);
 
+    /// @notice Emitted when the challenger claim the challenge reward.
+    /// @param receiver  receiver address
+    /// @param amount    claimed amount
+    event ChallengeRewardClaim(address indexed receiver, uint256 amount);
+
     /*************************
      * Public View Functions *
      *************************/
