@@ -226,8 +226,12 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         sequencerSetMaxSize = _sequencerSetMaxSize;
         emit SequencerSetMaxSizeUpdated(_oldSequencerSetMaxSize, _sequencerSetMaxSize);
 
-        if (sequencerSetMaxSize < latestSequencerSetSize) {
-            // update sequencer set
+        uint256 candidate = rewardStarted ? candidateNumber : stakerAddresses.length;
+        uint256 newSequencerSetSize = candidate < sequencerSetMaxSize ? candidate : sequencerSetMaxSize;
+        // latest_sequencer_set_size = Min(candidate, old_sequencer_set_max_size)
+        // new_sequencer_set_size = Min(candidate, new_sequencer_set_max_size)
+        // if new_sequencer_set_size != latest_sequencer_set_size, update sequencer set
+        if (newSequencerSetSize != latestSequencerSetSize) {
             _updateSequencerSet();
         }
     }
