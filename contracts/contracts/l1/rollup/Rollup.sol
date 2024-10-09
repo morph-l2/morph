@@ -430,8 +430,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param receiver  receiver address
     function claimProveRemaining(address receiver) external onlyOwner {
         uint256 _proveRemaining = proveRemaining;
-        _transfer(receiver, proveRemaining);
         proveRemaining = 0;
+        _transfer(receiver, _proveRemaining);
         emit ProveRemainingClaimed(receiver, _proveRemaining);
     }
 
