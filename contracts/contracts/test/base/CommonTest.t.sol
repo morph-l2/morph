@@ -28,7 +28,7 @@ contract CommonTest is DSTestPlus, MockTree {
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     uint256 public finalizationPeriodSeconds = 2;
-
+    uint256 public proofRewardPercent = 70;
     function setUp() public virtual {
         // Give alice and bob some ETH
         hevm.deal(alice, 1 << 16);
