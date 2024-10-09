@@ -340,10 +340,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     }
 
     /// @dev challengeState challenges a batch by submitting a deposit.
-    function challengeState(uint64 batchIndex) external payable onlyChallenger nonReqRevert whenNotPaused {
+    function challengeState(
+        uint64 batchIndex,
+        bytes32 _batchHash
+    ) external payable onlyChallenger nonReqRevert whenNotPaused {
         require(!inChallenge, "already in challenge");
         require(lastFinalizedBatchIndex < batchIndex, "batch already finalized");
-        require(committedBatches[batchIndex] != 0, "batch not exist");
+        require(committedBatches[batchIndex] == _batchHash, "incorrect batch hash");
+        require(batchExist(batchIndex), "batch not exist");
         require(challenges[batchIndex].challenger == address(0), "batch already challenged");
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
@@ -428,10 +432,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(
-        bytes calldata _batchHeader,
-        bytes calldata _batchProof
-    ) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
