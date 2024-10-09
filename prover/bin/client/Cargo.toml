@@ -1,0 +1,14 @@
+[package]
+version = "0.1.0"
+name = "verifier-client"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+anyhow.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# workspace
+morph-executor-client = { workspace = true }
+sbv-primitives= { workspace = true }

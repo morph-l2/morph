@@ -12,7 +12,7 @@ ffi = true
 fuzz_runs = 16
 evm_version = 'cancun'
 
-fs_permissions = [{ access = 'read-write', path = './.resource-metering.csv' }]
+fs_permissions = [{ access = 'read-write', path = './' }]
 
 [profile.ci]
 fuzz_runs = 512

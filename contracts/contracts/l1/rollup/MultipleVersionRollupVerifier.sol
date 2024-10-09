@@ -124,7 +124,7 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
     ) external view override {
         address _verifier = getVerifier(_version, _batchIndex);
 
-        IZkEvmVerifier(_verifier).verify(_aggrProof, _publicInputHash);
+        IZkEvmVerifier(_verifier).verifyBatch(_aggrProof, _publicInputHash);
     }
 
     /************************

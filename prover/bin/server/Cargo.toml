@@ -1,0 +1,22 @@
+[package]
+name = "prover-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+sbv-primitives = { workspace = true }
+alloy = { workspace = true, features = ["providers"] }
+once_cell = { workspace = true }
+log = { workspace = true }
+prometheus = { workspace = true }
+morph-prove = { workspace = true }
+axum = { workspace = true }
+# tower = { workspace = true }
+# tower-http = { workspace = true }
+dotenv = { workspace = true }
+flexi_logger = { workspace = true }
+hex = { workspace = true }

@@ -1,38 +1,9 @@
-# Run cargo build with release tag for prover
-build-prover:
-	cargo build --release
 
-# Run cargo build with release tag for challenge-handler
-build-challenge-handler:
-	cd challenge-handler && cargo build --release
-
-# Run cargo build with release tag for shadow-proving
-build-shadow-proving:
-	cd shadow-proving && cargo build --release
-
-# Build all bins and prepare the deployment directory
-all: build-prover build-challenge-handler build-shadow-proving
-	if [ ! -d make-bin ]; then mkdir -p make-bin; fi
-	cp -f `find ./target/release/ | grep libzktrie.so` make-bin/
-	cp -f target/release/prover_server make-bin/
-	cp -f challenge-handler/target/release/challenge-handler make-bin/
-	cp -f shadow-proving/target/release/shadow-proving make-bin/
-
-# Build all bins
-build: build-prover build-challenge-handler build-shadow-proving
-
-# Run all bins in the background
-run:all
-	./start.sh
-
-# Run the formatter but don't change any files.
-fmt:
-	cargo +nightly fmt --all -- --check
-
-# Run the formatter and update files with style changes
-lint:
-	cargo +nightly fmt --all
-
-# Run clippy
-clippy:
-	cargo clippy --all-targets -- -D warnings
+save-plonk-circuits:
+	rm -rf plonk-circuits && \
+	mkdir -p plonk-circuits && \
+	docker create --name sp1-plonk-temp sp1-plonk:latest
+    docker cp -r sp1-plonk-temp:/app/sp1/crates/prover/build ./plonk-circuits
+	cd plonk-circuits/build
+	tar --exclude='srs.bin' --exclude='srs_lagrange.bin' -czvf "../morph-dev.tar.gz" .
+	docker rm sp1-plonk-temp

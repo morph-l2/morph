@@ -1,0 +1,24 @@
+version: '3.4'
+
+services:
+  sp1-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.sp1-app
+    image: sp1-app:latest
+    volumes:
+    - /data/develop/sp1-apps/data/plonk-circuits:/root/.sp1/circuits/v1.3.0-rc2-scroll
+    - /data/develop/sp1-apps/data/proof:/root/data/proof
+    restart: no
+    container_name: 'sp1-app'
+    command: >
+      ./prover-server
+    ports:
+      - "3030:3030"
+      - "7061:6060"
+    environment:
+      - RUST_LOG=info
+      - RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f"
+      - PROVER_PROOF_DIR=/root/data/proof
+      - SAVE_TRACE=true
+      - PROVER_L2_RPC=http://127.0.0.1:8545

@@ -61,18 +61,10 @@ task("rollup-deploy-init")
             // deploy ZkEvmVerifierV1
             const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
             const ZkEvmVerifierV1ImplStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
-            const network = hre.network.name
-            const bytecode = hexlify(fs.readFileSync(`./contracts/libraries/verifier/plonk-verifier/${network}/plonk_verifier_0.10.3.bin`));
-            const tx = await deployer.sendTransaction({ data: bytecode });
-            const receipt = await tx.wait();
-            console.log("%s=%s ; TX_HASH: %s", "plonk_verifier.bin", receipt.contractAddress.toLocaleLowerCase(), tx.hash);
-
             const Factory = await hre.ethers.getContractFactory(ZkEvmVerifierV1ContractFactoryName)
-            const contract = await Factory.deploy(receipt.contractAddress)
+            const contract = await Factory.deploy(config.programVkey)
             await contract.deployed()
             console.log("%s=%s ; TX_HASH: %s", ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-            // check params
-            await assertContractVariable(contract, 'PLONK_VERIFIER', receipt.contractAddress)
             let blockNumber = await hre.ethers.provider.getBlockNumber()
             console.log("BLOCK_NUMBER: %s", blockNumber)
             let err = await storage(newPath, ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
@@ -126,7 +118,6 @@ task("rollup-deploy-init")
             console.log("Upgrading the Rollup proxy...")
             const finalizationPeriodSeconds: number = config.finalizationPeriodSeconds
             const proofWindow: number = config.rollupProofWindow
-            const maxNumTxInChunk: number = config.rollupMaxNumTxInChunk
 
             const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(
                 storagePath,
@@ -156,7 +147,6 @@ task("rollup-deploy-init")
                     L1StakingProxyAddress,
                     L1MessageQueueWithGasPriceOracleProxyAddress,
                     MultipleVersionRollupVerifierContractAddress,
-                    maxNumTxInChunk,
                     finalizationPeriodSeconds,
                     proofWindow,
                 ])
@@ -177,7 +167,6 @@ task("rollup-deploy-init")
             await assertContractVariable(contractTmp, "l1StakingContract", L1StakingProxyAddress)
             await assertContractVariable(contractTmp, "messageQueue", L1MessageQueueWithGasPriceOracleProxyAddress)
             await assertContractVariable(contractTmp, "verifier", MultipleVersionRollupVerifierContractAddress)
-            await assertContractVariable(contractTmp, "maxNumTxInChunk", maxNumTxInChunk)
             await assertContractVariable(contractTmp, "finalizationPeriodSeconds", finalizationPeriodSeconds)
             await assertContractVariable(contractTmp, "proofWindow", proofWindow)
             await assertContractVariable(contractTmp, "owner", await deployer.getAddress())

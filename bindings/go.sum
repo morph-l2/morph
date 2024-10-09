@@ -109,8 +109,8 @@ github.com/mmcloughlin/addchain v0.4.0/go.mod h1:A86O+tHqZLMNO4w6ZZ4FlVQEadcoqky
 github.com/mmcloughlin/profile v0.1.1/go.mod h1:IhHD7q1ooxgwTgjxQYkACGA77oFTDdFVejUS1/tS/qU=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
-github.com/morph-l2/go-ethereum v0.5.0 h1:8RmripTA2F92capiLRZTiycSGsj4DR+HGOvwwhgQ58I=
-github.com/morph-l2/go-ethereum v0.5.0/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
+github.com/morph-l2/go-ethereum v1.10.14-0.20240928131248-d5897cc977af h1:i4oF4NXEoJuaDSPT5PadQQF4FVG/YdMzYwm0C8DH7Nw=
+github.com/morph-l2/go-ethereum v1.10.14-0.20240928131248-d5897cc977af/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=

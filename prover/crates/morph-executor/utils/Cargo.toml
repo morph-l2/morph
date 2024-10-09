@@ -1,0 +1,8 @@
+[package]
+name = "morph-executor-utils"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }

@@ -1,49 +1,151 @@
-[package]
-name = "zkevm-prover"
-version = "0.1.0"
+[workspace]
+members = [
+    "bin/host",
+    "bin/client",
+    "bin/server",
+    "crates/morph-executor/host",
+    "crates/morph-executor/client",
+    "crates/morph-executor/utils",
+    "crates/core",
+    "crates/primitives",
+    "crates/sbv",
+    "crates/utils",
+    "tests/*/*"
+]
+exclude = ["bin/shadow-prove"]
+resolver = "2"
+
+[workspace.package]
+version = "2.0.0"
 edition = "2021"
+rust-version = "1.75"
+authors = ["developers"]
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+repository = "https://github.com/morph-l2/morph/tree/main/prover"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "v1.1" }
-prover = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "develop", default-features = false, features = ["parallel_syn", "scroll"] }
-zkevm-circuits = { git = "https://github.com/morph-l2/zkevm-circuits.git", branch = "develop", default-features = false, features = ["parallel_syn", "scroll"] }
 
-env_logger = "0.9.0"
+
+
+
+[workspace.dependencies]
+alloy ={ version ="0.3"}
+hex = "0.4"
+once_cell = "1.19"
+rkyv = { version = "0.7", features = ["validation"] }
+thiserror = "1.0"
+tiny-keccak = "2.0"
+getrandom = { version = "*", features = ["custom"] } # just for disable
 log = "0.4"
-flexi_logger = "0.29"
-axum = "0.4.3"
-tower = { version = "0.4", features = ["full"] }
-tower-http = { version = "0.4", features = ["full"] }
-serde = "1.0"
-serde_json = "1.0.66"
-ethers = "2.0.7"
-reqwest = { version = "0.11", default-features = false, features = [ "json", "rustls-tls" ] }
-once_cell = "1.8.0"
-dotenv = "0.15.0"
-rand = "0.8"
-tokio = { version = "1", features = ["full"] }
 prometheus = { version = "0.9", features = ["process"] }
-c-kzg = "0.1.1"
+zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = ["experimental"]}
+ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master"}
+
+# crypto
+c-kzg = "1.0.3"
+kzg-rs = { git = "https://github.com/anylots/kzg-rs.git", branch = "sp1-bls-dev" }
+sha2 = "0.10.8"
+
+sp1-zkvm =  { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909"}
+sp1-sdk = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909", features = ["native-gnark"]}
+sp1-helper = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909"}
+
+# dependencies from scroll-tech
+poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master", features = ["bn254"] }
+zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features= ["rs_zktrie"] }
+
+
+# binary dependencies
+anyhow = "1.0"
+async-channel = "2.2"
+clap = "4"
+env_logger = "0.9"
+futures = "0.3"
+serde = "1.0"
+serde_json = "1.0"
+serde_with = "3.9"
+tokio = { version = "1", default-features = false }
+url = "2.5"
+eyre = "0.6"
+axum = "0.4.3"
+# tower = { version = "0.4", features = ["full"] }
+# tower-http = { version = "0.4", features = ["full"] }
+dotenv = "0.15.0"
+flexi_logger = "0.29"
+
+# optional dependencies
+csv = "1.3"
+ctor = "0.2"
+hyper = { version = "1.4", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+prometheus-client = "0.22"
+# pprof = { version = "0.13", features = ["flamegraph"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+cfg-if = "1.0.0"
+
+# dev dependencies
+rand = "0.8"
+reqwest = "0.12"
+
+# workspace
+sbv = { path = "crates/sbv" }
+sbv-core = { path = "crates/core" }
+sbv-primitives = { path = "crates/primitives" }
+sbv-utils = { path = "crates/utils" }
+morph-executor-host = { path = "crates/morph-executor/host" }
+morph-executor-client = { path = "crates/morph-executor/client" }
+morph-executor-utils = { path = "crates/morph-executor/utils" }
+morph-prove = { path = "bin/host" }
+# shadow-prove = { path = "shadow-prove" }
+
+[workspace.dependencies.revm] # v42
+git = "https://github.com/morph-l2/revm"
+branch = "morph-update"
+default-features = false
+features = [
+    "morph-default-handler",
+    "morph-poseidon-codehash",
+    "std",
+    "optional_no_base_fee"
+]
+
+[workspace.dependencies.revm-primitives] # v42
+git = "https://github.com/morph-l2/revm"
+branch = "morph-update"
+default-features = false
+features = [
+    "morph-default-handler",
+    "morph-poseidon-codehash",
+    "std",
+    "optional_no_base_fee"
+]
+
+
+[workspace.lints.rust]
+missing-docs = "deny"
+missing-debug-implementations = "deny"
 
 [patch.crates-io]
-ethers-core = { git = "https://github.com/scroll-tech/ethers-rs.git", branch = "v2.0.7" }
-ethers-providers = { git = "https://github.com/scroll-tech/ethers-rs.git", branch = "v2.0.7" }
-ethers = { git = "https://github.com/scroll-tech/ethers-rs.git", branch = "v2.0.7" }
-ethers-etherscan = { git = "https://github.com/scroll-tech/ethers-rs.git", branch = "v2.0.7" }
-ethers-signers  = { git = "https://github.com/scroll-tech/ethers-rs.git", branch = "v2.0.7" }
-halo2curves = { git = "https://github.com/scroll-tech/halo2curves", branch = "v0.1.0" }
-[patch."https://github.com/privacy-scaling-explorations/halo2.git"]
-halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "v1.1"  }
-[patch."https://github.com/privacy-scaling-explorations/poseidon.git"]
-poseidon = { git = "https://github.com/scroll-tech/poseidon.git", branch = "main" }
-[patch."https://github.com/privacy-scaling-explorations/bls12_381"]
-bls12_381 = { git = "https://github.com/scroll-tech/bls12_381", branch = "feat/impl_scalar_field" }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
+
+ff = { git = "https://github.com/scroll-tech/ff", branch = "feat/sp1" }
+
+# patched add rkyv support & MSRV 1.75
+ruint = { git = "https://github.com/scroll-tech/uint.git", branch = "v1.12.3" }
+
+alloy = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
+alloy-eips = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
+
+alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+
+alloy-core = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
+alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
 
 
-[profile.test]
-opt-level = 3
-
-[profile.release]
-opt-level = 3
+#[profile.release]
+#debug-assertions = true
