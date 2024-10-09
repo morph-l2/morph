@@ -418,8 +418,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 delete challenges[batchChallenged];
                 inChallenge = false;
             }
+            emit Paused(_msgSender());
         } else {
             _unpause();
+            emit Unpaused(_msgSender());
         }
     }
 
@@ -428,10 +430,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(
-        bytes calldata _batchHeader,
-        bytes calldata _batchProof
-    ) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
@@ -510,6 +509,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(amount != 0, "invalid batchChallengeReward");
         delete batchChallengeReward[_msgSender()];
         _transfer(receiver, amount);
+        emit ChallengeRewardClaim(receiver, amount);
     }
 
     /*************************
