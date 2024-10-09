@@ -286,8 +286,11 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param amount       stake amount
     function delegateStake(address delegatee, uint256 amount) external isStaker(delegatee) nonReentrant {
         require(amount > 0, "invalid stake amount");
-        // Re-staking to the same delegatee is not allowed before claiming undelegation
-        require(!_unclaimed(_msgSender(), delegatee), "undelegation unclaimed");
+        // Re-staking to the same delegatee is not allowed before claiming undelegation & reward
+        require(!_unclaimedUndelegation(_msgSender(), delegatee), "undelegation unclaimed");
+        if (!_isStakingTo(delegatee)) {
+            require(!_unclaimedReward(_msgSender(), delegatee), "reward unclaimed");
+        }
 
         stakerDelegations[delegatee] += amount;
         delegations[delegatee][_msgSender()] += amount;
@@ -344,8 +347,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice delegator unstake morph
     /// @param delegatee delegatee address
     function undelegateStake(address delegatee) external nonReentrant {
-        // must claim any undelegation first
-        require(!_unclaimed(_msgSender(), delegatee), "undelegation unclaimed");
         require(_isStakingTo(delegatee), "staking amount is zero");
 
         // staker has been removed, unlock next epoch
@@ -574,12 +575,17 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /// @notice whether there is a undedeletion unclaimed
-    function _unclaimed(address delegator, address delegatee) internal view returns (bool) {
+    function _unclaimedUndelegation(address delegator, address delegatee) internal view returns (bool) {
         for (uint256 i = 0; i < undelegations[delegator].length; i++) {
             if (undelegations[delegator][i].delegatee == delegatee) {
                 return true;
             }
         }
         return false;
+    }
+
+    /// @notice whether there is a undedeletion unclaimed
+    function _unclaimedReward(address delegator, address delegatee) internal view returns (bool) {
+        return !IDistribute(DISTRIBUTE_CONTRACT).isRewardClaimed(delegator, delegatee);
     }
 }

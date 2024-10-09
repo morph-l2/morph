@@ -91,6 +91,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The index of the revert request.
     uint256 public revertReqIndex;
 
+    /// @notice percentage awarded to prover
+    uint256 public proofRewardPercent;
+
+    /// @notice prove remaining
+    uint256 public proveRemaining;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -142,7 +148,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         address _messageQueue,
         address _verifier,
         uint256 _finalizationPeriodSeconds,
-        uint256 _proofWindow
+        uint256 _proofWindow,
+        uint256 _proofRewardPercent
     ) public initializer {
         if (_messageQueue == address(0) || _verifier == address(0)) {
             revert ErrZeroAddress();
@@ -157,10 +164,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         verifier = _verifier;
         finalizationPeriodSeconds = _finalizationPeriodSeconds;
         proofWindow = _proofWindow;
-
+        proofRewardPercent = _proofRewardPercent;
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateFinalizationPeriodSeconds(0, _finalizationPeriodSeconds);
         emit UpdateProofWindow(0, _proofWindow);
+        emit UpdateProofRewardPercent(0, _proofRewardPercent);
     }
 
     /************************
@@ -318,7 +326,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
             committedBatches[_batchIndex] = bytes32(0);
             // if challenge exist and not finished yet, return challenge deposit to challenger
-            if (!challenges[_batchIndex].finished) {
+            if (batchInChallenge(_batchIndex)) {
                 batchChallengeReward[challenges[_batchIndex].challenger] += challenges[_batchIndex].challengeDeposit;
                 inChallenge = false;
             }
@@ -340,10 +348,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     }
 
     /// @dev challengeState challenges a batch by submitting a deposit.
-    function challengeState(uint64 batchIndex) external payable onlyChallenger nonReqRevert whenNotPaused {
+    function challengeState(
+        uint64 batchIndex,
+        bytes32 _batchHash
+    ) external payable onlyChallenger nonReqRevert whenNotPaused {
         require(!inChallenge, "already in challenge");
         require(lastFinalizedBatchIndex < batchIndex, "batch already finalized");
-        require(committedBatches[batchIndex] != 0, "batch not exist");
+        require(committedBatches[batchIndex] == _batchHash, "incorrect batch hash");
+        require(batchExist(batchIndex), "batch not exist");
         require(challenges[batchIndex].challenger == address(0), "batch already challenged");
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
@@ -406,6 +418,27 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit UpdateVerifier(_oldVerifier, _newVerifier);
     }
 
+    /// @notice Update proof reward percentage
+    /// @param _newProofRewardPercent Percentage awarded to prover
+    function updateRewardPercentage(uint256 _newProofRewardPercent) external onlyOwner {
+        require(
+            _newProofRewardPercent > 0 && _newProofRewardPercent <= 100 && _newProofRewardPercent != proofRewardPercent,
+            "invalid proof reward percentage"
+        );
+        uint256 _oldRewardPercentage = proofRewardPercent;
+        proofRewardPercent = _newProofRewardPercent;
+        emit UpdateProofRewardPercent(_oldRewardPercentage, _newProofRewardPercent);
+    }
+
+    /// @notice claim prove remaining
+    /// @param receiver  receiver address
+    function claimProveRemaining(address receiver) external onlyOwner {
+        uint256 _proveRemaining = proveRemaining;
+        proveRemaining = 0;
+        _transfer(receiver, _proveRemaining);
+        emit ProveRemainingClaimed(receiver, _proveRemaining);
+    }
+
     /// @notice Pause the contract
     /// @param _status The pause status to update.
     function setPause(bool _status) external onlyOwner {
@@ -418,8 +451,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 delete challenges[batchChallenged];
                 inChallenge = false;
             }
+            emit Paused(_msgSender());
         } else {
             _unpause();
+            emit Unpaused(_msgSender());
         }
     }
 
@@ -428,10 +463,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(
-        bytes calldata _batchHeader,
-        bytes calldata _batchProof
-    ) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
@@ -510,6 +542,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(amount != 0, "invalid batchChallengeReward");
         delete batchChallengeReward[_msgSender()];
         _transfer(receiver, amount);
+        emit ChallengeRewardClaim(receiver, amount);
     }
 
     /*************************
@@ -639,7 +672,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _type        Description of the challenge type.
     function _defenderWin(uint256 batchIndex, address prover, string memory _type) internal {
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        batchChallengeReward[prover] += challengeDeposit;
+        uint256 reward = (challengeDeposit * proofRewardPercent) / 100;
+        proveRemaining += challengeDeposit - reward;
+        batchChallengeReward[prover] += reward;
         emit ChallengeRes(batchIndex, prover, _type);
     }
 

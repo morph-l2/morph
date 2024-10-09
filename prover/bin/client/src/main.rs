@@ -13,5 +13,5 @@ pub fn main() {
 
     // Commit to the public values of the program. The final proof will have a commitment to all the
     // bytes that were committed to.
-    sp1_zkvm::io::commit(&pi_hash);
+    sp1_zkvm::io::commit(&pi_hash.0);
 }
