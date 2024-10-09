@@ -17,6 +17,7 @@ const config = {
     rollupMinDeposit: 1,
     rollupProofWindow: 100,
     rollupGenesisBlockNumber: 0,
+    proofRewardPercent: 70,
     rollupProposer: '0xE70a4102e4caA3d9B8968FFb142E6A2ceFd22Ec3',
     rollupChallenger: '0xF730477971E88b3162ed7FD950Be63474975bdC3',
     rollupGenesisStateRoot: '',

@@ -91,6 +91,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The index of the revert request.
     uint256 public revertReqIndex;
 
+    /// @notice percentage awarded to prover
+    uint256 public proofRewardPercent;
+
+    /// @notice prove remaining
+    uint256 public proveRemaining;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -142,7 +148,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         address _messageQueue,
         address _verifier,
         uint256 _finalizationPeriodSeconds,
-        uint256 _proofWindow
+        uint256 _proofWindow,
+        uint256 _proofRewardPercent
     ) public initializer {
         if (_messageQueue == address(0) || _verifier == address(0)) {
             revert ErrZeroAddress();
@@ -157,10 +164,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         verifier = _verifier;
         finalizationPeriodSeconds = _finalizationPeriodSeconds;
         proofWindow = _proofWindow;
-
+        proofRewardPercent = _proofRewardPercent;
         emit UpdateVerifier(address(0), _verifier);
         emit UpdateFinalizationPeriodSeconds(0, _finalizationPeriodSeconds);
         emit UpdateProofWindow(0, _proofWindow);
+        emit UpdateProofRewardPercent(0, _proofRewardPercent);
     }
 
     /************************
@@ -410,6 +418,27 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit UpdateVerifier(_oldVerifier, _newVerifier);
     }
 
+    /// @notice Update proof reward percentage
+    /// @param _newProofRewardPercent Percentage awarded to prover
+    function updateRewardPercentage(uint256 _newProofRewardPercent) external onlyOwner {
+        require(
+            _newProofRewardPercent > 0 && _newProofRewardPercent <= 100 && _newProofRewardPercent != proofRewardPercent,
+            "invalid proof reward percentage"
+        );
+        uint256 _oldRewardPercentage = proofRewardPercent;
+        proofRewardPercent = _newProofRewardPercent;
+        emit UpdateProofRewardPercent(_oldRewardPercentage, _newProofRewardPercent);
+    }
+
+    /// @notice claim prove remaining
+    /// @param receiver  receiver address
+    function claimProveRemaining(address receiver) external onlyOwner {
+        uint256 _proveRemaining = proveRemaining;
+        proveRemaining = 0;
+        _transfer(receiver, _proveRemaining);
+        emit ProveRemainingClaimed(receiver, _proveRemaining);
+    }
+
     /// @notice Pause the contract
     /// @param _status The pause status to update.
     function setPause(bool _status) external onlyOwner {
@@ -643,7 +672,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _type        Description of the challenge type.
     function _defenderWin(uint256 batchIndex, address prover, string memory _type) internal {
         uint256 challengeDeposit = challenges[batchIndex].challengeDeposit;
-        batchChallengeReward[prover] += challengeDeposit;
+        uint256 reward = (challengeDeposit * proofRewardPercent) / 100;
+        proveRemaining += challengeDeposit - reward;
+        batchChallengeReward[prover] += reward;
         emit ChallengeRes(batchIndex, prover, _type);
     }
 
