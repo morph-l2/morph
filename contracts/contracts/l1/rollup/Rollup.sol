@@ -422,8 +422,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 delete challenges[batchChallenged];
                 inChallenge = false;
             }
+            emit Paused(_msgSender());
         } else {
             _unpause();
+            emit Unpaused(_msgSender());
         }
     }
 
@@ -511,6 +513,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(amount != 0, "invalid batchChallengeReward");
         delete batchChallengeReward[_msgSender()];
         _transfer(receiver, amount);
+        emit ChallengeRewardClaim(receiver, amount);
     }
 
     /*************************
