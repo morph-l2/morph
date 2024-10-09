@@ -4,10 +4,10 @@ use std::{
     path::PathBuf,
     sync::Arc,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
-use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT};
+use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
 use alloy::{
     providers::{Provider, ProviderBuilder, ReqwestProvider, RootProvider},
     transports::http::reqwest,
@@ -67,43 +67,46 @@ impl Prover {
                 }
             };
 
-            let traces: &mut Vec<Vec<BlockTrace>> =
-                &mut load_trace("testdata/mainnet_batch_traces.json");
-            let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
+            // let traces: &mut Vec<Vec<BlockTrace>> =
+            //     &mut load_trace("testdata/mainnet_batch_traces.json");
+            // let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
 
             // Step2. Fetch trace
-            log::info!("Requesting trace of batch: {:#?}", batch_index);
-            // let res_provider =
-            //     &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
-            // let block_traces = match res_provider {
-            //     Some(block_traces) => block_traces,
-            //     None => {
-            //         PROVE_RESULT.set(2);
-            //         continue;
-            //     }
-            // };
+            log::info!("Requesting trace of batch-{:#?} ...", batch_index);
+            let res_provider =
+                &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
+            let block_traces = match res_provider {
+                Some(block_traces) => block_traces,
+                None => {
+                    PROVE_RESULT.set(2);
+                    continue;
+                }
+            };
 
             if read_env_var("SAVE_TRACE", false) {
                 save_trace(batch_index, block_traces);
             }
-
             save_batch_header(block_traces, batch_index);
 
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
+            let start = Instant::now();
             let prove_rt = prove(block_traces, true);
 
             match prove_rt {
-                Ok(Some(proof)) => save_proof(batch_index, proof),
-                Ok(None) => log::error!("proof is none"),
-                Err(e) => log::error!("prove err: {:?}", e),
+                Ok(Some(proof)) => {
+                    save_proof(batch_index, proof);
+                    let duration_mins = start.elapsed().as_secs() / 60;
+                    PROVE_TIME.set(duration_mins.try_into().unwrap_or_default());
+                }
+                Ok(None) => log::error!("Gen proof of batch-{:?} is none", batch_index),
+                Err(e) => log::error!("Gen proof of batch-{:?} error: {:?}", batch_index, e),
             }
         }
     }
 }
 
 fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) {
-    // Convert the traces' format to reduce conversion costs in the client.
     blocks.iter_mut().for_each(|blobk| blobk.flatten());
     let batch_info = EVMVerifier::verify(blocks).unwrap();
     let blob_info = morph_executor_host::get_blob_info(blocks).unwrap();
@@ -132,6 +135,7 @@ fn save_proof(batch_index: u64, proof: EvmProofFixture) {
         serde_json::to_string_pretty(&proof).unwrap(),
     )
     .expect("failed to write proof");
+    log::info!("Successfully save evm proof of batch-{:?}", batch_index);
 }
 
 // Fetches block traces by provider
@@ -143,7 +147,7 @@ async fn get_block_traces(
 ) -> Option<Vec<BlockTrace>> {
     let mut block_traces: Vec<BlockTrace> = Vec::new();
     for block_num in start_block..end_block + 1 {
-        log::debug!("zkevm-prover: requesting trace of block {block_num}");
+        log::debug!("requesting trace of block {block_num}");
         let result = provider
             .raw_request("morph_getBlockTraceByNumberOrHash".into(), [format!("{block_num:#x}")])
             .await;
@@ -151,7 +155,7 @@ async fn get_block_traces(
         match result {
             Ok(trace) => block_traces.push(trace),
             Err(e) => {
-                log::error!("zkevm-prover: requesting trace error: {e}");
+                log::error!("requesting trace error: {e}");
                 return None;
             }
         }

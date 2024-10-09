@@ -6,12 +6,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use dotenv::dotenv;
-use flexi_logger::{
-    filter::{LogLineFilter, LogLineWriter},
-    Cleanup, Criterion, DeferredNow, Duplicate, FileSpec, Logger, Naming, WriteMode,
-};
-use log::Record;
+
 use morph_prove::evm::EvmProofFixture;
 use once_cell::sync::Lazy;
 use prometheus::{Encoder, TextEncoder};
@@ -44,26 +39,19 @@ pub static PROVE_QUEUE: Lazy<Arc<Mutex<Vec<ProveRequest>>>> =
     Lazy::new(|| Arc::new(Mutex::new(vec![])));
 
 // Main async function to start prover service.
-// 1. Initializes environment.
-// 2. Spawns prover mng.
-// 3. Spawns metric mng.
-// 4. Start the Prover on the main thread with shared queue.
+// 1. Spawns prover mng.
+// 2. Spawns metric mng.
+// 3. Start the Prover on the main thread with shared queue.
 // Server handles prove requests .
 // Prover consumes requests and generates proofs and save.
 pub async fn start() {
-    // Step1. prepare environment
-    dotenv().ok();
-
-    // Initialize logger.
-    setup_logging();
-
-    // Step2. start prover management
+    // Step1. start prover management
     prover_mng().await;
 
-    // Step3. start metric management
+    // Step2. start metric management
     metric_mng().await;
 
-    // Step4. start prover
+    // Step3. start prover
     start_prover().await;
 }
 
@@ -294,68 +282,4 @@ async fn query_status() -> String {
         0 => String::from("0"),
         _ => String::from("1"),
     }
-}
-
-// Constants for configuration
-const LOG_LEVEL: &str = "info";
-const LOG_FILE_BASENAME: &str = "app_info";
-const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
-                                                     // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
-const LOG_FILES_TO_KEEP: usize = 3;
-fn setup_logging() {
-    //configure the logger
-    Logger::try_with_env_or_str(LOG_LEVEL)
-        .unwrap()
-        .log_to_file(
-            FileSpec::default()
-                .directory(read_env_var("PROVER_LOG_DIR", String::from("/data/logs/morph-prover")))
-                .basename(LOG_FILE_BASENAME),
-        )
-        .format(log_format)
-        .filter(Box::new(ProveFilter))
-        .duplicate_to_stdout(Duplicate::All)
-        .rotate(
-            Criterion::Size(LOG_FILE_SIZE_LIMIT), // Scroll when file size reaches 200MB
-            Naming::TimestampsCustomFormat {
-                current_infix: Some(""),
-                format: "r%Y-%m-%d_%H-%M-%S",
-            }, // Using timestamps as part of scrolling files
-            Cleanup::KeepLogFiles(LOG_FILES_TO_KEEP), // Keep the latest 3 scrolling files
-        )
-        .write_mode(WriteMode::BufferAndFlush)
-        .start()
-        .unwrap();
-}
-
-pub struct ProveFilter;
-
-impl LogLineFilter for ProveFilter {
-    fn write(
-        &self,
-        now: &mut DeferredNow,
-        record: &log::Record,
-        log_line_writer: &dyn LogLineWriter,
-    ) -> std::io::Result<()> {
-        let module_path = record.module_path().unwrap_or("start");
-        let args = record.args().to_string();
-        if !args.contains("tracing::span") && !module_path.contains("p3_") {
-            log_line_writer.write(now, record)?;
-        }
-        Ok(())
-    }
-}
-
-fn log_format(
-    w: &mut dyn std::io::Write,
-    now: &mut flexi_logger::DeferredNow,
-    record: &Record,
-) -> Result<(), std::io::Error> {
-    write!(
-        w,
-        "{} [{}] {} - {}",
-        now.now().format("%Y-%m-%d %H:%M:%S"), // Custom time format
-        record.level(),
-        record.target(),
-        record.args()
-    )
 }

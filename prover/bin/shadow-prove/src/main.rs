@@ -26,9 +26,7 @@ use tower_http::trace::TraceLayer;
 async fn main() {
     // Prepare environment.
     dotenv().ok();
-    // Initialize logger.
     setup_logging();
-
     log::info!("Starting shadow proving...");
 
     // Start metric management.

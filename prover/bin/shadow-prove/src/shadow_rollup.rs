@@ -1,9 +1,9 @@
-use crate::{metrics::METRICS, BatchInfo};
+use crate::{metrics::METRICS, util::read_env_var, BatchInfo};
 use alloy::{
-    network::{Ethereum, Network, ReceiptResponse},
+    network::{Network, ReceiptResponse},
     primitives::{Address, Bytes, TxHash, U256, U64},
-    providers::{Provider, ReqwestProvider, RootProvider},
-    rpc::{client::RpcClient, types::Log},
+    providers::{Provider, RootProvider},
+    rpc::types::Log,
     sol_types::SolCall,
     transports::{
         http::{Client, Http},
@@ -50,6 +50,7 @@ where
 
         let latest = self.l1_provider.get_block_number().await?;
 
+        // Fetch a commited batch on l1 rollup.
         let (batch_info, batch_header) = match get_committed_batch(
             U64::from(latest),
             &self.l1_rollup,
@@ -65,11 +66,30 @@ where
             }
         };
 
+        // Batch should not have been verified yet.
         if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(true) {
-            log::debug!("batch of {:?} already prove successful", batch_info.batch_index);
+            log::debug!("batch of {:?} already prove state successful", batch_info.batch_index);
             return Ok(None);
         };
 
+        // Assembling a batche of the same commitment.
+        #[rustfmt::skip]
+        //   Below is the encoding for `BatchHeader`, reference: morph-repo/contracts/contracts/libraries/codec/BatchHeaderCodecV0.sol
+        //    
+        //   * Field                   Bytes       Type        Index   Comments
+        //   * version                 1           uint8       0       The batch version
+        //   * batchIndex              8           uint64      1       The index of the batch
+        //   * l1MessagePopped         8           uint64      9       Number of L1 messages popped in the batch
+        //   * totalL1MessagePopped    8           uint64      17      Number of total L1 messages popped after the batch
+        //   * dataHash                32          bytes32     25      The data hash of the batch
+        //   * blobVersionedHash       32          bytes32     57      The versioned hash of the blob with this batch’s data
+        //   * prevStateHash           32          bytes32     89      Preview state root
+        //   * postStateHash           32          bytes32     121     Post state root
+        //   * withdrawRootHash        32          bytes32     153     L2 withdrawal tree root hash
+        //   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
+        //   * parentBatchHash         32          bytes32     217     The parent batch hash
+        //   * skippedL1MessageBitmap  dynamic     uint256[]   249     A bitmap to indicate which L1 messages are skipped in the batch
+        // ```
         let batch_store = ShadowRollup::BatchStore {
             prevStateRoot: batch_header
                 .get(89..121)
@@ -103,18 +123,17 @@ where
             "sync batch of {:?}, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
             dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
             batch_info.batch_index,
-            hex::encode(batch_store.prevStateRoot.as_slice()),
-            hex::encode(batch_store.postStateRoot.as_slice()),
-            hex::encode(batch_store.withdrawalRoot.as_slice()),
-            hex::encode(batch_store.dataHash.as_slice()),
-            hex::encode(batch_store.blobVersionedHash.as_slice()),
-            hex::encode(batch_store.sequencerSetVerifyHash.as_slice()),
+            alloy::hex::encode_prefixed(batch_store.prevStateRoot),
+            alloy::hex::encode_prefixed(batch_store.postStateRoot),
+            alloy::hex::encode_prefixed(batch_store.withdrawalRoot),
+            alloy::hex::encode_prefixed(batch_store.dataHash),
+            alloy::hex::encode_prefixed(batch_store.blobVersionedHash),
+            alloy::hex::encode_prefixed(batch_store.sequencerSetVerifyHash),
         );
 
-        // Prepare shadow batch
+        // Commit the shadow batch.
         let shadow_tx = self.l1_shadow_rollup.commitBatch(batch_info.batch_index, batch_store);
         let rt = shadow_tx.send().await;
-
         let pending_tx = match rt {
             Ok(pending_tx) => pending_tx,
             Err(e) => {
@@ -133,13 +152,6 @@ where
     }
 }
 
-/// Returns an HTTP provider for the given URL.
-pub fn http_provider(url: &str) -> ReqwestProvider<Ethereum> {
-    let url = url.parse().unwrap();
-    let http = Http::<Client>::new(url);
-    ReqwestProvider::new(RpcClient::new(http, true))
-}
-
 async fn get_committed_batch<T, P, N>(
     latest: U64,
     l1_rollup: &RollupInstance<T, P, N>,
@@ -150,7 +162,7 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    log::info!("latest blocknum = {:#?}", latest);
+    log::info!("latest l1 blocknum = {:#?}", latest);
     let start = if latest > U64::from(600) { latest - U64::from(600) } else { U64::from(1) };
     let filter =
         l1_rollup.CommitBatch_filter().filter.from_block(start).address(*l1_rollup.address());
@@ -195,35 +207,33 @@ where
     };
 
     if batch_index == 0 {
-        return Err(String::from("batch_index == 0"));
+        return Err(String::from("batch_index is 0"));
     }
-    let blocks = match batch_inspect(l1_provider, tx_hash).await {
-        Some(blocks) => blocks,
-        None => vec![],
+    let (blocks, total_txn_count) = match batch_blocks_inspect(l1_provider, tx_hash).await {
+        Some(block_txn) => block_txn,
+        None => return Err(String::from("batch_blocks_inspect none")),
     };
 
     if blocks.is_empty() {
-        return Err(String::from("blocks.is_empty()"));
+        return Err(String::from("blocks is empty"));
+    }
+
+    if blocks.len() > read_env_var("SHADOW_PROVING_MAX_BLOCK", 300) {
+        log::warn!("Too many blocks in the latest batch to shadow prove");
+        return Ok(None);
+    }
+
+    if total_txn_count > read_env_var("SHADOW_PROVING_MAX_TXN", 600) {
+        log::warn!("Too many txn in the latest batch to shadow prove");
+        return Ok(None);
     }
 
     let batch_info: BatchInfo = BatchInfo { batch_index, blocks };
 
-    log::info!("latest batch index = {:#?}", batch_index);
+    log::info!("Found the committed batch, batch index = {:#?}", batch_index);
     Ok(Some((batch_info, batch_header)))
 }
 
-/// Below is the encoding for `BatchHeader`.
-/// ```text
-///   * Field                   Bytes       Type        Index   Comments
-///   * version                 1           uint8       0       The batch version
-///   * batchIndex              8           uint64      1       The index of the batch
-///   * l1MessagePopped         8           uint64      9       Number of L1 messages popped in the batch
-///   * totalL1MessagePopped    8           uint64      17      Number of total L1 messages popped after the batch
-///   * dataHash                32          bytes32     25      The data hash of the batch
-///   * blobVersionedHash       32          bytes32     57      The versioned hash of the blob with this batch’s data
-///   * parentBatchHash         32          bytes32     89      The parent batch hash
-///   * skippedL1MessageBitmap  dynamic     uint256[]   121     A bitmap to indicate which L1 messages are skipped in the batch
-/// ``
 pub async fn batch_header_inspect(
     l1_provider: &RootProvider<Http<Client>>,
     hash: TxHash,
@@ -259,7 +269,10 @@ pub async fn batch_header_inspect(
     Some(parent_batch_header)
 }
 
-async fn batch_inspect(l1_provider: &RootProvider<Http<Client>>, hash: TxHash) -> Option<Vec<u64>> {
+async fn batch_blocks_inspect(
+    l1_provider: &RootProvider<Http<Client>>,
+    hash: TxHash,
+) -> Option<(Vec<u64>, u32)> {
     //Step1.  Get transaction
     let result = l1_provider.get_transaction_by_hash(hash).await;
     let tx = match result {
@@ -291,9 +304,9 @@ async fn batch_inspect(l1_provider: &RootProvider<Http<Client>>, hash: TxHash) -
     decode_blocks(block_contexts)
 }
 
-fn decode_blocks(block_contexts: Bytes) -> Option<Vec<u64>> {
-    if block_contexts.is_empty() {
-        return None;
+fn decode_blocks(block_contexts: Bytes) -> Option<(Vec<u64>, u32)> {
+    if block_contexts.is_empty() || block_contexts.len() < 2 {
+        return Some((vec![], 0));
     }
 
     let mut blocks: Vec<u64> = vec![];
@@ -301,24 +314,29 @@ fn decode_blocks(block_contexts: Bytes) -> Option<Vec<u64>> {
     let bs: &[u8] = &block_contexts;
 
     // decode blocks from batch
-    // |   1 byte   | 60 bytes | ... | 60 bytes |
+    // |   2 byte   | 60 bytes | ... | 60 bytes |
     // | num blocks |  block 1 | ... |  block n |
+    // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
     let num_blocks: u16 = ((bs[0] as u16) << 8) | (bs[1] as u16);
 
     for i in 0..num_blocks as usize {
         let block_num =
-            u64::from_be_bytes(bs.get((60.mul(i) + 2)..(60.mul(i) + 2 + 8))?.try_into().unwrap());
+            u64::from_be_bytes(bs.get((60.mul(i) + 2)..(60.mul(i) + 2 + 8))?.try_into().ok()?);
         let txs_num = u16::from_be_bytes(
-            bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().unwrap(),
+            bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().ok()?,
         );
         txn_in_batch += txs_num as u32;
         blocks.push(block_num);
     }
 
     METRICS.shadow_txn_len.set(txn_in_batch.into());
-    log::debug!("total_l2txn_in_batch: {:#?}", txn_in_batch);
-    log::debug!("num_blocks: {:#?}, decode_blocks: {:#?}", num_blocks, blocks);
-    Some(blocks)
+    log::info!(
+        "decode_blocks, blocks_len: {:#?}, start_block: {:#?}, txn_in_batch: {:?}",
+        num_blocks,
+        blocks.first().unwrap_or(&0),
+        txn_in_batch
+    );
+    Some((blocks, txn_in_batch))
 }
 
 async fn is_prove_success<T, P, N>(
@@ -359,8 +377,8 @@ async fn test_decode_blocks() {
     let param = Rollup::commitBatchCall::abi_decode(&input, false).unwrap();
     let blocks: Bytes = param.batchDataInput.blockContexts;
     let rt = decode_blocks(blocks).unwrap();
-    assert!(rt.len() == 11);
-    assert!(rt[3] == 1112u64);
+    assert!(rt.0.len() == 11);
+    assert!(rt.0[3] == 1112u64);
 }
 
 #[tokio::test]

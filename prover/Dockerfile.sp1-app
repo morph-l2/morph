@@ -1,7 +1,5 @@
 FROM sp1-base:latest
 
-RUN cargo prove --version
-
 COPY . /app
 WORKDIR /app
 RUN cd bin/server && RUST_LOG=info RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo build --release

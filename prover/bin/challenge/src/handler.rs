@@ -263,7 +263,7 @@ impl ChallengeHandler {
 }
 
 /**
- * Query the zkevm proof for the specified batch index.
+ * Query the plonk proof for the specified batch index.
  * Only return result when proof data exists, otherwise return None.
  */
 async fn query_proof(batch_index: u64) -> Option<ProveResult> {
