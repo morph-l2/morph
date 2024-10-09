@@ -34,7 +34,9 @@ async fn main() {
     // Start metric management.
     metric_mng().await;
 
-    let l1_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
+    let l1_verify_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
+    let l1_rpc: String = read_parse_env("SHADOW_PROVING_L1_RPC");
+
     let private_key: String = read_parse_env("SHADOW_PROVING_PRIVATE_KEY");
     let rollup: String = read_parse_env("SHADOW_PROVING_L1_ROLLUP");
     let shadow_rollup: String = read_parse_env("SHADOW_PROVING_L1_SHADOW_ROLLUP");
@@ -44,10 +46,13 @@ async fn main() {
     let provider: RootProvider<Http<Client>> =
         ProviderBuilder::new().on_http(l1_rpc.parse().expect("parse l1_rpc to Url"));
 
+    let verify_provider: RootProvider<Http<Client>> =
+        ProviderBuilder::new().on_http(l1_verify_rpc.parse().expect("parse l1_rpc to Url"));
+
     let l1_signer = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(wallet)
-        .on_provider(provider.clone());
+        .on_provider(verify_provider.clone());
 
     let batch_syncer = BatchSyncer::new(
         Address::from_str(&rollup).unwrap(),
@@ -59,7 +64,7 @@ async fn main() {
     let shadow_prover = ShadowProver::new(
         signer.address(),
         Address::from_str(&shadow_rollup).unwrap(),
-        provider,
+        verify_provider,
         l1_signer,
     );
 
@@ -185,9 +190,11 @@ async fn test_prove_batch() {
         signers::local::PrivateKeySigner,
         transports::http::{Client, Http},
     };
+    use shadow_prove::{abi::ShadowRollup, BatchInfo};
     use std::{env::var, str::FromStr};
 
-    use shadow_prove::{abi::ShadowRollup, BatchInfo};
+    dotenv().ok();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let l1_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
     let private_key: String = read_parse_env("SHADOW_PROVING_PRIVATE_KEY");

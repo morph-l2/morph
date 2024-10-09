@@ -20,7 +20,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct BatchSyncer<T, P, N> {
     l1_provider: RootProvider<Http<Client>>,
-    l1_rollup: RollupInstance<T, P, N>,
+    l1_rollup: RollupInstance<Http<Client>, RootProvider<Http<Client>>>,
     l1_shadow_rollup: ShadowRollupInstance<T, P, N>,
 }
 
@@ -36,7 +36,7 @@ where
         provider: RootProvider<Http<Client>>,
         wallet: P,
     ) -> Self {
-        let l1_rollup = Rollup::RollupInstance::new(rollup_address, wallet.clone());
+        let l1_rollup = Rollup::RollupInstance::new(rollup_address, provider.clone());
         let l1_shadow_rollup = ShadowRollup::new(shadow_rollup_address, wallet);
 
         Self { l1_provider: provider, l1_rollup, l1_shadow_rollup }
