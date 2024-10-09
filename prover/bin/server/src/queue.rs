@@ -45,7 +45,6 @@ impl Prover {
 
     /// Processes prove requests from a queue.
     pub async fn prove_for_queue(&mut self) {
-        println!("Waiting for prove request");
         log::info!("Waiting for prove request");
         loop {
             thread::sleep(Duration::from_millis(12000));
@@ -68,22 +67,21 @@ impl Prover {
                 }
             };
 
-            // let traces: &mut Vec<Vec<BlockTrace>> =
-            //     &mut load_trace("testdata/mainnet_batch_traces.json");
-            // let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
+            let traces: &mut Vec<Vec<BlockTrace>> =
+                &mut load_trace("testdata/mainnet_batch_traces.json");
+            let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
 
             // Step2. Fetch trace
             log::info!("Requesting trace of batch: {:#?}", batch_index);
-            println!("Requesting trace");
-            let res_provider =
-                &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
-            let block_traces = match res_provider {
-                Some(block_traces) => block_traces,
-                None => {
-                    PROVE_RESULT.set(2);
-                    continue;
-                }
-            };
+            // let res_provider =
+            //     &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
+            // let block_traces = match res_provider {
+            //     Some(block_traces) => block_traces,
+            //     None => {
+            //         PROVE_RESULT.set(2);
+            //         continue;
+            //     }
+            // };
 
             if read_env_var("SAVE_TRACE", false) {
                 save_trace(batch_index, block_traces);
@@ -92,13 +90,13 @@ impl Prover {
             save_batch_header(block_traces, batch_index);
 
             // Step3. Generate evm proof
-            println!("Generate evm proof");
+            log::info!("Generate evm proof");
             let prove_rt = prove(block_traces, true);
 
             match prove_rt {
                 Ok(Some(proof)) => save_proof(batch_index, proof),
-                Ok(None) => println!("proof is none"),
-                Err(e) => println!("prove err: {:?}", e),
+                Ok(None) => log::error!("proof is none"),
+                Err(e) => log::error!("prove err: {:?}", e),
             }
         }
     }

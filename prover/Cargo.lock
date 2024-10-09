@@ -3612,6 +3612,7 @@ dependencies = [
  "clap",
  "dotenv",
  "hex",
+ "log",
  "morph-executor-client",
  "morph-executor-host",
  "morph-executor-utils",

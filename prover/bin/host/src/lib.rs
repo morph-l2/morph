@@ -19,10 +19,10 @@ pub fn prove(
     prove: bool,
 ) -> Result<Option<EvmProofFixture>, anyhow::Error> {
     // Setup the logger.
-    sp1_sdk::utils::setup_logger();
+    // sp1_sdk::utils::setup_logger();
     let program_hash = keccak256(BATCH_VERIFIER_ELF);
-    println!("Program Hash [view on Explorer]:");
-    println!("{}", alloy::hex::encode_prefixed(program_hash));
+    log::info!("Program Hash [view on Explorer]:");
+    log::info!("{}", alloy::hex::encode_prefixed(program_hash));
 
     if blocks.len() > MAX_PROVE_BLOCKS {
         return Err(anyhow!(format!(
@@ -41,7 +41,7 @@ pub fn prove(
     // Execute the program in native
     let expected_hash =
         verify(&client_input).map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
-    println!(
+    log::info!(
         "pi_hash generated with native execution: {}",
         alloy::hex::encode_prefixed(expected_hash.as_slice())
     );
@@ -55,46 +55,50 @@ pub fn prove(
         let (mut public_values, execution_report) = client
             .execute(BATCH_VERIFIER_ELF, stdin.clone())
             .run()
-            .map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
+            .map_err(|e| anyhow!(format!("sp1-vm execution err: {:?}", e)))?;
 
-        println!(
+        log::info!(
             "Program executed successfully, Number of cycles: {:?}",
             execution_report.total_instruction_count()
         );
         let pi_hash = public_values.read::<[u8; 32]>();
         let public_values = B256::from_slice(&pi_hash);
 
-        println!(
+        log::info!(
             "pi_hash generated with sp1-vm execution: {}",
             alloy::hex::encode_prefixed(public_values.as_slice())
         );
         assert_eq!(pi_hash, expected_hash, "pi_hash == expected_pi_hash ");
-        println!("Values are correct!");
+        log::info!("Values are correct!");
     }
 
     if !prove {
-        println!("Execution completed, No prove request, skipping...");
+        log::info!("Execution completed, No prove request, skipping...");
         return Ok(None);
     }
-    println!("Start proving...");
+    log::info!("Start proving...");
     // Setup the program for proving.
     let (pk, vk) = client.setup(BATCH_VERIFIER_ELF);
-    println!("Batch ELF Verification Key: {:?}", vk.vk.bytes32());
+    log::info!("Batch ELF Verification Key: {:?}", vk.vk.bytes32());
 
     // Generate the proof
     let start = Instant::now();
-    let mut proof = client.prove(&pk, stdin).plonk().run().expect("proving failed");
+    let mut proof = client
+        .prove(&pk, stdin)
+        .plonk()
+        .run()
+        .map_err(|e| anyhow!(format!("proving failed: {:?}", e)))?;
 
     let duration_mins = start.elapsed().as_secs() / 60;
-    println!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
+    log::info!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
 
     // Verify the proof.
-    client.verify(&proof, &vk).expect("failed to verify proof");
-    println!("Successfully verified proof!");
+    client.verify(&proof, &vk).map_err(|e| anyhow!(format!("failed to verify proof: {:?}", e)))?;
+    log::info!("Successfully verified proof!");
 
     // Deserialize the public values.
     let pi_bytes = proof.public_values.read::<[u8; 32]>();
-    println!("pi_hash generated with sp1-vm prove: {}", alloy::hex::encode_prefixed(pi_bytes));
+    log::info!("pi_hash generated with sp1-vm prove: {}", alloy::hex::encode_prefixed(pi_bytes));
     let fixture = EvmProofFixture {
         vkey: vk.bytes32().to_string(),
         public_values: B256::from_slice(&pi_bytes).to_string(),

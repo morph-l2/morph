@@ -7,7 +7,10 @@ use axum::{
     Router,
 };
 use dotenv::dotenv;
-use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
+use flexi_logger::{
+    filter::{LogLineFilter, LogLineWriter},
+    Cleanup, Criterion, DeferredNow, Duplicate, FileSpec, Logger, Naming, WriteMode,
+};
 use log::Record;
 use morph_prove::evm::EvmProofFixture;
 use once_cell::sync::Lazy;
@@ -52,7 +55,7 @@ pub async fn start() {
     dotenv().ok();
 
     // Initialize logger.
-    // setup_logging();
+    setup_logging();
 
     // Step2. start prover management
     prover_mng().await;
@@ -309,6 +312,7 @@ fn setup_logging() {
                 .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)
+        .filter(Box::new(ProveFilter))
         .duplicate_to_stdout(Duplicate::All)
         .rotate(
             Criterion::Size(LOG_FILE_SIZE_LIMIT), // Scroll when file size reaches 200MB
@@ -321,6 +325,24 @@ fn setup_logging() {
         .write_mode(WriteMode::BufferAndFlush)
         .start()
         .unwrap();
+}
+
+pub struct ProveFilter;
+
+impl LogLineFilter for ProveFilter {
+    fn write(
+        &self,
+        now: &mut DeferredNow,
+        record: &log::Record,
+        log_line_writer: &dyn LogLineWriter,
+    ) -> std::io::Result<()> {
+        let module_path = record.module_path().unwrap_or("start");
+        let args = record.args().to_string();
+        if !args.contains("tracing::span") && !module_path.contains("p3_") {
+            log_line_writer.write(now, record)?;
+        }
+        Ok(())
+    }
 }
 
 fn log_format(
