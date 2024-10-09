@@ -318,7 +318,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
             committedBatches[_batchIndex] = bytes32(0);
             // if challenge exist and not finished yet, return challenge deposit to challenger
-            if (!challenges[_batchIndex].finished) {
+            if (batchInChallenge(_batchIndex)) {
                 batchChallengeReward[challenges[_batchIndex].challenger] += challenges[_batchIndex].challengeDeposit;
                 inChallenge = false;
             }
