@@ -22,6 +22,7 @@ const config = {
     // initialize config
     finalizationPeriodSeconds: 10,
     rollupProofWindow: 86400,
+    proofRewardPercent: 70,
     // challenge config
     rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
     rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',

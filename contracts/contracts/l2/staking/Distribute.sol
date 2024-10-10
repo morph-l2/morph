@@ -166,6 +166,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
         for (uint256 i = 0; i < sequencers.length; i++) {
             distributions[sequencers[i]][epochIndex].delegatorRewardAmount = delegatorRewards[i];
+            if (distributions[sequencers[i]][epochIndex].delegationAmount == 0 && epochIndex > 0) {
+                distributions[sequencers[i]][epochIndex].delegationAmount = distributions[sequencers[i]][epochIndex - 1]
+                    .delegationAmount;
+            }
             commissions[sequencers[i]] += commissionsAmount[i];
         }
     }
@@ -249,6 +253,13 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         return oldestDistribution[delegatee];
     }
 
+    /// @notice query whether all rewards have been claimed for a delegatee
+    /// @param delegator     delegatee address
+    /// @param delegatee     delegatee address
+    function isRewardClaimed(address delegator, address delegatee) external view returns (bool claimed) {
+        return !unclaimed[delegator].delegatees.contains(delegatee);
+    }
+
     /// @notice query all unclaimed commission of a delegatee
     /// @param delegatee     delegatee address
     function queryUnclaimedCommission(address delegatee) external view returns (uint256 amount) {
@@ -261,7 +272,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     function queryUnclaimed(address delegatee, address delegator) external view returns (uint256 reward) {
         require(unclaimed[delegator].delegatees.length() != 0, "invalid delegator or no remaining reward");
         require(unclaimed[delegator].delegatees.contains(delegatee), "no remaining reward of the delegatee");
-        uint256 totalAmount;
+        uint256 delegateeAmount;
         uint256 delegatorAmount;
         uint256 start = unclaimed[delegator].unclaimedStart[delegatee];
         for (uint256 i = start; i < mintedEpochCount; i++) {
@@ -269,9 +280,9 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 delegatorAmount = distributions[delegatee][i].amounts[delegator];
             }
             if (distributions[delegatee][i].delegationAmount > 0) {
-                totalAmount = distributions[delegatee][i].delegationAmount;
+                delegateeAmount = distributions[delegatee][i].delegationAmount;
             }
-            reward += (distributions[delegatee][i].delegatorRewardAmount * delegatorAmount) / totalAmount;
+            reward += (distributions[delegatee][i].delegatorRewardAmount * delegatorAmount) / delegateeAmount;
             if (unclaimed[delegator].undelegated[delegatee] && unclaimed[delegator].unclaimedEnd[delegatee] == i) {
                 break;
             }
@@ -356,9 +367,6 @@ contract Distribute is IDistribute, OwnableUpgradeable {
                 delegateeAmount = distributions[delegatee][i].delegationAmount;
             }
             reward += (distributions[delegatee][i].delegatorRewardAmount * delegatorAmount) / delegateeAmount;
-            if (unclaimed[delegator].undelegated[delegatee] && unclaimed[delegator].unclaimedEnd[delegatee] == i) {
-                break;
-            }
 
             // if undelegated, remove delegator unclaimed info after claimed all
             if (unclaimed[delegator].undelegated[delegatee] && unclaimed[delegator].unclaimedEnd[delegatee] == i) {
@@ -370,6 +378,10 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             }
         }
         unclaimed[delegator].unclaimedStart[delegatee] = endEpochIndex + 1;
+        if (distributions[delegatee][endEpochIndex + 1].amounts[delegator] == 0) {
+            distributions[delegatee][endEpochIndex + 1].amounts[delegator] = delegatorAmount;
+        }
+
         emit RewardClaimed(delegator, delegatee, endEpochIndex, reward);
     }
 }

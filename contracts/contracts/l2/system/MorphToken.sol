@@ -144,7 +144,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         _inflationMintedEpochs = upToEpochIndex + 1;
     }
 
-    /// @dev Destroys `amount` tokens from `account`, reducing the total supply.
+    /// @dev Destroys `amount` tokens from owner, reducing the total supply.
     /// @param amount amount to destroy
     function burn(uint256 amount) external onlyOwner {
         require(amount > 0, "amount to burn is zero");

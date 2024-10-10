@@ -306,7 +306,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param receiver  receiver address
     function claimWithdrawal(address receiver) external nonReentrant {
         require(withdrawals[_msgSender()] > 0, "withdrawal not exist");
-        require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
+        require(withdrawals[_msgSender()] <= block.number, "withdrawal locked");
 
         delete withdrawals[_msgSender()];
         _cleanStakerStore();
@@ -414,7 +414,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         stakerAddrs = new address[](stakersLength);
         uint256 index = 0;
-        for (uint8 i = 1; i < 255; i++) {
+        for (uint8 i = 1; i <= 255; i++) {
             if ((bitmap & (1 << i)) > 0) {
                 stakerAddrs[index] = stakerSet[i - 1];
                 index = index + 1;
