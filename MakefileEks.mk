@@ -49,28 +49,24 @@ start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle:
 # prover
 build-bk-prod-morph-prod-mainnet-to-morph-prover:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover && cargo build --release
+	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo build --release
 	cp prover/target/release/prover_server dist/
 	cp -r prover/configs dist/
 
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_L1_RPC=$(LAYER1_RPC)
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_L2_RPC=$(LAYER2_RPC)
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export COINBASE=0x530000000000000000000000000000000000000a
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export MORPH_MAINNET_CURIE_BLOCK = 0
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export SCROLL_PROVER_ASSETS_DIR=/data/configs
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_PARAMS_DIR=/data/morph-prover-data/prove_params
+start-bk-prod-morph-prod-mainnet-to-morph-prover: export TRUSTED_SETUP_4844=/data/configs/4844_trusted_setup.txt
 start-bk-prod-morph-prod-mainnet-to-morph-prover: export PROVER_PROOF_DIR=/data/morph-prover-data/proof
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export GENERATE_EVM_VERIFIER=false
-start-bk-prod-morph-prod-mainnet-to-morph-prover: export CHAIN_ID=$(LAYER2_CHAIN_ID)
+start-bk-prod-morph-prod-mainnet-to-morph-prover: export RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f"
+start-bk-prod-morph-prod-mainnet-to-morph-prover: export SP1_PLONK_CIRCUITS_BIN=/data/morph-prover-data/sp1-circuits
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
-	#if [ ! -d morph-prover-data/prove_params ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/prove_params morph-prover-data/; fi
+	#if [ ! -d morph-prover-data/circuits ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/sp1-circuits morph-prover-data/; fi
 	./prover_server
 
 # challenge-handler
 build-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/challenge-handler && cargo build --release
-	cp prover/challenge-handler/target/release/challenge-handler dist/
+	cd $(PWD)/prover/bin/challenge && cargo build --release
+	cp prover/bin/challenge/target/release/challenge-handler dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
 
@@ -91,8 +87,8 @@ start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 # shadow-proving
 build-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/shadow-proving && cargo build --release
-	cp prover/shadow-proving/target/release/shadow-proving dist/
+	cd $(PWD)/prover/bin/shadow-prove && cargo build --release
+	cp prover/bin/shadow-prove/target/release/shadow-proving dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
 

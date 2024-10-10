@@ -19,10 +19,10 @@ pub fn prove(
     prove: bool,
 ) -> Result<Option<EvmProofFixture>, anyhow::Error> {
     // Setup the logger.
-    sp1_sdk::utils::setup_logger();
+    // sp1_sdk::utils::setup_logger();
     let program_hash = keccak256(BATCH_VERIFIER_ELF);
-    println!("Program Hash [view on Explorer]:");
-    println!("{}", alloy::hex::encode_prefixed(program_hash));
+    log::info!("Program Hash [view on Explorer]:");
+    log::info!("{}", alloy::hex::encode_prefixed(program_hash));
 
     if blocks.len() > MAX_PROVE_BLOCKS {
         return Err(anyhow!(format!(
@@ -35,14 +35,13 @@ pub fn prove(
     // Prepare input.
     // Convert the traces' format to reduce conversion costs in the client.
     blocks.iter_mut().for_each(|blobk| blobk.flatten());
-
     let client_input =
         ClientInput { l2_traces: blocks.clone(), blob_info: get_blob_info(blocks).unwrap() };
 
     // Execute the program in native
     let expected_hash =
         verify(&client_input).map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
-    println!(
+    log::info!(
         "pi_hash generated with native execution: {}",
         alloy::hex::encode_prefixed(expected_hash.as_slice())
     );
@@ -51,48 +50,55 @@ pub fn prove(
     let mut stdin = SP1Stdin::new();
     stdin.write(&serde_json::to_string(&client_input).unwrap());
     let client = ProverClient::new();
-    let (mut public_values, execution_report) = client
-        .execute(BATCH_VERIFIER_ELF, stdin.clone())
-        .run()
-        .map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
 
-    println!(
-        "Program executed successfully, Number of cycles: {:?}",
-        execution_report.total_instruction_count()
-    );
-    let pi_hash = public_values.read::<[u8; 32]>();
-    let public_values = B256::from_slice(&pi_hash);
+    if read_env_var("DEVNET", false) {
+        let (mut public_values, execution_report) = client
+            .execute(BATCH_VERIFIER_ELF, stdin.clone())
+            .run()
+            .map_err(|e| anyhow!(format!("sp1-vm execution err: {:?}", e)))?;
 
-    println!(
-        "pi_hash generated with sp1-vm execution: {}",
-        alloy::hex::encode_prefixed(public_values.as_slice())
-    );
-    assert_eq!(pi_hash, expected_hash, "pi_hash == expected_pi_hash ");
-    println!("Values are correct!");
+        log::info!(
+            "Program executed successfully, Number of cycles: {:?}",
+            execution_report.total_instruction_count()
+        );
+        let pi_hash = public_values.read::<[u8; 32]>();
+        let public_values = B256::from_slice(&pi_hash);
+
+        log::info!(
+            "pi_hash generated with sp1-vm execution: {}",
+            alloy::hex::encode_prefixed(public_values.as_slice())
+        );
+        assert_eq!(pi_hash, expected_hash, "pi_hash == expected_pi_hash ");
+        log::info!("Values are correct!");
+    }
 
     if !prove {
-        println!("Execution completed, No prove request, skipping...");
+        log::info!("Execution completed, No prove request, skipping...");
         return Ok(None);
     }
-    println!("Start proving...");
+    log::info!("Start proving...");
     // Setup the program for proving.
     let (pk, vk) = client.setup(BATCH_VERIFIER_ELF);
-    println!("Batch ELF Verification Key: {:?}", vk.vk.bytes32());
+    log::info!("Batch ELF Verification Key: {:?}", vk.vk.bytes32());
 
     // Generate the proof
     let start = Instant::now();
-    let mut proof = client.prove(&pk, stdin).plonk().run().expect("proving failed");
+    let mut proof = client
+        .prove(&pk, stdin)
+        .plonk()
+        .run()
+        .map_err(|e| anyhow!(format!("proving failed: {:?}", e)))?;
 
     let duration_mins = start.elapsed().as_secs() / 60;
-    println!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
+    log::info!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
 
     // Verify the proof.
-    client.verify(&proof, &vk).expect("failed to verify proof");
-    println!("Successfully verified proof!");
+    client.verify(&proof, &vk).map_err(|e| anyhow!(format!("failed to verify proof: {:?}", e)))?;
+    log::info!("Successfully verified proof!");
 
     // Deserialize the public values.
     let pi_bytes = proof.public_values.read::<[u8; 32]>();
-    println!("pi_hash generated with sp1-vm prove: {}", alloy::hex::encode_prefixed(pi_bytes));
+    log::info!("pi_hash generated with sp1-vm prove: {}", alloy::hex::encode_prefixed(pi_bytes));
     let fixture = EvmProofFixture {
         vkey: vk.bytes32().to_string(),
         public_values: B256::from_slice(&pi_bytes).to_string(),
@@ -123,18 +129,16 @@ mod tests {
         println!("blob_bytes len: {:?}", blob_bytes.len());
 
         let origin_batch = get_origin_batch(&blob_bytes).unwrap();
+        println!("origin_batch len: {:?}", origin_batch.len());
 
-        let origin_tx_bytes = decode_raw_tx_payload(origin_batch);
-        println!("origin_tx_bytes len: {:?}", origin_tx_bytes.len());
-
-        let tx_list: Vec<TypedTransaction> = decode_transactions(origin_tx_bytes.as_slice());
+        let tx_list: Vec<TypedTransaction> = decode_transactions(origin_batch.as_slice());
         println!("decoded tx_list_len: {:?}", tx_list.len());
 
         //txn to blob
         let mut tx_bytes: Vec<u8> = vec![];
         let x = tx_list.iter().flat_map(|tx| tx.rlp()).collect::<Vec<u8>>();
         tx_bytes.extend(x);
-        assert!(tx_bytes == origin_tx_bytes, "tx_bytes==origin_tx_bytes");
+        assert!(tx_bytes == origin_batch, "tx_bytes==origin_batch");
         // tx_bytes[121..1000].fill(0);
         let blob = encode_blob(tx_bytes);
 
@@ -175,7 +179,7 @@ mod tests {
 
         //https://holesky.etherscan.io/blob/0x018494ae7657bebd9e590baf3736ac9207a5d2275ef98c025dad3232b7875278?bid=2391294
         //https://explorer-holesky.morphl2.io/batches/223946
-        let blob_data_path = Path::new("../../testdata/blob/blob_with_zstd_batch_holesky.data");
+        let blob_data_path = Path::new("../../testdata/blob/sp1_batch.data");
         let data = fs::read_to_string(blob_data_path).expect("Unable to read file");
         let hex_data: Vec<u8> = hex::decode(data.trim()).unwrap();
         let mut array = [0u8; 131072];

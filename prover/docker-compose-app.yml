@@ -1,7 +1,7 @@
 version: '3.4'
 
 services:
-  sp1-app:
+  prover:
     build:
       context: .
       dockerfile: Dockerfile.sp1-app
@@ -9,8 +9,8 @@ services:
     volumes:
     - /data/develop/sp1-apps/data/plonk-circuits:/root/.sp1/circuits/v1.3.0-rc2-scroll
     - /data/develop/sp1-apps/data/proof:/root/data/proof
-    restart: no
-    container_name: 'sp1-app'
+    restart: unless-stopped
+    container_name: 'prover'
     command: >
       ./prover-server
     ports:

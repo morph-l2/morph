@@ -15,6 +15,8 @@ struct Args {
 }
 
 fn main() {
+    dotenv::dotenv().ok();
+
     let args = Args::parse();
     let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace(&args.block_path);
     let block_traces: &mut Vec<BlockTrace> = &mut traces[0];

@@ -22,5 +22,6 @@ Dockerfile.test
 
 shadow-proving
 contracts/cache
+contracts
 out
 lib

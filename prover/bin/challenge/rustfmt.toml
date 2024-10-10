@@ -1,0 +1,5 @@
+edition = "2021"
+
+comment_width = 100
+max_width = 150
+

@@ -1,10 +1,5 @@
 //! An end-to-end example of using the SP1 SDK to generate a proof of a program that can have an
 //! EVM-Compatible proof generated which can be verified on-chain.
-//!
-//! You can run this script using the following command:
-//! ```shell
-//! RUST_LOG=info cargo run --release --bin evm
-//! ```
 
 use morph_executor_utils::read_env_var;
 use serde::{Deserialize, Serialize};
