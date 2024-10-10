@@ -151,8 +151,10 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
         return Ok(());
     }
 
+    let batch_hash = l1_rollup.committed_batches(U256::from(batch_index)).await?;
+
     // l1_rollup.connect()
-    let tx: FunctionCall<_, _, _> = l1_rollup.challenge_state(batch_index).value(min_deposit);
+    let tx: FunctionCall<_, _, _> = l1_rollup.challenge_state(batch_index, batch_hash).value(min_deposit);
     let rt = tx.send().await;
     let pending_tx = match rt {
         Ok(pending_tx) => {

@@ -55,6 +55,25 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengeRewardClaim",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "uint64",
         "name": "batchIndex",
         "type": "uint64"
@@ -174,6 +193,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProveRemainingClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "uint256",
         "name": "batchIndex",
@@ -238,6 +276,25 @@
       }
     ],
     "name": "UpdateFinalizationPeriodSeconds",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldPercent",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newPercent",
+        "type": "uint256"
+      }
+    ],
+    "name": "UpdateProofRewardPercent",
     "type": "event"
   },
   {
@@ -465,6 +522,11 @@
         "internalType": "uint64",
         "name": "batchIndex",
         "type": "uint64"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_batchHash",
+        "type": "bytes32"
       }
     ],
     "name": "challengeState",
@@ -514,6 +576,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      }
+    ],
+    "name": "claimProveRemaining",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -717,6 +792,11 @@
         "internalType": "uint256",
         "name": "_proofWindow",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_proofRewardPercent",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -842,7 +922,33 @@
   },
   {
     "inputs": [],
+    "name": "proofRewardPercent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "proofWindow",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proveRemaining",
     "outputs": [
       {
         "internalType": "uint256",
@@ -970,6 +1076,19 @@
       }
     ],
     "name": "updateProofWindow",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_newProofRewardPercent",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateRewardPercentage",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
