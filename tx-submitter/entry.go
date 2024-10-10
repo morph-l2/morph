@@ -205,6 +205,16 @@ func Main() func(ctx *cli.Context) error {
 			rsaPriv,
 			rotator,
 		)
+		log.Info("wallet", "wallet_addr", sr.WalletAddr().Hex())
+		// all staker
+		stakers, err := sr.Staking.GetStakers(nil)
+		if err != nil {
+			return fmt.Errorf("get stakers failed :%w", err)
+		}
+
+		for i := 0; i < 255; i++ {
+			fmt.Printf("stakers %d : %s \n", i, stakers[i].Hex())
+		}
 		// init rollup service
 		if err := sr.Init(); err != nil {
 			return err
@@ -220,11 +230,6 @@ func Main() func(ctx *cli.Context) error {
 				}()
 			}
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
-		}
-
-		// log external sign info
-		if cfg.ExternalSign {
-
 		}
 
 		log.Info("external sign info",
