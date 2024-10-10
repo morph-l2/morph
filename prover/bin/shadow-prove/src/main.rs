@@ -12,7 +12,7 @@ use dotenv::dotenv;
 use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
 use log::Record;
 use prometheus::{Encoder, TextEncoder};
-use shadow_prove::{
+use shadow_proving::{
     metrics::{METRICS, REGISTRY},
     shadow_prove::ShadowProver,
     shadow_rollup::BatchSyncer,
@@ -188,7 +188,7 @@ async fn test_prove_batch() {
         signers::local::PrivateKeySigner,
         transports::http::{Client, Http},
     };
-    use shadow_prove::{abi::ShadowRollup, BatchInfo};
+    use shadow_proving::{abi::ShadowRollup, BatchInfo};
     use std::{env::var, str::FromStr};
 
     dotenv().ok();
