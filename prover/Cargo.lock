@@ -5878,7 +5878,7 @@ dependencies = [
 [[package]]
 name = "sp1-build"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5890,7 +5890,7 @@ dependencies = [
 [[package]]
 name = "sp1-core-executor"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5927,7 +5927,7 @@ dependencies = [
 [[package]]
 name = "sp1-core-machine"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -5992,7 +5992,7 @@ dependencies = [
 [[package]]
 name = "sp1-curves"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "curve25519-dalek",
  "dashu",
@@ -6012,7 +6012,7 @@ dependencies = [
 [[package]]
 name = "sp1-derive"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6022,7 +6022,7 @@ dependencies = [
 [[package]]
 name = "sp1-helper"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "sp1-build",
 ]
@@ -6030,7 +6030,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6043,7 +6043,7 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -6056,7 +6056,7 @@ dependencies = [
 [[package]]
 name = "sp1-prover"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6095,7 +6095,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-circuit"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -6119,7 +6119,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-circuit-v2"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "bincode",
  "hashbrown 0.14.5",
@@ -6157,7 +6157,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-compiler"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -6186,7 +6186,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-core"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -6223,7 +6223,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-core-v2"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -6263,7 +6263,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-derive"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6273,7 +6273,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-gnark-ffi"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6299,7 +6299,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-program"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -6330,7 +6330,7 @@ dependencies = [
 [[package]]
 name = "sp1-sdk"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "alloy-sol-types 0.7.7",
  "anyhow",
@@ -6375,7 +6375,7 @@ dependencies = [
 [[package]]
 name = "sp1-stark"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "arrayref",
  "getrandom",
@@ -6406,7 +6406,7 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "1.2.0"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0909#41be89928efa92be4c8594b9c865cc02efadf72a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=morph-1.0#29ff89f25645bb01c101a3998762320669b0e47b"
 dependencies = [
  "bincode",
  "cfg-if 1.0.0",
