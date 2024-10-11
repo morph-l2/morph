@@ -932,6 +932,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "atty"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
+dependencies = [
+ "hermit-abi 0.1.19",
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "aurora-engine-modexp"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2131,6 +2142,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2879,6 +2903,15 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hermit-abi"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "hermit-abi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
@@ -2989,6 +3022,12 @@ name = "httpdate"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
+name = "humantime"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
@@ -3560,7 +3599,7 @@ version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4569e456d394deccd22ce1c1913e6ea0e54519f577285001215d33557431afe4"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.9",
  "libc",
  "wasi",
  "windows-sys 0.52.0",
@@ -3611,6 +3650,7 @@ dependencies = [
  "anyhow",
  "clap",
  "dotenv",
+ "env_logger",
  "hex",
  "log",
  "morph-executor-client",
@@ -3809,7 +3849,7 @@ version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.9",
  "libc",
 ]
 
@@ -5055,7 +5095,7 @@ dependencies = [
 [[package]]
 name = "revm"
 version = "14.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=morph-update#e073450a42732460bb228baef69d59d34e27890c"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
 dependencies = [
  "auto_impl",
  "cfg-if 1.0.0",
@@ -5069,7 +5109,7 @@ dependencies = [
 [[package]]
 name = "revm-interpreter"
 version = "10.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=morph-update#e073450a42732460bb228baef69d59d34e27890c"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
 dependencies = [
  "cfg-if 1.0.0",
  "revm-primitives",
@@ -5079,7 +5119,7 @@ dependencies = [
 [[package]]
 name = "revm-precompile"
 version = "11.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=morph-update#e073450a42732460bb228baef69d59d34e27890c"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
 dependencies = [
  "aurora-engine-modexp",
  "c-kzg",
@@ -5096,7 +5136,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "9.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=morph-update#e073450a42732460bb228baef69d59d34e27890c"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
 dependencies = [
  "alloy-eips",
  "alloy-primitives 0.8.0",
@@ -6658,6 +6698,15 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "termcolor"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]

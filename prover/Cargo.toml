@@ -101,9 +101,9 @@ morph-executor-utils = { path = "crates/morph-executor/utils" }
 morph-prove = { path = "bin/host" }
 # shadow-prove = { path = "shadow-prove" }
 
-[workspace.dependencies.revm] # v42
+[workspace.dependencies.revm]
 git = "https://github.com/morph-l2/revm"
-branch = "morph-update"
+branch = "release/v42"
 default-features = false
 features = [
     "morph-default-handler",
@@ -112,9 +112,9 @@ features = [
     "optional_no_base_fee"
 ]
 
-[workspace.dependencies.revm-primitives] # v42
+[workspace.dependencies.revm-primitives]
 git = "https://github.com/morph-l2/revm"
-branch = "morph-update"
+branch = "release/v42"
 default-features = false
 features = [
     "morph-default-handler",

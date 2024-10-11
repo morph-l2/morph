@@ -22,7 +22,7 @@ hex = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 log = { workspace = true }
-#env_logger = { workspace = true }
+env_logger = { workspace = true }
 once_cell = { workspace = true }
 alloy = { workspace = true }
 dotenv = { workspace = true }
