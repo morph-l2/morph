@@ -1,12 +1,4 @@
 PWD := $(shell pwd)
-LAYER1_RPC := http://ethereum.upex30.net:8545
-LAYER1_BEACON_RPC := http://ethereum.upex30.net:3500
-LAYER2_RPC := http://morph-geth-0:8545
-L2_TENDERMINT_RPC := http://morph-node-0:26657
-LAYER2_CHAIN_ID := 2818
-ROLLUP := 0x1dc010026af6fd4a6dc3686446c752094bda8d4d
-START_HEIGHT := 20626146
-EXTERNAL_SIGN_URL:= http://morph-proxy-backend:8080/v1/sign/tx_sign
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
