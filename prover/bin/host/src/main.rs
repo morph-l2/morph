@@ -15,6 +15,9 @@ struct Args {
 }
 
 fn main() {
+    dotenv::dotenv().ok();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let args = Args::parse();
     let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace(&args.block_path);
     let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
