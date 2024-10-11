@@ -11,6 +11,7 @@ import {IL2Staking} from "../l2/staking/IL2Staking.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {IDistribute} from "../l2/staking/IDistribute.sol";
+import {console} from "forge-std/Test.sol";
 
 // import "forge-std/console.sol";
 
@@ -29,8 +30,19 @@ contract L2StakingTest is L2StakingBaseTest {
         thirdStaker = address(uint160(beginSeq + 2));
 
         hevm.startPrank(multisig);
-        morphToken.transfer(bob, morphBalance);
         morphToken.transfer(alice, morphBalance);
+        morphToken.transfer(alice1, morphBalance);
+        morphToken.transfer(alice2, morphBalance);
+        morphToken.transfer(alice3, morphBalance);
+        morphToken.transfer(alice4, morphBalance);
+        morphToken.transfer(alice5, morphBalance);
+
+        morphToken.transfer(bob, morphBalance);
+        morphToken.transfer(bob1, morphBalance);
+        morphToken.transfer(bob2, morphBalance);
+        morphToken.transfer(bob3, morphBalance);
+        morphToken.transfer(bob4, morphBalance);
+        morphToken.transfer(bob5, morphBalance);
         hevm.stopPrank();
 
         hevm.warp(rewardStartTime);
@@ -1452,7 +1464,15 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice  staking -> distribute -> claim
      */
     function test_delegatorClaimLargeEpochs_succeeds() public {
+
         hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        hevm.startPrank(alice1);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
         l2Staking.delegateStake(secondStaker, 5 ether);
@@ -1498,7 +1518,7 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(secondRanking, 0 + 1);
 
         // *********************************** //
-        for (uint256 i = 1; i < 3; i++) {
+        for (uint256 i = 1; i < 22; i++) {
             time = REWARD_EPOCH * (i + 2);
             hevm.roll(blocksCountOfEpoch * (i + 2));
             hevm.warp(time);
@@ -1512,6 +1532,47 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(firstStaker, 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter, balanceBefore + aliceReward1);
+        hevm.stopPrank();
+
+        hevm.startPrank(alice2);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, morphBalance - 5 ether);
+        hevm.stopPrank();
+
+        // *********************************** //
+        for (uint256 i = 22; i < 1000; i++) {
+            time = REWARD_EPOCH * (i + 2);
+            hevm.roll(blocksCountOfEpoch * (i + 2));
+            hevm.warp(time);
+            _updateDistribute(i);
+        }
+        // *********************************** //
+
+        uint256 aliceReward2 = distribute.queryUnclaimed(firstStaker, alice);
+        hevm.startPrank(alice);
+        balanceBefore = morphToken.balanceOf(alice);
+        l2Staking.claimReward(firstStaker, 0);
+        balanceAfter = morphToken.balanceOf(alice);
+        assertEq(balanceAfter, balanceBefore + aliceReward2);
+        hevm.stopPrank();
+
+        uint256 alice1Reward = distribute.queryUnclaimed(firstStaker, alice1);
+        hevm.startPrank(alice1);
+        uint256 alice1BalanceBefore = morphToken.balanceOf(alice1);
+        l2Staking.claimReward(firstStaker, 0);
+        uint256 alice1BalanceAfter = morphToken.balanceOf(alice1);
+        assertEq(alice1BalanceAfter, alice1BalanceBefore + alice1Reward);
+        hevm.stopPrank();
+
+        uint256 alice2Reward = distribute.queryUnclaimed(firstStaker, alice2);
+        console.log("alice2Reward: ", alice2Reward);
+        hevm.startPrank(alice2);
+        uint256 alice2BalanceBefore = morphToken.balanceOf(alice2);
+        // console.log("alice2BalanceBefore: ", alice2BalanceBefore);
+        l2Staking.claimReward(firstStaker, 0);
+        uint256 alice2BalanceAfter = morphToken.balanceOf(alice2);
+        // console.log("alice2BalanceAfter: ", alice2BalanceAfter);
+        assertEq(alice2BalanceAfter, alice2BalanceBefore + alice2Reward);
         hevm.stopPrank();
 
         // Throw an error to check gas consumption
