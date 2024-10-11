@@ -2,6 +2,7 @@
 pragma solidity =0.8.24;
 
 import {WETH} from "@rari-capital/solmate/src/tokens/WETH.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
@@ -45,6 +46,93 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // Prepare token balances
         l2weth.deposit{value: address(this).balance / 2}();
         l2weth.approve(address(gateway), type(uint256).max);
+    }
+
+    function test_initialize_initializeAgain_reverts() public {
+        // Test the initializer modifier to ensure initialize() can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        l2WETHGateway.initialize(address(1), address(1), address(1));
+    }
+    function test_initialize_zeroAddress_reverts() external {
+        hevm.startPrank(multisig);
+        // Deploy a transparent upgradeable proxy for the L2WETHGateway contract.
+        TransparentUpgradeableProxy l2WETHGatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+        // Deploy a new instance of the L2WETHGateway contract implementation.
+        gateway = new L2WETHGateway(address(l1weth), address(l2weth));
+        // Expect revert when the address of _counterpart equals the zero address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2WETHGateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(l2WETHGatewayProxyTemp), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        // Expect revert when the address of _router equals the zero address.
+        hevm.expectRevert("zero router address");
+        ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2WETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        // Expect revert when the address of _messenger equals the zero address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2WETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2WETHGatewayProxyTemp), // _router
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+    function test_initialize_succeed() public {
+        hevm.startPrank(multisig);
+        // Deploy a transparent upgradeable proxy for the L2WETHGateway contract.
+        TransparentUpgradeableProxy l2WETHGatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+        // Deploy a new instance of the L2WETHGateway contract implementation.
+        gateway = new L2WETHGateway(address(l1weth), address(l2weth));
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l2WETHGatewayProxyTemp)).upgradeToAndCall(
+            address(gateway),
+            abi.encodeCall(
+                L2WETHGateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2WETHGatewayProxyTemp), // _router
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        // Cast the proxy contract address to the L2WETHGateway contract type to call its methods.
+        L2WETHGateway l2WETHGatewayTemp = L2WETHGateway(payable(address(l2WETHGatewayProxyTemp)));
+        hevm.stopPrank();
+        // Verify the counterpart, router and messenger are initialized successfully.
+        assertEq(l2WETHGatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l2WETHGatewayTemp.router(), address(l2WETHGatewayProxyTemp));
+        assertEq(l2WETHGatewayTemp.messenger(), address(l2CrossDomainMessenger));
     }
 
     function test_directTransferETH_succeeds(uint256 amount) public {
@@ -174,7 +262,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // send some WETH to L2CrossDomainMessenger
         gateway.withdrawERC20(address(l2weth), amount, 21000);
 
-        // do finalize withdraw eth
+        // Prepare the message to finalize the deposit of ETH on L2
         bytes memory message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
             (address(l1weth), address(l2weth), sender, recipient, amount, dataToCall)
@@ -217,7 +305,7 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         // send some WETH to L1CrossDomainMessenger
         gateway.withdrawERC20(address(l2weth), amount, 21000);
 
-        // do finalize withdraw weth
+        // Prepare the message to finalize the deposit of ETH on L2
         bytes memory message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
             (address(l1weth), address(l2weth), sender, address(recipient), amount, dataToCall)
