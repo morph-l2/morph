@@ -56,6 +56,7 @@ export const RollupInit = async (
         console.log('Upgrading the Rollup proxy...')
         const finalizationPeriodSeconds: number = config.finalizationPeriodSeconds
         const proofWindow: number = config.rollupProofWindow
+        const proofRewardPercent: number = config.proofRewardPercent
 
         if (!ethers.utils.isAddress(L1MessageQueueWithGasPriceOracleProxyAddress)
             || !ethers.utils.isAddress(MultipleVersionRollupVerifierContract.address)
@@ -73,7 +74,8 @@ export const RollupInit = async (
                 L1MessageQueueWithGasPriceOracleProxyAddress,
                 MultipleVersionRollupVerifierContract.address,
                 finalizationPeriodSeconds,
-                proofWindow
+                proofWindow,
+                proofRewardPercent
             ])
         )
 

@@ -12,6 +12,11 @@ Generate zk proof for the l2 batch.
 cd bin/host
 RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt cargo run --release
 ```
+or
+
+```sh
+RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --block-path ../../testdata/mainnet_batch_traces_l1.json
+```
 
 ### Build the Program
 

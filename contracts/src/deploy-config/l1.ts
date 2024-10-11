@@ -17,11 +17,12 @@ const config = {
     l2BaseFee: 0.1,  // Gwei
 
     // verify contract config
-    programVkey: '0x00b1df56f77d1580ed5ca3fe958dfc2eccd825e84302fbd06d4a0078a86b6b79',
+    programVkey: '0x00bc91a65e39100f3b075c9edf1a60fd1cb025b9413ea19c34c62d455e512685',
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 86400,
     rollupProofWindow: 86400,
+    proofRewardPercent: 70,
     // challenge config
     rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
     rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',

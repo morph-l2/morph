@@ -71,6 +71,7 @@ contract GasPriceOracle is Ownable {
     event L1BlobBaseFeeUpdated(uint256 l1BlobBaseFee);
     event CommitScalarUpdated(uint256 scalar);
     event BlobScalarUpdated(uint256 scalar);
+    event CurieFlagUpdate(bool enable);
 
     /*//////////////////////////////////////////////////////////////
                                Errors 
@@ -215,6 +216,7 @@ contract GasPriceOracle is Ownable {
     function enableCurie() external onlyAllowed {
         if (isCurie) revert ErrAlreadyInCurieFork();
         isCurie = true;
+        emit CurieFlagUpdate(true);
     }
 
     /*//////////////////////////////////////////////////////////////

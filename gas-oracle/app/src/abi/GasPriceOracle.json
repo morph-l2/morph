@@ -12,6 +12,11 @@
   },
   {
     "inputs": [],
+    "name": "ErrAlreadyInCurieFork",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ErrCallerNotAllowed",
     "type": "error"
   },
@@ -101,6 +106,19 @@
       }
     ],
     "name": "CommitScalarUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "enable",
+        "type": "bool"
+      }
+    ],
+    "name": "CurieFlagUpdate",
     "type": "event"
   },
   {
@@ -214,6 +232,13 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "enableCurie",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes",
@@ -255,11 +280,24 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "addr",
         "type": "address"
       }
     ],
     "name": "isAllowed",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "allowed",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isCurie",
     "outputs": [
       {
         "internalType": "bool",

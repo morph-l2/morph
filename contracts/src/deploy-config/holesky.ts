@@ -14,26 +14,31 @@ const config = {
     l2BaseFee: 0.1,  // Gwei
 
     // verify contract config
-    programVkey: '0x00b1df56f77d1580ed5ca3fe958dfc2eccd825e84302fbd06d4a0078a86b6b79',
+    programVkey: '0x00bc91a65e39100f3b075c9edf1a60fd1cb025b9413ea19c34c62d455e512685',
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 600,
     rollupBatchIndex: 0,
     rollupProofWindow: 86400,
+    proofRewardPercent: 70,
     // challenge config
     // TODO to be removed later
     rollupProposer: '0x48446b07A04307F320fa34790116d73aD4A51810',
     rollupChallenger: '0x48445d5DDb25a4f23C6d85D87f15B39Fe94e6867',
     // genesis config
     rollupGenesisStateRoot: '',
-    withdrawRoot: '',
-    batchHeader: '',
+
 
     // staking config
+    // staking Cross-Chain config
+    stakingCrossChainGaslimitAdd: 1000000,
+    stakingCrossChainGaslimitRemove: 8000000,
+
     // staking initialize config
-    stakingSequencerSize: 4,
     stakingLockNumber: 3,
-    stakingMinDeposit: 1, // limit
+    stakingChallengeDeposit: 1, // 1 ether
+    stakingMinDeposit: 1, // 1 ether
+    stakingChallengerRewardPercentage: 100,
     // register sequencers
     l2SequencerAddresses: [
         "0x48446b07A04307F320fa34790116d73aD4A51810",
