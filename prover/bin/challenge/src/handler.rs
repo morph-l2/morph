@@ -512,7 +512,7 @@ fn decode_blocks(block_contexts: Bytes) -> Option<(Vec<u64>, u64)> {
     let bs: &[u8] = &block_contexts;
 
     // decode blocks from batch
-    // |   1 byte   | 60 bytes | ... | 60 bytes |
+    // |   2 bytes   | 60 bytes | ... | 60 bytes |
     // | num blocks |  block 1 | ... |  block n |
     let num_blocks: u16 = ((bs[0] as u16) << 8) | (bs[1] as u16);
 
