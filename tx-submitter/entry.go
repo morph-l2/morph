@@ -64,6 +64,7 @@ func Main() func(ctx *cli.Context) error {
 			"rough_estimate_gas", cfg.RoughEstimateGas,
 			"rough_estimate_base_gas", cfg.RollupTxGasBase,
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
+			"log_level", cfg.LogLevel,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -206,7 +207,7 @@ func Main() func(ctx *cli.Context) error {
 			rotator,
 		)
 		// init rollup service
-		if err := sr.Init(); err != nil {
+		if err := sr.PreCheck(); err != nil {
 			return err
 		}
 		// metrics
