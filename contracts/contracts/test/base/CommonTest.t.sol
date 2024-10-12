@@ -18,7 +18,19 @@ contract CommonTest is DSTestPlus, MockTree {
     EmptyContract public emptyContract;
 
     address public alice = address(128);
+    address public alice1 = address(129);
+    address public alice2 = address(130);
+    address public alice3 = address(131);
+    address public alice4 = address(132);
+    address public alice5 = address(133);
+
     address public bob = address(256);
+    address public bob1 = address(257);
+    address public bob2 = address(258);
+    address public bob3 = address(259);
+    address public bob4 = address(260);
+    address public bob5 = address(261);
+    
     address public multisig = address(512);
 
     FFIInterface public ffi;
@@ -32,7 +44,18 @@ contract CommonTest is DSTestPlus, MockTree {
     function setUp() public virtual {
         // Give alice and bob some ETH
         hevm.deal(alice, 1 << 16);
+        hevm.deal(alice1, 1 << 16);
+        hevm.deal(alice2, 1 << 16);
+        hevm.deal(alice3, 1 << 16);
+        hevm.deal(alice4, 1 << 16);
+        hevm.deal(alice5, 1 << 16);
+
         hevm.deal(bob, 1 << 16);
+        hevm.deal(bob1, 1 << 16);
+        hevm.deal(bob2, 1 << 16);
+        hevm.deal(bob3, 1 << 16);
+        hevm.deal(bob4, 1 << 16);
+        hevm.deal(bob5, 1 << 16);
         hevm.deal(multisig, 1 << 16);
 
         hevm.label(alice, "alice");

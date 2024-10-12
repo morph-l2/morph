@@ -9,7 +9,6 @@ pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
     // Verify DA
     let (versioned_hash, batch_data) = BlobVerifier::verify(&input.blob_info).unwrap();
-
     println!("cycle-tracker-start: traces-to-data");
     let mut tx_bytes: Vec<u8> = vec![];
     for trace in &input.l2_traces {

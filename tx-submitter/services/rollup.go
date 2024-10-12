@@ -786,12 +786,12 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 	return &sigData, nil
 }
 
-func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
-	tip, err := sr.L1Client.SuggestGasTipCap(context.Background())
+func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
+	tip, err := r.L1Client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	head, err := sr.L1Client.HeaderByNumber(context.Background(), nil)
+	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -812,22 +812,43 @@ func (sr *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	}
 
 	//calldata fee bump x*fee/100
-	if sr.cfg.CalldataFeeBump > 0 {
+	if r.cfg.CalldataFeeBump > 0 {
 		// feecap
-		gasFeeCap = new(big.Int).Mul(gasFeeCap, big.NewInt(int64(sr.cfg.CalldataFeeBump)))
+		gasFeeCap = new(big.Int).Mul(gasFeeCap, big.NewInt(int64(r.cfg.CalldataFeeBump)))
 		gasFeeCap = new(big.Int).Div(gasFeeCap, big.NewInt(100))
 		// tip
-		tip = new(big.Int).Mul(tip, big.NewInt(int64(sr.cfg.CalldataFeeBump)))
+		tip = new(big.Int).Mul(tip, big.NewInt(int64(r.cfg.CalldataFeeBump)))
 		tip = new(big.Int).Div(tip, big.NewInt(100))
 	}
 
 	return tip, gasFeeCap, blobFee, nil
 }
 
-// Init is run before the submitter to check whether the submitter can be started
-func (sr *Rollup) Init() error {
+// PreCheck is run before the submitter to check whether the submitter can be started
+func (r *Rollup) PreCheck() error {
 
-	isStaker, err := sr.IsStaker()
+	// debug stakers
+	stakers, err := r.Staking.GetStakers(nil)
+	if err != nil {
+		log.Debug("get stakers error", "err", err)
+	} else {
+		log.Debug("stakers", "len", len(stakers))
+		for _, s := range stakers {
+			log.Debug("staker", "addr", s.Hex())
+		}
+	}
+	// debug active stakers
+	activeStakers, err := r.Staking.GetActiveStakers(nil)
+	if err != nil {
+		log.Debug("get active stakers error", "err", err)
+	} else {
+		log.Debug("active stakers", "len", len(activeStakers))
+		for _, s := range activeStakers {
+			log.Debug("active staker", "addr", s.Hex())
+		}
+	}
+
+	isStaker, err := r.IsStaker()
 	if err != nil {
 		return fmt.Errorf("check if this account is sequencer error:%v", err)
 	}
@@ -839,12 +860,12 @@ func (sr *Rollup) Init() error {
 	return nil
 }
 
-func (sr *Rollup) WalletAddr() common.Address {
+func (r *Rollup) WalletAddr() common.Address {
 
-	if sr.cfg.ExternalSign {
-		return common.HexToAddress(sr.cfg.ExternalSignAddress)
+	if r.cfg.ExternalSign {
+		return common.HexToAddress(r.cfg.ExternalSignAddress)
 	} else {
-		return crypto.PubkeyToAddress(sr.privKey.PublicKey)
+		return crypto.PubkeyToAddress(r.privKey.PublicKey)
 	}
 
 }

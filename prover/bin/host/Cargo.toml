@@ -21,10 +21,11 @@ serde_json = { workspace = true }
 hex = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
-#log = { workspace = true }
-#env_logger = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
 once_cell = { workspace = true }
 alloy = { workspace = true }
+dotenv = { workspace = true }
 
 
 # workspace
@@ -35,3 +36,4 @@ sbv-primitives = { workspace = true }
 
 [build-dependencies]
 sp1-helper = { workspace = true }
+morph-executor-utils = { workspace = true }
