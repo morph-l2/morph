@@ -262,7 +262,7 @@ var (
 	ExternalSignRsaPriv = cli.StringFlag{
 		Name:   "external_rsa_priv",
 		Usage:  "The rsa private key of the external sign",
-		EnvVar: prefixEnvVar("EXTERNAL_RSA_PRIV"),
+		EnvVar: "SEQUENCER_EXTERNAL_SIGN_RSA_PRIV", // use sequencer rsa from xxx
 	}
 	RoughEstimateGasFlag = cli.BoolFlag{
 		Name:   "rough_estimate_gas",
