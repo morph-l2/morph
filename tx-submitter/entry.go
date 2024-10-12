@@ -65,6 +65,7 @@ func Main() func(ctx *cli.Context) error {
 			"rough_estimate_base_gas", cfg.RollupTxGasBase,
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
 			"log_level", cfg.LogLevel,
+			"rsa", cfg.ExternalSignRsaPriv,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
