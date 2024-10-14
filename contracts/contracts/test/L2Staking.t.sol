@@ -958,33 +958,43 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice updateRewardStartTime: Reverts if reward already started.
+     * @notice updateRewardStartTime: Reverts if reward start time is before current block time.
      */
-    function test_updateRewardStartTime_rewardAlreadyStarted_reverts() public {
-        // Expect revert due to reward already started.
-        hevm.expectRevert("reward already started");
+    function test_updateRewardStartTime_NoChange_reverts() public {
+        uint256 oldTime = l2Staking.rewardStartTime();
+        uint256 newTime = block.timestamp + REWARD_EPOCH * 2;
+        hevm.warp(REWARD_EPOCH / 2);
+
+        hevm.expectEmit(true, true, true, true);
+        emit IL2Staking.RewardStartTimeUpdated(oldTime, newTime);
+
         hevm.prank(multisig);
-        l2Staking.updateRewardStartTime(block.timestamp + REWARD_EPOCH * 2);
+        l2Staking.updateRewardStartTime(newTime);
+        hevm.expectRevert("invalid reward start time");
+        hevm.prank(multisig);
+        l2Staking.updateRewardStartTime(newTime);
     }
 
     /**
      * @notice updateRewardStartTime: Reverts if reward start time is before current block time.
      */
-    function test_updateRewardStartTime_rewardStartTimeBeforeBlockTime_reverts() public {
+    function test_updateRewardStartTime_PastTime_reverts() public {
         // Expect revert due to rewardStartTime being before block.timestamp.
-        hevm.expectRevert("reward already started");
+        hevm.warp(REWARD_EPOCH);
+        hevm.expectRevert("invalid reward start time");
         hevm.prank(multisig);
-        l2Staking.updateRewardStartTime(block.timestamp - REWARD_EPOCH);
+        l2Staking.updateRewardStartTime(block.timestamp);
     }
 
     /**
-     * @notice updateRewardStartTime: Reverts if reward already started.
+     * @notice updateRewardStartTime: Reverts if reward start time is before current block time.
      */
-    function test_updateRewardStartTime_rewardStartTimeEqBlockTime_reverts() public {
-        // Expect revert due to rewardStartTime equals to block.timestamp.
-        hevm.expectRevert("reward already started");
+    function test_updateRewardStartTime_ZeroTime_reverts() public {
+        // Expect revert due to rewardStartTime being before block.timestamp.
+        hevm.warp(REWARD_EPOCH);
+        hevm.expectRevert("invalid reward start time");
         hevm.prank(multisig);
-        l2Staking.updateRewardStartTime(block.timestamp);
+        l2Staking.updateRewardStartTime(0);
     }
 
     /**
@@ -1464,7 +1474,6 @@ contract L2StakingTest is L2StakingBaseTest {
      * @notice  staking -> distribute -> claim
      */
     function test_delegatorClaimLargeEpochs_succeeds() public {
-
         hevm.startPrank(alice);
         morphToken.approve(address(l2Staking), type(uint256).max);
         l2Staking.delegateStake(firstStaker, 5 ether);
