@@ -14,7 +14,7 @@ Morph is an innovative force reshaping the consumer blockchain landscape for pra
 
 Website: https://www.morphl2.io/
 
-Twitter: https://twitter.com/Morphl2
+X (formerly Twitter): https://x.com/Morphl2
 
 Medium: [Morph – Medium](https://medium.com/@morphlayer2)
 
