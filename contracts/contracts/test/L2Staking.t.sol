@@ -1587,6 +1587,104 @@ contract L2StakingTest is L2StakingBaseTest {
         // Throw an error to check gas consumption
         // assertTrue(false);
     }
+    
+    /**
+     * @notice  staking -> distribute -> claim -> undelegate -> distribute -> claim
+     */
+    function test_delegatorClaimAllAfterUndelegate_succeeds() public {
+        address zeroAdd = 0x0000000000000000000000000000000000000000;
+        hevm.startPrank(alice);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        l2Staking.delegateStake(thirdStaker, 5 ether);
+        hevm.stopPrank();
+
+        uint256 time = REWARD_EPOCH;
+        hevm.warp(time);
+
+        // reward starting
+        // rewardStartTime = 86400
+        // block.timeStamp >= rewardStartTime
+        // candidateNumber > 0
+        hevm.prank(multisig);
+        l2Staking.startReward();
+
+        // staker set commission
+        hevm.prank(firstStaker);
+        l2Staking.setCommissionRate(1);
+        hevm.prank(secondStaker);
+        l2Staking.setCommissionRate(1);
+        hevm.prank(thirdStaker);
+        l2Staking.setCommissionRate(1);
+
+        // *************** epoch = 1 ******************** //
+        time = REWARD_EPOCH * 2;
+        hevm.warp(time);
+
+        uint256 blocksCountOfEpoch = REWARD_EPOCH / 3;
+        hevm.roll(blocksCountOfEpoch * 2);
+        hevm.prank(oracleAddress);
+        record.setLatestRewardEpochBlock(blocksCountOfEpoch);
+        _updateDistribute(0);
+
+        // effectiveEpoch = 2
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(secondStaker, morphBalance - 5 ether);
+        hevm.stopPrank();
+
+        // ranking changed by delegate amount
+        uint256 secondRanking = l2Staking.stakerRankings(secondStaker);
+        assertEq(secondRanking, 0 + 1);
+
+        // *********************************** //
+        time = REWARD_EPOCH * (1 + 2);
+        hevm.roll(blocksCountOfEpoch * (1 + 2));
+        hevm.warp(time);
+        _updateDistribute(1);
+        // *********************************** //
+
+        uint256 aliceReward1 = distribute.queryUnclaimed(firstStaker, alice);
+        uint256 aliceReward2 = distribute.queryUnclaimed(secondStaker, alice);
+        uint256 aliceReward3 = distribute.queryUnclaimed(thirdStaker, alice);
+        hevm.startPrank(alice);
+        uint256 balanceBefore = morphToken.balanceOf(alice);
+        l2Staking.claimReward(zeroAdd, 0);
+        uint256 balanceAfter = morphToken.balanceOf(alice);
+        assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2 + aliceReward3);
+        hevm.stopPrank();
+
+        hevm.startPrank(alice);
+        l2Staking.undelegateStake(firstStaker);
+        l2Staking.undelegateStake(secondStaker);
+        l2Staking.undelegateStake(thirdStaker);
+        hevm.stopPrank(); 
+
+        // *********************************** // 
+        time = REWARD_EPOCH * (2 + 2);
+        hevm.roll(blocksCountOfEpoch * (2 + 2));
+        hevm.warp(time);
+        _updateDistribute(2);
+        // *********************************** //
+
+        uint256 aliceRewardNew1 = distribute.queryUnclaimed(firstStaker, alice);
+        uint256 aliceRewardNew2 = distribute.queryUnclaimed(secondStaker, alice);
+        uint256 aliceRewardNew3 = distribute.queryUnclaimed(thirdStaker, alice);
+        hevm.startPrank(alice);
+        balanceBefore = morphToken.balanceOf(alice);
+        l2Staking.claimReward(zeroAdd, 0);
+        balanceAfter = morphToken.balanceOf(alice);
+        assertEq(balanceAfter, balanceBefore + aliceRewardNew1 + aliceRewardNew2 + aliceRewardNew3);
+
+        hevm.expectRevert("no remaining reward of the delegatee");
+        distribute.queryUnclaimed(firstStaker, alice);
+        hevm.expectRevert("no remaining reward of the delegatee");
+        distribute.queryUnclaimed(secondStaker, alice);
+        hevm.expectRevert("no remaining reward of the delegatee");
+        distribute.queryUnclaimed(thirdStaker, alice);
+        hevm.stopPrank(); 
+    }
 
     /**
      * @notice  staking -> distribute -> claim
