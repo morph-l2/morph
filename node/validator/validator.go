@@ -56,7 +56,7 @@ func (v *Validator) ChallengeEnable() bool {
 
 func (v *Validator) ChallengeState(batchIndex uint64) error {
 	if !v.ChallengeEnable() {
-		return fmt.Errorf("The challenge is not enabled,please set challengeEnable is true")
+		return fmt.Errorf("the challenge is not enabled,please set challengeEnable is true")
 	}
 	opts, err := bind.NewKeyedTransactorWithChainID(v.privateKey, v.l1ChainID)
 	if err != nil {
@@ -75,7 +75,17 @@ func (v *Validator) ChallengeState(batchIndex uint64) error {
 	// }
 
 	//receiver := crypto.PubkeyToAddress(*publicKeyECDSA)
-	tx, err := v.contract.ChallengeState(opts, batchIndex)
+	batchHash, err := v.contract.CommittedBatches(
+		&bind.CallOpts{
+			Pending: false,
+			Context: opts.Context,
+		},
+		new(big.Int).SetUint64(batchIndex),
+	)
+	if err != nil {
+		return err
+	}
+	tx, err := v.contract.ChallengeState(opts, batchIndex, batchHash)
 	if err != nil {
 		return err
 	}

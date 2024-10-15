@@ -12,7 +12,7 @@ members = [
     "crates/utils",
     "tests/*/*"
 ]
-exclude = ["bin/shadow-prove"]
+exclude = ["bin/shadow-prove","bin/challenge"]
 resolver = "2"
 
 [workspace.package]
@@ -47,9 +47,9 @@ c-kzg = "1.0.3"
 kzg-rs = { git = "https://github.com/anylots/kzg-rs.git", branch = "sp1-bls-dev" }
 sha2 = "0.10.8"
 
-sp1-zkvm =  { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909"}
-sp1-sdk = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909", features = ["native-gnark"]}
-sp1-helper = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0909"}
+sp1-zkvm =  { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}
+sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0", features = ["native-gnark"]}
+sp1-helper = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}
 
 # dependencies from scroll-tech
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master", features = ["bn254"] }
@@ -101,9 +101,9 @@ morph-executor-utils = { path = "crates/morph-executor/utils" }
 morph-prove = { path = "bin/host" }
 # shadow-prove = { path = "shadow-prove" }
 
-[workspace.dependencies.revm] # v42
+[workspace.dependencies.revm]
 git = "https://github.com/morph-l2/revm"
-branch = "morph-update"
+branch = "release/v42"
 default-features = false
 features = [
     "morph-default-handler",
@@ -112,9 +112,9 @@ features = [
     "optional_no_base_fee"
 ]
 
-[workspace.dependencies.revm-primitives] # v42
+[workspace.dependencies.revm-primitives]
 git = "https://github.com/morph-l2/revm"
-branch = "morph-update"
+branch = "release/v42"
 default-features = false
 features = [
     "morph-default-handler",

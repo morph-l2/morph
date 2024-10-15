@@ -2873,7 +2873,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "shadow-prove"
+name = "shadow-proving"
 version = "2.0.0"
 dependencies = [
  "alloy",

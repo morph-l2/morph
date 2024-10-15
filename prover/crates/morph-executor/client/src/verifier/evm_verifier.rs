@@ -7,6 +7,12 @@ use std::str::FromStr;
 // use Verifier;
 pub struct EVMVerifier;
 
+const WITHDRAW_ROOT_ADDRESS: &str = "0x5300000000000000000000000000000000000001";
+const WITHDRAW_ROOT_SLOT: u32 = 33;
+
+const SEQUENCER_ROOT_ADDRESS: &str = "0x5300000000000000000000000000000000000017";
+const SEQUENCER_ROOT_SLOT: u32 = 101;
+
 impl EVMVerifier {
     pub fn verify(l2_traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
         let batch_info = execute(l2_traces)?;
@@ -43,15 +49,15 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
         });
     }
 
-    // post_sequencer_root;
+    // post_withdraw_root;
     let withdraw_root = executor.get_storage_value(
-        Address::from_str("0x5300000000000000000000000000000000000001").unwrap(),
-        U256::from(33),
+        Address::from_str(WITHDRAW_ROOT_ADDRESS).unwrap(),
+        U256::from(WITHDRAW_ROOT_SLOT),
     );
     // post_sequencer_root;
     let sequencer_root = executor.get_storage_value(
-        Address::from_str("0x5300000000000000000000000000000000000017").unwrap(),
-        U256::from(101),
+        Address::from_str(SEQUENCER_ROOT_ADDRESS).unwrap(),
+        U256::from(SEQUENCER_ROOT_SLOT),
     );
 
     batch_info.withdraw_root = Some(withdraw_root.into());

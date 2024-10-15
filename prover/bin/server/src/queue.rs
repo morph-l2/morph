@@ -1,18 +1,19 @@
 use std::{
     fs::{self, File},
-    io::{BufReader, BufWriter},
+    io::{BufReader, BufWriter, Write},
     path::PathBuf,
     sync::Arc,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
-use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT};
+use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
 use alloy::{
     providers::{Provider, ProviderBuilder, ReqwestProvider, RootProvider},
     transports::http::reqwest,
 };
 use anyhow::anyhow;
+use morph_executor_client::{BlobVerifier, EVMVerifier};
 use morph_prove::{evm::EvmProofFixture, prove};
 use sbv_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
@@ -44,7 +45,6 @@ impl Prover {
 
     /// Processes prove requests from a queue.
     pub async fn prove_for_queue(&mut self) {
-        println!("Waiting for prove request");
         log::info!("Waiting for prove request");
         loop {
             thread::sleep(Duration::from_millis(12000));
@@ -72,8 +72,7 @@ impl Prover {
             // let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
 
             // Step2. Fetch trace
-            log::info!("Requesting trace of batch: {:#?}", batch_index);
-            println!("Requesting trace");
+            log::info!("Requesting trace of batch-{:#?} ...", batch_index);
             let res_provider =
                 &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
             let block_traces = match res_provider {
@@ -87,30 +86,56 @@ impl Prover {
             if read_env_var("SAVE_TRACE", false) {
                 save_trace(batch_index, block_traces);
             }
+            save_batch_header(block_traces, batch_index);
 
             // Step3. Generate evm proof
-            println!("Generate evm proof");
+            log::info!("Generate evm proof");
+            let start = Instant::now();
             let prove_rt = prove(block_traces, true);
 
             match prove_rt {
-                Ok(Some(proof)) => save_proof(batch_index, proof),
-                Ok(None) => println!("proof is none"),
-                Err(e) => println!("prove err: {:?}", e),
+                Ok(Some(proof)) => {
+                    save_proof(batch_index, proof);
+                    let duration_mins = start.elapsed().as_secs() / 60;
+                    PROVE_TIME.set(duration_mins.try_into().unwrap_or_default());
+                }
+                Ok(None) => log::error!("Gen proof of batch-{:?} is none", batch_index),
+                Err(e) => log::error!("Gen proof of batch-{:?} error: {:?}", batch_index, e),
             }
         }
     }
 }
 
+fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) {
+    blocks.iter_mut().for_each(|blobk| blobk.flatten());
+    let batch_info = EVMVerifier::verify(blocks).unwrap();
+    let blob_info = morph_executor_host::get_blob_info(blocks).unwrap();
+    let (versioned_hash, _) = BlobVerifier::verify(&blob_info).unwrap();
+
+    // Save batch_header
+    // | batch_data_hash | versioned_hash | sequencer_root |
+    // |-----------------|----------------|----------------|
+    // |     bytes32     |     bytes32    |     bytes32    |
+    let mut batch_header: Vec<u8> = Vec::with_capacity(96);
+    batch_header.extend_from_slice(&batch_info.data_hash().0);
+    batch_header.extend_from_slice(&versioned_hash.0);
+    batch_header.extend_from_slice(&batch_info.sequencer_root().0);
+    let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+    std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
+    let mut batch_file = File::create(format!("{}/batch_header.data", proof_dir)).unwrap();
+    batch_file.write_all(&batch_header[..]).expect("failed to batch_header");
+}
+
 fn save_proof(batch_index: u64, proof: EvmProofFixture) {
     let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
-    // let batch_dir = format!("{}/{}", proof_dir, batch_index);
     let batch_dir = PathBuf::from(proof_dir);
-    std::fs::create_dir_all(&batch_dir).expect("failed to create fixture path");
+    std::fs::create_dir_all(&batch_dir).expect("failed to create proof path");
     std::fs::write(
         batch_dir.join("plonk_proof.json"),
         serde_json::to_string_pretty(&proof).unwrap(),
     )
     .expect("failed to write proof");
+    log::info!("Successfully save evm proof of batch-{:?}", batch_index);
 }
 
 // Fetches block traces by provider
@@ -122,7 +147,7 @@ async fn get_block_traces(
 ) -> Option<Vec<BlockTrace>> {
     let mut block_traces: Vec<BlockTrace> = Vec::new();
     for block_num in start_block..end_block + 1 {
-        log::debug!("zkevm-prover: requesting trace of block {block_num}");
+        log::debug!("requesting trace of block {block_num}");
         let result = provider
             .raw_request("morph_getBlockTraceByNumberOrHash".into(), [format!("{block_num:#x}")])
             .await;
@@ -130,7 +155,7 @@ async fn get_block_traces(
         match result {
             Ok(trace) => block_traces.push(trace),
             Err(e) => {
-                log::error!("zkevm-prover: requesting trace error: {e}");
+                log::error!("requesting trace error: {e}");
                 return None;
             }
         }

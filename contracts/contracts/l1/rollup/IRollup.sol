@@ -113,6 +113,16 @@ interface IRollup {
     /// @param newVerifier  The address of new rollup verifier.
     event UpdateVerifier(address indexed oldVerifier, address indexed newVerifier);
 
+    /// @notice Emitted when the proof reward percent is updated.
+    /// @param oldPercent  The old proofRewardPercent.
+    /// @param newPercent  The new proofRewardPercent.
+    event UpdateProofRewardPercent(uint256 oldPercent, uint256 newPercent);
+
+    /// @notice Emit when prove remaining claimed.
+    /// @param receiver  receiver address.
+    /// @param amount    claimed amount.
+    event ProveRemainingClaimed(address receiver, uint256 amount);
+
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex       The index of the batch.
     /// @param challenger       The address of challenger.
@@ -124,6 +134,11 @@ interface IRollup {
     /// @param winner       The address of winner.
     /// @param res          The result of challenge.
     event ChallengeRes(uint256 indexed batchIndex, address indexed winner, string indexed res);
+
+    /// @notice Emitted when the challenger claim the challenge reward.
+    /// @param receiver  receiver address
+    /// @param amount    claimed amount
+    event ChallengeRewardClaim(address indexed receiver, uint256 amount);
 
     /*************************
      * Public View Functions *

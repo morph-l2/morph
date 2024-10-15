@@ -13,10 +13,11 @@ const config = {
     sequencerWindowSize: 200,
     channelTimeout: 120,
 
-    programVkey: '0x002eb156d12ee3c6433b5aa28767f398859bbff9b03d1cde4ea7e5635e86f402',
+    programVkey: '0x00bc91a65e39100f3b075c9edf1a60fd1cb025b9413ea19c34c62d455e512685',
     rollupMinDeposit: 1,
     rollupProofWindow: 100,
     rollupGenesisBlockNumber: 0,
+    proofRewardPercent: 70,
     rollupProposer: '0xE70a4102e4caA3d9B8968FFb142E6A2ceFd22Ec3',
     rollupChallenger: '0xF730477971E88b3162ed7FD950Be63474975bdC3',
     rollupGenesisStateRoot: '',
