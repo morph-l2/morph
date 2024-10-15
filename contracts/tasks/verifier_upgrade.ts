@@ -14,22 +14,15 @@ task("upgradeVerifier")
     .addParam("multipleVersionRollupVerifier")
     .setAction(async (taskArgs, hre) => {
         const config = hre.deployConfig
-        const newPath = taskArgs.newpath
 
         // deploy ZkEvmVerifierV1
         const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
-        const ZkEvmVerifierV1ImplStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
         const Factory = await hre.ethers.getContractFactory(ZkEvmVerifierV1ContractFactoryName)
         const contract = await Factory.deploy(config.programVkey)
         await contract.deployed()
-        console.log("%s=%s ; TX_HASH: %s", ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+        console.log("ZkEvmVerifierV1Contract: %s ; TX_HASH: %s", contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
         let blockNumber = await hre.ethers.provider.getBlockNumber()
         console.log("BLOCK_NUMBER: %s", blockNumber)
-        let err = await storage(newPath, ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-        if (err != '') {
-            return err
-        }
-
 
         // add verifier to MultipleVersionRollupVerifier
         const MultipleVersionRollupVerifierFactoryName = ContractFactoryName.MultipleVersionRollupVerifier
