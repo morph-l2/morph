@@ -13,7 +13,7 @@ name = "vkey"
 path = "src/vkey.rs"
 
 [dependencies]
-sp1-sdk = { workspace = true }
+sp1-sdk = { workspace = true, features = [] }  
 
 anyhow.workspace = true
 serde = { workspace = true }
@@ -37,3 +37,7 @@ sbv-primitives = { workspace = true }
 [build-dependencies]
 sp1-helper = { workspace = true }
 morph-executor-utils = { workspace = true }
+
+
+[features]  
+use-native-gnark = ["sp1-sdk/native-gnark"]

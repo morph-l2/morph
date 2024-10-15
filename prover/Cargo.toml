@@ -34,7 +34,7 @@ alloy ={ version ="0.3"}
 hex = "0.4"
 once_cell = "1.19"
 rkyv = { version = "0.7", features = ["validation"] }
-thiserror = "1.0"
+thiserror = "1.0.64"
 tiny-keccak = "2.0"
 getrandom = { version = "*", features = ["custom"] } # just for disable
 log = "0.4"
@@ -44,12 +44,13 @@ ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master
 
 # crypto
 c-kzg = "1.0.3"
-kzg-rs = { git = "https://github.com/anylots/kzg-rs.git", branch = "sp1-bls-dev" }
+kzg-rs = { version = "0.2.2" }
 sha2 = "0.10.8"
 
-sp1-zkvm =  { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}
-sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0", features = ["native-gnark"]}
-sp1-helper = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}
+sp1-zkvm =  { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0914"}
+sp1-sdk = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0914"}
+sp1-helper = { git = "https://github.com/scroll-tech/sp1.git", branch = "scroll-dev-0914"}
+
 
 # dependencies from scroll-tech
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master", features = ["bn254"] }
@@ -122,6 +123,10 @@ features = [
     "std",
     "optional_no_base_fee"
 ]
+
+
+[workspace.features]  
+use-native-gnark = []
 
 
 [workspace.lints.rust]
