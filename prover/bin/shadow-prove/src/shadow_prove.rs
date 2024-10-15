@@ -196,7 +196,6 @@ where
             log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
             continue;
         }
-        log::info!("proof_data {:#?}", prove_result.proof_data);
 
         log::info!(">Starting prove state onchain, batch index = {:#?}", batch_index);
         let aggr_proof = Bytes::from(prove_result.proof_data);
@@ -222,7 +221,7 @@ where
 }
 
 /**
- * Query the zkevm proof for the specified batch index.
+ * Query the plonk proof for the specified batch index.
  * Only return result when proof data exists, otherwise return None.
  */
 async fn query_proof(batch_index: u64) -> Option<ProveResult> {

@@ -6,14 +6,17 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use dotenv::dotenv;
-use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
-use log::Record;
+
 use morph_prove::evm::EvmProofFixture;
 use once_cell::sync::Lazy;
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::BufReader, sync::Arc, time::Duration};
+use std::{
+    fs,
+    io::{BufReader, Read},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{sync::Mutex, time::timeout};
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProveResult {
@@ -36,26 +39,19 @@ pub static PROVE_QUEUE: Lazy<Arc<Mutex<Vec<ProveRequest>>>> =
     Lazy::new(|| Arc::new(Mutex::new(vec![])));
 
 // Main async function to start prover service.
-// 1. Initializes environment.
-// 2. Spawns prover mng.
-// 3. Spawns metric mng.
-// 4. Start the Prover on the main thread with shared queue.
+// 1. Spawns prover mng.
+// 2. Spawns metric mng.
+// 3. Start the Prover on the main thread with shared queue.
 // Server handles prove requests .
 // Prover consumes requests and generates proofs and save.
 pub async fn start() {
-    // Step1. prepare environment
-    dotenv().ok();
-
-    // Initialize logger.
-    // setup_logging();
-
-    // Step2. start prover management
+    // Step1. start prover management
     prover_mng().await;
 
-    // Step3. start metric management
+    // Step2. start metric management
     metric_mng().await;
 
-    // Step4. start prover
+    // Step3. start prover
     start_prover().await;
 }
 
@@ -133,14 +129,11 @@ async fn add_pending_req(param: String) -> String {
         prove_request.shadow.unwrap_or(false)
     );
 
-    let blocks_len =
-        prove_request.end_block.checked_sub(prove_request.start_block).unwrap_or_default();
-
-    // Verify block number is greater than 0
-    if prove_request.start_block == 0 || blocks_len == 0 {
-        return String::from("blocks index invalid");
+    if prove_request.end_block < prove_request.start_block {
+        return String::from("blocks index error");
     }
 
+    let blocks_len = prove_request.end_block - prove_request.start_block + 1;
     if blocks_len as usize > *MAX_PROVE_BLOCKS {
         return format!(
             "blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
@@ -252,19 +245,19 @@ async fn query_proof(batch_index: String) -> ProveResult {
             }
             result.proof_data = proof_data;
 
-            // Batch header data
-            // let batch_header_path = path.join("batch_header.data");
-            // let mut batch_header = Vec::new();
-            // match fs::File::open(batch_header_path) {
-            //     Ok(mut file) => {
-            //         file.read_to_end(&mut batch_header).unwrap();
-            //     }
-            //     Err(e) => {
-            //         log::error!("Failed to load batch_header: {:#?}", e);
-            //         result.error_msg = String::from("Failed to load batch_header");
-            //     }
-            // }
-            // result.batch_header = batch_header;
+            //Batch header data
+            let batch_header_path = path.join("batch_header.data");
+            let mut batch_header = Vec::new();
+            match fs::File::open(batch_header_path) {
+                Ok(mut file) => {
+                    file.read_to_end(&mut batch_header).unwrap();
+                }
+                Err(e) => {
+                    log::warn!("Failed to load batch_header: {:#?}", e);
+                    result.error_msg = String::from("Failed to load batch_header");
+                }
+            }
+            result.batch_header = batch_header;
             break;
         }
     }
@@ -286,49 +279,4 @@ async fn query_status() -> String {
         0 => String::from("0"),
         _ => String::from("1"),
     }
-}
-
-// Constants for configuration
-const LOG_LEVEL: &str = "info";
-const LOG_FILE_BASENAME: &str = "app_info";
-const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
-                                                     // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
-const LOG_FILES_TO_KEEP: usize = 3;
-fn setup_logging() {
-    //configure the logger
-    Logger::try_with_env_or_str(LOG_LEVEL)
-        .unwrap()
-        .log_to_file(
-            FileSpec::default()
-                .directory(read_env_var("PROVER_LOG_DIR", String::from("/data/logs/morph-prover")))
-                .basename(LOG_FILE_BASENAME),
-        )
-        .format(log_format)
-        .duplicate_to_stdout(Duplicate::All)
-        .rotate(
-            Criterion::Size(LOG_FILE_SIZE_LIMIT), // Scroll when file size reaches 200MB
-            Naming::TimestampsCustomFormat {
-                current_infix: Some(""),
-                format: "r%Y-%m-%d_%H-%M-%S",
-            }, // Using timestamps as part of scrolling files
-            Cleanup::KeepLogFiles(LOG_FILES_TO_KEEP), // Keep the latest 3 scrolling files
-        )
-        .write_mode(WriteMode::BufferAndFlush)
-        .start()
-        .unwrap();
-}
-
-fn log_format(
-    w: &mut dyn std::io::Write,
-    now: &mut flexi_logger::DeferredNow,
-    record: &Record,
-) -> Result<(), std::io::Error> {
-    write!(
-        w,
-        "{} [{}] {} - {}",
-        now.now().format("%Y-%m-%d %H:%M:%S"), // Custom time format
-        record.level(),
-        record.target(),
-        record.args()
-    )
 }

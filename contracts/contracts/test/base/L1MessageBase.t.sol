@@ -94,7 +94,8 @@ contract L1MessageBaseTest is CommonTest {
                     address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
                     address(verifier), // _verifier
                     finalizationPeriodSeconds, // _finalizationPeriodSeconds
-                    proofWindow // _proofWindow
+                    proofWindow, // _proofWindow
+                    proofRewardPercent // _proofRewardPercent
                 )
             )
         );

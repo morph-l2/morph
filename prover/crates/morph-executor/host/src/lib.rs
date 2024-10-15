@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use morph_executor_utils::read_env_var;
 use sbv_primitives::{types::BlockTrace, TxTrace};
-use std::{io::Write, path::Path, str::FromStr, sync::Arc};
+use std::{io::Write, path::Path, sync::Arc};
 use zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 
 use c_kzg::{Blob, Bytes48, KzgCommitment, KzgProof, KzgSettings};

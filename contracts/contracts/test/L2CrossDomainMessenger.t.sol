@@ -1,12 +1,49 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L2MessageBaseTest} from "./base/L2MessageBase.t.sol";
+import {L2CrossDomainMessenger} from "../l2/L2CrossDomainMessenger.sol";
 
 contract L2CrossDomainMessengerTest is L2MessageBaseTest {
+    function test_initialize_initializeAgain_revert() external {
+        // verify the initialize only can be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        l2CrossDomainMessenger.initialize(address(1));
+    }
+    function test_initialize_succeeds() public {
+        // Deploy a transparent upgradeable proxy for the L2CrossDomainMessenger contract.
+        TransparentUpgradeableProxy l2CrossDomainMessengerProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+        // Deploy a new instance of the L2CrossDomainMessenger contract implementation.
+        L2CrossDomainMessenger l2CrossDomainMessengerImplTemp = new L2CrossDomainMessenger();
+        hevm.startPrank(multisig);
+        // Expect revert with zero address.
+        hevm.expectRevert(ICrossDomainMessenger.ErrZeroAddress.selector);
+        // Initialize the proxy with the new implementation with zero address.
+        ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxyTemp)).upgradeToAndCall(
+            address(l2CrossDomainMessengerImplTemp),
+            abi.encodeCall(L2CrossDomainMessenger.initialize, address(0))
+        );
+        // Initialize the proxy with the new implementation with non zero address.
+        ITransparentUpgradeableProxy(address(l2CrossDomainMessengerProxyTemp)).upgradeToAndCall(
+            address(l2CrossDomainMessengerImplTemp),
+            abi.encodeCall(L2CrossDomainMessenger.initialize, (NON_ZERO_ADDRESS))
+        );
+        L2CrossDomainMessenger l2CrossDomainMessengerTemp = L2CrossDomainMessenger(
+            payable(address(l2CrossDomainMessengerProxyTemp))
+        );
+        hevm.stopPrank();
+        // Verify the counterpart is initialized successfully.
+        assertEq(l2CrossDomainMessengerTemp.counterpart(), address(NON_ZERO_ADDRESS));
+    }
+
     function test_sendMessage_succeeds() external {
         // message config
         address to = address(bob);
@@ -36,6 +73,10 @@ contract L2CrossDomainMessengerTest is L2MessageBaseTest {
         hevm.store(address(l2ToL1MessagePasser), bytes32(l2ToL1MessagePasserLeafNodesCount), bytes32(abi.encode(0)));
         hevm.expectRevert("Duplicated message");
         l2CrossDomainMessenger.sendMessage{value: _value}(to, _value, message, gasLimit);
+
+        // Verify the timestamp is recorded correctly.
+        uint256 recordedTimestamp = l2CrossDomainMessenger.messageSendTimestamp(msgHash);
+        assertTrue(recordedTimestamp != 0);
     }
 
     function test_relayMessage_succeeds() external {

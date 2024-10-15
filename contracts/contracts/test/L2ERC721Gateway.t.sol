@@ -3,9 +3,11 @@
 pragma solidity =0.8.24;
 
 import {MockERC721} from "@rari-capital/solmate/src/test/utils/mocks/MockERC721.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {L2GatewayBaseTest} from "./base/L2GatewayBase.t.sol";
 import {L2ERC721Gateway} from "../l2/gateways/L2ERC721Gateway.sol";
+import {IL2ERC721Gateway} from "../l2/gateways/IL2ERC721Gateway.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
 
 contract L2ERC721GatewayTest is L2GatewayBaseTest {
@@ -41,6 +43,78 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         token.mint(address(mockRecipient), NOT_OWNED_TOKEN_ID);
     }
 
+    function test_initialize_reInitialized_reverts() public {
+        // Verify initialize can only be called once.
+        hevm.expectRevert("Initializable: contract is already initialized");
+        gateway.initialize(address(1), address(1));
+    }
+    function test_initialize_zeroAddress_reverts() public {
+        hevm.startPrank(multisig);
+        // Deploy a proxy contract for L2ERC721Gateway.
+        TransparentUpgradeableProxy l2ERC721GatewayProxy = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+        // Deploy a new L2ERC721Gateway contract.
+        L2ERC721Gateway l2ERC721GatewayImpl = new L2ERC721Gateway();
+        // Expect revert due to zero counterpart address.
+        hevm.expectRevert("zero counterpart address");
+        ITransparentUpgradeableProxy(address(l2ERC721GatewayProxy)).upgradeToAndCall(
+            address(l2ERC721GatewayImpl),
+            abi.encodeCall(
+                L2ERC721Gateway.initialize,
+                (
+                    address(0), // _counterpart
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        
+        // Expect revert due to zero messenger address.
+        hevm.expectRevert("zero messenger address");
+        ITransparentUpgradeableProxy(address(l2ERC721GatewayProxy)).upgradeToAndCall(
+            address(l2ERC721GatewayImpl),
+            abi.encodeCall(
+                L2ERC721Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(0) // _messenger
+                )
+            )
+        );
+        hevm.stopPrank();
+    }
+    function test_initialize_succeeds() public {
+        hevm.startPrank(multisig);
+        // Deploy a proxy contract for the L2ERC721Gateway.
+        TransparentUpgradeableProxy l2ERC721GatewayProxyTemp = new TransparentUpgradeableProxy(
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
+        );
+        // Deploy a new L2ERC721Gateway contract.
+        L2ERC721Gateway l2ERC721GatewayImplTemp = new L2ERC721Gateway();
+        // Initialize the proxy with the new implementation.
+        ITransparentUpgradeableProxy(address(l2ERC721GatewayProxyTemp)).upgradeToAndCall(
+            address(l2ERC721GatewayImplTemp),
+            abi.encodeCall(
+                L2ERC721Gateway.initialize,
+                (
+                    address(NON_ZERO_ADDRESS), // _counterpart
+                    address(l2CrossDomainMessenger) // _messenger
+                )
+            )
+        );
+        // Cast the proxy contract address to the L2ERC721Gateway contract type to call its methods.
+        L2ERC721Gateway l2ERC721GatewayTemp = L2ERC721Gateway(address(l2ERC721GatewayProxyTemp));
+        hevm.stopPrank();
+        
+        // Verify the counterpart and messenger are initialized successfully.
+        assertEq(l2ERC721GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
+        assertEq(l2ERC721GatewayTemp.messenger(), address(l2CrossDomainMessenger));
+    }
+
     function test_updateTokenMapping_onlyOwner_fails(address token1) public {
         // call by non-owner, should revert
         hevm.startPrank(address(1));
@@ -55,6 +129,10 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
 
     function test_updateTokenMapping_succeeds(address token1, address token2) public {
         if (token2 == address(0)) token2 = address(1);
+
+        // Expect UpdateTokenMapping event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit L2ERC721Gateway.UpdateTokenMapping(token1, address(0), token2);
 
         assertEq(gateway.tokenMapping(token1), address(0));
         gateway.updateTokenMapping(token1, token2);
@@ -86,12 +164,14 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         gateway.updateTokenMapping(address(token), address(token));
 
+        // Expect WithdrawERC721 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC721Gateway.WithdrawERC721(address(token), address(token), address(this), address(this), tokenId);
+
         gateway.withdrawERC721(address(token), tokenId, 0);
         hevm.expectRevert("NOT_MINTED");
         token.ownerOf(tokenId);
         assertEq(token.balanceOf(address(this)), TOKEN_COUNT - 1);
-
-        // @todo check event
     }
 
     /// @dev withdraw erc721 with recipient
@@ -99,12 +179,14 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
         gateway.updateTokenMapping(address(token), address(token));
 
+        // Expect WithdrawERC721 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC721Gateway.WithdrawERC721(address(token), address(token), address(this), to, tokenId);
+
         gateway.withdrawERC721(address(token), to, tokenId, 0);
         hevm.expectRevert("NOT_MINTED");
         token.ownerOf(tokenId);
         assertEq(token.balanceOf(address(this)), TOKEN_COUNT - 1);
-
-        // @todo check event
     }
 
     /// @dev failed to batch withdraw erc721
@@ -147,14 +229,16 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
             _tokenIds[i] = i;
         }
 
+        // Expect BatchWithdrawERC721 event to be emitted.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC721Gateway.BatchWithdrawERC721(address(token), address(token), address(this), address(this), _tokenIds);
+
         gateway.batchWithdrawERC721(address(token), _tokenIds, 0);
         for (uint256 i = 0; i < count; i++) {
             hevm.expectRevert("NOT_MINTED");
             token.ownerOf(i);
         }
         assertEq(token.balanceOf(address(this)), TOKEN_COUNT - count);
-
-        // @todo check event
     }
 
     /// @dev batch withdraw erc721 with recipient
@@ -211,6 +295,9 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
 
         // finalize deposit
         messenger.setXDomainMessageSender(address(counterpart));
+        // Expect the FinalizeDepositERC721 event can be emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC721Gateway.FinalizeDepositERC721(address(token), address(token), from, to, tokenId);
         messenger.callTarget(
             address(gateway),
             abi.encodeCall(L2ERC721Gateway.finalizeDepositERC721, (address(token), address(token), from, to, tokenId))
@@ -262,8 +349,11 @@ contract L2ERC721GatewayTest is L2GatewayBaseTest {
             _tokenIds[i] = i + NOT_OWNED_TOKEN_ID + 1;
         }
 
-        // then withdraw
         messenger.setXDomainMessageSender(address(counterpart));
+        // Expect the FinalizeDepositERC721 event can be emitted successfully
+        hevm.expectEmit(true, true, true, true);
+        emit IL2ERC721Gateway.FinalizeBatchDepositERC721(address(token), address(token), from, to, _tokenIds);
+        // Then finalize the batch deposit
         messenger.callTarget(
             address(gateway),
             abi.encodeCall(

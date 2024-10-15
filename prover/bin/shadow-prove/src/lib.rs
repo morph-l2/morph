@@ -1,4 +1,4 @@
-use abi::{Rollup, SP1Verifier, ShadowRollup};
+use abi::{Rollup, ShadowRollup};
 
 pub mod abi;
 pub mod metrics;
