@@ -3,13 +3,11 @@ import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
 
 import { task } from "hardhat/config";
-import { ethers } from "ethers";
-import { ImplStorageName, ContractFactoryName } from "../src/types"
-import { storage } from "../src/deploy-utils"
+import { ContractFactoryName } from "../src/types";
 
-// yarn hardhat upgradeVerifier --version 0 --startBatchIndex 0 --multipleVersionRollupVerifier 0x0165878a594ca255338adfa4d48449f69242eb8f --network l1
+// yarn hardhat upgradeVerifier --rollupVersion 0 --startBatchIndex 0 --multipleVersionRollupVerifier 0x0165878a594ca255338adfa4d48449f69242eb8f --network l1
 task("upgradeVerifier")
-    .addParam("version")
+    .addParam("rollupVersion")
     .addParam("startBatchIndex")
     .addParam("multipleVersionRollupVerifier")
     .setAction(async (taskArgs, hre) => {
@@ -29,9 +27,9 @@ task("upgradeVerifier")
         const MultipleVersionRollupVerifierFactory = await hre.ethers.getContractFactory(MultipleVersionRollupVerifierFactoryName)
         const MultipleVersionRollupVerifier = MultipleVersionRollupVerifierFactory.attach(taskArgs.multipleVersionRollupVerifier)
 
-        const res = await MultipleVersionRollupVerifier.updateVerifier(taskArgs.version, taskArgs.startBatchIndex, contract.address.toLocaleLowerCase())
+        const res = await MultipleVersionRollupVerifier.updateVerifier(taskArgs.rollupVersion, taskArgs.startBatchIndex, contract.address.toLocaleLowerCase())
 
         const receipt = await res.wait()
         console.log(`receipt status : ${receipt.status}`)
-        console.log("upgrade verifier successfully, verifier: %s, version: %s, startBatchIndex: %s", contract.address.toLocaleLowerCase(), taskArgs.version, taskArgs.startBatchIndex)
+        console.log("upgrade verifier successfully, verifier: %s, rollupVersion: %s, startBatchIndex: %s", contract.address.toLocaleLowerCase(), taskArgs.rollupVersion, taskArgs.startBatchIndex)
     });
