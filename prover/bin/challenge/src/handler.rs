@@ -527,8 +527,8 @@ fn decode_blocks(block_contexts: Bytes) -> Option<(Vec<u64>, u64)> {
     }
 
     METRICS.txn_len.set(txn_in_batch.into());
-    log::debug!("total_l2txn_in_batch: {:#?}", txn_in_batch);
-    log::debug!("num_blocks: {:#?}, decode_blocks: {:#?}", num_blocks, blocks);
+    log::info!("total_l2txn_in_batch: {:#?}", txn_in_batch);
+    log::info!("num_blocks: {:#?}, decode_blocks: {:#?}", num_blocks, blocks);
     Some((blocks, total_l1_txn))
 }
 
