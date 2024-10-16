@@ -278,10 +278,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
             BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
+            uint256 proveRemainingTime = 0;
+            if (inChallenge){
+                // Make the batch finalize time longer than the time required for the current challenge
+                proveRemainingTime = proofWindow + challenges[batchChallenged].startTime - block.timestamp;
+            }
             // storage batch data for challenge status check
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,
-                block.timestamp + finalizationPeriodSeconds,
+                block.timestamp + finalizationPeriodSeconds + proveRemainingTime,
                 _loadL2BlockNumber(batchDataInput.blockContexts),
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
