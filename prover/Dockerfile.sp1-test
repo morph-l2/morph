@@ -6,7 +6,7 @@ COPY . /app
 WORKDIR /app
 RUN cd tests/algebra/client && cargo prove build
 
-RUN cd tests/algebra/host && RUST_LOG=info cargo build --release
+RUN cd tests/algebra/host && RUST_LOG=info cargo build --release --features use-native-gnark
 RUN cp target/release/algebra-host ./
 
 CMD ["./algebra-host"]

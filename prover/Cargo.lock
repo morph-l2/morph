@@ -1131,14 +1131,14 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.69.4"
+version = "0.69.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a00dc851838a2120612785d195287475a3ac45514741da670b735818822129a0"
+checksum = "271383c67ccabffb7381723dea0672a673f292304fcb45c01cc648c7a8d58088"
 dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "lazy_static",
  "lazycell",
  "log",
@@ -1241,7 +1241,7 @@ dependencies = [
 name = "bls12381-client"
 version = "0.1.0"
 dependencies = [
- "bls12_381 0.8.0",
+ "bls12_381 0.8.0 (git+https://github.com/sp1-patches/bls12_381?branch=main)",
  "sp1-zkvm",
 ]
 
@@ -1263,6 +1263,19 @@ dependencies = [
  "ff 0.12.1",
  "group 0.12.1",
  "pairing 0.22.0",
+ "rand_core",
+ "subtle",
+]
+
+[[package]]
+name = "bls12_381"
+version = "0.8.0"
+source = "git+https://github.com/privacy-scaling-explorations/bls12_381?tag=v2023_10_26#9e59592178de7cbfae67cdd62c3a910ef3a99f17"
+dependencies = [
+ "ff 0.13.0",
+ "group 0.13.0",
+ "pairing 0.23.0",
+ "pasta_curves 0.5.1",
  "rand_core",
  "subtle",
 ]
@@ -1294,7 +1307,7 @@ dependencies = [
 [[package]]
 name = "bn254"
 version = "0.1.0"
-source = "git+https://github.com/scroll-tech/bn254.git?branch=master#db67681f5e9ae1736565a48ec294a6d0dacb4e0d"
+source = "git+https://github.com/scroll-tech/bn254#db67681f5e9ae1736565a48ec294a6d0dacb4e0d"
 dependencies = [
  "ff 0.13.0",
  "getrandom",
@@ -2847,6 +2860,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "halo2curves"
+version = "0.1.0"
+source = "git+https://github.com/scroll-tech/halo2curves?branch=v0.1.0#a495a7b11ad13e5cd0cca7ca5d737b398cfaf1b7"
+dependencies = [
+ "blake2b_simd",
+ "bls12_381 0.8.0 (git+https://github.com/privacy-scaling-explorations/bls12_381?tag=v2023_10_26)",
+ "ff 0.13.0",
+ "group 0.13.0",
+ "lazy_static",
+ "maybe-rayon",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "pairing 0.23.0",
+ "pasta_curves 0.5.1",
+ "paste",
+ "rand",
+ "rand_core",
+ "serde",
+ "serde_arrays",
+ "static_assertions",
+ "subtle",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3559,6 +3596,15 @@ name = "matchit"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
+
+[[package]]
+name = "maybe-rayon"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ea1f30cedd69f0a2954655f7188c6a834246d2bcf1e315e2ac40c4b24dc9519"
+dependencies = [
+ "cfg-if 1.0.0",
+]
 
 [[package]]
 name = "memchr"
@@ -4478,13 +4524,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da544ee218f0d287a911e9c99a39a8c9bc8fcad3cb8db5959940044ecfc67265"
 
 [[package]]
+name = "poseidon-base"
+version = "0.1.0"
+source = "git+https://github.com/scroll-tech/poseidon-circuit.git?branch=main#d52fa404e8f03b5c3f85c090ccb8b08c112e2f4d"
+dependencies = [
+ "bitvec",
+ "halo2curves",
+ "lazy_static",
+ "once_cell",
+]
+
+[[package]]
 name = "poseidon-bn254"
 version = "0.1.0"
-source = "git+https://github.com/scroll-tech/poseidon-bn254?branch=master#a96ba028dd00987551451d8f4bd65b7ea5469a44"
+source = "git+https://github.com/scroll-tech/poseidon-bn254?branch=master#9a4f940c968aef3d017da9b68129c1ffadc21621"
 dependencies = [
  "bn254",
  "itertools 0.13.0",
- "sp1-intrinsics",
 ]
 
 [[package]]
@@ -5455,7 +5511,8 @@ name = "sbv-primitives"
 version = "2.0.0"
 dependencies = [
  "alloy",
- "poseidon-bn254",
+ "halo2curves",
+ "poseidon-base",
  "rkyv",
  "serde",
  "serde_json",
@@ -5656,6 +5713,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99fce0ffe7310761ca6bf9faf5115afbc19688edd00171d81b1bb1b116c63e09"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde_arrays"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38636132857f68ec3d5f3eb121166d2af33cb55174c4d5ff645db6165cbef0fd"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -5894,7 +5960,8 @@ dependencies = [
 [[package]]
 name = "sp1-build"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "385fe10d8952ca911d2e4f2a849b4e48f6039b758f3b8100a2c5e653b2d51ce4"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5906,14 +5973,14 @@ dependencies = [
 [[package]]
 name = "sp1-core-executor"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bcf4d12fdcdb59632dbb8491e9f1ed5090de774b46cb5ef26ce5fcd4d024e3e"
 dependencies = [
  "bincode",
  "bytemuck",
  "elf",
  "enum-map",
  "eyre",
- "generic-array 1.1.0",
  "hashbrown 0.14.5",
  "hex",
  "itertools 0.13.0",
@@ -5940,7 +6007,8 @@ dependencies = [
 [[package]]
 name = "sp1-core-machine"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a6f7b232d011a2db7a314d53ee37ef79e60c2e282e4c249c9b91041e4ff88ec"
 dependencies = [
  "bincode",
  "cfg-if 1.0.0",
@@ -5987,7 +6055,8 @@ dependencies = [
 [[package]]
 name = "sp1-curves"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1c2c7fb1a24a9dcd06ffc26c4377056163cba55d47b973b19eec81442217f57"
 dependencies = [
  "cfg-if 1.0.0",
  "curve25519-dalek",
@@ -6008,7 +6077,8 @@ dependencies = [
 [[package]]
 name = "sp1-derive"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6c88b3e7ead9192679bf2ef5b0c28b6e7b9a56f929bd76851820e5e5b947bb"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6017,7 +6087,8 @@ dependencies = [
 [[package]]
 name = "sp1-helper"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21229908cd72068e9d026a76872591b5e50a8b99a4af45dfd847fe4d4e02ddca"
 dependencies = [
  "sp1-build",
 ]
@@ -6047,7 +6118,8 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd5835b93e7be1840ac075bf16ddc9235a7be122e2209cf3ad3e1cb0f50353f8"
 dependencies = [
  "bincode",
  "serde",
@@ -6056,7 +6128,8 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2567220b2d8170a0c42eba514dec66b76c5c87927c9a3232ee53a56310acee72"
 dependencies = [
  "bincode",
  "hex",
@@ -6073,7 +6146,8 @@ dependencies = [
 [[package]]
 name = "sp1-prover"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb59f305b4768a441049f46bc52e0d1edfd2d3179d65a3440f7396baa74e1bda"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6114,7 +6188,8 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-circuit"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e08f45e8fa3caf412251a730cdad04b36285e745a6c1b409d865bae3338a5196"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -6147,7 +6222,8 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-compiler"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "648941453ab9e8c69386df5cd660dedabe4d06c041450d8a2548ba6cefa6ed45"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -6168,7 +6244,8 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-core"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "faf8c5dc0a2c33ef1dc7da7a137574e4f1783e45489681ca01aa3309abc6adee"
 dependencies = [
  "backtrace",
  "ff 0.13.0",
@@ -6203,7 +6280,8 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-derive"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7807dc1a72bb7b86f2e82c414cb58b9789d880ca459b2113f7406df814945ae"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6212,7 +6290,8 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-gnark-ffi"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bff667dda92cbe2f9382e36fe222641f60a4e794e0a3b6c7597cd6a74d79262d"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6237,7 +6316,8 @@ dependencies = [
 [[package]]
 name = "sp1-sdk"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df9a960e85019f30d96a2269bb2faa4982fbc0af784bc7c5998ae5d8ee2ea033"
 dependencies = [
  "alloy-sol-types 0.7.7",
  "anyhow",
@@ -6277,7 +6357,8 @@ dependencies = [
 [[package]]
 name = "sp1-stark"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba8706930d1d65aa645d194b175f6c4c0f47ac7833640b4f46cf4da5964d2d1d"
 dependencies = [
  "arrayref",
  "getrandom",
@@ -6312,7 +6393,8 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "3.0.0-rc3"
-source = "git+https://github.com/scroll-tech/sp1.git?branch=scroll-dev-0914#4ba5515c7829f3bc8e4a03ed3ae741200b3d9666"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58c61090e56fa9f05e38295d39cb74e49391da007a05cc2f92681d7179776f7d"
 dependencies = [
  "cfg-if 1.0.0",
  "getrandom",
@@ -6978,7 +7060,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "static_assertions",
 ]
 

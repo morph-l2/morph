@@ -52,10 +52,14 @@ pub fn prove(
     let client = ProverClient::new();
 
     if read_env_var("DEVNET", false) {
+        let start = Instant::now();
         let (mut public_values, execution_report) = client
             .execute(BATCH_VERIFIER_ELF, stdin.clone())
             .run()
             .map_err(|e| anyhow!(format!("sp1-vm execution err: {:?}", e)))?;
+
+        let duration_mins = start.elapsed().as_secs() / 60;
+        log::info!("Successfully run in sp1-vm!, time use: {:?} minutes", duration_mins);
 
         log::info!(
             "Program executed successfully, Number of cycles: {:?}",

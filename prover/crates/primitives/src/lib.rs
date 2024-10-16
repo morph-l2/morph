@@ -6,6 +6,9 @@ use alloy::{
     eips::eip2930::AccessList,
     primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
 };
+use halo2curves::{bn256::Fr, group::ff::PrimeField};
+use poseidon_base::hash::Hashable;
+
 use std::{fmt::Debug, sync::Once};
 use zktrie::ZkMemoryDb;
 
@@ -26,14 +29,30 @@ pub use zktrie as zk_trie;
 pub fn init_hash_scheme() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        zktrie::init_hash_scheme_simple(|a: &[u8; 32], b: &[u8; 32], domain: &[u8; 32]| {
-            use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
-            let a = Fr::from_bytes(a).into_option()?;
-            let b = Fr::from_bytes(b).into_option()?;
-            let domain = Fr::from_bytes(domain).into_option()?;
-            Some(hash_with_domain(&[a, b], domain).to_repr())
-        });
+        zktrie::init_hash_scheme_simple(poseidon_hash_scheme);
     });
+}
+
+fn poseidon_hash_scheme(a: &[u8; 32], b: &[u8; 32], domain: &[u8; 32]) -> Option<[u8; 32]> {
+    let fa = Fr::from_bytes(a);
+    let fa = if fa.is_some().into() {
+        fa.unwrap()
+    } else {
+        return None;
+    };
+    let fb = Fr::from_bytes(b);
+    let fb = if fb.is_some().into() {
+        fb.unwrap()
+    } else {
+        return None;
+    };
+    let fdomain = Fr::from_bytes(domain);
+    let fdomain = if fdomain.is_some().into() {
+        fdomain.unwrap()
+    } else {
+        return None;
+    };
+    Some(Fr::hash_with_domain([fa, fb], fdomain).to_repr())
 }
 
 /// Blanket trait for block trace extensions.
@@ -122,12 +141,8 @@ pub trait Block: Debug {
         let num_txs = (self.num_l1_txs() + self.num_l2_txs()) as u16;
         hasher.update(&self.number().to_be_bytes());
         hasher.update(&self.timestamp().to::<u64>().to_be_bytes());
-        hasher.update(
-            &self
-                .base_fee_per_gas()
-                .unwrap_or_default()
-                .to_be_bytes::<{ U256::BYTES }>(),
-        );
+        hasher
+            .update(&self.base_fee_per_gas().unwrap_or_default().to_be_bytes::<{ U256::BYTES }>());
         hasher.update(&self.gas_limit().to::<u64>().to_be_bytes());
         hasher.update(&num_txs.to_be_bytes());
     }
@@ -135,11 +150,7 @@ pub trait Block: Debug {
     /// Hash the l1 messages of the block
     #[inline]
     fn hash_l1_msg(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        for tx_hash in self
-            .transactions()
-            .filter(|tx| tx.is_l1_tx())
-            .map(|tx| tx.tx_hash())
-        {
+        for tx_hash in self.transactions().filter(|tx| tx.is_l1_tx()).map(|tx| tx.tx_hash()) {
             hasher.update(tx_hash.as_slice())
         }
     }

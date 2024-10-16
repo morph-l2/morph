@@ -18,7 +18,9 @@ serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true
 tiny-keccak.workspace = true
 
-poseidon-bn254.workspace = true
+# poseidon-bn254.workspace = true
+halo2curves.workspace = true
+poseidon-base.workspace = true
 zktrie.workspace = true
 
 [dev-dependencies]

@@ -1,0 +1,5 @@
+FROM sp1-base:latest
+
+COPY . /app
+WORKDIR /app
+RUN cd bin/host && RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo run --features use-native-gnark --release -- --prove
