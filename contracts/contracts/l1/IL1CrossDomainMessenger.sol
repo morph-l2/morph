@@ -19,6 +19,28 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
     /// @param newMaxReplayTimes The new maximum number of times each message can be replayed.
     event UpdateMaxReplayTimes(uint256 oldMaxReplayTimes, uint256 newMaxReplayTimes);
 
+    /// @notice Emitted when have message relay.
+    /// @param oldNonce The index of the old message to be replayed.
+    /// @param sender The address of the sender who initiates the message.
+    /// @param target The address of target contract to call.
+    /// @param value The amount of value passed to the target contract.
+    /// @param messageNonce The nonce of the message.
+    /// @param gasLimit The optional gas limit passed to L1 or L2.
+    /// @param message The calldata passed to the target contract.
+    event ReplayMessage(
+        uint256 indexed oldNonce,
+        address indexed sender,
+        address indexed target,
+        uint256 value,
+        uint256 messageNonce,
+        uint256 gasLimit,
+        bytes message
+    );
+
+    /// @notice Emitted when have message dropped.
+    /// @param nonce The index of the message to be dropped.
+    event DropMessage(uint256 indexed nonce);
+
     /*****************************
      * Public Mutating Functions *
      *****************************/
