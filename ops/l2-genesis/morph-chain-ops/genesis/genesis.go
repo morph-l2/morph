@@ -16,7 +16,7 @@ import (
 
 // defaultL2GasLimit represents the default gas limit for an L2 block.
 const (
-	defaultL2GasLimit = 10_000_000
+	defaultL2GasLimit = 30_000_000
 )
 
 // NewL2Genesis will create a new L2 genesis
