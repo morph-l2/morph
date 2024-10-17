@@ -100,9 +100,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 		{
 			Name: "L2ERC1155Gateway",
 		},
-		{
-			Name: "MorphToken",
-		},
+		//{
+		//	Name: "MorphToken",
+		//},
 		{
 			Name: "MorphStandardERC20",
 		},
@@ -204,29 +204,29 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
-		case "MorphToken":
-			if config == nil || config.MorphTokenName == "" {
-				continue
-			}
-			morphToken, err := bindings.NewMorphToken(dep.Address, backend)
-			if err != nil {
-				return nil, nil, err
-			}
-			initSupply, success := new(big.Int).SetString(strconv.FormatUint(config.MorphTokenInitialSupply, 10)+"000000000000000000", 10)
-			if !success {
-				return nil, nil, errors.New("MorphTokenInitialSupply convert failed")
-			}
-			lastTx, err = morphToken.Initialize(
-				opts,
-				config.MorphTokenName,
-				config.MorphTokenSymbol,
-				config.MorphTokenOwner,
-				initSupply,
-				new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
-			)
-			if err != nil {
-				return nil, nil, err
-			}
+		//case "MorphToken":
+		//	if config == nil || config.MorphTokenName == "" {
+		//		continue
+		//	}
+		//	morphToken, err := bindings.NewMorphToken(dep.Address, backend)
+		//	if err != nil {
+		//		return nil, nil, err
+		//	}
+		//	initSupply, success := new(big.Int).SetString(strconv.FormatUint(config.MorphTokenInitialSupply, 10)+"000000000000000000", 10)
+		//	if !success {
+		//		return nil, nil, errors.New("MorphTokenInitialSupply convert failed")
+		//	}
+		//	lastTx, err = morphToken.Initialize(
+		//		opts,
+		//		config.MorphTokenName,
+		//		config.MorphTokenSymbol,
+		//		config.MorphTokenOwner,
+		//		initSupply,
+		//		new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
+		//	)
+		//	if err != nil {
+		//		return nil, nil, err
+		//	}
 		case "L2USDC":
 			if config == nil || config.USDCTokenName == "" {
 				continue
@@ -249,7 +249,7 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
-			mintSupply, success := new(big.Int).SetString(strconv.FormatUint(config.MorphTokenInitialSupply, 10)+"000000000000000000", 10)
+			mintSupply, success := new(big.Int).SetString(strconv.FormatUint(1000000000, 10)+"000000000000000000", 10)
 			if !success {
 				return nil, nil, errors.New("USDC token mint Supply convert failed")
 			}
@@ -334,8 +334,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "L2TxFeeVault":
 		_, tx, _, err = bindings.DeployL2TxFeeVault(opts, backend, common.BigToAddress(common.Big1), common.BigToAddress(common.Big1), common.Big0)
-	case "MorphToken":
-		_, tx, _, err = bindings.DeployMorphToken(opts, backend)
+	//case "MorphToken":
+	//	_, tx, _, err = bindings.DeployMorphToken(opts, backend)
 	case "MorphStandardERC20":
 		_, tx, _, err = bindings.DeployMorphStandardERC20(opts, backend)
 	case "MorphStandardERC20Factory":

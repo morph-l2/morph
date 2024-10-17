@@ -122,11 +122,11 @@ type DeployConfig struct {
 	RecordNextBatchSubmissionIndex uint64         `json:"recordNextBatchSubmissionIndex"`
 
 	// MorphToken configs
-	MorphTokenOwner              common.Address `json:"morphTokenOwner"`
-	MorphTokenName               string         `json:"morphTokenName"`
-	MorphTokenSymbol             string         `json:"morphTokenSymbol"`
-	MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
-	MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
+	//MorphTokenOwner              common.Address `json:"morphTokenOwner"`
+	//MorphTokenName               string         `json:"morphTokenName"`
+	//MorphTokenSymbol             string         `json:"morphTokenSymbol"`
+	//MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
+	//MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
@@ -378,11 +378,11 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 		USDCBlackLister:   config.FinalSystemOwner,
 		USDCOwner:         config.FinalSystemOwner,
 		// MorphToken
-		MorphTokenOwner:              config.MorphTokenOwner,
-		MorphTokenName:               config.MorphTokenName,
-		MorphTokenSymbol:             config.MorphTokenSymbol,
-		MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
-		MorphTokenDailyInflationRate: config.MorphTokenDailyInflationRate,
+		//MorphTokenOwner:              config.MorphTokenOwner,
+		//MorphTokenName:               config.MorphTokenName,
+		//MorphTokenSymbol:             config.MorphTokenSymbol,
+		//MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
+		//MorphTokenDailyInflationRate: config.MorphTokenDailyInflationRate,
 		// L2Staking
 		L2StakingOwner:                config.FinalSystemOwner,
 		L2StakingSequencersMaxSize:    config.L2StakingSequencerMaxSize,
@@ -441,21 +441,21 @@ func (d *DeployConfig) Check() error {
 	if d.L2StakingUnDelegatedLockEpochs <= 0 {
 		return fmt.Errorf("L2StakingUnDelegatedLockEpochs must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
-	if d.MorphTokenOwner == (common.Address{}) {
-		return fmt.Errorf("MorphTokenOwner canot be nil: %w", ErrInvalidDeployConfig)
-	}
-	if d.MorphTokenName == "" {
-		return fmt.Errorf("MorphTokenName canot be nil: %w", ErrInvalidDeployConfig)
-	}
-	if d.MorphTokenSymbol == "" {
-		return fmt.Errorf("MorphTokenSymbol canot be nil: %w", ErrInvalidDeployConfig)
-	}
-	if d.MorphTokenDailyInflationRate <= 0 {
-		return fmt.Errorf("MorphTokenDailyInflationRate must be greater than 0: %w", ErrInvalidDeployConfig)
-	}
-	if d.MorphTokenInitialSupply <= 0 {
-		return fmt.Errorf("MorphTokenInitialSupply must be greater than 0: %w", ErrInvalidDeployConfig)
-	}
+	//if d.MorphTokenOwner == (common.Address{}) {
+	//	return fmt.Errorf("MorphTokenOwner canot be nil: %w", ErrInvalidDeployConfig)
+	//}
+	//if d.MorphTokenName == "" {
+	//	return fmt.Errorf("MorphTokenName canot be nil: %w", ErrInvalidDeployConfig)
+	//}
+	//if d.MorphTokenSymbol == "" {
+	//	return fmt.Errorf("MorphTokenSymbol canot be nil: %w", ErrInvalidDeployConfig)
+	//}
+	//if d.MorphTokenDailyInflationRate <= 0 {
+	//	return fmt.Errorf("MorphTokenDailyInflationRate must be greater than 0: %w", ErrInvalidDeployConfig)
+	//}
+	//if d.MorphTokenInitialSupply <= 0 {
+	//	return fmt.Errorf("MorphTokenInitialSupply must be greater than 0: %w", ErrInvalidDeployConfig)
+	//}
 	return nil
 }
 
@@ -491,10 +491,10 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"counterpart":          config.L1CrossDomainMessengerProxy,
 		"feeVault":             l2BridgeFeeVaultRecipient,
 	}
-	storage["MorphToken"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-	}
+	//storage["MorphToken"] = state.StorageValues{
+	//	"_initialized":  1,
+	//	"_initializing": false,
+	//}
 	storage["Record"] = state.StorageValues{
 		"_initialized":             1,
 		"_initializing":            false,
