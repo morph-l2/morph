@@ -160,7 +160,7 @@ impl ChallengeHandler {
 
             let blocks = &batch_info.blocks_info;
             log::info!(
-                "batch inspect of, batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, end_block = {:#?}",
+                "batch info: batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, end_block = {:#?}",
                 batch_info.batch_index,
                 blocks.len(),
                 blocks.first().unwrap_or(&0u64),
@@ -528,7 +528,7 @@ fn decode_blocks(block_contexts: Bytes) -> Option<(Vec<u64>, u64)> {
 
     METRICS.txn_len.set(txn_in_batch.into());
     log::info!("total_l2txn_in_batch: {:#?}", txn_in_batch);
-    log::info!("num_blocks: {:#?}, decode_blocks: {:#?}", num_blocks, blocks);
+    log::debug!("num_blocks: {:#?}, decode_blocks: {:#?}", num_blocks, blocks);
     Some((blocks, total_l1_txn))
 }
 

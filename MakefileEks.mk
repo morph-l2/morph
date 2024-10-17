@@ -21,7 +21,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle:
 # prover
 build-bk-prod-morph-prod-mainnet-to-morph-prover:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo build --release
+	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
 	cp prover/target/release/prover-server dist/
 	cp -r prover/configs dist/
 
