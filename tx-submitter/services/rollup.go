@@ -636,7 +636,7 @@ func (r *Rollup) rollup() error {
 	}
 	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip)
 	if err != nil {
-		log.Warn("estimate gas error", "err", err)
+		log.Warn("estimate gas failed", "err", err)
 		// have failed tx & estimate err -> no rough estimate
 		if r.pendingTxs.HaveFailed() {
 			log.Warn("estimate gas err, wait failed tx fixed",
@@ -652,7 +652,8 @@ func (r *Rollup) rollup() error {
 			gas = r.RoughRollupGasEstimate(msgcnt)
 			log.Info("rough estimate rollup tx gas", "gas", gas, "msgcnt", msgcnt)
 		} else {
-			return fmt.Errorf("estimate gas error:%v", err)
+			log.Warn("no rough estimate gas, return")
+			return nil
 		}
 	}
 
