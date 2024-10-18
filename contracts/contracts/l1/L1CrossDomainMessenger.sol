@@ -208,24 +208,30 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
         uint256 _nextQueueIndex = IL1MessageQueue(_messageQueue).nextCrossDomainMessageIndex();
         IL1MessageQueue(_messageQueue).appendCrossDomainMessage(_counterpart, _newGasLimit, _xDomainCalldata);
 
-        ReplayState memory _replayState = replayStates[_xDomainCalldataHash];
-        // update the replayed message chain.
-        unchecked {
-            if (_replayState.lastIndex == 0) {
-                // the message has not been replayed before.
-                prevReplayIndex[_nextQueueIndex] = _messageNonce + 1;
-            } else {
-                prevReplayIndex[_nextQueueIndex] = _replayState.lastIndex + 1;
+        {
+            // avoid stack too deep
+            ReplayState memory _replayState = replayStates[_xDomainCalldataHash];
+            // update the replayed message chain.
+            unchecked {
+                if (_replayState.lastIndex == 0) {
+                    // the message has not been replayed before.
+                    prevReplayIndex[_nextQueueIndex] = _messageNonce + 1;
+                } else {
+                    prevReplayIndex[_nextQueueIndex] = _replayState.lastIndex + 1;
+                }
             }
-        }
-        _replayState.lastIndex = uint128(_nextQueueIndex);
+            _replayState.lastIndex = uint128(_nextQueueIndex);
 
-        // update replay times
-        require(_replayState.times < maxReplayTimes, "Exceed maximum replay times");
-        unchecked {
-            _replayState.times += 1;
+            // update replay times
+            require(_replayState.times < maxReplayTimes, "Exceed maximum replay times");
+            unchecked {
+                _replayState.times += 1;
+            }
+
+            replayStates[_xDomainCalldataHash] = _replayState;
         }
-        replayStates[_xDomainCalldataHash] = _replayState;
+
+        emit ReplayMessage(_messageNonce, _msgSender(), _to, _value, _nextQueueIndex, _newGasLimit, _message);
 
         // refund fee to `_refundAddress`
         unchecked {
@@ -283,6 +289,7 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
         }
 
         isL1MessageDropped[_xDomainCalldataHash] = true;
+        emit DropMessage(_messageNonce);
 
         // set execution context
         xDomainMessageSender = Constants.DROP_XDOMAIN_MESSAGE_SENDER;

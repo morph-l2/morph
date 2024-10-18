@@ -21,13 +21,13 @@ start-bk-prod-morph-prod-mainnet-to-morph-gas-price-oracle:
 # prover
 build-bk-prod-morph-prod-mainnet-to-morph-prover:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo build --release
-	cp prover/target/release/prover_server dist/
+	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
+	cp prover/target/release/prover-server dist/
 	cp -r prover/configs dist/
 
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
 	#if [ ! -d morph-prover-data/circuits ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/sp1-circuits morph-prover-data/; fi
-	./prover_server
+	./prover-server
 
 # challenge-handler
 build-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:

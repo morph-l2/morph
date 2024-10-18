@@ -129,14 +129,11 @@ async fn add_pending_req(param: String) -> String {
         prove_request.shadow.unwrap_or(false)
     );
 
-    let blocks_len =
-        prove_request.end_block.checked_sub(prove_request.start_block).unwrap_or_default();
-
-    // Verify block number is greater than 0
-    if prove_request.start_block == 0 || blocks_len == 0 {
-        return String::from("blocks index invalid");
+    if prove_request.end_block < prove_request.start_block {
+        return String::from("blocks index error");
     }
 
+    let blocks_len = prove_request.end_block - prove_request.start_block + 1;
     if blocks_len as usize > *MAX_PROVE_BLOCKS {
         return format!(
             "blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
