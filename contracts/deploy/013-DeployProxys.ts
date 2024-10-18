@@ -58,13 +58,10 @@ export const deployContractProxies = async (
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
     const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
     const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
-    const L1USDCGatewayProxyStorageName = ProxyStorageName.L1USDCGatewayProxyStorageName
 
     const WETHFactoryName = ContractFactoryName.WETH
     const WETHImplStorageName = ImplStorageName.WETH
 
-    const USDCFactoryName = ContractFactoryName.USDC
-    const USDCImplStorageName = ImplStorageName.USDC
     let err = ""
 
     // ************************ token contracts deploy ************************
@@ -88,41 +85,6 @@ export const deployContractProxies = async (
     } else {
         let blockNumber = await hre.ethers.provider.getBlockNumber()
         err = await storage(path, WETHImplStorageName, config.l1WETHAddress.toLocaleLowerCase(), blockNumber || 0)
-        if (err != "") {
-            return err
-        }
-    }
-
-    if (config.l1USDCAddress == "") {
-        // L1WETH deploy
-        let Factory = await hre.ethers.getContractFactory(USDCFactoryName)
-        let contract = await Factory.deploy()
-        await contract.deployed()
-        console.log(
-            "%s=%s ; TX_HASH: %s",
-            USDCImplStorageName,
-            contract.address.toLocaleLowerCase(),
-            contract.deployTransaction.hash
-        )
-        let blockNumber = await hre.ethers.provider.getBlockNumber()
-        console.log("BLOCK_NUMBER: %s", blockNumber)
-        err = await storage(path, USDCImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-        if (err != "") {
-            return err
-        }
-        await contract.initialize(
-            "USDC",
-            "USDC",
-            "USD",
-            18,
-            config.contractAdmin,
-            config.contractAdmin,
-            config.contractAdmin,
-            config.contractAdmin
-        )
-    } else {
-        let blockNumber = await hre.ethers.provider.getBlockNumber()
-        err = await storage(path, USDCImplStorageName, config.l1USDCAddress.toLocaleLowerCase(), blockNumber || 0)
         if (err != "") {
             return err
         }
@@ -216,12 +178,6 @@ export const deployContractProxies = async (
         return err
     }
 
-    // L1USDCGatewayProxy deploy
-    err = await deployContractProxyByStorageName(hre, path, deployer, L1USDCGatewayProxyStorageName)
-    if (err != "") {
-        return err
-    }
-    // return nil
     return ""
 }
 
