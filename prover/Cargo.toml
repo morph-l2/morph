@@ -44,7 +44,7 @@ ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master
 
 # crypto
 c-kzg = "1.0.3"
-kzg-rs = { git = "https://github.com/anylots/kzg-rs.git", branch = "sp1-bls-dev" }
+kzg-rs = { git = "https://github.com/morph-l2/kzg-rs.git", branch = "sp1-bls-dev" }
 sha2 = "0.10.8"
 
 sp1-zkvm =  { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}

@@ -66,11 +66,11 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		GovBatchTimeout:       100,
 
 		// MorphToken
-		MorphTokenOwner:              address1,
-		MorphTokenName:               "Morph Token",
-		MorphTokenSymbol:             "Morph",
-		MorphTokenInitialSupply:      1000000000,
-		MorphTokenDailyInflationRate: 1,
+		//MorphTokenOwner:              address1,
+		//MorphTokenName:               "Morph Token",
+		//MorphTokenSymbol:             "Morph",
+		//MorphTokenInitialSupply:      1000000000,
+		//MorphTokenDailyInflationRate: 1,
 
 		FundDevAccounts: true,
 	}
