@@ -52,7 +52,8 @@ export const AdminTransfer = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
-    configTmp: any
+    configTmp: any,
+    component: string
 ): Promise<string> => {
     const L1CrossDomainMessengerStorageName = ProxyStorageName.L1CrossDomainMessengerProxyStorageName
     const L1MessageQueueWithGasPriceOracleProxyStorageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
@@ -72,99 +73,132 @@ export const AdminTransfer = async (
     const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
     const L1USDCGatewayProxyStorageName = ProxyStorageName.L1USDCGatewayProxyStorageName
 
+    let err = ''
+
     // ************************ messenger contracts admin change ************************
     // L1CrossDomainMessengerProxy admin change
-    let err = await AdminTransferByProxyStorageName(hre, path, deployer, L1CrossDomainMessengerStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('G')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1CrossDomainMessengerStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1MessageQueueWithGasPriceOracleProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1MessageQueueWithGasPriceOracleProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('H')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1MessageQueueWithGasPriceOracleProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ staking contracts admin change ************************
     // StakingProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1StakingProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('I')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1StakingProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ rollup contracts admin change ************************
     // RollupProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, RollupProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('J')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, RollupProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ gateway contracts admin change ************************
     // L1GatewayRouterProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1GatewayRouterProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('K')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1GatewayRouterProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ETHGatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ETHGatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('L')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ETHGatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1StandardERC20GatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1StandardERC20GatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('M')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1StandardERC20GatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1CustomERC20GatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1CustomERC20GatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('N')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1CustomERC20GatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1WithdrawLockERC20GatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1WithdrawLockERC20GatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('O')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1WithdrawLockERC20GatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ReverseCustomGatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ReverseCustomGatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('P')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ReverseCustomGatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ERC721GatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('Q')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ERC721GatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ERC1155GatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ERC1155GatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('R')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1ERC1155GatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // EnforcedTxGatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, EnforcedTxGatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('S')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, EnforcedTxGatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1WETHGatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1WETHGatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('T')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1WETHGatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1USDCGatewayProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1USDCGatewayProxyStorageName)
-    if (err != '') {
-        return err
+    if (component.includes('U')) {
+        err = await AdminTransferByProxyStorageName(hre, path, deployer, L1USDCGatewayProxyStorageName)
+        if (err != '') {
+            return err
+        }
     }
+    
     return ''
 }
 

@@ -18,7 +18,8 @@ export const deployContractImpls = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
-    config: any
+    config: any,
+    component: string
 ): Promise<string> => {
     // factory name
     const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
@@ -62,217 +63,254 @@ export const deployContractImpls = async (
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
     const EnforcedTxGatewayAddress = getContractAddressByName(path, ProxyStorageName.EnforcedTxGatewayProxyStorageName)
 
+    let Factory: any
+    let contract: any
+    let blockNumber: number
+    let err = ""
+
     // ************************ system contracts deploy ************************
     // whitelist deploy
-    let Factory = await hre.ethers.getContractFactory(WhitelistFactoryName)
-    let contract = await Factory.deploy(config.contractAdmin)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", WhitelistImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-    let blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storage(path, WhitelistImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('a')) {
+        Factory = await hre.ethers.getContractFactory(WhitelistFactoryName)
+        contract = await Factory.deploy(config.contractAdmin)
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", WhitelistImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, WhitelistImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ messenger contracts deploy ************************
     // L1CrossDomainMessenger deploy
-    Factory = await hre.ethers.getContractFactory(L1CrossDomainMessengerFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('b')) {
+        Factory = await hre.ethers.getContractFactory(L1CrossDomainMessengerFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1CrossDomainMessengerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
+
     // L1MessageQueueWithGasPriceOracle deploy
-    Factory = await hre.ethers.getContractFactory(L1MessageQueueWithGasPriceOracleFactoryName)
-    contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress, RollupProxyAddress, EnforcedTxGatewayAddress)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('c')) {
+        Factory = await hre.ethers.getContractFactory(L1MessageQueueWithGasPriceOracleFactoryName)
+        contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress, RollupProxyAddress, EnforcedTxGatewayAddress)
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1MessageQueueWithGasPriceOracleImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ rollup contracts deploy ************************
     // Rollup deploy
-    const l2ChainID: string = config.l2ChainID
-    Factory = await hre.ethers.getContractFactory(RollupFactoryName)
-    contract = await Factory.deploy(l2ChainID)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", RollupImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    // check params
-    await assertContractVariable(contract, 'LAYER_2_CHAIN_ID', l2ChainID)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, RollupImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('d')) {
+        const l2ChainID: string = config.l2ChainID
+        Factory = await hre.ethers.getContractFactory(RollupFactoryName)
+        contract = await Factory.deploy(l2ChainID)
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", RollupImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        // check params
+        await assertContractVariable(contract, 'LAYER_2_CHAIN_ID', l2ChainID)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, RollupImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ gateway contracts deploy ************************
     // L1GatewayRouter deploy
-    Factory = await hre.ethers.getContractFactory(L1GatewayRouterFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1GatewayRouterImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1GatewayRouterImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('e')) {
+        Factory = await hre.ethers.getContractFactory(L1GatewayRouterFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1GatewayRouterImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1GatewayRouterImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1StandardERC20Gateway deploy
-    Factory = await hre.ethers.getContractFactory(L1StandardERC20GatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1StandardERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1StandardERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('f')) {
+        Factory = await hre.ethers.getContractFactory(L1StandardERC20GatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1StandardERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1StandardERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1CustomERC20Gateway deploy
-    Factory = await hre.ethers.getContractFactory(L1CustomERC20GatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1CustomERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1CustomERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('g')) {
+        Factory = await hre.ethers.getContractFactory(L1CustomERC20GatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1CustomERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1CustomERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1WithdrawLockERC20Gateway deploy
-    Factory = await hre.ethers.getContractFactory(L1WithdrawLockERC20GatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1WithdrawLockERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1WithdrawLockERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('h')) {
+        Factory = await hre.ethers.getContractFactory(L1WithdrawLockERC20GatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1WithdrawLockERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1WithdrawLockERC20GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ReverseCustomGateway deploy
-    Factory = await hre.ethers.getContractFactory(L1ReverseCustomGatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1ReverseCustomGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1ReverseCustomGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('i')) {
+        Factory = await hre.ethers.getContractFactory(L1ReverseCustomGatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1ReverseCustomGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1ReverseCustomGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ETHGateway deploy
-    Factory = await hre.ethers.getContractFactory(L1ETHGatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('j')) {
+        Factory = await hre.ethers.getContractFactory(L1ETHGatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1ETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1WETHGateway deploy
-    const WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
-    Factory = await hre.ethers.getContractFactory(L1WETHGatewayFactoryName)
-    contract = await Factory.deploy(WETHAddress, predeploys.L2WETH)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('k')) {
+        const WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
+        Factory = await hre.ethers.getContractFactory(L1WETHGatewayFactoryName)
+        contract = await Factory.deploy(WETHAddress, predeploys.L2WETH)
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1USDCGateway deploy
-    const L1USDCAddress = getContractAddressByName(path, ImplStorageName.USDC)
-    Factory = await hre.ethers.getContractFactory(L1USDCGatewayFactoryName)
-    contract = await Factory.deploy(L1USDCAddress, predeploys.L2USDC)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('l')) {
+        const L1USDCAddress = getContractAddressByName(path, ImplStorageName.USDC)
+        Factory = await hre.ethers.getContractFactory(L1USDCGatewayFactoryName)
+        contract = await Factory.deploy(L1USDCAddress, predeploys.L2USDC)
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // EnforcedTxGateway deploy
-    Factory = await hre.ethers.getContractFactory(EnforcedTxGatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", EnforcedTxGatewayStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, EnforcedTxGatewayStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('m')) {
+        Factory = await hre.ethers.getContractFactory(EnforcedTxGatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", EnforcedTxGatewayStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, EnforcedTxGatewayStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ERC721Gateway deploy
-    Factory = await hre.ethers.getContractFactory(L1ERC721GatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1ERC721GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1ERC721GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('n')) {
+        Factory = await hre.ethers.getContractFactory(L1ERC721GatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1ERC721GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1ERC721GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // L1ERC1155Gateway deploy
-    Factory = await hre.ethers.getContractFactory(L1ERC1155GatewayFactoryName)
-    contract = await Factory.deploy()
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    if (component.includes('o')) {
+        Factory = await hre.ethers.getContractFactory(L1ERC1155GatewayFactoryName)
+        contract = await Factory.deploy()
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, L1ERC1155GatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
 
     // ************************ staking contracts deploy ************************
-    // Staking deploy 
-    Factory = await hre.ethers.getContractFactory(L1StakingFactoryName)
-    contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", StakingImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-    await assertContractVariable(
-        contract,
-        'MESSENGER',
-        L1CrossDomainMessengerProxyAddress
-    )
-    await assertContractVariable(
-        contract,
-        'OTHER_STAKING',
-        predeploys.L2Staking.toLowerCase()
-    )
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    // Staking deploy
+    if (component.includes('p')) {
+        Factory = await hre.ethers.getContractFactory(L1StakingFactoryName)
+        contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress)
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", StakingImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+        await assertContractVariable(
+            contract,
+            'MESSENGER',
+            L1CrossDomainMessengerProxyAddress
+        )
+        await assertContractVariable(
+            contract,
+            'OTHER_STAKING',
+            predeploys.L2Staking.toLowerCase()
+        )
+        blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        err = await storage(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        if (err != '') {
+            return err
+        }
     }
-
     // return
     return ''
 }

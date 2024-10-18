@@ -35,8 +35,8 @@ task("deploy")
         console.log('deployer :', await deployer.getAddress())
 
         if (component === '') {
-            component = 'abcdefghijklmnopqrs';
-            // component = 't';
+            // component = 'abcdefghijklmnopqrs';
+            component = 't';
         }
         let err = '';
 
@@ -81,57 +81,85 @@ task("deploy")
 
 task("initialize")
     .addParam('storagepath')
+    .addOptionalParam('component', 'String of letters to control which contracts to deploy, e.g. "abcd"')
     .setAction(async (taskArgs, hre) => {
         // Initialization parameters
         const storagePath = taskArgs.storagepath
         const config = hre.deployConfig
+        let component = taskArgs.component || '';
 
         const deployer = await hre.ethers.provider.getSigner();
         console.log('################################## console parameters ##################################')
         console.log('deployer :', await deployer.getAddress())
 
-        console.log('\n---------------------------------- deploy  Impls ----------------------------------')
-        let err = await deployContractImpls(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('Deploy deploy Impls failed, err: ', err)
-            return
+        if (component === '') {
+            // component = 'abcdefghijklmnopqrstuvwxyzABCDE';
+            component = 'F';
+        }
+        let err = '';
+
+        if (/[a-p]/.test(component)) {
+            console.log('\n---------------------------------- deploy  Impls ----------------------------------')
+            err = await deployContractImpls(hre, storagePath, deployer, config, component)
+            if (err != '') {
+                console.log('Deploy deploy Impls failed, err: ', err)
+                return
+            }
         }
 
-        console.log('\n---------------------------------- Messenger init ----------------------------------')
-        err = await MessengerInit(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('Messenger init failed, err: ', err)
-            return
+        if (/[q-r]/.test(component)) {
+            console.log('\n---------------------------------- Messenger init ----------------------------------')
+            err = await MessengerInit(hre, storagePath, deployer, config, component)
+            if (err != '') {
+                console.log('Messenger init failed, err: ', err)
+                return
+            }
         }
-        console.log('\n---------------------------------- Rollup init ----------------------------------')
-        err = await RollupInit(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('Rollup init failed, err: ', err)
-            return
+
+        if (/[s-t]/.test(component)) {
+            console.log('\n---------------------------------- Rollup init ----------------------------------')
+            err = await RollupInit(hre, storagePath, deployer, config, component)
+            if (err != '') {
+                console.log('Rollup init failed, err: ', err)
+                return
+            }
         }
-        console.log('\n---------------------------------- Gateway init ----------------------------------')
-        err = await GatewayInit(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('Rollup init failed, err: ', err)
-            return
+
+        if (/[u-zA-E]/.test(component)) {
+            console.log('\n---------------------------------- Gateway init ----------------------------------')
+            err = await GatewayInit(hre, storagePath, deployer, config, component)
+            if (err != '') {
+                console.log('Rollup init failed, err: ', err)
+                return
+            }
         }
-        console.log('\n---------------------------------- Staking init ----------------------------------')
-        err = await StakingInit(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('Staking init failed, err: ', err)
-            return
+        
+
+        if (component.includes('F')) {
+            console.log('\n---------------------------------- Staking init ----------------------------------')
+            err = await StakingInit(hre, storagePath, deployer, config)
+            if (err != '') {
+                console.log('Staking init failed, err: ', err)
+                return
+            }
         }
-        console.log('\n---------------------------------- Admin Transfer ----------------------------------')
-        err = await AdminTransfer(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('OwnerTransfer failed, err: ', err)
-            return
+
+        if (/[G-U]/.test(component)) {
+            console.log('\n---------------------------------- Admin Transfer ----------------------------------')
+            err = await AdminTransfer(hre, storagePath, deployer, config, component)
+            if (err != '') {
+                console.log('OwnerTransfer failed, err: ', err)
+                return
+            }
         }
-        console.log('\n---------------------------------- Contract Init ----------------------------------')
-        err = await ContractInit(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('ContractInit failed, err: ', err)
-            return
+
+        if (/[V-Y]/.test(component)) {
+            console.log('\n---------------------------------- Contract Init ----------------------------------')
+            err = await ContractInit(hre, storagePath, deployer, config, component)
+            if (err != '') {
+                console.log('ContractInit failed, err: ', err)
+                return
+            }
         }
         // todo transfer contract owner 
     });

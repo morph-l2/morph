@@ -18,11 +18,12 @@ export const ContractInit = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     deployer: any,
-    config: any
+    config: any,
+    component: string
 ): Promise<string> => {
     console.log("ContractInit")
     // ------------------ gasPriceOracle init -----------------
-    {
+    if (component.includes('V')) {
         const GasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName)
         const GasPriceOracle = await hre.ethers.getContractAt(ContractFactoryName.L1MessageQueueWithGasPriceOracle, GasPriceOracleProxyAddress, deployer)
         // base fee
@@ -48,7 +49,7 @@ export const ContractInit = async (
     }
 
     // ------------------ rollup init -----------------
-    {
+    if (component.includes('W')) {
         const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
         const Rollup = await hre.ethers.getContractAt(ContractFactoryName.Rollup, RollupProxyAddress, deployer)
         // import genesis batch 
@@ -72,7 +73,7 @@ export const ContractInit = async (
     }
 
     // ------------------ staking init -----------------
-    {
+    if (component.includes('X')) {
         const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
         const L1Staking = await hre.ethers.getContractAt(ContractFactoryName.L1Staking, L1StakingProxyAddress, deployer)
         const whiteListAdd = config.l2SequencerAddresses
@@ -94,7 +95,7 @@ export const ContractInit = async (
     }
 
     // ------------------ router init -----------------
-    {
+    if (component.includes('Y')) {
         const L1WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
         const L1USDCAddress = getContractAddressByName(path, ImplStorageName.USDC)
 
