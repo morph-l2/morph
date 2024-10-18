@@ -3,6 +3,8 @@ package immutables
 import (
 	"context"
 	"fmt"
+	"math/big"
+
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind/backends"
 	"github.com/morph-l2/go-ethereum/common"
@@ -10,7 +12,6 @@ import (
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/rlp"
 	"github.com/morph-l2/go-ethereum/trie"
-	"math/big"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
