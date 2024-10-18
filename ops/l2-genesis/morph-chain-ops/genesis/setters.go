@@ -82,7 +82,7 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 				return err
 			}
 		} else {
-			if name == "MorphToken" {
+			if name == "MorphToken" || name == "L2USDCGateway" {
 				continue
 			}
 			err = SetTouchable(db, name, *address, storage, deployResults, slotResults)

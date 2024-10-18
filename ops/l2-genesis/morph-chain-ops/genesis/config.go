@@ -76,14 +76,10 @@ type DeployConfig struct {
 	L1ERC721GatewayProxy common.Address `json:"l1ERC721GatewayProxy"`
 	// L1ERC1155Gateway proxy address on L1
 	L1ERC1155GatewayProxy common.Address `json:"l1ERC1155GatewayProxy"`
-	// L1USDCGatewayProxy proxy address on L1
-	L1USDCGatewayProxy common.Address `json:"l1USDCGatewayProxy"`
 	// L1WETHGatewayProxy proxy address on L1
 	L1WETHGatewayProxy common.Address `json:"l1WETHGatewayProxy"`
 	// L1WETH address on L1
 	L1WETH common.Address `json:"l1WETH"`
-	// L1USDC address on L1
-	L1USDC common.Address `json:"l1USDC"`
 	// L1WithdrawLockERC20GatewayProxy proxy address on L1
 	L1WithdrawLockERC20Gateway common.Address `json:"l1WithdrawLockERC20Gateway"`
 
@@ -224,28 +220,12 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.L1WETHGatewayProxy = deployment.Address
 	}
 
-	if d.L1USDCGatewayProxy == (common.Address{}) {
-		deployment, err := hh.GetDeployment("Proxy__L1USDCGateway")
-		if err != nil {
-			return err
-		}
-		d.L1USDCGatewayProxy = deployment.Address
-	}
-
 	if d.L1WETH == (common.Address{}) {
 		deployment, err := hh.GetDeployment("Impl__WETH")
 		if err != nil {
 			return err
 		}
 		d.L1WETH = deployment.Address
-	}
-
-	if d.L1USDC == (common.Address{}) {
-		deployment, err := hh.GetDeployment("Impl__USDC")
-		if err != nil {
-			return err
-		}
-		d.L1USDC = deployment.Address
 	}
 
 	if d.L1WithdrawLockERC20Gateway == (common.Address{}) {
@@ -341,17 +321,11 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	if config.L1WETHGatewayProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1WETHGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
-	if config.L1USDCGatewayProxy == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1USDCGatewayProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
 	if config.L1WithdrawLockERC20Gateway == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1WithdrawLockERC20Gateway cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1WETH == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1WETH cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1USDC == (common.Address{}) {
-		return immutable, nil, fmt.Errorf("L1USDC cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	immutable["L2Staking"] = immutables.ImmutableValues{
 		"OTHER_STAKING": config.L1StakingProxy,
@@ -359,30 +333,12 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 	immutable["L2WETHGateway"] = immutables.ImmutableValues{
 		"l1WETH": config.L1WETH,
 	}
-	immutable["L2USDCGateway"] = immutables.ImmutableValues{
-		"l1USDC": config.L1USDC,
-	}
 	blsKeys := make([][]byte, len(config.L2StakingBlsKeys))
 	for i, v := range config.L2StakingBlsKeys {
 		blsKeys[i] = v
 	}
 
 	imConfig := &immutables.InitConfig{
-		// L2USDC
-		USDCTokenName:     "Bridged USDC",
-		USDCTokenSymbol:   "USDC.e",
-		USDCTokenCurrency: "USD",
-		USDCTokenDecimals: 18,
-		USDCMasterMinter:  config.FinalSystemOwner,
-		USDCPauser:        config.FinalSystemOwner,
-		USDCBlackLister:   config.FinalSystemOwner,
-		USDCOwner:         config.FinalSystemOwner,
-		// MorphToken
-		//MorphTokenOwner:              config.MorphTokenOwner,
-		//MorphTokenName:               config.MorphTokenName,
-		//MorphTokenSymbol:             config.MorphTokenSymbol,
-		//MorphTokenInitialSupply:      config.MorphTokenInitialSupply,
-		//MorphTokenDailyInflationRate: config.MorphTokenDailyInflationRate,
 		// L2Staking
 		L2StakingOwner:                config.FinalSystemOwner,
 		L2StakingSequencersMaxSize:    config.L2StakingSequencerMaxSize,
@@ -588,15 +544,6 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"router":        predeploys.L2GatewayRouterAddr,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
-	storage["L2USDCGateway"] = state.StorageValues{
-		"_status":       1, // ReentrancyGuard
-		"_initialized":  1,
-		"_initializing": false,
-		"_owner":        config.FinalSystemOwner,
-		"counterpart":   config.L1USDCGatewayProxy,
-		"router":        predeploys.L2GatewayRouterAddr,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-	}
 	storage["L2WithdrawLockERC20Gateway"] = state.StorageValues{
 		"_status":       1, // ReentrancyGuard
 		"_initialized":  1,
@@ -627,17 +574,6 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	storage["MorphStandardERC20Factory"] = state.StorageValues{
 		"_owner":         predeploys.L2StandardERC20GatewayAddr,
 		"implementation": predeploys.MorphStandardERC20Addr,
-	}
-	storage["L2USDC"] = state.StorageValues{
-		"initialized":  true,
-		"name":         "Bridged USDC",
-		"symbol":       "USDC.e",
-		"currency":     "USD",
-		"decimals":     18,
-		"masterMinter": config.FinalSystemOwner,
-		"pauser":       config.FinalSystemOwner,
-		"blacklister":  config.FinalSystemOwner,
-		"_owner":       config.FinalSystemOwner,
 	}
 	return storage, nil
 }

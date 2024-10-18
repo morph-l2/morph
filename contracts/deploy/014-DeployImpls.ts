@@ -36,7 +36,6 @@ export const deployContractImpls = async (
     const L1ERC721GatewayFactoryName = ContractFactoryName.L1ERC721Gateway
     const L1ERC1155GatewayFactoryName = ContractFactoryName.L1ERC1155Gateway
     const L1WETHGatewayFactoryName = ContractFactoryName.L1WETHGateway
-    const L1USDCGatewayFactoryName = ContractFactoryName.L1USDCGateway
     const EnforcedTxGatewayFactoryName = ContractFactoryName.EnforcedTxGateway
 
     // implement storage name
@@ -51,7 +50,6 @@ export const deployContractImpls = async (
     const L1WithdrawLockERC20GatewayImplStorageName = ImplStorageName.L1WithdrawLockERC20GatewayStorageName
     const L1ReverseCustomGatewayImplStorageName = ImplStorageName.L1ReverseCustomGatewayStorageName
     const L1WETHGatewayImplStorageName = ImplStorageName.L1WETHGatewayStorageName
-    const L1USDCGatewayImplStorageName = ImplStorageName.L1USDCGatewayStorageName
     const L1ERC721GatewayImplStorageName = ImplStorageName.L1ERC721GatewayStorageName
     const L1ERC1155GatewayImplStorageName = ImplStorageName.L1ERC1155GatewayStorageName
     const WhitelistImplStorageName = ImplStorageName.Whitelist
@@ -197,19 +195,6 @@ export const deployContractImpls = async (
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storage(path, L1WETHGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
-    }
-
-    // L1USDCGateway deploy
-    const L1USDCAddress = getContractAddressByName(path, ImplStorageName.USDC)
-    Factory = await hre.ethers.getContractFactory(L1USDCGatewayFactoryName)
-    contract = await Factory.deploy(L1USDCAddress, predeploys.L2USDC)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
-    blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, L1USDCGatewayImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }
