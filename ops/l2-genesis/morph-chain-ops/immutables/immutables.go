@@ -2,10 +2,8 @@ package immutables
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
-	"strconv"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind/backends"
@@ -100,9 +98,6 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 		{
 			Name: "L2ERC1155Gateway",
 		},
-		//{
-		//	Name: "MorphToken",
-		//},
 		{
 			Name: "MorphStandardERC20",
 		},
@@ -120,15 +115,6 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 		},
 		{
 			Name: "L2WETH",
-		},
-		{
-			Name: "L2USDCGateway",
-			Args: []interface{}{
-				immutable["L2USDCGateway"]["l1USDC"],
-			},
-		},
-		{
-			Name: "L2USDC",
 		},
 		{
 			Name: "ProxyAdmin",
@@ -204,73 +190,6 @@ func BuildL2(constructors []deployer.Constructor, config *InitConfig) (Deploymen
 			if err != nil {
 				return nil, nil, err
 			}
-		//case "MorphToken":
-		//	if config == nil || config.MorphTokenName == "" {
-		//		continue
-		//	}
-		//	morphToken, err := bindings.NewMorphToken(dep.Address, backend)
-		//	if err != nil {
-		//		return nil, nil, err
-		//	}
-		//	initSupply, success := new(big.Int).SetString(strconv.FormatUint(config.MorphTokenInitialSupply, 10)+"000000000000000000", 10)
-		//	if !success {
-		//		return nil, nil, errors.New("MorphTokenInitialSupply convert failed")
-		//	}
-		//	lastTx, err = morphToken.Initialize(
-		//		opts,
-		//		config.MorphTokenName,
-		//		config.MorphTokenSymbol,
-		//		config.MorphTokenOwner,
-		//		initSupply,
-		//		new(big.Int).SetUint64(config.MorphTokenDailyInflationRate),
-		//	)
-		//	if err != nil {
-		//		return nil, nil, err
-		//	}
-		case "L2USDC":
-			if config == nil || config.USDCTokenName == "" {
-				continue
-			}
-			usdc, err := bindings.NewFiatTokenV1(dep.Address, backend)
-			if err != nil {
-				return nil, nil, err
-			}
-			lastTx, err = usdc.Initialize(
-				opts,
-				config.USDCTokenName,
-				config.USDCTokenSymbol,
-				config.USDCTokenCurrency,
-				config.USDCTokenDecimals,
-				opts.From,
-				config.USDCPauser,
-				config.USDCBlackLister,
-				opts.From,
-			)
-			if err != nil {
-				return nil, nil, err
-			}
-			mintSupply, success := new(big.Int).SetString(strconv.FormatUint(1000000000, 10)+"000000000000000000", 10)
-			if !success {
-				return nil, nil, errors.New("USDC token mint Supply convert failed")
-			}
-			_, err = usdc.ConfigureMinter(opts, predeploys.L2USDCGatewayAddr, mintSupply)
-			if err != nil {
-				return nil, nil, err
-			}
-			_, err = usdc.UpdateMasterMinter(opts, config.USDCMasterMinter)
-			if err != nil {
-				return nil, nil, err
-			}
-			processTx, err := usdc.TransferOwnership(opts, config.USDCOwner)
-			if err != nil {
-				return nil, nil, err
-			}
-			backend.Commit()
-			if processTx != nil {
-				if _, err = bind.WaitMined(context.Background(), backend, processTx); err != nil {
-					return nil, nil, err
-				}
-			}
 		default:
 		}
 	}
@@ -334,8 +253,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "L2TxFeeVault":
 		_, tx, _, err = bindings.DeployL2TxFeeVault(opts, backend, common.BigToAddress(common.Big1), common.BigToAddress(common.Big1), common.Big0)
-	//case "MorphToken":
-	//	_, tx, _, err = bindings.DeployMorphToken(opts, backend)
 	case "MorphStandardERC20":
 		_, tx, _, err = bindings.DeployMorphStandardERC20(opts, backend)
 	case "MorphStandardERC20Factory":
@@ -362,14 +279,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL2WETHGateway(opts, backend, predeploys.L2WETHAddr, l1weth)
 	case "L2WithdrawLockERC20Gateway":
 		_, tx, _, err = bindings.DeployL2WithdrawLockERC20Gateway(opts, backend)
-	case "L2USDCGateway":
-		l1usdc, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for l1usdc")
-		}
-		_, tx, _, err = bindings.DeployL2USDCGateway(opts, backend, l1usdc, predeploys.L2USDCAddr)
-	case "L2USDC":
-		_, tx, _, err = bindings.DeployFiatTokenV1(opts, backend)
 	case "L2WETH":
 		_, tx, _, err = bindings.DeployWrappedEther(opts, backend)
 	case "ProxyAdmin":
