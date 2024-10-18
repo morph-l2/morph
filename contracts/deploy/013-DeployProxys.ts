@@ -58,6 +58,7 @@ export const deployContractProxies = async (
     const L1ERC1155GatewayProxyStorageName = ProxyStorageName.L1ERC1155GatewayProxyStorageName
     const EnforcedTxGatewayProxyStorageName = ProxyStorageName.EnforcedTxGatewayProxyStorageName
     const L1WETHGatewayProxyStorageName = ProxyStorageName.L1WETHGatewayProxyStorageName
+    const L1USDCGatewayProxyStorageName = ProxyStorageName.L1USDCGatewayProxyStorageName
 
     const WETHFactoryName = ContractFactoryName.WETH
     const WETHImplStorageName = ImplStorageName.WETH
@@ -178,6 +179,12 @@ export const deployContractProxies = async (
         return err
     }
 
+    // L1USDCGatewayProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1USDCGatewayProxyStorageName)
+    if (err != "") {
+        return err
+    }
+    // return nil
     return ""
 }
 

@@ -76,6 +76,7 @@ export const ContractInit = async (
         const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
         const L1Staking = await hre.ethers.getContractAt(ContractFactoryName.L1Staking, L1StakingProxyAddress, deployer)
         const whiteListAdd = config.l2SequencerAddresses
+        console.log("Add sequencer address to white list ", config.l2SequencerAddresses)
         // set sequencer to white list
         await L1Staking.updateWhitelist(whiteListAdd, [])
         for (let i = 0; i < config.l2SequencerAddresses.length; i++) {
