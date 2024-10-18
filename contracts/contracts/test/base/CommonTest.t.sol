@@ -30,7 +30,7 @@ contract CommonTest is DSTestPlus, MockTree {
     address public bob3 = address(259);
     address public bob4 = address(260);
     address public bob5 = address(261);
-    
+
     address public multisig = address(512);
 
     FFIInterface public ffi;
@@ -41,6 +41,7 @@ contract CommonTest is DSTestPlus, MockTree {
 
     uint256 public finalizationPeriodSeconds = 2;
     uint256 public proofRewardPercent = 70;
+
     function setUp() public virtual {
         // Give alice and bob some ETH
         hevm.deal(alice, 1 << 16);
