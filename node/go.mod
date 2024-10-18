@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/klauspost/compress v1.17.9
-	github.com/morph-l2/go-ethereum v1.10.14-0.20240928131248-d5897cc977af
+	github.com/morph-l2/go-ethereum v1.10.14-0.20241017085938-2f006c41c911
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
 	github.com/stretchr/testify v1.9.0

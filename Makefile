@@ -1,6 +1,6 @@
 ################## update dependencies ####################
 
-ETHEREUM_TARGET_VERSION := v1.10.14-0.20240928131248-d5897cc977af
+ETHEREUM_TARGET_VERSION := morph-v2.0.0
 TENDERMINT_TARGET_VERSION := v0.3.1
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
