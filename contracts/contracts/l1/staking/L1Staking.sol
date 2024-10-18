@@ -18,7 +18,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice rollup Contract
     address public rollupContract;
 
-    /// @notice staking value, immutable
+    /// @notice staking value
     uint256 public stakingValue;
 
     /// @notice exit lock blocks
@@ -252,6 +252,15 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         _transfer(receiver, slashRemaining);
         slashRemaining = 0;
         emit SlashRemainingClaimed(receiver, _slashRemaining);
+    }
+
+    /// @notice update staking value
+    /// @param _stakingValue    staking value
+    function updateStakingValue(uint256 _stakingValue) external onlyOwner {
+        require(_stakingValue > 0 && _stakingValue != stakingValue, "invalid staking value");
+        uint256 _oldStakingValue = stakingValue;
+        stakingValue = _stakingValue;
+        emit StakingValueUpdated(_oldStakingValue, stakingValue);
     }
 
     /// @notice update gas limit of add staker
