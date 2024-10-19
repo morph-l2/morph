@@ -50,6 +50,7 @@ type Derivation struct {
 
 	cancel context.CancelFunc
 
+	startHeight         uint64
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
@@ -107,6 +108,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		l2Client:              types.NewRetryableClient(aClient, eClient, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))),
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
+		startHeight:           cfg.StartHeight,
 		fetchBlockRange:       cfg.FetchBlockRange,
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
@@ -156,7 +158,10 @@ func (d *Derivation) Stop() {
 func (d *Derivation) derivationBlock(ctx context.Context) {
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
 	latest := d.syncer.LatestSynced()
-	start := *latestDerivation + 1
+	var start uint64
+	if latestDerivation == nil {
+		start = d.startHeight
+	}
 	end := latest
 	if latest < start {
 		d.logger.Info("latest less than start", "latest", latest, "start", start)
@@ -170,9 +175,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.logger.Error("eth_getLogs failed", "err", err)
 		return
 	}
-	latestBatchIndex, err := d.rollup.LastCommittedBatchIndex(&bind.CallOpts{
-		BlockNumber: big.NewInt(int64(latest)),
-	})
+	latestBatchIndex, err := d.rollup.LastCommittedBatchIndex(nil)
 	if err != nil {
 		d.logger.Error("query rollup latestCommitted batch Index failed", "err", err)
 		return
