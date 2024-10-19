@@ -14,14 +14,19 @@
 
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
-  "gasPriceOracleOwner": "0x2818a3aF785975a32611155A6eE36C21Cec068ca",
+  "gasPriceOracleOwner": "0x523bff68043c818e9b449dd3bee8eccfa85d7e50",
 
-  "govVotingDuration": 1000,
+  "recordOracleAddress": "0xefb531cd2fbebd784d5d49a7ad06c0200e0d169a",
+  "recordNextBatchSubmissionIndex": 1,
+
+  "govVotingDuration": 86400,
   "govBatchBlockInterval": 600,
-  "govBatchMaxBytes": 124928,
   "govBatchTimeout": 1200,
-  "govRollupEpoch": 600,
-  "govBatchMaxChunks": 45,
+  "govRollupEpoch": 7200,
+
+  "l2StakingSequencerMaxSize": 7,
+  "l2StakingUnDelegatedLockEpochs": 7,
+  "l2StakingRewardStartTime": 1764432000,
   "l2SequencerAddresses": [
     "0x6ab0e960911b50f6d14f249782ac12ec3e7584a0",
     "0xbba36cdf020788f0d08d5688c0bee3fb30ce1c80",
