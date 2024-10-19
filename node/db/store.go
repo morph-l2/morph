@@ -57,7 +57,7 @@ func (s *Store) ReadLatestDerivationL1Height() *uint64 {
 		panic(fmt.Sprintf("Failed to read batch index from database,err:%v", err))
 	}
 	if len(data) == 0 {
-		return new(uint64)
+		return nil
 	}
 
 	number := new(big.Int).SetBytes(data)
