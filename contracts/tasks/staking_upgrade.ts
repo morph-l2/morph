@@ -899,3 +899,123 @@ task("l2-staking-deploy")
         const rec = await res.wait()
         console.log(`L2Staking upgrade ${rec.status === 1}, new impl ${staking.address}`)
     })
+
+task("l1rollup-upgrade")
+    .addParam("storagepath")
+    .addParam("newpath")
+    .addParam("l2chainid")
+    .setAction(async (taskArgs, hre) => {
+        // deploy config
+        const storagePath = taskArgs.storagepath
+        const newPath = taskArgs.newpath
+        const chainId = taskArgs.l2chainid
+
+        const RollupFactoryName = ContractFactoryName.Rollup
+        const RollupImplStorageName = ImplStorageName.RollupStorageName
+        const ProxyAdminAddress = getContractAddressByName(storagePath, ImplStorageName.ProxyAdmin)
+        const RollupProxyAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.RollupProxyStorageName
+        )
+
+        // deploy rollup impl
+        {
+            const Factory = await hre.ethers.getContractFactory(RollupFactoryName)
+            const contract = await Factory.deploy(chainId)
+            await contract.deployed()
+            console.log(
+                "%s=%s ; TX_HASH: %s",
+                RollupImplStorageName,
+                contract.address.toLocaleLowerCase(),
+                contract.deployTransaction.hash
+            )
+            const blockNumber = await hre.ethers.provider.getBlockNumber()
+            console.log("BLOCK_NUMBER: %s", blockNumber)
+            const err = await storage(
+                newPath,
+                RollupImplStorageName,
+                contract.address.toLocaleLowerCase(),
+                blockNumber || 0
+            )
+            if (err != "") {
+                return err
+            }
+        }
+
+        // rollup proxy upgrade
+        {
+            const RollupNewImplAddress = getContractAddressByName(
+                newPath,
+                RollupImplStorageName
+            )
+            const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+            const proxyAdmin = ProxyAdminFactory.attach(ProxyAdminAddress)
+            const res = await proxyAdmin.upgrade(
+                RollupProxyAddress,
+                RollupNewImplAddress
+            )
+            const rec = await res.wait()
+            console.log(`upgrade rollup ${rec.status === 1}`)
+        }
+
+        {
+            const RollupFactory = await hre.ethers.getContractFactory(ContractFactoryName.Rollup)
+            const RollupProxyContract = getContractAddressByName(storagePath, ProxyStorageName.RollupProxyStorageName)
+            const Rollup = RollupFactory.attach(RollupProxyContract)
+
+            const l2ChainId = await Rollup.LAYER_2_CHAIN_ID()
+            const l1StakingContract = await Rollup.l1StakingContract()
+            const messageQueue = await Rollup.messageQueue()
+            const verifier = await Rollup.verifier()
+            const finalizationPeriodSeconds = await Rollup.finalizationPeriodSeconds()
+            const proofWindow = await Rollup.proofWindow()
+            const proofRewardPercent = await Rollup.proofRewardPercent()
+
+            console.log(`
+            l2ChainID ${l2ChainId},
+            l1StakingContract ${l1StakingContract},
+            messageQueue ${messageQueue},
+            verifier ${verifier},
+            finalizationPeriodSeconds ${finalizationPeriodSeconds},
+            l2ChainID ${l2ChainId},
+            proofWindow ${proofWindow},
+            proofRewardPercent ${proofRewardPercent},
+            `)
+
+        }
+    })
+
+task("l1rollup-import-genesis-batch")
+    .addParam("storagepath")
+    .addParam("newheader")
+    .setAction(async (taskArgs, hre) => {
+        // deploy config
+        const storagePath = taskArgs.storagepath
+        // ------------------ rollup import genesis batch -----------------
+        {
+            const RollupFactory = await hre.ethers.getContractFactory(ContractFactoryName.Rollup)
+            const RollupProxyContract = getContractAddressByName(storagePath, ProxyStorageName.RollupProxyStorageName)
+            const Rollup = RollupFactory.attach(RollupProxyContract)
+
+            // import genesis batch
+            const batchHeader: string = taskArgs.newheader
+            let res = await Rollup.importGenesisBatch(batchHeader)
+            let rec = await res.wait()
+            console.log(
+                `importGenesisBatch(%s) ${rec.status == 1 ? "success" : "failed"}`,
+                batchHeader,
+            )
+
+            const batch = await Rollup.batchDataStore(0)
+            const finalizedStateRoots = await Rollup.finalizedStateRoots(0)
+            const lastCommittedBatchIndex = await Rollup.lastCommittedBatchIndex()
+            const lastFinalizedBatchIndex = await Rollup.lastFinalizedBatchIndex()
+            const committedBatches0 = await Rollup.committedBatches(0)
+
+            console.log(`batch ${batch}, 
+            finalizedStateRoots ${finalizedStateRoots}, 
+            lastCommittedBatchIndex ${lastCommittedBatchIndex},
+            lastFinalizedBatchIndex ${lastFinalizedBatchIndex},
+            committedBatches0 ${committedBatches0}`)
+        }
+    })

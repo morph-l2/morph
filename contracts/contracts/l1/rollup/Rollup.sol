@@ -178,7 +178,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Import layer 2 genesis block
     function importGenesisBatch(bytes calldata _batchHeader) external onlyOwner {
         // check whether the genesis batch is imported
-        require(finalizedStateRoots[0] == bytes32(0), "genesis batch imported");
+        // require(finalizedStateRoots[0] == bytes32(0), "genesis batch imported");
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
