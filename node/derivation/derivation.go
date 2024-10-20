@@ -161,6 +161,8 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	var start uint64
 	if latestDerivation == nil {
 		start = d.startHeight
+	} else {
+		start = *latestDerivation + 1
 	}
 	end := latest
 	if latest < start {
