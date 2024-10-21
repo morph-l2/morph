@@ -2092,17 +2092,164 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.delegateStake(thirdStaker, 5 ether);
         hevm.stopPrank();
 
-        (, address[] memory delegator0) = l2Staking.getAllDelegatorsInPagination(firstStaker, 10, 0);
-        (, address[] memory delegator1) = l2Staking.getAllDelegatorsInPagination(secondStaker, 10, 0);
-        (, address[] memory delegator2) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 10, 0);
+        hevm.startPrank(alice1);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        hevm.stopPrank();
 
-        assertEq(delegator0.length, 10);
-        assertEq(delegator1.length, 10);
-        assertEq(delegator2.length, 10);
+        hevm.startPrank(alice2);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        l2Staking.delegateStake(secondStaker, 5 ether);
+        hevm.stopPrank();
 
-        assertEq(delegator0[0], alice);
-        assertEq(delegator1[0], alice);
-        assertEq(delegator2[0], alice);
+        hevm.startPrank(alice3);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        hevm.stopPrank();
+
+        hevm.startPrank(alice4);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegateStake(firstStaker, 5 ether);
+        hevm.stopPrank();
+
+        // check firstStaker
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 10, 0);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 5);
+            assertEq(delegators.length, 10);
+            assertEq(delegators[0], alice);
+            assertEq(delegators[1], alice1);
+            assertEq(delegators[2], alice2);
+            assertEq(delegators[3], alice3);
+            assertEq(delegators[4], alice4);
+            assertEq(delegators[5], address(0));
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 1, 0);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 5);
+            assertEq(delegators.length, 1);
+            assertEq(delegators[0], alice);
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 1, 1);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 5);
+            assertEq(delegators.length, 1);
+            assertEq(delegators[0], alice1);
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 2, 2);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 5);
+            assertEq(delegators.length, 2);
+            assertEq(delegators[0], alice4);
+            assertEq(delegators[1], address(0));
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 10, 3);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 5);
+            assertEq(delegators.length, 10);
+            assertEq(delegators[0], address(0));
+            assertEq(delegators[1], address(0));
+        }
+
+        // check secondStaker
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(secondStaker, 10, 0);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 3);
+            assertEq(delegators.length, 10);
+            assertEq(delegators[0], alice);
+            assertEq(delegators[1], alice1);
+            assertEq(delegators[2], alice2);
+            assertEq(delegators[3], address(0));
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(secondStaker, 2, 1);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 3);
+            assertEq(delegators.length, 2);
+            assertEq(delegators[0], alice2);
+            assertEq(delegators[1], address(0));
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(secondStaker, 2, 2);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 3);
+            assertEq(delegators.length, 2);
+            assertEq(delegators[0], address(0));
+            assertEq(delegators[1], address(0));
+        }
+
+        // check thirdStaker
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 10, 0);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 1);
+            assertEq(delegators.length, 10);
+            assertEq(delegators[0], alice);
+            assertEq(delegators[1], address(0));
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 1, 0);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 1);
+            assertEq(delegators.length, 1);
+            assertEq(delegators[0], alice);
+        }
+
+        {
+            (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 1, 1);
+            // console.logString("......................");
+            // console.logUint(total);
+            // console.logUint(delegators.length);
+            // console.logString("......................");
+            assertEq(total, 1);
+            assertEq(delegators.length, 1);
+            assertEq(delegators[0], address(0));
+        }
     }
 
     /**
