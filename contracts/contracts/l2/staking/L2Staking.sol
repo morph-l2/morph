@@ -487,8 +487,10 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         if (end > (delegatorsTotalNumber - 1)) {
             end = delegatorsTotalNumber - 1;
         }
-        for (uint256 i = start; i <= end; i++) {
-            delegatorsInPage[i] = delegators[staker].at(i);
+        uint256 i = start;
+        uint256 j = 0;
+        while (i <= end) {
+            delegatorsInPage[j++] = delegators[staker].at(i++);
         }
         return (delegatorsTotalNumber, delegatorsInPage);
     }
