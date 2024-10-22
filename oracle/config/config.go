@@ -88,8 +88,12 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L2EthRpc:      ctx.GlobalString(flags.L2EthRPCFlag.Name),
 		TendermintRpc: ctx.GlobalString(flags.TendermintFlag.Name),
 		RollupAddr:    common.HexToAddress(ctx.GlobalString(flags.RollupAddress.Name)),
-		PrivKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		L1StakingAddr: common.HexToAddress(ctx.GlobalString(flags.L1StakingAddr.Name)),
 		/* Optional Flags */
+		L1StartHeight:       ctx.GlobalUint64(flags.L1StartBlockNumberFlag.Name),
+		L1Depth:             ctx.GlobalUint64(flags.L1ConfDepthFlag.Name),
+		L2Depth:             ctx.GlobalUint64(flags.L2ConfDepthFlag.Name),
+		PrivKey:             ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		MaxSize:             ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		MinSize:             ctx.GlobalUint64(flags.MinHeaderBatchSizeFlag.Name),
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
@@ -105,10 +109,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
 		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 		// mock flag
-		MockRecord:    ctx.GlobalBool(flags.MockRecordFlag.Name),
-		L1StartHeight: ctx.GlobalUint64(flags.L1StartBlockNumberFlag.Name),
-		L1Depth:       ctx.GlobalUint64(flags.L1ConfDepthFlag.Name),
-		L2Depth:       ctx.GlobalUint64(flags.L2ConfDepthFlag.Name),
+		MockRecord: ctx.GlobalBool(flags.MockRecordFlag.Name),
 	}
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {

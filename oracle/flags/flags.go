@@ -60,6 +60,13 @@ var (
 		EnvVar:   prefixEnvVar("ROLLUP"),
 	}
 
+	L1StakingAddr = cli.StringFlag{
+		Name:     "staking-address",
+		Usage:    "Address of the l1 staking",
+		Required: true,
+		EnvVar:   prefixEnvVar("L1_Staking"),
+	}
+
 	PrivateKeyFlag = cli.StringFlag{
 		Name:   "private-key",
 		Usage:  "The private key to use for sending to the rollup contract",
