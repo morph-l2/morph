@@ -32,6 +32,27 @@ var (
 		EnvVar:   prefixEnvVar("L2_TENDERMINT_RPC"),
 	}
 
+	L1StartBlockNumberFlag = cli.Uint64Flag{
+		Name:   "start-block-number",
+		Usage:  "The block number to start indexing from. Must be use together with start block hash",
+		Value:  0,
+		EnvVar: prefixEnvVar("START_BLOCK_NUMBER"),
+	}
+
+	L1ConfDepthFlag = cli.Uint64Flag{
+		Name:   "l1-conf-depth",
+		Usage:  "The number of confirmations after which headers are considered confirmed on L1",
+		Value:  20,
+		EnvVar: prefixEnvVar("L1_CONF_DEPTH"),
+	}
+
+	L2ConfDepthFlag = cli.Uint64Flag{
+		Name:   "l2-conf-depth",
+		Usage:  "The number of confirmations after which headers are considered confirmed on L1",
+		Value:  24,
+		EnvVar: prefixEnvVar("L2_CONF_DEPTH"),
+	}
+
 	RollupAddress = cli.StringFlag{
 		Name:     "rollup-address",
 		Usage:    "Address of the rollup",
@@ -160,6 +181,10 @@ var requiredFlags = []cli.Flag{
 	L2EthRPCFlag,
 	TendermintFlag,
 	RollupAddress,
+	L1ConfDepthFlag,
+	L2ConfDepthFlag,
+	MaxHeaderBatchSizeFlag,
+	L1StartBlockNumberFlag,
 }
 
 var optionalFlags = []cli.Flag{

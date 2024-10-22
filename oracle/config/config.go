@@ -59,6 +59,9 @@ type Config struct {
 
 	RollupAddr    common.Address
 	L1StakingAddr common.Address
+	L1StartHeight uint64
+	L1Depth       uint64
+	L2Depth       uint64
 
 	MaxSize    uint64
 	MinSize    uint64
@@ -102,7 +105,10 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
 		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 		// mock flag
-		MockRecord: ctx.GlobalBool(flags.MockRecordFlag.Name),
+		MockRecord:    ctx.GlobalBool(flags.MockRecordFlag.Name),
+		L1StartHeight: ctx.GlobalUint64(flags.L1StartBlockNumberFlag.Name),
+		L1Depth:       ctx.GlobalUint64(flags.L1ConfDepthFlag.Name),
+		L2Depth:       ctx.GlobalUint64(flags.L2ConfDepthFlag.Name),
 	}
 
 	if ctx.GlobalIsSet(flags.LogFilenameFlag.Name) {
@@ -146,6 +152,11 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf(
 			"invalied address,RollupAddress:%v",
 			cfg.RollupAddr.String(),
+		)
+	}
+	if (cfg.L1StakingAddr == common.Address{}) {
+		return fmt.Errorf("invalid l1 staking addr:%v",
+			cfg.L1StakingAddr,
 		)
 	}
 	if cfg.ExternalSign &&

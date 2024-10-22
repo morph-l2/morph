@@ -91,6 +91,9 @@ type Oracle struct {
 	chainId             *big.Int
 	isFinalized         bool
 	rollupEpochMaxBlock uint64
+	l1StartHeight       uint64
+	l1Depth             uint64
+	l2Depth             uint64
 	metrics             *metrics.Metrics
 	db                  *db.Store
 	ChangeCtx           types.ChangeContext
@@ -249,6 +252,9 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		chainId:             chainId,
 		ctx:                 ctx,
 		rollupEpochMaxBlock: cfg.MaxSize,
+		l1StartHeight:       cfg.L1StartHeight,
+		l1Depth:             cfg.L1Depth,
+		l2Depth:             cfg.L2Depth,
 		metrics:             m,
 	}
 	if err = o.initChangePoint(); err != nil {

@@ -229,6 +229,9 @@ func (o *Oracle) recordRollupEpoch() error {
 		return err
 	}
 	l1Start := o.ChangeCtx.L1Synced + 1
+	if o.ChangeCtx.L1Synced == 0 {
+		l1Start = o.l1StartHeight
+	}
 	l1Latest, err := o.l1Client.BlockNumber(o.ctx)
 	if err != nil {
 		return err
