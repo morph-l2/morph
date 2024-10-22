@@ -183,7 +183,7 @@ var requiredFlags = []cli.Flag{
 	RollupAddress,
 	L1ConfDepthFlag,
 	L2ConfDepthFlag,
-	MaxHeaderBatchSizeFlag,
+	//MaxHeaderBatchSizeFlag,
 	L1StartBlockNumberFlag,
 }
 
