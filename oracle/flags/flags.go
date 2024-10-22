@@ -64,7 +64,7 @@ var (
 		Name:     "staking-address",
 		Usage:    "Address of the l1 staking",
 		Required: true,
-		EnvVar:   prefixEnvVar("L1_Staking"),
+		EnvVar:   prefixEnvVar("L1_STAKING"),
 	}
 
 	PrivateKeyFlag = cli.StringFlag{
