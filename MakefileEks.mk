@@ -26,7 +26,7 @@ build-bk-prod-morph-prod-mainnet-to-morph-prover:
 	cp -r prover/configs dist/
 
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
-	#if [ ! -d morph-prover-data/circuits ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/sp1-circuits morph-prover-data/; fi
+	if [ ! -d morph-prover-data/sp1-circuits ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/sp1-circuits morph-prover-data/; fi
 	./prover-server
 
 # challenge-handler
