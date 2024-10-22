@@ -188,6 +188,7 @@ var requiredFlags = []cli.Flag{
 	L2EthRPCFlag,
 	TendermintFlag,
 	RollupAddress,
+	L1StakingAddr,
 	L1ConfDepthFlag,
 	L2ConfDepthFlag,
 	//MaxHeaderBatchSizeFlag,
