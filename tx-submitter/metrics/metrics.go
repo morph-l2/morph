@@ -15,8 +15,9 @@ const metricsNamespace = "submitter"
 type Metrics struct {
 	RpcErrors             prometheus.Counter
 	WalletBalance         prometheus.Gauge
-	RollupCost            prometheus.Gauge
-	FinalizeCost          prometheus.Gauge
+	RollupCost            prometheus.Counter
+	FinalizeCost          prometheus.Counter
+	L1FeeCollection       prometheus.Counter
 	IndexerBlockProcessed prometheus.Gauge
 }
 
@@ -69,12 +70,16 @@ func (m *Metrics) IncRpcErrors() {
 	m.RpcErrors.Inc()
 }
 
-func (m *Metrics) SetRollupCost(cost float64) {
-	m.RollupCost.Set(cost)
+func (m *Metrics) AddRollupCost(cost float64) {
+	m.RollupCost.Add(cost)
 }
 
-func (m *Metrics) SetFinalizeCost(cost float64) {
-	m.FinalizeCost.Set(cost)
+func (m *Metrics) AddFinalizeCost(cost float64) {
+	m.FinalizeCost.Add(cost)
+}
+
+func (m *Metrics) AddCollectedL1Fee(cost float64) {
+	m.L1FeeCollection.Add(cost)
 }
 
 func (m *Metrics) SetIndexerBlockProcessed(blockNumber uint64) {

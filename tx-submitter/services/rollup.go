@@ -66,6 +66,9 @@ type Rollup struct {
 	cfg utils.Config
 	// signer
 	signer types.Signer
+
+	// batchcache
+	batchCache map[uint64]*eth.RPCRollupBatch
 }
 
 func NewRollup(
@@ -320,9 +323,21 @@ func (r *Rollup) ProcessTx() error {
 					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
 				}
 				if method == "commitBatch" {
-					r.metrics.SetRollupCost(fee)
+					r.metrics.AddRollupCost(fee)
+					index := utils.ParseParentBatchIndex(rtx.Data()) + 1
+					batch, ok := r.batchCache[index]
+					if ok {
+						r.metrics.AddCollectedL1Fee(ToEtherFloat((*big.Int)(batch.CollectedL1Fee)))
+						// remove batch from cache
+						delete(r.batchCache, index)
+					} else {
+						log.Warn("batch not found in batchCache while set collect fee metrics",
+							"index", index,
+						)
+					}
+
 				} else if method == "finalizeBatch" {
-					r.metrics.SetFinalizeCost(fee)
+					r.metrics.AddFinalizeCost(fee)
 				}
 			}
 
@@ -607,7 +622,9 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	blockContexts := batch.BlockContexts
+	// set batch cache
+	// it shoud be removed after the batch is committed
+	r.batchCache[batchIndex] = batch
 
 	signature, err := r.buildSignatureInput(batch)
 	if err != nil {
@@ -616,7 +633,7 @@ func (r *Rollup) rollup() error {
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:                uint8(batch.Version),
 		ParentBatchHeader:      batch.ParentBatchHeader,
-		BlockContexts:          blockContexts,
+		BlockContexts:          batch.BlockContexts,
 		SkippedL1MessageBitmap: batch.SkippedL1MessageBitmap,
 		PrevStateRoot:          batch.PrevStateRoot,
 		PostStateRoot:          batch.PostStateRoot,
