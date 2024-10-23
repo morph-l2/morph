@@ -3,7 +3,7 @@ use ethers::{
     prelude::*,
     providers::{Http, Provider},
     signers::LocalWallet,
-    types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest},
+    types::transaction::eip2718::TypedTransaction,
 };
 use eyre::anyhow;
 use std::{error::Error, str::FromStr, sync::Arc};
@@ -17,8 +17,9 @@ pub async fn send_transaction(
     ext_signer: &Option<ExternalSign>,
     l2_provider: &Provider<Http>,
 ) -> Result<H256, Box<dyn Error>> {
-    let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
-    let mut tx = TypedTransaction::Eip1559(req);
+    
+    let req = TransactionRequest::new().data(calldata.unwrap_or_default());
+    let mut tx = TypedTransaction::Legacy(req);
     tx.set_to(contract);
     if let Some(signer) = ext_signer {
         tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
