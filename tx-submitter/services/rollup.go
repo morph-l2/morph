@@ -323,11 +323,11 @@ func (r *Rollup) ProcessTx() error {
 					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
 				}
 				if method == "commitBatch" {
-					r.metrics.AddRollupCost(fee)
+					r.metrics.SetRollupCost(fee)
 					index := utils.ParseParentBatchIndex(rtx.Data()) + 1
 					batch, ok := r.batchCache[index]
 					if ok {
-						r.metrics.AddCollectedL1Fee(ToEtherFloat((*big.Int)(batch.CollectedL1Fee)))
+						r.metrics.SetCollectedL1Fee(ToEtherFloat((*big.Int)(batch.CollectedL1Fee)))
 						// remove batch from cache
 						delete(r.batchCache, index)
 					} else {
@@ -337,7 +337,7 @@ func (r *Rollup) ProcessTx() error {
 					}
 
 				} else if method == "finalizeBatch" {
-					r.metrics.AddFinalizeCost(fee)
+					r.metrics.SetFinalizeCost(fee)
 				}
 			}
 
