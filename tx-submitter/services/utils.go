@@ -61,7 +61,12 @@ func calcFee(receipt *types.Receipt) float64 {
 	}
 
 	fee := new(big.Int).Add(calldatafee, blobfee)
-	feeEther := new(big.Rat).SetFrac(fee, big.NewInt(params.Ether))
-	fEtherFee, _ := feeEther.Float64()
-	return fEtherFee
+	return ToEtherFloat(fee)
+}
+
+func ToEtherFloat(weiAmt *big.Int) float64 {
+	etherAmt := new(big.Rat).SetFrac(weiAmt, big.NewInt(params.Ether))
+	fEtherAmt, _ := etherAmt.Float64()
+	return fEtherAmt
+
 }
