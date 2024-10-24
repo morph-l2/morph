@@ -96,11 +96,18 @@ impl Prover {
             match prove_rt {
                 Ok(Some(proof)) => {
                     save_proof(batch_index, proof);
+                    PROVE_RESULT.set(1);
                     let duration_mins = start.elapsed().as_secs() / 60;
                     PROVE_TIME.set(duration_mins.try_into().unwrap_or_default());
                 }
-                Ok(None) => log::error!("Gen proof of batch-{:?} is none", batch_index),
-                Err(e) => log::error!("Gen proof of batch-{:?} error: {:?}", batch_index, e),
+                Ok(None) => {
+                    PROVE_RESULT.set(2);
+                    log::error!("Gen proof of batch-{:?} is none", batch_index)
+                }
+                Err(e) => {
+                    PROVE_RESULT.set(2);
+                    log::error!("Gen proof of batch-{:?} error: {:?}", batch_index, e)
+                }
             }
         }
     }

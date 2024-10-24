@@ -24,10 +24,12 @@ build-bk-prod-morph-prod-mainnet-to-morph-prover:
 	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
 	cp prover/target/release/prover-server dist/
 	cp -r prover/configs dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
-	#if [ ! -d morph-prover-data/circuits ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/sp1-circuits morph-prover-data/; fi
-	./prover-server
+	#if [ ! -d morph-prover-data/sp1-circuits ]; then aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/sp1-circuits morph-prover-data/; fi
+	/data/secret-manager-wrapper ./prover-server
 
 # challenge-handler
 build-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
