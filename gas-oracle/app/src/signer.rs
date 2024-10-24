@@ -92,7 +92,7 @@ lazy_static::lazy_static! {
 
 fn eip1559_estimator(base_fee_per_gas: U256, rewards: Vec<Vec<U256>>) -> (U256, U256) {
     let max_priority_fee_per_gas =
-        std::cmp::max(estimate_priority_fee(rewards), base_fee_per_gas / 2);
+        std::cmp::max(estimate_priority_fee(rewards), base_fee_per_gas / 10);
     let max_fee_per_gas = std::cmp::min(
         U256::from(*EIP1559_FEE_ESTIMATION_MAX_FEE),
         base_fee_per_gas + max_priority_fee_per_gas,
