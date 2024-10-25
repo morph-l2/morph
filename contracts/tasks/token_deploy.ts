@@ -659,7 +659,7 @@ task("deploy-l1-reversegateway")
         console.log(`L1ReverseCustomGateway proxy deployed at ${proxy.address}`)
     })
 
-task("deploy-l2-withdrawlockgateway")
+task("deploy-l2-reversegateway")
     .addParam("proxyadmin")
     .addParam("counterpart")
     .addParam("router")
@@ -676,10 +676,10 @@ task("deploy-l2-withdrawlockgateway")
         }
 
         // deploy gateway impl
-        const GatewayFactory = await hre.ethers.getContractFactory("L2WithdrawLockERC20Gateway")
+        const GatewayFactory = await hre.ethers.getContractFactory("L2ReverseCustomGateway")
         const gateway = await GatewayFactory.deploy()
         await gateway.deployed()
-        console.log(`L2WithdrawLockERC20Gateway impl deployed at ${gateway.address}`)
+        console.log(`L2ReverseCustomGateway impl deployed at ${gateway.address}`)
 
         // upgrade proxy with initialize
         const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
