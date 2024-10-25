@@ -104,6 +104,7 @@ func NewRollup(
 		cfg:             cfg,
 		signer:          types.LatestSignerForChainID(chainId),
 		externalRsaPriv: rsaPriv,
+		batchCache:      make(map[uint64]*eth.RPCRollupBatch),
 	}
 }
 
