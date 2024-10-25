@@ -4,6 +4,7 @@ import "@nomiclabs/hardhat-waffle";
 
 import { task } from "hardhat/config";
 import { ethers } from "ethers";
+import {predeploys} from "../src";
 
 const V2_1ABI = `[
     {
@@ -500,4 +501,201 @@ task("upgrade-l2-usdc-v2-1")
         res = await l2usdc.connect(deployer).initializeV2_1(taskArgs.lostfund)
         rec = await res.wait()
         console.log(`l2 usdc initializeV2_1 ${rec.status == 1}`)
+    })
+
+task("deploy-l1-customgateway")
+    .addParam("proxyadmin")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L1CustomERC20Gateway")
+        const gateway = await GatewayFactory.deploy()
+        await gateway.deployed()
+        console.log(`L1CustomERC20Gateway impl deployed at ${gateway.address}`)
+
+        // deploy proxy with initialize
+        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+        const proxy = await TransparentProxyFactory.deploy(
+            gateway.address, //logic
+            taskArgs.proxyadmin, //admin
+            gateway.interface.encodeFunctionData("initialize",[
+                taskArgs.counterpart,
+                taskArgs.router,
+                taskArgs.messenger
+            ])
+        )
+        await proxy.deployed()
+        console.log(`L1CustomERC20Gateway proxy deployed at ${proxy.address}`)
+    })
+
+task("deploy-l2-customgateway")
+    .addParam("proxyadmin")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L2CustomERC20Gateway")
+        const gateway = await GatewayFactory.deploy()
+        await gateway.deployed()
+        console.log(`L2CustomERC20Gateway impl deployed at ${gateway.address}`)
+
+        // upgrade proxy with initialize
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+        const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
+        console.log(`proxy admin at ${proxyAdmin.address}`)
+
+        let res = await proxyAdmin.upgradeAndCall(
+            predeploys.L2CustomERC20Gateway,
+            gateway.address,
+            GatewayFactory.interface.encodeFunctionData("initialize", [
+                    taskArgs.counterpart,
+                    taskArgs.router,
+                    taskArgs.messenger
+                ]
+            )
+        )
+        let rec = await res.wait()
+        console.log(`proxy admin upgrade ${rec.status == 1}`)
+    })
+
+task("deploy-l2-withdrawlockgateway")
+    .addParam("proxyadmin")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L2WithdrawLockERC20Gateway")
+        const gateway = await GatewayFactory.deploy()
+        await gateway.deployed()
+        console.log(`L2WithdrawLockERC20Gateway impl deployed at ${gateway.address}`)
+
+        // upgrade proxy with initialize
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+        const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
+        console.log(`proxy admin at ${proxyAdmin.address}`)
+
+        let res = await proxyAdmin.upgradeAndCall(
+            predeploys.L2WithdrawLockERC20Gateway,
+            gateway.address,
+            GatewayFactory.interface.encodeFunctionData("initialize", [
+                    taskArgs.counterpart,
+                    taskArgs.router,
+                    taskArgs.messenger
+                ]
+            )
+        )
+        let rec = await res.wait()
+        console.log(`proxy admin upgrade ${rec.status == 1}`)
+    })
+
+task("deploy-l1-reversegateway")
+    .addParam("proxyadmin")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L1ReverseCustomGateway")
+        const gateway = await GatewayFactory.deploy()
+        await gateway.deployed()
+        console.log(`L1ReverseCustomGateway impl deployed at ${gateway.address}`)
+
+        // deploy proxy with initialize
+        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+        const proxy = await TransparentProxyFactory.deploy(
+            gateway.address, //logic
+            taskArgs.proxyadmin, //admin
+            gateway.interface.encodeFunctionData("initialize",[
+                taskArgs.counterpart,
+                taskArgs.router,
+                taskArgs.messenger
+            ])
+        )
+        await proxy.deployed()
+        console.log(`L1ReverseCustomGateway proxy deployed at ${proxy.address}`)
+    })
+
+task("deploy-l2-withdrawlockgateway")
+    .addParam("proxyadmin")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L2WithdrawLockERC20Gateway")
+        const gateway = await GatewayFactory.deploy()
+        await gateway.deployed()
+        console.log(`L2WithdrawLockERC20Gateway impl deployed at ${gateway.address}`)
+
+        // upgrade proxy with initialize
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+        const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
+        console.log(`proxy admin at ${proxyAdmin.address}`)
+
+        let res = await proxyAdmin.upgradeAndCall(
+            predeploys.L2ReverseERC20Gateway,
+            gateway.address,
+            GatewayFactory.interface.encodeFunctionData("initialize", [
+                    taskArgs.counterpart,
+                    taskArgs.router,
+                    taskArgs.messenger
+                ]
+            )
+        )
+        let rec = await res.wait()
+        console.log(`proxy admin upgrade ${rec.status == 1}`)
     })

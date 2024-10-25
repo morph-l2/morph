@@ -9,7 +9,6 @@ import { ethers } from "ethers"
 import { assertContractVariable, getContractAddressByName, awaitCondition, storage } from "../src/deploy-utils"
 import { ImplStorageName, ProxyStorageName, ContractFactoryName } from "../src/types"
 import { predeploys } from "../src"
-import { hexlify } from "ethers/lib/utils";
 
 task("rollup-deploy-init")
     .addParam("storagepath")
