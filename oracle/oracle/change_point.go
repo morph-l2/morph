@@ -163,6 +163,7 @@ func (o *Oracle) syncL2ChangePoint(start, end uint64) ([]types.ChangePoint, erro
 			TimeStamp:     header.Time,
 		})
 	}
+	o.ChangeCtx.L2synced = end
 	return changePoints, nil
 }
 
