@@ -32,7 +32,7 @@ func (o *Oracle) initChangePoint() error {
 			return err
 		}
 		changeCtx = types.ChangeContext{
-			ChangePoints: []types.ChangePoint{types.ChangePoint{
+			ChangePoints: []types.ChangePoint{{
 				TimeStamp:     h.Time,
 				BlockNumber:   h.Number.Uint64(),
 				EpochInterval: epochInterval.Uint64(),

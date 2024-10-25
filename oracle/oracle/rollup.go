@@ -68,7 +68,7 @@ func (o *Oracle) generateEpochs(lastEpoch *bindings.IRecordRollupEpochInfo, sync
 				EndBlock:  big.NewInt(0),                     // Can set the corresponding EndBlock
 			}
 			epochs = append(epochs, epochInfo)
-			if len(epochs) > types.MaxEpochCount {
+			if len(epochs) >= types.MaxEpochCount {
 				return epochs, nil
 			}
 			// Increment epochIndex for the next epoch
