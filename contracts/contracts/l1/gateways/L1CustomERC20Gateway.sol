@@ -55,6 +55,11 @@ contract L1CustomERC20Gateway is L1ERC20Gateway {
         GatewayBase._initialize(_counterpart, _router, _messenger);
     }
 
+    function initialize2(address _counterpart, address _router, address _messenger) external onlyOwner {
+        require(_router != address(0), "zero router address");
+
+        GatewayBase._initialize(_counterpart, _router, _messenger);
+    }
     /*************************
      * Public View Functions *
      *************************/

@@ -4,7 +4,8 @@ import "@nomiclabs/hardhat-waffle";
 
 import { task } from "hardhat/config";
 import { ethers } from "ethers";
-import {predeploys} from "../src";
+import { predeploys } from "../src";
+import { ContractFactoryName } from "../src/types";
 
 const V2_1ABI = `[
     {
@@ -254,29 +255,30 @@ task("init-l1-lidogateway")
         const gateway = await GatewayFactory.attach(taskArgs.l1lidogateway)
         console.log(`gateway at ${gateway.address}`)
 
-        let res = await gateway.initialize(taskArgs.counterpart,taskArgs.router,taskArgs.messenger)
+        let res = await gateway.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
         let rec = await res.wait()
         console.log(`initialize ${rec.status == 1}, txHash: ${rec.transactionHash}`)
 
-        res = await gateway.initializeV2(taskArgs.opter,taskArgs.opter,taskArgs.opter,taskArgs.opter)
+        res = await gateway.initializeV2(taskArgs.opter, taskArgs.opter, taskArgs.opter, taskArgs.opter)
         rec = await res.wait()
         console.log(`initializeV2 ${rec.status == 1}, txHash: ${rec.transactionHash}`)
 
+        let owner = await gateway.owner()
         let counterpart = await gateway.counterpart()
         let router = await gateway.router()
         let messenger = await gateway.messenger()
         let depositEnabled = await gateway.isDepositsEnabled()
         let withdrawalEnabled = await gateway.isWithdrawalsEnabled()
-        console.log(`counterpart ${counterpart}, router ${router}, messenger ${messenger}, depositEnabled ${depositEnabled}, withdrawalEnabled ${withdrawalEnabled}`)
+        console.log(`owner ${owner}, counterpart ${counterpart}, router ${router}, messenger ${messenger}, depositEnabled ${depositEnabled}, withdrawalEnabled ${withdrawalEnabled}`)
 
-        const DEPOSITS_ENABLER_ROLE =await gateway.DEPOSITS_ENABLER_ROLE()
-        const DEPOSITS_DISABLER_ROLE =await gateway.DEPOSITS_DISABLER_ROLE()
-        const WITHDRAWALS_ENABLER_ROLE =await gateway.WITHDRAWALS_ENABLER_ROLE()
-        const WITHDRAWALS_DISABLER_ROLE =await gateway.WITHDRAWALS_DISABLER_ROLE()
-        const depositE = await gateway.hasRole(DEPOSITS_ENABLER_ROLE,taskArgs.opter)
-        const depositD = await gateway.hasRole(DEPOSITS_DISABLER_ROLE,taskArgs.opter)
-        const withdrawE = await gateway.hasRole(WITHDRAWALS_ENABLER_ROLE,taskArgs.opter)
-        const withdrawD = await gateway.hasRole(WITHDRAWALS_DISABLER_ROLE,taskArgs.opter)
+        const DEPOSITS_ENABLER_ROLE = await gateway.DEPOSITS_ENABLER_ROLE()
+        const DEPOSITS_DISABLER_ROLE = await gateway.DEPOSITS_DISABLER_ROLE()
+        const WITHDRAWALS_ENABLER_ROLE = await gateway.WITHDRAWALS_ENABLER_ROLE()
+        const WITHDRAWALS_DISABLER_ROLE = await gateway.WITHDRAWALS_DISABLER_ROLE()
+        const depositE = await gateway.hasRole(DEPOSITS_ENABLER_ROLE, taskArgs.opter)
+        const depositD = await gateway.hasRole(DEPOSITS_DISABLER_ROLE, taskArgs.opter)
+        const withdrawE = await gateway.hasRole(WITHDRAWALS_ENABLER_ROLE, taskArgs.opter)
+        const withdrawD = await gateway.hasRole(WITHDRAWALS_DISABLER_ROLE, taskArgs.opter)
         console.log(`Role: depositE ${depositE}, depositD ${depositD}, withdrawE ${withdrawE}, withdrawD ${withdrawD}`)
     })
 
@@ -302,29 +304,30 @@ task("init-l2-lidogateway")
         const gateway = await GatewayFactory.attach(taskArgs.l2lidogateway)
         console.log(`gateway at ${gateway.address}`)
 
-        let res = await gateway.initialize(taskArgs.counterpart,taskArgs.router,taskArgs.messenger)
+        let res = await gateway.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
         let rec = await res.wait()
         console.log(`initialize ${rec.status == 1}, txHash: ${rec.transactionHash}`)
 
-        res = await gateway.initializeV2(taskArgs.opter,taskArgs.opter,taskArgs.opter,taskArgs.opter)
+        res = await gateway.initializeV2(taskArgs.opter, taskArgs.opter, taskArgs.opter, taskArgs.opter)
         rec = await res.wait()
         console.log(`initializeV2 ${rec.status == 1}, txHash: ${rec.transactionHash}`)
 
+        let owner = await gateway.owner()
         let counterpart = await gateway.counterpart()
         let router = await gateway.router()
         let messenger = await gateway.messenger()
         let depositEnabled = await gateway.isDepositsEnabled()
         let withdrawalEnabled = await gateway.isWithdrawalsEnabled()
-        console.log(`counterpart ${counterpart}, router ${router}, messenger ${messenger}, depositEnabled ${depositEnabled}, withdrawalEnabled ${withdrawalEnabled}`)
+        console.log(`owner ${owner}, counterpart ${counterpart}, router ${router}, messenger ${messenger}, depositEnabled ${depositEnabled}, withdrawalEnabled ${withdrawalEnabled}`)
 
-        const DEPOSITS_ENABLER_ROLE =await gateway.DEPOSITS_ENABLER_ROLE()
-        const DEPOSITS_DISABLER_ROLE =await gateway.DEPOSITS_DISABLER_ROLE()
-        const WITHDRAWALS_ENABLER_ROLE =await gateway.WITHDRAWALS_ENABLER_ROLE()
-        const WITHDRAWALS_DISABLER_ROLE =await gateway.WITHDRAWALS_DISABLER_ROLE()
-        const depositE = await gateway.hasRole(DEPOSITS_ENABLER_ROLE,taskArgs.opter)
-        const depositD = await gateway.hasRole(DEPOSITS_DISABLER_ROLE,taskArgs.opter)
-        const withdrawE = await gateway.hasRole(WITHDRAWALS_ENABLER_ROLE,taskArgs.opter)
-        const withdrawD = await gateway.hasRole(WITHDRAWALS_DISABLER_ROLE,taskArgs.opter)
+        const DEPOSITS_ENABLER_ROLE = await gateway.DEPOSITS_ENABLER_ROLE()
+        const DEPOSITS_DISABLER_ROLE = await gateway.DEPOSITS_DISABLER_ROLE()
+        const WITHDRAWALS_ENABLER_ROLE = await gateway.WITHDRAWALS_ENABLER_ROLE()
+        const WITHDRAWALS_DISABLER_ROLE = await gateway.WITHDRAWALS_DISABLER_ROLE()
+        const depositE = await gateway.hasRole(DEPOSITS_ENABLER_ROLE, taskArgs.opter)
+        const depositD = await gateway.hasRole(DEPOSITS_DISABLER_ROLE, taskArgs.opter)
+        const withdrawE = await gateway.hasRole(WITHDRAWALS_ENABLER_ROLE, taskArgs.opter)
+        const withdrawD = await gateway.hasRole(WITHDRAWALS_DISABLER_ROLE, taskArgs.opter)
         console.log(`Role: depositE ${depositE}, depositD ${depositD}, withdrawE ${withdrawE}, withdrawD ${withdrawD}`)
     })
 
@@ -337,48 +340,48 @@ task("upgrade-l1-usdcgateway")
     .addParam("router")
     .addParam("messenger")
     .setAction(async (taskArgs, hre) => {
-            // params check
-            if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
-                !ethers.utils.isAddress(taskArgs.l1usdcgatewayproxy) ||
-                !ethers.utils.isAddress(taskArgs.l1token) ||
-                !ethers.utils.isAddress(taskArgs.l2token) ||
-                !ethers.utils.isAddress(taskArgs.counterpart) ||
-                !ethers.utils.isAddress(taskArgs.router) ||
-                !ethers.utils.isAddress(taskArgs.messenger)
-            ) {
-                    console.error(`address params check failed`)
-                    return
-            }
-            // deploy gateway impl
-            const GatewayFactory = await hre.ethers.getContractFactory("L1USDCGateway")
-            const gateway = await GatewayFactory.deploy(taskArgs.l1token, taskArgs.l2token)
-            await gateway.deployed()
-            console.log(`gateway impl deployed at ${gateway.address}`)
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.l1usdcgatewayproxy) ||
+            !ethers.utils.isAddress(taskArgs.l1token) ||
+            !ethers.utils.isAddress(taskArgs.l2token) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L1USDCGateway")
+        const gateway = await GatewayFactory.deploy(taskArgs.l1token, taskArgs.l2token)
+        await gateway.deployed()
+        console.log(`gateway impl deployed at ${gateway.address}`)
 
-            // upgrade proxy with initialize
-            const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
-            const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
-            console.log(`proxy admin at ${proxyAdmin.address}`)
+        // upgrade proxy with initialize
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+        const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
+        console.log(`proxy admin at ${proxyAdmin.address}`)
 
-            let res = await proxyAdmin.upgradeAndCall(
-                taskArgs.l1usdcgatewayproxy,
-                gateway.address,
-                GatewayFactory.interface.encodeFunctionData("initialize", [
-                            taskArgs.counterpart,
-                            taskArgs.router,
-                            taskArgs.messenger
-                    ]
-                )
-            )
-            let rec =await res.wait()
-            console.log(`upgrade gateway ${rec.status == 1}`)
+        let res = await proxyAdmin.upgrade(
+            taskArgs.l1usdcgatewayproxy,
+            gateway.address
+        )
+        let rec = await res.wait()
+        console.log(`upgrade gateway ${rec.status == 1}`)
 
-            const gatewayProxy = GatewayFactory.attach(taskArgs.l1usdcgatewayproxy)
-            const counterpart = await gatewayProxy.counterpart()
-            const router = await gatewayProxy.router()
-            const l1USDC = await gatewayProxy.l1USDC()
-            const l2USDC = await gatewayProxy.l2USDC()
-            console.log(`gatewayProxy ${gatewayProxy.address}, counterpart ${counterpart}, router ${router}, l1USDC ${l1USDC}, l2USDC ${l2USDC}`)
+        const gatewayP = await GatewayFactory.attach(taskArgs.l1usdcgatewayproxy)
+        res = await gatewayP.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
+
+        const gatewayProxy = GatewayFactory.attach(taskArgs.l1usdcgatewayproxy)
+        const owner = await gatewayProxy.owner()
+        const counterpart = await gatewayProxy.counterpart()
+        const router = await gatewayProxy.router()
+        const l1USDC = await gatewayProxy.l1USDC()
+        const l2USDC = await gatewayProxy.l2USDC()
+        console.log(`owner ${owner}, gatewayProxy ${gatewayProxy.address}, counterpart ${counterpart}, router ${router}, l1USDC ${l1USDC}, l2USDC ${l2USDC}`)
     })
 
 task("upgrade-l2-usdcgateway")
@@ -390,77 +393,48 @@ task("upgrade-l2-usdcgateway")
     .addParam("router")
     .addParam("messenger")
     .setAction(async (taskArgs, hre) => {
-            // params check
-            if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
-                !ethers.utils.isAddress(taskArgs.l2usdcgatewayproxy) ||
-                !ethers.utils.isAddress(taskArgs.l1token) ||
-                !ethers.utils.isAddress(taskArgs.l2token) ||
-                !ethers.utils.isAddress(taskArgs.counterpart) ||
-                !ethers.utils.isAddress(taskArgs.router) ||
-                !ethers.utils.isAddress(taskArgs.messenger)
-            ) {
-                    console.error(`address params check failed`)
-                    return
-            }
-            // deploy gateway impl
-            const GatewayFactory = await hre.ethers.getContractFactory("L2USDCGateway")
-            const gateway = await GatewayFactory.deploy(taskArgs.l1token, taskArgs.l2token)
-            await gateway.deployed()
-            console.log(`gateway impl deployed at ${gateway.address}`)
-
-            // upgrade proxy with initialize
-            const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
-            const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
-            console.log(`proxy admin at ${proxyAdmin.address}`)
-
-            let res = await proxyAdmin.upgradeAndCall(
-                taskArgs.l2usdcgatewayproxy,
-                gateway.address,
-                GatewayFactory.interface.encodeFunctionData("initialize", [
-                            taskArgs.counterpart,
-                            taskArgs.router,
-                            taskArgs.messenger
-                    ]
-                )
-            )
-            let rec =await res.wait()
-            console.log(`upgrade gateway ${rec.status == 1}`)
-
-            const gatewayProxy = GatewayFactory.attach(taskArgs.l2usdcgatewayproxy)
-            const counterpart = await gatewayProxy.counterpart()
-            const router = await gatewayProxy.router()
-            const l1USDC = await gatewayProxy.l1USDC()
-            const l2USDC = await gatewayProxy.l2USDC()
-            console.log(`gatewayProxy ${gatewayProxy.address}, counterpart ${counterpart}, router ${router}, l1USDC ${l1USDC}, l2USDC ${l2USDC}`)
-    })
-
-task("upgrade-l2-usdc-v2")
-    .addParam("proxyadmin")
-    .addParam("l2usdcproxy")
-    .addParam("newimpl")
-    .setAction(async (taskArgs, hre) => {
         // params check
         if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
-            !ethers.utils.isAddress(taskArgs.l2usdcproxy) ||
-            !ethers.utils.isAddress(taskArgs.newimpl)
+            !ethers.utils.isAddress(taskArgs.l2usdcgatewayproxy) ||
+            !ethers.utils.isAddress(taskArgs.l1token) ||
+            !ethers.utils.isAddress(taskArgs.l2token) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
         ) {
             console.error(`address params check failed`)
             return
         }
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L2USDCGateway")
+        const gateway = await GatewayFactory.deploy(taskArgs.l1token, taskArgs.l2token)
+        await gateway.deployed()
+        console.log(`gateway impl deployed at ${gateway.address}`)
+
         // upgrade proxy with initialize
         const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
         const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
         console.log(`proxy admin at ${proxyAdmin.address}`)
 
-        let res = await proxyAdmin.upgradeAndCall(
-            taskArgs.l2usdcproxy,
-            taskArgs.newimpl,
-            new ethers.utils.Interface(V2_1ABI).encodeFunctionData("initializeV2",[
-                "USD Coin"
-            ])
+        let res = await proxyAdmin.upgrade(
+            taskArgs.l2usdcgatewayproxy,
+            gateway.address
         )
         let rec = await res.wait()
-        console.log(`upgrade usdc v2 ${rec.status == 1}`)
+        console.log(`upgrade gateway ${rec.status == 1}`)
+
+        const gatewayP = await GatewayFactory.attach(taskArgs.l1usdcgatewayproxy)
+        res = await gatewayP.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
+
+        const gatewayProxy = GatewayFactory.attach(taskArgs.l2usdcgatewayproxy)
+        const owner = await gatewayProxy.owner()
+        const counterpart = await gatewayProxy.counterpart()
+        const router = await gatewayProxy.router()
+        const l1USDC = await gatewayProxy.l1USDC()
+        const l2USDC = await gatewayProxy.l2USDC()
+        console.log(`owner ${owner}, gatewayProxy ${gatewayProxy.address}, counterpart ${counterpart}, router ${router}, l1USDC ${l1USDC}, l2USDC ${l2USDC}`)
     })
 
 task("upgrade-l2-usdc-v2-1")
@@ -492,8 +466,7 @@ task("upgrade-l2-usdc-v2-1")
         let rec = await res.wait()
         console.log(`upgrade usdc v2 ${rec.status == 1}`)
 
-        const l2usdc = new ethers.Contract(taskArgs.l2usdcproxy,new ethers.utils.Interface(V2_1ABI))
-
+        const l2usdc = new ethers.Contract(taskArgs.l2usdcproxy, new ethers.utils.Interface(V2_1ABI))
         res = await l2usdc.connect(deployer).initializeV2("USD Coin")
         rec = await res.wait()
         console.log(`l2 usdc initializeV2 ${rec.status == 1}`)
@@ -528,16 +501,17 @@ task("deploy-l1-customgateway")
         // deploy proxy with initialize
         const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
         const proxy = await TransparentProxyFactory.deploy(
-            gateway.address, //logic
-            taskArgs.proxyadmin, //admin
-            gateway.interface.encodeFunctionData("initialize",[
-                taskArgs.counterpart,
-                taskArgs.router,
-                taskArgs.messenger
-            ])
+            gateway.address, // logic
+            taskArgs.proxyadmin, // admin
+            "0x"
         )
         await proxy.deployed()
         console.log(`L1CustomERC20Gateway proxy deployed at ${proxy.address}`)
+
+        const gatewayBase = await hre.ethers.getContractAt("GatewayBase", proxy.address)
+        let res = await gatewayBase.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        let rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
     })
 
 task("deploy-l2-customgateway")
@@ -567,18 +541,17 @@ task("deploy-l2-customgateway")
         const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
         console.log(`proxy admin at ${proxyAdmin.address}`)
 
-        let res = await proxyAdmin.upgradeAndCall(
+        let res = await proxyAdmin.upgrade(
             predeploys.L2CustomERC20Gateway,
-            gateway.address,
-            GatewayFactory.interface.encodeFunctionData("initialize", [
-                    taskArgs.counterpart,
-                    taskArgs.router,
-                    taskArgs.messenger
-                ]
-            )
+            gateway.address
         )
         let rec = await res.wait()
         console.log(`proxy admin upgrade ${rec.status == 1}`)
+
+        const gatewayBase = await hre.ethers.getContractAt("GatewayBase", predeploys.L2CustomERC20Gateway)
+        res = await gatewayBase.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
     })
 
 task("deploy-l2-withdrawlockgateway")
@@ -608,18 +581,17 @@ task("deploy-l2-withdrawlockgateway")
         const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
         console.log(`proxy admin at ${proxyAdmin.address}`)
 
-        let res = await proxyAdmin.upgradeAndCall(
+        let res = await proxyAdmin.upgrade(
             predeploys.L2WithdrawLockERC20Gateway,
-            gateway.address,
-            GatewayFactory.interface.encodeFunctionData("initialize", [
-                    taskArgs.counterpart,
-                    taskArgs.router,
-                    taskArgs.messenger
-                ]
-            )
+            gateway.address
         )
         let rec = await res.wait()
         console.log(`proxy admin upgrade ${rec.status == 1}`)
+
+        const gatewayBase = await hre.ethers.getContractAt("GatewayBase", predeploys.L2WithdrawLockERC20Gateway)
+        res = await gatewayBase.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
     })
 
 task("deploy-l1-reversegateway")
@@ -649,14 +621,15 @@ task("deploy-l1-reversegateway")
         const proxy = await TransparentProxyFactory.deploy(
             gateway.address, //logic
             taskArgs.proxyadmin, //admin
-            gateway.interface.encodeFunctionData("initialize",[
-                taskArgs.counterpart,
-                taskArgs.router,
-                taskArgs.messenger
-            ])
+            "0x"
         )
         await proxy.deployed()
         console.log(`L1ReverseCustomGateway proxy deployed at ${proxy.address}`)
+
+        const gatewayBase = await hre.ethers.getContractAt("GatewayBase", proxy.address)
+        let res = await gatewayBase.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        let rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
     })
 
 task("deploy-l2-reversegateway")
@@ -686,16 +659,95 @@ task("deploy-l2-reversegateway")
         const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
         console.log(`proxy admin at ${proxyAdmin.address}`)
 
-        let res = await proxyAdmin.upgradeAndCall(
+        let res = await proxyAdmin.upgrade(
             predeploys.L2ReverseERC20Gateway,
-            gateway.address,
-            GatewayFactory.interface.encodeFunctionData("initialize", [
-                    taskArgs.counterpart,
-                    taskArgs.router,
-                    taskArgs.messenger
-                ]
-            )
+            gateway.address
         )
         let rec = await res.wait()
         console.log(`proxy admin upgrade ${rec.status == 1}`)
+
+        const gatewayBase = await hre.ethers.getContractAt("GatewayBase", predeploys.L2ReverseERC20Gateway)
+        res = await gatewayBase.initialize(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
+    })
+
+task("upgrade-l1-customgateway")
+    .addParam("proxyadmin")
+    .addParam("gatewayaddr")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.gatewayaddr) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L1CustomERC20Gateway")
+        const gateway = await GatewayFactory.deploy()
+        await gateway.deployed()
+        console.log(`L1CustomERC20Gateway impl deployed at ${gateway.address}`)
+
+        // deploy proxy with initialize
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+        const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
+        let res = await proxyAdmin.upgrade(
+            taskArgs.gatewayaddr,
+            gateway.address
+        )
+        let rec = await res.wait()
+        console.log(`proxy upgrade ${rec.status == 1}`)
+
+        const gatewayBase = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, taskArgs.gatewayaddr)
+        res = await gatewayBase.initialize2(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
+    })
+
+task("upgrade-l1-reversegateway")
+    .addParam("proxyadmin")
+    .addParam("gatewayaddr")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.gatewayaddr) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L1ReverseCustomGateway")
+        const gateway = await GatewayFactory.deploy()
+        await gateway.deployed()
+        console.log(`L1ReverseCustomGateway impl deployed at ${gateway.address}`)
+
+        // deploy proxy with initialize
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+        const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
+        let res = await proxyAdmin.upgrade(
+            taskArgs.gatewayaddr,
+            gateway.address
+        )
+        let rec = await res.wait()
+        console.log(`proxy upgrade ${rec.status == 1}`)
+
+        const gatewayBase = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, taskArgs.gatewayaddr)
+        res = await gatewayBase.initialize2(taskArgs.counterpart, taskArgs.router, taskArgs.messenger)
+        rec = await res.wait()
+        console.log(`initialize gateway ${rec.status == 1}`)
     })
