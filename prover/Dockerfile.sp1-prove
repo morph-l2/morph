@@ -1,4 +1,4 @@
-FROM sp1-base:latest
+FROM sp1-base:compiler
 
 COPY . /app
 WORKDIR /app
