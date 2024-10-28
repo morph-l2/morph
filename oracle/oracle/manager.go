@@ -290,6 +290,7 @@ func NewMockClient() RecordManager {
 
 func (m *MockClient) UploadRollupEpoch(recordRollupEpochInfos []bindings.IRecordRollupEpochInfo) error {
 	m.recordRollupEpochInfo = recordRollupEpochInfos[len(recordRollupEpochInfos)-1]
+	log.Info("upload rollup epoch success", "recordRollupEpochInfos", recordRollupEpochInfos)
 	return nil
 }
 

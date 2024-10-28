@@ -63,8 +63,8 @@ type Config struct {
 	L1Depth       uint64
 	L2Depth       uint64
 
-	MaxSize    uint64
-	MinSize    uint64
+	MaxSize uint64
+	//MinSize    uint64
 	StartBlock uint64
 	PrivKey    string
 

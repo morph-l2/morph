@@ -169,12 +169,12 @@ func (o *Oracle) syncL2ChangePoint(start, end uint64) ([]types.ChangePoint, erro
 
 func (o *Oracle) recordRollupEpoch() error {
 	l2Start := o.ChangeCtx.L2synced + 1
-	l2Latest, err := o.l2Client.BlockNumber(o.ctx)
+	l2Latest, err := o.l2Client.HeaderByNumber(o.ctx, nil)
 	if err != nil {
 		return err
 	}
-	l2End := l2Latest
-	if l2Start+o.rollupEpochMaxBlock < l2Latest {
+	l2End := l2Latest.Number.Uint64()
+	if l2Start+o.rollupEpochMaxBlock < l2Latest.Number.Uint64() {
 		l2End = l2Start + o.rollupEpochMaxBlock - 1
 	}
 	lastEpoch, err := o.rm.LatestRollupEpoch()
@@ -216,7 +216,7 @@ func (o *Oracle) recordRollupEpoch() error {
 	}
 	startTime := startHeader.Time
 	endTime := endHeader.Time
-	if len(o.ChangeCtx.ChangePoints) != 0 && endTime-startTime < o.ChangeCtx.ChangePoints[0].EpochInterval*uint64(types.MaxEpochCount) {
+	if len(o.ChangeCtx.ChangePoints) != 0 && l2Latest.Time-startTime < o.ChangeCtx.ChangePoints[0].EpochInterval*uint64(types.MaxEpochCount) {
 		time.Sleep(time.Duration(o.ChangeCtx.ChangePoints[0].EpochInterval*uint64(types.MaxEpochCount)) * time.Second)
 		log.Info("Too few epochs,wait... ", "startTime", startTime, "endTime", endTime)
 		return nil
@@ -265,13 +265,13 @@ func (o *Oracle) recordRollupEpoch() error {
 	log.Info("submit rollup epoch infos", "l1Start", l1Start, "l1End", l1End, "l2Start", l2Start, "l2End", l2End, "infoLength", len(epochs))
 	err = o.rm.UploadRollupEpoch(epochs)
 	if err != nil {
-		if len(epochs) > 50 {
-			if o.cfg.MinSize*2 <= o.rollupEpochMaxBlock {
-				o.rollupEpochMaxBlock -= o.cfg.MinSize
-			} else {
-				o.rollupEpochMaxBlock = o.rollupEpochMaxBlock / 2
-			}
-		}
+		//if len(epochs) > 50 {
+		//	if o.cfg.MinSize*2 <= o.rollupEpochMaxBlock {
+		//		o.rollupEpochMaxBlock -= o.cfg.MinSize
+		//	} else {
+		//		o.rollupEpochMaxBlock = o.rollupEpochMaxBlock / 2
+		//	}
+		//}
 		return fmt.Errorf("submit rollup epoch info error:%v", err)
 	}
 	//if o.rollupEpochMaxBlock+o.cfg.MinSize <= o.cfg.MaxSize {
