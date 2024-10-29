@@ -32,7 +32,7 @@ run: build
 	./tx-submitter \
 	--build-env=dev \
     --l1-eth-rpc=http://127.0.0.1:9545 \
-    --private-key="59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" \
+    --private-key="your_private_key" \
     --l2-eth-rpc=http://127.0.0.1:8545 \
     --poll-interval=3s \
     --safe-minimum-ether-balance=1 \
