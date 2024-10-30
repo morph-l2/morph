@@ -124,7 +124,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      ***************/
 
     /// @notice constructor
-    /// @param _chainID     The chain ID
+    /// @param _chainID The chain ID
     constructor(uint64 _chainID) {
         LAYER_2_CHAIN_ID = _chainID;
         _disableInitializers();
@@ -279,7 +279,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             uint256 proveRemainingTime = 0;
-            if (inChallenge){
+            if (inChallenge) {
                 // Make the batch finalize time longer than the time required for the current challenge
                 proveRemainingTime = proofWindow + challenges[batchChallenged].startTime - block.timestamp;
             }
@@ -737,7 +737,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         return l2BlockNumber;
     }
 
-    /// @dev Internal function to commit a batch with version 1.
+    /// @dev Internal function to commit a batch with version 0.
     /// @param _blockContexts The encoded block contexts to commit.
     /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
