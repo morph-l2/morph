@@ -64,7 +64,7 @@ func NewMetrics() *Metrics {
 		}),
 		CollectedL1FeeSum: promauto.NewCounter(prometheus.CounterOpts{
 			Name:      "submitter_collected_l1_fee_sum",
-			Help:      "Collected L1 fee for all batches commited ",
+			Help:      "Collected L1 fee for all batches committed ",
 			Namespace: metricsNamespace,
 		}),
 
