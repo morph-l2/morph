@@ -104,6 +104,8 @@ type Config struct {
 	L1StakingDeployedBlockNumber uint64
 	// event indexer index step
 	EventIndexStep uint64
+	// leveldb path name
+	LeveldbPathName string
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -171,6 +173,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L1StakingDeployedBlockNumber: ctx.GlobalUint64(flags.L1StakingDeployedBlocknumFlag.Name),
 		// index step
 		EventIndexStep: ctx.GlobalUint64(flags.EventIndexStepFlag.Name),
+		// leveldb path name
+		LeveldbPathName: ctx.GlobalString(flags.LeveldbPathNameFlag.Name),
 	}
 
 	return cfg, nil
