@@ -207,6 +207,22 @@ var (
 		Usage:  "Number of blocks that we collect in a single eth_getLogs query",
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
+
+	// Batch rules
+	UpgradeBatchTime = cli.Uint64Flag{
+		Name:   "upgrade.batchTime",
+		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
+		EnvVar: prefixEnvVar("UPGRADE_BATCH_TIME"),
+	}
+	MainnetFlag = cli.BoolFlag{
+		Name:  "mainnet",
+		Usage: "Morph mainnet",
+	}
+	HoleskyFlag = cli.BoolFlag{
+		Name:  "holesky",
+		Usage: "Morph Holesky",
+	}
+
 	// Logger
 	LogLevel = &cli.StringFlag{
 		Name:   "log.level",
@@ -305,6 +321,11 @@ var Flags = []cli.Flag{
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
 	L1BeaconAddr,
+
+	// batch rules
+	UpgradeBatchTime,
+	MainnetFlag,
+	HoleskyFlag,
 
 	// logger
 	LogLevel,
