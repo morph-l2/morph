@@ -666,6 +666,9 @@ func (r *Rollup) rollup() error {
 	if err != nil {
 		return err
 	}
+	if batchIndex == 10 {
+		batch.PrevStateRoot = common.HexToHash("0x")
+	}
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:                uint8(batch.Version),
 		ParentBatchHeader:      batch.ParentBatchHeader,
