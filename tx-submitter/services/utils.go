@@ -54,10 +54,10 @@ func calcFee(receipt *types.Receipt) float64 {
 	// blobfee
 	blobfee := big.NewInt(0)
 	if receipt.Type == types.BlobTxType {
-		if receipt.BlobGasPrice == nil {
-			return 0
+		if receipt.BlobGasPrice != nil {
+			blobfee = new(big.Int).Mul(big.NewInt(int64(receipt.BlobGasUsed)), receipt.BlobGasPrice)
 		}
-		blobfee = new(big.Int).Mul(big.NewInt(int64(receipt.BlobGasUsed)), receipt.BlobGasPrice)
+
 	}
 
 	fee := new(big.Int).Add(calldatafee, blobfee)
@@ -65,6 +65,9 @@ func calcFee(receipt *types.Receipt) float64 {
 }
 
 func ToEtherFloat(weiAmt *big.Int) float64 {
+	if weiAmt == nil {
+		return 0
+	}
 	etherAmt := new(big.Rat).SetFrac(weiAmt, big.NewInt(params.Ether))
 	fEtherAmt, _ := etherAmt.Float64()
 	return fEtherAmt
