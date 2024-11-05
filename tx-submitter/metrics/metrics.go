@@ -19,8 +19,8 @@ type Metrics struct {
 	FinalizeCostSum       prometheus.Counter
 	RollupCost            prometheus.Gauge
 	FinalizeCost          prometheus.Gauge
-	CollectedL1FeeSum     prometheus.Counter
-	CollectedL1Fee        prometheus.Gauge
+	L1FeeCollectionSum    prometheus.Counter
+	L1FeeCollection       prometheus.Gauge
 	IndexerBlockProcessed prometheus.Gauge
 }
 
@@ -57,14 +57,14 @@ func NewMetrics() *Metrics {
 			Help:      "Finalize cost",
 			Namespace: metricsNamespace,
 		}),
-		CollectedL1Fee: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "submitter_collected_l1_fee",
-			Help:      "Collected L1 fee for every batch",
+		L1FeeCollection: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "submitter_l1_fee_collection",
+			Help:      "L1 fee collection",
 			Namespace: metricsNamespace,
 		}),
-		CollectedL1FeeSum: promauto.NewCounter(prometheus.CounterOpts{
-			Name:      "submitter_collected_l1_fee_sum",
-			Help:      "Collected L1 fee for all batches committed ",
+		L1FeeCollectionSum: promauto.NewCounter(prometheus.CounterOpts{
+			Name:      "submitter_l1_fee_collection_sum",
+			Help:      "L1 fee collection",
 			Namespace: metricsNamespace,
 		}),
 
@@ -101,12 +101,12 @@ func (m *Metrics) SetRollupCost(cost float64) {
 
 func (m *Metrics) SetFinalizeCost(cost float64) {
 	m.FinalizeCostSum.Add(cost)
-	m.FinalizeCost.Set(cost)
+	m.RollupCost.Set(cost)
 }
 
 func (m *Metrics) SetCollectedL1Fee(cost float64) {
-	m.CollectedL1FeeSum.Add(cost)
-	m.CollectedL1Fee.Set(cost)
+	m.L1FeeCollectionSum.Add(cost)
+	m.L1FeeCollection.Set(cost)
 }
 
 func (m *Metrics) SetIndexerBlockProcessed(blockNumber uint64) {

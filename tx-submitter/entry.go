@@ -10,10 +10,8 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"time"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
@@ -67,7 +65,6 @@ func Main() func(ctx *cli.Context) error {
 			"rough_estimate_base_gas", cfg.RollupTxGasBase,
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
 			"log_level", cfg.LogLevel,
-			"leveldb_pathname", cfg.LeveldbPathName,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -99,11 +96,14 @@ func Main() func(ctx *cli.Context) error {
 			}
 			output = io.MultiWriter(output, logFile)
 		}
+
 		logHandler := log.StreamHandler(output, log.TerminalFormat(false))
+
 		logLevel, err := log.LvlFromString(cfg.LogLevel)
 		if err != nil {
 			return err
 		}
+
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 		l1RpcClient, err := rpc.Dial(cfg.L1EthRpc)
@@ -189,11 +189,6 @@ func Main() func(ctx *cli.Context) error {
 		// start rorator event indexer
 		rotator.StartEventIndexer()
 
-		ldb, err := db.New(cfg.LeveldbPathName)
-		if err != nil {
-			return fmt.Errorf("failed to connect leveldb: %w", err)
-		}
-
 		// new rollup service
 		sr := services.NewRollup(
 			ctx,
@@ -210,9 +205,11 @@ func Main() func(ctx *cli.Context) error {
 			cfg,
 			rsaPriv,
 			rotator,
-			ldb,
 		)
-
+		// init rollup service
+		if err := sr.PreCheck(); err != nil {
+			return err
+		}
 		// metrics
 		{
 			if cfg.MetricsServerEnable {
@@ -226,6 +223,11 @@ func Main() func(ctx *cli.Context) error {
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
+		// log external sign info
+		if cfg.ExternalSign {
+
+		}
+
 		log.Info("external sign info",
 			"external_sign", cfg.ExternalSign,
 			"appid", cfg.ExternalSignAppid,
@@ -234,12 +236,7 @@ func Main() func(ctx *cli.Context) error {
 			"url", cfg.ExternalSignUrl,
 		)
 
-		err = sr.Start()
-		for err != nil {
-			log.Error("rollup service start failed", "error", err)
-			time.Sleep(time.Second * 5)
-			err = sr.Start()
-		}
+		sr.Start()
 
 		// Catch CTRL-C to ensure a graceful shutdown.
 		interrupt := make(chan os.Signal, 1)

@@ -27,7 +27,6 @@ import (
 	"github.com/tendermint/tendermint/blssignatures"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/localpool"
@@ -36,43 +35,38 @@ import (
 )
 
 const (
-	txSlotSize           = 32 * 1024
-	txMaxSize            = 4 * txSlotSize // 128KB
-	rotatorWait          = 3 * time.Second
-	rollupSumKey         = "rollup_sum"
-	finalizeSumKey       = "finalize_sum"
-	collectedL1FeeSumKey = "collected_l1_fee_sum"
+	txSlotSize  = 32 * 1024
+	txMaxSize   = 4 * txSlotSize // 128KB
+	rotatorWait = 3 * time.Second
 )
 
 type Rollup struct {
-	ctx         context.Context
-	metrics     *metrics.Metrics
+	ctx     context.Context
+	metrics *metrics.Metrics
+
 	l1RpcClient *rpc.Client
 	L1Client    iface.Client
 	L2Clients   []iface.L2Client
 	Rollup      iface.IRollup
-	Staking     iface.IL1Staking
-	chainId     *big.Int
-	privKey     *ecdsa.PrivateKey
-	rollupAddr  common.Address
-	abi         *abi.ABI
+
+	Staking iface.IL1Staking
+
+	chainId    *big.Int
+	privKey    *ecdsa.PrivateKey
+	rollupAddr common.Address
+	abi        *abi.ABI
+
 	// rotator
-	rotator          *Rotator
-	pendingTxs       *PendingTxs
+	rotator    *Rotator
+	pendingTxs *PendingTxs
+
 	rollupFinalizeMu sync.Mutex
 	externalRsaPriv  *rsa.PrivateKey
 	// cfg
 	cfg utils.Config
 	// signer
 	signer types.Signer
-	// leveldb
-	ldb *db.Db
-	// rollupFeeSum
-	rollupFeeSum float64
-	// finalizeFeeSum
-	finalizeFeeSum float64
-	// collectedL1FeeSum
-	collectedL1FeeSum float64
+
 	// batchcache
 	batchCache map[uint64]*eth.RPCRollupBatch
 }
@@ -92,7 +86,6 @@ func NewRollup(
 	cfg utils.Config,
 	rsaPriv *rsa.PrivateKey,
 	rotator *Rotator,
-	ldb *db.Db,
 ) *Rollup {
 
 	return &Rollup{
@@ -112,16 +105,10 @@ func NewRollup(
 		signer:          types.LatestSignerForChainID(chainId),
 		externalRsaPriv: rsaPriv,
 		batchCache:      make(map[uint64]*eth.RPCRollupBatch),
-		ldb:             ldb,
 	}
 }
 
-func (r *Rollup) Start() error {
-
-	// init rollup service
-	if err := r.PreCheck(); err != nil {
-		return err
-	}
+func (r *Rollup) Start() {
 
 	// journal
 	jn := localpool.New(r.cfg.JournalFilePath)
@@ -136,12 +123,6 @@ func (r *Rollup) Start() error {
 		log.Error("parse l1 mempool error", "error", err)
 	} else {
 		r.pendingTxs.Recover(txs, r.abi)
-	}
-
-	// init fee metrics sum
-	err = r.InitFeeMetricsSum()
-	if err != nil {
-		return fmt.Errorf("init fee metrics sum failed: %w", err)
 	}
 
 	// metrics
@@ -208,7 +189,7 @@ func (r *Rollup) Start() error {
 			}
 		}
 	})
-	return nil
+
 }
 
 func (r *Rollup) ProcessTx() error {
@@ -343,21 +324,10 @@ func (r *Rollup) ProcessTx() error {
 					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
 				}
 				if method == "commitBatch" {
-					r.rollupFeeSum += fee
-					err = r.ldb.PutFloat(rollupSumKey, r.rollupFeeSum)
-					if err != nil {
-						log.Warn("put rollup fee sum error", "error", err)
-					}
 					r.metrics.SetRollupCost(fee)
 					index := utils.ParseParentBatchIndex(rtx.Data()) + 1
 					batch, ok := r.batchCache[index]
 					if ok {
-						collectedL1FeeFloat := ToEtherFloat((*big.Int)(batch.CollectedL1Fee))
-						r.collectedL1FeeSum += collectedL1FeeFloat
-						err = r.ldb.PutFloat(collectedL1FeeSumKey, r.collectedL1FeeSum)
-						if err != nil {
-							log.Warn("put collected l1 fee sum error", "error", err)
-						}
 						r.metrics.SetCollectedL1Fee(ToEtherFloat((*big.Int)(batch.CollectedL1Fee)))
 						// remove batch from cache
 						delete(r.batchCache, index)
@@ -368,11 +338,6 @@ func (r *Rollup) ProcessTx() error {
 					}
 
 				} else if method == "finalizeBatch" {
-					r.finalizeFeeSum += fee
-					err = r.ldb.PutFloat(finalizeSumKey, r.finalizeFeeSum)
-					if err != nil {
-						log.Warn("put finalize fee sum error", "error", err)
-					}
 					r.metrics.SetFinalizeCost(fee)
 				}
 			}
@@ -1269,58 +1234,4 @@ func (r *Rollup) RoughFinalizeGasEstimate() uint64 {
 
 func (r *Rollup) GetModuleName() string {
 	return "rollup"
-}
-
-func (r *Rollup) InitFeeMetricsSum() error {
-	// try to init rollupFeeSum & finalizeFeeSum
-	// read rollupFeeSum
-	rollupFeeSum, err := r.ldb.GetFloat(rollupSumKey)
-	if err != nil {
-		log.Warn("read rollupFeeSum from leveldb failed", "error", err)
-		if utils.ErrStringMatch(err, db.ErrKeyNotFound) {
-			err = r.ldb.PutFloat(rollupSumKey, 0)
-			if err != nil {
-				return fmt.Errorf("put rollupFeeSum to leveldb failed, key: %s, %w", rollupSumKey, err)
-			}
-		} else {
-			return fmt.Errorf("get data from leveldb faild, key: %s, %w", rollupSumKey, err)
-		}
-	}
-	log.Info("rollupFeeSum: %f", rollupFeeSum)
-	finalizeFeeSum, err := r.ldb.GetFloat(finalizeSumKey)
-	if err != nil {
-		log.Warn("read finalizeFeeSum from leveldb failed", "error", err)
-		if utils.ErrStringMatch(err, db.ErrKeyNotFound) {
-			err = r.ldb.PutFloat(finalizeSumKey, 0)
-			if err != nil {
-				return fmt.Errorf("put finalizeFeeSum to leveldb failed, key: %s, %w", finalizeSumKey, err)
-			}
-		} else {
-			return fmt.Errorf("get data from leveldb faild, key: %s, %w", finalizeSumKey, err)
-		}
-	}
-	log.Info("finalizeFeeSum: %f", finalizeFeeSum)
-	collectedL1FeeSum, err := r.ldb.GetFloat(collectedL1FeeSumKey)
-	if err != nil {
-		log.Warn("read collectedL1FeeSum from leveldb failed", "error", err)
-		if utils.ErrStringMatch(err, db.ErrKeyNotFound) {
-			err = r.ldb.PutFloat(collectedL1FeeSumKey, 0)
-			if err != nil {
-				return fmt.Errorf("put collectedL1FeeSum to leveldb failed, key: %s, %w", collectedL1FeeSumKey, err)
-			}
-		} else {
-			return fmt.Errorf("get data from leveldb faild, key: %s, %w", collectedL1FeeSumKey, err)
-		}
-	}
-	r.collectedL1FeeSum = collectedL1FeeSum
-	log.Info("collectedL1FeeSum: %f", collectedL1FeeSum)
-
-	r.rollupFeeSum = rollupFeeSum
-	r.finalizeFeeSum = finalizeFeeSum
-	r.collectedL1FeeSum = collectedL1FeeSum
-	// set fee sum init val
-	r.metrics.RollupCostSum.Add(r.rollupFeeSum)
-	r.metrics.FinalizeCostSum.Add(r.finalizeFeeSum)
-	r.metrics.CollectedL1FeeSum.Add(r.collectedL1FeeSum)
-	return nil
 }
