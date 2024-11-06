@@ -19,10 +19,10 @@ import (
 	"github.com/morph-l2/go-ethereum/ethclient/authclient"
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
-	nodecommon "morph-l2/node/common"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
+	nodecommon "morph-l2/node/common"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
 	"morph-l2/node/validator"
