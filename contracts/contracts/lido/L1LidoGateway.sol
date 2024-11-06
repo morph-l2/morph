@@ -128,7 +128,7 @@ contract L1LidoGateway is L1ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
 
-        // 3. Send message to L1CrossDomainMessenger.        
+        // 3. Send message to L1CrossDomainMessenger.
         IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit, _from);
 
         emit DepositERC20(_token, l2Token, _from, _to, _amount, _data, nonce);
