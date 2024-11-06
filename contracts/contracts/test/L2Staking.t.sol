@@ -1374,9 +1374,12 @@ contract L2StakingTest is L2StakingBaseTest {
         assertTrue(aliceReward1 > 0);
         assertTrue(aliceReward2 > 0);
         assertTrue(aliceReward3 > 0);
+        // console.logString("......................");
+        // console.logString("reward before claim");
         // console.logUint(aliceReward1);
         // console.logUint(aliceReward2);
         // console.logUint(aliceReward3);
+        // console.logString("......................");
         assertEq(delegetees[0], firstStaker);
         assertEq(delegetees[1], secondStaker);
         assertEq(delegetees[2], thirdStaker);
@@ -1389,15 +1392,58 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(address(0), 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2 + aliceReward3);
+        // console.logString("......................");
+        // console.logString("claim all result");
         // console.logUint(balanceBefore);
         // console.logUint(balanceAfter);
+        // console.logString("......................");
         hevm.stopPrank();
+
+        (delegetees, aliceRewards) = distribute.queryAllUnclaimed(alice);
+        aliceReward1 = distribute.queryUnclaimed(firstStaker, alice);
+        aliceReward2 = distribute.queryUnclaimed(secondStaker, alice);
+        aliceReward3 = distribute.queryUnclaimed(thirdStaker, alice);
+        assertTrue(aliceReward1 == 0);
+        assertTrue(aliceReward2 == 0);
+        assertTrue(aliceReward3 == 0);
+        // console.logString("......................");
+        // console.logString("query 0 epoch later");
+        // console.logUint(aliceReward1);
+        // console.logUint(aliceReward2);
+        // console.logUint(aliceReward3);
+        // console.logString("......................");
+        assertEq(delegetees[0], firstStaker);
+        assertEq(delegetees[1], secondStaker);
+        assertEq(delegetees[2], thirdStaker);
+        assertEq(aliceRewards[0], aliceReward1);
+        assertEq(aliceRewards[1], aliceReward2);
+        assertEq(aliceRewards[2], aliceReward3);
 
         // *************** epoch = 4 ******************** //
         time = REWARD_EPOCH * 5;
         hevm.roll(blocksCountOfEpoch * 5);
         hevm.warp(time);
         _updateDistribute(3);
+
+        (delegetees, aliceRewards) = distribute.queryAllUnclaimed(alice);
+        aliceReward1 = distribute.queryUnclaimed(firstStaker, alice);
+        aliceReward2 = distribute.queryUnclaimed(secondStaker, alice);
+        aliceReward3 = distribute.queryUnclaimed(thirdStaker, alice);
+        assertTrue(aliceReward1 > 0);
+        assertTrue(aliceReward2 > 0);
+        assertTrue(aliceReward3 > 0);
+        // console.logString("......................");
+        // console.logString("query 1 epoch later");
+        // console.logUint(aliceReward1);
+        // console.logUint(aliceReward2);
+        // console.logUint(aliceReward3);
+        // console.logString("......................");
+        assertEq(delegetees[0], firstStaker);
+        assertEq(delegetees[1], secondStaker);
+        assertEq(delegetees[2], thirdStaker);
+        assertEq(aliceRewards[0], aliceReward1);
+        assertEq(aliceRewards[1], aliceReward2);
+        assertEq(aliceRewards[2], aliceReward3);
 
         // *************** epoch = 5 ******************** //
         time = REWARD_EPOCH * 6;
@@ -1412,9 +1458,12 @@ contract L2StakingTest is L2StakingBaseTest {
         assertTrue(aliceReward1 > 0);
         assertTrue(aliceReward2 > 0);
         assertTrue(aliceReward3 > 0);
+        // console.logString("......................");
+        // console.logString("query 2 epoch later");
         // console.logUint(aliceReward1);
         // console.logUint(aliceReward2);
         // console.logUint(aliceReward3);
+        // console.logString("......................");
         assertEq(delegetees[0], firstStaker);
         assertEq(delegetees[1], secondStaker);
         assertEq(delegetees[2], thirdStaker);
