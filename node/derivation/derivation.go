@@ -19,6 +19,7 @@ import (
 	"github.com/morph-l2/go-ethereum/ethclient/authclient"
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+	nodecommon "morph-l2/node/common"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
@@ -35,7 +36,7 @@ var (
 type Derivation struct {
 	ctx                   context.Context
 	syncer                *sync.Syncer
-	l1Client              DeployContractBackend
+	l1Client              *ethclient.Client
 	RollupContractAddress common.Address
 	confirmations         rpc.BlockNumber
 	l2Client              *types.RetryableClient
@@ -157,7 +158,11 @@ func (d *Derivation) Stop() {
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
-	latest := d.syncer.LatestSynced()
+	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
+	if err != nil {
+		d.logger.Error("get latest block number failed", "err", err)
+		return
+	}
 	var start uint64
 	if latestDerivation == nil {
 		start = d.startHeight
@@ -407,4 +412,8 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	return lastHeader, nil
+}
+
+func (d *Derivation) getLatestConfirmedBlockNumber(ctx context.Context) (uint64, error) {
+	return nodecommon.GetLatestConfirmedBlockNumber(ctx, d.l1Client, d.confirmations)
 }

@@ -61,6 +61,9 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	if ctx.GlobalIsSet(flags.L1Confirmations.Name) {
 		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.L1Confirmations.Name))
 	}
+	if ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
+		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.DerivationConfirmations.Name))
+	}
 	if ctx.GlobalIsSet(flags.RollupContractAddress.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.RollupContractAddress.Name))
 		c.RollupContractAddress = addr
