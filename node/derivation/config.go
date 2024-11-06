@@ -61,6 +61,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	if ctx.GlobalIsSet(flags.L1Confirmations.Name) {
 		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.L1Confirmations.Name))
 	}
+	// The current setting priority is greater than Env L1Confirmations
 	if ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
 		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.DerivationConfirmations.Name))
 	}
