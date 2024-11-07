@@ -357,6 +357,9 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 		if err != nil {
 			return fmt.Errorf("get l1 message error:%v", err)
 		}
+		if len(l1Messages) != int(block.l1MsgNum) {
+			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, l1Messages)
+		}
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
 			for _, l1Message := range l1Messages {
