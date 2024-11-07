@@ -23,6 +23,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
+	nodecommon "morph-l2/node/common"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
 	"morph-l2/node/validator"
@@ -36,7 +37,7 @@ var (
 type Derivation struct {
 	ctx                   context.Context
 	syncer                *sync.Syncer
-	l1Client              DeployContractBackend
+	l1Client              *ethclient.Client
 	RollupContractAddress common.Address
 	confirmations         rpc.BlockNumber
 	l2Client              *types.RetryableClient
@@ -171,7 +172,11 @@ func (d *Derivation) Stop() {
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
-	latest := d.syncer.LatestSynced()
+	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
+	if err != nil {
+		d.logger.Error("get latest block number failed", "err", err)
+		return
+	}
 	var start uint64
 	if latestDerivation == nil {
 		start = d.startHeight
@@ -389,6 +394,9 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 		if err != nil {
 			return fmt.Errorf("get l1 message error:%v", err)
 		}
+		if len(l1Messages) != int(block.l1MsgNum) {
+			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, l1Messages)
+		}
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
 			for _, l1Message := range l1Messages {
@@ -444,4 +452,8 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	return lastHeader, nil
+}
+
+func (d *Derivation) getLatestConfirmedBlockNumber(ctx context.Context) (uint64, error) {
+	return nodecommon.GetLatestConfirmedBlockNumber(ctx, d.l1Client, d.confirmations)
 }

@@ -325,6 +325,7 @@ var Flags = []cli.Flag{
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
+	DerivationConfirmations,
 	L1BeaconAddr,
 
 	// batch rules
