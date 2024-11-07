@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/go-ethereum/log"
 	"io"
 	"os"
 	"path/filepath"
@@ -64,6 +65,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	// The current setting priority is greater than Env L1Confirmations
 	if ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
 		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.DerivationConfirmations.Name))
+		log.Warn("derivation confirmations reset to ", c.L1.Confirmations)
 	}
 	if ctx.GlobalIsSet(flags.RollupContractAddress.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.RollupContractAddress.Name))
