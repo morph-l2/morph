@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/morph-l2/go-ethereum/log"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/log"
 	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
