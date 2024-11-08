@@ -126,6 +126,8 @@ func (r *Rollup) Start() error {
 	if err := r.PreCheck(); err != nil {
 		return err
 	}
+	// start l1 monitor
+	go r.bm.StartMonitoring()
 
 	// journal
 	jn := localpool.New(r.cfg.JournalFilePath)
