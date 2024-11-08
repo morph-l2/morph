@@ -30,6 +30,7 @@ import (
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/utils"
@@ -75,6 +76,7 @@ type Rollup struct {
 	collectedL1FeeSum float64
 	// batchcache
 	batchCache map[uint64]*eth.RPCRollupBatch
+	bm         *l1checker.BlockMonitor
 }
 
 func NewRollup(
@@ -93,6 +95,7 @@ func NewRollup(
 	rsaPriv *rsa.PrivateKey,
 	rotator *Rotator,
 	ldb *db.Db,
+	bm *l1checker.BlockMonitor,
 ) *Rollup {
 
 	return &Rollup{
@@ -113,6 +116,7 @@ func NewRollup(
 		externalRsaPriv: rsaPriv,
 		batchCache:      make(map[uint64]*eth.RPCRollupBatch),
 		ldb:             ldb,
+		bm:              bm,
 	}
 }
 
@@ -1089,6 +1093,10 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 	// judge tx info is valid
 	if tx == nil {
 		return errors.New("nil tx")
+	}
+	// l1 health check
+	if !r.bm.IsGrowth() {
+		return fmt.Errorf("block not growth in %d blocks time", r.cfg.BlockNotIncreasedThreshold)
 	}
 
 	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
