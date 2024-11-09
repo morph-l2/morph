@@ -59,7 +59,7 @@ contract MigrationUSDC is OwnableUpgradeable, PausableUpgradeable, ReentrancyGua
     }
 
     // Transfer token to other address.
-    function ad(address _token, address _to, uint256 _amount) external onlyOwner {
+    function transferToken(address _token, address _to, uint256 _amount) external onlyOwner {
         uint256 balance = IERC20Upgradeable(_token).balanceOf(address(this));
         if (balance == 0) {
             revert ErrorTokenBalanceZero();
