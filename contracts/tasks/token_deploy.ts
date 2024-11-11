@@ -359,25 +359,26 @@ task("upgrade-l1-usdcgateway")
             const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
             console.log(`proxy admin at ${proxyAdmin.address}`)
 
-            let res = await proxyAdmin.upgradeAndCall(
+            let res = await proxyAdmin.upgrade(
                 taskArgs.l1usdcgatewayproxy,
-                gateway.address,
-                GatewayFactory.interface.encodeFunctionData("initialize", [
-                            taskArgs.counterpart,
-                            taskArgs.router,
-                            taskArgs.messenger
-                    ]
-                )
+                gateway.address
             )
             let rec =await res.wait()
             console.log(`upgrade gateway ${rec.status == 1}`)
 
+
             const gatewayProxy = GatewayFactory.attach(taskArgs.l1usdcgatewayproxy)
+            res = await gatewayProxy.initialize(taskArgs.counterpart,taskArgs.router,taskArgs.messenger)
+            rec =await res.wait()
+            console.log(`init gateway ${rec.status == 1}`)
+
+            const owner = await gatewayProxy.owner()
             const counterpart = await gatewayProxy.counterpart()
             const router = await gatewayProxy.router()
+            const messenger = await gatewayProxy.messenger()
             const l1USDC = await gatewayProxy.l1USDC()
             const l2USDC = await gatewayProxy.l2USDC()
-            console.log(`gatewayProxy ${gatewayProxy.address}, counterpart ${counterpart}, router ${router}, l1USDC ${l1USDC}, l2USDC ${l2USDC}`)
+            console.log(`owner ${owner}, gatewayProxy ${gatewayProxy.address}, counterpart ${counterpart}, router ${router}, messenger ${messenger}, l1USDC ${l1USDC}, l2USDC ${l2USDC}`)
     })
 
 task("upgrade-l2-usdcgateway")
@@ -412,20 +413,17 @@ task("upgrade-l2-usdcgateway")
             const proxyAdmin = await ProxyAdminFactory.attach(taskArgs.proxyadmin)
             console.log(`proxy admin at ${proxyAdmin.address}`)
 
-            let res = await proxyAdmin.upgradeAndCall(
+            let res = await proxyAdmin.upgrade(
                 taskArgs.l2usdcgatewayproxy,
-                gateway.address,
-                GatewayFactory.interface.encodeFunctionData("initialize", [
-                            taskArgs.counterpart,
-                            taskArgs.router,
-                            taskArgs.messenger
-                    ]
-                )
+                gateway.address
             )
             let rec =await res.wait()
             console.log(`upgrade gateway ${rec.status == 1}`)
 
             const gatewayProxy = GatewayFactory.attach(taskArgs.l2usdcgatewayproxy)
+            res = await gatewayProxy.initialize( taskArgs.counterpart,taskArgs.router,taskArgs.messenger)
+            rec =await res.wait()
+            console.log(`init gateway ${rec.status == 1}`)
             const counterpart = await gatewayProxy.counterpart()
             const router = await gatewayProxy.router()
             const l1USDC = await gatewayProxy.l1USDC()
@@ -500,4 +498,112 @@ task("upgrade-l2-usdc-v2-1")
         res = await l2usdc.connect(deployer).initializeV2_1(taskArgs.lostfund)
         rec = await res.wait()
         console.log(`l2 usdc initializeV2_1 ${rec.status == 1}`)
+    })
+
+task("deploy-l1-proxy")
+    .addParam("proxyadmin")
+    .addParam("empty")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.empty)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+
+        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+        const proxy = await TransparentProxyFactory.deploy(
+            taskArgs.empty, //logic
+            taskArgs.proxyadmin, //admin
+            "0x"
+        )
+        await proxy.deployed()
+        console.log(`proxy deployed at ${proxy.address}`)
+    })
+
+
+task("deploy-l2-usdcgateway")
+    .addParam("proxyadmin")
+    .addParam("l1token")
+    .addParam("l2token")
+    .addParam("counterpart")
+    .addParam("router")
+    .addParam("messenger")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.l1token) ||
+            !ethers.utils.isAddress(taskArgs.l2token) ||
+            !ethers.utils.isAddress(taskArgs.counterpart) ||
+            !ethers.utils.isAddress(taskArgs.router) ||
+            !ethers.utils.isAddress(taskArgs.messenger)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+        // deploy gateway impl
+        const GatewayFactory = await hre.ethers.getContractFactory("L2USDCGateway")
+        const gateway = await GatewayFactory.deploy(taskArgs.l1token, taskArgs.l2token)
+        await gateway.deployed()
+        console.log(`gateway impl deployed at ${gateway.address}`)
+
+        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+        const proxy = await TransparentProxyFactory.deploy(
+            gateway.address, //logic
+            taskArgs.proxyadmin, //admin
+            GatewayFactory.interface.encodeFunctionData("initialize",[
+                taskArgs.counterpart,
+                taskArgs.router,
+                taskArgs.messenger
+                ]
+            )
+        )
+        await proxy.deployed()
+        console.log(`gateway proxy deployed at ${proxy.address}`)
+
+        const gatewayProxy = GatewayFactory.attach(proxy.address)
+        const owner = await gatewayProxy.owner()
+        const counterpart = await gatewayProxy.counterpart()
+        const router = await gatewayProxy.router()
+        const messenger = await gatewayProxy.messenger()
+        const l1USDC = await gatewayProxy.l1USDC()
+        const l2USDC = await gatewayProxy.l2USDC()
+        console.log(`owner ${owner}, gatewayProxy ${gatewayProxy.address}, counterpart ${counterpart}, router ${router}, messenger ${messenger}, l1USDC ${l1USDC}, l2USDC ${l2USDC}`)
+    })
+
+task("deploy-l2-MigrationUSDC")
+    .addParam("proxyadmin")
+    .addParam("oldtoken")
+    .addParam("newtoken")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.oldtoken) ||
+            !ethers.utils.isAddress(taskArgs.newtoken)
+        ) {
+            console.error(`address params check failed`)
+            return
+        }
+        // deploy gateway impl
+        const ContractFactory = await hre.ethers.getContractFactory("MigrationUSDC")
+        const contract = await ContractFactory.deploy(taskArgs.oldtoken, taskArgs.newtoken)
+        await contract.deployed()
+        console.log(`MigrationUSDC impl deployed at ${contract.address}`)
+
+        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+        const proxy = await TransparentProxyFactory.deploy(
+            contract.address, //logic
+            taskArgs.proxyadmin, //admin
+            ContractFactory.interface.encodeFunctionData("initialize",[]
+            )
+        )
+        await proxy.deployed()
+        console.log(`MigrationUSDC proxy deployed at ${proxy.address}`)
+
+        const migrationProxy = ContractFactory.attach(proxy.address)
+        const owner = await migrationProxy.owner()
+        const oldtoken = await migrationProxy.OLD_USDC()
+        const newtoken = await migrationProxy.NEW_USDC()
+        console.log(`owner ${owner}, oldtoken ${oldtoken}, newtoken ${newtoken}`)
     })
