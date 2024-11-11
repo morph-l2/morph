@@ -2,8 +2,10 @@ package l1checker
 
 import (
 	"context"
-	"morph-l2/tx-submitter/iface"
+	"sync"
 	"time"
+
+	"morph-l2/tx-submitter/iface"
 
 	"github.com/morph-l2/go-ethereum/log"
 )
@@ -17,6 +19,7 @@ type BlockMonitor struct {
 	latestBlockTime      time.Time
 	noGrowthBlockCntTime time.Duration
 	client               iface.L1Client
+	mu                   sync.Mutex
 }
 
 func NewBlockMonitor(notGrowthInBlocks int64, client iface.L1Client) *BlockMonitor {
@@ -36,13 +39,26 @@ func (m *BlockMonitor) StartMonitoring() {
 			log.Warn("failed to get block in blockmonitor", "error", err)
 			continue
 		}
-		m.latestBlockTime = time.Unix(int64(header.Time), 0)
+		m.SetLatestBlockTime(time.Unix(int64(header.Time), 0))
 	}
 }
 
 func (m *BlockMonitor) IsGrowth() bool {
-	if m.latestBlockTime.IsZero() {
+	t := m.GetLatestBlockTime()
+	if t.IsZero() {
 		return false
 	}
-	return time.Since(m.latestBlockTime) > m.noGrowthBlockCntTime
+	return time.Since(t) > m.noGrowthBlockCntTime
+}
+
+func (m *BlockMonitor) SetLatestBlockTime(t time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.latestBlockTime = t
+}
+
+func (m *BlockMonitor) GetLatestBlockTime() time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.latestBlockTime
 }
