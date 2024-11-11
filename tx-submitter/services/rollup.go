@@ -126,8 +126,6 @@ func (r *Rollup) Start() error {
 	if err := r.PreCheck(); err != nil {
 		return err
 	}
-	// start l1 monitor
-	go r.bm.StartMonitoring()
 
 	// journal
 	jn := localpool.New(r.cfg.JournalFilePath)
@@ -149,6 +147,10 @@ func (r *Rollup) Start() error {
 	if err != nil {
 		return fmt.Errorf("init fee metrics sum failed: %w", err)
 	}
+
+	/// start services
+	// start l1 monitor
+	go r.bm.StartMonitoring()
 
 	// metrics
 	go utils.Loop(r.ctx, 10*time.Second, func() {
