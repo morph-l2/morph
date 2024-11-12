@@ -165,8 +165,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice add staker, sync from L1
     /// @param _nonce   msg nonce
     /// @param add      staker to add. {addr, tmKey, blsKey}
-    function addStaker(uint256 _nonce, Types.StakerInfo calldata add) external onlyOtherStaking checkNonce {
-        nonce++;
+    function addStaker(uint256 _nonce, Types.StakerInfo calldata add) external onlyOtherStaking checkNonce(_nonce) {
+        nonce = _nonce + 1;
         if (stakerRankings[add.addr] == 0) {
             stakerAddresses.push(add.addr);
             stakerRankings[add.addr] = stakerAddresses.length;
@@ -182,8 +182,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice remove stakers, sync from L1. If new sequencer set is nil, layer2 will stop producing blocks
     /// @param _nonce   msg nonce
     /// @param remove   staker to remove
-    function removeStakers(uint256 _nonce, address[] calldata remove) external onlyOtherStaking checkNonce {
-        nonce++;
+    function removeStakers(uint256 _nonce, address[] calldata remove) external onlyOtherStaking checkNonce(_nonce) {
+        nonce = _nonce + 1;
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
             if (stakerRankings[remove[i]] <= latestSequencerSetSize) {
@@ -217,8 +217,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice add staker. Only can be called when a serious bug causes L1 and L2 data to be out of sync
     /// @param _nonce   msg nonce
     /// @param add      staker to add. {addr, tmKey, blsKey}
-    function emergencyAddStaker(uint256 _nonce, Types.StakerInfo calldata add) external onlyOwner checkNonce {
-        nonce++;
+    function emergencyAddStaker(uint256 _nonce, Types.StakerInfo calldata add) external onlyOwner checkNonce(_nonce) {
+        nonce = _nonce + 1;
         if (stakerRankings[add.addr] == 0) {
             stakerAddresses.push(add.addr);
             stakerRankings[add.addr] = stakerAddresses.length;
@@ -234,8 +234,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice remove stakers. Only can be called when a serious bug causes L1 and L2 data to be out of sync
     /// @param _nonce   msg nonce
     /// @param remove   staker to remove
-    function emergencyRemoveStakers(uint256 _nonce, address[] calldata remove) external onlyOwner checkNonce {
-        nonce++;
+    function emergencyRemoveStakers(uint256 _nonce, address[] calldata remove) external onlyOwner checkNonce(_nonce) {
+        nonce = _nonce + 1;
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
             if (stakerRankings[remove[i]] <= latestSequencerSetSize) {

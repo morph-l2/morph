@@ -481,6 +481,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             abi.encodeCall(IL2Staking.addStaker, (nonce, add)),
             gasLimitAddStaker
         );
+        nonce = nonce + 1;
     }
 
     /// @notice remove stakers
@@ -492,6 +493,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             abi.encodeCall(IL2Staking.removeStakers, (nonce, remove)),
             gasLimitRemoveStakers
         );
+        nonce = nonce + 1;
     }
 
     /// @notice clean staker store
