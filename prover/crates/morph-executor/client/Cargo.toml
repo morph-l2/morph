@@ -1,0 +1,18 @@
+[package]
+name = "morph-executor-client"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sbv-core.workspace = true
+sbv-utils.workspace = true
+sbv-primitives.workspace = true
+alloy = { workspace = true, features = ["consensus", "eips", "k256", "rlp", "rkyv", "serde"] }
+kzg-rs = { workspace = true }
+sha2 = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_with.workspace = true
+ruzstd =  { workspace = true }
+cfg-if =  { workspace = true }

@@ -19,6 +19,7 @@ bindings: \
 	l1-custom-erc20-gateway-bindings \
 	l1-reverse-custom-gateway-bindings \
 	enforced-tx-gateway-bindings \
+	l1-lido-gateway-bindings \
     morph-rollup-bindings \
     multiple-version-rollup-verifier-bindings \
 	l2-cross-domain-messenger-bindings \
@@ -41,14 +42,17 @@ bindings: \
 	l2-custom-erc20-gateway-bindings \
 	l2-withdrawlock-erc20-gateway-bindings \
 	l2-reverse-custom-gateway-bindings \
+	l2-lido-gateway-bindings \
 	white-list-bindings \
+	zk-evm-verifier-bindings \
 	transparent-upgradeable-proxy-bindings \
 	proxy-admin-bindings \
 	morph-token-bindings \
 	morph-standard-erc20-bindings \
 	morph-standard-erc20-factory-bindings \
 	morph-wrapped-ether-bindings \
-	erc20-bindings
+	erc20-bindings \
+	l2-wst-eth-bindings
 version:
 	forge --version
 	abigen --version
@@ -91,6 +95,8 @@ l1-reverse-custom-gateway-bindings: compile
 	./gen_bindings.sh contracts/l1/gateways/L1ReverseCustomGateway.sol:L1ReverseCustomGateway $(pkg)
 enforced-tx-gateway-bindings: compile
 	./gen_bindings.sh contracts/l1/gateways/EnforcedTxGateway.sol:EnforcedTxGateway $(pkg)
+l1-lido-gateway-bindings: compile
+	./gen_bindings.sh contracts/lido/L1LidoGateway.sol:L1LidoGateway $(pkg)
 
 # Rollup
 l1-message-queue-with-gas-price-oracle-bindings: compile
@@ -148,10 +154,16 @@ l2-withdrawlock-erc20-gateway-bindings: compile
 	./gen_bindings.sh contracts/l2/gateways/L2WithdrawLockERC20Gateway.sol:L2WithdrawLockERC20Gateway $(pkg)
 l2-reverse-custom-gateway-bindings: compile
 	./gen_bindings.sh contracts/l2/gateways/L2ReverseCustomGateway.sol:L2ReverseCustomGateway $(pkg)
+l2-lido-gateway-bindings: compile
+	./gen_bindings.sh contracts/lido/L2LidoGateway.sol:L2LidoGateway $(pkg)
 
 # Common
 white-list-bindings: compile
 	./gen_bindings.sh contracts/libraries/common/Whitelist.sol:Whitelist $(pkg)
+
+# Library
+zk-evm-verifier-bindings: compile
+	./gen_bindings.sh contracts/libraries/verifier/ZkEvmVerifierV1.sol:ZkEvmVerifierV1 $(pkg)
 
 # Proxy
 transparent-upgradeable-proxy-bindings: compile
@@ -172,12 +184,14 @@ erc20-bindings: compile
 	./gen_bindings.sh node_modules/@rari-capital/solmate/src/tokens/ERC20.sol:ERC20 $(pkg)
 #fiat-v1-bindings: compile
 #	./gen_bindings.sh contracts/libraries/token/FiatTokenV1.sol:FiatTokenV1 $(pkg)
+l2-wst-eth-bindings: compile
+	./gen_bindings.sh contracts/lido/L2WstETHToken.sol:L2WstETHToken $(pkg)
 
 more: compile-forge
 	go run ./gen/main.go \
 		-artifacts ../contracts/artifacts \
 		-out ./bindings \
-		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,L1USDCGateway,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther,L2USDCGateway,EnforcedTxGateway,L1ERC721Gateway,L1ERC1155Gateway,L1ReverseCustomGateway,L2WithdrawLockERC20Gateway,L2ReverseCustomGateway,Whitelist \
+		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,L1USDCGateway,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,L1LidoGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,L2LidoGateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther,L2USDCGateway,EnforcedTxGateway,L1ERC721Gateway,L1ERC1155Gateway,L1ReverseCustomGateway,L2WithdrawLockERC20Gateway,L2ReverseCustomGateway,Whitelist,ZkEvmVerifierV1,L2WstETHToken \
 		-package bindings
 
 mkdir:

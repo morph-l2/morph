@@ -12,6 +12,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/log"
 	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
@@ -60,6 +61,11 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L1.Addr = ctx.GlobalString(flags.L1NodeAddr.Name)
 	if ctx.GlobalIsSet(flags.L1Confirmations.Name) {
 		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.L1Confirmations.Name))
+	}
+	// The current setting priority is greater than Env L1Confirmations
+	if ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
+		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.DerivationConfirmations.Name))
+		log.Warn("derivation confirmations reset to ", c.L1.Confirmations)
 	}
 	if ctx.GlobalIsSet(flags.RollupContractAddress.Name) {
 		addr := common.HexToAddress(ctx.GlobalString(flags.RollupContractAddress.Name))

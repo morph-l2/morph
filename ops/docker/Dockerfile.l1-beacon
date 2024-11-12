@@ -6,9 +6,9 @@ COPY ops/docker/consensus /consensus
 COPY ops/docker/execution /execution
 RUN ./prysmctl testnet generate-genesis --fork=deneb --num-validators=64 --genesis-time-delay=0 --output-ssz=/consensus/genesis.ssz --chain-config-file=/consensus/config.yml --geth-genesis-json-in=/execution/genesis.json --geth-genesis-json-out=/execution/genesis.json
 
-FROM ethereum/client-go:latest as geth-genesis
+FROM ethereum/client-go:v1.14.11 as geth-genesis
 COPY --from=chain-genesis /execution /execution
-RUN geth --datadir=/execution init /execution/genesis.json
+RUN geth --datadir=/execution --state.scheme=hash init /execution/genesis.json
 
 
 FROM gcr.io/prysmaticlabs/prysm/beacon-chain:v4.2.1 as beacon-chain

@@ -18,34 +18,34 @@ var (
 	/* Required Flags */
 
 	BuildEnvFlag = cli.StringFlag{
-		Name: "BUILD_ENV",
+		Name: "build_env",
 		Usage: "Build environment for which the binary is produced, " +
 			"e.g. production or development",
 		Required: true,
 		EnvVar:   prefixEnvVar("BUILD_ENV"),
 	}
 	L1EthRpcFlag = cli.StringFlag{
-		Name:     "L1_ETH_RPC",
+		Name:     "l1_eth_rpc",
 		Usage:    "HTTP provider URL for L1",
 		Required: true,
 		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
 	L2EthRpcsFlag = cli.StringSliceFlag{
-		Name:     "L2_ETH_RPCS",
+		Name:     "l2_eth_rpcs",
 		Usage:    "HTTP provider URLs for L2",
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPCS"),
 	}
 
 	PrivateKeyFlag = cli.StringFlag{
-		Name:     "L1_PRIVATE_KEY",
+		Name:     "l1_private_key",
 		Usage:    "The private key to use for sending to the rollup contract",
 		EnvVar:   prefixEnvVar("L1_PRIVATE_KEY"),
 		Required: false,
 	}
 
 	TxTimeoutFlag = cli.DurationFlag{
-		Name:     "TX_TIMEOUT",
+		Name:     "tx_timeout",
 		Usage:    "Timeout for transaction submission",
 		Value:    10,
 		EnvVar:   prefixEnvVar("TX_TIMEOUT"),
@@ -54,13 +54,13 @@ var (
 
 	// L1 Address
 	RollupAddressFlag = cli.StringFlag{
-		Name:     "ROLLUP_ADDRESS",
+		Name:     "rollup_address",
 		Usage:    "Address of the rollup contract",
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP_ADDRESS"),
 	}
 	L1StakingAddressFlag = cli.StringFlag{
-		Name:     "L1_STAKING_ADDRESS",
+		Name:     "l1_staking_address",
 		Usage:    "Address of the staking contract",
 		Required: true,
 		EnvVar:   prefixEnvVar("L1_STAKING_ADDRESS"),
@@ -68,7 +68,7 @@ var (
 
 	// finalize flags
 	FinalizeFlag = cli.BoolFlag{
-		Name:     "FINALIZE",
+		Name:     "finalize",
 		Usage:    "Enable finalize",
 		EnvVar:   prefixEnvVar("FINALIZE"),
 		Required: true,
@@ -76,7 +76,7 @@ var (
 
 	// decentralize config
 	PriorityRollupFlag = cli.BoolFlag{
-		Name:     "PRIORITY_ROLLUP",
+		Name:     "priority_rollup",
 		Usage:    "Enable priority rollup",
 		EnvVar:   prefixEnvVar("PRIORITY_ROLLUP"),
 		Required: true,
@@ -84,14 +84,14 @@ var (
 
 	// L2 contract
 	L2SequencerAddressFlag = cli.StringFlag{
-		Name:     "L2_SEQUENCER_ADDRESS",
+		Name:     "l2_sequencer_address",
 		Usage:    "Address of the sequencer contract",
 		Required: false,
 		EnvVar:   prefixEnvVar("L2_SEQUENCER_ADDRESS"),
 		Value:    predeploys.Sequencer,
 	}
 	L2GovAddressFlag = cli.StringFlag{
-		Name:     "L2_GOV_ADDRESS",
+		Name:     "l2_gov_address",
 		Usage:    "Address of the gov contract",
 		Required: false,
 		EnvVar:   prefixEnvVar("L2_GOV_ADDRESS"),
@@ -100,31 +100,31 @@ var (
 
 	/* Optional Flags */
 	LogLevelFlag = cli.StringFlag{
-		Name:   "LOG_LEVEL",
+		Name:   "log_level",
 		Usage:  "The lowest log level that will be output",
 		Value:  "info",
 		EnvVar: prefixEnvVar("LOG_LEVEL"),
 	}
 	// metrics
 	MetricsServerEnable = cli.BoolFlag{
-		Name:   "METRICS_SERVER_ENABLE",
+		Name:   "metrics_server_enable",
 		Usage:  "Enable metrics server",
 		EnvVar: prefixEnvVar("METRICS_SERVER_ENABLE"),
 	}
 	MetricsHostname = cli.StringFlag{
-		Name:   "METRICS_HOSTNAME",
+		Name:   "metrics_hostname",
 		Usage:  "Hostname at which the metrics server is running",
 		EnvVar: prefixEnvVar("METRICS_HOSTNAME"),
 	}
 	MetricsPort = cli.Uint64Flag{
-		Name:   "METRICS_PORT",
+		Name:   "metrics_port",
 		Usage:  "Port at which the metrics server is running",
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
 
 	// tx fee limit
 	TxFeeLimitFlag = cli.Uint64Flag{
-		Name:     "TX_FEE_LIMIT",
+		Name:     "tx_fee_limit",
 		Usage:    "The maximum fee for a transaction",
 		Value:    5e17, //0.5eth
 		EnvVar:   prefixEnvVar("TX_FEE_LIMIT"),
@@ -133,31 +133,31 @@ var (
 
 	// log to file
 	LogFilename = cli.StringFlag{
-		Name:   "LOG_FILENAME",
+		Name:   "log_filename",
 		Usage:  "The target file for writing logs, backup log files will be retained in the same directory.",
 		EnvVar: prefixEnvVar("LOG_FILENAME"),
 	}
 	LogFileMaxSize = cli.IntFlag{
-		Name:   "LOG_FILE_MAX_SIZE",
+		Name:   "log_file_max_size",
 		Usage:  "The maximum size in megabytes of the log file before it gets rotated. It defaults to 100 megabytes. It is used only when log.filename is provided.",
 		Value:  100,
 		EnvVar: prefixEnvVar("LOG_FILE_MAX_SIZE"),
 	}
 	LogFileMaxAge = cli.IntFlag{
-		Name:   "LOG_FILE_MAX_AGE",
+		Name:   "log_file_max_age",
 		Usage:  "The maximum number of days to retain old log files based on the timestamp encoded in their filename. It defaults to 30 days. It is used only when log.filename is provided.",
 		Value:  30,
 		EnvVar: prefixEnvVar("LOG_FILE_MAX_AGE"),
 	}
 	LogCompress = cli.BoolFlag{
-		Name:   "LOG_COMPRESS",
+		Name:   "log_compress",
 		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
 		EnvVar: prefixEnvVar("LOG_COMPRESS"),
 	}
 
 	// rollup interval
 	RollupInterval = cli.DurationFlag{
-		Name:   "ROLLUP_INTERVAL",
+		Name:   "rollup_interval",
 		Usage:  "Interval for rollup",
 		Value:  500 * time.Millisecond,
 		EnvVar: prefixEnvVar("ROLLUP_INTERVAL"),
@@ -171,7 +171,7 @@ var (
 	}
 	// tx process interval
 	TxProcessInterval = cli.DurationFlag{
-		Name:   "TX_PROCESS_INTERVAL",
+		Name:   "tx_process_interval",
 		Usage:  "Interval for tx process",
 		Value:  2 * time.Second,
 		EnvVar: prefixEnvVar("TX_PROCESS_INTERVAL"),
@@ -179,21 +179,21 @@ var (
 
 	// rollup tx gas base
 	RollupTxGasBase = cli.Uint64Flag{
-		Name:   "ROLLUP_TX_GAS_BASE",
+		Name:   "rollup_tx_gas_base",
 		Usage:  "The base fee for a rollup transaction",
 		Value:  530000,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_BASE"),
 	}
 	// rollup tx gas per l1msg
 	RollupTxGasPerL1Msg = cli.Uint64Flag{
-		Name:   "ROLLUP_TX_GAS_PER_L1_MSG",
+		Name:   "rollup_tx_gas_per_l1_msg",
 		Usage:  "The gas cost for each L1 message included in a rollup transaction",
 		Value:  4200,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_PER_L1_MSG"),
 	}
 
 	GasLimitBuffer = cli.Uint64Flag{
-		Name:   "GAS_LIMIT_BUFFER",
+		Name:   "gas_limit_buffer",
 		Usage:  "The gas limit buffer for a transaction",
 		Value:  20, // add 20%
 		EnvVar: prefixEnvVar("GAS_LIMIT_BUFFER"),
@@ -201,28 +201,28 @@ var (
 
 	// journal path
 	JournalFlag = cli.StringFlag{
-		Name:   "JOURNAL_FILE_PATH",
+		Name:   "journal_file_path",
 		Usage:  "The path of the journal file",
 		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
 		Value:  "journal.rlp",
 	}
 	// listener processed block record path
 	StakingEventStoreFileFlag = cli.StringFlag{
-		Name:   "StakingEventStoreFileName",
+		Name:   "staking_event_store_filename",
 		Usage:  "The file name of the storage",
 		EnvVar: prefixEnvVar("STAKING_EVENT_STORE_FILENAME"),
 		Value:  "StakingEventStore.json",
 	}
 
 	CalldataFeeBumpFlag = cli.Uint64Flag{
-		Name:   "CALL_DATA_FEE_BUMP",
+		Name:   "call_data_fee_bump",
 		Usage:  "The fee bump for call data",
 		Value:  100, //fee = x * origin_fee/100
 		EnvVar: prefixEnvVar("CALL_DATA_FEE_BUMP"),
 	}
 
 	MaxTxsInPendingPoolFlag = cli.Uint64Flag{
-		Name:   "MAX_TXS_IN_PENDING_POOL",
+		Name:   "max_txs_in_pending_pool",
 		Usage:  "The maximum number of transactions in the pending pool",
 		Value:  12,
 		EnvVar: prefixEnvVar("MAX_TXS_IN_PENDING_POOL"),
@@ -230,48 +230,48 @@ var (
 
 	// external sign
 	ExternalSign = cli.BoolFlag{
-		Name:   "EXTERNAL_SIGN",
+		Name:   "external_sign",
 		Usage:  "Enable external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
 	}
 
 	// address
 	ExternalSignAddress = cli.StringFlag{
-		Name:   "EXTERNAL_SIGN_ADDRESS",
+		Name:   "external_sign_address",
 		Usage:  "The address of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_ADDRESS"),
 	}
 	// appid
 	ExternalSignAppid = cli.StringFlag{
-		Name:   "EXTERNAL_SIGN_APPID",
+		Name:   "external_sign_appid",
 		Usage:  "The appid of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_APPID"),
 	}
 	// chain
 	ExternalSignChain = cli.StringFlag{
-		Name:   "EXTERNAL_SIGN_CHAIN",
+		Name:   "external_sign_chain",
 		Usage:  "The chain of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_CHAIN"),
 	}
 	// url
 	ExternalSignUrl = cli.StringFlag{
-		Name:   "EXTERNAL_SIGN_URL",
+		Name:   "external_sign_url",
 		Usage:  "The url of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
 	}
 	ExternalSignRsaPriv = cli.StringFlag{
-		Name:   "EXTERNAL_RSA_PRIV",
+		Name:   "external_rsa_priv",
 		Usage:  "The rsa private key of the external sign",
-		EnvVar: prefixEnvVar("EXTERNAL_RSA_PRIV"),
+		EnvVar: "SEQUENCER_EXTERNAL_SIGN_RSA_PRIV", // use sequencer rsa from xxx
 	}
 	RoughEstimateGasFlag = cli.BoolFlag{
-		Name:   "ROUGH_ESTIMATE_GAS",
+		Name:   "rough_estimate_gas",
 		Usage:  "Whether to use rough estimate gas",
 		EnvVar: prefixEnvVar("ROUGH_ESTIMATE_GAS"),
 	}
 
 	RotatorBufferFlag = cli.Int64Flag{
-		Name:   "ROTATOR_BUFFER",
+		Name:   "rotator_buffer",
 		Usage:  "rotation interval buffer",
 		Value:  15,
 		EnvVar: prefixEnvVar("ROTATOR_BUFFER"),
@@ -279,7 +279,7 @@ var (
 
 	// l1 staking deployed blocknum
 	L1StakingDeployedBlocknumFlag = cli.Uint64Flag{
-		Name:     "L1_STAKING_DEPLOYED_BLOCKNUM",
+		Name:     "l1_staking_deployed_blocknum",
 		Usage:    "The deployed block number of L1Staking",
 		EnvVar:   prefixEnvVar("L1_STAKING_DEPLOYED_BLOCKNUM"),
 		Required: true,
@@ -287,10 +287,16 @@ var (
 
 	// event indexer
 	EventIndexStepFlag = cli.Uint64Flag{
-		Name:   "EVENT_INDEX_STEP",
+		Name:   "event_index_step",
 		Usage:  "The step size for event indexing",
 		Value:  100,
 		EnvVar: prefixEnvVar("EVENT_INDEX_STEP"),
+	}
+	LeveldbPathNameFlag = cli.StringFlag{
+		Name:   "leveldb_path_name",
+		Usage:  "The path name of the leveldb",
+		EnvVar: prefixEnvVar("LEVELDB_PATH_NAME"),
+		Value:  "submitter-leveldb",
 	}
 )
 
@@ -345,6 +351,7 @@ var optionalFlags = []cli.Flag{
 	RotatorBufferFlag,
 	StakingEventStoreFileFlag,
 	EventIndexStepFlag,
+	LeveldbPathNameFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

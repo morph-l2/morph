@@ -15,6 +15,8 @@ import "./tasks/check"
 import "./tasks/query"
 import "./tasks/proxy_upgrade"
 import "./tasks/staking_upgrade"
+import "./tasks/verifier_upgrade"
+import "./tasks/token_deploy"
 import "./src/plugin"
 import * as process from "process";
 

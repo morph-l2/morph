@@ -71,13 +71,6 @@ export const GatewayInit = async (
 
     const WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
 
-    // L1USDCGateway config
-    const L1USDCGatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.L1USDCGatewayProxyStorageName)
-    const L1USDCGatewayImplAddress = getContractAddressByName(path, ImplStorageName.L1USDCGatewayStorageName)
-    const L1USDCGatewayFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1USDCGateway)
-
-    const USDCAddress = getContractAddressByName(path, ImplStorageName.USDC)
-
     // EnforcedTxGateway config
     const EnforcedTxGatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.EnforcedTxGatewayProxyStorageName)
     const EnforcedTxGatewayImplAddress = getContractAddressByName(path, ImplStorageName.EnforcedTxGatewayStorageName)
@@ -583,62 +576,6 @@ export const GatewayInit = async (
             L1CrossDomainMessengerProxyAddress
         )
         console.log('L1WETHGatewayProxy upgrade success')
-    }
-
-    // L1USDCGatewayProxy init
-    const IL1USDCGatewayProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1USDCGatewayProxyAddress, deployer)
-    if (
-        (await IL1USDCGatewayProxy.implementation()).toLocaleLowerCase() !== L1USDCGatewayImplAddress.toLocaleLowerCase()
-    ) {
-        console.log('Upgrading the L1USDCGateway proxy...')
-        const counterpart: string = predeploys.L2USDCGateway
-
-        if (!ethers.utils.isAddress(counterpart)
-            || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
-            || !ethers.utils.isAddress(L1CrossDomainMessengerProxyAddress)
-        ) {
-            console.error('please check your address')
-            return ''
-        }
-        // Upgrade and initialize the proxy.
-        await IL1USDCGatewayProxy.connect(deployer).upgradeToAndCall(
-            L1USDCGatewayImplAddress,
-            L1USDCGatewayFactory.interface.encodeFunctionData('initialize', [
-                counterpart,
-                L1GatewayRouterProxyAddress,
-                L1CrossDomainMessengerProxyAddress
-            ])
-        )
-        await awaitCondition(
-            async () => {
-                return (
-                    (await IL1USDCGatewayProxy.implementation()).toLocaleLowerCase() === L1USDCGatewayImplAddress.toLocaleLowerCase()
-                )
-            },
-            3000,
-            1000
-        )
-        const contractTmp = new ethers.Contract(
-            L1USDCGatewayProxyAddress,
-            L1USDCGatewayFactory.interface,
-            deployer,
-        )
-        await assertContractVariable(
-            contractTmp,
-            'counterpart',
-            counterpart
-        )
-        await assertContractVariable(
-            contractTmp,
-            'router',
-            L1GatewayRouterProxyAddress
-        )
-        await assertContractVariable(
-            contractTmp,
-            'messenger',
-            L1CrossDomainMessengerProxyAddress
-        )
-        console.log('L1USDCGatewayProxy upgrade success')
     }
 
     // IEnforcedTxGatewayProxy init

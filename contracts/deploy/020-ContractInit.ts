@@ -76,6 +76,7 @@ export const ContractInit = async (
         const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
         const L1Staking = await hre.ethers.getContractAt(ContractFactoryName.L1Staking, L1StakingProxyAddress, deployer)
         const whiteListAdd = config.l2SequencerAddresses
+        console.log("Add sequencer address to white list ", config.l2SequencerAddresses)
         // set sequencer to white list
         await L1Staking.updateWhitelist(whiteListAdd, [])
         for (let i = 0; i < config.l2SequencerAddresses.length; i++) {
@@ -96,23 +97,19 @@ export const ContractInit = async (
     // ------------------ router init -----------------
     {
         const L1WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
-        const L1USDCAddress = getContractAddressByName(path, ImplStorageName.USDC)
-
         const L1WETHGatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.L1WETHGatewayProxyStorageName)
-        const L1USDCGatewayProxyAddress = getContractAddressByName(path, ProxyStorageName.L1USDCGatewayProxyStorageName)
 
         const L1GatewayRouterProxyAddress = getContractAddressByName(path, ProxyStorageName.L1GatewayRouterProxyStorageName)
         const l1GatewayRouter = await hre.ethers.getContractAt(ContractFactoryName.L1GatewayRouter, L1GatewayRouterProxyAddress, deployer)
 
         // set token gateway
-        const tokens = [L1WETHAddress,L1USDCAddress]
-        const gateways = [L1WETHGatewayProxyAddress,L1USDCGatewayProxyAddress]
+        const tokens = [L1WETHAddress]
+        const gateways = [L1WETHGatewayProxyAddress]
         await l1GatewayRouter.setERC20Gateway(tokens, gateways)
         await awaitCondition(
             async () => {
                 return (
-                    (await l1GatewayRouter.getERC20Gateway(L1WETHAddress)).toLocaleLowerCase() === L1WETHGatewayProxyAddress.toLocaleLowerCase() &&
-                    (await l1GatewayRouter.getERC20Gateway(L1USDCAddress)).toLocaleLowerCase() === L1USDCGatewayProxyAddress.toLocaleLowerCase()
+                    (await l1GatewayRouter.getERC20Gateway(L1WETHAddress)).toLocaleLowerCase() === L1WETHGatewayProxyAddress.toLocaleLowerCase()
                 )
             },
             3000,

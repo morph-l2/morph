@@ -37,8 +37,6 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		L1ERC1155GatewayProxy:       address1,
 		L1WETHGatewayProxy:          address1,
 		L1WETH:                      address1,
-		L1USDC:                      address1,
-		L1USDCGatewayProxy:          address1,
 		L1WithdrawLockERC20Gateway:  address1,
 
 		GasPriceOracleOverhead: 1,
@@ -62,20 +60,17 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 
 		GovVotingDuration:     1000,
 		GovBatchBlockInterval: 20,
-		GovBatchMaxBytes:      124928,
 		GovRollupEpoch:        600,
 		GovBatchTimeout:       100,
-		GovBatchMaxChunks:     15,
 
 		// MorphToken
-		MorphTokenOwner:              address1,
-		MorphTokenName:               "Morph Token",
-		MorphTokenSymbol:             "Morph",
-		MorphTokenInitialSupply:      1000000000,
-		MorphTokenDailyInflationRate: 1,
+		//MorphTokenOwner:              address1,
+		//MorphTokenName:               "Morph Token",
+		//MorphTokenSymbol:             "Morph",
+		//MorphTokenInitialSupply:      1000000000,
+		//MorphTokenDailyInflationRate: 1,
 
 		FundDevAccounts: true,
-		MaxTxPerBlock:   1000,
 	}
 	curHeader := &types.Header{}
 	curHeader.BaseFee = new(big.Int).SetUint64(1)

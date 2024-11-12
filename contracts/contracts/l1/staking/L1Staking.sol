@@ -18,7 +18,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice rollup Contract
     address public rollupContract;
 
-    /// @notice staking value, immutable
+    /// @notice staking value
     uint256 public stakingValue;
 
     /// @notice exit lock blocks
@@ -254,6 +254,15 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         emit SlashRemainingClaimed(receiver, _slashRemaining);
     }
 
+    /// @notice update staking value
+    /// @param _stakingValue    staking value
+    function updateStakingValue(uint256 _stakingValue) external onlyOwner {
+        require(_stakingValue > 0 && _stakingValue != stakingValue, "invalid staking value");
+        uint256 _oldStakingValue = stakingValue;
+        stakingValue = _stakingValue;
+        emit StakingValueUpdated(_oldStakingValue, stakingValue);
+    }
+
     /// @notice update gas limit of add staker
     /// @param _gasLimitAdd       cross-chain gas limit add staker
     function updateGasLimitAddStaker(uint256 _gasLimitAdd) external onlyOwner {
@@ -306,7 +315,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param receiver  receiver address
     function claimWithdrawal(address receiver) external nonReentrant {
         require(withdrawals[_msgSender()] > 0, "withdrawal not exist");
-        require(withdrawals[_msgSender()] < block.number, "withdrawal locked");
+        require(withdrawals[_msgSender()] <= block.number, "withdrawal locked");
 
         delete withdrawals[_msgSender()];
         _cleanStakerStore();
@@ -414,7 +423,7 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         stakerAddrs = new address[](stakersLength);
         uint256 index = 0;
-        for (uint8 i = 1; i < 255; i++) {
+        for (uint8 i = 1; i <= 255; i++) {
             if ((bitmap & (1 << i)) > 0) {
                 stakerAddrs[index] = stakerSet[i - 1];
                 index = index + 1;

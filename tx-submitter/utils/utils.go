@@ -173,18 +173,14 @@ func ParseNonce(s string) (uint64, uint64, error) {
 	}
 }
 
-func ParseL1MessageCnt(chunks []hexutil.Bytes) uint64 {
+func ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
 
 	var l1msgcnt uint64
-
-	for _, v := range chunks {
-		bknm := v[0]
-		chunkbs := v[1:]
-		for i := 0; i < int(bknm); i++ {
-			l1msgcnt += uint64(binary.BigEndian.Uint16(chunkbs[58:60]))
-			chunkbs = chunkbs[60:]
-		}
-
+	blockNum := binary.BigEndian.Uint16(blockContexts[:2])
+	remainingBz := blockContexts[2:]
+	for i := 0; i < int(blockNum); i++ {
+		l1msgcnt += uint64(binary.BigEndian.Uint16(remainingBz[58:60]))
+		remainingBz = remainingBz[60:]
 	}
 
 	return l1msgcnt

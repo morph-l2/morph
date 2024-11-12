@@ -3,7 +3,7 @@
     "rules": {
         "max-line-length": [
             "error",
-            200
+            300
         ],
         "avoid-suicide": "error",
         "no-console": "error",

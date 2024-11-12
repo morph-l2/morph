@@ -40,6 +40,11 @@ interface IL1Staking {
     /// @param remove  addresses removed
     event WhitelistUpdated(address[] add, address[] remove);
 
+    /// @notice staking value updated
+    /// @param oldStakingValue    old staking value
+    /// @param newStakingValue    new staking value
+    event StakingValueUpdated(uint256 oldStakingValue, uint256 newStakingValue);
+
     /// @notice gas limit add staker updated
     /// @param oldGasLimit    old gas limit
     /// @param newGasLimit    new gas limit

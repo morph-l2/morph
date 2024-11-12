@@ -364,7 +364,6 @@ contract L2TxFeeVaultTest is DSTestPlus {
     }
 
     function test_updateMessenger_notOwner_reverts() public {
-        address oldMessenger = vault.messenger();
         address newMessenger = address(1);
         hevm.prank(address(123));
         hevm.expectRevert("caller is not the owner");
@@ -383,7 +382,6 @@ contract L2TxFeeVaultTest is DSTestPlus {
     }
 
     function test_updateRecipient_notOwner_reverts() public {
-        address oldRecipient = vault.messenger();
         address newRecipient = address(1);
         hevm.prank(address(123));
         hevm.expectRevert("caller is not the owner");
@@ -402,7 +400,6 @@ contract L2TxFeeVaultTest is DSTestPlus {
     }
 
     function test_updateMinWithdrawAmount_notOwner_reverts() public {
-        uint256 oldAmount = vault.minWithdrawAmount();
         uint256 newAmount = 20 ether;
         hevm.prank(address(123));
         hevm.expectRevert("caller is not the owner");

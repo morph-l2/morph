@@ -26,13 +26,15 @@ export const AdminTransferByProxyStorageName = async (
 
     const IProxyContract = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, ProxyAddr, deployer)
     {
-        const implAddr = (await IProxyContract.implementation()).toLocaleLowerCase()
-        const admin = (await IProxyContract.admin()).toLocaleLowerCase()
-        if (implAddr === EmptyContractImplAddr.toLocaleLowerCase()) {
-            return `Proxy implementation address ${implAddr} should not be empty contract address ${EmptyContractImplAddr}`
-        }
-        if (admin !== deployerAddr) {
-            return `Proxy admin address ${admin} should deployer address ${deployerAddr}`
+        if (storageName != ProxyStorageName.L1USDCGatewayProxyStorageName) {
+            const implAddr = (await IProxyContract.implementation()).toLocaleLowerCase()
+            const admin = (await IProxyContract.admin()).toLocaleLowerCase()
+            if (implAddr === EmptyContractImplAddr.toLocaleLowerCase()) {
+                return `Proxy implementation address ${implAddr} should not be empty contract address ${EmptyContractImplAddr}`
+            }
+            if (admin !== deployerAddr) {
+                return `Proxy admin address ${admin} should deployer address ${deployerAddr}`
+            }
         }
     }
     console.log(`change ${storageName} admin transfer from ${deployerAddr} to ProxyAdmin ${ProxyAdminImplAddr} `)

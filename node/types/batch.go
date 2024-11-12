@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"morph-l2/node/zstd"
+
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/crypto"
@@ -84,4 +86,88 @@ func DecodeBatchHeader(data []byte) (BatchHeader, error) {
 		EncodedBytes: data,
 	}
 	return b, nil
+}
+
+type BatchData struct {
+	blockContexts []byte
+	l1TxHashes    []byte
+	blockNum      uint16
+	txsPayload    []byte
+
+	hash *common.Hash
+}
+
+func NewBatchData() *BatchData {
+	return &BatchData{
+		blockContexts: make([]byte, 0),
+		l1TxHashes:    make([]byte, 0),
+		txsPayload:    make([]byte, 0),
+	}
+}
+
+func (cks *BatchData) Append(blockContext, txsPayload []byte, l1TxHashes []common.Hash) {
+	if cks == nil {
+		return
+	}
+	cks.blockContexts = append(cks.blockContexts, blockContext...)
+	cks.txsPayload = append(cks.txsPayload, txsPayload...)
+	cks.blockNum++
+	for _, txHash := range l1TxHashes {
+		cks.l1TxHashes = append(cks.l1TxHashes, txHash.Bytes()...)
+	}
+}
+
+// Encode encodes the data into bytes
+// Below is the encoding, total 60*n+1+m bytes.
+// Field           Bytes       Type            Index       Comments
+// numBlocks       2           uint16          0           The number of blocks in this chunk
+// block[0]        60          BlockContext    1           The first block in this chunk
+// ......
+// block[i]        60          BlockContext    60*i+1      The (i+1)'th block in this chunk
+// ......
+// block[n-1]      60          BlockContext    60*n-59     The last block in this chunk
+func (cks *BatchData) Encode() ([]byte, error) {
+	if cks == nil || cks.blockNum == 0 {
+		return []byte{}, nil
+	}
+
+	data := make([]byte, 2)
+	binary.BigEndian.PutUint16(data, cks.blockNum)
+	data = append(data, cks.blockContexts...)
+	return data, nil
+}
+
+func (cks *BatchData) IsEmpty() bool {
+	return cks == nil || len(cks.blockContexts) == 0
+}
+
+func (cks *BatchData) DataHash() common.Hash {
+	if cks.hash != nil {
+		return *cks.hash
+	}
+
+	var bz []byte
+	for i := 0; i < int(cks.blockNum); i++ {
+		bz = append(bz, cks.blockContexts[i*60:i*60+58]...)
+	}
+	bz = append(bz, cks.l1TxHashes...)
+	return crypto.Keccak256Hash(bz)
+}
+
+func (cks *BatchData) TxsPayload() []byte {
+	return cks.txsPayload
+}
+
+func (cks *BatchData) BlockNum() uint16 { return cks.blockNum }
+
+func (cks *BatchData) EstimateCompressedSizeWithNewPayload(txPayload []byte) (bool, error) {
+	blobBytes := append(cks.txsPayload, txPayload...)
+	if len(blobBytes) <= MaxBlobBytesSize {
+		return false, nil
+	}
+	compressed, err := zstd.CompressBatchBytes(blobBytes)
+	if err != nil {
+		return false, err
+	}
+	return len(compressed) > MaxBlobBytesSize, nil
 }
