@@ -158,10 +158,8 @@ contract EnforcedTxGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, Pa
     function setPause(bool _status) external onlyOwner {
         if (_status) {
             _pause();
-            emit Paused(_msgSender());
         } else {
             _unpause();
-            emit Unpaused(_msgSender());
         }
     }
 
