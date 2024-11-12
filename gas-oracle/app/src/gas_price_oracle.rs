@@ -134,6 +134,9 @@ async fn start_updater(
     base_fee_updater: BaseFeeUpdater,
     mut scalar_updater: ScalarUpdater,
 ) {
+    base_fee_updater.update().await.expect("base_fee_update err");
+    scalar_updater.update().await.expect("overhead_update err");
+
     tokio::spawn(async move {
         let mut update_times = 0;
         loop {

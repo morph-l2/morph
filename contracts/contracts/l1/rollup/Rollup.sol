@@ -97,6 +97,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice prove remaining
     uint256 public proveRemaining;
 
+    /// @notice committedStateRoots
+    mapping(uint256 batchIndex => bytes32 stateRoot) public committedStateRoots;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -124,7 +127,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      ***************/
 
     /// @notice constructor
-    /// @param _chainID     The chain ID
+    /// @param _chainID The chain ID
     constructor(uint64 _chainID) {
         LAYER_2_CHAIN_ID = _chainID;
         _disableInitializers();
@@ -192,6 +195,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         committedBatches[_batchIndex] = _batchHash;
         batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0, 0);
 
+        committedStateRoots[_batchIndex] = _postStateRoot;
         finalizedStateRoots[_batchIndex] = _postStateRoot;
         lastCommittedBatchIndex = _batchIndex;
         lastFinalizedBatchIndex = _batchIndex;
@@ -226,9 +230,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // the variable `batchPtr` will be reused later for the current batch
         (uint256 _batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr);
-        require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
         require(committedBatches[_batchIndex + 1] == bytes32(0), "batch already committed");
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
+        require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
+        require(committedStateRoots[_batchIndex] == batchDataInput.prevStateRoot, "incorrect previous state root");
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0.getTotalL1MessagePopped(_batchPtr);
         // compute the data hash for batch
@@ -278,8 +283,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
             BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
+            committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
             uint256 proveRemainingTime = 0;
-            if (inChallenge){
+            if (inChallenge) {
                 // Make the batch finalize time longer than the time required for the current challenge
                 proveRemainingTime = proofWindow + challenges[batchChallenged].startTime - block.timestamp;
             }
@@ -500,7 +506,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
-
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(!batchChallengedSuccess(_batchIndex), "batch should be revert");
@@ -530,6 +535,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         );
 
         delete batchDataStore[_batchIndex - 1];
+        delete committedStateRoots[_batchIndex - 1];
         delete challenges[_batchIndex - 1];
 
         emit FinalizeBatch(
@@ -737,7 +743,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         return l2BlockNumber;
     }
 
-    /// @dev Internal function to commit a batch with version 1.
+    /// @dev Internal function to commit a batch with version 0.
     /// @param _blockContexts The encoded block contexts to commit.
     /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.

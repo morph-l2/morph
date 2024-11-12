@@ -15,8 +15,12 @@ const metricsNamespace = "submitter"
 type Metrics struct {
 	RpcErrors             prometheus.Counter
 	WalletBalance         prometheus.Gauge
+	RollupCostSum         prometheus.Counter
+	FinalizeCostSum       prometheus.Counter
 	RollupCost            prometheus.Gauge
 	FinalizeCost          prometheus.Gauge
+	CollectedL1FeeSum     prometheus.Counter
+	CollectedL1Fee        prometheus.Gauge
 	IndexerBlockProcessed prometheus.Gauge
 }
 
@@ -33,6 +37,16 @@ func NewMetrics() *Metrics {
 			Help:      "Wallet balance",
 			Namespace: metricsNamespace,
 		}),
+		RollupCostSum: promauto.NewCounter(prometheus.CounterOpts{
+			Name:      "submitter_rollup_cost_sum",
+			Help:      "Rollup cost",
+			Namespace: metricsNamespace,
+		}),
+		FinalizeCostSum: promauto.NewCounter(prometheus.CounterOpts{
+			Name:      "submitter_finalize_cost_sum",
+			Help:      "Finalize cost",
+			Namespace: metricsNamespace,
+		}),
 		RollupCost: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "submitter_rollup_cost",
 			Help:      "Rollup cost",
@@ -43,6 +57,17 @@ func NewMetrics() *Metrics {
 			Help:      "Finalize cost",
 			Namespace: metricsNamespace,
 		}),
+		CollectedL1Fee: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "submitter_collected_l1_fee",
+			Help:      "Collected L1 fee for every batch",
+			Namespace: metricsNamespace,
+		}),
+		CollectedL1FeeSum: promauto.NewCounter(prometheus.CounterOpts{
+			Name:      "submitter_collected_l1_fee_sum",
+			Help:      "Collected L1 fee for all batches committed ",
+			Namespace: metricsNamespace,
+		}),
+
 		IndexerBlockProcessed: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "submitter_indexer_block_processed",
 			Help:      "Indexer block processed",
@@ -70,11 +95,18 @@ func (m *Metrics) IncRpcErrors() {
 }
 
 func (m *Metrics) SetRollupCost(cost float64) {
+	m.RollupCostSum.Add(cost)
 	m.RollupCost.Set(cost)
 }
 
 func (m *Metrics) SetFinalizeCost(cost float64) {
+	m.FinalizeCostSum.Add(cost)
 	m.FinalizeCost.Set(cost)
+}
+
+func (m *Metrics) SetCollectedL1Fee(cost float64) {
+	m.CollectedL1FeeSum.Add(cost)
+	m.CollectedL1Fee.Set(cost)
 }
 
 func (m *Metrics) SetIndexerBlockProcessed(blockNumber uint64) {

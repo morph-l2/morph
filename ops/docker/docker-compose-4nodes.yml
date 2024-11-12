@@ -84,7 +84,7 @@ services:
     # APIs to allow for proof-of-stake consensus via Prysm.
   l1:
     container_name: l1-geth
-    image: ethereum/client-go:v1.13.12
+    image: ethereum/client-go:v1.14.11
     command:
       - --http
       - --http.api=web3,debug,eth,txpool,net,engine

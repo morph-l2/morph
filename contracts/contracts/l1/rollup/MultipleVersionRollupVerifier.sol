@@ -32,6 +32,9 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
     /// @dev Thrown when the given start batch index is smaller than `latestVerifier.startBatchIndex`.
     error ErrorStartBatchIndexTooSmall();
 
+    /// @dev Verifier not found
+    error ErrorVerifierNotFound();
+
     /*************
      * Constants *
      *************/
@@ -97,14 +100,22 @@ contract MultipleVersionRollupVerifier is IRollupVerifier, Ownable {
         Verifier memory _verifier = latestVerifier[_version];
 
         if (_verifier.startBatchIndex > _batchIndex) {
+            bool found;
             uint256 _length = legacyVerifiers[_version].length;
             // In most case, only last few verifier will be used by `Rollup`.
             // So, we use linear search instead of binary search.
             unchecked {
                 for (uint256 i = _length; i > 0; --i) {
                     _verifier = legacyVerifiers[_version][i - 1];
-                    if (_verifier.startBatchIndex <= _batchIndex) break;
+                    if (_verifier.startBatchIndex <= _batchIndex) {
+                        found = true;
+                        break;
+                    }
                 }
+            }
+
+            if (!found) {
+                revert ErrorVerifierNotFound();
             }
         }
 
