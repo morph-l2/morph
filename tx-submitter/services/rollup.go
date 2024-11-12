@@ -632,13 +632,12 @@ func (r *Rollup) rollup() error {
 		return err
 	}
 	rollupBatch := bindings.IRollupBatchDataInput{
-		Version:                uint8(batch.Version),
-		ParentBatchHeader:      batch.ParentBatchHeader,
-		BlockContexts:          batch.BlockContexts,
-		SkippedL1MessageBitmap: batch.SkippedL1MessageBitmap,
-		PrevStateRoot:          batch.PrevStateRoot,
-		PostStateRoot:          batch.PostStateRoot,
-		WithdrawalRoot:         batch.WithdrawRoot,
+		Version:           uint8(batch.Version),
+		ParentBatchHeader: batch.ParentBatchHeader,
+		BlockContexts:     batch.BlockContexts,
+		PrevStateRoot:     batch.PrevStateRoot,
+		PostStateRoot:     batch.PostStateRoot,
+		WithdrawalRoot:    batch.WithdrawRoot,
 	}
 
 	// tip and cap

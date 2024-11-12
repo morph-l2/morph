@@ -276,13 +276,12 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	}
 
 	rollupBatchData := args[0].(struct {
-		Version                uint8     "json:\"version\""
-		ParentBatchHeader      []uint8   "json:\"parentBatchHeader\""
-		BlockContexts          []uint8   "json:\"blockContexts\""
-		SkippedL1MessageBitmap []uint8   "json:\"skippedL1MessageBitmap\""
-		PrevStateRoot          [32]uint8 "json:\"prevStateRoot\""
-		PostStateRoot          [32]uint8 "json:\"postStateRoot\""
-		WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
+		Version           uint8     "json:\"version\""
+		ParentBatchHeader []uint8   "json:\"parentBatchHeader\""
+		BlockContexts     []uint8   "json:\"blockContexts\""
+		PrevStateRoot     [32]uint8 "json:\"prevStateRoot\""
+		PostStateRoot     [32]uint8 "json:\"postStateRoot\""
+		WithdrawalRoot    [32]uint8 "json:\"withdrawalRoot\""
 	})
 
 	// query blob
@@ -306,14 +305,13 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	}
 
 	batch := geth.RPCRollupBatch{
-		Version:                uint(rollupBatchData.Version),
-		ParentBatchHeader:      rollupBatchData.ParentBatchHeader,
-		BlockContexts:          rollupBatchData.BlockContexts,
-		SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
-		PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
-		PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
-		WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
-		Sidecar:                bts,
+		Version:           uint(rollupBatchData.Version),
+		ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+		BlockContexts:     rollupBatchData.BlockContexts,
+		PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+		PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+		WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+		Sidecar:           bts,
 	}
 
 	rollupData, err := d.parseBatch(batch)
