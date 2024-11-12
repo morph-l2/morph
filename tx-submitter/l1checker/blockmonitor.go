@@ -10,6 +10,8 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 )
 
+const blockTime = time.Second * 12
+
 type IBlockMonitor interface {
 	BlockNotIncreasedIn(time.Duration) bool
 }
@@ -24,7 +26,7 @@ type BlockMonitor struct {
 
 func NewBlockMonitor(notGrowthInBlocks int64, client iface.L1Client) *BlockMonitor {
 	return &BlockMonitor{
-		blockGenerateTime:    time.Second * 12,
+		blockGenerateTime:    blockTime,
 		latestBlockTime:      time.Time{},
 		noGrowthBlockCntTime: time.Second * time.Duration(notGrowthInBlocks) * 12,
 		client:               client,
