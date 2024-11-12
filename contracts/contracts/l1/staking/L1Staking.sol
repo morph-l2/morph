@@ -222,6 +222,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         uint256 valueSum;
         for (uint256 i = 0; i < sequencers.length; i++) {
+            if (sequencers[i] == address(0)) {
+                continue;
+            }
             if (withdrawals[sequencers[i]] > 0) {
                 delete withdrawals[sequencers[i]];
                 valueSum += stakingValue;
