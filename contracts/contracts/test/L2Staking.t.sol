@@ -160,6 +160,26 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice test add staker: Reverts if invalid nonce
+     */
+    function test_addStakers_invalidNonce_reverts() public {
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        assertEq(SEQUENCER_SIZE, l2Staking.getStakerAddressesLength());
+        hevm.startPrank(address(l2CrossDomainMessenger));
+
+        address staker = address(uint160(beginSeq));
+        Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+
+        uint256 nonce = l2Staking.nonce();
+        hevm.expectRevert("invalid nonce");
+        l2Staking.addStaker(nonce + 1, stakerInfo);
+    }
+
+    /**
      * @notice test add staker
      */
     function test_addStakers_succeeds() public {
@@ -278,6 +298,36 @@ contract L2StakingTest is L2StakingBaseTest {
         // Expect revert due to unauthorized call.
         hevm.expectRevert("staking: only other staking contract allowed");
         l2Staking.removeStakers(0, removed);
+    }
+
+    /**
+     * @notice test removed staker: Reverts if invalid nonce
+     */
+    function test_removeStakers_invalidNonce_reverts() public {
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+
+        uint256 nonce = 0;
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
+        }
+
+        address[] memory removed = new address[](2);
+        removed[0] = address(uint160(beginSeq + 1));
+        removed[1] = address(uint160(beginSeq + 4));
+
+        hevm.expectRevert("invalid nonce");
+        l2Staking.removeStakers(nonce + 1, removed);
+
+        hevm.expectRevert("invalid nonce");
+        l2Staking.removeStakers(nonce - 1, removed);
     }
 
     /**
