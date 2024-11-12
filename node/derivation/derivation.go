@@ -22,6 +22,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
+	nodecommon "morph-l2/node/common"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
 	"morph-l2/node/validator"
@@ -35,7 +36,7 @@ var (
 type Derivation struct {
 	ctx                   context.Context
 	syncer                *sync.Syncer
-	l1Client              DeployContractBackend
+	l1Client              *ethclient.Client
 	RollupContractAddress common.Address
 	confirmations         rpc.BlockNumber
 	l2Client              *types.RetryableClient
@@ -50,6 +51,7 @@ type Derivation struct {
 
 	cancel context.CancelFunc
 
+	startHeight         uint64
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
@@ -107,6 +109,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		l2Client:              types.NewRetryableClient(aClient, eClient, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))),
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
+		startHeight:           cfg.StartHeight,
 		fetchBlockRange:       cfg.FetchBlockRange,
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
@@ -155,8 +158,17 @@ func (d *Derivation) Stop() {
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
-	latest := d.syncer.LatestSynced()
-	start := *latestDerivation + 1
+	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
+	if err != nil {
+		d.logger.Error("get latest block number failed", "err", err)
+		return
+	}
+	var start uint64
+	if latestDerivation == nil {
+		start = d.startHeight
+	} else {
+		start = *latestDerivation + 1
+	}
 	end := latest
 	if latest < start {
 		d.logger.Info("latest less than start", "latest", latest, "start", start)
@@ -170,9 +182,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.logger.Error("eth_getLogs failed", "err", err)
 		return
 	}
-	latestBatchIndex, err := d.rollup.LastCommittedBatchIndex(&bind.CallOpts{
-		BlockNumber: big.NewInt(int64(latest)),
-	})
+	latestBatchIndex, err := d.rollup.LastCommittedBatchIndex(nil)
 	if err != nil {
 		d.logger.Error("query rollup latestCommitted batch Index failed", "err", err)
 		return
@@ -347,6 +357,9 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 		if err != nil {
 			return fmt.Errorf("get l1 message error:%v", err)
 		}
+		if len(l1Messages) != int(block.l1MsgNum) {
+			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, l1Messages)
+		}
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
 			for _, l1Message := range l1Messages {
@@ -402,4 +415,8 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	return lastHeader, nil
+}
+
+func (d *Derivation) getLatestConfirmedBlockNumber(ctx context.Context) (uint64, error) {
+	return nodecommon.GetLatestConfirmedBlockNumber(ctx, d.l1Client, d.confirmations)
 }

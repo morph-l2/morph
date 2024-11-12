@@ -13,10 +13,6 @@ import (
 	"morph-l2/node/types"
 )
 
-//type Chunk struct {
-//	blockContextes []*BlockContext
-//}
-
 type BlockContext struct {
 	Number    uint64 `json:"number"`
 	Timestamp uint64 `json:"timestamp"`
