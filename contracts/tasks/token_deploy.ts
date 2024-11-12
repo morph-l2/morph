@@ -576,10 +576,12 @@ task("deploy-l2-MigrationUSDC")
     .addParam("proxyadmin")
     .addParam("oldtoken")
     .addParam("newtoken")
+    .addParam("recipient")
     .setAction(async (taskArgs, hre) => {
         // params check
         if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
             !ethers.utils.isAddress(taskArgs.oldtoken) ||
+            !ethers.utils.isAddress(taskArgs.recipient) ||
             !ethers.utils.isAddress(taskArgs.newtoken)
         ) {
             console.error(`address params check failed`)
@@ -595,7 +597,9 @@ task("deploy-l2-MigrationUSDC")
         const proxy = await TransparentProxyFactory.deploy(
             contract.address, //logic
             taskArgs.proxyadmin, //admin
-            ContractFactory.interface.encodeFunctionData("initialize",[]
+            ContractFactory.interface.encodeFunctionData("initialize",[
+                taskArgs.recipient
+            ]
             )
         )
         await proxy.deployed()
