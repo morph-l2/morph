@@ -292,6 +292,12 @@ var (
 		Value:  100,
 		EnvVar: prefixEnvVar("EVENT_INDEX_STEP"),
 	}
+	LeveldbPathNameFlag = cli.StringFlag{
+		Name:   "leveldb_path_name",
+		Usage:  "The path name of the leveldb",
+		EnvVar: prefixEnvVar("LEVELDB_PATH_NAME"),
+		Value:  "submitter-leveldb",
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -345,6 +351,7 @@ var optionalFlags = []cli.Flag{
 	RotatorBufferFlag,
 	StakingEventStoreFileFlag,
 	EventIndexStepFlag,
+	LeveldbPathNameFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

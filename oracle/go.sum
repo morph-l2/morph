@@ -175,6 +175,8 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJ
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/morph-l2/externalsign v0.3.0 h1:eVGON//ofO5eJSZvJQW+8HUeaGlg4seaS99SzS8GQc4=
 github.com/morph-l2/externalsign v0.3.0/go.mod h1:b6NJ4GUiiG/gcSJsp3p8ExsIs4ZdphlrVALASnVoGJE=
+github.com/morph-l2/externalsign v0.3.1 h1:UYFDZFB0L85A4rDvuwLNBiGEi0kSmg9AZ2v8Q5O4dQo=
+github.com/morph-l2/externalsign v0.3.1/go.mod h1:b6NJ4GUiiG/gcSJsp3p8ExsIs4ZdphlrVALASnVoGJE=
 github.com/morph-l2/go-ethereum v1.10.14-0.20241021080617-0ff2a10a9625 h1:4+cbRSS4lacSIC81RXxvA04UHhGVC4SHVn+bKeqhPSM=
 github.com/morph-l2/go-ethereum v1.10.14-0.20241021080617-0ff2a10a9625/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
 github.com/morph-l2/tendermint v0.3.1 h1:yqyM3/p9sCNmFSsIFeIxS5RBgXHWqbtyNHx16I9cIZ0=

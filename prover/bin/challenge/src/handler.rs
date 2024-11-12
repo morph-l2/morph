@@ -138,7 +138,10 @@ impl ChallengeHandler {
             // Step2. detect challenge events from the past 3 days.
             let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
                 Some(value) => value,
-                None => continue,
+                None => {
+                    METRICS.detected_batch_index.set(0i64);
+                    continue;
+                }
             };
             log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
             METRICS.detected_batch_index.set(batch_index as i64);

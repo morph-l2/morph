@@ -121,6 +121,8 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertFalse(rollup.isBatchFinalized(1));
         bytes32 batchHash1 = rollup.committedBatches(1);
         assertEq(batchHash1, bytes32(0x135ab7153517794b38566492dee2a60426285da9764f8ad07da93cf7dd560a59));
+        bytes32 stateRoot1 = rollup.committedStateRoots(1);
+        assertEq(stateRoot1, bytesData1);
 
         emit log_bytes32(batchHash0);
         // finalize batch1
@@ -132,6 +134,9 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertEq(rollup.lastFinalizedBatchIndex(), 1);
         assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(0));
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
+        // check deleted values
+        assertFalse(rollup.batchExist(0));
+        assertEq(rollup.committedStateRoots(0), 0);
 
         // commit batch2 with 4 blocks, correctly
         // 1. block0 has 3 tx, no L1 messages
@@ -204,6 +209,8 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         assertFalse(rollup.isBatchFinalized(2));
         bytes32 batchHash2 = rollup.committedBatches(2);
         assertEq(batchHash2, bytes32(0x71259c7573b1db248381cef917270058e2ca20620c6eae975a1aa76b9858392a));
+        bytes32 stateRoot2 = rollup.committedStateRoots(2);
+        assertEq(stateRoot2, bytesData1);
 
         // verify committed batch correctly
         hevm.startPrank(address(0));
@@ -211,11 +218,16 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         rollup.finalizeBatch(batchHeader2);
         hevm.stopPrank();
 
+        // finalize batch2
         assertTrue(rollup.isBatchFinalized(2));
         assertEq(rollup.finalizedStateRoots(2), bytesData1);
         assertTrue(rollup.withdrawalRoots(bytesData4));
         assertEq(rollup.lastFinalizedBatchIndex(), 2);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 265);
+        // check deleted values
+        assertFalse(rollup.batchExist(1));
+        assertEq(rollup.committedStateRoots(1), 0);
+
         // 1 ~ 4, zero
         for (uint256 i = 1; i < 4; i++) {
             assertFalse(l1MessageQueueWithGasPriceOracle.isMessageSkipped(i));
@@ -354,12 +366,15 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
-        // wrong bitmap length, revert
+        // incorrect batch index, revert
+        assembly {
+            mstore(add(batchHeader0, add(0x20, 1)), shl(192, 1)) // change batch index to 1
+        }
         hevm.startPrank(alice);
-        hevm.expectRevert("wrong bitmap length");
+        hevm.expectRevert("incorrect batch index");
         batchDataInput = IRollup.BatchDataInput(
             0,
-            new bytes(250),
+            batchHeader0,
             new bytes(1),
             new bytes(0),
             stateRoot,
@@ -368,6 +383,9 @@ contract RollupTest is L1MessageBaseTest {
         );
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
+        assembly {
+            mstore(add(batchHeader0, add(0x20, 1)), 0) // change back
+        }
 
         // incorrect parent batch hash, revert
         assembly {
@@ -390,6 +408,36 @@ contract RollupTest is L1MessageBaseTest {
             mstore(add(batchHeader0, add(0x20, 25)), 1) // change back
             mstore(add(batchHeader0, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014)
         }
+
+        // incorrect previous state root, revert
+        hevm.startPrank(alice);
+        hevm.expectRevert("incorrect previous state root");
+        batchDataInput = IRollup.BatchDataInput(
+            0,
+            batchHeader0,
+            new bytes(1),
+            new bytes(0),
+            bytes32(uint256(2)),
+            stateRoot,
+            getTreeRoot()
+        );
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        hevm.stopPrank();
+
+        // wrong bitmap length, revert
+        hevm.startPrank(alice);
+        hevm.expectRevert("wrong bitmap length");
+        batchDataInput = IRollup.BatchDataInput(
+            0,
+            new bytes(250),
+            new bytes(1),
+            new bytes(0),
+            stateRoot,
+            stateRoot,
+            getTreeRoot()
+        );
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        hevm.stopPrank();
 
         // no block in batch, revert
         bytes memory batch = new bytes(2);
