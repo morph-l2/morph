@@ -149,16 +149,15 @@ func ValidateConfig(cfg *Config) error {
 			cfg.ExternalSignAppid == "" ||
 			cfg.ExternalSignChain == "" ||
 			cfg.ExternalSignRsaPriv == "") {
-		return fmt.Errorf("invalid external sign config,ExternalSignAddress:%v,ExternalSignUrl:%v,ExternalSignAppid:%v,ExternalSignChain:%vExternalSignRsaPriv:%v",
+		return fmt.Errorf("invalid external sign config,ExternalSignAddress:%v,ExternalSignUrl:%v,ExternalSignAppid:%v,ExternalSignChain:%v",
 			cfg.ExternalSignAddress,
 			cfg.ExternalSignUrl,
 			cfg.ExternalSignAppid,
 			cfg.ExternalSignChain,
-			cfg.ExternalSignRsaPriv,
 		)
 	}
 	if !cfg.ExternalSign && cfg.PrivKey == "" {
-		return fmt.Errorf("invalid privkey,address:%v", cfg.PrivKey)
+		return fmt.Errorf("invalid privkey")
 	}
 	return nil
 }
