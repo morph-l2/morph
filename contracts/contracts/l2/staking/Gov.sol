@@ -50,7 +50,7 @@ contract Gov is IGov, OwnableUpgradeable {
     uint256 public override currentProposalID;
 
     /// @notice the start index of undeleted proposals
-    uint256 private undeletedProposalStart;
+    uint256 public undeletedProposalStart;
 
     /// @notice proposal data
     mapping(uint256 proposalID => ProposalData) public proposalData;
@@ -61,8 +61,8 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice proposal voter info
     mapping(uint256 proposalID => EnumerableSetUpgradeable.AddressSet) internal votes;
 
-    /// @notice latest passed proposal ID
-    uint256 public latestPassedProposalID;
+    /// @notice latest executed proposal ID
+    uint256 public latestExecutedProposalID;
 
     /**********************
      * Function Modifiers *
@@ -149,7 +149,7 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice vote a proposal
     function vote(uint256 proposalID) external onlySequencer {
         require(proposalID <= currentProposalID, "invalid proposalID");
-        require(proposalID > latestPassedProposalID, "expired proposal");
+        require(proposalID > latestExecutedProposalID, "expired proposalID");
         require(proposalID >= undeletedProposalStart, "proposal pruned");
         uint256 expirationTime = proposalInfos[proposalID].expirationTime;
         require(
@@ -188,7 +188,7 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice execute a passed proposal
     /// @param deleteTo      last proposal ID to delete
     function cleanUpExpiredProposals(uint256 deleteTo) external {
-        require(deleteTo < latestPassedProposalID, "only allow to delete the proposal befor latest passed proposal");
+        require(deleteTo < latestExecutedProposalID, "only allow to delete the proposal befor latest passed proposal");
         // when a proposal is passed, the previous proposals will be invalidated and deleted
         for (uint256 i = undeletedProposalStart; i <= deleteTo; i++) {
             delete proposalData[i];
@@ -205,8 +205,13 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice return proposal status. {finished, passed, executed}
     function proposalStatus(uint256 proposalID) public view returns (bool, bool, bool) {
         require(proposalID <= currentProposalID, "invalid proposalID");
-        require(proposalID > latestPassedProposalID, "expired proposal");
+        require(proposalID >= latestExecutedProposalID, "expired proposal");
         require(proposalID >= undeletedProposalStart, "proposal pruned");
+
+        if (proposalID == latestExecutedProposalID) {
+            return (true, true, true);
+        }
+
         bool executed = proposalInfos[proposalID].executed;
         uint256 expirationTime = proposalInfos[proposalID].expirationTime;
         return (
@@ -229,7 +234,7 @@ contract Gov is IGov, OwnableUpgradeable {
 
     /// @notice execute a passed proposal
     function _executeProposal(uint256 proposalID) internal {
-        latestPassedProposalID = proposalID;
+        latestExecutedProposalID = proposalID;
 
         if (batchBlockInterval != proposalData[proposalID].batchBlockInterval) {
             uint256 _oldValue = batchBlockInterval;
