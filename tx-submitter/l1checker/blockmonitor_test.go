@@ -15,9 +15,9 @@ func TestIsGrowth(t *testing.T) {
 	require.Equal(t, false, monitor.IsGrowth())
 
 	monitor.latestBlockTime = time.Now()
-	require.Equal(t, false, monitor.IsGrowth())
+	require.Equal(t, true, monitor.IsGrowth())
 
 	monitor.latestBlockTime = time.Now().Add(-monitor.noGrowthBlockCntTime)
-	require.Equal(t, true, monitor.IsGrowth())
+	require.Equal(t, false, monitor.IsGrowth())
 
 }
