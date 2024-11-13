@@ -223,6 +223,11 @@ var (
 		Usage: "Morph Holesky",
 	}
 
+	DerivationConfirmations = cli.Int64Flag{
+		Name:   "derivation.confirmations",
+		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
+		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
+	}
 	// Logger
 	LogLevel = &cli.StringFlag{
 		Name:   "log.level",
@@ -320,6 +325,7 @@ var Flags = []cli.Flag{
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
+	DerivationConfirmations,
 	L1BeaconAddr,
 
 	// batch rules
