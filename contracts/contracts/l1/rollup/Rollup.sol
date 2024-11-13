@@ -254,19 +254,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (dataHash, _totalNumL1Messages) = _commitBatch(
             batchDataInput.blockContexts,
             _totalL1MessagesPoppedInBatch,
-            _totalL1MessagesPoppedOverall,
-            batchDataInput.skippedL1MessageBitmap
+            _totalL1MessagesPoppedOverall
         );
         unchecked {
             _totalL1MessagesPoppedInBatch += _totalNumL1Messages;
             _totalL1MessagesPoppedOverall += _totalNumL1Messages;
-        }
-        // check the length of bitmap
-        unchecked {
-            require(
-                ((_totalL1MessagesPoppedInBatch + 255) / 256) * 32 == batchDataInput.skippedL1MessageBitmap.length,
-                "wrong bitmap length"
-            );
         }
         assembly {
             _batchIndex := add(_batchIndex, 1) // increase batch index
@@ -274,8 +266,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
 
         {
-            uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
-                batchDataInput.skippedL1MessageBitmap.length;
+            uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
             assembly {
                 _batchPtr := mload(0x40)
                 mstore(0x40, add(_batchPtr, mul(_headerLength, 32)))
@@ -291,7 +282,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
             BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
             BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
-            BatchHeaderCodecV0.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
             BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
@@ -540,7 +530,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         // Pop finalized and non-skipped message from L1MessageQueue.
         _popL1Messages(
-            BatchHeaderCodecV0.getSkippedBitmapPtr(memPtr),
             BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr),
             BatchHeaderCodecV0.getL1MessagePopped(memPtr)
         );
@@ -605,25 +594,19 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      **********************/
 
     /// @dev Internal function to pop finalized l1 messages.
-    /// @param bitmapPtr The memory offset of `skippedL1MessageBitmap`.
     /// @param totalL1MessagePopped The total number of L1 messages popped in all batches including current batch.
     /// @param l1MessagePopped The number of L1 messages popped in current batch.
-    function _popL1Messages(uint256 bitmapPtr, uint256 totalL1MessagePopped, uint256 l1MessagePopped) internal {
+    function _popL1Messages(uint256 totalL1MessagePopped, uint256 l1MessagePopped) internal {
         if (l1MessagePopped == 0) return;
         unchecked {
             uint256 startIndex = totalL1MessagePopped - l1MessagePopped;
-            uint256 bitmap;
 
             for (uint256 i = 0; i < l1MessagePopped; i += 256) {
                 uint256 _count = 256;
                 if (l1MessagePopped - i < _count) {
                     _count = l1MessagePopped - i;
                 }
-                assembly {
-                    bitmap := mload(bitmapPtr)
-                    bitmapPtr := add(bitmapPtr, 0x20)
-                }
-                IL1MessageQueue(messageQueue).popCrossDomainMessage(startIndex, _count, bitmap);
+                IL1MessageQueue(messageQueue).popCrossDomainMessage(startIndex, _count);
                 startIndex += 256;
             }
         }
@@ -758,14 +741,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _blockContexts The encoded block contexts to commit.
     /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
-    /// @param _skippedL1MessageBitmap The bitmap indicates whether each L1 message is skipped or not.
     /// @return _dataHash The computed data hash for this batch.
     /// @return _totalNumL1MessagesInBatch The total number of L1 message popped in current batch
     function _commitBatch(
         bytes memory _blockContexts,
         uint256 _totalL1MessagesPoppedInBatch,
-        uint256 _totalL1MessagesPoppedOverall,
-        bytes calldata _skippedL1MessageBitmap
+        uint256 _totalL1MessagesPoppedOverall
     ) internal view returns (bytes32 _dataHash, uint256 _totalNumL1MessagesInBatch) {
         uint256 batchPtr;
         uint256 startDataPtr;
@@ -802,8 +783,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 dataPtr,
                 _numL1MessagesInBlock,
                 _totalL1MessagesPoppedInBatch,
-                _totalL1MessagesPoppedOverall,
-                _skippedL1MessageBitmap
+                _totalL1MessagesPoppedOverall
             );
             uint256 _numTransactionsInBlock = BatchCodecV0.getNumTransactions(batchPtr);
             require(_numTransactionsInBlock >= _numL1MessagesInBlock, "num txs less than num L1 msgs");
@@ -827,14 +807,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param _numL1Messages                   The number of L1 messages to load.
     /// @param _totalL1MessagesPoppedInBatch    The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall    The total number of L1 messages popped in all batches including current batch.
-    /// @param _skippedL1MessageBitmap          The bitmap indicates whether each L1 message is skipped or not.
     /// @return uint256                         The new memory offset after loading.
     function _loadL1MessageHashes(
         uint256 _ptr,
         uint256 _numL1Messages,
         uint256 _totalL1MessagesPoppedInBatch,
-        uint256 _totalL1MessagesPoppedOverall,
-        bytes calldata _skippedL1MessageBitmap
+        uint256 _totalL1MessagesPoppedOverall
     ) internal view returns (uint256) {
         if (_numL1Messages == 0) {
             return _ptr;
@@ -842,34 +820,16 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         IL1MessageQueue _messageQueue = IL1MessageQueue(messageQueue);
 
         unchecked {
-            uint256 _bitmap;
-            uint256 rem;
             for (uint256 i = 0; i < _numL1Messages; i++) {
-                uint256 quo = _totalL1MessagesPoppedInBatch >> 8;
-                rem = _totalL1MessagesPoppedInBatch & 0xff;
-
-                // load bitmap every 256 bits
-                if (i == 0 || rem == 0) {
-                    assembly {
-                        _bitmap := calldataload(add(_skippedL1MessageBitmap.offset, mul(0x20, quo)))
-                    }
-                }
-                if (((_bitmap >> rem) & 1) == 0) {
-                    // message not skipped
-                    bytes32 _hash = _messageQueue.getCrossDomainMessage(_totalL1MessagesPoppedOverall);
-                    assembly {
-                        mstore(_ptr, _hash)
-                        _ptr := add(_ptr, 0x20)
-                    }
+                bytes32 _hash = _messageQueue.getCrossDomainMessage(_totalL1MessagesPoppedOverall);
+                assembly {
+                    mstore(_ptr, _hash)
+                    _ptr := add(_ptr, 0x20)
                 }
 
                 _totalL1MessagesPoppedInBatch += 1;
                 _totalL1MessagesPoppedOverall += 1;
             }
-
-            // check last L1 message is not skipped, _totalL1MessagesPoppedInBatch must > 0
-            rem = (_totalL1MessagesPoppedInBatch - 1) & 0xff;
-            require(((_bitmap >> rem) & 1) == 0, "cannot skip last L1 message");
         }
 
         return _ptr;

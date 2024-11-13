@@ -215,7 +215,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
         hevm.prank(bob);
         hevm.expectRevert("Only callable by the rollup");
-        l1MessageQueue.popCrossDomainMessage(0, 1, 0x3ff);
+        l1MessageQueue.popCrossDomainMessage(0, 1);
     }
 
     function test_popCrossDomainMessage_tooManyMessages_reverts() external {
@@ -225,7 +225,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         // Expect revert when _count > 256.
         hevm.prank(alice);
         hevm.expectRevert("pop too many messages");
-        l1MessageQueue.popCrossDomainMessage(0, 257, 0x3ff);
+        l1MessageQueue.popCrossDomainMessage(0, 257);
     }
 
     function test_popCrossDomainMessage_startIndexMismatch_reverts() external {
@@ -235,7 +235,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         // Expect revert when pendingQueueIndex != _startIndex.
         hevm.prank(alice);
         hevm.expectRevert("start index mismatch");
-        l1MessageQueue.popCrossDomainMessage(1, 2, 0x3ff);
+        l1MessageQueue.popCrossDomainMessage(1, 2);
     }
 
     function test_dropCrossDomainMessage_cannotDropPending_reverts() external {
@@ -268,13 +268,11 @@ contract L1MessageQueueTest is L1MessageBaseTest {
 
         // Verify the event QueueTransaction is emitted successfully.
         hevm.expectEmit(false, false, false, true);
-        emit IL1MessageQueue.DequeueTransaction(0, 10, 0x3ff);
+        emit IL1MessageQueue.DequeueTransaction(0, 10);
 
         // pop all 10 message
-        l1MessageQueue.popCrossDomainMessage(0, 10, 0x3ff);
-        for (uint64 i = 0; i < 10; i++) {
-            assertTrue(l1MessageQueue.isMessageSkipped(i));
-        }
+        l1MessageQueue.popCrossDomainMessage(0, 10);
+
         // drop all 10 message
         for (uint64 i = 0; i < 10; i++) {
             l1MessageQueue.dropCrossDomainMessage(i);
@@ -297,10 +295,8 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         }
 
         // pop all 10 message
-        l1MessageQueue.popCrossDomainMessage(0, 10, 0x3ff);
-        for (uint64 i = 0; i < 10; i++) {
-            assertTrue(l1MessageQueue.isMessageSkipped(i));
-        }
+        l1MessageQueue.popCrossDomainMessage(0, 10);
+
         // drop all 10 message
         for (uint64 i = 0; i < 10; i++) {
             l1MessageQueue.dropCrossDomainMessage(i);
