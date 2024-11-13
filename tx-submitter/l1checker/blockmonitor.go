@@ -28,7 +28,7 @@ func NewBlockMonitor(notGrowthInBlocks int64, client iface.L1Client) *BlockMonit
 	return &BlockMonitor{
 		blockGenerateTime:    blockTime,
 		latestBlockTime:      time.Time{},
-		noGrowthBlockCntTime: time.Second * time.Duration(notGrowthInBlocks) * 12,
+		noGrowthBlockCntTime: time.Duration(notGrowthInBlocks) * blockTime,
 		client:               client,
 	}
 }
@@ -48,9 +48,10 @@ func (m *BlockMonitor) StartMonitoring() {
 func (m *BlockMonitor) IsGrowth() bool {
 	t := m.GetLatestBlockTime()
 	if t.IsZero() {
+		log.Warn("latest block time is zero")
 		return false
 	}
-	return time.Since(t) > m.noGrowthBlockCntTime
+	return time.Since(t) < m.noGrowthBlockCntTime
 }
 
 func (m *BlockMonitor) SetLatestBlockTime(t time.Time) {
