@@ -93,11 +93,6 @@ contract GovTest is L2StakingBaseTest {
         uint256 proposalID = gov.createProposal(proposal);
         hevm.stopPrank();
 
-        // console.logString("......................");
-        // console.logUint(proposalID);
-        // console.logUint(gov.latestExecutedProposalID());
-        // console.logString("......................");
-
         uint256 voteCnt = 0;
         for (uint256 i = 0; i < SEQUENCER_SIZE; i++) {
             user = address(uint160(beginSeq + i));
@@ -121,11 +116,6 @@ contract GovTest is L2StakingBaseTest {
         (expirationTime, executed) = gov.proposalInfos(proposalID);
         assertTrue(executed);
         assertEq(block.timestamp + VOTING_DURATION, expirationTime);
-
-        // console.logString("......................");
-        // console.logUint(proposalID);
-        // console.logUint(gov.latestExecutedProposalID());
-        // console.logString("......................");
 
         (finished, passed, executed) = gov.proposalStatus(proposalID);
         assertTrue(finished);
@@ -489,13 +479,6 @@ contract GovTest is L2StakingBaseTest {
         assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
         assertEq(gov.undeletedProposalStart(), 0);
 
-        console.logString("......................");
-        console.logString("first proposal executed");
-        console.logUint(gov.currentProposalID());
-        console.logUint(gov.undeletedProposalStart());
-        console.logUint(gov.latestExecutedProposalID());
-        console.logString("......................");
-
         hevm.prank(address(user));
         uint256 latestExecutedProposalID = gov.latestExecutedProposalID();
         hevm.expectRevert("only allow to delete the proposal befor latest passed proposal");
@@ -546,23 +529,9 @@ contract GovTest is L2StakingBaseTest {
         assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
         assertEq(gov.undeletedProposalStart(), 0);
 
-        // console.logString("......................");
-        // console.logString("first proposal executed");
-        // console.logUint(gov.currentProposalID());
-        // console.logUint(gov.undeletedProposalStart());
-        // console.logUint(gov.latestExecutedProposalID());
-        // console.logString("......................");
-
         hevm.prank(address(user));
         gov.cleanUpExpiredProposals(gov.latestExecutedProposalID() - 1);
         hevm.stopPrank();
-
-        // console.logString("......................");
-        // console.logString("cleared");
-        // console.logUint(gov.currentProposalID());
-        // console.logUint(gov.undeletedProposalStart());
-        // console.logUint(gov.latestExecutedProposalID());
-        // console.logString("......................");
 
         assertEq(gov.undeletedProposalStart(), 1);
 
@@ -595,23 +564,9 @@ contract GovTest is L2StakingBaseTest {
         assertTrue(passed);
         assertTrue(executed);
 
-        // console.logString("......................");
-        // console.logString("second proposal executed");
-        // console.logUint(gov.currentProposalID());
-        // console.logUint(gov.undeletedProposalStart());
-        // console.logUint(gov.latestExecutedProposalID());
-        // console.logString("......................");
-
         hevm.prank(address(user));
         gov.cleanUpExpiredProposals(gov.latestExecutedProposalID() - 1);
         hevm.stopPrank();
-
-        // console.logString("......................");
-        // console.logString("cleared");
-        // console.logUint(gov.currentProposalID());
-        // console.logUint(gov.undeletedProposalStart());
-        // console.logUint(gov.latestExecutedProposalID());
-        // console.logString("......................");
 
         assertEq(gov.undeletedProposalStart(), gov.currentProposalID());
         assertEq(gov.undeletedProposalStart(), 2);
