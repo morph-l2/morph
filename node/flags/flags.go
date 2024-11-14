@@ -208,6 +208,21 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
 
+	// Batch rules
+	UpgradeBatchTime = cli.Uint64Flag{
+		Name:   "upgrade.batchTime",
+		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
+		EnvVar: prefixEnvVar("UPGRADE_BATCH_TIME"),
+	}
+	MainnetFlag = cli.BoolFlag{
+		Name:  "mainnet",
+		Usage: "Morph mainnet",
+	}
+	HoleskyFlag = cli.BoolFlag{
+		Name:  "holesky",
+		Usage: "Morph Holesky",
+	}
+
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
 		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
@@ -312,6 +327,11 @@ var Flags = []cli.Flag{
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
 	L1BeaconAddr,
+
+	// batch rules
+	UpgradeBatchTime,
+	MainnetFlag,
+	HoleskyFlag,
 
 	// logger
 	LogLevel,
