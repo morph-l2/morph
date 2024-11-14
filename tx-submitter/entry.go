@@ -16,6 +16,7 @@ import (
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
 	"morph-l2/tx-submitter/utils"
@@ -194,6 +195,9 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect leveldb: %w", err)
 		}
 
+		// blockmonitor
+		bm := l1checker.NewBlockMonitor(cfg.BlockNotIncreasedThreshold, l1Client)
+
 		// new rollup service
 		sr := services.NewRollup(
 			ctx,
@@ -211,6 +215,7 @@ func Main() func(ctx *cli.Context) error {
 			rsaPriv,
 			rotator,
 			ldb,
+			bm,
 		)
 
 		// metrics
