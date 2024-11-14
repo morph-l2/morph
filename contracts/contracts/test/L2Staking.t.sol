@@ -1331,12 +1331,6 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(aliceRewards[1], aliceReward2);
         assertEq(aliceRewards[2], aliceReward3);
 
-        // console.logString("......................");
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logUint(aliceReward3);
-        // console.logString("......................");
-
         // *************** epoch = 4 ******************** //
         time = REWARD_EPOCH * 5;
         hevm.roll(blocksCountOfEpoch * 5);
@@ -1347,21 +1341,10 @@ contract L2StakingTest is L2StakingBaseTest {
         aliceReward2 = distribute.queryUnclaimed(secondStaker, alice);
         aliceReward3 = distribute.queryUnclaimed(thirdStaker, alice);
 
-        // console.logString("......................");
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logUint(aliceReward3);
-        // console.logString("......................");
-
         hevm.startPrank(alice);
         uint256 balanceBefore = morphToken.balanceOf(alice);
         l2Staking.claimReward(address(0), 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
-
-        // console.logString("......................");
-        // console.logUint(balanceBefore);
-        // console.logUint(balanceAfter);
-        // console.logString("......................");
 
         assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2 + aliceReward3);
         hevm.stopPrank();
@@ -1435,9 +1418,6 @@ contract L2StakingTest is L2StakingBaseTest {
         assertTrue(aliceReward1 > 0);
         assertTrue(aliceReward2 > 0);
         assertTrue(aliceReward3 > 0);
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logUint(aliceReward3);
         assertEq(delegetees[0], firstStaker);
         assertEq(delegetees[1], secondStaker);
         assertEq(delegetees[2], thirdStaker);
@@ -1450,8 +1430,6 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(address(0), 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2 + aliceReward3);
-        // console.logUint(balanceBefore);
-        // console.logUint(balanceAfter);
         hevm.stopPrank();
 
         // *************** epoch = 4 ******************** //
@@ -1473,9 +1451,7 @@ contract L2StakingTest is L2StakingBaseTest {
         assertTrue(aliceReward1 > 0);
         assertTrue(aliceReward2 > 0);
         assertTrue(aliceReward3 > 0);
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logUint(aliceReward3);
+
         assertEq(delegetees[0], firstStaker);
         assertEq(delegetees[1], secondStaker);
         assertEq(delegetees[2], thirdStaker);
@@ -1488,8 +1464,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(address(0), 0);
         balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2 + aliceReward3);
-        // console.logUint(balanceBefore);
-        // console.logUint(balanceAfter);
+
         hevm.stopPrank();
 
         // *************** epoch = 4 ******************** //
@@ -1511,9 +1486,7 @@ contract L2StakingTest is L2StakingBaseTest {
         assertTrue(aliceReward1 > 0);
         assertTrue(aliceReward2 > 0);
         assertTrue(aliceReward3 > 0);
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logUint(aliceReward3);
+
         assertEq(delegetees[0], firstStaker);
         assertEq(delegetees[1], secondStaker);
         assertEq(delegetees[2], thirdStaker);
@@ -1526,8 +1499,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(address(0), 0);
         balanceAfter = morphToken.balanceOf(alice);
         assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2 + aliceReward3);
-        // console.logUint(balanceBefore);
-        // console.logUint(balanceAfter);
+
         hevm.stopPrank();
     }
 
@@ -1585,7 +1557,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.roll(blocksCountOfEpoch * (3));
         hevm.warp(time);
         _updateDistribute(1);
-        // console.logUint(morphToken.inflationMintedEpochs());
+
         // *********************************** //
 
         uint256 aliceReward1 = distribute.queryUnclaimed(firstStaker, alice);
@@ -1593,11 +1565,6 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256 aliceReward3 = distribute.queryUnclaimed(thirdStaker, alice);
         hevm.startPrank(alice);
         uint256 balanceBefore = morphToken.balanceOf(alice);
-        // console.logString("......................");
-        // console.logUint(balanceBefore);
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logUint(aliceReward3);
 
         l2Staking.claimReward(address(0), 0);
         hevm.expectRevert("all reward claimed");
@@ -1608,8 +1575,6 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(thirdStaker, 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
 
-        // console.logUint(balanceAfter);
-        // console.logString("......................");
         assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2 + aliceReward3);
         hevm.stopPrank();
 
@@ -1618,7 +1583,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.roll(blocksCountOfEpoch * (4));
         hevm.warp(time);
         _updateDistribute(2);
-        // console.logUint(morphToken.inflationMintedEpochs());
+
         // *********************************** //
 
         hevm.startPrank(alice);
@@ -1627,23 +1592,16 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.undelegateStake(thirdStaker);
         hevm.stopPrank();
 
-        // console.logString("......................");
-        // console.logString("......................");
         aliceReward1 = distribute.queryUnclaimed(firstStaker, alice);
         aliceReward2 = distribute.queryUnclaimed(secondStaker, alice);
         aliceReward3 = distribute.queryUnclaimed(thirdStaker, alice);
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logUint(aliceReward3);
-        // console.logString("......................");
-        // console.logString("......................");
 
         // *********************************** //
         time = REWARD_EPOCH * (5);
         hevm.roll(blocksCountOfEpoch * (5));
         hevm.warp(time);
         _updateDistribute(3);
-        // console.logUint(morphToken.inflationMintedEpochs());
+
         // *********************************** //
 
         // *********************************** //
@@ -1651,7 +1609,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.roll(blocksCountOfEpoch * (6));
         hevm.warp(time);
         _updateDistribute(4);
-        // console.logUint(morphToken.inflationMintedEpochs());
+
         // *********************************** //
 
         // *********************************** //
@@ -1659,7 +1617,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.roll(blocksCountOfEpoch * (7));
         hevm.warp(time);
         _updateDistribute(5);
-        // console.logUint(morphToken.inflationMintedEpochs());
+
         // *********************************** //
 
         // *********************************** //
@@ -1667,7 +1625,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.roll(blocksCountOfEpoch * (8));
         hevm.warp(time);
         _updateDistribute(6);
-        // console.logUint(morphToken.inflationMintedEpochs());
+
         // *********************************** //
 
         uint256 aliceRewardNew1 = distribute.queryUnclaimed(firstStaker, alice);
@@ -1675,48 +1633,35 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256 aliceRewardNew3 = distribute.queryUnclaimed(thirdStaker, alice);
 
         hevm.startPrank(alice);
-        // console.logString("......................");
+
         balanceBefore = morphToken.balanceOf(alice);
         uint256 balanceBeforeTmp = balanceBefore;
-        // console.logUint(balanceBefore);
-        // console.logString("......................");
 
         // l2Staking.claimReward(address(0), 0);
 
-        // console.logString("......................");
-
-        // console.logUint(aliceRewardNew1);
         balanceBeforeTmp = morphToken.balanceOf(alice);
         l2Staking.claimReward(firstStaker, 0);
         hevm.expectRevert("no remaining reward");
         l2Staking.claimReward(firstStaker, 0);
         balanceAfter = morphToken.balanceOf(alice);
-        // console.logUint(balanceAfter);
+
         assertEq(balanceAfter, balanceBeforeTmp + aliceRewardNew1);
 
-        // console.logString("......................");
-
-        // console.logUint(aliceRewardNew2);
         balanceBeforeTmp = morphToken.balanceOf(alice);
         l2Staking.claimReward(secondStaker, 0);
         hevm.expectRevert("no remaining reward");
         l2Staking.claimReward(secondStaker, 0);
         balanceAfter = morphToken.balanceOf(alice);
-        // console.logUint(balanceAfter);
+
         assertEq(balanceAfter, balanceBeforeTmp + aliceRewardNew2);
 
-        // console.logString("......................");
-
-        // console.logUint(aliceRewardNew3);
         balanceBeforeTmp = morphToken.balanceOf(alice);
         l2Staking.claimReward(thirdStaker, 0);
         hevm.expectRevert("no remaining reward");
         l2Staking.claimReward(thirdStaker, 0);
         balanceAfter = morphToken.balanceOf(alice);
-        // console.logUint(balanceAfter);
-        assertEq(balanceAfter, balanceBeforeTmp + aliceRewardNew3);
 
-        // console.logString("......................");
+        assertEq(balanceAfter, balanceBeforeTmp + aliceRewardNew3);
 
         assertEq(balanceAfter, balanceBefore + aliceRewardNew1 + aliceRewardNew2 + aliceRewardNew3);
 
@@ -1833,13 +1778,12 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         uint256 alice2Reward = distribute.queryUnclaimed(firstStaker, alice2);
-        console.log("alice2Reward: ", alice2Reward);
         hevm.startPrank(alice2);
         uint256 alice2BalanceBefore = morphToken.balanceOf(alice2);
-        // console.log("alice2BalanceBefore: ", alice2BalanceBefore);
+
         l2Staking.claimReward(firstStaker, 0);
         uint256 alice2BalanceAfter = morphToken.balanceOf(alice2);
-        // console.log("alice2BalanceAfter: ", alice2BalanceAfter);
+
         assertEq(alice2BalanceAfter, alice2BalanceBefore + alice2Reward);
         hevm.stopPrank();
 
@@ -1912,11 +1856,6 @@ contract L2StakingTest is L2StakingBaseTest {
         assertEq(aliceRewards[0], aliceReward1);
         assertEq(aliceRewards[1], aliceReward2);
 
-        // console.logString("......................");
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logString("......................");
-
         // *************** epoch = 4 ******************** //
         time = REWARD_EPOCH * 5;
         hevm.roll(blocksCountOfEpoch * 5);
@@ -1932,11 +1871,6 @@ contract L2StakingTest is L2StakingBaseTest {
         IL2Staking.Undelegation[] memory undelegations = l2Staking.getUndelegations(alice);
         assertEq(undelegations.length, 2);
 
-        // console.logString("......................");
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logString("......................");
-
         // *************** epoch = 5 ******************** //
         time = REWARD_EPOCH * 6;
         hevm.roll(blocksCountOfEpoch * 6);
@@ -1946,21 +1880,11 @@ contract L2StakingTest is L2StakingBaseTest {
         aliceReward1 = distribute.queryUnclaimed(firstStaker, alice);
         aliceReward2 = distribute.queryUnclaimed(secondStaker, alice);
 
-        // console.logString("......................");
-        // console.logUint(aliceReward1);
-        // console.logUint(aliceReward2);
-        // console.logString("......................");
-
         hevm.startPrank(alice);
         uint256 balanceBefore = morphToken.balanceOf(alice);
         l2Staking.claimReward(firstStaker, 0);
         l2Staking.claimReward(secondStaker, 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
-
-        // console.logString("......................");
-        // console.logUint(balanceBefore);
-        // console.logUint(balanceAfter);
-        // console.logString("......................");
 
         assertEq(balanceAfter, balanceBefore + aliceReward1 + aliceReward2);
         hevm.stopPrank();
