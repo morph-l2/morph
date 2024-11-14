@@ -298,6 +298,14 @@ var (
 		EnvVar: prefixEnvVar("LEVELDB_PATH_NAME"),
 		Value:  "submitter-leveldb",
 	}
+
+	// l1 block not incremented threshold
+	BlockNotIncreasedThreshold = cli.Int64Flag{
+		Name:   "block_not_increased_threshold",
+		Usage:  "The threshold for block not incremented",
+		Value:  5,
+		EnvVar: prefixEnvVar("BLOCK_NOT_INCREASED_THRESHOLD"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -352,6 +360,7 @@ var optionalFlags = []cli.Flag{
 	StakingEventStoreFileFlag,
 	EventIndexStepFlag,
 	LeveldbPathNameFlag,
+	BlockNotIncreasedThreshold,
 }
 
 // Flags contains the list of configuration options available to the binary.

@@ -48,20 +48,16 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         hevm.startPrank(multisig);
         // Deploy a proxy contract for the L2GatewayRouter.
         TransparentUpgradeableProxy l2GatewayRouterProxyTempA = new TransparentUpgradeableProxy(
-                address(emptyContract),
-                address(multisig),
-                new bytes(0)
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
         );
         // Deploy a new L2GatewayRouter contract.
         L2GatewayRouter l2GatewayRouterImplTempA = new L2GatewayRouter();
         // Initialize the proxy with the new implementation.
-        ITransparentUpgradeableProxy(address(l2GatewayRouterProxyTempA))
-            .upgradeToAndCall(
-                address(l2GatewayRouterImplTempA),
-                abi.encodeCall(
-                    L2GatewayRouter.initialize,
-                    (address(0), address(0))
-                )
+        ITransparentUpgradeableProxy(address(l2GatewayRouterProxyTempA)).upgradeToAndCall(
+            address(l2GatewayRouterImplTempA),
+            abi.encodeCall(L2GatewayRouter.initialize, (address(0), address(0)))
         );
         // Cast the proxy address to the L2GatewayRouter contract type to call its methods.
         L2GatewayRouter l2GatewayRouterTempA = L2GatewayRouter(address(l2GatewayRouterProxyTempA));
@@ -72,33 +68,29 @@ contract L2GatewayRouterTest is L2GatewayBaseTest {
         hevm.startPrank(multisig);
         // Deploy another proxy contract for the L2GatewayRouter.
         TransparentUpgradeableProxy l2GatewayRouterProxyTempB = new TransparentUpgradeableProxy(
-                address(emptyContract),
-                address(multisig),
-                new bytes(0)
+            address(emptyContract),
+            address(multisig),
+            new bytes(0)
         );
         // Deploy a new L2GatewayRouter contract.
         L2GatewayRouter l2GatewayRouterImplTempB = new L2GatewayRouter();
-        
+
         // Expect the SetDefaultERC20Gateway event to be emitted successfully.
         hevm.expectEmit(true, true, false, true);
         emit IL2GatewayRouter.SetDefaultERC20Gateway(address(0), address(2));
-        
+
         // Expect the SetETHGateway event to be emitted successfully.
         hevm.expectEmit(true, true, false, true);
         emit IL2GatewayRouter.SetETHGateway(address(0), address(1));
         // Initialize the proxy with the new implementation.
-        ITransparentUpgradeableProxy(address(l2GatewayRouterProxyTempB))
-            .upgradeToAndCall(
-                address(l2GatewayRouterImplTempB),
-                abi.encodeCall(
-                    L2GatewayRouter.initialize,
-                    (address(1), address(2))
-                )
+        ITransparentUpgradeableProxy(address(l2GatewayRouterProxyTempB)).upgradeToAndCall(
+            address(l2GatewayRouterImplTempB),
+            abi.encodeCall(L2GatewayRouter.initialize, (address(1), address(2)))
         );
         // Cast the proxy address to the L2GatewayRouter contract type to call its methods.
         L2GatewayRouter l2GatewayRouterTempB = L2GatewayRouter(address(l2GatewayRouterProxyTempB));
         hevm.stopPrank();
-        
+
         // Verify that the ethGateway and defaultERC20Gateway are initialized correctly.
         assertEq(l2GatewayRouterTempB.ethGateway(), address(1));
         assertEq(l2GatewayRouterTempB.defaultERC20Gateway(), address(2));
