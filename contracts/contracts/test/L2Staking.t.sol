@@ -2221,10 +2221,6 @@ contract L2StakingTest is L2StakingBaseTest {
         // check firstStaker
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 10, 0);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 5);
             assertEq(delegators.length, 10);
             assertEq(delegators[0], alice);
@@ -2237,10 +2233,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 1, 0);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 5);
             assertEq(delegators.length, 1);
             assertEq(delegators[0], alice);
@@ -2248,10 +2240,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 1, 1);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 5);
             assertEq(delegators.length, 1);
             assertEq(delegators[0], alice1);
@@ -2259,10 +2247,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 2, 2);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 5);
             assertEq(delegators.length, 2);
             assertEq(delegators[0], alice4);
@@ -2271,10 +2255,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(firstStaker, 10, 3);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 5);
             assertEq(delegators.length, 10);
             assertEq(delegators[0], address(0));
@@ -2284,10 +2264,6 @@ contract L2StakingTest is L2StakingBaseTest {
         // check secondStaker
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(secondStaker, 10, 0);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 3);
             assertEq(delegators.length, 10);
             assertEq(delegators[0], alice);
@@ -2298,10 +2274,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(secondStaker, 2, 1);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 3);
             assertEq(delegators.length, 2);
             assertEq(delegators[0], alice2);
@@ -2310,10 +2282,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(secondStaker, 2, 2);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 3);
             assertEq(delegators.length, 2);
             assertEq(delegators[0], address(0));
@@ -2323,10 +2291,6 @@ contract L2StakingTest is L2StakingBaseTest {
         // check thirdStaker
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 10, 0);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 1);
             assertEq(delegators.length, 10);
             assertEq(delegators[0], alice);
@@ -2335,10 +2299,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 1, 0);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 1);
             assertEq(delegators.length, 1);
             assertEq(delegators[0], alice);
@@ -2346,10 +2306,6 @@ contract L2StakingTest is L2StakingBaseTest {
 
         {
             (uint256 total, address[] memory delegators) = l2Staking.getAllDelegatorsInPagination(thirdStaker, 1, 1);
-            // console.logString("......................");
-            // console.logUint(total);
-            // console.logUint(delegators.length);
-            // console.logString("......................");
             assertEq(total, 1);
             assertEq(delegators.length, 1);
             assertEq(delegators[0], address(0));
