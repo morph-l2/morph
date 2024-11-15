@@ -156,7 +156,27 @@ contract L2StakingTest is L2StakingBaseTest {
 
         // Expect revert due to unauthorized call.
         hevm.expectRevert("staking: only other staking contract allowed");
-        l2Staking.addStaker(stakerInfo);
+        l2Staking.addStaker(0, stakerInfo);
+    }
+
+    /**
+     * @notice test add staker: Reverts if invalid nonce
+     */
+    function test_addStakers_invalidNonce_reverts() public {
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        assertEq(SEQUENCER_SIZE, l2Staking.getStakerAddressesLength());
+        hevm.startPrank(address(l2CrossDomainMessenger));
+
+        address staker = address(uint160(beginSeq));
+        Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+
+        uint256 nonce = l2Staking.nonce();
+        hevm.expectRevert("invalid nonce");
+        l2Staking.addStaker(nonce + 1, stakerInfo);
     }
 
     /**
@@ -170,6 +190,7 @@ contract L2StakingTest is L2StakingBaseTest {
         );
         assertEq(SEQUENCER_SIZE, l2Staking.getStakerAddressesLength());
         hevm.startPrank(address(l2CrossDomainMessenger));
+        uint256 nonce = 0;
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2 + 1; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
@@ -177,7 +198,8 @@ contract L2StakingTest is L2StakingBaseTest {
             // Expect the SequencerSetMaxSizeUpdated event is emitted successfully.
             hevm.expectEmit(true, true, true, true);
             emit IL2Staking.StakerAdded(stakerInfo.addr, stakerInfo.tmKey, stakerInfo.blsKey);
-            l2Staking.addStaker(stakerInfo);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
         }
         assertEq(7, l2Staking.getStakerAddressesLength());
         hevm.stopPrank();
@@ -215,10 +237,12 @@ contract L2StakingTest is L2StakingBaseTest {
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
         hevm.startPrank(address(l2CrossDomainMessenger));
+        uint256 nonce = 0;
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
-            l2Staking.addStaker(stakerInfo);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
         }
         hevm.stopPrank();
         for (uint256 i = 0; i < SEQUENCER_SIZE * 2; i++) {
@@ -252,11 +276,11 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(address(l2CrossDomainMessenger));
 
         // Add the staker to the L2Staking contract.
-        l2Staking.addStaker(stakerInfo);
+        l2Staking.addStaker(0, stakerInfo);
         uint256 initialLength = l2Staking.getStakerAddressesLength();
 
         // Add the same staker again to the L2Staking contract.
-        l2Staking.addStaker(stakerInfo);
+        l2Staking.addStaker(1, stakerInfo);
         uint256 finalLength = l2Staking.getStakerAddressesLength();
 
         // Assert that the initial length and the final length are equal.
@@ -273,7 +297,37 @@ contract L2StakingTest is L2StakingBaseTest {
 
         // Expect revert due to unauthorized call.
         hevm.expectRevert("staking: only other staking contract allowed");
-        l2Staking.removeStakers(removed);
+        l2Staking.removeStakers(0, removed);
+    }
+
+    /**
+     * @notice test removed staker: Reverts if invalid nonce
+     */
+    function test_removeStakers_invalidNonce_reverts() public {
+        hevm.mockCall(
+            address(l2Staking.MESSENGER()),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l2Staking.OTHER_STAKING()))
+        );
+        hevm.startPrank(address(l2CrossDomainMessenger));
+
+        uint256 nonce = 0;
+        for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
+            address staker = address(uint160(beginSeq + i));
+            Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
+        }
+
+        address[] memory removed = new address[](2);
+        removed[0] = address(uint160(beginSeq + 1));
+        removed[1] = address(uint160(beginSeq + 4));
+
+        hevm.expectRevert("invalid nonce");
+        l2Staking.removeStakers(nonce + 1, removed);
+
+        hevm.expectRevert("invalid nonce");
+        l2Staking.removeStakers(nonce - 1, removed);
     }
 
     /**
@@ -287,17 +341,19 @@ contract L2StakingTest is L2StakingBaseTest {
         );
         hevm.startPrank(address(l2CrossDomainMessenger));
 
+        uint256 nonce = 0;
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
-            l2Staking.addStaker(stakerInfo);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
         }
 
         address[] memory removed = new address[](2);
         removed[0] = address(uint160(beginSeq + 1));
         removed[1] = address(uint160(beginSeq + 4));
 
-        l2Staking.removeStakers(removed);
+        l2Staking.removeStakers(nonce, removed);
 
         assertEq(sequencer.getSequencerSet2Size(), 4);
         hevm.stopPrank();
@@ -328,10 +384,12 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(address(l2CrossDomainMessenger));
 
         // Add a set of new stakers to the L2Staking contract.
+        uint256 nonce = 0;
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
-            l2Staking.addStaker(stakerInfo);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
         }
 
         // Create an array of addresses that do not exist in the staker set.
@@ -340,7 +398,7 @@ contract L2StakingTest is L2StakingBaseTest {
         removed[1] = address(uint160(2));
 
         uint256 initialLength = l2Staking.getStakerAddressesLength();
-        l2Staking.removeStakers(removed);
+        l2Staking.removeStakers(nonce, removed);
         uint256 finalLength = l2Staking.getStakerAddressesLength();
 
         // Assert that the initial length and the final length are equal.
@@ -362,10 +420,12 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(address(l2CrossDomainMessenger));
 
         // Add a set of new stakers to the L2Staking contract.
+        uint256 nonce = 0;
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
-            l2Staking.addStaker(stakerInfo);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
         }
 
         // Create an array of addresses to be removed.
@@ -373,9 +433,10 @@ contract L2StakingTest is L2StakingBaseTest {
         removed[0] = address(uint160(beginSeq + 1));
         removed[1] = address(uint160(beginSeq + 4));
 
-        l2Staking.removeStakers(removed);
+        l2Staking.removeStakers(nonce, removed);
+        nonce++;
         uint256 initialLength = l2Staking.getStakerAddressesLength();
-        l2Staking.removeStakers(removed);
+        l2Staking.removeStakers(nonce, removed);
         uint256 finalLength = l2Staking.getStakerAddressesLength();
 
         // Assert that the initial length and the final length are equal.
@@ -635,7 +696,7 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(address(l2CrossDomainMessenger));
         address[] memory removed = new address[](1);
         removed[0] = firstStaker;
-        l2Staking.removeStakers(removed);
+        l2Staking.removeStakers(0, removed);
         hevm.stopPrank();
 
         // sequenser size decrease
@@ -1357,7 +1418,6 @@ contract L2StakingTest is L2StakingBaseTest {
         assertTrue(aliceReward1 > 0);
         assertTrue(aliceReward2 > 0);
         assertTrue(aliceReward3 > 0);
-
         assertEq(delegetees[0], firstStaker);
         assertEq(delegetees[1], secondStaker);
         assertEq(delegetees[2], thirdStaker);
@@ -1597,8 +1657,8 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(alice);
         balanceBefore = morphToken.balanceOf(alice);
         uint256 balanceBeforeTmp = balanceBefore;
-
         balanceBeforeTmp = morphToken.balanceOf(alice);
+
         l2Staking.claimReward(firstStaker, 0);
         hevm.expectRevert("no remaining reward");
         l2Staking.claimReward(firstStaker, 0);
@@ -1617,8 +1677,8 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.expectRevert("no remaining reward");
         l2Staking.claimReward(thirdStaker, 0);
         balanceAfter = morphToken.balanceOf(alice);
-        assertEq(balanceAfter, balanceBeforeTmp + aliceRewardNew3);
 
+        assertEq(balanceAfter, balanceBeforeTmp + aliceRewardNew3);
         assertEq(balanceAfter, balanceBefore + aliceRewardNew1 + aliceRewardNew2 + aliceRewardNew3);
 
         hevm.expectRevert("invalid delegator or no remaining reward");
@@ -1839,8 +1899,10 @@ contract L2StakingTest is L2StakingBaseTest {
         uint256 alice2Reward = distribute.queryUnclaimed(firstStaker, alice2);
         hevm.startPrank(alice2);
         uint256 alice2BalanceBefore = morphToken.balanceOf(alice2);
+
         l2Staking.claimReward(firstStaker, 0);
         uint256 alice2BalanceAfter = morphToken.balanceOf(alice2);
+
         assertEq(alice2BalanceAfter, alice2BalanceBefore + alice2Reward);
         hevm.stopPrank();
 
