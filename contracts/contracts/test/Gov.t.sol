@@ -230,10 +230,12 @@ contract GovTest is L2StakingBaseTest {
             abi.encode(address(l2Staking.OTHER_STAKING()))
         );
         hevm.startPrank(address(l2CrossDomainMessenger));
+        uint256 nonce = 0;
         for (uint256 i = SEQUENCER_SIZE; i < SEQUENCER_SIZE * 2; i++) {
             address staker = address(uint160(beginSeq + i));
             Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(staker);
-            l2Staking.addStaker(stakerInfo);
+            l2Staking.addStaker(nonce, stakerInfo);
+            nonce++;
         }
 
         // remove old sequencer
@@ -242,7 +244,7 @@ contract GovTest is L2StakingBaseTest {
             address staker = address(uint160(beginSeq + i));
             removed[i] = staker;
         }
-        l2Staking.removeStakers(removed);
+        l2Staking.removeStakers(nonce, removed);
         hevm.stopPrank();
 
         (, executed) = gov.proposalInfos(proposalID);
