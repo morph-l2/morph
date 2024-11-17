@@ -168,9 +168,9 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
         gateway.depositERC1155(address(l1Token), tokenId, amount, defaultGasLimit);
 
-        // skip message 0
+        // pop message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 
@@ -201,9 +201,9 @@ contract L1ERC1155GatewayTest is L1GatewayBaseTest, ERC1155TokenReceiver {
         );
         gateway.batchDepositERC1155(address(l1Token), _tokenIds, _amounts, defaultGasLimit);
 
-        // skip message 0
+        // pop message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 

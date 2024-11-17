@@ -5,9 +5,8 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	"github.com/morph-l2/go-ethereum/core/types"
-
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/rlp"
 )
 
@@ -89,7 +88,7 @@ type WrappedBlock struct {
 	Hash               common.Hash    `json:"hash"`
 
 	CollectedL1TxHashes []common.Hash               `json:"l1TxHashes" rlp:"optional"`
-	SkippedL1Txs        []*types.SkippedTransaction `json:"skippedL1Txs" rlp:"optional"`
+	_                   []*types.SkippedTransaction `json:"-" rlp:"optional"`
 	BaseFee             *big.Int                    `json:"baseFeePerGas"  rlp:"optional"`
 }
 
