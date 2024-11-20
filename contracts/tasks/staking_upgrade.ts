@@ -899,3 +899,268 @@ task("l2-staking-deploy")
         const rec = await res.wait()
         console.log(`L2Staking upgrade ${rec.status === 1}, new impl ${staking.address}`)
     })
+
+
+
+
+
+task("l1crossdomainmessenger-upgrade-hc")
+    .addParam("pa")
+    .addParam("l1cdmpa")
+    .setAction(async (taskArgs, hre) => {
+        console.log(`l1CrossDomainMessenger upgrade hardcode start……`)
+
+        const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
+        const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
+
+        // deploy l1CrossDomainMessenger impl
+        const Factory = await hre.ethers.getContractFactory(L1CrossDomainMessengerFactoryName)
+        const newImpl = await Factory.deploy()
+        await newImpl.deployed()
+        console.log(
+            "%s=%s ; TX_HASH: %s",
+            L1CrossDomainMessengerImplStorageName,
+            newImpl.address.toLocaleLowerCase(),
+            newImpl.deployTransaction.hash
+        )
+
+
+        // l1CrossDomainMessenger proxy upgrade
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(taskArgs.pa)
+        const res = await proxyAdmin.upgrade(
+            taskArgs.l1cdmpa,
+            newImpl.address
+        )
+        const rec = await res.wait()
+        console.log(`upgrade l1CrossDomainMessenger ${rec.status === 1}`)
+
+        console.log(`l1CrossDomainMessenger upgrade hardcode finished……`)
+    })
+
+task("enforcedtxgateway-upgrade-hc")
+    .addParam("pa")
+    .addParam("eftg")
+    .setAction(async (taskArgs, hre) => {
+        console.log(`EnforcedTxGateway upgrade hardcode start……`)
+
+        const EnforcedTxGatewayFactoryName = ContractFactoryName.EnforcedTxGateway
+        const EnforcedTxGatewayImplStorageName = ImplStorageName.EnforcedTxGatewayStorageName
+
+        // deploy EnforcedTxGateway impl
+        const Factory = await hre.ethers.getContractFactory(EnforcedTxGatewayFactoryName)
+        const newImpl = await Factory.deploy()
+        await newImpl.deployed()
+        console.log(
+            "%s=%s ; TX_HASH: %s",
+            EnforcedTxGatewayImplStorageName,
+            newImpl.address.toLocaleLowerCase(),
+            newImpl.deployTransaction.hash
+        )
+
+        // EnforcedTxGateway proxy upgrade
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(taskArgs.pa)
+        const res = await proxyAdmin.upgrade(
+            taskArgs.eftg,
+            newImpl.address
+        )
+        const rec = await res.wait()
+        console.log(`upgrade EnforcedTxGateway ${rec.status === 1}`)
+
+        console.log(`EnforcedTxGateway upgrade hardcode finished……`)
+    })
+
+
+task("l1reversecustomgateway-upgrade-hc")
+    .addParam("pa")
+    .addParam("l1rcgw")
+    .setAction(async (taskArgs, hre) => {
+        console.log(`L1ReverseCustomGateway upgrade hardcode start……`)
+
+        const L1ReverseCustomGatewayFactoryName = ContractFactoryName.L1ReverseCustomGateway
+        const L1ReverseCustomGatewayImplStorageName = ImplStorageName.L1ReverseCustomGatewayStorageName
+
+        // deploy L1ReverseCustomGateway impl
+        const Factory = await hre.ethers.getContractFactory(L1ReverseCustomGatewayFactoryName)
+        const newImpl = await Factory.deploy()
+        await newImpl.deployed()
+        console.log(
+            "%s=%s ; TX_HASH: %s",
+            L1ReverseCustomGatewayImplStorageName,
+            newImpl.address.toLocaleLowerCase(),
+            newImpl.deployTransaction.hash
+        )
+
+        // L1ReverseCustomGateway proxy upgrade
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(taskArgs.pa)
+        const res = await proxyAdmin.upgrade(
+            taskArgs.l1rcgw,
+            newImpl.address
+        )
+        const rec = await res.wait()
+        console.log(`upgrade L1ReverseCustomGateway ${rec.status === 1}`)
+
+        console.log(`L1ReverseCustomGateway upgrade hardcode finished……`)
+    })
+
+
+task("rollup-upgrade-hc")
+    .addParam("pa")
+    .addParam("l2cid")
+    .addParam("rollupp")
+    .setAction(async (taskArgs, hre) => {
+        const ProxyAdminImplAddr = taskArgs.pa
+        const chainId = taskArgs.l2cid
+        const RollupProxyAddr = taskArgs.rollupp
+        const deployer = hre.ethers.provider.getSigner()
+
+        const RollupFactoryName = ContractFactoryName.Rollup
+
+        const RollupFactory = await hre.ethers.getContractFactory(RollupFactoryName)
+        const rollupNewImpl = await RollupFactory.deploy(chainId)
+        await rollupNewImpl.deployed()
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log(`Rollup new impl deploy at ${rollupNewImpl.address} and height ${blockNumber}`)
+
+        const ProxyAdminFactoryName = ContractFactoryName.ProxyAdmin
+        const ProxyAdmin = await hre.ethers.getContractAt(ProxyAdminFactoryName, ProxyAdminImplAddr, deployer)
+        let res = await ProxyAdmin.upgrade(RollupProxyAddr, rollupNewImpl.address)
+        let rec = await res.wait()
+        console.log(`upgrade rollup ${rec.status == 1 ? "success" : "failed"}`)
+    })
+
+
+task("l1staking-upgrade-hc")
+    .addParam("l1cdmpa")
+    .addParam("pa")
+    .addParam("l1staking")
+    .setAction(async (taskArgs, hre) => {
+
+        // deploy impl
+        const l1StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Staking)
+        const l1StakingImpl = await l1StakingFactory.deploy(taskArgs.l1cdmpa)
+        await l1StakingImpl.deployed()
+        console.log("%s=%s ; TX_HASH: %s", ImplStorageName.L1StakingStorageName, l1StakingImpl.address.toLocaleLowerCase(), l1StakingImpl.deployTransaction.hash);
+        await assertContractVariable(
+            l1StakingImpl,
+            'MESSENGER',
+            taskArgs.l1cdmpa
+        )
+        await assertContractVariable(
+            l1StakingImpl,
+            'OTHER_STAKING',
+            predeploys.L2Staking.toLowerCase()
+        )
+        const blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+
+        console.log("L1ProxyAdminAddress: ", taskArgs.pa)
+
+        const proxyAdmin = ProxyAdminFactory.attach(taskArgs.pa)
+
+        let res = await proxyAdmin.upgrade(
+            taskArgs.l1staking, 
+            l1StakingImpl.address)
+        let rec = await res.wait()
+
+        console.log(`upgrade L1Staking ${rec.status == 1 ? "success" : "failed"}`)   
+
+    })
+
+
+// Distribute
+// yarn hardhat distribute-upgrade --network l2
+// yarn hardhat distribute-upgrade --network qanetl2
+// yarn hardhat distribute-upgrade --network hl2
+task("distribute-upgrade")
+    .setAction(async (taskArgs, hre) => {
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const DistributeFactory = await hre.ethers.getContractFactory("Distribute")
+        const distribute = await DistributeFactory.deploy()
+        await distribute.deployed()
+        const res = await proxyAdmin.upgrade(
+            predeploys.Distribute,
+            distribute.address
+        )
+        
+        const rec = await res.wait()
+        console.log(`distribute upgrade ${rec.status === 1}, new impl ${distribute.address}`)
+    })
+
+
+// yarn hardhat l2staking-upgrade-hc --l1staking 0xdeab3e2c1f04e543866e8f498316bf6b611bd28b --network qanetl2
+// yarn hardhat l2staking-upgrade-hc --l1staking 0x78c5cb68059a7d20b1a65f7380d18a35765a1e00 --network l2
+// yarn hardhat l2staking-upgrade-hc --l1staking 0xcb4496399ffd2a94c4c0132c5561b420b8c73ad8 --network hl2
+task("l2staking-upgrade-hc")
+    .addParam("l1staking")
+    .setAction(async (taskArgs, hre) => {
+        const _l1Staking = taskArgs.l1staking
+
+        const L2StakingFactory = await hre.ethers.getContractFactory("L2Staking")
+        const l2StakingNewImpl = await L2StakingFactory.deploy(_l1Staking)
+        await l2StakingNewImpl.deployed()
+
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log(`L2Staking new impl deploy at ${l2StakingNewImpl.address} and height ${blockNumber}`)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+        let res = await proxyAdmin.upgrade(
+            predeploys.L2Staking, 
+            l2StakingNewImpl.address)
+        let rec = await res.wait()
+
+        console.log(`upgrade L2Staking ${rec.status == 1 ? "success" : "failed"}`)    
+    })
+
+
+// GasPriceOracle
+// yarn hardhat gaspriceoracle-upgrade  --owner 0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E --network qanetl2
+// yarn hardhat gaspriceoracle-upgrade  --owner 0x48442fdDd92F1000861c7A26cdb5c3a73FFF294d --network hl2
+task("gaspriceoracle-upgrade")
+    .addParam("owner")
+    .setAction(async (taskArgs, hre) => {
+        const _owner = taskArgs.owner
+
+        const GPOFactory = await hre.ethers.getContractFactory("GasPriceOracle")
+        const gpoNewImpl = await GPOFactory.deploy(_owner)
+        await gpoNewImpl.deployed()
+        let blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log(`GasPriceOracle new impl deploy at ${gpoNewImpl.address} and height ${blockNumber}`)
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+        let res = await proxyAdmin.upgrade(
+            predeploys.GasPriceOracle, 
+            gpoNewImpl.address)
+        let rec = await res.wait()
+
+        console.log(`upgrade GasPriceOracle ${rec.status == 1 ? "success" : "failed"}`)    
+    })
+
+// MorphToken
+// yarn hardhat morph-upgrade --network qanetl2
+// yarn hardhat morph-upgrade --network hl2
+task("morph-upgrade")
+    .setAction(async (taskArgs, hre) => {
+
+        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
+
+        const MorphTokenFactory = await hre.ethers.getContractFactory("MorphToken")
+        const morphToken = await MorphTokenFactory.deploy()
+        await morphToken.deployed()
+
+        const res = await proxyAdmin.upgrade(
+            predeploys.MorphToken,
+            morphToken.address
+        )
+        const rec = await res.wait()
+        console.log(`morphToken upgrade ${rec.status === 1}, new impl ${morphToken.address}`)
+    })
