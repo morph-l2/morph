@@ -176,7 +176,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     function initialize2(bytes32 _prevStateRoot) external reinitializer(2) {
         require(_getInitializedVersion() == 2, "must have initialized!");
-        require(_prevStateRoot != bytes32(0), "can not set stateroot with bytes32(0)!");
+        require(_prevStateRoot != bytes32(0), "can not set state root with bytes32(0)!");
 
         if (committedStateRoots[lastCommittedBatchIndex] == bytes32(0)) {
             committedStateRoots[lastCommittedBatchIndex] = _prevStateRoot;
