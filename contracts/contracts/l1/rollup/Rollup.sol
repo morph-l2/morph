@@ -174,6 +174,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit UpdateProofRewardPercent(0, _proofRewardPercent);
     }
 
+    function initialize2(bytes32 _prevStateRoot) external reinitializer(2) {
+        require(_getInitializedVersion() == 2, "must have initialized!");
+        require(_prevStateRoot != bytes32(0), "can not set state root with bytes32(0)!");
+
+        if (committedStateRoots[lastCommittedBatchIndex] == bytes32(0)) {
+            committedStateRoots[lastCommittedBatchIndex] = _prevStateRoot;
+        }
+    }
+
     /************************
      * Restricted Functions *
      ************************/
@@ -185,6 +194,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        // check batch index is 0
+        require(_batchIndex == 0, "invalid batch index");
         bytes32 _postStateRoot = BatchHeaderCodecV0.getPostStateHash(memPtr);
         require(_postStateRoot != bytes32(0), "zero state root");
         // check all fields except `dataHash` and `lastBlockHash` are zero
