@@ -546,6 +546,15 @@ contract RollupTest is L1MessageBaseTest {
     function test_importGenesisBlock_succeeds() public {
         bytes memory batchHeader;
         bytes32 bytesData1 = bytes32(uint256(1));
+        // invalid batch index, revert
+        batchHeader = new bytes(249);
+        assembly {
+            mstore(add(batchHeader, add(0x20, 1)), shl(192, 1)) // batchIndex = 1
+        }
+        hevm.expectRevert("invalid batch index");
+        hevm.prank(multisig);
+        rollup.importGenesisBatch(batchHeader);
+
         // zero state root, revert
         batchHeader = new bytes(249);
         hevm.expectRevert("zero state root");

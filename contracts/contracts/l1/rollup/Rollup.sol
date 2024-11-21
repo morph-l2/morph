@@ -194,6 +194,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        // check batch index is 0
+        require(_batchIndex == 0, "invalid batch index");
         bytes32 _postStateRoot = BatchHeaderCodecV0.getPostStateHash(memPtr);
         require(_postStateRoot != bytes32(0), "zero state root");
         // check all fields except `dataHash` and `lastBlockHash` are zero
