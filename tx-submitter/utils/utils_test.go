@@ -2,8 +2,13 @@ package utils
 
 import (
 	"encoding/hex"
+	"math/big"
 	"testing"
 
+	"github.com/holiman/uint256"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,4 +18,97 @@ func TestParseBatchIndex(t *testing.T) {
 	bs, err := hex.DecodeString(calldata)
 	require.NoError(t, err)
 	require.EqualValues(t, ParseParentBatchIndex(bs), 16)
+}
+
+func TestCalcFeeForTx(t *testing.T) {
+	singleBlobHash := make([]common.Hash, 1)
+	tests := []struct {
+		name     string
+		tx       *types.Transaction
+		expected *big.Int
+	}{
+		{
+			name:     "nil transaction",
+			tx:       nil,
+			expected: big.NewInt(0),
+		},
+		{
+			name: "DynamicFeeTxType with nil GasFeeCap",
+			tx: types.NewTx(&types.DynamicFeeTx{
+				ChainID:   big.NewInt(1),
+				GasTipCap: big.NewInt(100),
+				GasFeeCap: nil,
+				Gas:       21000,
+			}),
+			expected: big.NewInt(0),
+		},
+		{
+			name: "DynamicFeeTxType with non-nil GasFeeCap",
+			tx: types.NewTx(&types.DynamicFeeTx{
+				ChainID:   big.NewInt(1),
+				GasTipCap: big.NewInt(100),
+				GasFeeCap: big.NewInt(200),
+				Gas:       21000,
+			}),
+			expected: new(big.Int).Mul(big.NewInt(200), big.NewInt(21000)),
+		},
+		{
+			name: "BlobTxType with nil BlobFeeCap and GasFeeCap",
+			tx: types.NewTx(&types.BlobTx{
+				BlobFeeCap: nil,
+				BlobHashes: make([]common.Hash, 1),
+				GasFeeCap:  nil,
+				Gas:        21000,
+			}),
+			expected: big.NewInt(0),
+		},
+		{
+			name: "BlobTxType with nil BlobFeeCap and non-nil GasFeeCap",
+			tx: types.NewTx(&types.BlobTx{
+				BlobFeeCap: nil,
+				BlobHashes: singleBlobHash,
+				GasFeeCap:  uint256.NewInt(200),
+				Gas:        21000,
+			}),
+			expected: new(big.Int).Mul(big.NewInt(200), big.NewInt(21000)),
+		},
+		{
+			name: "BlobTxType with non-nil BlobFeeCap and nil GasFeeCap",
+			tx: types.NewTx(&types.BlobTx{
+				BlobFeeCap: uint256.NewInt(150),
+				BlobHashes: singleBlobHash,
+				GasFeeCap:  nil,
+				Gas:        21000,
+			}),
+			expected: new(big.Int).Mul(big.NewInt(150), big.NewInt(params.BlobTxBlobGasPerBlob)),
+		},
+		{
+			name: "BlobTxType with non-nil BlobFeeCap and non-nil GasFeeCap",
+			tx: types.NewTx(&types.BlobTx{
+				BlobFeeCap: uint256.NewInt(150),
+				BlobHashes: singleBlobHash,
+				GasFeeCap:  uint256.NewInt(200),
+				Gas:        21000,
+			}),
+			expected: new(big.Int).Add(
+				new(big.Int).Mul(big.NewInt(150), big.NewInt(params.BlobTxBlobGasPerBlob)),
+				new(big.Int).Mul(big.NewInt(200), big.NewInt(21000)),
+			),
+		},
+		{
+			name: "Unknown tx type",
+			tx: types.NewTx(&types.LegacyTx{
+				Gas:      21000,
+				GasPrice: big.NewInt(200),
+			}),
+			expected: big.NewInt(0),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CalcFeeForTx(tt.tx)
+			require.Equal(t, tt.expected, result)
+		})
+	}
 }

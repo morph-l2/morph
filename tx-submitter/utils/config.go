@@ -107,6 +107,8 @@ type Config struct {
 	// leveldb path name
 	LeveldbPathName            string
 	BlockNotIncreasedThreshold int64
+	RollupLossControl          bool
+	MaxRollupLossBuffer        int64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -157,12 +159,12 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
 
 		// external sign
-		ExternalSign:        ctx.GlobalBool(flags.ExternalSign.Name),
-		ExternalSignAppid:   ctx.GlobalString(flags.ExternalSignAppid.Name),
-		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddress.Name),
-		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
-		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
-		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
+		ExternalSign:        ctx.GlobalBool(flags.ExternalSignFlag.Name),
+		ExternalSignAppid:   ctx.GlobalString(flags.ExternalSignAppidFlag.Name),
+		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddressFlag.Name),
+		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChainFlag.Name),
+		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrlFlag.Name),
+		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPrivFlag.Name),
 		// rough estimate gas switch
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 		// rotator interval buffer
@@ -177,7 +179,9 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		// leveldb path name
 		LeveldbPathName: ctx.GlobalString(flags.LeveldbPathNameFlag.Name),
 		// BlockNotIncreasedThreshold
-		BlockNotIncreasedThreshold: ctx.GlobalInt64(flags.BlockNotIncreasedThreshold.Name),
+		BlockNotIncreasedThreshold: ctx.GlobalInt64(flags.BlockNotIncreasedThresholdFlag.Name),
+		RollupLossControl:          ctx.GlobalBool(flags.RollupLossControlFlag.Name),
+		MaxRollupLossBuffer:        ctx.GlobalInt64(flags.MaxRollupLossBufferFlag.Name),
 	}
 
 	return cfg, nil
