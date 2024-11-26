@@ -190,6 +190,12 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_START_HEIGHT"),
 	}
 
+	DerivationBaseHeight = cli.Uint64Flag{
+		Name:   "derivation.baseHeight",
+		Usage:  "The starting height of l2 derive, usually the node snapshot or other trusted starting height, before which stateRoot will not be checked",
+		EnvVar: prefixEnvVar("DERIVATION_BASE_HEIGHT"),
+	}
+
 	DerivationPollInterval = cli.DurationFlag{
 		Name:   "derivation.pollInterval",
 		Usage:  "Frequency at which we query for rollup data",
@@ -322,6 +328,7 @@ var Flags = []cli.Flag{
 	// derivation
 	RollupContractAddress,
 	DerivationStartHeight,
+	DerivationBaseHeight,
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
