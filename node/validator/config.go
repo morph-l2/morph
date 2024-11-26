@@ -27,7 +27,7 @@ func NewConfig() *Config {
 func (c *Config) SetCliContext(ctx *cli.Context) error {
 	l1NodeAddr := ctx.GlobalString(flags.L1NodeAddr.Name)
 	l1ChainID := ctx.GlobalUint64(flags.L1ChainID.Name)
-	c.challengeEnable = ctx.GlobalIsSet(flags.ValidatorEnable.Name)
+	c.challengeEnable = ctx.GlobalBool(flags.ChallengeEnable.Name)
 	if c.challengeEnable {
 		hexPrvKey := ctx.GlobalString(flags.ValidatorPrivateKey.Name)
 		hex := strings.TrimPrefix(hexPrvKey, "0x")

@@ -170,6 +170,12 @@ var (
 		EnvVar: prefixEnvVar("VALIDATOR"),
 	}
 
+	ChallengeEnable = cli.BoolFlag{
+		Name:   "validator.challengeEnable",
+		Usage:  "Enable the validator mode",
+		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
+	}
+
 	// validator
 	ValidatorPrivateKey = cli.StringFlag{
 		Name:   "validator.privateKey",
@@ -321,6 +327,7 @@ var Flags = []cli.Flag{
 	TendermintConfigPath,
 	MockEnabled,
 	ValidatorEnable,
+	ChallengeEnable,
 
 	// validator
 	ValidatorPrivateKey,
