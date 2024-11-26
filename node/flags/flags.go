@@ -172,7 +172,7 @@ var (
 
 	ChallengeEnable = cli.BoolFlag{
 		Name:   "validator.challengeEnable",
-		Usage:  "Enable the validator mode",
+		Usage:  "Enable the validator challenge",
 		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
 	}
 
