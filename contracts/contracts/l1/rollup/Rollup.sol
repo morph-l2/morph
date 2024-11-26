@@ -252,6 +252,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 _totalNumL1Messages;
         bytes32 dataHash;
         (dataHash, _totalNumL1Messages) = _commitBatch(
+            batchDataStore[_batchIndex].blockNumber,
             batchDataInput.blockContexts,
             _totalL1MessagesPoppedInBatch,
             _totalL1MessagesPoppedOverall
@@ -294,7 +295,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,
                 block.timestamp + finalizationPeriodSeconds + proveRemainingTime,
-                _loadL2BlockNumber(batchDataInput.blockContexts),
+                getLastBlockNumber(batchDataInput.blockContexts),
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
                 IL1Staking(l1StakingContract).getStakerBitmap(_msgSender()) // => batchSignature.signedSequencersBitmap
@@ -718,32 +719,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
     }
 
-    /// @dev Internal function to load the latestL2BlockNumber.
-    /// @param _blockContexts The batch block contexts in memory.
-    function _loadL2BlockNumber(bytes memory _blockContexts) internal pure returns (uint256) {
-        uint256 blockPtr;
-        uint256 batchPtr;
-        assembly {
-            batchPtr := add(_blockContexts, 0x20)
-            blockPtr := add(batchPtr, 2)
-        }
-        uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
-        for (uint256 i = 0; i < _numBlocks - 1; i++) {
-            unchecked {
-                blockPtr += BatchCodecV0.BLOCK_CONTEXT_LENGTH;
-            }
-        }
-        uint256 l2BlockNumber = BatchCodecV0.getBlockNumber(blockPtr);
-        return l2BlockNumber;
-    }
-
     /// @dev Internal function to commit a batch with version 0.
+    /// @param _preLastBlockNumber The last block number of the previous batch.
     /// @param _blockContexts The encoded block contexts to commit.
     /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
     /// @return _dataHash The computed data hash for this batch.
     /// @return _totalNumL1MessagesInBatch The total number of L1 message popped in current batch
     function _commitBatch(
+        uint256 _preLastBlockNumber,
         bytes memory _blockContexts,
         uint256 _totalL1MessagesPoppedInBatch,
         uint256 _totalL1MessagesPoppedOverall
@@ -758,9 +742,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchPtr := add(_blockContexts, 0x20) // skip batchContexts.length
         }
 
-        uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
+        uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _preLastBlockNumber, _blockContexts.length);
         assembly {
-            batchPtr := add(batchPtr, 2) // skip numBlocks
+            batchPtr := add(batchPtr, 8) // skip last L2 block number
         }
         // concatenate block contexts, use scope to avoid stack too deep
         for (uint256 i = 0; i < _numBlocks; i++) {
@@ -785,8 +769,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 _totalL1MessagesPoppedInBatch,
                 _totalL1MessagesPoppedOverall
             );
-            uint256 _numTransactionsInBlock = BatchCodecV0.getNumTransactions(batchPtr);
-            require(_numTransactionsInBlock >= _numL1MessagesInBlock, "num txs less than num L1 msgs");
             unchecked {
                 _totalL1MessagesPoppedInBatch += _numL1MessagesInBlock;
                 _totalL1MessagesPoppedOverall += _numL1MessagesInBlock;
@@ -800,6 +782,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         assembly {
             _dataHash := keccak256(startDataPtr, sub(dataPtr, startDataPtr))
         }
+    }
+
+    function getLastBlockNumber(bytes memory _blockContexts) internal pure returns (uint256) {
+        uint256 batchPtr;
+        assembly {
+            batchPtr := add(_blockContexts, 0x20) // skip batchContexts.length
+        }
+        return BatchCodecV0.getLastBlockNumber(batchPtr);
     }
 
     /// @dev Internal function to load L1 message hashes from the message queue.

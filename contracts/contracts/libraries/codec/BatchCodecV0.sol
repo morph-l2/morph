@@ -6,25 +6,15 @@ pragma solidity ^0.8.16;
 
 /// @dev Below is the encoding for `Batch`, total 60*n+1 bytes.
 /// ```text
-///   * Field           Bytes       Type            Index       Comments
-///   * numBlocks       2           uint16          0           The number of blocks in this batch
-///   * block[0]        60          BlockContext    1           The first block in this batch
+///   * Field                     Bytes   Type      Index       Comments
+///   * lastBlockNumber           8       uint64    0           The last block number in this batch
+///   * block[0].numL1Messages    2       uint16    8           The number of L1 messages in the first block
 ///   * ......
-///   * block[i]        60          BlockContext    60*i+1      The (i+1)'th block in this batch
+///   * block[i].numL1Messages    2       uint16    2*i+8       The number of L1 messages in the i-th block
 ///   * ......
-///   * block[n-1]      60          BlockContext    60*n-59     The last block in this batch
+///   * block[n-1].numL1Messages  2       uint16    2*(n-1)+8   The number of L1 messages in the last block
 /// ```
-///
-/// @dev Below is the encoding for `BlockContext`, total 60 bytes.
-/// ```text
-///   * Field                   Bytes      Type         Index  Comments
-///   * blockNumber             8          uint64       0      The height of this block.
-///   * timestamp               8          uint64       8      The timestamp of this block.
-///   * baseFee                 32         uint256      16     The base fee of this block.
-///   * gasLimit                8          uint64       48     The gas limit of this block.
-///   * numTransactions         2          uint16       56     The number of transactions in this block, both L1 & L2 txs.
-///   * numL1Messages           2          uint16       58     The number of l1 messages in this block.
-/// ```
+
 library BatchCodecV0 {
     /// @dev Thrown when no blocks in batch.
     error ErrorNoBlockInBatch();
@@ -33,14 +23,19 @@ library BatchCodecV0 {
     error ErrorIncorrectBatchLength();
 
     /// @dev The length of one block context.
-    uint256 internal constant BLOCK_CONTEXT_LENGTH = 60;
+    uint256 internal constant BLOCK_CONTEXT_LENGTH = 2;
 
     /// @notice Validate the length of batch.
     /// @param batchPtr The start memory offset of the batch in memory.
+    /// @param _preLastBlockNumber The last block number of the previous batch.
     /// @param _length The length of the batch.
     /// @return _numBlocks The number of blocks in current batch.
-    function validateBatchLength(uint256 batchPtr, uint256 _length) internal pure returns (uint256 _numBlocks) {
-        _numBlocks = getNumBlocks(batchPtr);
+    function validateBatchLength(
+        uint256 batchPtr,
+        uint256 _preLastBlockNumber,
+        uint256 _length
+    ) internal pure returns (uint256 _numBlocks) {
+        _numBlocks = getLastBlockNumber(batchPtr) - _preLastBlockNumber;
 
         // should contain at least one block
         if (_numBlocks == 0) revert ErrorNoBlockInBatch();
@@ -52,9 +47,9 @@ library BatchCodecV0 {
     /// @notice Return the number of blocks in current batch.
     /// @param batchPtr The start memory offset of the batch in memory.
     /// @return _numBlocks The number of blocks in current batch.
-    function getNumBlocks(uint256 batchPtr) internal pure returns (uint256 _numBlocks) {
+    function getLastBlockNumber(uint256 batchPtr) internal pure returns (uint256 _numBlocks) {
         assembly {
-            _numBlocks := shr(240, mload(batchPtr))
+            _numBlocks := shr(192, mload(batchPtr))
         }
     }
 
@@ -64,28 +59,13 @@ library BatchCodecV0 {
     /// @param index The index of block context to copy.
     /// @return uint256 The new destination memory offset after copy.
     function copyBlockContext(uint256 blockPtr, uint256 dstPtr, uint256 index) internal pure returns (uint256) {
-        // only first 58 bytes is needed.
+        // only first 2 bytes is needed.
         assembly {
             blockPtr := add(blockPtr, mul(BLOCK_CONTEXT_LENGTH, index))
-            mstore(dstPtr, mload(blockPtr)) // first 32 bytes
-            mstore(
-                add(dstPtr, 0x20),
-                and(mload(add(blockPtr, 0x20)), 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000)
-            ) // next 26 bytes
-
-            dstPtr := add(dstPtr, 58)
+            mstore(dstPtr, and(mload(blockPtr), 0xffff000000000000000000000000000000000000000000000000000000000000)) // first 2 bytes
         }
 
         return dstPtr;
-    }
-
-    /// @notice Return the number of transactions in current block.
-    /// @param blockPtr The start memory offset of the block context in memory.
-    /// @return _numTransactions The number of transactions in current block.
-    function getNumTransactions(uint256 blockPtr) internal pure returns (uint256 _numTransactions) {
-        assembly {
-            _numTransactions := shr(240, mload(add(blockPtr, 56)))
-        }
     }
 
     /// @notice Return the number of L1 messages in current block.
@@ -93,16 +73,7 @@ library BatchCodecV0 {
     /// @return _numL1Messages The number of L1 messages in current block.
     function getNumL1Messages(uint256 blockPtr) internal pure returns (uint256 _numL1Messages) {
         assembly {
-            _numL1Messages := shr(240, mload(add(blockPtr, 58)))
-        }
-    }
-
-    /// @notice Return the number of the block.
-    /// @param blockPtr The start memory offset of the block context in memory.
-    /// @return _blockNumber The block number of blockPtr in current block.
-    function getBlockNumber(uint256 blockPtr) internal pure returns (uint256 _blockNumber) {
-        assembly {
-            _blockNumber := shr(192, mload(blockPtr))
+            _numL1Messages := shr(240, mload(blockPtr))
         }
     }
 }
