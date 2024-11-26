@@ -148,6 +148,11 @@ var (
 		Usage:  "The rsa private key of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_RSA_PRIV"),
 	}
+	MockRecordFlag = cli.BoolFlag{
+		Name:   "MOCK_RECORD",
+		Usage:  "mock record client",
+		EnvVar: prefixEnvVar("MOCK_RECORD"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -179,6 +184,8 @@ var optionalFlags = []cli.Flag{
 	ExternalSignChain,
 	ExternalSignUrl,
 	ExternalSignRsaPriv,
+	// mock record client
+	MockRecordFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
