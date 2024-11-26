@@ -1122,12 +1122,24 @@ func (r *Rollup) SendTx(tx *types.Transaction, batchIndex uint64) error {
 			log.Warn("batch not found in cache when calc fee before SendTx", "batchIndex", batchIndex)
 			collectedL1Fee = big.NewInt(0)
 		}
-		// targetFee = fee * (100 + cfg.RotatorBuffer)/100
-		targetFee := new(big.Int).Mul(fee, big.NewInt(100+r.cfg.RotatorBuffer))
-		targetFee.Div(targetFee, big.NewInt(100))
+		// profit calc
+		profit := new(big.Int).Sub(collectedL1Fee, fee)
+		log.Info("batch profit",
+			"profit", profit,
+			"collected_l1_fee", collectedL1Fee,
+			"rollup_fee", fee,
+		)
+		if profit.Cmp(big.NewInt(0)) < 0 {
+			lossPercent := new(big.Int).Div(
+				new(big.Int).Mul(profit, big.NewInt(100)),
+				collectedL1Fee,
+			)
+			lossPercent.Abs(lossPercent)
+			log.Info("batch loss", "loss_percent", lossPercent)
+			if lossPercent.Int64() > r.cfg.MaxRollupLossBuffer {
+				return fmt.Errorf("tx fee exceed loss buffer: collectedL1Fee=%v,rolluoFee=%v,profit=%v,lossPercent=%v", collectedL1Fee, fee, profit, lossPercent)
+			}
 
-		if collectedL1Fee.Cmp(targetFee) < 0 {
-			return fmt.Errorf("tx fee exceed collectedL1Fee: targetFee=%v,fee=%v,collectedL1Fee:=%v", targetFee, fee, collectedL1Fee)
 		}
 	}
 	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
