@@ -16,7 +16,7 @@ interface IRollup {
     struct BatchDataInput {
         uint8 version;
         bytes parentBatchHeader;
-        uint256 lastBlockNumber;
+        uint64 lastBlockNumber;
         uint16 numL1Messages;
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
