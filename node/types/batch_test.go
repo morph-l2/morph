@@ -6,7 +6,6 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tendermint/libs/rand"
 )
 
 func TestBatchHeader(t *testing.T) {
@@ -22,7 +21,6 @@ func TestBatchHeader(t *testing.T) {
 		WithdrawalRoot:         common.BigToHash(big.NewInt(103)),
 		SequencerSetVerifyHash: common.BigToHash(big.NewInt(104)),
 		ParentBatchHash:        common.BigToHash(big.NewInt(200)),
-		SkippedL1MessageBitmap: rand.Bytes(10),
 	}
 	bytes := expectedBatchHeader.Encode()
 
@@ -39,5 +37,4 @@ func TestBatchHeader(t *testing.T) {
 	require.EqualValues(t, expectedBatchHeader.WithdrawalRoot, decoded.WithdrawalRoot)
 	require.EqualValues(t, expectedBatchHeader.SequencerSetVerifyHash, decoded.SequencerSetVerifyHash)
 	require.EqualValues(t, expectedBatchHeader.ParentBatchHash, decoded.ParentBatchHash)
-	require.EqualValues(t, expectedBatchHeader.SkippedL1MessageBitmap, decoded.SkippedL1MessageBitmap)
 }
