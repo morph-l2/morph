@@ -88,7 +88,7 @@ type WrappedBlock struct {
 	Hash               common.Hash    `json:"hash"`
 
 	CollectedL1TxHashes []common.Hash               `json:"l1TxHashes" rlp:"optional"`
-	_                   []*types.SkippedTransaction `json:"-" rlp:"optional"`
+	SkippedL1Txs        []*types.SkippedTransaction `json:"-" rlp:"optional"`
 	BaseFee             *big.Int                    `json:"baseFeePerGas"  rlp:"optional"`
 }
 
