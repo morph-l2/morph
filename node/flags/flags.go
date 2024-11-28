@@ -170,6 +170,12 @@ var (
 		EnvVar: prefixEnvVar("VALIDATOR"),
 	}
 
+	ChallengeEnable = cli.BoolFlag{
+		Name:   "validator.challengeEnable",
+		Usage:  "Enable the validator challenge",
+		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
+	}
+
 	// validator
 	ValidatorPrivateKey = cli.StringFlag{
 		Name:   "validator.privateKey",
@@ -188,6 +194,12 @@ var (
 		Name:   "derivation.startHeight",
 		Usage:  "L1 block height where derivation start to fetch",
 		EnvVar: prefixEnvVar("DERIVATION_START_HEIGHT"),
+	}
+
+	DerivationBaseHeight = cli.Uint64Flag{
+		Name:   "derivation.baseHeight",
+		Usage:  "The starting height of l2 derive, usually the node snapshot or other trusted starting height, before which stateRoot will not be checked",
+		EnvVar: prefixEnvVar("DERIVATION_BASE_HEIGHT"),
 	}
 
 	DerivationPollInterval = cli.DurationFlag{
@@ -315,6 +327,7 @@ var Flags = []cli.Flag{
 	TendermintConfigPath,
 	MockEnabled,
 	ValidatorEnable,
+	ChallengeEnable,
 
 	// validator
 	ValidatorPrivateKey,
@@ -322,6 +335,7 @@ var Flags = []cli.Flag{
 	// derivation
 	RollupContractAddress,
 	DerivationStartHeight,
+	DerivationBaseHeight,
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,

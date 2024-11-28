@@ -56,6 +56,7 @@ type Derivation struct {
 	cancel context.CancelFunc
 
 	startHeight         uint64
+	baseHeight          uint64
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
@@ -124,6 +125,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
 		startHeight:           cfg.StartHeight,
+		baseHeight:            cfg.BaseHeight,
 		fetchBlockRange:       cfg.FetchBlockRange,
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
@@ -226,6 +228,9 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 		d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+		if lastHeader.Number.Uint64() <= d.baseHeight {
+			continue
+		}
 		withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
 			BlockNumber: lastHeader.Number,
 		})
