@@ -1337,7 +1337,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 			return fmt.Errorf("get data from leveldb faild, key: %s, %w", rollupSumKey, err)
 		}
 	}
-	log.Info("rollupFeeSum: %f", rollupFeeSum)
+	log.Info("rollup fee", "sum", rollupFeeSum)
 	finalizeFeeSum, err := r.ldb.GetFloat(finalizeSumKey)
 	if err != nil {
 		log.Warn("read finalizeFeeSum from leveldb failed", "error", err)
@@ -1350,7 +1350,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 			return fmt.Errorf("get data from leveldb faild, key: %s, %w", finalizeSumKey, err)
 		}
 	}
-	log.Info("finalizeFeeSum: %f", finalizeFeeSum)
+	log.Info("finalize fee", "sum", finalizeFeeSum)
 	collectedL1FeeSum, err := r.ldb.GetFloat(collectedL1FeeSumKey)
 	if err != nil {
 		log.Warn("read collectedL1FeeSum from leveldb failed", "error", err)
