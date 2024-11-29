@@ -333,7 +333,7 @@ func (r *Rollup) ProcessTx() error {
 						// happening between RemoveRollupRestriction
 						// and SetPindex in the rollup function
 						r.rollupFinalizeMu.Lock()
-						r.pendingTxs.SetFailedStatus(index)
+						r.pendingTxs.TrySetFailedBatchIndex(index)
 						r.rollupFinalizeMu.Unlock()
 
 					}
@@ -717,7 +717,7 @@ func (r *Rollup) rollup() error {
 				"err", err,
 				"try_update_pooled_pending_index", cindex+1,
 			)
-			r.pendingTxs.SetFailedStatus(cindex + 1)
+			r.pendingTxs.TrySetFailedBatchIndex(cindex + 1)
 			return nil
 		}
 

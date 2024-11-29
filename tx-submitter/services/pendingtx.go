@@ -169,7 +169,7 @@ func (pt *PendingTxs) IncQueryTimes(txHash common.Hash) {
 	pt.txinfos[txHash] = TxInfo{tx: pt.txinfos[txHash].tx, queryTimes: pt.txinfos[txHash].queryTimes + 1, sendTime: pt.txinfos[txHash].sendTime}
 }
 
-func (pt *PendingTxs) SetFailedStatus(index uint64) {
+func (pt *PendingTxs) TrySetFailedBatchIndex(index uint64) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
 
