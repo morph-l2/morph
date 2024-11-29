@@ -290,7 +290,7 @@ contract RollupTest is L1MessageBaseTest {
 
         // batch header length incorrect, revert
         hevm.startPrank(alice);
-        hevm.expectRevert("batch header length must be 249");
+        hevm.expectRevert("batch header length too small");
         batchDataInput = IRollup.BatchDataInput(0, new bytes(120), new bytes(1), stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
@@ -338,8 +338,8 @@ contract RollupTest is L1MessageBaseTest {
 
         // incorrect batch header length, revert
         hevm.startPrank(alice);
-        hevm.expectRevert("batch header length must be 249");
-        batchDataInput = IRollup.BatchDataInput(0, new bytes(250), new bytes(1), stateRoot, stateRoot, getTreeRoot());
+        hevm.expectRevert("batch header length too small");
+        batchDataInput = IRollup.BatchDataInput(0, new bytes(248), new bytes(1), stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
@@ -566,7 +566,7 @@ contract RollupTest is L1MessageBaseTest {
         assembly {
             mstore(add(batchHeader, add(0x20, 121)), bytesData1) // stateRootHsash
         }
-        hevm.expectRevert("batch header length must be 249");
+        hevm.expectRevert("batch header length too small");
         hevm.prank(multisig);
         rollup.importGenesisBatch(batchHeader);
 

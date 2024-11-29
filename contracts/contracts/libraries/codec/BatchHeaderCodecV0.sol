@@ -29,7 +29,7 @@ library BatchHeaderCodecV0 {
     /// @return length The length in bytes of the batch header.
     function loadAndValidate(bytes calldata _batchHeader) internal pure returns (uint256 batchPtr, uint256 length) {
         length = _batchHeader.length;
-        require(length == BATCH_HEADER_LENGTH, "batch header length must be 249");
+        require(length >= BATCH_HEADER_LENGTH, "batch header length too small");
         // copy batch header to memory.
         assembly {
             batchPtr := mload(0x40)
