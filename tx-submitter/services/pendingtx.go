@@ -174,7 +174,7 @@ func (pt *PendingTxs) SetFailedStatus(index uint64) {
 	defer pt.mu.Unlock()
 
 	// failed index must be less than pindex
-	if pt.failedIndex != nil || index >= pt.pindex {
+	if pt.failedIndex != nil || index > pt.pindex {
 		return
 	}
 

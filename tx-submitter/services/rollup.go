@@ -639,8 +639,12 @@ func (r *Rollup) rollup() error {
 			batchIndex = cindex + 1
 		}
 	}
-
-	log.Info("batch info", "last_commit_batch", batchIndex-1, "batch_will_get", batchIndex)
+	log.Info("batch index info",
+		"last_commited_batch_index", cindex,
+		"batch_index_will_get", batchIndex,
+		"pending_index", r.pendingTxs.pindex,
+		"failed_index", r.pendingTxs.failedIndex,
+	)
 	if r.pendingTxs.ExistedIndex(batchIndex) {
 		log.Info("batch index already committed", "index", batchIndex)
 		return nil
