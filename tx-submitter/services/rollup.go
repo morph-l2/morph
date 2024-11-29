@@ -639,11 +639,16 @@ func (r *Rollup) rollup() error {
 			batchIndex = cindex + 1
 		}
 	}
+
+	var failedIndex uint64
+	if r.pendingTxs.failedIndex != nil {
+		failedIndex = *r.pendingTxs.failedIndex
+	}
 	log.Info("batch index info",
 		"last_committed_batch_index", cindex,
 		"batch_index_will_get", batchIndex,
 		"pending_index", r.pendingTxs.pindex,
-		"failed_index", r.pendingTxs.failedIndex,
+		"failed_index", failedIndex,
 	)
 	if r.pendingTxs.ExistedIndex(batchIndex) {
 		log.Info("batch index already committed", "index", batchIndex)
@@ -710,9 +715,9 @@ func (r *Rollup) rollup() error {
 		if r.pendingTxs.HaveFailed() {
 			log.Warn("estimate gas err, wait failed tx fixed",
 				"err", err,
-				"update_pooled_pending_index", cindex+1,
+				"try_update_pooled_pending_index", cindex+1,
 			)
-			r.pendingTxs.ResetFailedIndex(cindex + 1)
+			r.pendingTxs.SetFailedStatus(cindex + 1)
 			return nil
 		}
 
