@@ -11,7 +11,7 @@ func TestSetFailedStatus(t *testing.T) {
 	pt := NewPendingTxs(nil, nil, nil)
 	pt.SetPindex(2)
 	require.Nil(t, pt.failedIndex)
-	pt.SetFailedStatus(2)
+	pt.TrySetFailedBatchIndex(2)
 	require.NotNil(t, pt.failedIndex)
 	require.EqualValues(t, 2, *pt.failedIndex)
 
@@ -21,11 +21,11 @@ func TestSetFailedStatus(t *testing.T) {
 	pt = NewPendingTxs(nil, nil, nil)
 	failedIndex := uint64(2)
 	pt.failedIndex = &failedIndex
-	pt.SetFailedStatus(3)
+	pt.TrySetFailedBatchIndex(3)
 	require.EqualValues(t, 2, *pt.failedIndex)
 
 	// set failed index without pindex -> failed
 	pt = NewPendingTxs(nil, nil, nil)
-	pt.SetFailedStatus(2)
+	pt.TrySetFailedBatchIndex(2)
 	require.Nil(t, pt.failedIndex)
 }
