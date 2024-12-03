@@ -37,6 +37,7 @@ type Config struct {
 	BeaconRpc             string          `json:"beacon_rpc"`
 	RollupContractAddress common.Address  `json:"rollup_contract_address"`
 	StartHeight           uint64          `json:"start_height"`
+	BaseHeight            uint64          `json:"base_height"`
 	PollInterval          time.Duration   `json:"poll_interval"`
 	LogProgressInterval   time.Duration   `json:"log_progress_interval"`
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
@@ -84,6 +85,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if c.StartHeight == 0 {
 			return errors.New("invalid DerivationStartHeight")
 		}
+	}
+
+	if ctx.GlobalIsSet(flags.DerivationBaseHeight.Name) {
+		c.BaseHeight = ctx.GlobalUint64(flags.DerivationBaseHeight.Name)
 	}
 
 	if ctx.GlobalIsSet(flags.DerivationPollInterval.Name) {

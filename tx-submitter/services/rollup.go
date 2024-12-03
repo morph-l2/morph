@@ -336,7 +336,7 @@ func (r *Rollup) ProcessTx() error {
 						// happening between RemoveRollupRestriction
 						// and SetPindex in the rollup function
 						r.rollupFinalizeMu.Lock()
-						r.pendingTxs.SetFailedStatus(index)
+						r.pendingTxs.TrySetFailedBatchIndex(index)
 						r.rollupFinalizeMu.Unlock()
 
 					}
@@ -646,7 +646,16 @@ func (r *Rollup) rollup() error {
 		}
 	}
 
-	log.Info("batch info", "last_commit_batch", batchIndex-1, "batch_will_get", batchIndex)
+	var failedIndex uint64
+	if r.pendingTxs.failedIndex != nil {
+		failedIndex = *r.pendingTxs.failedIndex
+	}
+	log.Info("batch index info",
+		"last_committed_batch_index", cindex,
+		"batch_index_will_get", batchIndex,
+		"pending_index", r.pendingTxs.pindex,
+		"failed_index", failedIndex,
+	)
 	if r.pendingTxs.ExistedIndex(batchIndex) {
 		log.Info("batch index already committed", "index", batchIndex)
 		return nil
@@ -712,9 +721,9 @@ func (r *Rollup) rollup() error {
 		if r.pendingTxs.HaveFailed() {
 			log.Warn("estimate gas err, wait failed tx fixed",
 				"err", err,
-				"update_pooled_pending_index", cindex+1,
+				"try_update_pooled_pending_index", cindex+1,
 			)
-			r.pendingTxs.ResetFailedIndex(cindex + 1)
+			r.pendingTxs.TrySetFailedBatchIndex(cindex + 1)
 			return nil
 		}
 
