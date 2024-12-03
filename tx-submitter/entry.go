@@ -186,17 +186,16 @@ func Main() func(ctx *cli.Context) error {
 			},
 		}
 
-		eventIndexer := event.NewEventIndexer(cfg.StakingEventStoreFilename, l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep)
-
-		// new rotator
-		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
-		// start rorator event indexer
-		rotator.StartEventIndexer()
-
 		ldb, err := db.New(cfg.LeveldbPathName)
 		if err != nil {
 			return fmt.Errorf("failed to connect leveldb: %w", err)
 		}
+		eventInfoStorage := event.NewEventInfoStorage(ldb)
+		eventIndexer := event.NewEventIndexer(l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep, eventInfoStorage)
+		// new rotator
+		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
+		// start rorator event indexer
+		rotator.StartEventIndexer()
 
 		// blockmonitor
 		bm := l1checker.NewBlockMonitor(cfg.BlockNotIncreasedThreshold, l1Client)
@@ -219,6 +218,7 @@ func Main() func(ctx *cli.Context) error {
 			rotator,
 			ldb,
 			bm,
+			eventInfoStorage,
 		)
 
 		// metrics
