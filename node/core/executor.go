@@ -51,8 +51,9 @@ type Executor struct {
 	isSequencer    bool
 	devSequencer   bool
 
-	rollupABI     *abi.ABI
-	batchingCache *BatchingCache
+	UpgradeBatchTime uint64
+	rollupABI        *abi.ABI
+	batchingCache    *BatchingCache
 
 	logger  tmlog.Logger
 	metrics *Metrics
@@ -119,6 +120,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		devSequencer:        config.DevSequencer,
 		rollupABI:           rollupAbi,
 		batchingCache:       NewBatchingCache(),
+		UpgradeBatchTime:    config.UpgradeBatchTime,
 		logger:              logger,
 		metrics:             PrometheusMetrics("morphnode"),
 	}
@@ -195,7 +197,6 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 		NextL1MessageIndex:  l2Block.NextL1MessageIndex,
 		Hash:                l2Block.Hash,
 		CollectedL1TxHashes: collectedL1TxHashes,
-		SkippedL1Txs:        l2Block.SkippedTxs,
 	}
 	blockMeta, err = wb.MarshalBinary()
 	txs = l2Block.Transactions
@@ -239,7 +240,6 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 		WithdrawTrieRoot:   wrappedBlock.WithdrawTrieRoot,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
 		Hash:               wrappedBlock.Hash,
-		SkippedTxs:         wrappedBlock.SkippedL1Txs,
 
 		Transactions: txs,
 	}
@@ -306,7 +306,6 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		LogsBloom:          wrappedBlock.LogsBloom,
 		WithdrawTrieRoot:   wrappedBlock.WithdrawTrieRoot,
 		NextL1MessageIndex: wrappedBlock.NextL1MessageIndex,
-		SkippedTxs:         wrappedBlock.SkippedL1Txs,
 		Hash:               wrappedBlock.Hash,
 
 		Transactions: txs,

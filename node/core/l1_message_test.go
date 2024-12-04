@@ -164,86 +164,26 @@ func TestValidateL1Messages(t *testing.T) {
 	})
 
 	t.Run("constraint 6: testing block.NextL1MessageIndex", func(t *testing.T) {
-		to := common.BigToAddress(big.NewInt(1))
-		skippedL1WithIndex10 := eth.L1MessageTx{
-			QueueIndex: uint64(10),
-			Gas:        21000,
-			To:         &to,
-			Value:      big.NewInt(100),
-			Sender:     common.BigToAddress(big.NewInt(int64(10))),
-		}
-		l1Message10 := types.L1Message{
-			L1TxHash:    common.BigToHash(big.NewInt(int64(10))),
-			L1MessageTx: skippedL1WithIndex10,
-		}
-		thisL1Reader := l1Reader.copy()
-		thisL1Reader.addL1Message(l1Message10)
 		executor := Executor{
 			nextL1MsgIndex: 0,
-			l1MsgReader:    thisL1Reader,
+			l1MsgReader:    &l1Reader,
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
 		block := &catalyst.ExecutableL2Data{
-			NextL1MessageIndex: 11,
+			NextL1MessageIndex: 10,
 			Transactions:       l1TxBytes,
-			SkippedTxs: []*eth.SkippedTransaction{
-				{Tx: eth.NewTx(&skippedL1WithIndex10)},
-			},
 		}
-		collectedL1TxHashesCopy := append(collectedL1TxHashes, common.BigToHash(big.NewInt(int64(10))))
-		err := executor.validateL1Messages(block, collectedL1TxHashesCopy)
+		err := executor.validateL1Messages(block, collectedL1TxHashes)
 		require.NoError(t, err)
 
 		block = &catalyst.ExecutableL2Data{
-			NextL1MessageIndex: 9,
+			NextL1MessageIndex: 11,
 			Transactions:       l1TxBytes,
 		}
 		err = executor.validateL1Messages(block, collectedL1TxHashes)
 		require.ErrorIs(t, err, types.ErrWrongNextL1MessageIndex)
 	})
 
-	t.Run("constraint 7: invalid skipped L1 messages", func(t *testing.T) {
-		executor := Executor{
-			nextL1MsgIndex: 0,
-			l1MsgReader:    &l1Reader,
-			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
-		}
-
-		originTxs := block.Transactions[:]
-		l1TxBytes := make([][]byte, 0)
-		l1TxBytes = append(append(l1TxBytes, originTxs[:2]...), originTxs[3:]...)
-
-		thisBlock := &catalyst.ExecutableL2Data{
-			NextL1MessageIndex: 10,
-			Transactions:       l1TxBytes,
-		}
-
-		err := executor.validateL1Messages(thisBlock, collectedL1TxHashes)
-		require.EqualError(t, err, types.ErrInvalidSkippedL1Message.Error())
-
-		skippedTx := new(eth.Transaction)
-		err = skippedTx.UnmarshalBinary(originTxs[2])
-		require.NoError(t, err)
-		thisBlock = &catalyst.ExecutableL2Data{
-			NextL1MessageIndex: 10,
-			Transactions:       l1TxBytes,
-			SkippedTxs: []*eth.SkippedTransaction{
-				{Tx: skippedTx},
-			},
-		}
-		err = executor.validateL1Messages(thisBlock, collectedL1TxHashes)
-		require.NoError(t, err)
-
-		thisBlock = &catalyst.ExecutableL2Data{
-			NextL1MessageIndex: 10,
-			Transactions:       l1TxBytes,
-			SkippedTxs: []*eth.SkippedTransaction{
-				{Tx: skippedTx},
-			},
-		}
-		err = executor.validateL1Messages(thisBlock, collectedL1TxHashes)
-		require.NoError(t, err)
-	})
 }
 
 var _ types.L1MessageReader = (*testL1MsgReader)(nil)

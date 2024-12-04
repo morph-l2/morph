@@ -14,8 +14,8 @@
   "fundDevAccounts": false,
 
   "l1StartingBlockTag": "earliest",
-  "maxTxPerBlock": 10000,
-  "maxTxPayloadBytesPerBlock": 345000,
+  "maxTxPerBlock": 1000,
+  "maxTxPayloadBytesPerBlock": 122880,
 
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
