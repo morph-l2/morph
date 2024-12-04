@@ -75,7 +75,7 @@ type Rollup struct {
 	// collectedL1FeeSum
 	collectedL1FeeSum float64
 	// batchcache
-	batchCache map[uint64]*eth.RPCRollupBatch
+	batchCache *BatchCache
 	bm         *l1checker.BlockMonitor
 }
 
@@ -114,7 +114,7 @@ func NewRollup(
 		cfg:             cfg,
 		signer:          types.LatestSignerForChainID(chainId),
 		externalRsaPriv: rsaPriv,
-		batchCache:      make(map[uint64]*eth.RPCRollupBatch),
+		batchCache:      NewBatchCache(),
 		ldb:             ldb,
 		bm:              bm,
 	}
@@ -256,7 +256,7 @@ func (r *Rollup) ProcessTx() error {
 		if ispending {
 			if txRecord.sendTime+uint64(r.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
 				log.Info("tx timeout", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
-				newtx, err := r.ReSubmitTx(false, rtx)
+				newtx, err := r.ReSubmitTx(false, rtx, r.GetReSubmitBatchIndex(method, rtx.Data()))
 				if err != nil {
 					log.Error("resubmit tx", "error", err, "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce())
 					return fmt.Errorf("resubmit tx error:%w", err)
@@ -281,7 +281,8 @@ func (r *Rollup) ProcessTx() error {
 						"nonce", rtx.Nonce(),
 						"query_times", txRecord.queryTimes,
 					)
-					replacedtx, err := r.ReSubmitTx(true, rtx)
+
+					replacedtx, err := r.ReSubmitTx(true, rtx, r.GetReSubmitBatchIndex(method, rtx.Data()))
 					if err != nil {
 						log.Error("resend discarded tx", "old_tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
 						if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -332,7 +333,7 @@ func (r *Rollup) ProcessTx() error {
 						// happening between RemoveRollupRestriction
 						// and SetPindex in the rollup function
 						r.rollupFinalizeMu.Lock()
-						r.pendingTxs.SetFailedStatus(index)
+						r.pendingTxs.TrySetFailedBatchIndex(index)
 						r.rollupFinalizeMu.Unlock()
 
 					}
@@ -358,7 +359,7 @@ func (r *Rollup) ProcessTx() error {
 					}
 					r.metrics.SetRollupCost(fee)
 					index := utils.ParseParentBatchIndex(rtx.Data()) + 1
-					batch, ok := r.batchCache[index]
+					batch, ok := r.batchCache.Get(index)
 					if ok {
 						collectedL1FeeFloat := ToEtherFloat((*big.Int)(batch.CollectedL1Fee))
 						r.collectedL1FeeSum += collectedL1FeeFloat
@@ -368,7 +369,7 @@ func (r *Rollup) ProcessTx() error {
 						}
 						r.metrics.SetCollectedL1Fee(ToEtherFloat((*big.Int)(batch.CollectedL1Fee)))
 						// remove batch from cache
-						delete(r.batchCache, index)
+						r.batchCache.Delete(index)
 					} else {
 						log.Warn("batch not found in batchCache while set collect fee metrics",
 							"index", index,
@@ -527,7 +528,7 @@ func (r *Rollup) finalize() error {
 		"size", signedTx.Size(),
 	)
 
-	err = r.SendTx(signedTx)
+	err = r.SendTx(signedTx, 0)
 	if err != nil {
 		log.Error("send finalize tx to mempool", "error", err.Error())
 		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -639,7 +640,16 @@ func (r *Rollup) rollup() error {
 		}
 	}
 
-	log.Info("batch info", "last_commit_batch", batchIndex-1, "batch_will_get", batchIndex)
+	var failedIndex uint64
+	if r.pendingTxs.failedIndex != nil {
+		failedIndex = *r.pendingTxs.failedIndex
+	}
+	log.Info("batch index info",
+		"last_committed_batch_index", cindex,
+		"batch_index_will_get", batchIndex,
+		"pending_index", r.pendingTxs.pindex,
+		"failed_index", failedIndex,
+	)
 	if r.pendingTxs.ExistedIndex(batchIndex) {
 		log.Info("batch index already committed", "index", batchIndex)
 		return nil
@@ -650,9 +660,13 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	batch, err := GetRollupBatchByIndex(batchIndex, r.L2Clients)
-	if err != nil {
-		return fmt.Errorf("get rollup batch by index err:%v", err)
+	var batch *eth.RPCRollupBatch
+	batch, ok := r.batchCache.Get(batchIndex)
+	if !ok {
+		batch, err = GetRollupBatchByIndex(batchIndex, r.L2Clients)
+		if err != nil {
+			return fmt.Errorf("get rollup batch by index err:%v", err)
+		}
 	}
 
 	// check if the batch is valid
@@ -668,7 +682,7 @@ func (r *Rollup) rollup() error {
 
 	// set batch cache
 	// it shoud be removed after the batch is committed
-	r.batchCache[batchIndex] = batch
+	r.batchCache.Set(batchIndex, batch)
 
 	signature, err := r.buildSignatureInput(batch)
 	if err != nil {
@@ -701,14 +715,14 @@ func (r *Rollup) rollup() error {
 		if r.pendingTxs.HaveFailed() {
 			log.Warn("estimate gas err, wait failed tx fixed",
 				"err", err,
-				"update_pooled_pending_index", cindex+1,
+				"try_update_pooled_pending_index", cindex+1,
 			)
-			r.pendingTxs.ResetFailedIndex(cindex + 1)
+			r.pendingTxs.TrySetFailedBatchIndex(cindex + 1)
 			return nil
 		}
 
 		if r.cfg.RoughEstimateGas {
-			msgcnt := utils.ParseL1MessageCnt(batch.BlockContexts)
+			msgcnt := r.ParseL1MessageCnt(batch.BlockContexts)
 			gas = r.RoughRollupGasEstimate(msgcnt)
 			log.Info("rough estimate rollup tx gas", "gas", gas, "msgcnt", msgcnt)
 		} else {
@@ -786,7 +800,7 @@ func (r *Rollup) rollup() error {
 		"blob_len", len(signedTx.BlobHashes()),
 	)
 
-	err = r.SendTx(signedTx)
+	err = r.SendTx(signedTx, batchIndex)
 	if err != nil {
 		log.Error("send tx to mempool", "error", err.Error())
 		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -1091,7 +1105,7 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 }
 
 // send tx to l1 with business logic check
-func (r *Rollup) SendTx(tx *types.Transaction) error {
+func (r *Rollup) SendTx(tx *types.Transaction, batchIndex uint64) error {
 
 	// judge tx info is valid
 	if tx == nil {
@@ -1101,7 +1115,30 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 	if !r.bm.IsGrowth() {
 		return fmt.Errorf("block not growth in %d blocks time", r.cfg.BlockNotIncreasedThreshold)
 	}
+	// check batch loss
+	if r.cfg.RollupLossControl {
+		// calc fee
+		fee := utils.CalcFeeForTx(tx)
+		// get batch
+		var collectedL1Fee *big.Int
+		batch, ok := r.batchCache.Get(batchIndex)
+		if ok {
+			collectedL1Fee = batch.CollectedL1Fee.ToInt()
+			if collectedL1Fee == nil {
+				collectedL1Fee = big.NewInt(0)
+			}
+		} else {
+			log.Warn("batch not found in cache when calc fee before SendTx", "batchIndex", batchIndex)
+			collectedL1Fee = big.NewInt(0)
+		}
+		// targetFee = fee * (100 + cfg.RotatorBuffer)/100
+		targetFee := new(big.Int).Mul(fee, big.NewInt(100+r.cfg.RotatorBuffer))
+		targetFee.Div(targetFee, big.NewInt(100))
 
+		if collectedL1Fee.Cmp(targetFee) < 0 {
+			return fmt.Errorf("tx fee exceed collectedL1Fee: targetFee=%v,fee=%v,collectedL1Fee:=%v", targetFee, fee, collectedL1Fee)
+		}
+	}
 	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
 	if err != nil {
 		return err
@@ -1138,7 +1175,7 @@ func sendTx(client iface.Client, txFeeLimit uint64, tx *types.Transaction) error
 	return client.SendTransaction(context.Background(), tx)
 }
 
-func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction) (*types.Transaction, error) {
+func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction, batchIndex uint64) (*types.Transaction, error) {
 	if tx == nil {
 		return nil, errors.New("nil tx")
 	}
@@ -1229,7 +1266,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction) (*types.Transact
 		return nil, fmt.Errorf("sign tx error:%w", err)
 	}
 	// send tx
-	err = r.SendTx(newTx)
+	err = r.SendTx(newTx, batchIndex)
 	if err != nil {
 		return nil, fmt.Errorf("send tx error:%w", err)
 	}
@@ -1334,4 +1371,12 @@ func (r *Rollup) InitFeeMetricsSum() error {
 	r.metrics.FinalizeCostSum.Add(r.finalizeFeeSum)
 	r.metrics.CollectedL1FeeSum.Add(r.collectedL1FeeSum)
 	return nil
+}
+
+func (r *Rollup) GetReSubmitBatchIndex(method string, calldta []byte) uint64 {
+	if method == "commitBatch" {
+		return utils.ParseBatchIndex(method, calldta)
+	} else {
+		return 0
+	}
 }
