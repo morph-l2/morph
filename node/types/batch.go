@@ -32,7 +32,6 @@ type BatchHeader struct {
 	WithdrawalRoot         common.Hash
 	SequencerSetVerifyHash common.Hash
 	ParentBatchHash        common.Hash
-	SkippedL1MessageBitmap hexutil.Bytes
 
 	//cache
 	EncodedBytes hexutil.Bytes
@@ -43,7 +42,7 @@ func (b *BatchHeader) Encode() []byte {
 	if len(b.EncodedBytes) > 0 {
 		return b.EncodedBytes
 	}
-	batchBytes := make([]byte, 249+len(b.SkippedL1MessageBitmap))
+	batchBytes := make([]byte, 249)
 	batchBytes[0] = b.Version
 	binary.BigEndian.PutUint64(batchBytes[1:], b.BatchIndex)
 	binary.BigEndian.PutUint64(batchBytes[9:], b.L1MessagePopped)
@@ -55,7 +54,6 @@ func (b *BatchHeader) Encode() []byte {
 	copy(batchBytes[153:], b.WithdrawalRoot[:])
 	copy(batchBytes[185:], b.SequencerSetVerifyHash[:])
 	copy(batchBytes[217:], b.ParentBatchHash[:])
-	copy(batchBytes[249:], b.SkippedL1MessageBitmap[:])
 	b.EncodedBytes = batchBytes
 	return batchBytes
 }
@@ -87,7 +85,6 @@ func DecodeBatchHeader(data []byte) (BatchHeader, error) {
 		WithdrawalRoot:         common.BytesToHash(data[153:185]),
 		SequencerSetVerifyHash: common.BytesToHash(data[185:217]),
 		ParentBatchHash:        common.BytesToHash(data[217:249]),
-		SkippedL1MessageBitmap: data[249:],
 
 		EncodedBytes: data,
 	}
@@ -97,6 +94,7 @@ func DecodeBatchHeader(data []byte) (BatchHeader, error) {
 type BatchData struct {
 	blockContexts []byte
 	l1TxHashes    []byte
+	l1TxNum       uint16
 	blockNum      uint16
 	txsPayload    []byte
 
@@ -121,6 +119,7 @@ func (cks *BatchData) Append(blockContext, txsPayload []byte, l1TxHashes []commo
 	for _, txHash := range l1TxHashes {
 		cks.l1TxHashes = append(cks.l1TxHashes, txHash.Bytes()...)
 	}
+	cks.l1TxNum += uint16(len(l1TxHashes))
 }
 
 // Encode encodes the data into bytes
@@ -160,8 +159,45 @@ func (cks *BatchData) DataHash() common.Hash {
 	return crypto.Keccak256Hash(bz)
 }
 
+// DataHashV2 computes the Keccak-256 hash of the batch data, incorporating
+// the last block height, L1 transaction count, and L1 transaction hashes.
+func (cks *BatchData) DataHashV2() (common.Hash, error) {
+	// Validate blockContexts length
+	if len(cks.blockContexts) < 60 {
+		return common.Hash{}, fmt.Errorf("blockContexts too short, length: %d", len(cks.blockContexts))
+	}
+
+	// Extract the last 60 bytes
+	lastBlockContext := cks.blockContexts[len(cks.blockContexts)-60:]
+
+	// Parse block height
+	height, err := HeightFromBCBytes(lastBlockContext)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to parse blockContext: context length=%d, lastBlockContext=%x, err=%w",
+			len(cks.blockContexts), lastBlockContext, err)
+	}
+
+	// Compute the hash
+	return cks.calculateHash(height), nil
+}
+
+func (cks *BatchData) calculateHash(height uint64) common.Hash {
+	// Preallocate memory for efficiency
+	hashData := make([]byte, 8+2+len(cks.l1TxHashes)) // 8 bytes for height, 2 bytes for l1TxNum
+	copy(hashData[:8], Uint64ToBigEndianBytes(height))
+	copy(hashData[8:10], Uint16ToBigEndianBytes(cks.l1TxNum))
+	copy(hashData[10:], cks.l1TxHashes)
+
+	return crypto.Keccak256Hash(hashData)
+}
+
 func (cks *BatchData) TxsPayload() []byte {
 	return cks.txsPayload
+}
+
+// TxsPayloadV2 returns the bytes combining the block contexts with the tx payload
+func (cks *BatchData) TxsPayloadV2() []byte {
+	return append(cks.blockContexts, cks.txsPayload...)
 }
 
 func (cks *BatchData) BlockNum() uint16 { return cks.blockNum }
@@ -174,6 +210,31 @@ func (cks *BatchData) EstimateCompressedSizeWithNewPayload(txPayload []byte) (bo
 	compressed, err := zstd.CompressBatchBytes(blobBytes)
 	if err != nil {
 		return false, err
+	}
+	return len(compressed) > MaxBlobBytesSize, nil
+}
+
+func (cks *BatchData) combinePayloads(newBlockContext, newTxPayload []byte) []byte {
+	totalLength := len(cks.blockContexts) + len(newBlockContext) + len(cks.txsPayload) + len(newTxPayload)
+	combined := make([]byte, totalLength)
+	copy(combined, cks.blockContexts)
+	copy(combined[len(cks.blockContexts):], newBlockContext)
+	copy(combined[len(cks.blockContexts)+len(newBlockContext):], cks.txsPayload)
+	copy(combined[len(cks.blockContexts)+len(newBlockContext)+len(cks.txsPayload):], newTxPayload)
+	return combined
+}
+
+// WillExceedCompressedSizeLimit checks if the size of the combined block contexts
+// and transaction payloads (after compression) exceeds the maximum allowed size.
+func (cks *BatchData) WillExceedCompressedSizeLimit(newBlockContext, newTxPayload []byte) (bool, error) {
+	// Combine the existing and new block contexts and transaction payloads
+	combinedBytes := cks.combinePayloads(newBlockContext, newTxPayload)
+	if len(combinedBytes) <= MaxBlobBytesSize {
+		return false, nil
+	}
+	compressed, err := zstd.CompressBatchBytes(combinedBytes)
+	if err != nil {
+		return false, fmt.Errorf("compression failed: %w", err)
 	}
 	return len(compressed) > MaxBlobBytesSize, nil
 }

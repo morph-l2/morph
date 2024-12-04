@@ -145,3 +145,19 @@ func (wb *WrappedBlock) DecodeBlockContext(bc []byte) (uint16, uint16, error) {
 	}
 	return txsNum, l1MsgNum, nil
 }
+
+func WrappedBlockFromBytes(blockBytes []byte) (*WrappedBlock, error) {
+	var curBlock = new(WrappedBlock)
+	if err := curBlock.UnmarshalBinary(blockBytes); err != nil {
+		return nil, err
+	}
+	return curBlock, nil
+}
+
+func HeightFromBCBytes(blockBytes []byte) (uint64, error) {
+	curBlock, err := WrappedBlockFromBytes(blockBytes)
+	if err != nil {
+		return 0, err
+	}
+	return curBlock.Number, nil
+}
