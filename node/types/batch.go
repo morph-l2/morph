@@ -171,7 +171,7 @@ func (cks *BatchData) DataHashV2() (common.Hash, error) {
 	lastBlockContext := cks.blockContexts[len(cks.blockContexts)-60:]
 
 	// Parse block height
-	height, err := HeightFromBCBytes(lastBlockContext)
+	height, err := HeightFromBlockContextBytes(lastBlockContext)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to parse blockContext: context length=%d, lastBlockContext=%x, err=%w",
 			len(cks.blockContexts), lastBlockContext, err)

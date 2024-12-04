@@ -30,7 +30,7 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	}
 
 	// Get current block height
-	curHeight, err := types.HeightFromBCBytes(e.batchingCache.currentBlockBytes)
+	curHeight, err := types.HeightFromBlockBytes(e.batchingCache.currentBlockBytes)
 	if err != nil {
 		return fmt.Errorf("failed to parse current block height: %w", err)
 	}

@@ -135,7 +135,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		}
 
 		// make sure passed block is the next block of the last packed block
-		curHeight, err := types.HeightFromBCBytes(currentBlockBytes)
+		curHeight, err := types.HeightFromBlockBytes(currentBlockBytes)
 		if err != nil {
 			return false, err
 		}
@@ -215,7 +215,7 @@ func (e *Executor) PackCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes
 		}
 	}
 
-	curHeight, err := types.HeightFromBCBytes(currentBlockBytes)
+	curHeight, err := types.HeightFromBlockBytes(currentBlockBytes)
 	if err != nil {
 		return err
 	}
