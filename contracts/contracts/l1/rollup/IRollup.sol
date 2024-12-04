@@ -9,7 +9,6 @@ interface IRollup {
     /// @param version                  The version of current batch.
     /// @param parentBatchHeader        The header of parent batch, see the comments of `BatchHeaderV0Codec`.
     /// @param blockContexts            The block contexts of current batch.
-    /// @param skippedL1MessageBitmap   The bitmap indicates whether each L1 message is skipped or not.
     /// @param prevStateRoot            The state root of parent batch.
     /// @param postStateRoot            The state root of current batch.
     /// @param withdrawalRoot           The withdraw trie root of current batch.
@@ -17,7 +16,6 @@ interface IRollup {
         uint8 version;
         bytes parentBatchHeader;
         bytes blockContexts;
-        bytes skippedL1MessageBitmap;
         bytes32 prevStateRoot;
         bytes32 postStateRoot;
         bytes32 withdrawalRoot;
