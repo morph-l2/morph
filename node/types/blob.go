@@ -110,6 +110,17 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 	}, nil
 }
 
+func CompressBatchBytes(batchBytes []byte) ([]byte, error) {
+	if len(batchBytes) == 0 {
+		return nil, nil
+	}
+	compressedBatchBytes, err := zstd.CompressBatchBytes(batchBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compress batch bytes, err: %w", err)
+	}
+	return compressedBatchBytes, nil
+}
+
 func EncodeTxsPayloadToBlob(batchBytes []byte) (*eth.BlobTxSidecar, error) {
 	if len(batchBytes) == 0 {
 		return MakeBlobTxSidecar(batchBytes)

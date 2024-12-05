@@ -361,13 +361,12 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 			WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
 		})
 		batch = geth.RPCRollupBatch{
-			Version:                uint(rollupBatchData.Version),
-			ParentBatchHeader:      rollupBatchData.ParentBatchHeader,
-			BlockContexts:          rollupBatchData.BlockContexts,
-			SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
-			PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
-			PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
-			WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+			Version:           uint(rollupBatchData.Version),
+			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+			BlockContexts:     rollupBatchData.BlockContexts,
+			PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 		}
 	} else {
 		return batch, types.ErrNotCommitBatchTx

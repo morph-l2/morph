@@ -126,13 +126,13 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		})
 
 		batch := eth.RPCRollupBatch{
-			Version:                uint(rollupBatchData.Version),
-			ParentBatchHeader:      rollupBatchData.ParentBatchHeader,
-			BlockContexts:          rollupBatchData.BlockContexts,
-			SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
-			PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
-			PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
-			WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+			Version:           uint(rollupBatchData.Version),
+			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+			BlockContexts:     rollupBatchData.BlockContexts,
+			//SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
+			PrevStateRoot: common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+			PostStateRoot: common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+			WithdrawRoot:  common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 		}
 		var batchData derivation.BatchInfo
 		if err = batchData.ParseBatch(batch); err != nil {

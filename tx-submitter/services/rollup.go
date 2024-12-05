@@ -691,7 +691,8 @@ func (r *Rollup) rollup() error {
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:           uint8(batch.Version),
 		ParentBatchHeader: batch.ParentBatchHeader,
-		BlockContexts:     batch.BlockContexts,
+		LastBlockNumber:   batch.LastBlockNumber,
+		NumL1Messages:     batch.NumL1Messages,
 		PrevStateRoot:     batch.PrevStateRoot,
 		PostStateRoot:     batch.PostStateRoot,
 		WithdrawalRoot:    batch.WithdrawRoot,
