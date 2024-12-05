@@ -15,6 +15,7 @@ contracts/yarn.lock
 build/bin
 cache
 out
+ops/docker/.devnet
 ops/l2-genesis/.devnet
 ops/l2-genesis/.qanet
 ops/l2-genesis/.testnet
