@@ -87,6 +87,12 @@ testnet-clean: testnet-down
 	rm -rf ./mytestnet
 .PHONY: testnet-clean
 
+install-tendermint:
+	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
+	go mod download
+	env GO111MODULE=on CGO_ENABLED=1 go install -v $(LDFLAGS) ./cmd/tendermint
+.PHONY: tendermint
+
 
 
 
