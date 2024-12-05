@@ -249,6 +249,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchDataInput.numL1Messages,
             _totalL1MessagesPoppedOverall
         );
+
         unchecked {
             _totalL1MessagesPoppedOverall += batchDataInput.numL1Messages;
         }
@@ -731,9 +732,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         assembly {
             mstore(dataPtr, shl(192, _lastBlockNumber)) // store lastBlockNumber
-            dataPtr := add(dataPtr, 64)
-            mstore(dataPtr, shl(192, _numL1Messages)) // store numL1Messages
-            dataPtr := add(dataPtr, 16)
+            dataPtr := add(dataPtr, 8)
+            mstore(dataPtr, shl(240, _numL1Messages)) // store numL1Messages
+            dataPtr := add(dataPtr, 2)
             mstore(0x40, add(dataPtr, mul(_numL1Messages, 0x20))) // reserve memory for l1 message hashes
         }
 

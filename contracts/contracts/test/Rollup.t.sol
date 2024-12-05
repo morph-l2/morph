@@ -78,7 +78,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(batchHeader1, add(0x20, 1)), shl(192, 1)) // batchIndex = 1
             mstore(add(batchHeader1, add(0x20, 9)), shl(192, 1)) // l1MessagePopped = 1
             mstore(add(batchHeader1, add(0x20, 17)), shl(192, 1)) // totalL1MessagePopped = 1
-            mstore(add(batchHeader1, add(0x20, 25)), 0x56e3e1479662dea46def7e08f8140568a443f5215be1113dbdb4fb27d5bb5108) // dataHash
+            mstore(add(batchHeader1, add(0x20, 25)), 0xcf774750b0b5e45500519bc354320a44c42c1e1e4faf0766b1141a7d3e5bc2ea) // dataHash
             mstore(add(batchHeader1, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader1, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader1, add(0x20, 121)), bytesData1) // postStateHash
@@ -103,14 +103,22 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
-        emit IRollup.CommitBatch(1, bytes32(0xcc5440578b2b6b127533400d20753c4ebbee4986d063eacc55d3f9373a45d976));
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, lastBlockNumber, numL1Messages, bytesData1, bytesData1, bytesData3);
+        emit IRollup.CommitBatch(1, bytes32(0xc1862b08d265f073817a8ce0d7cbb426c16d58a86b93464244ab1d027318642e));
+        batchDataInput = IRollup.BatchDataInput(
+            0,
+            batchHeader0,
+            lastBlockNumber,
+            numL1Messages,
+            bytesData1,
+            bytesData1,
+            bytesData3
+        );
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
         assertFalse(rollup.isBatchFinalized(1));
         bytes32 batchHash1 = rollup.committedBatches(1);
-        assertEq(batchHash1, bytes32(0xcc5440578b2b6b127533400d20753c4ebbee4986d063eacc55d3f9373a45d976));
+        assertEq(batchHash1, bytes32(0xc1862b08d265f073817a8ce0d7cbb426c16d58a86b93464244ab1d027318642e));
         bytes32 stateRoot1 = rollup.committedStateRoots(1);
         assertEq(stateRoot1, bytesData1);
 
@@ -138,7 +146,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(batchHeader2, add(0x20, 1)), shl(192, 2)) // batchIndex = 2
             mstore(add(batchHeader2, add(0x20, 9)), shl(192, 264)) // l1MessagePopped = 264
             mstore(add(batchHeader2, add(0x20, 17)), shl(192, 265)) // totalL1MessagePopped = 265
-            mstore(add(batchHeader2, add(0x20, 25)), 0x7a1d9656afefcce9925511b9b962f0da6651f08061fc648c2b75baa8d407ea6f) // dataHash
+            mstore(add(batchHeader2, add(0x20, 25)), 0x688bd49eddb8f52296974c2a243b10b91b305edd68f46190df21a83c13a6e2ec) // dataHash
             mstore(add(batchHeader2, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader2, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader2, add(0x20, 121)), bytesData1) // postStateHash
@@ -149,18 +157,6 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             ) // sequencerSetVerifyHash
             mstore(add(batchHeader2, add(0x20, 217)), batchHash1) // parentBatchHash
         }
-        // batch = new bytes(2 + 60 * 4);
-        // assembly {
-        //     mstore(add(batch, 0x20), shl(240, 4)) // numBlocks = 4
-        //     mstore(add(batch, add(34, 56)), shl(240, 3)) // block0.numTransactions = 3
-        //     mstore(add(batch, add(34, 58)), shl(240, 0)) // block0.numL1Messages = 0
-        //     mstore(add(batch, add(94, 56)), shl(240, 5)) // block1.numTransactions = 5
-        //     mstore(add(batch, add(94, 58)), shl(240, 3)) // block1.numL1Messages = 3
-        //     mstore(add(batch, add(154, 56)), shl(240, 10)) // block2.numTransactions = 10
-        //     mstore(add(batch, add(154, 58)), shl(240, 5)) // block2.numL1Messages = 5
-        //     mstore(add(batch, add(214, 56)), shl(240, 300)) // block3.numTransactions = 300
-        //     mstore(add(batch, add(214, 58)), shl(240, 256)) // block3.numL1Messages = 256
-        // }
         lastBlockNumber = 5;
         numL1Messages = 264;
 
@@ -177,15 +173,23 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
         );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
-        emit IRollup.CommitBatch(2, bytes32(0xb58689a3710a22f2c56680b213188e327238664678f0a01d2445eec4616a76b5));
+        emit IRollup.CommitBatch(2, bytes32(0x1943533509811f8dc145df00e557c591b3bd86fc935d7bbb9a9bbd894cdf3dd5));
 
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader1, lastBlockNumber, numL1Messages, bytesData1, bytesData1, bytesData4);
+        batchDataInput = IRollup.BatchDataInput(
+            0,
+            batchHeader1,
+            lastBlockNumber,
+            numL1Messages,
+            bytesData1,
+            bytesData1,
+            bytesData4
+        );
         rollup.commitBatch(batchDataInput, batchSignatureInput);
 
         hevm.stopPrank();
         assertFalse(rollup.isBatchFinalized(2));
         bytes32 batchHash2 = rollup.committedBatches(2);
-        assertEq(batchHash2, bytes32(0xb58689a3710a22f2c56680b213188e327238664678f0a01d2445eec4616a76b5));
+        assertEq(batchHash2, bytes32(0x1943533509811f8dc145df00e557c591b3bd86fc935d7bbb9a9bbd894cdf3dd5));
         bytes32 stateRoot2 = rollup.committedStateRoots(2);
         assertEq(stateRoot2, bytesData1);
 
@@ -265,28 +269,21 @@ contract RollupTest is L1MessageBaseTest {
         // only active staker allowed, revert
         hevm.startPrank(address(0));
         hevm.expectRevert("only active staker allowed");
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0,0, stateRoot, stateRoot, getTreeRoot());
+        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
         // invalid version, revert
         hevm.startPrank(alice);
         hevm.expectRevert("invalid version");
-        batchDataInput = IRollup.BatchDataInput(1, batchHeader0, 0,0, stateRoot, stateRoot, getTreeRoot());
+        batchDataInput = IRollup.BatchDataInput(1, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
-
-        // // batch is empty, revert
-        // hevm.startPrank(alice);
-        // hevm.expectRevert("batch is empty");
-        // batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0,0, stateRoot, stateRoot, getTreeRoot());
-        // rollup.commitBatch(batchDataInput, batchSignatureInput);
-        // hevm.stopPrank();
 
         // batch header length incorrect, revert
         hevm.startPrank(alice);
         hevm.expectRevert("batch header length too small");
-        batchDataInput = IRollup.BatchDataInput(0, new bytes(120), new bytes(1), stateRoot, stateRoot, getTreeRoot());
+        batchDataInput = IRollup.BatchDataInput(0, new bytes(120), 0, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
@@ -296,7 +293,7 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.startPrank(alice);
         hevm.expectRevert("incorrect batch index");
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0,0, stateRoot, stateRoot, getTreeRoot());
+        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
         assembly {
@@ -309,7 +306,7 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.startPrank(alice);
         hevm.expectRevert("incorrect parent batch hash");
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0,0, stateRoot, stateRoot, getTreeRoot());
+        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
         assembly {
@@ -320,59 +317,14 @@ contract RollupTest is L1MessageBaseTest {
         // incorrect previous state root, revert
         hevm.startPrank(alice);
         hevm.expectRevert("incorrect previous state root");
-        batchDataInput = IRollup.BatchDataInput(
-            0,
-            batchHeader0,
-            0,
-            0,
-            bytes32(uint256(2)),
-            stateRoot,
-            getTreeRoot()
-        );
+        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, bytes32(uint256(2)), stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
         // incorrect batch header length, revert
         hevm.startPrank(alice);
         hevm.expectRevert("batch header length too small");
-        batchDataInput = IRollup.BatchDataInput(0, new bytes(248), new bytes(1), stateRoot, stateRoot, getTreeRoot());
-        rollup.commitBatch(batchDataInput, batchSignatureInput);
-        hevm.stopPrank();
-
-        // no block in batch, revert
-        bytes memory batch = new bytes(2);
-        hevm.startPrank(alice);
-        hevm.expectRevert(BatchCodecV0.ErrorNoBlockInBatch.selector);
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, batch, stateRoot, stateRoot, getTreeRoot());
-        rollup.commitBatch(batchDataInput, batchSignatureInput);
-        hevm.stopPrank();
-
-        // invalid batch length, revert
-        batch = new bytes(3);
-        batch[1] = bytes1(uint8(1)); // one block in this batch
-        hevm.startPrank(alice);
-        hevm.expectRevert(BatchCodecV0.ErrorIncorrectBatchLength.selector);
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, batch, stateRoot, stateRoot, getTreeRoot());
-        rollup.commitBatch(batchDataInput, batchSignatureInput);
-        hevm.stopPrank();
-
-        // num txs less than num L1 msgs, revert
-        batch = new bytes(2 + 60);
-        batch[1] = bytes1(uint8(1)); // one block in this batch
-        batch[59] = bytes1(uint8(1)); // numTransactions = 1
-        batch[61] = bytes1(uint8(3)); // numL1Messages = 3
-        hevm.startPrank(alice);
-        hevm.expectRevert("num txs less than num L1 msgs");
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, batch, stateRoot, stateRoot, getTreeRoot());
-        rollup.commitBatch(batchDataInput, batchSignatureInput);
-        hevm.stopPrank();
-
-        // invalid batch length, revert
-        batch = new bytes(2 + 60 + 1);
-        batch[1] = bytes1(uint8(1)); // one block in this batch
-        hevm.startPrank(alice);
-        hevm.expectRevert(BatchCodecV0.ErrorIncorrectBatchLength.selector);
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, batch, stateRoot, stateRoot, getTreeRoot());
+        batchDataInput = IRollup.BatchDataInput(0, new bytes(248), 0, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
@@ -418,14 +370,14 @@ contract RollupTest is L1MessageBaseTest {
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
         hevm.stopPrank();
-        assertEq(rollup.committedBatches(1), 0x7834214e2e5fc16b9e0c637f11f0c9cfcce79b5bad6f63d546cba8738d65c5eb);
+        assertEq(rollup.committedBatches(1), 0x25c3e4fee90e53de960c1092746c431ab570eacf8513011902fa65f10c814541);
         bytes memory batchHeader1 = new bytes(249);
         assembly {
             mstore(add(batchHeader1, 0x20), 0) // version
             mstore(add(batchHeader1, add(0x20, 1)), shl(192, 1)) // batchIndex
             mstore(add(batchHeader1, add(0x20, 9)), 0) // l1MessagePopped
             mstore(add(batchHeader1, add(0x20, 17)), 0) // totalL1MessagePopped
-            mstore(add(batchHeader1, add(0x20, 25)), 0xba71f9bfe31045c9762c8ee5c7e775507606d23d02c76e3c0b862e26a9c34950) // dataHash
+            mstore(add(batchHeader1, add(0x20, 25)), 0xe979da4b80d60a17ce56fa19278c6f3a7e1b43359fb8a8ea46d0264de7d653ab) // dataHash
             mstore(add(batchHeader1, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014) // l2 tx blob versioned hash
             mstore(add(batchHeader1, add(0x20, 89)), bytesData1) // prevStateHash
             mstore(add(batchHeader1, add(0x20, 121)), bytesData1) // postStateHash
@@ -440,7 +392,7 @@ contract RollupTest is L1MessageBaseTest {
 
         // commit another batch
         hevm.startPrank(alice);
-        batchDataInput = IRollup.BatchDataInput(0, batchHeader1, 1,0, stateRoot, stateRoot, bytes32(uint256(4)));
+        batchDataInput = IRollup.BatchDataInput(0, batchHeader1, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
 
         rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
         hevm.stopPrank();
@@ -496,15 +448,7 @@ contract RollupTest is L1MessageBaseTest {
 
         hevm.startPrank(alice);
         hevm.expectRevert("Pausable: paused");
-        batchDataInput = IRollup.BatchDataInput(
-            0,
-            new bytes(0),
-            0,
-            0,
-            stateRoot,
-            stateRoot,
-            bytes32(uint256(4))
-        );
+        batchDataInput = IRollup.BatchDataInput(0, new bytes(0), 0, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         rollup.commitBatch(batchDataInput, batchSignatureInput);
 
         hevm.expectRevert("Pausable: paused");
