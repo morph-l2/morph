@@ -39,7 +39,7 @@ type BatchInfo struct {
 
 func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error) {
 	if nextBatchSubmissionIndex.Uint64() == 1 {
-		return o.cfg.StartBlock, nil
+		return o.cfg.StartBlock + 1, nil
 	}
 	bs, err := o.record.BatchSubmissions(nil, new(big.Int).Sub(nextBatchSubmissionIndex, big.NewInt(1)))
 	if err != nil {
@@ -49,7 +49,10 @@ func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error
 }
 
 func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSubmissionIndex uint64) ([]bindings.IRecordBatchSubmission, error) {
-	var rLogs []types.Log
+	rLogs, err := o.fetchRollupLog(ctx, startBlock-1, startBlock-1)
+	if err != nil {
+		return nil, fmt.Errorf("fetch rollupLog error:%v", err)
+	}
 	for {
 		endBlock := startBlock + o.cfg.MaxSize
 		header, err := o.l1Client.HeaderByNumber(o.ctx, nil)
