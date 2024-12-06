@@ -76,6 +76,7 @@ type Oracle struct {
 	sequencer           *bindings.Sequencer
 	gov                 *bindings.Gov
 	rollup              *bindings.Rollup
+	rollupAddr          common.Address
 	record              *bindings.Record
 	recordAddr          common.Address
 	recordAbi           *abi.ABI
@@ -198,6 +199,7 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 		l1Client:            l1Client,
 		l2Client:            l2Client,
 		rollup:              rollup,
+		rollupAddr:          cfg.RollupAddr,
 		l2Staking:           l2Staking,
 		record:              record,
 		recordAddr:          predeploys.RecordAddr,
