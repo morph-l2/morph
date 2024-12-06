@@ -49,10 +49,11 @@ func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error
 }
 
 func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSubmissionIndex uint64) ([]bindings.IRecordBatchSubmission, error) {
-	rLogs, err := o.fetchRollupLog(ctx, startBlock-1, startBlock-1)
+	lastLogs, err := o.fetchRollupLog(ctx, startBlock-1, startBlock-1)
 	if err != nil {
 		return nil, fmt.Errorf("fetch rollupLog error:%v", err)
 	}
+	var fetchLogs []types.Log
 	for {
 		endBlock := startBlock + o.cfg.MaxSize
 		header, err := o.l1Client.HeaderByNumber(o.ctx, nil)
@@ -66,16 +67,16 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		if endBlock >= header.Number.Uint64() {
 			endBlock = header.Number.Uint64()
 		}
-		rLogs, err = o.fetchRollupLog(ctx, startBlock, endBlock)
+		fetchLogs, err = o.fetchRollupLog(ctx, startBlock, endBlock)
 		if err != nil {
 			return nil, fmt.Errorf("fetch rollupLog error:%v", err)
 		}
-		if len(rLogs) >= 1 {
+		if len(fetchLogs) >= 1 {
 			break
 		}
 		startBlock = endBlock + 1
 	}
-
+	rLogs := append(lastLogs, fetchLogs...)
 	var recordBatchSubmissions []bindings.IRecordBatchSubmission
 	batchIndex := nextBatchSubmissionIndex
 	for _, lg := range rLogs {
