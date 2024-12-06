@@ -7,12 +7,136 @@ import {
 } from 'hardhat/types';
 import { assertContractVariable, storage, getContractAddressByName } from "../src/deploy-utils";
 import { predeploys } from '../src/constants'
+import { Mutex } from 'async-mutex';
 
 import {
     ImplStorageName,
     ProxyStorageName,
     ContractFactoryName,
 } from "../src/types"
+
+export const deployContractImplsConcurrently = async (
+    hre: HardhatRuntimeEnvironment,
+    path: string,
+    deployer: any,
+    config: any
+): Promise<string> => {
+    // factory name
+    const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
+    const L1StakingFactoryName = ContractFactoryName.L1Staking
+    const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
+    const RollupFactoryName = ContractFactoryName.Rollup
+    const WhitelistFactoryName = ContractFactoryName.Whitelist
+
+    const L1GatewayRouterFactoryName = ContractFactoryName.L1GatewayRouter
+    const L1ETHGatewayFactoryName = ContractFactoryName.L1ETHGateway
+    const L1StandardERC20GatewayFactoryName = ContractFactoryName.L1StandardERC20Gateway
+    const L1CustomERC20GatewayFactoryName = ContractFactoryName.L1CustomERC20Gateway
+    const L1WithdrawLockERC20GatewayFactoryName = ContractFactoryName.L1WithdrawLockERC20Gateway
+    const L1ReverseCustomGatewayFactoryName = ContractFactoryName.L1ReverseCustomGateway
+    const L1ERC721GatewayFactoryName = ContractFactoryName.L1ERC721Gateway
+    const L1ERC1155GatewayFactoryName = ContractFactoryName.L1ERC1155Gateway
+    const L1WETHGatewayFactoryName = ContractFactoryName.L1WETHGateway
+    const EnforcedTxGatewayFactoryName = ContractFactoryName.EnforcedTxGateway
+
+    // implement storage name
+    const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
+    const StakingImplStorageName = ImplStorageName.L1StakingStorageName
+    const L1MessageQueueWithGasPriceOracleImplStorageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
+    const RollupImplStorageName = ImplStorageName.RollupStorageName
+    const L1GatewayRouterImplStorageName = ImplStorageName.L1GatewayRouterStorageName
+    const L1ETHGatewayImplStorageName = ImplStorageName.L1ETHGatewayStorageName
+    const L1StandardERC20GatewayImplStorageName = ImplStorageName.L1StandardERC20GatewayStorageName
+    const L1CustomERC20GatewayImplStorageName = ImplStorageName.L1CustomERC20GatewayStorageName
+    const L1WithdrawLockERC20GatewayImplStorageName = ImplStorageName.L1WithdrawLockERC20GatewayStorageName
+    const L1ReverseCustomGatewayImplStorageName = ImplStorageName.L1ReverseCustomGatewayStorageName
+    const L1WETHGatewayImplStorageName = ImplStorageName.L1WETHGatewayStorageName
+    const L1ERC721GatewayImplStorageName = ImplStorageName.L1ERC721GatewayStorageName
+    const L1ERC1155GatewayImplStorageName = ImplStorageName.L1ERC1155GatewayStorageName
+    const WhitelistImplStorageName = ImplStorageName.Whitelist
+    const EnforcedTxGatewayStorageName = ImplStorageName.EnforcedTxGatewayStorageName
+
+    // proxy contract address
+    const L1CrossDomainMessengerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
+    const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
+    const EnforcedTxGatewayAddress = getContractAddressByName(path, ProxyStorageName.EnforcedTxGatewayProxyStorageName)
+
+    console.log("start to deploy contract implementations concurrently...")
+    let nonce = await hre.ethers.provider.getTransactionCount(deployer.getAddress())
+    const mutex = new Mutex();
+    const deployContract = async (factoryName: string, storageName: string, args: any[] = []) => {
+        const release = await mutex.acquire();
+        const nonceToUse = nonce
+        nonce++;  // Increment nonce for each deployment
+        release();  // Release the lock
+        
+        console.log(`Starting deployment for: ${storageName}, args: ${args}, nonce: `, nonceToUse);
+        const Factory = await hre.ethers.getContractFactory(factoryName)
+        const contract = await Factory.deploy(...args, {
+                nonce: nonceToUse,
+            })
+        
+
+        await contract.deployed()
+        console.log("%s=%s ; TX_HASH: %s", storageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+        
+        if (factoryName == L1StakingFactoryName) {
+            await assertContractVariable(
+                contract,
+                'MESSENGER',
+                L1CrossDomainMessengerProxyAddress
+            )
+            await assertContractVariable(
+                contract,
+                'OTHER_STAKING',
+                predeploys.L2Staking.toLowerCase()
+            )
+        }
+        const blockNumber = await hre.ethers.provider.getBlockNumber()
+        console.log("BLOCK_NUMBER: %s", blockNumber)
+        console.log(`Deployment completed for: ${storageName}`);
+        const err = await storage(path, storageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+        return err
+    }
+
+    try {
+        const deployPromises = []
+
+        deployPromises.push(deployContract(WhitelistFactoryName, WhitelistImplStorageName, [config.contractAdmin]))
+        deployPromises.push(deployContract(L1CrossDomainMessengerFactoryName, L1CrossDomainMessengerImplStorageName))
+        deployPromises.push(deployContract(L1MessageQueueWithGasPriceOracleFactoryName, L1MessageQueueWithGasPriceOracleImplStorageName, [L1CrossDomainMessengerProxyAddress, RollupProxyAddress, EnforcedTxGatewayAddress]))
+        deployPromises.push(deployContract(RollupFactoryName, RollupImplStorageName, [config.l2ChainID]))
+        deployPromises.push(deployContract(L1GatewayRouterFactoryName, L1GatewayRouterImplStorageName))
+        deployPromises.push(deployContract(L1StandardERC20GatewayFactoryName, L1StandardERC20GatewayImplStorageName))
+        deployPromises.push(deployContract(L1CustomERC20GatewayFactoryName, L1CustomERC20GatewayImplStorageName))
+        deployPromises.push(deployContract(L1WithdrawLockERC20GatewayFactoryName, L1WithdrawLockERC20GatewayImplStorageName))
+        deployPromises.push(deployContract(L1ReverseCustomGatewayFactoryName, L1ReverseCustomGatewayImplStorageName))
+        deployPromises.push(deployContract(L1ETHGatewayFactoryName, L1ETHGatewayImplStorageName))
+
+        const WETHAddress = getContractAddressByName(path, ImplStorageName.WETH)
+        deployPromises.push(deployContract(L1WETHGatewayFactoryName, L1WETHGatewayImplStorageName, [WETHAddress, predeploys.L2WETH]))
+
+        deployPromises.push(deployContract(EnforcedTxGatewayFactoryName, EnforcedTxGatewayStorageName))
+        deployPromises.push(deployContract(L1ERC721GatewayFactoryName, L1ERC721GatewayImplStorageName))
+        deployPromises.push(deployContract(L1ERC1155GatewayFactoryName, L1ERC1155GatewayImplStorageName))
+
+        deployPromises.push(deployContract(L1StakingFactoryName, StakingImplStorageName, [L1CrossDomainMessengerProxyAddress]))
+
+        const results = await Promise.all(deployPromises)
+
+        for (const result of results) {
+            if (result != '') {
+                return result
+            }
+        }
+
+        console.log("Complete contract implementations deployment...")
+        return ''
+    } catch (err) {
+        console.error("Error during deployment:", err)
+        return "Deployment failed"
+    }
+}
 
 export const deployContractImpls = async (
     hre: HardhatRuntimeEnvironment,
