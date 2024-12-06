@@ -3,10 +3,11 @@ package event
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
+
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/params"
 	"morph-l2/tx-submitter/utils"
-	"sync"
 )
 
 type IEventStorage interface {
