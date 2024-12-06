@@ -75,8 +75,9 @@ type Rollup struct {
 	// collectedL1FeeSum
 	collectedL1FeeSum float64
 	// batchcache
-	batchCache map[uint64]*eth.RPCRollupBatch
-	bm         *l1checker.BlockMonitor
+	batchCache       *BatchCache
+	bm               *l1checker.BlockMonitor
+	eventInfoStorage *event.EventInfoStorage
 }
 
 func NewRollup(
@@ -96,27 +97,29 @@ func NewRollup(
 	rotator *Rotator,
 	ldb *db.Db,
 	bm *l1checker.BlockMonitor,
+	eventInfoStorage *event.EventInfoStorage,
 ) *Rollup {
 
 	return &Rollup{
-		ctx:             ctx,
-		metrics:         metrics,
-		l1RpcClient:     l1RpcClient,
-		L1Client:        l1,
-		Rollup:          rollup,
-		Staking:         staking,
-		L2Clients:       l2Clients,
-		privKey:         priKey,
-		chainId:         chainId,
-		rollupAddr:      rollupAddr,
-		abi:             abi,
-		rotator:         rotator,
-		cfg:             cfg,
-		signer:          types.LatestSignerForChainID(chainId),
-		externalRsaPriv: rsaPriv,
-		batchCache:      make(map[uint64]*eth.RPCRollupBatch),
-		ldb:             ldb,
-		bm:              bm,
+		ctx:              ctx,
+		metrics:          metrics,
+		l1RpcClient:      l1RpcClient,
+		L1Client:         l1,
+		Rollup:           rollup,
+		Staking:          staking,
+		L2Clients:        l2Clients,
+		privKey:          priKey,
+		chainId:          chainId,
+		rollupAddr:       rollupAddr,
+		abi:              abi,
+		rotator:          rotator,
+		cfg:              cfg,
+		signer:           types.LatestSignerForChainID(chainId),
+		externalRsaPriv:  rsaPriv,
+		batchCache:       NewBatchCache(),
+		ldb:              ldb,
+		bm:               bm,
+		eventInfoStorage: eventInfoStorage,
 	}
 }
 
@@ -560,24 +563,27 @@ func (r *Rollup) rollup() error {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
 		}
 
-		storage := event.NewEventInfoStorage(r.rotator.indexer.GetStorePath())
-		err = storage.Load()
+		err = r.eventInfoStorage.Load()
 		if err != nil {
 			return fmt.Errorf("failed to load storage in rollup: %w", err)
 		}
+		log.Info("indexer info",
+			"block_processed", r.eventInfoStorage.EventInfo.BlockProcessed,
+			"event_latest_emit_time", r.eventInfoStorage.EventInfo.BlockTime,
+		)
 		// get current blocknumber
 		blockNumber, err := r.L1Client.BlockNumber(context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to get block number in rollup: %w", err)
 		}
 		// set metrics
-		r.metrics.SetIndexerBlockProcessed(storage.EventInfo.BlockProcessed)
+		r.metrics.SetIndexerBlockProcessed(r.eventInfoStorage.EventInfo.BlockProcessed)
 		// check if indexed block number is too old
-		if blockNumber > storage.EventInfo.BlockProcessed+100 {
+		if blockNumber > r.eventInfoStorage.EventInfo.BlockProcessed+100 {
 			log.Info("indexed block number is too old, wait indexer to catch up",
 				"module", r.GetModuleName(),
 				"block_number", blockNumber,
-				"processed_block", storage.EventInfo.BlockProcessed)
+				"processed_block", r.eventInfoStorage.EventInfo.BlockProcessed)
 			return nil
 		}
 
