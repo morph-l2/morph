@@ -252,9 +252,13 @@ func (o *Oracle) submitRecord() error {
 	if err != nil {
 		return fmt.Errorf("record finalized batch error:%v,batchLength:%v", err, len(batchSubmissions))
 	}
-	log.Info("record finalized batch success", "txHash", tx.Hash(), "batchLength", len(batchSubmissions))
+	err = o.l2Client.SendTransaction(o.ctx, tx)
+	if err != nil {
+		return fmt.Errorf("send transaction error:%v", err)
+	}
+	log.Info("record finalized batch success", "txHash", tx.Hash(), "batchLength", len(batchSubmissions), "nonce", tx.Nonce())
 	var receipt *types.Receipt
-	err = backoff.Do(30, backoff.Exponential(), func() error {
+	err = backoff.Do(3, backoff.Exponential(), func() error {
 		var err error
 		receipt, err = o.waitReceiptWithCtx(o.ctx, tx.Hash())
 		return err
