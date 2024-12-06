@@ -39,7 +39,7 @@ type BatchInfo struct {
 
 func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error) {
 	if nextBatchSubmissionIndex.Uint64() == 1 {
-		return o.cfg.StartBlock, nil
+		return o.cfg.StartBlock + 1, nil
 	}
 	bs, err := o.record.BatchSubmissions(nil, new(big.Int).Sub(nextBatchSubmissionIndex, big.NewInt(1)))
 	if err != nil {
@@ -49,8 +49,19 @@ func (o *Oracle) GetStartBlock(nextBatchSubmissionIndex *big.Int) (uint64, error
 }
 
 func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSubmissionIndex uint64) ([]bindings.IRecordBatchSubmission, error) {
-	var rLogs []types.Log
+	var recordBatchSubmissions []bindings.IRecordBatchSubmission
+	lastLogs, err := o.fetchRollupLog(ctx, startBlock-1, startBlock-1)
+	if err != nil {
+		return nil, fmt.Errorf("fetch rollupLog error:%v", err)
+	}
+	if err = o.getBatchSubmissionByLogs(lastLogs, recordBatchSubmissions, nextBatchSubmissionIndex); err != nil {
+		return nil, fmt.Errorf("GetBatchSubmissionByLogs error:%v", err)
+	}
+	if len(recordBatchSubmissions) == maxBatchSize {
+		return recordBatchSubmissions, nil
+	}
 	for {
+		batchIndex := nextBatchSubmissionIndex + uint64(len(recordBatchSubmissions))
 		endBlock := startBlock + o.cfg.MaxSize
 		header, err := o.l1Client.HeaderByNumber(o.ctx, nil)
 		if err != nil {
@@ -63,49 +74,52 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		if endBlock >= header.Number.Uint64() {
 			endBlock = header.Number.Uint64()
 		}
-		rLogs, err = o.fetchRollupLog(ctx, startBlock, endBlock)
+		fetchLogs, err := o.fetchRollupLog(ctx, startBlock, endBlock)
 		if err != nil {
 			return nil, fmt.Errorf("fetch rollupLog error:%v", err)
 		}
-		if len(rLogs) >= 1 {
-			break
+		if err = o.getBatchSubmissionByLogs(fetchLogs, recordBatchSubmissions, batchIndex); err != nil {
+			return nil, fmt.Errorf("GetBatchSubmissionByLogs error:%v", err)
+		}
+		if len(recordBatchSubmissions) == maxBatchSize {
+			return recordBatchSubmissions, nil
 		}
 		startBlock = endBlock + 1
 	}
+}
 
-	var recordBatchSubmissions []bindings.IRecordBatchSubmission
-	batchIndex := nextBatchSubmissionIndex
+func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissions []bindings.IRecordBatchSubmission, batchIndex uint64) error {
 	for _, lg := range rLogs {
-		tx, pending, err := o.l1Client.TransactionByHash(ctx, lg.TxHash)
+		tx, pending, err := o.l1Client.TransactionByHash(o.ctx, lg.TxHash)
 		if err != nil {
-			return nil, fmt.Errorf("get transaction by hash error:%v", err)
+			return fmt.Errorf("get transaction by hash error:%v", err)
 		}
 		signer := types.NewLondonSignerWithEIP4844(tx.ChainId())
 		msg, err := tx.AsMessage(signer, tx.GasFeeCap())
 		if err != nil {
-			return nil, err
+			return err
 		}
 		header, err := o.l1Client.HeaderByNumber(context.Background(), big.NewInt(int64(lg.BlockNumber)))
 		if err != nil {
-			return nil, fmt.Errorf("get header by number error:%v", err)
+			return fmt.Errorf("get header by number error:%v", err)
 		}
 		if pending {
-			return nil, errors.New("pending transaction")
+			return errors.New("pending transaction")
 		}
 		beforeRemoveSkipMapAbi, err := BeforeRemoveSkipMapMetaData.GetAbi()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		abi, err := bindings.RollupMetaData.GetAbi()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		var batch eth.RPCRollupBatch
 		if bytes.Equal(tx.Data()[0:4], abi.Methods["commitBatch"].ID) {
 			args, err := abi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 			if err != nil {
 				log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
-				return nil, fmt.Errorf("unpack commitBatch error:%v", err)
+				return fmt.Errorf("unpack commitBatch error:%v", err)
 			}
 			rollupBatchData := args[0].(struct {
 				Version           uint8     "json:\"version\""
@@ -127,7 +141,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 			args, err := beforeRemoveSkipMapAbi.Methods["commitBatch"].Inputs.Unpack(tx.Data()[4:])
 			if err != nil {
 				log.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
-				return nil, fmt.Errorf("unpack commitBatch error:%v", err)
+				return fmt.Errorf("unpack commitBatch error:%v", err)
 			}
 
 			rollupBatchData := args[0].(struct {
@@ -155,19 +169,19 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		rollupCommitBatch, parseErr := o.rollup.ParseCommitBatch(lg)
 		if parseErr != nil {
 			log.Error("get l2 BlockNumber", "err", err)
-			return nil, parseErr
+			return parseErr
 		}
 		if rollupCommitBatch.BatchIndex.Uint64() < batchIndex {
 			continue
 		}
 		if rollupCommitBatch.BatchIndex.Uint64() > batchIndex {
-			return nil, fmt.Errorf(fmt.Sprintf("batch is incontinuity,expect %v,have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64()))
+			return fmt.Errorf(fmt.Sprintf("batch is incontinuity,expect %v,have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64()))
 		}
 		// set batchIndex to new batch index + 1
 		batchIndex = rollupCommitBatch.BatchIndex.Uint64() + 1
 		var batchData derivation.BatchInfo
 		if err = batchData.ParseBatch(batch); err != nil {
-			return nil, fmt.Errorf("parse batch error:%v", err)
+			return fmt.Errorf("parse batch error:%v", err)
 		}
 		log.Info("received new batch", "batch_index", rollupCommitBatch.BatchIndex.Uint64())
 		recordBatchSubmission := bindings.IRecordBatchSubmission{
@@ -180,10 +194,10 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		}
 		recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
 		if len(recordBatchSubmissions) == maxBatchSize {
-			return recordBatchSubmissions, nil
+			return nil
 		}
 	}
-	return recordBatchSubmissions, nil
+	return nil
 }
 
 func (o *Oracle) fetchRollupLog(ctx context.Context, start, end uint64) ([]types.Log, error) {
