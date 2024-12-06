@@ -83,8 +83,8 @@ def devnet_l1(paths, result=None):
         })
     wait_up(9545)
     wait_for_rpc_server('127.0.0.1:9545')
-    log.info('Sleep another 20s...')
-    time.sleep(20)
+    log.info('Sleep another 10s...')
+    time.sleep(10)
     res = eth_accounts('127.0.0.1:9545')
     response = json.loads(res)
     account = response['result'][0]
@@ -135,7 +135,7 @@ def devnet_deploy(paths, args):
         'yarn', 'build'
     ], env={}, cwd=paths.contracts_dir)
     run_command([
-        'npx', 'hardhat', 'deploy', '--network', 'l1', '--storagepath', paths.deployment_dir
+        'npx', 'hardhat', 'deploy', '--network', 'l1', '--storagepath', paths.deployment_dir, '--concurrent', 'true'
     ], env={}, cwd=paths.contracts_dir)
 
     log.info('Generating L2 genesis and rollup configs.')
@@ -171,7 +171,7 @@ def devnet_deploy(paths, args):
         modified_line = re.sub(pattern3, f"batchHeader: '{genesis_batch_header}'", line)
         print(modified_line, end='')
     run_command([
-        'npx', 'hardhat', 'initialize', '--network', 'l1', '--storagepath', paths.deployment_dir
+        'npx', 'hardhat', 'initialize', '--network', 'l1', '--storagepath', paths.deployment_dir, '--concurrent', 'true'
     ], env={}, cwd=paths.contracts_dir)
 
     # run_command([
