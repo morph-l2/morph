@@ -67,7 +67,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		if err != nil {
 			return nil, fmt.Errorf("fetch rollupLog error:%v", err)
 		}
-		if len(rLogs) > 1 {
+		if len(rLogs) >= 1 {
 			break
 		}
 		startBlock = endBlock + 1
