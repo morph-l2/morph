@@ -69,6 +69,7 @@ func Main() func(ctx *cli.Context) error {
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
 			"log_level", cfg.LogLevel,
 			"leveldb_pathname", cfg.LeveldbPathName,
+			"l1_stop_in_blocks", cfg.BlockNotIncreasedThreshold,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
