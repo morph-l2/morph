@@ -111,7 +111,6 @@ contract BatchHeaderCodecTest {
         BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, data.withdrawRootHash);
         BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, data.sequencerSetVerifyHash);
         BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, data.parentBatchHash);
-        BatchHeaderCodecV0.storeSkippedBitmap(_batchPtr, data.skipMap);
-        return BatchHeaderCodecV0.computeBatchHash(_batchPtr, BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH);
+        return BatchHeaderCodecV0.computeBatchHash(_batchPtr, BatchHeaderCodecV0.BATCH_HEADER_LENGTH);
     }
 }

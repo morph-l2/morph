@@ -207,7 +207,7 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
 
         // skip message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 

@@ -184,9 +184,9 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         );
         gateway.depositERC721(address(l1Token), tokenId, defaultGasLimit);
 
-        // skip message 0
+        // pop message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 
@@ -214,9 +214,9 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         );
         gateway.batchDepositERC721(address(l1Token), _tokenIds, defaultGasLimit);
 
-        // skip message 0
+        // pop message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 

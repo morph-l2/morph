@@ -33,8 +33,7 @@ interface IL1MessageQueue {
     /// @notice Emitted when some L1 => L2 transactions are included in L1.
     /// @param startIndex The start index of messages popped.
     /// @param count The number of messages popped.
-    /// @param skippedBitmap A bitmap indicates whether a message is skipped.
-    event DequeueTransaction(uint256 startIndex, uint256 count, uint256 skippedBitmap);
+    event DequeueTransaction(uint256 startIndex, uint256 count);
 
     /// @notice Emitted when a message is dropped from L1.
     /// @param index The index of message dropped.
@@ -96,10 +95,6 @@ interface IL1MessageQueue {
         bytes calldata data
     ) external view returns (bytes32);
 
-    /// @notice Return whether the message is skipped.
-    /// @param queueIndex The queue index of the message to check.
-    function isMessageSkipped(uint256 queueIndex) external view returns (bool);
-
     /// @notice Return whether the message is dropped.
     /// @param queueIndex The queue index of the message to check.
     function isMessageDropped(uint256 queueIndex) external view returns (bool);
@@ -136,8 +131,7 @@ interface IL1MessageQueue {
     ///
     /// @param startIndex The start index to pop.
     /// @param count The number of messages to pop.
-    /// @param skippedBitmap A bitmap indicates whether a message is skipped.
-    function popCrossDomainMessage(uint256 startIndex, uint256 count, uint256 skippedBitmap) external;
+    function popCrossDomainMessage(uint256 startIndex, uint256 count) external;
 
     /// @notice Drop a skipped message from the queue.
     function dropCrossDomainMessage(uint256 index) external;

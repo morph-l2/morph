@@ -70,7 +70,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
                 )
             )
         );
-        
+
         // Expect revert due to zero messenger address.
         hevm.expectRevert("zero messenger address");
         ITransparentUpgradeableProxy(address(l2ERC1155GatewayProxy)).upgradeToAndCall(
@@ -109,7 +109,7 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
         // Cast the proxy contract address to the L2ERC1155Gateway contract type to call its methods.
         L2ERC1155Gateway l2ERC1155GatewayTemp = L2ERC1155Gateway(address(l2ERC1155GatewayProxyTemp));
         hevm.stopPrank();
-        
+
         // Verify the counterpart and messenger are initialized successfully.
         assertEq(l2ERC1155GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
         assertEq(l2ERC1155GatewayTemp.messenger(), address(l2CrossDomainMessenger));
@@ -166,7 +166,14 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
 
         // Expect WithdrawERC1155 event to be emitted.
         hevm.expectEmit(true, true, true, true);
-        emit IL2ERC1155Gateway.WithdrawERC1155(address(token), address(token), address(this), address(this), tokenId, amount);
+        emit IL2ERC1155Gateway.WithdrawERC1155(
+            address(token),
+            address(token),
+            address(this),
+            address(this),
+            tokenId,
+            amount
+        );
 
         gateway.withdrawERC1155(address(token), tokenId, amount, 0);
         assertEq(token.balanceOf(address(gateway), tokenId), 0);
@@ -240,7 +247,14 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
 
         // Expect BatchWithdrawERC1155 event to be emitted.
         hevm.expectEmit(true, true, true, true);
-        emit IL2ERC1155Gateway.BatchWithdrawERC1155(address(token), address(token), address(this), address(this), _tokenIds, _amounts);
+        emit IL2ERC1155Gateway.BatchWithdrawERC1155(
+            address(token),
+            address(token),
+            address(this),
+            address(this),
+            _tokenIds,
+            _amounts
+        );
 
         gateway.batchWithdrawERC1155(address(token), _tokenIds, _amounts, 0);
         for (uint256 i = 0; i < count; i++) {
@@ -264,7 +278,14 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
 
         // Expect BatchWithdrawERC1155 event to be emitted.
         hevm.expectEmit(true, true, true, true);
-        emit IL2ERC1155Gateway.BatchWithdrawERC1155(address(token), address(token), address(this), to, _tokenIds, _amounts);
+        emit IL2ERC1155Gateway.BatchWithdrawERC1155(
+            address(token),
+            address(token),
+            address(this),
+            to,
+            _tokenIds,
+            _amounts
+        );
 
         gateway.batchWithdrawERC1155(address(token), to, _tokenIds, _amounts, 0);
         for (uint256 i = 0; i < count; i++) {
@@ -386,7 +407,14 @@ contract L2ERC1155GatewayTest is L2GatewayBaseTest, ERC1155TokenReceiver {
 
         // Expect the FinalizeDepositERC1155 event can be emitted successfully.
         hevm.expectEmit(true, true, true, true);
-        emit IL2ERC1155Gateway.FinalizeBatchDepositERC1155(address(token), address(token), from, to, _tokenIds, _amounts);
+        emit IL2ERC1155Gateway.FinalizeBatchDepositERC1155(
+            address(token),
+            address(token),
+            from,
+            to,
+            _tokenIds,
+            _amounts
+        );
 
         messenger.callTarget(
             address(gateway),
