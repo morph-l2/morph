@@ -56,7 +56,7 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 		return fmt.Errorf("GetCurrentSubmitter: failed to get sequencer set update time: %w", err)
 	}
 
-	storage := event.NewEventInfoStorage(r.indexer.GetStorePath())
+	storage := r.indexer.GetStorage()
 	err = storage.Load()
 	if err != nil {
 		log.Error("failed to load storage", "err", err)
@@ -92,6 +92,16 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 	}
 	submitterSet := utils.IntersectionOfAddresses(r.GetSequencerSet(), stakers)
 	r.SetSubmitterSet(submitterSet)
+	// rotator info
+	log.Info(
+		"rotator state updated",
+		"epoch", r.epoch,
+		"start", r.startTime,
+		"epoch_update_time", epochUpdateTime,
+		"seq_update_time", sequcerUpdateTime,
+		"indexed_latest_block", storage.BlockProcessed,
+		"indexed_event_emit_time", storage.BlockTime,
+	)
 
 	return nil
 }
