@@ -75,7 +75,7 @@ type Rollup struct {
 	// collectedL1FeeSum
 	collectedL1FeeSum float64
 	// batchcache
-	batchCache       *BatchCache
+	batchCache       map[uint64]*eth.RPCRollupBatch
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
 }
@@ -101,25 +101,24 @@ func NewRollup(
 ) *Rollup {
 
 	return &Rollup{
-		ctx:              ctx,
-		metrics:          metrics,
-		l1RpcClient:      l1RpcClient,
-		L1Client:         l1,
-		Rollup:           rollup,
-		Staking:          staking,
-		L2Clients:        l2Clients,
-		privKey:          priKey,
-		chainId:          chainId,
-		rollupAddr:       rollupAddr,
-		abi:              abi,
-		rotator:          rotator,
-		cfg:              cfg,
-		signer:           types.LatestSignerForChainID(chainId),
-		externalRsaPriv:  rsaPriv,
-		batchCache:       NewBatchCache(),
-		ldb:              ldb,
-		bm:               bm,
-		eventInfoStorage: eventInfoStorage,
+		ctx:             ctx,
+		metrics:         metrics,
+		l1RpcClient:     l1RpcClient,
+		L1Client:        l1,
+		Rollup:          rollup,
+		Staking:         staking,
+		L2Clients:       l2Clients,
+		privKey:         priKey,
+		chainId:         chainId,
+		rollupAddr:      rollupAddr,
+		abi:             abi,
+		rotator:         rotator,
+		cfg:             cfg,
+		signer:          types.LatestSignerForChainID(chainId),
+		externalRsaPriv: rsaPriv,
+		batchCache:      make(map[uint64]*eth.RPCRollupBatch),
+		ldb:             ldb,
+		bm:              bm,
 	}
 }
 
