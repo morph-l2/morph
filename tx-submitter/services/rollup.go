@@ -75,8 +75,9 @@ type Rollup struct {
 	// collectedL1FeeSum
 	collectedL1FeeSum float64
 	// batchcache
-	batchCache map[uint64]*eth.RPCRollupBatch
-	bm         *l1checker.BlockMonitor
+	batchCache       map[uint64]*eth.RPCRollupBatch
+	bm               *l1checker.BlockMonitor
+	eventInfoStorage *event.EventInfoStorage
 }
 
 func NewRollup(
