@@ -68,8 +68,6 @@ func IntersectionOfAddresses(a, b []common.Address) []common.Address {
 func ParseStringToType[T any](s string) (T, error) {
 	var result T
 	var err error
-
-	// 获取目标类型的名称
 	switch any(result).(type) {
 	case int:
 		var v int64
