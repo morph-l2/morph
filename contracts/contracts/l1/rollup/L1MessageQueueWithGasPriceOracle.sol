@@ -51,8 +51,8 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
     /// @dev The bitmap for dropped messages, where `droppedMessageBitmap[i]` keeps the bits from `[i*256, (i+1)*256)`.
     BitMapsUpgradeable.BitMap private droppedMessageBitmap;
 
-    /// @dev The bitmap for skipped messages, where `skippedMessageBitmap[i]` keeps the bits from `[i*256, (i+1)*256)`.
-    mapping(uint256 => uint256) private skippedMessageBitmap;
+    /// @dev The bitmap for skipped messages, where `skippedMessageBitmap[i]` keeps the bits from `[i*256, (i+1)*256)`. Deprecated.
+    mapping(uint256 => uint256) private __skippedMessageBitmap;
 
     /// @inheritdoc IL1MessageQueueWithGasPriceOracle
     address public whitelistChecker;
@@ -261,16 +261,8 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
     }
 
     /// @inheritdoc IL1MessageQueue
-    function isMessageSkipped(uint256 _queueIndex) external view returns (bool) {
-        if (_queueIndex >= pendingQueueIndex) return false;
-
-        return _isMessageSkipped(_queueIndex);
-    }
-
-    /// @inheritdoc IL1MessageQueue
     function isMessageDropped(uint256 _queueIndex) external view returns (bool) {
-        // it should be a skipped message first.
-        return _isMessageSkipped(_queueIndex) && droppedMessageBitmap.get(_queueIndex);
+        return droppedMessageBitmap.get(_queueIndex);
     }
 
     /*****************************
@@ -320,35 +312,23 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
     }
 
     /// @inheritdoc IL1MessageQueue
-    function popCrossDomainMessage(uint256 _startIndex, uint256 _count, uint256 _skippedBitmap) external {
+    function popCrossDomainMessage(uint256 _startIndex, uint256 _count) external {
         require(_msgSender() == ROLLUP_CONTRACT, "Only callable by the rollup");
 
         require(_count <= 256, "pop too many messages");
         require(pendingQueueIndex == _startIndex, "start index mismatch");
 
         unchecked {
-            // clear extra bits in `_skippedBitmap`, and if _count = 256, it's designed to overflow.
-            uint256 mask = (1 << _count) - 1;
-            _skippedBitmap &= mask;
-
-            uint256 bucket = _startIndex >> 8;
-            uint256 offset = _startIndex & 0xff;
-            skippedMessageBitmap[bucket] |= _skippedBitmap << offset;
-            if (offset + _count > 256) {
-                skippedMessageBitmap[bucket + 1] = _skippedBitmap >> (256 - offset);
-            }
-
             pendingQueueIndex = _startIndex + _count;
         }
 
-        emit DequeueTransaction(_startIndex, _count, _skippedBitmap);
+        emit DequeueTransaction(_startIndex, _count);
     }
 
     /// @inheritdoc IL1MessageQueue
     function dropCrossDomainMessage(uint256 _index) external onlyMessenger {
         require(_index < pendingQueueIndex, "cannot drop pending message");
 
-        require(_isMessageSkipped(_index), "drop non-skipped message");
         require(!droppedMessageBitmap.get(_index), "message already dropped");
         droppedMessageBitmap.set(_index);
 
@@ -408,12 +388,5 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
         // check if the gas limit is above intrinsic gas
         uint256 intrinsicGas = calculateIntrinsicGasFee(_calldata);
         require(_gasLimit >= intrinsicGas, "Insufficient gas limit, must be above intrinsic gas");
-    }
-
-    /// @dev Returns whether the bit at `index` is set.
-    function _isMessageSkipped(uint256 index) internal view returns (bool) {
-        uint256 bucket = index >> 8;
-        uint256 mask = 1 << (index & 0xff);
-        return skippedMessageBitmap[bucket] & mask != 0;
     }
 }

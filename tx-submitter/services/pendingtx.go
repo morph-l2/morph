@@ -169,12 +169,12 @@ func (pt *PendingTxs) IncQueryTimes(txHash common.Hash) {
 	pt.txinfos[txHash] = TxInfo{tx: pt.txinfos[txHash].tx, queryTimes: pt.txinfos[txHash].queryTimes + 1, sendTime: pt.txinfos[txHash].sendTime}
 }
 
-func (pt *PendingTxs) SetFailedStatus(index uint64) {
+func (pt *PendingTxs) TrySetFailedBatchIndex(index uint64) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
 
 	// failed index must be less than pindex
-	if pt.failedIndex != nil || index >= pt.pindex {
+	if index > pt.pindex {
 		return
 	}
 
@@ -230,10 +230,4 @@ func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 	}
 	return false
 
-}
-
-func (pt *PendingTxs) ResetFailedIndex(index uint64) {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	pt.failedIndex = &index
 }

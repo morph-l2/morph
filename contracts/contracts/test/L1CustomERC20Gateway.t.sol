@@ -192,9 +192,9 @@ contract L1CustomERC20GatewayTest is L1GatewayBaseTest {
         );
         gateway.depositERC20AndCall(address(l1Token), recipient, amount, dataToCall, defaultGasLimit);
 
-        // skip message 0
+        // pop message 0
         hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
+        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
         assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
         hevm.stopPrank();
 

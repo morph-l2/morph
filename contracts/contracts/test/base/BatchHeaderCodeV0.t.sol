@@ -17,7 +17,7 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
     }
 
     function test_btach_decode() public {
-        bytes memory batchHeader0 = new bytes(249 + 32);
+        bytes memory batchHeader0 = new bytes(249);
         assembly {
             mstore(add(batchHeader0, 0x20), shl(248, 1)) // version
             mstore(add(batchHeader0, add(0x20, 1)), shl(192, 1)) // batchIndex = 1
@@ -30,7 +30,6 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
             mstore(add(batchHeader0, add(0x20, 153)), ZERO_VERSIONED_HASH) // withdrawRootHash
             mstore(add(batchHeader0, add(0x20, 185)), ZERO_VERSIONED_HASH) // sequencerSetVerifyHash
             mstore(add(batchHeader0, add(0x20, 217)), ZERO_VERSIONED_HASH) // parentBatchHash
-            mstore(add(batchHeader0, add(0x20, 249)), 0) // bitmap0
         }
 
         uint256 version = codecTest.getVersion(batchHeader0);
@@ -78,7 +77,6 @@ contract BatchHeaderCodeV0Test is DSTestPlus {
                 add(batchHeader0, add(0x20, 217)),
                 0x5db199130d0c9334530358520a66d09c98c62325011a3665cf3efcc93e77623c
             ) // parentBatchHash
-            mstore(add(batchHeader0, add(0x20, 249)), 0) // bitmap0
         }
         {
             uint256 version = codecTest.getVersion(batchHeader0);

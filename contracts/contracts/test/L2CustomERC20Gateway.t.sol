@@ -66,7 +66,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
         );
         // Deploy a new L2CustomERC20Gateway contract.
         L2CustomERC20Gateway l2CustomERC20GatewayImplTemp = new L2CustomERC20Gateway();
-        
+
         // Expect revert due to zero router address.
         hevm.expectRevert("zero router address");
         ITransparentUpgradeableProxy(address(l2CustomERC20GatewayProxyTemp)).upgradeToAndCall(
@@ -80,7 +80,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
                 )
             )
         );
-        
+
         // Expect revert due to zero counterpart address.
         hevm.expectRevert("zero counterpart address");
         ITransparentUpgradeableProxy(address(l2CustomERC20GatewayProxyTemp)).upgradeToAndCall(
@@ -134,7 +134,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
         // Cast the proxy contract address to the L2CustomERC20Gateway contract type to call its methods.
         L2CustomERC20Gateway l2CustomERC20GatewayTemp = L2CustomERC20Gateway((address(l2CustomERC20GatewayProxyTemp)));
         hevm.stopPrank();
-        
+
         // Verify the counterpart, router and messenger are initialized successfully.
         assertEq(l2CustomERC20GatewayTemp.counterpart(), address(NON_ZERO_ADDRESS));
         assertEq(l2CustomERC20GatewayTemp.router(), address(l2GatewayRouter));
@@ -155,7 +155,7 @@ contract L2CustomERC20GatewayTest is L2GatewayBaseTest {
 
     function test_updateTokenMapping_succeeds(address token1, address token2) public {
         hevm.assume(token1 != address(0));
-        
+
         // Expect the UpdateTokenMapping event to be emitted successfully.
         hevm.expectEmit(true, true, true, true);
         emit L2CustomERC20Gateway.UpdateTokenMapping(token2, address(0), token1);
