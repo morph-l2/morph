@@ -1,0 +1,25 @@
+# Build Stage
+FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
+
+# Set working directory and copy necessary files
+COPY . /morph
+WORKDIR /morph/node
+
+# Run build command
+RUN make build
+
+# Final Stage
+FROM morph/go-ubuntu-builder:go-1.22-ubuntu
+
+# Update and install dependencies, then clean up unnecessary files
+RUN apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the built binaries from the builder image to the final image
+COPY --from=builder /morph/node/build/bin/tendermint /usr/local/bin/
+COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
+
+# Set the default command
+CMD ["morphnode", "--home", "/data"]
+

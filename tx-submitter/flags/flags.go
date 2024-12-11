@@ -229,37 +229,37 @@ var (
 	}
 
 	// external sign
-	ExternalSignFlag = cli.BoolFlag{
+	ExternalSign = cli.BoolFlag{
 		Name:   "external_sign",
 		Usage:  "Enable external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
 	}
 
 	// address
-	ExternalSignAddressFlag = cli.StringFlag{
+	ExternalSignAddress = cli.StringFlag{
 		Name:   "external_sign_address",
 		Usage:  "The address of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_ADDRESS"),
 	}
 	// appid
-	ExternalSignAppidFlag = cli.StringFlag{
+	ExternalSignAppid = cli.StringFlag{
 		Name:   "external_sign_appid",
 		Usage:  "The appid of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_APPID"),
 	}
 	// chain
-	ExternalSignChainFlag = cli.StringFlag{
+	ExternalSignChain = cli.StringFlag{
 		Name:   "external_sign_chain",
 		Usage:  "The chain of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_CHAIN"),
 	}
 	// url
-	ExternalSignUrlFlag = cli.StringFlag{
+	ExternalSignUrl = cli.StringFlag{
 		Name:   "external_sign_url",
 		Usage:  "The url of the external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
 	}
-	ExternalSignRsaPrivFlag = cli.StringFlag{
+	ExternalSignRsaPriv = cli.StringFlag{
 		Name:   "external_rsa_priv",
 		Usage:  "The rsa private key of the external sign",
 		EnvVar: "SEQUENCER_EXTERNAL_SIGN_RSA_PRIV", // use sequencer rsa from xxx
@@ -300,23 +300,11 @@ var (
 	}
 
 	// l1 block not incremented threshold
-	BlockNotIncreasedThresholdFlag = cli.Int64Flag{
+	BlockNotIncreasedThreshold = cli.Int64Flag{
 		Name:   "block_not_increased_threshold",
 		Usage:  "The threshold for block not incremented",
 		Value:  5,
 		EnvVar: prefixEnvVar("BLOCK_NOT_INCREASED_THRESHOLD"),
-	}
-	RollupLossControlFlag = cli.BoolFlag{
-		Name:   "rollup_loss_control",
-		Usage:  "Enable rollup loss control",
-		EnvVar: prefixEnvVar("ROLLUP_LOSS_CONTROL"),
-	}
-	// max rollup loss buffer
-	MaxRollupLossBufferFlag = cli.Int64Flag{
-		Name:   "max_rollup_loss_buffer",
-		Usage:  "single transaction rollup maximum allowable loss buff",
-		Value:  50, // default 50% percent
-		EnvVar: prefixEnvVar("MAX_ROLLUP_LOSS_BUFFER"),
 	}
 )
 
@@ -361,19 +349,18 @@ var optionalFlags = []cli.Flag{
 	MaxTxsInPendingPoolFlag,
 
 	// external sign
-	ExternalSignFlag,
-	ExternalSignAddressFlag,
-	ExternalSignAppidFlag,
-	ExternalSignChainFlag,
-	ExternalSignUrlFlag,
-	ExternalSignRsaPrivFlag,
+	ExternalSign,
+	ExternalSignAddress,
+	ExternalSignAppid,
+	ExternalSignChain,
+	ExternalSignUrl,
+	ExternalSignRsaPriv,
 	RoughEstimateGasFlag,
 	RotatorBufferFlag,
 	StakingEventStoreFileFlag,
 	EventIndexStepFlag,
 	LeveldbPathNameFlag,
-	BlockNotIncreasedThresholdFlag,
-	MaxRollupLossBufferFlag,
+	BlockNotIncreasedThreshold,
 }
 
 // Flags contains the list of configuration options available to the binary.

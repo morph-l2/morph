@@ -87,6 +87,7 @@
     },
     "dependencies": {
         "@morph-l2/core-utils": "0.0.1",
+        "async-mutex": "^0.5.0",
         "axios": "^1.4.0",
         "yarn": "^1.22.21"
     }
