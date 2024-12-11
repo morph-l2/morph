@@ -326,7 +326,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         emit L2TxFeeVault.UpdateTransferAllowed(allowedTransfer[0], true);
 
         vault.updateTransferAllowedStatus(allowedTransfer, true);
-        assertTrue(vault.transferAllowed(address(0)));
+        assertTrue(vault.transferAllowed(address(1)));
     }
 
     function test_updateReceiveAllowed_notOwner_reverts() public {
