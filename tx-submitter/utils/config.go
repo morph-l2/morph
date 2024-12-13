@@ -76,7 +76,8 @@ type Config struct {
 	// rollup gas base
 	RollupTxGasBase uint64
 	// rollup gas per l1 msg
-	RollupTxGasPerL1Msg uint64
+	RollupTxGasPerL1Msg   uint64
+	RollupTxGasPerL2Block uint64
 	// gas limit buffer
 	GasLimitBuffer uint64
 
@@ -146,8 +147,9 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		FinalizeInterval:  ctx.GlobalDuration(flags.FinalizeInterval.Name),
 		TxProcessInterval: ctx.GlobalDuration(flags.TxProcessInterval.Name),
 
-		RollupTxGasBase:     ctx.GlobalUint64(flags.RollupTxGasBase.Name),
-		RollupTxGasPerL1Msg: ctx.GlobalUint64(flags.RollupTxGasPerL1Msg.Name),
+		RollupTxGasBase:       ctx.GlobalUint64(flags.RollupTxGasBase.Name),
+		RollupTxGasPerL1Msg:   ctx.GlobalUint64(flags.RollupTxGasPerL1Msg.Name),
+		RollupTxGasPerL2Block: ctx.GlobalUint64(flags.RollupTxGasPerL2Block.Name),
 
 		GasLimitBuffer: ctx.GlobalUint64(flags.GasLimitBuffer.Name),
 

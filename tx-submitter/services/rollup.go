@@ -724,7 +724,8 @@ func (r *Rollup) rollup() error {
 
 		if r.cfg.RoughEstimateGas {
 			msgcnt := utils.ParseL1MessageCnt(batch.BlockContexts)
-			gas = r.RoughRollupGasEstimate(msgcnt)
+			l2BlockCnt := utils.ParseL2BlockCnt(batch.BlockContexts)
+			gas = r.RoughRollupGasEstimate(msgcnt, l2BlockCnt)
 			log.Info("rough estimate rollup tx gas", "gas", gas, "msgcnt", msgcnt)
 		} else {
 			log.Warn("no rough estimate gas, return")
@@ -1285,8 +1286,8 @@ func (r *Rollup) BumpGas(origin uint64) uint64 {
 }
 
 // for rollup
-func (r *Rollup) RoughRollupGasEstimate(msgcnt uint64) uint64 {
-	return r.cfg.RollupTxGasBase + msgcnt*r.cfg.RollupTxGasPerL1Msg
+func (r *Rollup) RoughRollupGasEstimate(msgcnt, l2BlockCnt uint64) uint64 {
+	return r.cfg.RollupTxGasBase + msgcnt*r.cfg.RollupTxGasPerL1Msg + l2BlockCnt*r.cfg.RollupTxGasPerL2Block
 }
 
 func (r *Rollup) RoughFinalizeGasEstimate() uint64 {

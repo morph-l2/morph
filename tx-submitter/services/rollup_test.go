@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"math/big"
 	"testing"
 
@@ -48,4 +49,25 @@ func TestSendTx(t *testing.T) {
 	)
 	err = sendTx(nil, 1, blobTx)
 	require.ErrorContains(t, err, utils.ErrExceedFeeLimit.Error())
+}
+
+func TestRoughRollupGasEstimate(t *testing.T) {
+
+	cfg := &utils.Config{
+		RollupTxGasBase:       2,
+		RollupTxGasPerL1Msg:   3,
+		RollupTxGasPerL2Block: 4,
+	}
+	r := NewRollup(context.Background(), nil, nil, nil, nil, nil, nil, nil, nil, common.Address{}, nil, *cfg, nil, nil, nil, nil, nil)
+	estimateGas := r.RoughRollupGasEstimate(0, 0)
+	require.EqualValues(t, 2, estimateGas)
+	estimateGas = r.RoughRollupGasEstimate(1, 0)
+	require.EqualValues(t, 5, estimateGas)
+	estimateGas = r.RoughRollupGasEstimate(0, 1)
+	require.EqualValues(t, 6, estimateGas)
+	estimateGas = r.RoughRollupGasEstimate(1, 1)
+	require.EqualValues(t, 9, estimateGas)
+
+	//
+	// utils.ParseL1MessageCnt()
 }

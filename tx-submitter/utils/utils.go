@@ -185,3 +185,7 @@ func ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
 
 	return l1msgcnt
 }
+func ParseL2BlockCnt(blockContexts hexutil.Bytes) uint64 {
+	blockNum := binary.BigEndian.Uint16(blockContexts[:2])
+	return uint64(blockNum)
+}

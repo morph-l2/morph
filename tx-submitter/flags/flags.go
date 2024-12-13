@@ -191,6 +191,12 @@ var (
 		Value:  4200,
 		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_PER_L1_MSG"),
 	}
+	RollupTxGasPerL2Block = cli.Uint64Flag{
+		Name:   "rollup_tx_gas_per_block",
+		Usage:  "The gas cost for each block included in a rollup transaction",
+		Value:  2100,
+		EnvVar: prefixEnvVar("ROLLUP_TX_GAS_PER_BLOCK"),
+	}
 
 	GasLimitBuffer = cli.Uint64Flag{
 		Name:   "gas_limit_buffer",
@@ -338,6 +344,7 @@ var optionalFlags = []cli.Flag{
 
 	RollupTxGasBase,
 	RollupTxGasPerL1Msg,
+	RollupTxGasPerL2Block,
 	GasLimitBuffer,
 
 	JournalFlag,
