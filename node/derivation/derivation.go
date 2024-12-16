@@ -312,6 +312,9 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	}
 	batch.Sidecar = bts
 	l2Height, err := d.l2Client.BlockNumber(d.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query l2 block number error:%v", err)
+	}
 	rollupData, err := d.parseBatch(batch, l2Height)
 	if err != nil {
 		d.logger.Error("parse batch failed", "txNonce", tx.Nonce(), "txHash", txHash,
