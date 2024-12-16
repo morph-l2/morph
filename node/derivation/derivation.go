@@ -311,7 +311,11 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		}
 	}
 	batch.Sidecar = bts
-	rollupData, err := d.parseBatch(batch)
+	l2Height, err := d.l2Client.BlockNumber(d.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query l2 block number error:%v", err)
+	}
+	rollupData, err := d.parseBatch(batch, l2Height)
 	if err != nil {
 		d.logger.Error("parse batch failed", "txNonce", tx.Nonce(), "txHash", txHash,
 			"l1BlockNumber", blockNumber)
@@ -375,7 +379,7 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 	return batch, nil
 }
 
-func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
+func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*BatchInfo, error) {
 	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
 	if err != nil {
 		return nil, fmt.Errorf("decode batch header error:%v", err)
@@ -384,16 +388,20 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 	if err := batchInfo.ParseBatch(batch); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
-	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped); err != nil {
+	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped, l2Height); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
 	batchInfo.batchIndex = parentBatchHeader.BatchIndex + 1
 	return batchInfo, nil
 }
 
-func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped uint64) error {
+func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped, l2Height uint64) error {
 	totalL1MessagePopped := parentTotalL1MessagePopped
 	for bIndex, block := range rollupData.blockContexts {
+		// This may happen to nodes started from sanpshot, in which case we will no longer handle L1Msg
+		if block.Number <= l2Height {
+			continue
+		}
 		var l1Transactions []*eth.Transaction
 		l1Messages, err := d.getL1Message(totalL1MessagePopped, uint64(block.l1MsgNum))
 		if err != nil {
