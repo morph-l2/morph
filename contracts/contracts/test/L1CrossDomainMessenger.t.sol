@@ -427,69 +427,6 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         assertEq(nonce + 2, l1CrossDomainMessenger.messageNonce());
     }
 
-    function test_dropMessage_notEnqueued_reverts() external {
-        address sender = address(this);
-        address to = address(bob);
-        bytes memory data = "send message";
-        // hevm.deal(sender, 10 ether);
-
-        // send value zero
-        uint256 value = 0;
-        uint256 nonce = l1MessageQueueWithGasPriceOracle.nextCrossDomainMessageIndex();
-
-        // Expect revert when the message has not been enqueued.
-        hevm.expectRevert("Provided message has not been enqueued");
-        l1CrossDomainMessenger.dropMessage(sender, to, value, nonce, data);
-    }
-
-    function test_dropMessage_succeeds(uint256 amount, address recipient, bytes memory dataToCall) public {
-        amount = bound(amount, 1, address(this).balance);
-        bytes memory message = abi.encodeCall(
-            IL2ETHGateway.finalizeDepositETH,
-            (address(this), recipient, amount, dataToCall)
-        );
-
-        l1ETHGateway.depositETHAndCall{value: amount}(recipient, amount, dataToCall, defaultGasLimit);
-
-        // pop message 0
-        hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
-        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
-        hevm.stopPrank();
-
-        // Drop message 0 and verify balance
-        revertOnReceive = false;
-        uint256 balance = address(this).balance;
-        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
-        assertEq(balance + amount, address(this).balance);
-    }
-
-    function test_dropMessage_dropAgain_reverts(uint256 amount, address recipient, bytes memory dataToCall) public {
-        amount = bound(amount, 1, address(this).balance);
-        bytes memory message = abi.encodeCall(
-            IL2ETHGateway.finalizeDepositETH,
-            (address(this), recipient, amount, dataToCall)
-        );
-
-        l1ETHGateway.depositETHAndCall{value: amount}(recipient, amount, dataToCall, defaultGasLimit);
-
-        // pop message 0
-        hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
-        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
-        hevm.stopPrank();
-
-        // Drop message 0 and verify balance
-        revertOnReceive = false;
-        uint256 balance = address(this).balance;
-        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
-        assertEq(balance + amount, address(this).balance);
-
-        // Expect revert when trying to drop the same message again.
-        hevm.expectRevert("Message already dropped");
-        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
-    }
-
     function test_updateMaxReplayTimes_succeeds(uint256 _maxReplayTimes) external {
         hevm.assume(_maxReplayTimes > 0);
         // not owner, revert
@@ -529,8 +466,6 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         l1CrossDomainMessenger.proveAndRelayMessage(address(0), address(0), 0, 0, new bytes(0), wdProof, wdRoot);
         hevm.expectRevert("Pausable: paused");
         l1CrossDomainMessenger.replayMessage(address(0), address(0), 0, 0, new bytes(0), 0, address(0));
-        hevm.expectRevert("Pausable: paused");
-        l1CrossDomainMessenger.dropMessage(address(0), address(0), 0, 0, new bytes(0));
 
         // unpause
         hevm.prank(multisig);

@@ -48,8 +48,8 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
     /// @notice The max gas limit of L1 transactions.
     uint256 public maxGasLimit;
 
-    /// @dev The bitmap for dropped messages, where `droppedMessageBitmap[i]` keeps the bits from `[i*256, (i+1)*256)`.
-    BitMapsUpgradeable.BitMap private droppedMessageBitmap;
+    /// @dev The bitmap for dropped messages, where `droppedMessageBitmap[i]` keeps the bits from `[i*256, (i+1)*256)`. Deprecated.
+    BitMapsUpgradeable.BitMap private __droppedMessageBitmap;
 
     /// @dev The bitmap for skipped messages, where `skippedMessageBitmap[i]` keeps the bits from `[i*256, (i+1)*256)`. Deprecated.
     mapping(uint256 => uint256) private __skippedMessageBitmap;
@@ -260,11 +260,6 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
         return hash;
     }
 
-    /// @inheritdoc IL1MessageQueue
-    function isMessageDropped(uint256 _queueIndex) external view returns (bool) {
-        return droppedMessageBitmap.get(_queueIndex);
-    }
-
     /*****************************
      * Public Mutating Functions *
      *****************************/
@@ -323,16 +318,6 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
         }
 
         emit DequeueTransaction(_startIndex, _count);
-    }
-
-    /// @inheritdoc IL1MessageQueue
-    function dropCrossDomainMessage(uint256 _index) external onlyMessenger {
-        require(_index < pendingQueueIndex, "cannot drop pending message");
-
-        require(!droppedMessageBitmap.get(_index), "message already dropped");
-        droppedMessageBitmap.set(_index);
-
-        emit DropTransaction(_index);
     }
 
     /************************
