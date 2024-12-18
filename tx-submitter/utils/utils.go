@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/morph-l2/go-ethereum/rpc"
@@ -32,17 +32,6 @@ func Loop(ctx context.Context, period time.Duration, f func()) {
 		default:
 			f()
 		}
-	}
-}
-
-func ParseBatchIndex(method string, calldata []byte) uint64 {
-	switch method {
-	case "commitBatch":
-		return ParseParentBatchIndex(calldata) + 1
-	case "finalizeBatch":
-		return ParseFBatchIndex(calldata)
-	default:
-		return 0
 	}
 }
 
@@ -184,37 +173,15 @@ func ParseNonce(s string) (uint64, uint64, error) {
 	}
 }
 
-func CalcFeeForTx(tx *types.Transaction) *big.Int {
-	if tx == nil {
-		return big.NewInt(0)
-	}
-	switch tx.Type() {
-	case types.DynamicFeeTxType:
-		if tx.GasFeeCap() == nil {
-			return big.NewInt(0)
-		}
-		fee := new(big.Int).Mul(
-			tx.GasFeeCap(),
-			big.NewInt(int64(tx.Gas())),
-		)
-		return fee
-	case types.BlobTxType:
-		var blobfee *big.Int
-		if tx.BlobGasFeeCap() == nil {
-			blobfee = big.NewInt(0)
-		} else {
-			blobfee = new(big.Int).Mul(tx.BlobGasFeeCap(), big.NewInt(int64(tx.BlobGas())))
-		}
-		var calldatafee *big.Int
-		if tx.GasFeeCap() == nil {
-			calldatafee = big.NewInt(0)
-		} else {
-			calldatafee = new(big.Int).Mul(tx.GasFeeCap(), big.NewInt(int64(tx.Gas())))
-		}
-		return new(big.Int).Add(blobfee, calldatafee)
+func ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
 
-	default:
-		log.Warn("unknown tx type to calc fee", "type", tx.Type())
-		return big.NewInt(0)
+	var l1msgcnt uint64
+	blockNum := binary.BigEndian.Uint16(blockContexts[:2])
+	remainingBz := blockContexts[2:]
+	for i := 0; i < int(blockNum); i++ {
+		l1msgcnt += uint64(binary.BigEndian.Uint16(remainingBz[58:60]))
+		remainingBz = remainingBz[60:]
 	}
+
+	return l1msgcnt
 }

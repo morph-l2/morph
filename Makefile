@@ -143,6 +143,7 @@ devnet-down:
 devnet-clean-build: devnet-down
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/l2-genesis/.devnet
+	rm -rf ops/docker/.devnet
 	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
 	rm -rf ops/docker/execution/geth
 .PHONY: devnet-clean-build

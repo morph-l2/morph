@@ -2,11 +2,9 @@ package services
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/params"
@@ -74,17 +72,4 @@ func ToEtherFloat(weiAmt *big.Int) float64 {
 	fEtherAmt, _ := etherAmt.Float64()
 	return fEtherAmt
 
-}
-
-func (r *Rollup) ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
-
-	var l1msgcnt uint64
-	blockNum := binary.BigEndian.Uint16(blockContexts[:2])
-	remainingBz := blockContexts[2:]
-	for i := 0; i < int(blockNum); i++ {
-		l1msgcnt += uint64(binary.BigEndian.Uint16(remainingBz[58:60]))
-		remainingBz = remainingBz[60:]
-	}
-
-	return l1msgcnt
 }
