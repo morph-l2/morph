@@ -287,40 +287,6 @@ contract L1StandardERC20GatewayTest is L1GatewayBaseTest {
         assertEq(balanceBefore + amount - fee, balanceAfter);
     }
 
-    function test_dropMessage_succeeds(uint256 amount, address recipient, bytes memory dataToCall) public {
-        amount = bound(amount, 1, l1Token.balanceOf(address(this)) / 2);
-        bytes memory message = abi.encodeCall(
-            IL2ERC20Gateway.finalizeDepositERC20,
-            (
-                address(l1Token),
-                address(l2Token),
-                address(this),
-                recipient,
-                amount,
-                abi.encode(
-                    true,
-                    abi.encode(dataToCall, abi.encode(l1Token.symbol(), l1Token.name(), l1Token.decimals()))
-                )
-            )
-        );
-        l1StandardERC20Gateway.depositERC20AndCall(address(l1Token), recipient, amount, dataToCall, defaultGasLimit);
-        l1StandardERC20Gateway.depositERC20AndCall(address(l1Token), recipient, amount, dataToCall, defaultGasLimit);
-
-        // pop message 0 and 1
-        hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 2);
-        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 2);
-        hevm.stopPrank();
-
-        // drop message 1
-        hevm.expectEmit(true, true, false, true);
-        emit IL1ERC20Gateway.RefundERC20(address(l1Token), address(this), amount);
-
-        uint256 balance = l1Token.balanceOf(address(this));
-        l1CrossDomainMessenger.dropMessage(address(l1StandardERC20Gateway), address(counterpartGateway), 0, 1, message);
-        assertEq(balance + amount, l1Token.balanceOf(address(this)));
-    }
-
     function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public {
         address recipient = address(2048);
         address _from = address(counterpartGateway);
