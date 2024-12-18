@@ -261,7 +261,7 @@ func (r *Rollup) ProcessTx() error {
 			if err != nil {
 				return fmt.Errorf("get last committed batch index error:%v", err)
 			}
-			batchIndex := utils.ParseBatchIndex(method, rtx.Data())
+			batchIndex := utils.ParseParentBatchIndex(rtx.Data())
 			if batchIndex <= cindexBig.Uint64() {
 				log.Info("batch has committed remove batch tx from local pool",
 					"cur_batch_index", batchIndex,
