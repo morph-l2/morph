@@ -855,6 +855,7 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 		return nil, nil, nil, err
 	}
 	if head.BaseFee != nil {
+		log.Info("market fee info", "feecap", head.BaseFee)
 		if r.cfg.MaxBaseFee > 0 && head.BaseFee.Cmp(big.NewInt(int64(r.cfg.MaxBaseFee))) > 0 {
 			return nil, nil, nil, fmt.Errorf("base fee is too high, base fee %v exceeds max %v", head.BaseFee, r.cfg.MaxBaseFee)
 		}
@@ -864,6 +865,8 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	log.Info("market fee info", "tip", tip)
+
 	if r.cfg.TipFeeBump > 0 {
 		tip = new(big.Int).Mul(tip, big.NewInt(int64(r.cfg.TipFeeBump)))
 		tip = new(big.Int).Div(tip, big.NewInt(100))
@@ -887,6 +890,12 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	if head.ExcessBlobGas != nil {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
 	}
+
+	log.Info("fee info after bump",
+		"tip", tip,
+		"feecap", gasFeeCap,
+		"blobfee", blobFee,
+	)
 
 	return tip, gasFeeCap, blobFee, nil
 }
