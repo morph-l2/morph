@@ -1,15 +1,19 @@
 package services
 
 import (
+	"context"
 	"math/big"
 	"testing"
 
-	"github.com/holiman/uint256"
+	"morph-l2/tx-submitter/mock"
+	"morph-l2/tx-submitter/utils"
+
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
-	"github.com/stretchr/testify/require"
+	"github.com/morph-l2/go-ethereum/crypto"
 
-	"morph-l2/tx-submitter/utils"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSendTx(t *testing.T) {
@@ -48,4 +52,104 @@ func TestSendTx(t *testing.T) {
 	)
 	err = sendTx(nil, 1, blobTx)
 	require.ErrorContains(t, err, utils.ErrExceedFeeLimit.Error())
+}
+
+func TestGetGasTipAndCap(t *testing.T) {
+	l1Mock := mock.NewL1ClientWrapper()
+	initTip := big.NewInt(1e9)
+
+	baseFee := big.NewInt(1e9)
+	excessBlobGas := uint64(1)
+	block := types.NewBlockWithHeader(
+		&types.Header{
+			BaseFee:       baseFee,
+			ExcessBlobGas: &excessBlobGas,
+		},
+	)
+	l1Mock.TipCap = initTip
+	l1Mock.Block = block
+	config := utils.Config{
+		MaxTip:     10e9,
+		MaxBaseFee: 100e9,
+		MinTip:     1e9,
+		TipFeeBump: 100,
+	}
+	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	tip, feecap, blobfee, err := r.GetGasTipAndCap()
+	require.NoError(t, err)
+	require.NotNil(t, tip)
+	require.NotNil(t, feecap)
+	require.NotNil(t, blobfee)
+	require.Equal(t, initTip, tip)
+
+	config = utils.Config{
+		MaxTip:     10e9,
+		MaxBaseFee: 100e9,
+		MinTip:     1e9,
+		TipFeeBump: 200,
+	}
+	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	tip, feecap, blobfee, err = r.GetGasTipAndCap()
+	require.NoError(t, err)
+	require.NotNil(t, tip)
+	require.NotNil(t, feecap)
+	require.NotNil(t, blobfee)
+	require.Equal(t, tip, initTip.Mul(initTip, big.NewInt(2)))
+
+	config = utils.Config{
+		MaxTip:     10e9,
+		MaxBaseFee: baseFee.Uint64() - 1,
+		MinTip:     1e9,
+		TipFeeBump: 200,
+	}
+	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	_, _, _, err = r.GetGasTipAndCap()
+	require.ErrorContains(t, err, "base fee is too high")
+
+	config = utils.Config{
+		MaxTip:     initTip.Uint64() - 1,
+		MaxBaseFee: 100e9,
+		MinTip:     1e9,
+		TipFeeBump: 200,
+	}
+	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	_, _, _, err = r.GetGasTipAndCap()
+	require.ErrorContains(t, err, "tip is too high")
+
+}
+
+func TestReSubmitTx(t *testing.T) {
+	l1Mock := mock.NewL1ClientWrapper()
+	initTip := big.NewInt(1e9)
+
+	baseFee := big.NewInt(1e9)
+	excessBlobGas := uint64(1)
+	block := types.NewBlockWithHeader(
+		&types.Header{
+			BaseFee:       baseFee,
+			ExcessBlobGas: &excessBlobGas,
+		},
+	)
+	l1Mock.TipCap = initTip
+	l1Mock.Block = block
+	config := utils.Config{
+		MaxTip:     10e12,
+		MaxBaseFee: 100e9,
+		MinTip:     1e10,
+		TipFeeBump: 100,
+	}
+
+	priv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, big.NewInt(1), priv, common.Address{}, nil, config, nil, nil, nil, nil)
+	_, err = r.ReSubmitTx(false, nil)
+	require.ErrorContains(t, err, "nil tx")
+	oldTx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: initTip,
+	})
+	tx, err := r.ReSubmitTx(false, oldTx)
+	require.NoError(t, err)
+	require.EqualValues(t, config.MinTip, tx.GasTipCap().Uint64())
+
 }
