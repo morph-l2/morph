@@ -223,19 +223,19 @@ var (
 	MaxTipFlag = cli.Uint64Flag{
 		Name:   "max_tip",
 		Usage:  "The maximum tip for a transaction",
-		Value:  10000000000, //10gwei
+		Value:  10e9, //10gwei
 		EnvVar: prefixEnvVar("MAX_TIP"),
 	}
 	MinTipFlag = cli.Uint64Flag{
 		Name:   "min_tip",
 		Usage:  "The minimum tip for a transaction",
-		Value:  500000000, //0.5gwei
+		Value:  5e8, //0.5gwei
 		EnvVar: prefixEnvVar("MIN_TIP"),
 	}
 	MaxBaseFeeFlag = cli.Uint64Flag{
 		Name:   "max_base_fee",
 		Usage:  "The maximum base fee for a transaction",
-		Value:  100000000000, //100gwei
+		Value:  100e9, //100gwei
 		EnvVar: prefixEnvVar("MAX_BASE_FEE"),
 	}
 
@@ -364,6 +364,9 @@ var optionalFlags = []cli.Flag{
 	L2SequencerAddressFlag,
 	L2GovAddressFlag,
 	TipFeeBumpFlag,
+	MaxTipFlag,
+	MinTipFlag,
+	MaxBaseFeeFlag,
 	MaxTxsInPendingPoolFlag,
 
 	// external sign
