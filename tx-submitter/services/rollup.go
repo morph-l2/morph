@@ -1104,7 +1104,7 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 		return errors.New("nil tx")
 	}
 	// l1 health check
-	if !r.bm.IsGrowth() {
+	if r.bm != nil && !r.bm.IsGrowth() {
 		return fmt.Errorf("block not growth in %d blocks time", r.cfg.BlockNotIncreasedThreshold)
 	}
 
@@ -1115,7 +1115,9 @@ func (r *Rollup) SendTx(tx *types.Transaction) error {
 
 	// after send tx
 	// add to pending txs
-	r.pendingTxs.Add(tx)
+	if r.pendingTxs != nil {
+		r.pendingTxs.Add(tx)
+	}
 
 	return nil
 
