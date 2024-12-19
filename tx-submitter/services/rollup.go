@@ -853,6 +853,10 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if r.cfg.TipFeeBump > 0 {
+		tip = new(big.Int).Mul(tip, big.NewInt(int64(r.cfg.TipFeeBump)))
+		tip = new(big.Int).Div(tip, big.NewInt(100))
+	}
 	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return nil, nil, nil, err

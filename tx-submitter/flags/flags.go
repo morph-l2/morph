@@ -220,6 +220,12 @@ var (
 		Value:  100, //fee = x * origin_fee/100
 		EnvVar: prefixEnvVar("CALL_DATA_FEE_BUMP"),
 	}
+	TipFeeBumpFlag = cli.Uint64Flag{
+		Name:   "TIP_FEE_BUMP",
+		Usage:  "The fee bump for tip",
+		Value:  100, //bumpTip = tip * TipFeeBump/100
+		EnvVar: prefixEnvVar("TIP_FEE_BUMP"),
+	}
 
 	MaxTxsInPendingPoolFlag = cli.Uint64Flag{
 		Name:   "max_txs_in_pending_pool",
@@ -346,6 +352,7 @@ var optionalFlags = []cli.Flag{
 	L2SequencerAddressFlag,
 	L2GovAddressFlag,
 	CalldataFeeBumpFlag,
+	TipFeeBumpFlag,
 	MaxTxsInPendingPoolFlag,
 
 	// external sign

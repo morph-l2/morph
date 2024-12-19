@@ -84,6 +84,8 @@ type Config struct {
 	JournalFilePath string
 	// calldata fee bump
 	CalldataFeeBump uint64
+	// tip bump
+	TipFeeBump uint64
 	//max txs in pendingpool
 	MaxTxsInPendingPool uint64
 
@@ -151,9 +153,9 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 
 		GasLimitBuffer: ctx.GlobalUint64(flags.GasLimitBuffer.Name),
 
-		JournalFilePath: ctx.GlobalString(flags.JournalFlag.Name),
-		// calldata fee bump
+		JournalFilePath:     ctx.GlobalString(flags.JournalFlag.Name),
 		CalldataFeeBump:     ctx.GlobalUint64(flags.CalldataFeeBumpFlag.Name),
+		TipFeeBump:          ctx.GlobalUint64(flags.TipFeeBumpFlag.Name),
 		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
 
 		// external sign
