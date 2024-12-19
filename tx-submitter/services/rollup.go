@@ -849,6 +849,17 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 }
 
 func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
+
+	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if head.BaseFee != nil {
+		if r.cfg.MaxBaseFee > 0 && head.BaseFee.Cmp(big.NewInt(int64(r.cfg.MaxBaseFee))) > 0 {
+			return nil, nil, nil, fmt.Errorf("base fee is too high, base fee %v exceeds max %v", head.BaseFee, r.cfg.MaxBaseFee)
+		}
+	}
+
 	tip, err := r.L1Client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		return nil, nil, nil, err
@@ -857,10 +868,14 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 		tip = new(big.Int).Mul(tip, big.NewInt(int64(r.cfg.TipFeeBump)))
 		tip = new(big.Int).Div(tip, big.NewInt(100))
 	}
-	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
-	if err != nil {
-		return nil, nil, nil, err
+	if r.cfg.MaxTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MaxTip))) > 0 {
+		return nil, nil, nil, fmt.Errorf("tip is too high, tip %v exceeds max %v", tip, r.cfg.MaxTip)
 	}
+	if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
+		log.Info("tip is too low", "tip", tip, "min_tip", r.cfg.MinTip)
+		tip = big.NewInt(int64(r.cfg.MinTip))
+	}
+
 	var gasFeeCap *big.Int
 	if head.BaseFee != nil {
 		gasFeeCap = new(big.Int).Add(
@@ -875,16 +890,6 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
-	}
-
-	//calldata fee bump x*fee/100
-	if r.cfg.CalldataFeeBump > 0 {
-		// feecap
-		gasFeeCap = new(big.Int).Mul(gasFeeCap, big.NewInt(int64(r.cfg.CalldataFeeBump)))
-		gasFeeCap = new(big.Int).Div(gasFeeCap, big.NewInt(100))
-		// tip
-		tip = new(big.Int).Mul(tip, big.NewInt(int64(r.cfg.CalldataFeeBump)))
-		tip = new(big.Int).Div(tip, big.NewInt(100))
 	}
 
 	return tip, gasFeeCap, blobFee, nil
