@@ -871,10 +871,6 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	if r.cfg.MaxTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MaxTip))) > 0 {
 		return nil, nil, nil, fmt.Errorf("tip is too high, tip %v exceeds max %v", tip, r.cfg.MaxTip)
 	}
-	if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
-		log.Info("tip is too low", "tip", tip, "min_tip", r.cfg.MinTip)
-		tip = big.NewInt(int64(r.cfg.MinTip))
-	}
 
 	var gasFeeCap *big.Int
 	if head.BaseFee != nil {
@@ -1191,6 +1187,11 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction) (*types.Transact
 			if bumpedBlobFeeCap.Cmp(blobFeeCap) > 0 {
 				blobFeeCap = bumpedBlobFeeCap
 			}
+		}
+
+		if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
+			log.Info("replace tip is too low, update tip to min tip ", "tip", tip, "min_tip", r.cfg.MinTip)
+			tip = big.NewInt(int64(r.cfg.MinTip))
 		}
 	}
 

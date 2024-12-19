@@ -217,7 +217,7 @@ var (
 	TipFeeBumpFlag = cli.Uint64Flag{
 		Name:   "TIP_FEE_BUMP",
 		Usage:  "The fee bump for tip",
-		Value:  100, //bumpTip = tip * TipFeeBump/100
+		Value:  120, //bumpTip = tip * TipFeeBump/100
 		EnvVar: prefixEnvVar("TIP_FEE_BUMP"),
 	}
 	MaxTipFlag = cli.Uint64Flag{
