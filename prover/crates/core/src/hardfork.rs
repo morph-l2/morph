@@ -16,18 +16,9 @@ pub const MORPH_MAINNET_CHAIN_ID: u64 = 2818;
 /// Hardfork heights for Scroll networks, grouped by chain id.
 static HARDFORK_HEIGHTS: Lazy<HashMap<u64, HashMap<SpecId, u64>>> = Lazy::new(|| {
     let mut map = HashMap::new();
-    map.insert(
-        MORPH_DEVNET_CHAIN_ID,
-        HashMap::from([(SpecId::BERNOULLI, 0), (SpecId::CURIE, 0)]),
-    );
-    map.insert(
-        MORPH_TESTNET_CHAIN_ID,
-        HashMap::from([(SpecId::BERNOULLI, 0), (SpecId::CURIE, 0)]),
-    );
-    map.insert(
-        MORPH_MAINNET_CHAIN_ID,
-        HashMap::from([(SpecId::BERNOULLI, 0), (SpecId::CURIE, 0)]),
-    );
+    map.insert(MORPH_DEVNET_CHAIN_ID, HashMap::from([(SpecId::BERNOULLI, 0), (SpecId::CURIE, 0)]));
+    map.insert(MORPH_TESTNET_CHAIN_ID, HashMap::from([(SpecId::BERNOULLI, 0), (SpecId::CURIE, 0)]));
+    map.insert(MORPH_MAINNET_CHAIN_ID, HashMap::from([(SpecId::BERNOULLI, 0), (SpecId::CURIE, 0)]));
 
     map
 });
@@ -103,14 +94,8 @@ impl HardforkConfig {
         let l1_gas_price_oracle_acc = Account {
             info: l1_gas_price_oracle_info,
             storage: HashMap::from([
-                (
-                    l1_gas_price_oracle::IS_CURIE_SLOT,
-                    EvmStorageSlot::new(U256::from(1)),
-                ),
-                (
-                    l1_gas_price_oracle::L1_BLOB_BASEFEE_SLOT,
-                    EvmStorageSlot::new(U256::from(1)),
-                ),
+                (l1_gas_price_oracle::IS_CURIE_SLOT, EvmStorageSlot::new(U256::from(1))),
+                (l1_gas_price_oracle::L1_BLOB_BASEFEE_SLOT, EvmStorageSlot::new(U256::from(1))),
                 (
                     l1_gas_price_oracle::COMMIT_SCALAR_SLOT,
                     EvmStorageSlot::new(l1_gas_price_oracle::INITIAL_COMMIT_SCALAR),
@@ -123,10 +108,7 @@ impl HardforkConfig {
             status: AccountStatus::Touched,
         };
 
-        db.commit(HashMap::from([(
-            l1_gas_price_oracle_addr,
-            l1_gas_price_oracle_acc,
-        )]));
+        db.commit(HashMap::from([(l1_gas_price_oracle_addr, l1_gas_price_oracle_acc)]));
 
         Ok(())
     }

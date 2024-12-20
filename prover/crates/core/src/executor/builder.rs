@@ -1,5 +1,6 @@
-use crate::error::ZkTrieError;
-use crate::{executor::hooks::ExecuteHooks, EvmExecutor, HardforkConfig, ReadOnlyDB};
+use crate::{
+    error::ZkTrieError, executor::hooks::ExecuteHooks, EvmExecutor, HardforkConfig, ReadOnlyDB,
+};
 use core::fmt;
 use revm::db::CacheDB;
 use sbv_primitives::{zk_trie::ZkMemoryDb, Block};
@@ -25,11 +26,7 @@ impl fmt::Debug for EvmExecutorBuilder<'_, ()> {
 impl<'e> EvmExecutorBuilder<'e, ()> {
     /// Create a new builder.
     pub fn new(zktrie_db: Rc<ZkMemoryDb>) -> Self {
-        Self {
-            hardfork_config: (),
-            execute_hooks: ExecuteHooks::default(),
-            zktrie_db,
-        }
+        Self { hardfork_config: (), execute_hooks: ExecuteHooks::default(), zktrie_db }
     }
 }
 
