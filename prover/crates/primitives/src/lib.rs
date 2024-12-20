@@ -122,12 +122,8 @@ pub trait Block: Debug {
         let num_txs = (self.num_l1_txs() + self.num_l2_txs()) as u16;
         hasher.update(&self.number().to_be_bytes());
         hasher.update(&self.timestamp().to::<u64>().to_be_bytes());
-        hasher.update(
-            &self
-                .base_fee_per_gas()
-                .unwrap_or_default()
-                .to_be_bytes::<{ U256::BYTES }>(),
-        );
+        hasher
+            .update(&self.base_fee_per_gas().unwrap_or_default().to_be_bytes::<{ U256::BYTES }>());
         hasher.update(&self.gas_limit().to::<u64>().to_be_bytes());
         hasher.update(&num_txs.to_be_bytes());
     }
@@ -135,11 +131,7 @@ pub trait Block: Debug {
     /// Hash the l1 messages of the block
     #[inline]
     fn hash_l1_msg(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        for tx_hash in self
-            .transactions()
-            .filter(|tx| tx.is_l1_tx())
-            .map(|tx| tx.tx_hash())
-        {
+        for tx_hash in self.transactions().filter(|tx| tx.is_l1_tx()).map(|tx| tx.tx_hash()) {
             hasher.update(tx_hash.as_slice())
         }
     }

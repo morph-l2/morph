@@ -27,10 +27,7 @@ impl BatchInfo {
     /// Construct by block traces
     pub fn from_block_traces<T: Block>(traces: &[T]) -> (Self, Rc<ZkMemoryDb>) {
         let chain_id = traces.first().unwrap().chain_id();
-        let prev_state_root = traces
-            .first()
-            .expect("at least 1 block needed")
-            .root_before();
+        let prev_state_root = traces.first().expect("at least 1 block needed").root_before();
         let post_state_root = traces.last().expect("at least 1 block needed").root_after();
 
         let mut data_hasher = Keccak::v256();
@@ -143,9 +140,7 @@ mod tests {
             pub struct BlockTraceJsonRpcResult {
                 pub result: BlockTrace,
             }
-            serde_json::from_str::<BlockTraceJsonRpcResult>(s)
-                .unwrap()
-                .result
+            serde_json::from_str::<BlockTraceJsonRpcResult>(s).unwrap().result
         });
 
         let fork_config = HardforkConfig::default_from_chain_id(traces[0].chain_id());
