@@ -28,3 +28,46 @@ make devtools
 ```
 
 The geth docs for `abigen` can be found [here](https://geth.ethereum.org/docs/dapp/native-bindings).
+
+## Installation and Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/yourusername/morph-bindings.git
+   cd morph-bindings
+   ```
+2. **Install Dependencies**
+Ensure you have all required dependencies installed, including:
+- `jq`
+- `abigen`
+- `solc`
+- `make`
+- `hardhat`
+
+Install these as needed, following the official documentation for each tool.
+
+3. **Compile Contracts**
+Use `make` to compile the contracts and generate bindings. Run:
+```bash
+make all
+ ```
+## Structure and Contents
+
+### Key Files
+
+- **types.go**: Defines the main data structures for compiler input, settings, output, and storage layout, allowing smooth integration between the Go application and Ethereum contracts.
+- **Makefile**: Automates tasks including compilation, generating bindings, and cleaning up build files.
+- **compile.sh**: Script to compile contracts using `hardhat` or `forge`.
+- **gen_bindings.sh**: Script to generate contract bindings using `abigen` and customize dependencies.
+
+### Contract Bindings
+
+The bindings provide access to the following types of contracts:
+- **L1 Contracts**: Staking, gateways, and cross-domain messaging between L1 and L2.
+- **L2 Contracts**: Fee management, staking, and distribution, along with specific gateways for assets like ERC-20, ERC-721, and ERC-1155 tokens.
+
+### Modules
+
+- **Storage Layouts**: Stores layout details for each contract, used for setting up state storage dynamically during testing.
+- **Bytecode Management**: Includes both deployed and undeployed bytecode for each contract, allowing for flexible deployment.
+
