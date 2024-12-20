@@ -8,7 +8,7 @@ const config = {
     l2ChainID: 53077,
 
     // L1MessageQueue config
-    l1MessageQueueMaxGasLimit: 100000000,
+    l1MessageQueueMaxGasLimit: 30000000,
 
     // gasPriceOracle config
     l2BaseFee: 0.1,  // Gwei
