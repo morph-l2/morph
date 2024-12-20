@@ -5095,7 +5095,7 @@ dependencies = [
 [[package]]
 name = "revm"
 version = "14.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#ae47a7a14cfc458772dade16527fd3ec0ffaa047"
 dependencies = [
  "auto_impl",
  "cfg-if 1.0.0",
@@ -5109,7 +5109,7 @@ dependencies = [
 [[package]]
 name = "revm-interpreter"
 version = "10.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#ae47a7a14cfc458772dade16527fd3ec0ffaa047"
 dependencies = [
  "cfg-if 1.0.0",
  "revm-primitives",
@@ -5119,7 +5119,7 @@ dependencies = [
 [[package]]
 name = "revm-precompile"
 version = "11.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#ae47a7a14cfc458772dade16527fd3ec0ffaa047"
 dependencies = [
  "aurora-engine-modexp",
  "c-kzg",
@@ -5136,7 +5136,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "9.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=release/v42#f5f08b959a6f051dce324c471e58a2a6b574c3d1"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#ae47a7a14cfc458772dade16527fd3ec0ffaa047"
 dependencies = [
  "alloy-eips",
  "alloy-primitives 0.8.0",
