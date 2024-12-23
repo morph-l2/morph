@@ -73,12 +73,6 @@ contract L2TxFeeVaultTest is DSTestPlus {
         vault.withdraw(amount);
     }
 
-    function test_withdraw_zeroReceiptAddress_reverts() public {
-        vault.updateRecipient(address(0));
-        hevm.expectRevert("FeeVault: recipient address cannot be address(0)");
-        vault.withdraw();
-    }
-
     function test_withdrawOnce_succeeds() public {
         hevm.deal(address(vault), 11 ether);
 
@@ -251,7 +245,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         hevm.deal(address(vault), 11 ether);
 
         hevm.expectEmit(true, true, true, true);
-        emit L2TxFeeVault.Transfer(address(vault).balance, vault.recipient(), address(this));
+        emit L2TxFeeVault.Transfer(address(vault).balance, to, address(this));
 
         vault.transferTo(to);
         assertEq(address(to).balance, 11 ether);
@@ -275,7 +269,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         hevm.deal(address(vault), 11 ether);
 
         hevm.expectEmit(true, true, true, true);
-        emit L2TxFeeVault.Transfer(address(vault).balance, vault.recipient(), allowed);
+        emit L2TxFeeVault.Transfer(address(vault).balance, to, allowed);
 
         hevm.prank(allowed);
         vault.transferTo(to);
@@ -291,14 +285,14 @@ contract L2TxFeeVaultTest is DSTestPlus {
 
         hevm.deal(address(vault), 20 ether);
         hevm.expectEmit(true, true, true, true);
-        emit L2TxFeeVault.Transfer(10 ether, vault.recipient(), address(this));
+        emit L2TxFeeVault.Transfer(10 ether, to, address(this));
 
         vault.transferTo(to, 10 ether);
         assertEq(address(to).balance, 10 ether);
         assertEq(address(vault).balance, 10 ether);
 
         hevm.expectEmit(true, true, true, true);
-        emit L2TxFeeVault.Transfer(5 ether, vault.recipient(), address(this));
+        emit L2TxFeeVault.Transfer(5 ether, to, address(this));
 
         vault.transferTo(to, 5 ether);
         assertEq(address(to).balance, 15 ether);
@@ -326,13 +320,13 @@ contract L2TxFeeVaultTest is DSTestPlus {
 
     function test_updateTransferAllowedStatus_withZeroAddress_succeeds() public {
         address[] memory allowedTransfer = new address[](1);
-        allowedTransfer[0] = address(0);
+        allowedTransfer[0] = address(1);
 
         hevm.expectEmit(true, true, true, true);
         emit L2TxFeeVault.UpdateTransferAllowed(allowedTransfer[0], true);
 
         vault.updateTransferAllowedStatus(allowedTransfer, true);
-        assertTrue(vault.transferAllowed(address(0)));
+        assertTrue(vault.transferAllowed(address(1)));
     }
 
     function test_updateReceiveAllowed_notOwner_reverts() public {
@@ -347,7 +341,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
         address[] memory allowedReceive = new address[](1);
         allowedReceive[0] = address(0);
 
-        hevm.expectRevert("FeeVault: address cannot be address(0)");
+        hevm.expectRevert("FeeVault: receive address cannot be address(0)");
         vault.updateReceiveAllowed(allowedReceive, true);
     }
 
@@ -419,7 +413,7 @@ contract L2TxFeeVaultTest is DSTestPlus {
 
     function test_updateMinWithdrawAmount_zeroMinWithdrawAmount_succeeds() public {
         uint256 oldAmount = vault.minWithdrawAmount();
-        uint256 newAmount = 0 ether;
+        uint256 newAmount = 1 ether;
 
         hevm.expectEmit(true, true, true, true);
         emit L2TxFeeVault.UpdateMinWithdrawAmount(oldAmount, newAmount);
