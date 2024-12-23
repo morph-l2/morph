@@ -187,19 +187,11 @@ where
     }
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
 
-    let (batch_index, tx_hash) = match logs.get(logs.len() - 2) {
+    let batch_index = match logs.get(logs.len() - 2) {
         Some(log) => {
             let _index = U256::from_be_slice(log.topics()[1].as_slice());
-            let _tx_hash = log.transaction_hash.unwrap_or_default();
-            (_index.to::<u64>(), _tx_hash)
+            _index.to::<u64>()
         }
-        None => {
-            return Err("find commit_batch log error".to_string());
-        }
-    };
-
-    let prev_tx_hash = match logs.get(logs.len() - 3) {
-        Some(log) => log.transaction_hash.unwrap_or_default(),
         None => {
             return Err("find commit_batch log error".to_string());
         }
@@ -209,7 +201,7 @@ where
         return Err(String::from("batch_index is 0"));
     }
     let (blocks, total_txn_count) =
-        match batch_blocks_inspect(l1_provider, l2_provider, tx_hash, prev_tx_hash).await {
+        match batch_blocks_inspect(l1_rollup, l2_provider, batch_index).await {
             Some(block_txn) => block_txn,
             None => return Err(String::from("batch_blocks_inspect none")),
         };
@@ -282,16 +274,34 @@ pub async fn batch_header_inspect(
     Some(parent_batch_header)
 }
 
-async fn batch_blocks_inspect(
-    l1_provider: &RootProvider<Http<Client>>,
+async fn batch_blocks_inspect<T, P, N>(
+    l1_rollup: &RollupInstance<T, P, N>,
     l2_provider: &RootProvider<Http<Client>>,
-    target_tx_hash: TxHash,
-    prev_tx_hash: TxHash,
-) -> Option<((u64, u64), u64)> {
-    let current = get_last_bn_in_batch(l1_provider, target_tx_hash).await.unwrap_or_default();
-    let prev = get_last_bn_in_batch(l1_provider, prev_tx_hash).await.unwrap_or_default();
+    batch_index: u64,
+) -> Option<((u64, u64), u64)>
+where
+    P: Provider<T, N> + Clone,
+    T: Transport + Clone,
+    N: Network,
+{
+    let prev_bn = match l1_rollup.batchDataStore(U256::from(batch_index - 1)).call().await {
+        Ok(s) => s.blockNumber.to::<u64>(),
+        Err(e) => {
+            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+            return None;
+        }
+    };
+
+    let current_bn = match l1_rollup.batchDataStore(U256::from(batch_index)).call().await {
+        Ok(s) => s.blockNumber.to::<u64>(),
+        Err(e) => {
+            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+            return None;
+        }
+    };
+
     let mut total_tx_count: u64 = 0;
-    for i in prev + 1..current + 1 {
+    for i in prev_bn + 1..current_bn + 1 {
         total_tx_count += l2_provider
             .get_block_transaction_count_by_number(i.into())
             .await
@@ -301,48 +311,14 @@ async fn batch_blocks_inspect(
 
     log::info!(
         "decode_blocks, blocks_len: {:#?}, start_block: {:#?}, txn_in_batch: {:?}",
-        current - prev,
-        prev + 1,
+        current_bn - prev_bn,
+        prev_bn + 1,
         total_tx_count
     );
 
     METRICS.shadow_txn_len.set(total_tx_count as i64);
 
-    Some(((prev + 1, current), total_tx_count))
-}
-
-async fn get_last_bn_in_batch(
-    l1_provider: &RootProvider<Http<Client>>,
-    hash: TxHash,
-) -> Option<u64> {
-    //Step1.  Get transaction
-    let result = l1_provider.get_transaction_by_hash(hash).await;
-    let tx = match result {
-        Ok(Some(tx)) => tx,
-        Ok(None) => {
-            log::error!("l1_provider.get_transaction is none");
-            return None;
-        }
-        Err(e) => {
-            log::error!("l1_provider.get_transaction err: {:#?}", e);
-            return None;
-        }
-    };
-
-    //Step2. Parse transaction data
-    let data = tx.input();
-
-    if data.is_empty() {
-        log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
-        return None;
-    }
-    let param = if let Ok(_param) = Rollup::commitBatchCall::abi_decode(&data, false) {
-        _param
-    } else {
-        log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
-        return None;
-    };
-    Some(param.batchDataInput.lastBlockNumber)
+    Some(((prev_bn + 1, current_bn), total_tx_count))
 }
 
 async fn is_prove_success<T, P, N>(

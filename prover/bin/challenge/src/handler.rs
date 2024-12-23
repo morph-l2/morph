@@ -422,7 +422,13 @@ struct BatchInfo {
 }
 
 async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, batch_index: u64, hash: TxHash) -> Option<BatchInfo> {
-    let prev_batch_last_bn: U256 = l1_rollup.batch_data_store(U256::from(batch_index - 1)).await.unwrap().2;
+    let prev_batch_last_bn: U256 = match l1_rollup.batch_data_store(U256::from(batch_index - 1)).await {
+        Ok(s) => s.2,
+        Err(e) => {
+            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+            return None;
+        }
+    };
     //Step1.  Get transaction
     let result = l1_provider.get_transaction(hash).await;
     let tx = match result {
@@ -503,7 +509,6 @@ impl BatchInfo {
         Bytes::from(batch_header)
     }
 }
-
 
 async fn send_transaction(
     contract: Address,
