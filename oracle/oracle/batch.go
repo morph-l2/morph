@@ -54,7 +54,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 	if err != nil {
 		return nil, fmt.Errorf("fetch rollupLog error:%v", err)
 	}
-	if err = o.getBatchSubmissionByLogs(lastLogs, recordBatchSubmissions, nextBatchSubmissionIndex); err != nil {
+	if err = o.getBatchSubmissionByLogs(lastLogs, &recordBatchSubmissions, nextBatchSubmissionIndex); err != nil {
 		return nil, fmt.Errorf("GetBatchSubmissionByLogs error:%v", err)
 	}
 	if len(recordBatchSubmissions) == maxBatchSize {
@@ -78,7 +78,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 		if err != nil {
 			return nil, fmt.Errorf("fetch rollupLog error:%v", err)
 		}
-		if err = o.getBatchSubmissionByLogs(fetchLogs, recordBatchSubmissions, batchIndex); err != nil {
+		if err = o.getBatchSubmissionByLogs(fetchLogs, &recordBatchSubmissions, batchIndex); err != nil {
 			return nil, fmt.Errorf("GetBatchSubmissionByLogs error:%v", err)
 		}
 		if len(recordBatchSubmissions) == maxBatchSize {
@@ -88,7 +88,7 @@ func (o *Oracle) GetBatchSubmission(ctx context.Context, startBlock, nextBatchSu
 	}
 }
 
-func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissions []bindings.IRecordBatchSubmission, batchIndex uint64) error {
+func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissions *[]bindings.IRecordBatchSubmission, batchIndex uint64) error {
 	for _, lg := range rLogs {
 		tx, pending, err := o.l1Client.TransactionByHash(o.ctx, lg.TxHash)
 		if err != nil {
@@ -192,8 +192,8 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 			RollupTime:  big.NewInt(int64(header.Time)),
 			RollupBlock: big.NewInt(int64(lg.BlockNumber)),
 		}
-		recordBatchSubmissions = append(recordBatchSubmissions, recordBatchSubmission)
-		if len(recordBatchSubmissions) == maxBatchSize {
+		*recordBatchSubmissions = append(*recordBatchSubmissions, recordBatchSubmission)
+		if len(*recordBatchSubmissions) == maxBatchSize {
 			return nil
 		}
 	}
