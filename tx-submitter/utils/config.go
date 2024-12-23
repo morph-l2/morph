@@ -105,7 +105,8 @@ type Config struct {
 	// event indexer index step
 	EventIndexStep uint64
 	// leveldb path name
-	LeveldbPathName string
+	LeveldbPathName            string
+	BlockNotIncreasedThreshold int64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -175,6 +176,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		EventIndexStep: ctx.GlobalUint64(flags.EventIndexStepFlag.Name),
 		// leveldb path name
 		LeveldbPathName: ctx.GlobalString(flags.LeveldbPathNameFlag.Name),
+		// BlockNotIncreasedThreshold
+		BlockNotIncreasedThreshold: ctx.GlobalInt64(flags.BlockNotIncreasedThreshold.Name),
 	}
 
 	return cfg, nil

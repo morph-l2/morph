@@ -7,7 +7,6 @@ import {SP1Verifier} from "./SP1VerifierPlonk.sol";
 
 // solhint-disable no-inline-assembly
 contract ZkEvmVerifierV1 is IZkEvmVerifier, SP1Verifier {
-
     /// @notice The verification key for the morph executor program.
     bytes32 public programVkey;
 

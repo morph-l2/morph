@@ -16,6 +16,7 @@ import (
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
 	"morph-l2/tx-submitter/utils"
@@ -68,6 +69,7 @@ func Main() func(ctx *cli.Context) error {
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
 			"log_level", cfg.LogLevel,
 			"leveldb_pathname", cfg.LeveldbPathName,
+			"l1_stop_in_blocks", cfg.BlockNotIncreasedThreshold,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -182,17 +184,19 @@ func Main() func(ctx *cli.Context) error {
 			},
 		}
 
-		eventIndexer := event.NewEventIndexer(cfg.StakingEventStoreFilename, l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep)
-
+		ldb, err := db.New(cfg.LeveldbPathName)
+		if err != nil {
+			return fmt.Errorf("failed to connect leveldb: %w", err)
+		}
+		eventInfoStorage := event.NewEventInfoStorage(ldb)
+		eventIndexer := event.NewEventIndexer(l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep, eventInfoStorage)
 		// new rotator
 		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
 		// start rorator event indexer
 		rotator.StartEventIndexer()
 
-		ldb, err := db.New(cfg.LeveldbPathName)
-		if err != nil {
-			return fmt.Errorf("failed to connect leveldb: %w", err)
-		}
+		// blockmonitor
+		bm := l1checker.NewBlockMonitor(cfg.BlockNotIncreasedThreshold, l1Client)
 
 		// new rollup service
 		sr := services.NewRollup(
@@ -211,6 +215,8 @@ func Main() func(ctx *cli.Context) error {
 			rsaPriv,
 			rotator,
 			ldb,
+			bm,
+			eventInfoStorage,
 		)
 
 		// metrics
