@@ -134,6 +134,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Triggers a withdrawal of funds to the L1 fee wallet.
     /// @param _value The amount of ETH to withdraw.
     function withdraw(uint256 _value) public onlyOwner {
+        require(messenger != address(0), "FeeVault: messenger address cannot be address(0)");
         require(recipient != address(0), "FeeVault: recipient address cannot be address(0)");
         require(
             _value >= minWithdrawAmount,
@@ -178,7 +179,7 @@ contract L2TxFeeVault is OwnableBase {
             totalProcessed += _value;
         }
 
-        emit Transfer(_value, recipient, msg.sender);
+        emit Transfer(_value, _to, msg.sender);
         (bool success, ) = _to.call{value: _value}("");
         require(success, "FeeVault: ETH transfer failed");
     }
@@ -199,6 +200,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @param _status The transfer allowed status to update.
     function updateTransferAllowedStatus(address[] memory _accounts, bool _status) external onlyOwner {
         for (uint256 i = 0; i < _accounts.length; i++) {
+            require(_accounts[i] != address(0), "FeeVault: transfer allowed address cannot be address(0)");
             transferAllowed[_accounts[i]] = _status;
             emit UpdateTransferAllowed(_accounts[i], _status);
         }
@@ -209,7 +211,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @param _status The receive allowed status to update.
     function updateReceiveAllowed(address[] memory _accounts, bool _status) external onlyOwner {
         for (uint256 i = 0; i < _accounts.length; i++) {
-            require(_accounts[i] != address(0), "FeeVault: address cannot be address(0)");
+            require(_accounts[i] != address(0), "FeeVault: receive address cannot be address(0)");
             receiveAllowed[_accounts[i]] = _status;
             emit UpdateReceiveAllowed(_accounts[i], _status);
         }
@@ -218,6 +220,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Update the address of messenger.
     /// @param _newMessenger The address of messenger to update.
     function updateMessenger(address _newMessenger) external onlyOwner {
+        require(_newMessenger != address(0), "FeeVault: new messenger address cannot be address(0)");
         address _oldMessenger = messenger;
         messenger = _newMessenger;
 
@@ -227,6 +230,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Update the address of recipient.
     /// @param _newRecipient The address of recipient to update.
     function updateRecipient(address _newRecipient) external onlyOwner {
+        require(_newRecipient != address(0), "FeeVault: new recipient address cannot be address(0)");
         address _oldRecipient = recipient;
         recipient = _newRecipient;
 
@@ -236,6 +240,7 @@ contract L2TxFeeVault is OwnableBase {
     /// @notice Update the minimum withdraw amount.
     /// @param _newMinWithdrawAmount The minimum withdraw amount to update.
     function updateMinWithdrawAmount(uint256 _newMinWithdrawAmount) external onlyOwner {
+        require(_newMinWithdrawAmount > 0, "FeeVault: new minimum withdraw amount cannot be 0");
         uint256 _oldMinWithdrawAmount = minWithdrawAmount;
         minWithdrawAmount = _newMinWithdrawAmount;
 
