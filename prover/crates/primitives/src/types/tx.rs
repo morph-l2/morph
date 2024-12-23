@@ -56,7 +56,14 @@ pub struct TxL1Msg {
 /// Transaction Trace
 #[serde_as]
 #[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, Default, Debug, Clone,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    Clone,
 )]
 #[archive(check_bytes)]
 #[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
@@ -224,7 +231,8 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn access_list(&self) -> AccessList {
-        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible).unwrap()
+        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible)
+            .unwrap()
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {
