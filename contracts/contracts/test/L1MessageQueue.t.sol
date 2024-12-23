@@ -215,7 +215,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
         hevm.prank(bob);
         hevm.expectRevert("Only callable by the rollup");
-        l1MessageQueue.popCrossDomainMessage(0, 1, 0x3ff);
+        l1MessageQueue.popCrossDomainMessage(0, 1);
     }
 
     function test_popCrossDomainMessage_tooManyMessages_reverts() external {
@@ -225,7 +225,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         // Expect revert when _count > 256.
         hevm.prank(alice);
         hevm.expectRevert("pop too many messages");
-        l1MessageQueue.popCrossDomainMessage(0, 257, 0x3ff);
+        l1MessageQueue.popCrossDomainMessage(0, 257);
     }
 
     function test_popCrossDomainMessage_startIndexMismatch_reverts() external {
@@ -235,83 +235,7 @@ contract L1MessageQueueTest is L1MessageBaseTest {
         // Expect revert when pendingQueueIndex != _startIndex.
         hevm.prank(alice);
         hevm.expectRevert("start index mismatch");
-        l1MessageQueue.popCrossDomainMessage(1, 2, 0x3ff);
-    }
-
-    function test_dropCrossDomainMessage_cannotDropPending_reverts() external {
-        bytes memory _calldata = "0x0";
-        uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee(_calldata);
-
-        // Store alice as messenger and rollup.
-        upgradeStorage(address(alice), address(alice), address(alice));
-
-        // Expect revert when (_index < pendingQueueIndex) is false.
-        hevm.prank(alice);
-        l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
-        hevm.prank(alice);
-        hevm.expectRevert("cannot drop pending message");
-        l1MessageQueue.dropCrossDomainMessage(0);
-    }
-
-    function test_pop_dropCrossDomainMessage_succeeds() external {
-        // store alice as messenger and rollup
-        upgradeStorage(address(alice), address(alice), address(alice));
-        assertEq(alice, l1MessageQueue.MESSENGER());
-        assertEq(alice, l1MessageQueue.ROLLUP_CONTRACT());
-        bytes memory _calldata = "0x0";
-        uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee(_calldata);
-        // append 10 message
-        hevm.startPrank(alice);
-        for (uint64 i = 0; i < 10; i++) {
-            l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
-        }
-
-        // Verify the event QueueTransaction is emitted successfully.
-        hevm.expectEmit(false, false, false, true);
-        emit IL1MessageQueue.DequeueTransaction(0, 10, 0x3ff);
-
-        // pop all 10 message
-        l1MessageQueue.popCrossDomainMessage(0, 10, 0x3ff);
-        for (uint64 i = 0; i < 10; i++) {
-            assertTrue(l1MessageQueue.isMessageSkipped(i));
-        }
-        // drop all 10 message
-        for (uint64 i = 0; i < 10; i++) {
-            l1MessageQueue.dropCrossDomainMessage(i);
-            assertTrue(l1MessageQueue.isMessageDropped(i));
-        }
-        hevm.stopPrank();
-    }
-
-    function test_dropCrossDomainMessage_dropAgain_reverts() external {
-        // store alice as messenger and rollup
-        upgradeStorage(address(alice), address(alice), address(alice));
-        assertEq(alice, l1MessageQueue.MESSENGER());
-        assertEq(alice, l1MessageQueue.ROLLUP_CONTRACT());
-        bytes memory _calldata = "0x0";
-        uint256 gasLimit = l1MessageQueue.calculateIntrinsicGasFee(_calldata);
-        // append 10 message
-        hevm.startPrank(alice);
-        for (uint64 i = 0; i < 10; i++) {
-            l1MessageQueue.appendCrossDomainMessage(alice, gasLimit, _calldata);
-        }
-
-        // pop all 10 message
-        l1MessageQueue.popCrossDomainMessage(0, 10, 0x3ff);
-        for (uint64 i = 0; i < 10; i++) {
-            assertTrue(l1MessageQueue.isMessageSkipped(i));
-        }
-        // drop all 10 message
-        for (uint64 i = 0; i < 10; i++) {
-            l1MessageQueue.dropCrossDomainMessage(i);
-            assertTrue(l1MessageQueue.isMessageDropped(i));
-        }
-        hevm.stopPrank();
-
-        // Expect revert when message already dropped.
-        hevm.prank(alice);
-        hevm.expectRevert("message already dropped");
-        l1MessageQueue.dropCrossDomainMessage(1);
+        l1MessageQueue.popCrossDomainMessage(1, 2);
     }
 
     function test_updateMaxGasLimit_notOwner_reverts() external {

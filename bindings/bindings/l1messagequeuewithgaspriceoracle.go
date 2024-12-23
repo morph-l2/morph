@@ -31,8 +31,8 @@ var (
 
 // L1MessageQueueWithGasPriceOracleMetaData contains all meta data concerning the L1MessageQueueWithGasPriceOracle contract.
 var L1MessageQueueWithGasPriceOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_messenger\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_rollup\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_enforcedTxGateway\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"ErrZeroAddress\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"startIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"count\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"skippedBitmap\",\"type\":\"uint256\"}],\"name\":\"DequeueTransaction\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"DropTransaction\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"queueIndex\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"gasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"QueueTransaction\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_oldGateway\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_newGateway\",\"type\":\"address\"}],\"name\":\"UpdateEnforcedTxGateway\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_oldGasOracle\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_newGasOracle\",\"type\":\"address\"}],\"name\":\"UpdateGasOracle\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"oldL2BaseFee\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"newL2BaseFee\",\"type\":\"uint256\"}],\"name\":\"UpdateL2BaseFee\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_oldMaxGasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_newMaxGasLimit\",\"type\":\"uint256\"}],\"name\":\"UpdateMaxGasLimit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_oldWhitelistChecker\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_newWhitelistChecker\",\"type\":\"address\"}],\"name\":\"UpdateWhitelistChecker\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"ENFORCED_TX_GATEWAAY\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MESSENGER\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"ROLLUP_CONTRACT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"appendCrossDomainMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"appendEnforcedTransaction\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_calldata\",\"type\":\"bytes\"}],\"name\":\"calculateIntrinsicGasFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_queueIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"computeTransactionHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_index\",\"type\":\"uint256\"}],\"name\":\"dropCrossDomainMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"}],\"name\":\"estimateCrossDomainMessageFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_queueIndex\",\"type\":\"uint256\"}],\"name\":\"getCrossDomainMessage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_maxGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_whitelistChecker\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_queueIndex\",\"type\":\"uint256\"}],\"name\":\"isMessageDropped\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_queueIndex\",\"type\":\"uint256\"}],\"name\":\"isMessageSkipped\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l2BaseFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxGasLimit\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"messageQueue\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextCrossDomainMessageIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"pendingQueueIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_startIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_count\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_skippedBitmap\",\"type\":\"uint256\"}],\"name\":\"popCrossDomainMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_newL2BaseFee\",\"type\":\"uint256\"}],\"name\":\"setL2BaseFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_newMaxGasLimit\",\"type\":\"uint256\"}],\"name\":\"updateMaxGasLimit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_newWhitelistChecker\",\"type\":\"address\"}],\"name\":\"updateWhitelistChecker\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"whitelistChecker\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x60e060405234801562000010575f80fd5b5060405162001aad38038062001aad833981016040819052620000339162000185565b6001600160a01b03831615806200005157506001600160a01b038216155b806200006457506001600160a01b038116155b156200008357604051630ecc6fdf60e41b815260040160405180910390fd5b6200008d620000ab565b6001600160a01b0392831660805290821660a0521660c052620001cc565b5f54610100900460ff1615620001175760405162461bcd60e51b815260206004820152602760248201527f496e697469616c697a61626c653a20636f6e747261637420697320696e697469604482015266616c697a696e6760c81b606482015260840160405180910390fd5b5f5460ff9081161462000167575f805460ff191660ff9081179091556040519081527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b565b80516001600160a01b038116811462000180575f80fd5b919050565b5f805f6060848603121562000198575f80fd5b620001a38462000169565b9250620001b36020850162000169565b9150620001c36040850162000169565b90509250925092565b60805160a05160c05161189a620002135f395f818161036f0152610d5a01525f8181610269015261052401525f81816102e6015281816109e30152610c02015261189a5ff3fe608060405234801561000f575f80fd5b50600436106101a5575f3560e01c80639b159782116100e8578063d5ad4a9711610093578063e172d3a11161006e578063e172d3a1146103ca578063e3176bd5146103e4578063f2fde38b146103ed578063fd0ad31e14610400575f80fd5b8063d5ad4a9714610391578063d99bc80e146103a4578063da35a26f146103b7575f80fd5b8063bb7862ca116100c3578063bb7862ca14610337578063bdc6f0a014610357578063c27606771461036a575f80fd5b80639b15978214610308578063a85006ca1461031b578063ae453cd514610324575f80fd5b80635f9cd92e116101535780638770d7071161012e5780638770d707146102645780638da5cb5b146102b057806391652461146102ce578063927ede2d146102e1575f80fd5b80635f9cd92e14610236578063715018a6146102495780637d82191a14610251575f80fd5b806355f613ce1161018357806355f613ce146102055780635ad9945a1461021a5780635e45da231461022d575f80fd5b806329aa604b146101a95780633e4cbbe6146101cf5780633e6dada1146101e2575b5f80fd5b6101bc6101b73660046114fc565b610408565b6040519081526020015b60405180910390f35b6101bc6101dd366004611536565b610427565b6101f56101f03660046114fc565b6104db565b60405190151581526020016101c6565b61021861021336600461155e565b610521565b005b6101bc6102283660046115cc565b610715565b6101bc60685481565b610218610244366004611648565b610905565b61021861099a565b6101f561025f3660046114fc565b6109ad565b61028b7f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016101c6565b60335473ffffffffffffffffffffffffffffffffffffffff1661028b565b6102186102dc3660046114fc565b6109e0565b61028b7f000000000000000000000000000000000000000000000000000000000000000081565b610218610316366004611661565b610bff565b6101bc60675481565b6101bc6103323660046114fc565b610ce1565b606b5461028b9073ffffffffffffffffffffffffffffffffffffffff1681565b6102186103653660046116b7565b610d57565b61028b7f000000000000000000000000000000000000000000000000000000000000000081565b61021861039f3660046114fc565b610e88565b6102186103b23660046114fc565b610ed6565b6102186103c536600461172a565b610f1c565b6101bc6103d8366004611754565b60100261520801919050565b6101bc60655481565b6102186103fb366004611648565b6110d1565b6066546101bc565b60668181548110610417575f80fd5b5f91825260209091200154905081565b606b546040517fefc7840100000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff84811660048301525f92169063efc7840190602401602060405180830381865afa158015610495573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906104b99190611793565b156104c557505f6104d5565b6065546104d290836117b9565b90505b92915050565b600881901c5f908152606a6020526040812054600160ff84161b16151580156104d55750600882901c5f90815260696020526040902054600160ff84161b1615156104d5565b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16146105ab5760405162461bcd60e51b815260206004820152601b60248201527f4f6e6c792063616c6c61626c652062792074686520726f6c6c7570000000000060448201526064015b60405180910390fd5b6101008211156105fd5760405162461bcd60e51b815260206004820152601560248201527f706f7020746f6f206d616e79206d65737361676573000000000000000000000060448201526064016105a2565b826067541461064e5760405162461bcd60e51b815260206004820152601460248201527f737461727420696e646578206d69736d6174636800000000000000000000000060448201526064016105a2565b600883901c5f818152606a6020526040902080546001851b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0193841660ff871681811b9092179092559092919061010081860111156106c557600182015f908152606a6020526040902061010082900385901c90555b50505081830160675560408051848152602081018490529081018290527fc77f792f838ae38399ac31acc3348389aeb110ce7bedf3cfdbdd5e6679267970906060015b60405180910390a1505050565b5f607e816107bf565b5f8161072c57506001919050565b5b81156107425760089190911c9060010161072d565b919050565b80608083106001811461077f5761075d8461071e565b60808101835360018301925084816020036008021b83528083019250506107a0565b848415166001811461079357848353610798565b608083535b506001820191505b509392505050565b806094815360609290921b60018301525060150190565b600560405101806107d260018c83610747565b90506107e060018983610747565b90506107ec89826107a8565b90506107fa60018b83610747565b905060018614600181146108625760388710600181146108475761081d8861071e565b8060b701845360018401935088816020036008021b8452808401935050878984379187019161085c565b87608001835360018301925087898437918701915b50610873565b6108705f89355f1a84610747565b91505b5061087e8c826107a8565b90508181035f8060388310600181146108b15761089a8461071e565b60f78101600882021b8517935060010191506108bc565b8360c0019250600191505b5086816008021b821791506001810190508060080292508451831c8284610100031b17915080850394505080845250508181038220925050508092505050979650505050505050565b61090d61116e565b606b5460405173ffffffffffffffffffffffffffffffffffffffff8084169216907ff91b2a410a89d46f14ee984a57e6d7892c217f116905371180998e20cef237e5905f90a3606b80547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b6109a261116e565b6109ab5f6111d5565b565b5f60675482106109be57505f919050565b600882901c5f908152606a6020526040902054600160ff84161b1615156104d5565b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff1614610a8b5760405162461bcd60e51b815260206004820152602b60248201527f4f6e6c792063616c6c61626c6520627920746865204c3143726f7373446f6d6160448201527f696e4d657373656e67657200000000000000000000000000000000000000000060648201526084016105a2565b6067548110610adc5760405162461bcd60e51b815260206004820152601b60248201527f63616e6e6f742064726f702070656e64696e67206d657373616765000000000060448201526064016105a2565b600881901c5f908152606a6020526040902054600160ff83161b16610b435760405162461bcd60e51b815260206004820152601860248201527f64726f70206e6f6e2d736b6970706564206d657373616765000000000000000060448201526064016105a2565b600881901c5f90815260696020526040902054600160ff83161b1615610bab5760405162461bcd60e51b815260206004820152601760248201527f6d65737361676520616c72656164792064726f7070656400000000000000000060448201526064016105a2565b600881901c5f9081526069602052604090208054600160ff84161b1790556040518181527f43a375005206d20a83abc71722cba68c24434a8dc1f583775be7c3fde0396cbf9060200160405180910390a150565b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff1614610caa5760405162461bcd60e51b815260206004820152602b60248201527f4f6e6c792063616c6c61626c6520627920746865204c3143726f7373446f6d6160448201527f696e4d657373656e67657200000000000000000000000000000000000000000060648201526084016105a2565b610cb583838361124b565b3373111100000000000000000000000000000000111101610cda81865f878787611347565b5050505050565b6066545f908210610d345760405162461bcd60e51b815260206004820152601a60248201527f6d65737361676520696e646578206f7574206f662072616e676500000000000060448201526064016105a2565b60668281548110610d4757610d476117f5565b905f5260205f2001549050919050565b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff1614610e025760405162461bcd60e51b815260206004820152602660248201527f4f6e6c792063616c6c61626c652062792074686520456e666f7263656454784760448201527f617465776179000000000000000000000000000000000000000000000000000060648201526084016105a2565b73ffffffffffffffffffffffffffffffffffffffff86163b15610e675760405162461bcd60e51b815260206004820152600860248201527f6f6e6c7920454f4100000000000000000000000000000000000000000000000060448201526064016105a2565b610e7283838361124b565b610e80868686868686611347565b505050505050565b610e9061116e565b606880549082905560408051828152602081018490527fa030881e03ff723954dd0d35500564afab9603555d09d4456a32436f2b2373c591015b60405180910390a15050565b610ede61116e565b606580549082905560408051828152602081018490527fc5271ba80b67178cc31f04a3755325121400925878dc608432b6fcaead3663299101610eca565b5f54610100900460ff1615808015610f3a57505f54600160ff909116105b80610f535750303b158015610f5357505f5460ff166001145b610fc55760405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016105a2565b5f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790558015611021575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b6110296113f8565b6068839055606b80547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff841617905580156110cc575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb384740249890602001610708565b505050565b6110d961116e565b73ffffffffffffffffffffffffffffffffffffffff81166111625760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016105a2565b61116b816111d5565b50565b60335473ffffffffffffffffffffffffffffffffffffffff1633146109ab5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016105a2565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0905f90a35050565b6068548311156112c35760405162461bcd60e51b815260206004820152602560248201527f476173206c696d6974206d757374206e6f7420657863656564206d617847617360448201527f4c696d697400000000000000000000000000000000000000000000000000000060648201526084016105a2565b6010810261520801808410156113415760405162461bcd60e51b815260206004820152603360248201527f496e73756666696369656e7420676173206c696d69742c206d7573742062652060448201527f61626f766520696e7472696e736963206761730000000000000000000000000060648201526084016105a2565b50505050565b6066545f61135a8883888a898989610715565b606680546001810182555f919091527f46501879b8ca8525e8c2fd519e2fbfcfa2ebea26501294aa02cbfcfb12e943540181905560405190915073ffffffffffffffffffffffffffffffffffffffff80891691908a16907f69cfcb8e6d4192b8aba9902243912587f37e550d75c1fa801491fce26717f37e906113e6908a9087908b908b908b90611822565b60405180910390a35050505050505050565b5f54610100900460ff166114745760405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016105a2565b6109ab5f54610100900460ff166114f35760405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016105a2565b6109ab336111d5565b5f6020828403121561150c575f80fd5b5035919050565b803573ffffffffffffffffffffffffffffffffffffffff81168114610742575f80fd5b5f8060408385031215611547575f80fd5b61155083611513565b946020939093013593505050565b5f805f60608486031215611570575f80fd5b505081359360208301359350604090920135919050565b5f8083601f840112611597575f80fd5b50813567ffffffffffffffff8111156115ae575f80fd5b6020830191508360208285010111156115c5575f80fd5b9250929050565b5f805f805f805f60c0888a0312156115e2575f80fd5b6115eb88611513565b9650602088013595506040880135945061160760608901611513565b93506080880135925060a088013567ffffffffffffffff811115611629575f80fd5b6116358a828b01611587565b989b979a50959850939692959293505050565b5f60208284031215611658575f80fd5b6104d282611513565b5f805f8060608587031215611674575f80fd5b61167d85611513565b935060208501359250604085013567ffffffffffffffff81111561169f575f80fd5b6116ab87828801611587565b95989497509550505050565b5f805f805f8060a087890312156116cc575f80fd5b6116d587611513565b95506116e360208801611513565b94506040870135935060608701359250608087013567ffffffffffffffff81111561170c575f80fd5b61171889828a01611587565b979a9699509497509295939492505050565b5f806040838503121561173b575f80fd5b8235915061174b60208401611513565b90509250929050565b5f8060208385031215611765575f80fd5b823567ffffffffffffffff81111561177b575f80fd5b61178785828601611587565b90969095509350505050565b5f602082840312156117a3575f80fd5b815180151581146117b2575f80fd5b9392505050565b80820281158282048414176104d5577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b85815267ffffffffffffffff8516602082015283604082015260806060820152816080820152818360a08301375f81830160a090810191909152601f9092017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016010194935050505056fea164736f6c6343000818000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_messenger\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_rollup\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_enforcedTxGateway\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"ErrZeroAddress\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"startIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"count\",\"type\":\"uint256\"}],\"name\":\"DequeueTransaction\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"queueIndex\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"gasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"QueueTransaction\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_oldGateway\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_newGateway\",\"type\":\"address\"}],\"name\":\"UpdateEnforcedTxGateway\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_oldGasOracle\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_newGasOracle\",\"type\":\"address\"}],\"name\":\"UpdateGasOracle\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"oldL2BaseFee\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"newL2BaseFee\",\"type\":\"uint256\"}],\"name\":\"UpdateL2BaseFee\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_oldMaxGasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_newMaxGasLimit\",\"type\":\"uint256\"}],\"name\":\"UpdateMaxGasLimit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_oldWhitelistChecker\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_newWhitelistChecker\",\"type\":\"address\"}],\"name\":\"UpdateWhitelistChecker\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"ENFORCED_TX_GATEWAAY\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MESSENGER\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"ROLLUP_CONTRACT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"appendCrossDomainMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"appendEnforcedTransaction\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_calldata\",\"type\":\"bytes\"}],\"name\":\"calculateIntrinsicGasFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_queueIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"computeTransactionHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"}],\"name\":\"estimateCrossDomainMessageFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_queueIndex\",\"type\":\"uint256\"}],\"name\":\"getCrossDomainMessage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_maxGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_whitelistChecker\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l2BaseFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxGasLimit\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"messageQueue\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextCrossDomainMessageIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"pendingQueueIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_startIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_count\",\"type\":\"uint256\"}],\"name\":\"popCrossDomainMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_newL2BaseFee\",\"type\":\"uint256\"}],\"name\":\"setL2BaseFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_newMaxGasLimit\",\"type\":\"uint256\"}],\"name\":\"updateMaxGasLimit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_newWhitelistChecker\",\"type\":\"address\"}],\"name\":\"updateWhitelistChecker\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"whitelistChecker\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x60e060405234801562000010575f80fd5b506040516200171438038062001714833981016040819052620000339162000185565b6001600160a01b03831615806200005157506001600160a01b038216155b806200006457506001600160a01b038116155b156200008357604051630ecc6fdf60e41b815260040160405180910390fd5b6200008d620000ab565b6001600160a01b0392831660805290821660a0521660c052620001cc565b5f54610100900460ff1615620001175760405162461bcd60e51b815260206004820152602760248201527f496e697469616c697a61626c653a20636f6e747261637420697320696e697469604482015266616c697a696e6760c81b606482015260840160405180910390fd5b5f5460ff9081161462000167575f805460ff191660ff9081179091556040519081527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b565b80516001600160a01b038116811462000180575f80fd5b919050565b5f805f6060848603121562000198575f80fd5b620001a38462000169565b9250620001b36020850162000169565b9150620001c36040850162000169565b90509250925092565b60805160a05160c0516115086200020c5f395f818161030501526109d501525f818161021201526103c001525f818161027c015261087d01526115085ff3fe608060405234801561000f575f80fd5b5060043610610184575f3560e01c8063a85006ca116100dd578063d99bc80e11610088578063e3176bd511610063578063e3176bd51461037a578063f2fde38b14610383578063fd0ad31e14610396575f80fd5b8063d99bc80e1461033a578063da35a26f1461034d578063e172d3a114610360575f80fd5b8063bdc6f0a0116100b8578063bdc6f0a0146102ed578063c276067714610300578063d5ad4a9714610327575f80fd5b8063a85006ca146102b1578063ae453cd5146102ba578063bb7862ca146102cd575f80fd5b80635f9cd92e1161013d5780638da5cb5b116101185780638da5cb5b14610259578063927ede2d146102775780639b1597821461029e575f80fd5b80635f9cd92e146101f2578063715018a6146102055780638770d7071461020d575f80fd5b80633e4cbbe61161016d5780633e4cbbe6146101c35780635ad9945a146101d65780635e45da23146101e9575f80fd5b806329aa604b146101885780633c7f5283146101ae575b5f80fd5b61019b610196366004611173565b61039e565b6040519081526020015b60405180910390f35b6101c16101bc36600461118a565b6103bd565b005b61019b6101d13660046111cd565b61052e565b61019b6101e436600461123a565b6105e2565b61019b60685481565b6101c16102003660046112b6565b6107d2565b6101c1610867565b6102347f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016101a5565b60335473ffffffffffffffffffffffffffffffffffffffff16610234565b6102347f000000000000000000000000000000000000000000000000000000000000000081565b6101c16102ac3660046112cf565b61087a565b61019b60675481565b61019b6102c8366004611173565b61095c565b606b546102349073ffffffffffffffffffffffffffffffffffffffff1681565b6101c16102fb366004611325565b6109d2565b6102347f000000000000000000000000000000000000000000000000000000000000000081565b6101c1610335366004611173565b610b03565b6101c1610348366004611173565b610b49565b6101c161035b366004611398565b610b8f565b61019b61036e3660046113c2565b60100261520801919050565b61019b60655481565b6101c16103913660046112b6565b610d48565b60665461019b565b606681815481106103ad575f80fd5b5f91825260209091200154905081565b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16146104475760405162461bcd60e51b815260206004820152601b60248201527f4f6e6c792063616c6c61626c652062792074686520726f6c6c7570000000000060448201526064015b60405180910390fd5b6101008111156104995760405162461bcd60e51b815260206004820152601560248201527f706f7020746f6f206d616e79206d657373616765730000000000000000000000604482015260640161043e565b81606754146104ea5760405162461bcd60e51b815260206004820152601460248201527f737461727420696e646578206d69736d61746368000000000000000000000000604482015260640161043e565b80820160675560408051838152602081018390527f3d48b97f20730c965868963266b0d25d8abe3f06babb60fc3b2b80c9e8907f2691015b60405180910390a15050565b606b546040517fefc7840100000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff84811660048301525f92169063efc7840190602401602060405180830381865afa15801561059c573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906105c09190611401565b156105cc57505f6105dc565b6065546105d99083611427565b90505b92915050565b5f607e8161068c565b5f816105f957506001919050565b5b811561060f5760089190911c906001016105fa565b919050565b80608083106001811461064c5761062a846105eb565b60808101835360018301925084816020036008021b835280830192505061066d565b848415166001811461066057848353610665565b608083535b506001820191505b509392505050565b806094815360609290921b60018301525060150190565b6005604051018061069f60018c83610614565b90506106ad60018983610614565b90506106b98982610675565b90506106c760018b83610614565b9050600186146001811461072f576038871060018114610714576106ea886105eb565b8060b701845360018401935088816020036008021b84528084019350508789843791870191610729565b87608001835360018301925087898437918701915b50610740565b61073d5f89355f1a84610614565b91505b5061074b8c82610675565b90508181035f80603883106001811461077e57610767846105eb565b60f78101600882021b851793506001019150610789565b8360c0019250600191505b5086816008021b821791506001810190508060080292508451831c8284610100031b17915080850394505080845250508181038220925050508092505050979650505050505050565b6107da610de5565b606b5460405173ffffffffffffffffffffffffffffffffffffffff8084169216907ff91b2a410a89d46f14ee984a57e6d7892c217f116905371180998e20cef237e5905f90a3606b80547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b61086f610de5565b6108785f610e4c565b565b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16146109255760405162461bcd60e51b815260206004820152602b60248201527f4f6e6c792063616c6c61626c6520627920746865204c3143726f7373446f6d6160448201527f696e4d657373656e676572000000000000000000000000000000000000000000606482015260840161043e565b610930838383610ec2565b337311110000000000000000000000000000000011110161095581865f878787610fbe565b5050505050565b6066545f9082106109af5760405162461bcd60e51b815260206004820152601a60248201527f6d65737361676520696e646578206f7574206f662072616e6765000000000000604482015260640161043e565b606682815481106109c2576109c2611463565b905f5260205f2001549050919050565b337f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff1614610a7d5760405162461bcd60e51b815260206004820152602660248201527f4f6e6c792063616c6c61626c652062792074686520456e666f7263656454784760448201527f6174657761790000000000000000000000000000000000000000000000000000606482015260840161043e565b73ffffffffffffffffffffffffffffffffffffffff86163b15610ae25760405162461bcd60e51b815260206004820152600860248201527f6f6e6c7920454f41000000000000000000000000000000000000000000000000604482015260640161043e565b610aed838383610ec2565b610afb868686868686610fbe565b505050505050565b610b0b610de5565b606880549082905560408051828152602081018490527fa030881e03ff723954dd0d35500564afab9603555d09d4456a32436f2b2373c59101610522565b610b51610de5565b606580549082905560408051828152602081018490527fc5271ba80b67178cc31f04a3755325121400925878dc608432b6fcaead3663299101610522565b5f54610100900460ff1615808015610bad57505f54600160ff909116105b80610bc65750303b158015610bc657505f5460ff166001145b610c385760405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a6564000000000000000000000000000000000000606482015260840161043e565b5f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790558015610c94575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b610c9c61106f565b6068839055606b80547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff84161790558015610d43575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b505050565b610d50610de5565b73ffffffffffffffffffffffffffffffffffffffff8116610dd95760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f6464726573730000000000000000000000000000000000000000000000000000606482015260840161043e565b610de281610e4c565b50565b60335473ffffffffffffffffffffffffffffffffffffffff1633146108785760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161043e565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0905f90a35050565b606854831115610f3a5760405162461bcd60e51b815260206004820152602560248201527f476173206c696d6974206d757374206e6f7420657863656564206d617847617360448201527f4c696d6974000000000000000000000000000000000000000000000000000000606482015260840161043e565b601081026152080180841015610fb85760405162461bcd60e51b815260206004820152603360248201527f496e73756666696369656e7420676173206c696d69742c206d7573742062652060448201527f61626f766520696e7472696e7369632067617300000000000000000000000000606482015260840161043e565b50505050565b6066545f610fd18883888a8989896105e2565b606680546001810182555f919091527f46501879b8ca8525e8c2fd519e2fbfcfa2ebea26501294aa02cbfcfb12e943540181905560405190915073ffffffffffffffffffffffffffffffffffffffff80891691908a16907f69cfcb8e6d4192b8aba9902243912587f37e550d75c1fa801491fce26717f37e9061105d908a9087908b908b908b90611490565b60405180910390a35050505050505050565b5f54610100900460ff166110eb5760405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e67000000000000000000000000000000000000000000606482015260840161043e565b6108785f54610100900460ff1661116a5760405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e67000000000000000000000000000000000000000000606482015260840161043e565b61087833610e4c565b5f60208284031215611183575f80fd5b5035919050565b5f806040838503121561119b575f80fd5b50508035926020909101359150565b803573ffffffffffffffffffffffffffffffffffffffff8116811461060f575f80fd5b5f80604083850312156111de575f80fd5b6111e7836111aa565b946020939093013593505050565b5f8083601f840112611205575f80fd5b50813567ffffffffffffffff81111561121c575f80fd5b602083019150836020828501011115611233575f80fd5b9250929050565b5f805f805f805f60c0888a031215611250575f80fd5b611259886111aa565b96506020880135955060408801359450611275606089016111aa565b93506080880135925060a088013567ffffffffffffffff811115611297575f80fd5b6112a38a828b016111f5565b989b979a50959850939692959293505050565b5f602082840312156112c6575f80fd5b6105d9826111aa565b5f805f80606085870312156112e2575f80fd5b6112eb856111aa565b935060208501359250604085013567ffffffffffffffff81111561130d575f80fd5b611319878288016111f5565b95989497509550505050565b5f805f805f8060a0878903121561133a575f80fd5b611343876111aa565b9550611351602088016111aa565b94506040870135935060608701359250608087013567ffffffffffffffff81111561137a575f80fd5b61138689828a016111f5565b979a9699509497509295939492505050565b5f80604083850312156113a9575f80fd5b823591506113b9602084016111aa565b90509250929050565b5f80602083850312156113d3575f80fd5b823567ffffffffffffffff8111156113e9575f80fd5b6113f5858286016111f5565b90969095509350505050565b5f60208284031215611411575f80fd5b81518015158114611420575f80fd5b9392505050565b80820281158282048414176105dc577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b85815267ffffffffffffffff8516602082015283604082015260806060820152816080820152818360a08301375f81830160a090810191909152601f9092017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016010194935050505056fea164736f6c6343000818000a",
 }
 
 // L1MessageQueueWithGasPriceOracleABI is the input ABI used to generate the binding from.
@@ -419,68 +419,6 @@ func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleCallerS
 	return _L1MessageQueueWithGasPriceOracle.Contract.GetCrossDomainMessage(&_L1MessageQueueWithGasPriceOracle.CallOpts, _queueIndex)
 }
 
-// IsMessageDropped is a free data retrieval call binding the contract method 0x3e6dada1.
-//
-// Solidity: function isMessageDropped(uint256 _queueIndex) view returns(bool)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleCaller) IsMessageDropped(opts *bind.CallOpts, _queueIndex *big.Int) (bool, error) {
-	var out []interface{}
-	err := _L1MessageQueueWithGasPriceOracle.contract.Call(opts, &out, "isMessageDropped", _queueIndex)
-
-	if err != nil {
-		return *new(bool), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
-
-	return out0, err
-
-}
-
-// IsMessageDropped is a free data retrieval call binding the contract method 0x3e6dada1.
-//
-// Solidity: function isMessageDropped(uint256 _queueIndex) view returns(bool)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleSession) IsMessageDropped(_queueIndex *big.Int) (bool, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.IsMessageDropped(&_L1MessageQueueWithGasPriceOracle.CallOpts, _queueIndex)
-}
-
-// IsMessageDropped is a free data retrieval call binding the contract method 0x3e6dada1.
-//
-// Solidity: function isMessageDropped(uint256 _queueIndex) view returns(bool)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleCallerSession) IsMessageDropped(_queueIndex *big.Int) (bool, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.IsMessageDropped(&_L1MessageQueueWithGasPriceOracle.CallOpts, _queueIndex)
-}
-
-// IsMessageSkipped is a free data retrieval call binding the contract method 0x7d82191a.
-//
-// Solidity: function isMessageSkipped(uint256 _queueIndex) view returns(bool)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleCaller) IsMessageSkipped(opts *bind.CallOpts, _queueIndex *big.Int) (bool, error) {
-	var out []interface{}
-	err := _L1MessageQueueWithGasPriceOracle.contract.Call(opts, &out, "isMessageSkipped", _queueIndex)
-
-	if err != nil {
-		return *new(bool), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
-
-	return out0, err
-
-}
-
-// IsMessageSkipped is a free data retrieval call binding the contract method 0x7d82191a.
-//
-// Solidity: function isMessageSkipped(uint256 _queueIndex) view returns(bool)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleSession) IsMessageSkipped(_queueIndex *big.Int) (bool, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.IsMessageSkipped(&_L1MessageQueueWithGasPriceOracle.CallOpts, _queueIndex)
-}
-
-// IsMessageSkipped is a free data retrieval call binding the contract method 0x7d82191a.
-//
-// Solidity: function isMessageSkipped(uint256 _queueIndex) view returns(bool)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleCallerSession) IsMessageSkipped(_queueIndex *big.Int) (bool, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.IsMessageSkipped(&_L1MessageQueueWithGasPriceOracle.CallOpts, _queueIndex)
-}
-
 // L2BaseFee is a free data retrieval call binding the contract method 0xe3176bd5.
 //
 // Solidity: function l2BaseFee() view returns(uint256)
@@ -740,27 +678,6 @@ func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransac
 	return _L1MessageQueueWithGasPriceOracle.Contract.AppendEnforcedTransaction(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _sender, _target, _value, _gasLimit, _data)
 }
 
-// DropCrossDomainMessage is a paid mutator transaction binding the contract method 0x91652461.
-//
-// Solidity: function dropCrossDomainMessage(uint256 _index) returns()
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransactor) DropCrossDomainMessage(opts *bind.TransactOpts, _index *big.Int) (*types.Transaction, error) {
-	return _L1MessageQueueWithGasPriceOracle.contract.Transact(opts, "dropCrossDomainMessage", _index)
-}
-
-// DropCrossDomainMessage is a paid mutator transaction binding the contract method 0x91652461.
-//
-// Solidity: function dropCrossDomainMessage(uint256 _index) returns()
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleSession) DropCrossDomainMessage(_index *big.Int) (*types.Transaction, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.DropCrossDomainMessage(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _index)
-}
-
-// DropCrossDomainMessage is a paid mutator transaction binding the contract method 0x91652461.
-//
-// Solidity: function dropCrossDomainMessage(uint256 _index) returns()
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransactorSession) DropCrossDomainMessage(_index *big.Int) (*types.Transaction, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.DropCrossDomainMessage(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _index)
-}
-
 // Initialize is a paid mutator transaction binding the contract method 0xda35a26f.
 //
 // Solidity: function initialize(uint256 _maxGasLimit, address _whitelistChecker) returns()
@@ -782,25 +699,25 @@ func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransac
 	return _L1MessageQueueWithGasPriceOracle.Contract.Initialize(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _maxGasLimit, _whitelistChecker)
 }
 
-// PopCrossDomainMessage is a paid mutator transaction binding the contract method 0x55f613ce.
+// PopCrossDomainMessage is a paid mutator transaction binding the contract method 0x3c7f5283.
 //
-// Solidity: function popCrossDomainMessage(uint256 _startIndex, uint256 _count, uint256 _skippedBitmap) returns()
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransactor) PopCrossDomainMessage(opts *bind.TransactOpts, _startIndex *big.Int, _count *big.Int, _skippedBitmap *big.Int) (*types.Transaction, error) {
-	return _L1MessageQueueWithGasPriceOracle.contract.Transact(opts, "popCrossDomainMessage", _startIndex, _count, _skippedBitmap)
+// Solidity: function popCrossDomainMessage(uint256 _startIndex, uint256 _count) returns()
+func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransactor) PopCrossDomainMessage(opts *bind.TransactOpts, _startIndex *big.Int, _count *big.Int) (*types.Transaction, error) {
+	return _L1MessageQueueWithGasPriceOracle.contract.Transact(opts, "popCrossDomainMessage", _startIndex, _count)
 }
 
-// PopCrossDomainMessage is a paid mutator transaction binding the contract method 0x55f613ce.
+// PopCrossDomainMessage is a paid mutator transaction binding the contract method 0x3c7f5283.
 //
-// Solidity: function popCrossDomainMessage(uint256 _startIndex, uint256 _count, uint256 _skippedBitmap) returns()
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleSession) PopCrossDomainMessage(_startIndex *big.Int, _count *big.Int, _skippedBitmap *big.Int) (*types.Transaction, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.PopCrossDomainMessage(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _startIndex, _count, _skippedBitmap)
+// Solidity: function popCrossDomainMessage(uint256 _startIndex, uint256 _count) returns()
+func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleSession) PopCrossDomainMessage(_startIndex *big.Int, _count *big.Int) (*types.Transaction, error) {
+	return _L1MessageQueueWithGasPriceOracle.Contract.PopCrossDomainMessage(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _startIndex, _count)
 }
 
-// PopCrossDomainMessage is a paid mutator transaction binding the contract method 0x55f613ce.
+// PopCrossDomainMessage is a paid mutator transaction binding the contract method 0x3c7f5283.
 //
-// Solidity: function popCrossDomainMessage(uint256 _startIndex, uint256 _count, uint256 _skippedBitmap) returns()
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransactorSession) PopCrossDomainMessage(_startIndex *big.Int, _count *big.Int, _skippedBitmap *big.Int) (*types.Transaction, error) {
-	return _L1MessageQueueWithGasPriceOracle.Contract.PopCrossDomainMessage(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _startIndex, _count, _skippedBitmap)
+// Solidity: function popCrossDomainMessage(uint256 _startIndex, uint256 _count) returns()
+func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleTransactorSession) PopCrossDomainMessage(_startIndex *big.Int, _count *big.Int) (*types.Transaction, error) {
+	return _L1MessageQueueWithGasPriceOracle.Contract.PopCrossDomainMessage(&_L1MessageQueueWithGasPriceOracle.TransactOpts, _startIndex, _count)
 }
 
 // RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
@@ -977,15 +894,14 @@ func (it *L1MessageQueueWithGasPriceOracleDequeueTransactionIterator) Close() er
 
 // L1MessageQueueWithGasPriceOracleDequeueTransaction represents a DequeueTransaction event raised by the L1MessageQueueWithGasPriceOracle contract.
 type L1MessageQueueWithGasPriceOracleDequeueTransaction struct {
-	StartIndex    *big.Int
-	Count         *big.Int
-	SkippedBitmap *big.Int
-	Raw           types.Log // Blockchain specific contextual infos
+	StartIndex *big.Int
+	Count      *big.Int
+	Raw        types.Log // Blockchain specific contextual infos
 }
 
-// FilterDequeueTransaction is a free log retrieval operation binding the contract event 0xc77f792f838ae38399ac31acc3348389aeb110ce7bedf3cfdbdd5e6679267970.
+// FilterDequeueTransaction is a free log retrieval operation binding the contract event 0x3d48b97f20730c965868963266b0d25d8abe3f06babb60fc3b2b80c9e8907f26.
 //
-// Solidity: event DequeueTransaction(uint256 startIndex, uint256 count, uint256 skippedBitmap)
+// Solidity: event DequeueTransaction(uint256 startIndex, uint256 count)
 func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFilterer) FilterDequeueTransaction(opts *bind.FilterOpts) (*L1MessageQueueWithGasPriceOracleDequeueTransactionIterator, error) {
 
 	logs, sub, err := _L1MessageQueueWithGasPriceOracle.contract.FilterLogs(opts, "DequeueTransaction")
@@ -995,9 +911,9 @@ func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFiltere
 	return &L1MessageQueueWithGasPriceOracleDequeueTransactionIterator{contract: _L1MessageQueueWithGasPriceOracle.contract, event: "DequeueTransaction", logs: logs, sub: sub}, nil
 }
 
-// WatchDequeueTransaction is a free log subscription operation binding the contract event 0xc77f792f838ae38399ac31acc3348389aeb110ce7bedf3cfdbdd5e6679267970.
+// WatchDequeueTransaction is a free log subscription operation binding the contract event 0x3d48b97f20730c965868963266b0d25d8abe3f06babb60fc3b2b80c9e8907f26.
 //
-// Solidity: event DequeueTransaction(uint256 startIndex, uint256 count, uint256 skippedBitmap)
+// Solidity: event DequeueTransaction(uint256 startIndex, uint256 count)
 func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFilterer) WatchDequeueTransaction(opts *bind.WatchOpts, sink chan<- *L1MessageQueueWithGasPriceOracleDequeueTransaction) (event.Subscription, error) {
 
 	logs, sub, err := _L1MessageQueueWithGasPriceOracle.contract.WatchLogs(opts, "DequeueTransaction")
@@ -1032,146 +948,12 @@ func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFiltere
 	}), nil
 }
 
-// ParseDequeueTransaction is a log parse operation binding the contract event 0xc77f792f838ae38399ac31acc3348389aeb110ce7bedf3cfdbdd5e6679267970.
+// ParseDequeueTransaction is a log parse operation binding the contract event 0x3d48b97f20730c965868963266b0d25d8abe3f06babb60fc3b2b80c9e8907f26.
 //
-// Solidity: event DequeueTransaction(uint256 startIndex, uint256 count, uint256 skippedBitmap)
+// Solidity: event DequeueTransaction(uint256 startIndex, uint256 count)
 func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFilterer) ParseDequeueTransaction(log types.Log) (*L1MessageQueueWithGasPriceOracleDequeueTransaction, error) {
 	event := new(L1MessageQueueWithGasPriceOracleDequeueTransaction)
 	if err := _L1MessageQueueWithGasPriceOracle.contract.UnpackLog(event, "DequeueTransaction", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// L1MessageQueueWithGasPriceOracleDropTransactionIterator is returned from FilterDropTransaction and is used to iterate over the raw logs and unpacked data for DropTransaction events raised by the L1MessageQueueWithGasPriceOracle contract.
-type L1MessageQueueWithGasPriceOracleDropTransactionIterator struct {
-	Event *L1MessageQueueWithGasPriceOracleDropTransaction // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *L1MessageQueueWithGasPriceOracleDropTransactionIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(L1MessageQueueWithGasPriceOracleDropTransaction)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(L1MessageQueueWithGasPriceOracleDropTransaction)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *L1MessageQueueWithGasPriceOracleDropTransactionIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *L1MessageQueueWithGasPriceOracleDropTransactionIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// L1MessageQueueWithGasPriceOracleDropTransaction represents a DropTransaction event raised by the L1MessageQueueWithGasPriceOracle contract.
-type L1MessageQueueWithGasPriceOracleDropTransaction struct {
-	Index *big.Int
-	Raw   types.Log // Blockchain specific contextual infos
-}
-
-// FilterDropTransaction is a free log retrieval operation binding the contract event 0x43a375005206d20a83abc71722cba68c24434a8dc1f583775be7c3fde0396cbf.
-//
-// Solidity: event DropTransaction(uint256 index)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFilterer) FilterDropTransaction(opts *bind.FilterOpts) (*L1MessageQueueWithGasPriceOracleDropTransactionIterator, error) {
-
-	logs, sub, err := _L1MessageQueueWithGasPriceOracle.contract.FilterLogs(opts, "DropTransaction")
-	if err != nil {
-		return nil, err
-	}
-	return &L1MessageQueueWithGasPriceOracleDropTransactionIterator{contract: _L1MessageQueueWithGasPriceOracle.contract, event: "DropTransaction", logs: logs, sub: sub}, nil
-}
-
-// WatchDropTransaction is a free log subscription operation binding the contract event 0x43a375005206d20a83abc71722cba68c24434a8dc1f583775be7c3fde0396cbf.
-//
-// Solidity: event DropTransaction(uint256 index)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFilterer) WatchDropTransaction(opts *bind.WatchOpts, sink chan<- *L1MessageQueueWithGasPriceOracleDropTransaction) (event.Subscription, error) {
-
-	logs, sub, err := _L1MessageQueueWithGasPriceOracle.contract.WatchLogs(opts, "DropTransaction")
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(L1MessageQueueWithGasPriceOracleDropTransaction)
-				if err := _L1MessageQueueWithGasPriceOracle.contract.UnpackLog(event, "DropTransaction", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseDropTransaction is a log parse operation binding the contract event 0x43a375005206d20a83abc71722cba68c24434a8dc1f583775be7c3fde0396cbf.
-//
-// Solidity: event DropTransaction(uint256 index)
-func (_L1MessageQueueWithGasPriceOracle *L1MessageQueueWithGasPriceOracleFilterer) ParseDropTransaction(log types.Log) (*L1MessageQueueWithGasPriceOracleDropTransaction, error) {
-	event := new(L1MessageQueueWithGasPriceOracleDropTransaction)
-	if err := _L1MessageQueueWithGasPriceOracle.contract.UnpackLog(event, "DropTransaction", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

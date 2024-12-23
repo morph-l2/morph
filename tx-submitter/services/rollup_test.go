@@ -74,7 +74,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 		MinTip:     1e9,
 		TipFeeBump: 100,
 	}
-	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 	tip, feecap, blobfee, err := r.GetGasTipAndCap()
 	require.NoError(t, err)
 	require.NotNil(t, tip)
@@ -88,7 +88,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 		MinTip:     1e9,
 		TipFeeBump: 200,
 	}
-	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 	tip, feecap, blobfee, err = r.GetGasTipAndCap()
 	require.NoError(t, err)
 	require.NotNil(t, tip)
@@ -102,7 +102,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 		MinTip:     1e9,
 		TipFeeBump: 200,
 	}
-	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 	_, _, _, err = r.GetGasTipAndCap()
 	require.ErrorContains(t, err, "base fee is too high")
 
@@ -112,7 +112,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 		MinTip:     1e9,
 		TipFeeBump: 200,
 	}
-	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil)
+	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 	_, _, _, err = r.GetGasTipAndCap()
 	require.ErrorContains(t, err, "tip is too high")
 
@@ -142,7 +142,7 @@ func TestReSubmitTx(t *testing.T) {
 	priv, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, big.NewInt(1), priv, common.Address{}, nil, config, nil, nil, nil, nil)
+	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, big.NewInt(1), priv, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 	_, err = r.ReSubmitTx(false, nil)
 	require.ErrorContains(t, err, "nil tx")
 	oldTx := types.NewTx(&types.DynamicFeeTx{

@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"strconv"
+	"sync"
 
 	"morph-l2/tx-submitter/utils"
 
@@ -15,6 +16,7 @@ var (
 
 type Db struct {
 	db *leveldb.Database
+	m  sync.Mutex
 }
 
 func New(pathname string) (*Db, error) {
@@ -26,6 +28,8 @@ func New(pathname string) (*Db, error) {
 	return &Db{db: ldb}, nil
 }
 func (d *Db) GetFloat(key string) (float64, error) {
+	d.m.Lock()
+	defer d.m.Unlock()
 	v, err := d.db.Get([]byte(key))
 	if err != nil {
 		return 0, fmt.Errorf("failed get key from leveldb %s: %w", key, err)
@@ -37,12 +41,28 @@ func (d *Db) GetFloat(key string) (float64, error) {
 	return res, nil
 }
 func (d *Db) PutFloat(key string, val float64) error {
+	d.m.Lock()
+	defer d.m.Unlock()
 	valStr := strconv.FormatFloat(val, 'f', -1, 64)
 	err := d.db.Put([]byte(key), []byte(valStr))
 	if err != nil {
 		return fmt.Errorf("failed to put key into leveldb %w", err)
 	}
 	return nil
+}
+func (d *Db) GetString(key string) (string, error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	v, err := d.db.Get([]byte(key))
+	if err != nil {
+		return "", fmt.Errorf("failed to get key from leveldb %w", err)
+	}
+	return string(v), nil
+}
+func (d *Db) PutString(key, val string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.db.Put([]byte(key), []byte(val))
 }
 func (d *Db) Close() error {
 	return d.db.Close()

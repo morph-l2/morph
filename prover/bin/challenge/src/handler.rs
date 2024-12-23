@@ -418,7 +418,6 @@ struct BatchInfo {
     withdrawal_root: [u8; 32],
     sequencer_set_verify_hash: [u8; 32],
     parent_batch_hash: [u8; 32],
-    skipped_l1_message_bitmap: Bytes,
 }
 
 async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<BatchInfo> {
@@ -450,7 +449,6 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Bat
     };
 
     let version: u8 = param.batch_data_input.version;
-    let skipped_l1_message_bitmap: Bytes = param.batch_data_input.skipped_l1_message_bitmap;
     let prev_state_root: [u8; 32] = param.batch_data_input.prev_state_root;
     let post_state_root: [u8; 32] = param.batch_data_input.post_state_root;
     let withdrawal_root: [u8; 32] = param.batch_data_input.withdrawal_root;
@@ -458,7 +456,6 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Bat
     let (blocks_info, total_l1_txn) = decode_blocks(block_contexts).unwrap_or_default();
     let mut batch_info = BatchInfo {
         version,
-        skipped_l1_message_bitmap,
         prev_state_root,
         post_state_root,
         withdrawal_root,
@@ -499,7 +496,6 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.withdrawal_root);
         batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
         batch_header.extend_from_slice(&self.parent_batch_hash);
-        batch_header.extend_from_slice(&self.skipped_l1_message_bitmap);
         Bytes::from(batch_header)
     }
 }

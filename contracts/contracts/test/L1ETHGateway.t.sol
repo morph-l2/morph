@@ -167,35 +167,6 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         _depositETHWithRecipientAndCalldata(true, amount, recipient, dataToCall, gasLimit, feePerGas);
     }
 
-    function test_dropMessage_succeeds(uint256 amount, address recipient, bytes memory dataToCall) public {
-        amount = bound(amount, 1, address(this).balance);
-        bytes memory message = abi.encodeCall(
-            IL2ETHGateway.finalizeDepositETH,
-            (address(this), recipient, amount, dataToCall)
-        );
-        l1ETHGateway.depositETHAndCall{value: amount}(recipient, amount, dataToCall, defaultGasLimit);
-
-        // skip message 0
-        hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1, 0x1);
-        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
-        hevm.stopPrank();
-
-        // ETH transfer failed, revert
-        revertOnReceive = true;
-        hevm.expectRevert("ETH transfer failed");
-        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
-
-        // drop message 0
-        hevm.expectEmit(true, true, false, true);
-        emit IL1ETHGateway.RefundETH(address(this), amount);
-
-        revertOnReceive = false;
-        uint256 balance = address(this).balance;
-        l1CrossDomainMessenger.dropMessage(address(l1ETHGateway), address(counterpartGateway), amount, 0, message);
-        assertEq(balance + amount, address(this).balance);
-    }
-
     function test_finalizeWithdrawETH_counterErr_fails(
         address sender,
         address recipient,
