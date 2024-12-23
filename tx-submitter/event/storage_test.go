@@ -1,15 +1,18 @@
 package event
 
 import (
+	"morph-l2/tx-submitter/db"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestEventInfoStorage(t *testing.T) {
-	filename := "hello.json"
-	storage := NewEventInfoStorage(filename)
-	err := storage.Load()
+
+	db, err := db.New("./testleveldb")
+	require.NoError(t, err)
+	storage := NewEventInfoStorage(db)
+	err = storage.Load()
 	require.NoError(t, err)
 
 	storage.BlockTime = 100
@@ -17,7 +20,7 @@ func TestEventInfoStorage(t *testing.T) {
 	err = storage.Store()
 	require.NoError(t, err)
 
-	storage2 := NewEventInfoStorage(filename)
+	storage2 := NewEventInfoStorage(db)
 	err = storage2.Load()
 	require.NoError(t, err)
 	require.Equal(t, storage.BlockTime, storage2.BlockTime)
