@@ -121,12 +121,33 @@ func (s *Store) ReadL1MessageByIndex(index uint64) *types.L1Message {
 
 	}
 	return &l1Msg
+}
 
+func (s *Store) ReadBlockNumberByIndex(batchIndex uint64) *uint64 {
+	data, err := s.db.Get(BatchBlockNumberKey(batchIndex))
+	if err != nil && !isNotFoundErr(err) {
+		panic(fmt.Sprintf("failed to read batch block number from database, err: %v", err))
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	number := new(big.Int).SetBytes(data)
+	if !number.IsUint64() {
+		panic(fmt.Sprintf("unexpected block number in database, number: %d", number))
+	}
+	value := number.Uint64()
+	return &value
 }
 
 func (s *Store) WriteLatestDerivationL1Height(latest uint64) {
 	if err := s.db.Put(derivationL1HeightKey, new(big.Int).SetUint64(latest).Bytes()); err != nil {
 		panic(fmt.Sprintf("failed to update derivation synced L1 height, err: %v", err))
+	}
+}
+
+func (s *Store) WriteBatchBlockNumber(batchIndex, blockNumber uint64) {
+	if err := s.db.Put(BatchBlockNumberKey(batchIndex), new(big.Int).SetUint64(blockNumber).Bytes()); err != nil {
+		panic(fmt.Sprintf("failed to store last block number of batch, err: %v", err))
 	}
 }
 
