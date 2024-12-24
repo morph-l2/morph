@@ -265,7 +265,7 @@ impl EvmExecutor<'_> {
             cycle_track!(
                 zktrie
                     .update_account(addr.as_slice(), &acc_data)
-                    .expect("failed to update account"),
+                    .unwrap_or_else(|_| panic!("failed to update account: {}", addr)),
                 "Zktrie::update_account"
             );
 
