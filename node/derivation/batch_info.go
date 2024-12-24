@@ -79,7 +79,7 @@ func (bi *BatchInfo) TxNum() uint64 {
 }
 
 // ParseBatch This method is externally referenced for parsing Batch
-func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, parentBatchBlock uint64) error {
+func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, parentBatchBlock *uint64) error {
 	bi.root = batch.PostStateRoot
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
@@ -88,7 +88,10 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, parentBatchBlock uint
 	var txsData []byte
 	var blockCount uint64
 	if batch.BlockContexts == nil {
-		blockCount = batch.LastBlockNumber - parentBatchBlock
+		if parentBatchBlock == nil {
+			return fmt.Errorf("block number of parent batch not found")
+		}
+		blockCount = batch.LastBlockNumber - *parentBatchBlock
 	}
 	length := blockCount * 60
 	for _, blob := range batch.Sidecar.Blobs {
