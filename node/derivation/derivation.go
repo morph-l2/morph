@@ -380,9 +380,11 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {
 		return nil, fmt.Errorf("decode batch header error:%v", err)
 	}
 	batchInfo := new(BatchInfo)
-	if err := batchInfo.ParseBatch(batch); err != nil {
+	parentBatchBlock := d.db.ReadBlockNumberByIndex(parentBatchHeader.BatchIndex)
+	if err := batchInfo.ParseBatch(batch, parentBatchBlock); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
+	d.db.WriteBatchBlockNumber(batchInfo.batchIndex, batchInfo.lastBlockNumber)
 	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
