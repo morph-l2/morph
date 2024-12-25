@@ -4,7 +4,7 @@ use crate::types::{TxL1Msg, TypedTransaction};
 use alloy::{
     consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEnvelope, TxLegacy},
     eips::eip2930::AccessList,
-    primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
+    primitives::{Bytes, ChainId, PrimitiveSignature, SignatureError, TxKind},
 };
 use std::{fmt::Debug, sync::Once};
 use zktrie::ZkMemoryDb;
@@ -122,12 +122,8 @@ pub trait Block: Debug {
         let num_txs = (self.num_l1_txs() + self.num_l2_txs()) as u16;
         hasher.update(&self.number().to_be_bytes());
         hasher.update(&self.timestamp().to::<u64>().to_be_bytes());
-        hasher.update(
-            &self
-                .base_fee_per_gas()
-                .unwrap_or_default()
-                .to_be_bytes::<{ U256::BYTES }>(),
-        );
+        hasher
+            .update(&self.base_fee_per_gas().unwrap_or_default().to_be_bytes::<{ U256::BYTES }>());
         hasher.update(&self.gas_limit().to::<u64>().to_be_bytes());
         hasher.update(&num_txs.to_be_bytes());
     }
@@ -135,11 +131,7 @@ pub trait Block: Debug {
     /// Hash the l1 messages of the block
     #[inline]
     fn hash_l1_msg(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        for tx_hash in self
-            .transactions()
-            .filter(|tx| tx.is_l1_tx())
-            .map(|tx| tx.tx_hash())
-        {
+        for tx_hash in self.transactions().filter(|tx| tx.is_l1_tx()).map(|tx| tx.tx_hash()) {
             hasher.update(tx_hash.as_slice())
         }
     }
@@ -191,7 +183,7 @@ pub trait TxTrace {
     fn access_list(&self) -> AccessList;
 
     /// Get `signature`.
-    fn signature(&self) -> Result<Signature, SignatureError>;
+    fn signature(&self) -> Result<PrimitiveSignature, SignatureError>;
 
     /// Check if the transaction is an L1 transaction
     fn is_l1_tx(&self) -> bool {
@@ -208,7 +200,7 @@ pub trait TxTrace {
                     chain_id: if chain_id >= 35 { Some(chain_id) } else { None },
                     nonce: self.nonce(),
                     gas_price: self.gas_price(),
-                    gas_limit: self.gas_limit(),
+                    gas_limit: self.gas_limit() as u64,
                     to: self.to(),
                     value: self.value(),
                     input: self.data(),
@@ -221,7 +213,7 @@ pub trait TxTrace {
                     chain_id,
                     nonce: self.nonce(),
                     gas_price: self.gas_price(),
-                    gas_limit: self.gas_limit(),
+                    gas_limit: self.gas_limit() as u64,
                     to: self.to(),
                     value: self.value(),
                     access_list: self.access_list(),
@@ -236,7 +228,7 @@ pub trait TxTrace {
                     nonce: self.nonce(),
                     max_fee_per_gas: self.max_fee_per_gas(),
                     max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
-                    gas_limit: self.gas_limit(),
+                    gas_limit: self.gas_limit() as u64,
                     to: self.to(),
                     value: self.value(),
                     access_list: self.access_list(),
@@ -382,7 +374,7 @@ impl<T: TxTrace> TxTrace for &T {
         (*self).access_list()
     }
 
-    fn signature(&self) -> Result<Signature, SignatureError> {
+    fn signature(&self) -> Result<PrimitiveSignature, SignatureError> {
         (*self).signature()
     }
 }

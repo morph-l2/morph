@@ -8,7 +8,7 @@ edition = "2021"
 sbv-core.workspace = true
 sbv-utils.workspace = true
 sbv-primitives.workspace = true
-alloy = { workspace = true, features = ["consensus", "eips", "k256", "rlp", "rkyv", "serde"] }
+alloy = { workspace = true, features = ["consensus", "eips", "k256", "rlp", "serde"] }
 kzg-rs = { workspace = true }
 sha2 = { workspace = true }
 anyhow = { workspace = true }

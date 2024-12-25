@@ -94,12 +94,12 @@ impl EvmExecutor<'_> {
                 caller: tx.get_or_recover_signer().map_err(|e| {
                     VerificationError::InvalidSignature { tx_hash: *tx.tx_hash(), source: e }
                 })?,
-                gas_limit: tx.gas_limit() as u64,
+                gas_limit: tx.gas_limit(),
                 gas_price: tx
                     .effective_gas_price(l2_trace.base_fee_per_gas().unwrap_or_default().to())
                     .map(U256::from)
                     .ok_or_else(|| VerificationError::InvalidGasPrice { tx_hash: *tx.tx_hash() })?,
-                transact_to: tx.to(),
+                transact_to: tx.to().into(),
                 value: tx.value(),
                 data: tx.data(),
                 nonce: if !tx.is_l1_msg() { Some(tx.nonce()) } else { None },

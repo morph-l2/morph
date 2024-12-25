@@ -12,13 +12,13 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-alloy = { workspace = true, features = ["consensus", "eips", "k256", "rlp", "rkyv", "serde"] }
-rkyv.workspace = true
-serde = { workspace = true, features = ["derive"] }
+alloy = { workspace = true, features = ["consensus", "eips", "k256", "rlp", "serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 serde_with.workspace = true
 tiny-keccak.workspace = true
 
-poseidon-bn254.workspace = true
+poseidon-bn254 = { workspace = true, features = ["bn254"] }
 zktrie.workspace = true
 
 [dev-dependencies]

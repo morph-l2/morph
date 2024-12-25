@@ -1,16 +1,18 @@
 use crate::TxTrace;
 use alloy::{
-    consensus::{Transaction, TxEnvelope, TxType},
+    consensus::{Transaction, TxEnvelope, TxType, Typed2718},
     eips::{
         eip2718::{Decodable2718, Encodable2718},
         eip2930::AccessList,
         eip7702::SignedAuthorization,
     },
     primitives::{
-        keccak256, Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64,
+        keccak256, normalize_v, Address, Bytes, ChainId, PrimitiveSignature, SignatureError,
+        TxKind, B256, U256, U64,
     },
     rlp::{BufMut, BytesMut, Decodable, Encodable, Header},
 };
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull};
 
 /// Wrapped Ethereum Transaction
@@ -55,11 +57,7 @@ pub struct TxL1Msg {
 
 /// Transaction Trace
 #[serde_as]
-#[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, Default, Debug, Clone,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TransactionTrace {
     /// tx hash
     #[serde(default, rename = "txHash")]
@@ -164,71 +162,49 @@ impl TxTrace for TransactionTrace {
         self.access_list.clone()
     }
 
-    fn signature(&self) -> Result<Signature, SignatureError> {
-        Signature::from_rs_and_parity(self.r, self.s, self.v)
+    fn signature(&self) -> Result<PrimitiveSignature, SignatureError> {
+        Ok(PrimitiveSignature::from_scalars_and_parity(
+            self.r.into(),
+            self.s.into(),
+            normalize_v(self.v.to::<u64>()).unwrap_or_default(),
+        ))
     }
 }
 
-impl TxTrace for ArchivedTransactionTrace {
-    fn tx_hash(&self) -> B256 {
-        self.tx_hash
-    }
-
+impl Typed2718 for TypedTransaction {
+    #[doc = " Returns the EIP-2718 type flag."]
     fn ty(&self) -> u8 {
-        self.ty
+        todo!()
     }
 
-    fn nonce(&self) -> u64 {
-        self.nonce
+    #[doc = " Returns true if the type matches the given type."]
+    fn is_type(&self, ty: u8) -> bool {
+        self.ty() == ty
     }
 
-    fn gas_limit(&self) -> u128 {
-        self.gas as u128
+    #[doc = " Returns true if the type is a legacy transaction."]
+    fn is_legacy(&self) -> bool {
+        self.ty() == 0
     }
 
-    fn gas_price(&self) -> u128 {
-        self.gas_price.to()
+    #[doc = " Returns true if the type is an EIP-2930 transaction."]
+    fn is_eip2930(&self) -> bool {
+        self.ty() == 1
     }
 
-    fn max_fee_per_gas(&self) -> u128 {
-        self.gas_fee_cap.as_ref().map(|v| v.to()).unwrap_or_default()
+    #[doc = " Returns true if the type is an EIP-1559 transaction."]
+    fn is_eip1559(&self) -> bool {
+        self.ty() == 2
     }
 
-    fn max_priority_fee_per_gas(&self) -> u128 {
-        self.gas_tip_cap.as_ref().map(|v| v.to()).unwrap_or_default()
+    #[doc = " Returns true if the type is an EIP-4844 transaction."]
+    fn is_eip4844(&self) -> bool {
+        self.ty() == 3
     }
 
-    unsafe fn get_from_unchecked(&self) -> Address {
-        self.from
-    }
-
-    fn to(&self) -> TxKind {
-        if self.is_create {
-            TxKind::Create
-        } else {
-            debug_assert!(self.to.as_ref().map(|a| !a.is_zero()).unwrap_or(false));
-            TxKind::Call(*self.to.as_ref().expect("to address must be present"))
-        }
-    }
-
-    fn chain_id(&self) -> ChainId {
-        self.chain_id.to()
-    }
-
-    fn value(&self) -> U256 {
-        self.value
-    }
-
-    fn data(&self) -> Bytes {
-        Bytes::copy_from_slice(self.data.as_ref())
-    }
-
-    fn access_list(&self) -> AccessList {
-        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible).unwrap()
-    }
-
-    fn signature(&self) -> Result<Signature, SignatureError> {
-        Signature::from_rs_and_parity(self.r, self.s, self.v)
+    #[doc = " Returns true if the type is an EIP-7702 transaction."]
+    fn is_eip7702(&self) -> bool {
+        self.ty() == 4
     }
 }
 
@@ -247,7 +223,7 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn gas_limit(&self) -> u128 {
+    fn gas_limit(&self) -> u64 {
         match self {
             TypedTransaction::Enveloped(tx) => tx.gas_limit(),
             TypedTransaction::L1Msg(tx) => tx.gas_limit(),
@@ -289,7 +265,7 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn to(&self) -> TxKind {
+    fn to(&self) -> Option<Address> {
         match self {
             TypedTransaction::Enveloped(tx) => tx.to(),
             TypedTransaction::L1Msg(tx) => tx.to(),
@@ -303,17 +279,10 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn input(&self) -> &[u8] {
+    fn input(&self) -> &Bytes {
         match self {
             TypedTransaction::Enveloped(tx) => tx.input(),
             TypedTransaction::L1Msg(tx) => tx.input(),
-        }
-    }
-
-    fn ty(&self) -> u8 {
-        match self {
-            TypedTransaction::Enveloped(tx) => tx.ty(),
-            TypedTransaction::L1Msg(tx) => tx.ty(),
         }
     }
 
@@ -337,6 +306,54 @@ impl Transaction for TypedTransaction {
             TypedTransaction::L1Msg(tx) => tx.authorization_list(),
         }
     }
+
+    #[doc = " Returns the effective gas price for the given base fee."]
+    #[doc = ""]
+    #[doc = " If the transaction is a legacy or EIP2930 transaction, the gas price is returned."]
+    fn effective_gas_price(&self, base_fee: Option<u64>) -> u128 {
+        todo!()
+    }
+
+    #[doc = " Returns `true` if the transaction supports dynamic fees."]
+    fn is_dynamic_fee(&self) -> bool {
+        todo!()
+    }
+
+    #[doc = " Returns the transaction kind."]
+    fn kind(&self) -> TxKind {
+        todo!()
+    }
+
+    #[doc = " Returns true if the transaction is a contract creation."]
+    #[doc = " We don\'t provide a default implementation via `kind` as it copies the 21-byte"]
+    #[doc = " [`TxKind`] for this simple check. A proper implementation shouldn\'t allocate."]
+    fn is_create(&self) -> bool {
+        todo!()
+    }
+
+    #[doc = " Returns the effective tip for this transaction."]
+    #[doc = ""]
+    #[doc = " For EIP-1559 transactions: `min(max_fee_per_gas - base_fee, max_priority_fee_per_gas)`."]
+    #[doc = " For legacy transactions: `gas_price - base_fee`."]
+    fn effective_tip_per_gas(&self, base_fee: u64) -> Option<u128> {
+        let base_fee = base_fee as u128;
+        let max_fee_per_gas = self.max_fee_per_gas();
+        if max_fee_per_gas < base_fee {
+            return None;
+        }
+        let fee = max_fee_per_gas - base_fee;
+        self.max_priority_fee_per_gas()
+            .map_or(Some(fee), |priority_fee| Some(fee.min(priority_fee)))
+    }
+
+    #[doc = " Returns the total gas for all blobs in this transaction."]
+    #[doc = ""]
+    #[doc = " Returns `None` for non-eip4844 transactions."]
+    #[inline]
+    fn blob_gas_used(&self) -> Option<u64> {
+        // self.blob_versioned_hashes().map(|blobs| blobs.len() as u64 * DATA_GAS_PER_BLOB)
+        todo!()
+    }
 }
 
 impl TxL1Msg {
@@ -354,6 +371,43 @@ impl TxL1Msg {
     }
 }
 
+impl Typed2718 for TxL1Msg {
+    #[doc = " Returns the EIP-2718 type flag."]
+    fn ty(&self) -> u8 {
+        todo!()
+    }
+
+    #[doc = " Returns true if the type matches the given type."]
+    fn is_type(&self, ty: u8) -> bool {
+        self.ty() == ty
+    }
+
+    #[doc = " Returns true if the type is a legacy transaction."]
+    fn is_legacy(&self) -> bool {
+        self.ty() == 0
+    }
+
+    #[doc = " Returns true if the type is an EIP-2930 transaction."]
+    fn is_eip2930(&self) -> bool {
+        self.ty() == 1
+    }
+
+    #[doc = " Returns true if the type is an EIP-1559 transaction."]
+    fn is_eip1559(&self) -> bool {
+        self.ty() == 2
+    }
+
+    #[doc = " Returns true if the type is an EIP-4844 transaction."]
+    fn is_eip4844(&self) -> bool {
+        self.ty() == 3
+    }
+
+    #[doc = " Returns true if the type is an EIP-7702 transaction."]
+    fn is_eip7702(&self) -> bool {
+        self.ty() == 4
+    }
+}
+
 impl Transaction for TxL1Msg {
     fn chain_id(&self) -> Option<ChainId> {
         None
@@ -363,8 +417,8 @@ impl Transaction for TxL1Msg {
         self.nonce
     }
 
-    fn gas_limit(&self) -> u128 {
-        self.gas_limit
+    fn gas_limit(&self) -> u64 {
+        self.gas_limit as u64
     }
 
     fn gas_price(&self) -> Option<u128> {
@@ -387,20 +441,16 @@ impl Transaction for TxL1Msg {
         0
     }
 
-    fn to(&self) -> TxKind {
-        self.to
+    fn to(&self) -> Option<Address> {
+        self.to.to().cloned()
     }
 
     fn value(&self) -> U256 {
         self.value
     }
 
-    fn input(&self) -> &[u8] {
-        self.input.as_ref()
-    }
-
-    fn ty(&self) -> u8 {
-        0x7e
+    fn input(&self) -> &Bytes {
+        &self.input
     }
 
     fn access_list(&self) -> Option<&AccessList> {
@@ -413,6 +463,46 @@ impl Transaction for TxL1Msg {
 
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
+    }
+
+    #[doc = " Returns the effective gas price for the given base fee."]
+    #[doc = ""]
+    #[doc = " If the transaction is a legacy or EIP2930 transaction, the gas price is returned."]
+    fn effective_gas_price(&self, base_fee: Option<u64>) -> u128 {
+        todo!()
+    }
+
+    #[doc = " Returns `true` if the transaction supports dynamic fees."]
+    fn is_dynamic_fee(&self) -> bool {
+        todo!()
+    }
+
+    #[doc = " Returns the transaction kind."]
+    fn kind(&self) -> TxKind {
+        todo!()
+    }
+
+    #[doc = " Returns true if the transaction is a contract creation."]
+    #[doc = " We don\'t provide a default implementation via `kind` as it copies the 21-byte"]
+    #[doc = " [`TxKind`] for this simple check. A proper implementation shouldn\'t allocate."]
+    fn is_create(&self) -> bool {
+        todo!()
+    }
+
+    #[doc = " Returns the effective tip for this transaction."]
+    #[doc = ""]
+    #[doc = " For EIP-1559 transactions: `min(max_fee_per_gas - base_fee, max_priority_fee_per_gas)`."]
+    #[doc = " For legacy transactions: `gas_price - base_fee`."]
+    fn effective_tip_per_gas(&self, base_fee: u64) -> Option<u128> {
+        todo!()
+    }
+
+    #[doc = " Returns the total gas for all blobs in this transaction."]
+    #[doc = ""]
+    #[doc = " Returns `None` for non-eip4844 transactions."]
+    #[inline]
+    fn blob_gas_used(&self) -> Option<u64> {
+        todo!()
     }
 }
 

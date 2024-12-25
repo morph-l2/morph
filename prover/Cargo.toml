@@ -30,7 +30,7 @@ repository = "https://github.com/morph-l2/morph/tree/main/prover"
 
 
 [workspace.dependencies]
-alloy ={ version ="0.3"}
+alloy ={ version ="0.8"}
 hex = "0.4"
 once_cell = "1.19"
 rkyv = { version = "0.7", features = ["validation"] }
@@ -52,7 +52,7 @@ sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "memcopy-dev"}
 sp1-helper = { git = "https://github.com/morph-l2/sp1.git", branch = "memcopy-dev"}
 
 # dependencies from scroll-tech
-poseidon-bn254 = { git = "https://github.com/morph-l2/poseidon-bn254", branch = "main", features = ["bn254"] }
+poseidon-bn254 = { git = "https://github.com/morph-l2/poseidon-bn254", branch = "sp1_compile", features = ["bn254"] }
 zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features= ["rs_zktrie"] }
 
 
@@ -103,7 +103,7 @@ morph-prove = { path = "bin/host" }
 
 [workspace.dependencies.revm]
 git = "https://github.com/morph-l2/revm"
-branch = "release/v42"
+branch = "poseidon-dev"
 default-features = false
 features = [
     "morph-default-handler",
@@ -114,7 +114,7 @@ features = [
 
 [workspace.dependencies.revm-primitives]
 git = "https://github.com/morph-l2/revm"
-branch = "release/v42"
+branch = "poseidon-dev"
 default-features = false
 features = [
     "morph-default-handler",
@@ -137,14 +137,16 @@ ff = { git = "https://github.com/scroll-tech/ff", branch = "feat/sp1" }
 # patched add rkyv support & MSRV 1.75
 ruint = { git = "https://github.com/scroll-tech/uint.git", branch = "v1.12.3" }
 
-alloy = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
-alloy-eips = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
+# poseidon-bn254 = { git = "https://github.com/morph-l2/poseidon-bn254", branch = "main" }  
 
-alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
-alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+# alloy = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
+# alloy-eips = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
 
-alloy-core = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
-alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
+# alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+# alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+
+# alloy-core = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
+# alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0"}
 
 
 #[profile.release]
