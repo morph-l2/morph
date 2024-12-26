@@ -17,7 +17,7 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"github.com/morph-l2/go-ethereum/core"
-	"github.com/morph-l2/go-ethereum/core/types"
+	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/crypto/bls12381"
 	"github.com/morph-l2/go-ethereum/eth"
@@ -33,6 +33,7 @@ import (
 	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
+	"morph-l2/tx-submitter/types"
 	"morph-l2/tx-submitter/utils"
 )
 
@@ -65,7 +66,7 @@ type Rollup struct {
 	// cfg
 	cfg utils.Config
 	// signer
-	signer types.Signer
+	signer ethtypes.Signer
 	// leveldb
 	ldb *db.Db
 	// rollupFeeSum
@@ -75,8 +76,9 @@ type Rollup struct {
 	// collectedL1FeeSum
 	collectedL1FeeSum float64
 	// batchcache
-	batchCache *BatchCache
-	bm         *l1checker.BlockMonitor
+	batchCache       *types.BatchCache
+	bm               *l1checker.BlockMonitor
+	eventInfoStorage *event.EventInfoStorage
 }
 
 func NewRollup(
@@ -96,27 +98,29 @@ func NewRollup(
 	rotator *Rotator,
 	ldb *db.Db,
 	bm *l1checker.BlockMonitor,
+	eventInfoStorage *event.EventInfoStorage,
 ) *Rollup {
 
 	return &Rollup{
-		ctx:             ctx,
-		metrics:         metrics,
-		l1RpcClient:     l1RpcClient,
-		L1Client:        l1,
-		Rollup:          rollup,
-		Staking:         staking,
-		L2Clients:       l2Clients,
-		privKey:         priKey,
-		chainId:         chainId,
-		rollupAddr:      rollupAddr,
-		abi:             abi,
-		rotator:         rotator,
-		cfg:             cfg,
-		signer:          types.LatestSignerForChainID(chainId),
-		externalRsaPriv: rsaPriv,
-		batchCache:      NewBatchCache(),
-		ldb:             ldb,
-		bm:              bm,
+		ctx:              ctx,
+		metrics:          metrics,
+		l1RpcClient:      l1RpcClient,
+		L1Client:         l1,
+		Rollup:           rollup,
+		Staking:          staking,
+		L2Clients:        l2Clients,
+		privKey:          priKey,
+		chainId:          chainId,
+		rollupAddr:       rollupAddr,
+		abi:              abi,
+		rotator:          rotator,
+		cfg:              cfg,
+		signer:           ethtypes.LatestSignerForChainID(chainId),
+		externalRsaPriv:  rsaPriv,
+		batchCache:       types.NewBatchCache(),
+		ldb:              ldb,
+		bm:               bm,
+		eventInfoStorage: eventInfoStorage,
 	}
 }
 
@@ -256,7 +260,7 @@ func (r *Rollup) ProcessTx() error {
 		if ispending {
 			if txRecord.sendTime+uint64(r.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
 				log.Info("tx timeout", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
-				newtx, err := r.ReSubmitTx(false, rtx, r.GetReSubmitBatchIndex(method, rtx.Data()))
+				newtx, err := r.ReSubmitTx(false, rtx)
 				if err != nil {
 					log.Error("resubmit tx", "error", err, "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce())
 					return fmt.Errorf("resubmit tx error:%w", err)
@@ -281,8 +285,7 @@ func (r *Rollup) ProcessTx() error {
 						"nonce", rtx.Nonce(),
 						"query_times", txRecord.queryTimes,
 					)
-
-					replacedtx, err := r.ReSubmitTx(true, rtx, r.GetReSubmitBatchIndex(method, rtx.Data()))
+					replacedtx, err := r.ReSubmitTx(true, rtx)
 					if err != nil {
 						log.Error("resend discarded tx", "old_tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
 						if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -323,7 +326,7 @@ func (r *Rollup) ProcessTx() error {
 					logs...,
 				)
 
-				if receipt.Status != types.ReceiptStatusSuccessful {
+				if receipt.Status != ethtypes.ReceiptStatusSuccessful {
 					// if tx is commitBatch
 					if method == "commitBatch" {
 						parentindex := utils.ParseParentBatchIndex(rtx.Data())
@@ -496,7 +499,7 @@ func (r *Rollup) finalize() error {
 		}
 	}
 
-	tx := types.NewTx(&types.DynamicFeeTx{
+	tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 		ChainID:   r.chainId,
 		Nonce:     nonce,
 		GasTipCap: tip,
@@ -528,7 +531,7 @@ func (r *Rollup) finalize() error {
 		"size", signedTx.Size(),
 	)
 
-	err = r.SendTx(signedTx, 0)
+	err = r.SendTx(signedTx)
 	if err != nil {
 		log.Error("send finalize tx to mempool", "error", err.Error())
 		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -561,24 +564,27 @@ func (r *Rollup) rollup() error {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
 		}
 
-		storage := event.NewEventInfoStorage(r.rotator.indexer.GetStorePath())
-		err = storage.Load()
+		err = r.eventInfoStorage.Load()
 		if err != nil {
 			return fmt.Errorf("failed to load storage in rollup: %w", err)
 		}
+		log.Info("indexer info",
+			"block_processed", r.eventInfoStorage.EventInfo.BlockProcessed,
+			"event_latest_emit_time", r.eventInfoStorage.EventInfo.BlockTime,
+		)
 		// get current blocknumber
 		blockNumber, err := r.L1Client.BlockNumber(context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to get block number in rollup: %w", err)
 		}
 		// set metrics
-		r.metrics.SetIndexerBlockProcessed(storage.EventInfo.BlockProcessed)
+		r.metrics.SetIndexerBlockProcessed(r.eventInfoStorage.EventInfo.BlockProcessed)
 		// check if indexed block number is too old
-		if blockNumber > storage.EventInfo.BlockProcessed+100 {
+		if blockNumber > r.eventInfoStorage.EventInfo.BlockProcessed+100 {
 			log.Info("indexed block number is too old, wait indexer to catch up",
 				"module", r.GetModuleName(),
 				"block_number", blockNumber,
-				"processed_block", storage.EventInfo.BlockProcessed)
+				"processed_block", r.eventInfoStorage.EventInfo.BlockProcessed)
 			return nil
 		}
 
@@ -660,13 +666,9 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	var batch *eth.RPCRollupBatch
-	batch, ok := r.batchCache.Get(batchIndex)
-	if !ok {
-		batch, err = GetRollupBatchByIndex(batchIndex, r.L2Clients)
-		if err != nil {
-			return fmt.Errorf("get rollup batch by index err:%v", err)
-		}
+	batch, err := GetRollupBatchByIndex(batchIndex, r.L2Clients)
+	if err != nil {
+		return fmt.Errorf("get rollup batch by index err:%v", err)
 	}
 
 	// check if the batch is valid
@@ -723,7 +725,7 @@ func (r *Rollup) rollup() error {
 		}
 
 		if r.cfg.RoughEstimateGas {
-			msgcnt := r.ParseL1MessageCnt(batch.BlockContexts)
+			msgcnt := utils.ParseL1MessageCnt(batch.BlockContexts)
 			gas = r.RoughRollupGasEstimate(msgcnt)
 			log.Info("rough estimate rollup tx gas", "gas", gas, "msgcnt", msgcnt)
 		} else {
@@ -746,14 +748,14 @@ func (r *Rollup) rollup() error {
 		}
 	}
 
-	var tx *types.Transaction
+	var tx *ethtypes.Transaction
 	if len(batch.Sidecar.Blobs) > 0 {
 		versionedHashes := make([]common.Hash, 0)
 		for _, commit := range batch.Sidecar.Commitments {
 			versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
 		}
 		// blob tx
-		tx = types.NewTx(&types.BlobTx{
+		tx = ethtypes.NewTx(&ethtypes.BlobTx{
 			ChainID:    uint256.MustFromBig(r.chainId),
 			Nonce:      nonce,
 			GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
@@ -763,7 +765,7 @@ func (r *Rollup) rollup() error {
 			Data:       calldata,
 			BlobFeeCap: uint256.MustFromBig(blobFee),
 			BlobHashes: versionedHashes,
-			Sidecar: &types.BlobTxSidecar{
+			Sidecar: &ethtypes.BlobTxSidecar{
 				Blobs:       batch.Sidecar.Blobs,
 				Commitments: batch.Sidecar.Commitments,
 				Proofs:      batch.Sidecar.Proofs,
@@ -771,7 +773,7 @@ func (r *Rollup) rollup() error {
 		})
 
 	} else {
-		tx = types.NewTx(&types.DynamicFeeTx{
+		tx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 			ChainID:   r.chainId,
 			Nonce:     nonce,
 			GasTipCap: tip,
@@ -801,7 +803,7 @@ func (r *Rollup) rollup() error {
 		"blob_len", len(signedTx.BlobHashes()),
 	)
 
-	err = r.SendTx(signedTx, batchIndex)
+	err = r.SendTx(signedTx)
 	if err != nil {
 		log.Error("send tx to mempool", "error", err.Error())
 		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -1059,14 +1061,14 @@ func GetEpochUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int
 
 }
 
-func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
+func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	// add buffer to gas limit (*1.2)
 	newGasLimit := tx.Gas() * 12 / 10
 
-	var newTx *types.Transaction
-	if tx.Type() == types.LegacyTxType {
+	var newTx *ethtypes.Transaction
+	if tx.Type() == ethtypes.LegacyTxType {
 
-		newTx = types.NewTx(&types.LegacyTx{
+		newTx = ethtypes.NewTx(&ethtypes.LegacyTx{
 			Nonce:    tx.Nonce(),
 			GasPrice: big.NewInt(tx.GasPrice().Int64()),
 			Gas:      newGasLimit,
@@ -1074,8 +1076,8 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 			Value:    tx.Value(),
 			Data:     tx.Data(),
 		})
-	} else if tx.Type() == types.DynamicFeeTxType {
-		newTx = types.NewTx(&types.DynamicFeeTx{
+	} else if tx.Type() == ethtypes.DynamicFeeTxType {
+		newTx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 			Nonce:     tx.Nonce(),
 			GasTipCap: big.NewInt(tx.GasTipCap().Int64()),
 			GasFeeCap: big.NewInt(tx.GasFeeCap().Int64()),
@@ -1084,8 +1086,8 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 			Value:     tx.Value(),
 			Data:      tx.Data(),
 		})
-	} else if tx.Type() == types.BlobTxType {
-		newTx = types.NewTx(&types.BlobTx{
+	} else if tx.Type() == ethtypes.BlobTxType {
+		newTx = ethtypes.NewTx(&ethtypes.BlobTx{
 			ChainID:    uint256.MustFromBig(tx.ChainId()),
 			Nonce:      tx.Nonce(),
 			GasTipCap:  uint256.MustFromBig(big.NewInt(tx.GasTipCap().Int64())),
@@ -1106,7 +1108,7 @@ func UpdateGasLimit(tx *types.Transaction) (*types.Transaction, error) {
 }
 
 // send tx to l1 with business logic check
-func (r *Rollup) SendTx(tx *types.Transaction, batchIndex uint64) error {
+func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
 
 	// judge tx info is valid
 	if tx == nil {
@@ -1116,30 +1118,7 @@ func (r *Rollup) SendTx(tx *types.Transaction, batchIndex uint64) error {
 	if !r.bm.IsGrowth() {
 		return fmt.Errorf("block not growth in %d blocks time", r.cfg.BlockNotIncreasedThreshold)
 	}
-	// check batch loss
-	if r.cfg.RollupLossControl {
-		// calc fee
-		fee := utils.CalcFeeForTx(tx)
-		// get batch
-		var collectedL1Fee *big.Int
-		batch, ok := r.batchCache.Get(batchIndex)
-		if ok {
-			collectedL1Fee = batch.CollectedL1Fee.ToInt()
-			if collectedL1Fee == nil {
-				collectedL1Fee = big.NewInt(0)
-			}
-		} else {
-			log.Warn("batch not found in cache when calc fee before SendTx", "batchIndex", batchIndex)
-			collectedL1Fee = big.NewInt(0)
-		}
-		// targetFee = fee * (100 + cfg.RotatorBuffer)/100
-		targetFee := new(big.Int).Mul(fee, big.NewInt(100+r.cfg.RotatorBuffer))
-		targetFee.Div(targetFee, big.NewInt(100))
 
-		if collectedL1Fee.Cmp(targetFee) < 0 {
-			return fmt.Errorf("tx fee exceed collectedL1Fee: targetFee=%v,fee=%v,collectedL1Fee:=%v", targetFee, fee, collectedL1Fee)
-		}
-	}
 	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
 	if err != nil {
 		return err
@@ -1154,12 +1133,12 @@ func (r *Rollup) SendTx(tx *types.Transaction, batchIndex uint64) error {
 }
 
 // send tx to l1 with business logic check
-func sendTx(client iface.Client, txFeeLimit uint64, tx *types.Transaction) error {
+func sendTx(client iface.Client, txFeeLimit uint64, tx *ethtypes.Transaction) error {
 	// fee limit
 	if txFeeLimit > 0 {
 		var fee uint64
 		// calc tx gas fee
-		if tx.Type() == types.BlobTxType {
+		if tx.Type() == ethtypes.BlobTxType {
 			// blob fee
 			fee = tx.BlobGasFeeCap().Uint64() * tx.BlobGas()
 			// tx fee
@@ -1176,7 +1155,7 @@ func sendTx(client iface.Client, txFeeLimit uint64, tx *types.Transaction) error
 	return client.SendTransaction(context.Background(), tx)
 }
 
-func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction, batchIndex uint64) (*types.Transaction, error) {
+func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	if tx == nil {
 		return nil, errors.New("nil tx")
 	}
@@ -1202,8 +1181,8 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction, batchIndex uint6
 	}
 	if !resend {
 		// bump tip & feeCap
-		bumpedFeeCap := calcThresholdValue(tx.GasFeeCap(), tx.Type() == types.BlobTxType)
-		bumpedTip := calcThresholdValue(tx.GasTipCap(), tx.Type() == types.BlobTxType)
+		bumpedFeeCap := calcThresholdValue(tx.GasFeeCap(), tx.Type() == ethtypes.BlobTxType)
+		bumpedTip := calcThresholdValue(tx.GasTipCap(), tx.Type() == ethtypes.BlobTxType)
 
 		// if bumpedTip > tip
 		if bumpedTip.Cmp(tip) > 0 {
@@ -1214,18 +1193,18 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction, batchIndex uint6
 			gasFeeCap = bumpedFeeCap
 		}
 
-		if tx.Type() == types.BlobTxType {
-			bumpedBlobFeeCap := calcThresholdValue(tx.BlobGasFeeCap(), tx.Type() == types.BlobTxType)
+		if tx.Type() == ethtypes.BlobTxType {
+			bumpedBlobFeeCap := calcThresholdValue(tx.BlobGasFeeCap(), tx.Type() == ethtypes.BlobTxType)
 			if bumpedBlobFeeCap.Cmp(blobFeeCap) > 0 {
 				blobFeeCap = bumpedBlobFeeCap
 			}
 		}
 	}
 
-	var newTx *types.Transaction
+	var newTx *ethtypes.Transaction
 	switch tx.Type() {
-	case types.DynamicFeeTxType:
-		newTx = types.NewTx(&types.DynamicFeeTx{
+	case ethtypes.DynamicFeeTxType:
+		newTx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 			To:        tx.To(),
 			Nonce:     tx.Nonce(),
 			GasFeeCap: gasFeeCap,
@@ -1234,9 +1213,9 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction, batchIndex uint6
 			Value:     tx.Value(),
 			Data:      tx.Data(),
 		})
-	case types.BlobTxType:
+	case ethtypes.BlobTxType:
 
-		newTx = types.NewTx(&types.BlobTx{
+		newTx = ethtypes.NewTx(&ethtypes.BlobTx{
 			ChainID:    uint256.MustFromBig(tx.ChainId()),
 			Nonce:      tx.Nonce(),
 			GasTipCap:  uint256.MustFromBig(tip),
@@ -1267,7 +1246,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *types.Transaction, batchIndex uint6
 		return nil, fmt.Errorf("sign tx error:%w", err)
 	}
 	// send tx
-	err = r.SendTx(newTx, batchIndex)
+	err = r.SendTx(newTx)
 	if err != nil {
 		return nil, fmt.Errorf("send tx error:%w", err)
 	}
@@ -1372,12 +1351,4 @@ func (r *Rollup) InitFeeMetricsSum() error {
 	r.metrics.FinalizeCostSum.Add(r.finalizeFeeSum)
 	r.metrics.CollectedL1FeeSum.Add(r.collectedL1FeeSum)
 	return nil
-}
-
-func (r *Rollup) GetReSubmitBatchIndex(method string, calldta []byte) uint64 {
-	if method == "commitBatch" {
-		return utils.ParseBatchIndex(method, calldta)
-	} else {
-		return 0
-	}
 }

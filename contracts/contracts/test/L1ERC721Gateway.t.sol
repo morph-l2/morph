@@ -174,65 +174,6 @@ contract L1ERC721GatewayTest is L1GatewayBaseTest, ERC721TokenReceiver {
         _testBatchDepositERC721WithRecipient(tokenCount, recipient, gasLimit, feePerGas);
     }
 
-    function test_dropMessage_succeeds(uint256 tokenId) public {
-        gateway.updateTokenMapping(address(l1Token), address(l2Token));
-
-        tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);
-        bytes memory message = abi.encodeCall(
-            IL2ERC721Gateway.finalizeDepositERC721,
-            (address(l1Token), address(l2Token), address(this), address(this), tokenId)
-        );
-        gateway.depositERC721(address(l1Token), tokenId, defaultGasLimit);
-
-        // pop message 0
-        hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
-        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
-        hevm.stopPrank();
-
-        // drop message 0
-        hevm.expectEmit(true, true, false, true);
-        emit IL1ERC721Gateway.RefundERC721(address(l1Token), address(this), tokenId);
-
-        assertEq(l1Token.ownerOf(tokenId), address(gateway));
-        l1CrossDomainMessenger.dropMessage(address(gateway), address(counterpartGateway), 0, 0, message);
-        assertEq(l1Token.ownerOf(tokenId), address(this));
-    }
-
-    function test_dropMessageBatch_succeeds(uint256 tokenCount) public {
-        tokenCount = bound(tokenCount, 1, TOKEN_COUNT);
-        gateway.updateTokenMapping(address(l1Token), address(l2Token));
-
-        uint256[] memory _tokenIds = new uint256[](tokenCount);
-        for (uint256 i = 0; i < tokenCount; i++) {
-            _tokenIds[i] = i;
-        }
-
-        bytes memory message = abi.encodeCall(
-            IL2ERC721Gateway.finalizeBatchDepositERC721,
-            (address(l1Token), address(l2Token), address(this), address(this), _tokenIds)
-        );
-        gateway.batchDepositERC721(address(l1Token), _tokenIds, defaultGasLimit);
-
-        // pop message 0
-        hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
-        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
-        hevm.stopPrank();
-
-        // drop message 0
-        hevm.expectEmit(true, true, false, true);
-        emit IL1ERC721Gateway.BatchRefundERC721(address(l1Token), address(this), _tokenIds);
-        for (uint256 i = 0; i < tokenCount; i++) {
-            assertEq(l1Token.ownerOf(_tokenIds[i]), address(gateway));
-        }
-
-        l1CrossDomainMessenger.dropMessage(address(gateway), address(counterpartGateway), 0, 0, message);
-        for (uint256 i = 0; i < tokenCount; i++) {
-            assertEq(l1Token.ownerOf(_tokenIds[i]), address(this));
-        }
-    }
-
     function test_finalizeWithdrawERC721_counterError_fails(address sender, address recipient, uint256 tokenId) public {
         hevm.assume(recipient != address(0));
         tokenId = bound(tokenId, 0, TOKEN_COUNT - 1);

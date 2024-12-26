@@ -13,31 +13,31 @@ import (
 
 type EventIndexer struct {
 	client      *ethclient.Client
-	storePath   string   // store path
 	deployBlock *big.Int // Block number of contract deployment
 	filterQuery ethereum.FilterQuery
 	indexStep   uint64 // index step
+	storage     *EventInfoStorage
 }
 
-func NewEventIndexer(storePath string, client *ethclient.Client, deployedBlock *big.Int, filter ethereum.FilterQuery, indexStep uint64) *EventIndexer {
+func NewEventIndexer(client *ethclient.Client, deployedBlock *big.Int, filter ethereum.FilterQuery, indexStep uint64, storage *EventInfoStorage) *EventIndexer {
 	return &EventIndexer{
-		storePath:   storePath,
 		client:      client,
 		deployBlock: deployedBlock,
 		filterQuery: filter,
 		indexStep:   indexStep,
+		storage:     storage,
 	}
 }
 
 func (l *EventIndexer) Index() {
 	log.Info("event indexer started")
-	storage := NewEventInfoStorage(l.storePath)
-	err := storage.Load()
-	if err != nil {
-		log.Crit("failed to load storage", "error", err, "file_name", storage.Filename)
-	}
-	if storage.BlockProcessed == 0 {
-		storage.BlockProcessed = l.deployBlock.Uint64()
+
+	if l.storage.BlockProcessed == 0 {
+		l.storage.BlockProcessed = l.deployBlock.Uint64()
+		err := l.storage.Store()
+		if err != nil {
+			log.Error("failed to store initial block number", "error", err)
+		}
 	}
 
 	// Create a ticker that triggers every minute
@@ -53,31 +53,31 @@ func (l *EventIndexer) Index() {
 			continue
 		}
 
-		if currentBlock <= storage.BlockProcessed {
-			log.Info("no new block to index", "current_block", currentBlock, "last_processed_block", storage.BlockProcessed)
+		if currentBlock <= l.storage.BlockProcessed {
+			log.Info("no new block to index", "current_block", currentBlock, "last_processed_block", l.storage.BlockProcessed)
 			continue
 		}
 
 		// Perform indexing operation
-		indexedEventInfo, err := l.index(l.client, big.NewInt(int64(storage.BlockProcessed)), big.NewInt(int64(currentBlock)))
+		indexedEventInfo, err := l.index(l.client, big.NewInt(int64(l.storage.BlockProcessed)), big.NewInt(int64(currentBlock)))
 		if err != nil {
 			log.Error("indexing operation failed", "error", err)
 			continue
 		}
 
 		if indexedEventInfo != nil {
-			storage.EventInfo = *indexedEventInfo
+			l.storage.EventInfo = *indexedEventInfo
 		} else {
-			storage.EventInfo = EventInfo{
+			l.storage.EventInfo = EventInfo{
 				BlockProcessed: currentBlock,
 			}
 		}
 		// Update storage
-		err = storage.Store()
+		err = l.storage.Store()
 		if err != nil {
-			log.Error("event index complete, failed to update storage", "error", err, "file_name", storage.Filename)
+			log.Error("event index complete, failed to update storage", "error", err)
 		} else {
-			log.Info("event index complete storage updated", "processed_block", storage.EventInfo.BlockProcessed, "block_time", storage.EventInfo.BlockTime)
+			log.Info("event index complete, storage updated", "processed_block", l.storage.EventInfo.BlockProcessed, "block_time", l.storage.EventInfo.BlockTime)
 		}
 
 	}
@@ -139,7 +139,6 @@ func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.
 func (l *EventIndexer) GetFilter() ethereum.FilterQuery {
 	return l.filterQuery
 }
-
-func (l *EventIndexer) GetStorePath() string {
-	return l.storePath
+func (l *EventIndexer) GetStorage() *EventInfoStorage {
+	return l.storage
 }

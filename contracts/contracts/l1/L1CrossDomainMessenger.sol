@@ -42,7 +42,7 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
     mapping(bytes32 => uint256) public messageSendTimestamp;
 
     /// @notice Mapping from L1 message hash to drop status.
-    mapping(bytes32 => bool) public isL1MessageDropped;
+    mapping(bytes32 => bool) public __isL1MessageDropped;
 
     /// @notice The address of Rollup contract.
     address public rollup;
@@ -192,7 +192,7 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
 
         require(messageSendTimestamp[_xDomainCalldataHash] > 0, "Provided message has not been enqueued");
         // cannot replay dropped message
-        require(!isL1MessageDropped[_xDomainCalldataHash], "Message already dropped");
+        require(!__isL1MessageDropped[_xDomainCalldataHash], "Message already dropped");
 
         // compute and deduct the messaging fee to fee vault.
         uint256 _fee = IL1MessageQueue(_messageQueue).estimateCrossDomainMessageFee(_from, _newGasLimit);
@@ -241,61 +241,6 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
                 require(_success, "Failed to refund the fee");
             }
         }
-    }
-
-    /// @inheritdoc IL1CrossDomainMessenger
-    function dropMessage(
-        address _from,
-        address _to,
-        uint256 _value,
-        uint256 _messageNonce,
-        bytes memory _message
-    ) external override whenNotPaused notInExecution {
-        // The criteria for dropping a message:
-        // 1. The message is a L1 message.
-        // 2. The message has not been dropped before.
-        // 3. the message and all of its replacement are finalized in L1.
-        // 4. the message and all of its replacement are skipped.
-        //
-        // Possible denial of service attack:
-        // + replayMessage is called every time someone want to drop the message.
-        // + replayMessage is called so many times for a skipped message, thus results a long list.
-        //
-        // We limit the number of `replayMessage` calls of each message, which may solve the above problem.
-
-        address _messageQueue = messageQueue;
-
-        // check message exists
-        bytes memory _xDomainCalldata = _encodeXDomainCalldata(_from, _to, _value, _messageNonce, _message);
-        bytes32 _xDomainCalldataHash = keccak256(_xDomainCalldata);
-        require(messageSendTimestamp[_xDomainCalldataHash] > 0, "Provided message has not been enqueued");
-
-        // check message not dropped
-        require(!isL1MessageDropped[_xDomainCalldataHash], "Message already dropped");
-
-        // check message is finalized
-        uint256 _lastIndex = replayStates[_xDomainCalldataHash].lastIndex;
-        if (_lastIndex == 0) _lastIndex = _messageNonce;
-
-        // check message is skipped and drop it.
-        // @note If the list is very long, the message may never be dropped.
-        while (true) {
-            IL1MessageQueue(_messageQueue).dropCrossDomainMessage(_lastIndex);
-            _lastIndex = prevReplayIndex[_lastIndex];
-            if (_lastIndex == 0) break;
-            unchecked {
-                _lastIndex = _lastIndex - 1;
-            }
-        }
-
-        isL1MessageDropped[_xDomainCalldataHash] = true;
-        emit DropMessage(_messageNonce);
-
-        // set execution context
-        xDomainMessageSender = Constants.DROP_XDOMAIN_MESSAGE_SENDER;
-        IMessageDropCallback(_from).onDropMessage{value: _value}(_message);
-        // clear execution context
-        xDomainMessageSender = Constants.DEFAULT_XDOMAIN_MESSAGE_SENDER;
     }
 
     /************************

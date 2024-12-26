@@ -10,12 +10,15 @@ import {
     deployEmptyContract,
     deployZkEvmVerifierV1,
     deployContractProxies,
+    deployContractProxiesConcurrently,
     deployContractImpls,
+    deployContractImplsConcurrently,
     MessengerInit,
     RollupInit,
     GatewayInit,
     StakingInit,
     AdminTransfer,
+    AdminTransferConcurrently,
     ContractInit,
     StakingRegister,
 } from '../deploy/index'
@@ -23,9 +26,11 @@ import { ethers } from "ethers";
 
 task("deploy")
     .addParam('storagepath')
+    .addOptionalParam('concurrent', 'Use concurrent deployment', 'false')
     .setAction(async (taskArgs, hre) => {
         // Initialization parameters
         const storagePath = taskArgs.storagepath
+        const concurrent = taskArgs.concurrent
         const deployer = await hre.ethers.provider.getSigner();
         const config = hre.deployConfig
 
@@ -48,7 +53,11 @@ task("deploy")
         }
 
         console.log('\n---------------------------------- deploy  Proxys ----------------------------------')
-        err = await deployContractProxies(hre, storagePath, deployer,config)
+        if (concurrent === 'true') {
+            err = await deployContractProxiesConcurrently(hre, storagePath, deployer,config)
+        } else {
+            err = await deployContractProxies(hre, storagePath, deployer,config)
+        }
         if (err != '') {
             console.log('Deploy Proxys failed, err: ', err)
             return
@@ -64,9 +73,11 @@ task("deploy")
 
 task("initialize")
     .addParam('storagepath')
+    .addOptionalParam('concurrent', 'Use concurrent deployment', 'false')
     .setAction(async (taskArgs, hre) => {
         // Initialization parameters
         const storagePath = taskArgs.storagepath
+        const concurrent = taskArgs.concurrent
         const config = hre.deployConfig
 
         const deployer = await hre.ethers.provider.getSigner();
@@ -74,7 +85,12 @@ task("initialize")
         console.log('deployer :', await deployer.getAddress())
 
         console.log('\n---------------------------------- deploy  Impls ----------------------------------')
-        let err = await deployContractImpls(hre, storagePath, deployer, config)
+        let err: any
+        if (concurrent === 'true') {
+            err = await deployContractImplsConcurrently(hre, storagePath, deployer, config)
+        } else {
+            err = await deployContractImpls(hre, storagePath, deployer, config)
+        }
         if (err != '') {
             console.log('Deploy deploy Impls failed, err: ', err)
             return
@@ -105,11 +121,19 @@ task("initialize")
             return
         }
         console.log('\n---------------------------------- Admin Transfer ----------------------------------')
-        err = await AdminTransfer(hre, storagePath, deployer, config)
+        if (concurrent === 'true') {
+            err = await AdminTransferConcurrently(hre, storagePath, deployer, config)
+        } else {
+            err = await AdminTransfer(hre, storagePath, deployer, config)
+        }
+        
         if (err != '') {
             console.log('OwnerTransfer failed, err: ', err)
             return
         }
+
+
+
         console.log('\n---------------------------------- Contract Init ----------------------------------')
         err = await ContractInit(hre, storagePath, deployer, config)
         if (err != '') {
