@@ -154,13 +154,13 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 				WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
 			})
 			batch = eth.RPCRollupBatch{
-				Version:                uint(rollupBatchData.Version),
-				ParentBatchHeader:      rollupBatchData.ParentBatchHeader,
-				BlockContexts:          rollupBatchData.BlockContexts,
-				SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
-				PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
-				PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
-				WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+				Version:           uint(rollupBatchData.Version),
+				ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+				BlockContexts:     rollupBatchData.BlockContexts,
+				//SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
+				PrevStateRoot: common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+				PostStateRoot: common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+				WithdrawRoot:  common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 			}
 		} else {
 			continue
@@ -180,7 +180,8 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 		// set batchIndex to new batch index + 1
 		batchIndex = rollupCommitBatch.BatchIndex.Uint64() + 1
 		var batchData derivation.BatchInfo
-		if err = batchData.ParseBatch(batch); err != nil {
+		// TODO
+		if err = batchData.ParseBatch(batch, new(uint64)); err != nil {
 			return fmt.Errorf("parse batch error:%v", err)
 		}
 		log.Info("received new batch", "batch_index", rollupCommitBatch.BatchIndex.Uint64())
