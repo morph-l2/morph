@@ -35,10 +35,6 @@ interface IL1MessageQueue {
     /// @param count The number of messages popped.
     event DequeueTransaction(uint256 startIndex, uint256 count);
 
-    /// @notice Emitted when a message is dropped from L1.
-    /// @param index The index of message dropped.
-    event DropTransaction(uint256 index);
-
     /// @notice Emitted when owner updates gas oracle contract.
     /// @param _oldGasOracle The address of old gas oracle contract.
     /// @param _newGasOracle The address of new gas oracle contract.
@@ -95,10 +91,6 @@ interface IL1MessageQueue {
         bytes calldata data
     ) external view returns (bytes32);
 
-    /// @notice Return whether the message is dropped.
-    /// @param queueIndex The queue index of the message to check.
-    function isMessageDropped(uint256 queueIndex) external view returns (bool);
-
     /*****************************
      * Public Mutating Functions *
      *****************************/
@@ -132,7 +124,4 @@ interface IL1MessageQueue {
     /// @param startIndex The start index to pop.
     /// @param count The number of messages to pop.
     function popCrossDomainMessage(uint256 startIndex, uint256 count) external;
-
-    /// @notice Drop a skipped message from the queue.
-    function dropCrossDomainMessage(uint256 index) external;
 }

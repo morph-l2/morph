@@ -1,6 +1,7 @@
 import "@nomiclabs/hardhat-web3"
 import "@nomiclabs/hardhat-ethers"
 import "@nomiclabs/hardhat-waffle"
+import { Mutex } from 'async-mutex';
 
 import { HardhatRuntimeEnvironment } from "hardhat/types"
 import { storage, getContractAddressByName, assertContractVariableWithSigner } from "../src/deploy-utils"
@@ -187,5 +188,133 @@ export const deployContractProxies = async (
     // return nil
     return ""
 }
+
+export const deployContractProxyByStorageNameWithNonce = async (
+    hre: HardhatRuntimeEnvironment,
+    path: string,
+    deployer: any,
+    storageName: string,
+    nonce: number 
+): Promise<string> => {
+    try {
+        const emptyContractImplAddr = getContractAddressByName(path, ImplStorageName.EmptyContract);
+        const ProxyFactoryName = ContractFactoryName.DefaultProxy;
+
+        const ProxyFactory = await hre.ethers.getContractFactory(ProxyFactoryName);
+        // TransparentUpgradeableProxy deploy with emptyContract as impl, deployer as admin
+        const proxy = await ProxyFactory.deploy(emptyContractImplAddr, await deployer.getAddress(), "0x", {
+            nonce: nonce,
+        });
+        await proxy.deployed()
+        console.log(
+            `%s=%s ; TX_HASH: %s`,
+            storageName,
+            proxy.address.toLocaleLowerCase(),
+            proxy.deployTransaction.hash
+        );
+
+        // check params
+        const IProxyContract = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, proxy.address);
+        
+        console.log(await IProxyContract.admin());
+        await assertContractVariableWithSigner(IProxyContract, "admin", await deployer.getAddress());
+        const blockNumber = await hre.ethers.provider.getBlockNumber();
+        console.log("BLOCK_NUMBER: %s", blockNumber);
+        const err = await storage(path, storageName, proxy.address.toLocaleLowerCase(), blockNumber || 0);
+        if (err !== "") {
+            throw new Error(err);
+        }
+
+        return "";
+    } catch (error) {
+        console.error(`Error deploying ${storageName}:`, error);
+        return error.message || "Unknown error";
+    }
+};
+
+export const deployContractProxiesConcurrently = async (
+    hre: HardhatRuntimeEnvironment,
+    path: string,
+    deployer: any,
+    config: any
+): Promise<string> => {
+    const WETHFactoryName = ContractFactoryName.WETH;
+    const WETHImplStorageName = ImplStorageName.WETH;
+
+    try {
+        if (config.l1WETHAddress == "") {
+            const Factory = await hre.ethers.getContractFactory(WETHFactoryName);
+            const contract = await Factory.deploy();
+            await contract.deployed();
+            console.log(
+                "%s=%s ; TX_HASH: %s",
+                WETHImplStorageName,
+                contract.address.toLocaleLowerCase(),
+                contract.deployTransaction.hash
+            );
+
+            const blockNumber = await hre.ethers.provider.getBlockNumber();
+            console.log("BLOCK_NUMBER: %s", blockNumber);
+
+            const err = await storage(path, WETHImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0);
+            if (err != "") {
+                return err;
+            }
+        } else {
+            const blockNumber = await hre.ethers.provider.getBlockNumber();
+            const err = await storage(path, WETHImplStorageName, config.l1WETHAddress.toLocaleLowerCase(), blockNumber || 0);
+            if (err != "") {
+                return err;
+            }
+        }
+
+        console.log("Start to deploy proxies concurrently...")
+
+        const proxyStorageNames = [
+            ProxyStorageName.L1CrossDomainMessengerProxyStorageName,
+            ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName,
+            ProxyStorageName.L1StakingProxyStorageName,
+            ProxyStorageName.RollupProxyStorageName,
+            ProxyStorageName.L1GatewayRouterProxyStorageName,
+            ProxyStorageName.L1ETHGatewayProxyStorageName,
+            ProxyStorageName.L1StandardERC20GatewayProxyStorageName,
+            ProxyStorageName.L1CustomERC20GatewayProxyStorageName,
+            ProxyStorageName.L1WithdrawLockERC20GatewayProxyStorageName,
+            ProxyStorageName.L1ReverseCustomGatewayProxyStorageName,
+            ProxyStorageName.L1ERC721GatewayProxyStorageName,
+            ProxyStorageName.L1ERC1155GatewayProxyStorageName,
+            ProxyStorageName.EnforcedTxGatewayProxyStorageName,
+            ProxyStorageName.L1WETHGatewayProxyStorageName,
+            ProxyStorageName.L1USDCGatewayProxyStorageName,
+        ];
+
+        let nonce = await hre.ethers.provider.getTransactionCount(deployer.getAddress())
+        const mutex = new Mutex();
+        const results = await Promise.all(
+            proxyStorageNames.map(async (storageName) => {
+                console.log(`Starting deployment for: ${storageName}`);
+                const release = await mutex.acquire(); // Acquire lock for getting nonce 
+                const nonceToUse = nonce
+                nonce++;  // Increment nonce for each deployment
+                release();  // Release the lock
+                
+                const result = await deployContractProxyByStorageNameWithNonce(hre, path, deployer, storageName, nonceToUse);
+                console.log(`Deployment completed for: ${storageName}`);
+                return result; 
+            })
+        );
+
+        const errors = results.filter((err) => err !== "");
+        if (errors.length > 0) {
+            return `Deployment failed with errors: ${errors.join(", ")}`;
+        }
+    } catch (error) {
+        console.error("Error during deployment:", error);
+        return `Deployment failed with error: ${error.message}`;
+    }
+
+    return "";
+};
+
 
 export default deployContractProxies

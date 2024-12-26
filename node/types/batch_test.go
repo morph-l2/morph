@@ -2,6 +2,7 @@ package types
 
 import (
 	"math/big"
+	"morph-l2/bindings/bindings"
 	"testing"
 
 	"github.com/morph-l2/go-ethereum/common"
@@ -37,4 +38,14 @@ func TestBatchHeader(t *testing.T) {
 	require.EqualValues(t, expectedBatchHeader.WithdrawalRoot, decoded.WithdrawalRoot)
 	require.EqualValues(t, expectedBatchHeader.SequencerSetVerifyHash, decoded.SequencerSetVerifyHash)
 	require.EqualValues(t, expectedBatchHeader.ParentBatchHash, decoded.ParentBatchHash)
+}
+
+func TestMethodID(t *testing.T) {
+	beforeSkipABI, err := LegacyRollupMetaData.GetAbi()
+	require.NoError(t, err)
+	beforeMoveBlockCtxABI, err := BeforeMoveBlockCtxABI.GetAbi()
+	require.NoError(t, err)
+	currentABI, err := bindings.RollupMetaData.GetAbi()
+	require.NoError(t, err)
+	require.NotEqualValues(t, beforeSkipABI.Methods["commitBatch"].ID, beforeMoveBlockCtxABI.Methods["commitBatch"].ID, currentABI.Methods["commitBatch"].ID)
 }
