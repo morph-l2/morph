@@ -336,7 +336,7 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 	var batch geth.RPCRollupBatch
 	if bytes.Equal(d.beforeMoveBlockCtxABI.Methods["commitBatch"].ID, data[:4]) {
-		args, err := d.rollupABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
+		args, err := d.beforeMoveBlockCtxABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
 		if err != nil {
 			return batch, fmt.Errorf("submitBatches Unpack error:%v", err)
 		}
