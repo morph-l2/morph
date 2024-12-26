@@ -46,5 +46,6 @@ func TestMethodID(t *testing.T) {
 	beforeMoveBlockCtxABI, err := BeforeMoveBlockCtxABI.GetAbi()
 	require.NoError(t, err)
 	currentABI, err := bindings.RollupMetaData.GetAbi()
+	require.NoError(t, err)
 	require.NotEqualValues(t, beforeSkipABI.Methods["commitBatch"].ID, beforeMoveBlockCtxABI.Methods["commitBatch"].ID, currentABI.Methods["commitBatch"].ID)
 }

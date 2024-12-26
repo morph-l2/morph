@@ -331,7 +331,9 @@ func (e *Executor) ConvertBlsDatas(blsDatas []l2node.BlsData) (ret []eth.BatchSi
 }
 
 func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, error) {
-	val, found := e.valsByTmKey[[32]byte(blsData.Signer)]
+	var signer [32]byte
+	copy(signer[:], blsData.Signer)
+	val, found := e.valsByTmKey[signer]
 	if !found {
 		return nil, fmt.Errorf("found invalid validator: %x", blsData.Signer)
 	}
