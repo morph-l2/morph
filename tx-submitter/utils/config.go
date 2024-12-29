@@ -87,7 +87,7 @@ type Config struct {
 	MaxTip     uint64
 	MinTip     uint64
 	MaxBaseFee uint64
-	//max txs in pendingpool
+	// max txs in pendingpool
 	MaxTxsInPendingPool uint64
 
 	// external sign

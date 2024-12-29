@@ -13,7 +13,7 @@ import (
 type BatchData struct {
 	Txs           []*types.Transaction
 	BlockContexts []*BlockInfo
-	//Signature     *bindings.RollupBatchSignature
+	// Signature     *bindings.RollupBatchSignature
 }
 
 // number || timestamp || base_fee || gas_limit || num_txs || tx_hashs

@@ -143,7 +143,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 }
 
 func encodeTransactions(txs []*eth.Transaction) [][]byte {
-	var enc = make([][]byte, len(txs))
+	enc := make([][]byte, len(txs))
 	for i, tx := range txs {
 		enc[i], _ = tx.MarshalBinary()
 	}

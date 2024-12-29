@@ -91,8 +91,8 @@ func (s *Store) ReadL1MessagesInRange(start, end uint64) []types.L1Message {
 	if start > end {
 		return nil
 	}
-	//expectedCount := end - start + 1
-	//messages := make([]types.L1Message, 0, expectedCount)
+	// expectedCount := end - start + 1
+	// messages := make([]types.L1Message, 0, expectedCount)
 	var messages []types.L1Message
 	it := IterateL1MessagesFrom(s.db, start)
 	defer it.Release()
@@ -118,10 +118,8 @@ func (s *Store) ReadL1MessageByIndex(index uint64) *types.L1Message {
 	var l1Msg types.L1Message
 	if err := rlp.DecodeBytes(data, &l1Msg); err != nil {
 		panic(fmt.Sprintf("invalid L1 message RLP, err: %v", err))
-
 	}
 	return &l1Msg
-
 }
 
 func (s *Store) WriteLatestDerivationL1Height(latest uint64) {

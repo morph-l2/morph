@@ -13,7 +13,6 @@ import (
 func (e *Executor) updateNextL1MessageIndex(l2Block *catalyst.ExecutableL2Data) {
 	e.nextL1MsgIndex = l2Block.NextL1MessageIndex
 	e.metrics.NextL1MessageQueueIndex.Set(float64(e.nextL1MsgIndex))
-
 }
 
 // validateL1Messages has the constraints

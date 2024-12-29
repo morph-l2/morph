@@ -118,11 +118,11 @@ type DeployConfig struct {
 	RecordNextBatchSubmissionIndex uint64         `json:"recordNextBatchSubmissionIndex"`
 
 	// MorphToken configs
-	//MorphTokenOwner              common.Address `json:"morphTokenOwner"`
-	//MorphTokenName               string         `json:"morphTokenName"`
-	//MorphTokenSymbol             string         `json:"morphTokenSymbol"`
-	//MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
-	//MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
+	// MorphTokenOwner              common.Address `json:"morphTokenOwner"`
+	// MorphTokenName               string         `json:"morphTokenName"`
+	// MorphTokenSymbol             string         `json:"morphTokenSymbol"`
+	// MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
+	// MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
@@ -240,7 +240,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 
 // RollupConfig converts a DeployConfig to a rollup.Config
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64, l2GenesisStateRoot common.Hash, withdrawRoot common.Hash, genesisBatchHeader []byte) (*rollup.Config, error) {
-	//return nil, nil
+	// return nil, nil
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{

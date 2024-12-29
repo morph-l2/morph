@@ -100,7 +100,6 @@ func NewRollup(
 	bm *l1checker.BlockMonitor,
 	eventInfoStorage *event.EventInfoStorage,
 ) *Rollup {
-
 	return &Rollup{
 		ctx:              ctx,
 		metrics:          metrics,
@@ -125,7 +124,6 @@ func NewRollup(
 }
 
 func (r *Rollup) Start() error {
-
 	// init rollup service
 	if err := r.PreCheck(); err != nil {
 		return err
@@ -158,7 +156,6 @@ func (r *Rollup) Start() error {
 
 	// metrics
 	go utils.Loop(r.ctx, 10*time.Second, func() {
-
 		// get balacnce of wallet
 		balance, err := r.L1Client.BalanceAt(context.Background(), r.WalletAddr(), nil)
 		if err != nil {
@@ -179,7 +176,6 @@ func (r *Rollup) Start() error {
 		}
 
 		r.metrics.SetWalletBalance(balanceEthFloat)
-
 	})
 
 	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
@@ -194,7 +190,6 @@ func (r *Rollup) Start() error {
 	})
 
 	if r.cfg.Finalize {
-
 		go utils.Loop(r.ctx, r.cfg.FinalizeInterval, func() {
 			r.rollupFinalizeMu.Lock()
 			defer r.rollupFinalizeMu.Unlock()
@@ -224,7 +219,6 @@ func (r *Rollup) Start() error {
 }
 
 func (r *Rollup) ProcessTx() error {
-
 	// case 1: in mempool
 	//          -> check timeout
 	// case 2: no in mempool
@@ -340,7 +334,6 @@ func (r *Rollup) ProcessTx() error {
 						r.rollupFinalizeMu.Unlock()
 
 					}
-
 				} else {
 					if method == "commitBatch" && r.pendingTxs.failedIndex != nil {
 						log.Info("fail revover", "failed_index", r.pendingTxs.failedIndex)
@@ -394,7 +387,6 @@ func (r *Rollup) ProcessTx() error {
 	}
 
 	return nil
-
 }
 
 func (r *Rollup) finalize() error {
@@ -553,11 +545,9 @@ func (r *Rollup) finalize() error {
 	}
 
 	return nil
-
 }
 
 func (r *Rollup) rollup() error {
-
 	if !r.cfg.PriorityRollup {
 		cur, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 		if err != nil {
@@ -640,7 +630,6 @@ func (r *Rollup) rollup() error {
 			} else {
 				batchIndex = r.pendingTxs.pindex + 1
 			}
-
 		} else {
 			batchIndex = cindex + 1
 		}
@@ -864,7 +853,6 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 }
 
 func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
-
 	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return nil, nil, nil, err
@@ -917,7 +905,6 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 
 // PreCheck is run before the submitter to check whether the submitter can be started
 func (r *Rollup) PreCheck() error {
-
 	// debug stakers
 	stakers, err := r.Staking.GetStakers(nil)
 	if err != nil {
@@ -952,13 +939,11 @@ func (r *Rollup) PreCheck() error {
 }
 
 func (r *Rollup) WalletAddr() common.Address {
-
 	if r.cfg.ExternalSign {
 		return common.HexToAddress(r.cfg.ExternalSignAddress)
 	} else {
 		return crypto.PubkeyToAddress(r.privKey.PublicKey)
 	}
-
 }
 
 func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRollupBatch, error) {
@@ -1027,7 +1012,6 @@ func GetEpoch(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
 
 // query sequencer set update time from sequencer contract on l2
 func GetSequencerSetUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
-
 	if len(clients) < 1 {
 		return nil, fmt.Errorf("no client to query sequencer set update time")
 	}
@@ -1071,7 +1055,6 @@ func GetEpochUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int
 
 	}
 	return nil, fmt.Errorf("no epoch update time found after querying all clients")
-
 }
 
 func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
@@ -1080,7 +1063,6 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 
 	var newTx *ethtypes.Transaction
 	if tx.Type() == ethtypes.LegacyTxType {
-
 		newTx = ethtypes.NewTx(&ethtypes.LegacyTx{
 			Nonce:    tx.Nonce(),
 			GasPrice: big.NewInt(tx.GasPrice().Int64()),
@@ -1113,7 +1095,6 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 			BlobHashes: tx.BlobHashes(),
 			Sidecar:    tx.BlobTxSidecar(),
 		})
-
 	} else {
 		return nil, fmt.Errorf("unknown tx type:%v", tx.Type())
 	}
@@ -1122,7 +1103,6 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 
 // send tx to l1 with business logic check
 func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
-
 	// judge tx info is valid
 	if tx == nil {
 		return errors.New("nil tx")
@@ -1144,7 +1124,6 @@ func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
 	}
 
 	return nil
-
 }
 
 // send tx to l1 with business logic check
@@ -1256,9 +1235,9 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 
 	log.Info("new tx info",
 		"tx_type", newTx.Type(),
-		"gas_tip", tip.String(), //todo: convert to gwei
-		"gas_fee_cap", gasFeeCap.String(), //todo: convert to gwei
-		"blob_fee_cap", blobFeeCap.String(), //todo: convert to gwei
+		"gas_tip", tip.String(), // todo: convert to gwei
+		"gas_fee_cap", gasFeeCap.String(), // todo: convert to gwei
+		"blob_fee_cap", blobFeeCap.String(), // todo: convert to gwei
 	)
 	// sign tx
 	newTx, err = r.Sign(newTx)
@@ -1275,7 +1254,6 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 }
 
 func (r *Rollup) IsStaker() (bool, error) {
-
 	isStaker, err := r.Staking.IsStaker(nil, r.WalletAddr())
 	if err != nil {
 		return false, fmt.Errorf("call IsStaker err :%v", err)
@@ -1284,7 +1262,6 @@ func (r *Rollup) IsStaker() (bool, error) {
 }
 
 func (r *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.Int, tip *big.Int) (uint64, error) {
-
 	gas, err := r.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
 		From:      from,
 		To:        &to,

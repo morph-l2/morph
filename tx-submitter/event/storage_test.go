@@ -1,14 +1,14 @@
 package event
 
 import (
-	"morph-l2/tx-submitter/db"
 	"testing"
+
+	"morph-l2/tx-submitter/db"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestEventInfoStorage(t *testing.T) {
-
 	db, err := db.New("./testleveldb")
 	require.NoError(t, err)
 	storage := NewEventInfoStorage(db)

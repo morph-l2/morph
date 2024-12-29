@@ -68,7 +68,6 @@ func (s *Sequencer) Start() {
 			return
 		}
 	}
-
 }
 
 func (s *Sequencer) Stop() {

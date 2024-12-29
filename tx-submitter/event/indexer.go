@@ -81,13 +81,11 @@ func (l *EventIndexer) Index() {
 		}
 
 	}
-
 }
 
 // filter logs from from_block to to_block
 // if the range is too large, will divide the range
 func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.Int) (*EventInfo, error) {
-
 	endBlock := toBlock.Uint64()
 	startBlock := endBlock - ei.indexStep
 	lastProcessedBlock := fromBlock.Uint64()
@@ -139,6 +137,7 @@ func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.
 func (l *EventIndexer) GetFilter() ethereum.FilterQuery {
 	return l.filterQuery
 }
+
 func (l *EventIndexer) GetStorage() *EventInfoStorage {
 	return l.storage
 }

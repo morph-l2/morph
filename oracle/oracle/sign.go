@@ -79,5 +79,6 @@ func (o *Oracle) newRecordTxAndSign(callData []byte) (*types.Transaction, error)
 		GasFeeCap: gasFeeCap,
 		Gas:       gas,
 		To:        &o.recordAddr,
-		Data:      callData}))
+		Data:      callData,
+	}))
 }
