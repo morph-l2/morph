@@ -17,6 +17,9 @@ abstract contract LidoBridgeableTokens {
      * Errors *
      **********/
 
+    /// @dev Thrown when the given address is `address(0)`.
+    error ErrorZeroAddress();
+
     /// @dev Thrown the given `l1Token` is not supported.
     error ErrorUnsupportedL1Token();
 
