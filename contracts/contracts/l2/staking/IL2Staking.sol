@@ -8,6 +8,45 @@ interface IL2Staking {
      * Structs *
      ***********/
 
+    /// @notice Commission representing a delegatee's commission info.
+    ///
+    /// @custom:field checkpoint        The epoch when the commission percentage was last changed
+    /// @custom:field percentage        commission percentage
+    /// @custom:field prePercentage     pre commission percentage
+    /// @custom:field amount            unclaimed commission amount
+    struct Commission {
+        uint256 checkpoint;
+        uint256 prePercentage;
+        uint256 percentage;
+        uint256 amount;
+    }
+
+    /// @notice DelegateeDelegation representing a delegatee's delegation info.
+    ///
+    /// @custom:field checkpoint    The epoch when the share was last changed
+    /// @custom:field preAmount     Total delegations of a delegatee
+    /// @custom:field amount        Total delegations of a delegatee
+    /// @custom:field preShare      Total share of a delegatee at the start of an epoch
+    /// @custom:field share         Total share of a delegatee at the end of an epoch
+    struct DelegateeDelegation {
+        uint256 checkpoint;
+        uint256 preAmount;
+        uint256 amount;
+        uint256 preShare;
+        uint256 share;
+    }
+
+    /// @notice DelegatorDelegation representing a delegator's delegation info.
+    ///
+    /// @custom:field checkpoint    The epoch when the share was last changed
+    /// @custom:field preShare      share of a delegator at the start of an epoch
+    /// @custom:field share         share of a delegator at the end of an epoch
+    struct DelegatorDelegation {
+        uint256 checkpoint;
+        uint256 preShare;
+        uint256 share;
+    }
+
     /// @notice Undelegation representing a undelegation info.
     ///
     /// @custom:field delegatee  delegatee
@@ -19,6 +58,16 @@ interface IL2Staking {
         uint256 unlockEpoch;
     }
 
+    /***********
+     * Errors *
+     ***********/
+
+    /// @notice error not staker
+    error ErrNotStaker();
+
+    /// @notice error invalid nonce
+    error ErrInvalidNonce();
+
     /**********
      * Events *
      **********/
@@ -26,27 +75,37 @@ interface IL2Staking {
     /// @notice Emitted delegated stake
     /// @param delegatee          delegatee
     /// @param delegator          delegator
-    /// @param amount             new delegation amount, not increment
     /// @param stakeAmount        stake amount
+    /// @param delegateeAmount    new delegatee total amount
+    /// @param delegateeShare     new delegatee total sare
+    /// @param delegatorShare     new delegator share
     /// @param effectiveEpoch     effective epoch
     event Delegated(
         address indexed delegatee,
         address indexed delegator,
-        uint256 amount,
         uint256 stakeAmount,
+        uint256 delegateeAmount,
+        uint256 delegateeShare,
+        uint256 delegatorShare,
         uint256 effectiveEpoch
     );
 
     /// @notice Emitted undelegated stake
     /// @param delegatee          delegatee
     /// @param delegator          delegator
-    /// @param amount             undelegation amount
+    /// @param unstakeAmount        stake amount
+    /// @param delegateeAmount    new delegatee total amount
+    /// @param delegateeShare     new delegatee total sare
+    /// @param delegatorShare     new delegator share
     /// @param effectiveEpoch     effective epoch
     /// @param unlockEpoch        unlock epoch index
     event Undelegated(
         address indexed delegatee,
         address indexed delegator,
-        uint256 amount,
+        uint256 unstakeAmount,
+        uint256 delegateeAmount,
+        uint256 delegateeShare,
+        uint256 delegatorShare,
         uint256 effectiveEpoch,
         uint256 unlockEpoch
     );
@@ -61,12 +120,6 @@ interface IL2Staking {
         uint256 unlockEpoch,
         uint256 amount
     );
-
-    /// @notice Emitted commission updated
-    /// @param staker           staker address
-    /// @param percentage       commission percentage
-    /// @param epochEffective   epoch effective
-    event CommissionUpdated(address indexed staker, uint256 percentage, uint256 epochEffective);
 
     /// @notice Emitted staker added
     /// @param addr     staker address
@@ -87,6 +140,29 @@ interface IL2Staking {
     /// @param oldSize    The old sequencer set max size
     /// @param newSize    The new sequencer set max size
     event SequencerSetMaxSizeUpdated(uint256 oldSize, uint256 newSize);
+
+    /// @notice Emitted reward epochs uploaded
+    /// @param sequencer            The sequencer address
+    /// @param delegatorReward      The delegator reward amount
+    /// @param commissionAmount     The commission amount
+    event Distributed(address indexed sequencer, uint256 delegatorReward, uint256 commissionAmount);
+
+    /// @notice Emitted commission updated
+    /// @param staker           staker address
+    /// @param oldPercentage    old commission percentage
+    /// @param newPercentage    new commission percentage
+    /// @param epochEffective   epoch effective
+    event CommissionUpdated(
+        address indexed staker,
+        uint256 oldPercentage,
+        uint256 newPercentage,
+        uint256 epochEffective
+    );
+
+    /// @notice commission claimed
+    /// @param delegatee    delegatee
+    /// @param amount       amount
+    event CommissionClaimed(address indexed delegatee, uint256 amount);
 
     /*************************
      * Public View Functions *
@@ -135,6 +211,10 @@ interface IL2Staking {
     /// @notice get staker addresses length
     function getStakerAddressesLength() external view returns (uint256);
 
+    /// @notice query all unclaimed commission of a staker
+    /// @param delegatee     delegatee address
+    function queryUnclaimedCommission(address delegatee) external view returns (uint256 amount);
+
     /*****************************
      * Public Mutating Functions *
      *****************************/
@@ -149,27 +229,39 @@ interface IL2Staking {
     /// @param remove   staker to remove
     function removeStakers(uint256 nonce, address[] calldata remove) external;
 
-    /// @notice setCommissionRate set delegate commission percentage
-    /// @param commission    commission percentage, denominator is 100
-    function setCommissionRate(uint256 commission) external;
+    /// @notice setCommissionPercentage set delegate commission percentage
+    /// @param percentage    commission percentage, denominator is 100
+    function setCommissionPercentage(uint256 percentage) external;
 
     /// @notice delegator stake morph to delegatee
     /// @param delegatee    stake to whom
     /// @param amount       stake amount
     function delegateStake(address delegatee, uint256 amount) external;
 
-    /// @notice delegator unstake morph
-    /// @param delegatee delegatee address
-    function undelegateStake(address delegatee) external;
+    /// @notice delegator redelegate stake morph token to new delegatee
+    /// @param delegateeFrom    old delegatee
+    /// @param delegateeTo      new delegatee
+    /// @param amount           amount
+    function redelegateStake(address delegateeFrom, address delegateeTo, uint256 amount) external;
+
+    /// @notice delegator undelegate stake morph token
+    /// @param delegatee    delegatee address
+    /// @param amount       undelegate stake amount, undelegate all if set 0
+    function undelegateStake(address delegatee, uint256 amount) external;
 
     /// @notice delegator cliam delegate staking value
     function claimUndelegation() external;
 
-    /// @notice delegator claim reward
-    /// @param delegatee         delegatee address, claim all if address(0)
-    /// @param targetEpochIndex  up to the epoch index that the delegator wants to claim
-    function claimReward(address delegatee, uint256 targetEpochIndex) external;
-
     /// @notice claimCommission claim unclaimed commission reward of a staker
     function claimCommission() external;
+
+    /// @dev distribute inflation by system at end of the epoch
+    /// @param epochIndex         epoch index
+    /// @param sequencers         sequencers
+    /// @param rewards            total rewards
+    function distributeInflation(
+        uint256 epochIndex,
+        address[] calldata sequencers,
+        uint256[] calldata rewards
+    ) external;
 }
