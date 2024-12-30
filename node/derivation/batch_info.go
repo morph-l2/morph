@@ -57,9 +57,10 @@ type BatchInfo struct {
 	lastBlockNumber  uint64
 	firstBlockNumber uint64
 
-	root                   common.Hash
-	withdrawalRoot         common.Hash
-	skippedL1MessageBitmap *big.Int
+	root                       common.Hash
+	withdrawalRoot             common.Hash
+	skippedL1MessageBitmap     *big.Int
+	parentTotalL1MessagePopped uint64
 }
 
 func (bi *BatchInfo) FirstBlockNumber() uint64 {
@@ -79,20 +80,30 @@ func (bi *BatchInfo) TxNum() uint64 {
 }
 
 // ParseBatch This method is externally referenced for parsing Batch
-func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, parentBatchBlock *uint64) error {
+func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
+	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
+	if err != nil {
+		return fmt.Errorf("decode parent batch header error:%v", err)
+	}
+	bi.parentTotalL1MessagePopped = parentBatchHeader.TotalL1MessagePopped
 	bi.root = batch.PostStateRoot
+	bi.batchIndex = parentBatchHeader.BatchIndex + 1
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
 	tq := newTxQueue()
 	var rawBlockContexts hexutil.Bytes
 	var txsData []byte
 	var blockCount uint64
+	// TODO parentBatchBlock = parentBatchHeader.LastBlock
+	var parentBatchBlock uint64
 	if batch.BlockContexts == nil {
-		if parentBatchBlock == nil {
-			return fmt.Errorf("block number of parent batch not found")
-		}
-		blockCount = batch.LastBlockNumber - *parentBatchBlock
+		//if parentBatchBlock == nil {
+		//	return fmt.Errorf("block number of parent batch not found")
+		//}
+		blockCount = batch.LastBlockNumber - parentBatchBlock
 	}
+	// If BlockContexts is not nil, the block context should not be included in the blob.
+	// Therefore, the required length must be zero.
 	length := blockCount * 60
 	for _, blob := range batch.Sidecar.Blobs {
 		blobCopy := blob

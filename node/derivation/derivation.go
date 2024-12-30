@@ -408,20 +408,15 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*BatchInfo, error) {
-	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
-	if err != nil {
-		return nil, fmt.Errorf("decode batch header error:%v", err)
-	}
+
 	batchInfo := new(BatchInfo)
-	parentBatchBlock := d.db.ReadBlockNumberByIndex(parentBatchHeader.BatchIndex)
-	if err := batchInfo.ParseBatch(batch, parentBatchBlock); err != nil {
+	if err := batchInfo.ParseBatch(batch); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
-	d.db.WriteBatchBlockNumber(batchInfo.batchIndex, batchInfo.lastBlockNumber)
-	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped, l2Height); err != nil {
+	if err := d.handleL1Message(batchInfo, batchInfo.parentTotalL1MessagePopped, l2Height); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
-	batchInfo.batchIndex = parentBatchHeader.BatchIndex + 1
+
 	return batchInfo, nil
 }
 
