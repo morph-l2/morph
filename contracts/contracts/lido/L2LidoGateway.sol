@@ -60,7 +60,7 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
 
     /// @notice Initialize the storage of L2LidoGateway v2.
     /// @param _depositsEnabler The address of user who can enable deposits
-    /// @param _depositsEnabler The address of user who can disable deposits
+    /// @param _depositsDisabler The address of user who can disable deposits
     /// @param _withdrawalsEnabler The address of user who can enable withdrawals
     /// @param _withdrawalsDisabler The address of user who can disable withdrawals
     function initializeV2(
