@@ -53,7 +53,7 @@ The technical implementation focuses on the following requirements for the contr
 
 A high-level overview of the proposed solution might be found in the below diagram:
 
-![](https://imgur.com/rbIvCr6)
+![](https://i.imgur.com/rbIvCr6.png)
 
 - [**`LidoGatewayManager`**](./LidoGatewayManager.sol) - contains administrative methods to retrieve and control the state of the bridging process.
 - [**`LidoBridgeableTokens`**](./LidoBridgeableTokens.sol) - contains the logic for validation of tokens used in the bridging process.
