@@ -152,9 +152,10 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         IMorphERC20Upgradeable(_l2Token).burn(_from, _amount);
 
         // 3. Generate message passed to L1LidoGateway.
+        address _l1Token = l1Token;
         bytes memory _message = abi.encodeCall(
             IL1ERC20Gateway.finalizeWithdrawERC20,
-            (l1Token, _l2Token, _from, _to, _amount, _data)
+            (_l1Token, _l2Token, _from, _to, _amount, _data)
         );
 
         uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
@@ -162,6 +163,6 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         // 4. send message to L2CrossDomainMessenger
         IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
 
-        emit WithdrawERC20(l1Token, _l2Token, _from, _to, _amount, _data, nonce);
+        emit WithdrawERC20(_l1Token, _l2Token, _from, _to, _amount, _data, nonce);
     }
 }

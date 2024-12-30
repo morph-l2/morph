@@ -121,9 +121,10 @@ contract L1LidoGateway is L1ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         if (_data.length != 0) revert DepositAndCallIsNotAllowed();
 
         // 2. Generate message passed to L2LidoGateway.
+        address _l2Token = l2Token;
         bytes memory _message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
-            (_token, l2Token, _from, _to, _amount, _data)
+            (_token, _l2Token, _from, _to, _amount, _data)
         );
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
@@ -131,6 +132,6 @@ contract L1LidoGateway is L1ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         // 3. Send message to L1CrossDomainMessenger.
         IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit, _from);
 
-        emit DepositERC20(_token, l2Token, _from, _to, _amount, _data, nonce);
+        emit DepositERC20(_token, _l2Token, _from, _to, _amount, _data, nonce);
     }
 }
