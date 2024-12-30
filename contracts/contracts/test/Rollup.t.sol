@@ -276,7 +276,7 @@ contract RollupTest is L1MessageBaseTest {
         // invalid version, revert
         hevm.startPrank(alice);
         hevm.expectRevert("invalid version");
-        batchDataInput = IRollup.BatchDataInput(1, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
+        batchDataInput = IRollup.BatchDataInput(2, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
@@ -404,9 +404,9 @@ contract RollupTest is L1MessageBaseTest {
 
         // incorrect batch hash, revert
         hevm.expectRevert("incorrect batch hash");
-        batchHeader1[0] = bytes1(uint8(1)); // change version to 1
+        batchHeader1[1] = bytes1(uint8(1)); // change 2nd byte to 1
         rollup.revertBatch(batchHeader1, 1);
-        batchHeader1[0] = bytes1(uint8(0)); // change back
+        batchHeader1[1] = bytes1(uint8(0)); // change back
 
         // revert middle batch, revert
         hevm.expectRevert("reverting must start from the ending");
