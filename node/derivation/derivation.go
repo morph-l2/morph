@@ -438,9 +438,6 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
 			for _, l1Message := range l1Messages {
-				if rollupData.skippedL1MessageBitmap != nil && rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentTotalL1MessagePopped)) == 1 {
-					continue
-				}
 				transaction := eth.NewTx(&l1Message.L1MessageTx)
 				l1Transactions = append(l1Transactions, transaction)
 			}

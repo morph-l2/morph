@@ -59,7 +59,6 @@ type BatchInfo struct {
 
 	root                       common.Hash
 	withdrawalRoot             common.Hash
-	skippedL1MessageBitmap     *big.Int
 	parentTotalL1MessagePopped uint64
 }
 
