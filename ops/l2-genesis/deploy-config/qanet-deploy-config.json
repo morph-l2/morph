@@ -10,12 +10,12 @@
 
   "l1FeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "sequencerFeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
-  "l2BridgeFeeVaultRecipient": "0x530000000000000000000000000000000000000A",
+  "l2BridgeFeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "fundDevAccounts": false,
 
   "l1StartingBlockTag": "earliest",
-  "maxTxPerBlock": 10000,
-  "maxTxPayloadBytesPerBlock": 345000,
+  "maxTxPerBlock": 1000,
+  "maxTxPayloadBytesPerBlock": 122880,
 
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
