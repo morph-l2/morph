@@ -8,13 +8,13 @@ const config = {
     l2ChainID: 2810,
 
     // L1MessageQueue config
-    l1MessageQueueMaxGasLimit: 100000000,
+    l1MessageQueueMaxGasLimit: 30000000,
 
     // gasPriceOracle config
     l2BaseFee: 0.1,  // Gwei
 
     // verify contract config
-    programVkey: '0x00bc91a65e39100f3b075c9edf1a60fd1cb025b9413ea19c34c62d455e512685',
+    programVkey: '0x001bdbe2a0f4839f3e7ca3b42ab1ca9d012e23249d17564c953d3557aede919c',
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 600,
