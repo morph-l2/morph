@@ -44,18 +44,20 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 	}
 
 	// Create batch header
-	batchHeader := e.createBatchHeader(batchDataHash, sidecar, sequencerSetVerifyHash)
+	batchHeader := e.createBatchHeader(batchDataHash, sidecar, sequencerSetVerifyHash, block.Timestamp)
 
 	// Cache the sealed header and sidecar
 	e.batchingCache.sealedBatchHeader = &batchHeader
 	e.batchingCache.sealedSidecar = sidecar
 
+	batchHash, err := batchHeader.Hash()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to hash sealed batch header: %w", err)
+	}
 	// Log information about the sealed batch
-	e.logSealedBatch(batchHeader)
-
-	batchHash := batchHeader.Hash()
+	e.logSealedBatch(batchHeader, batchHash)
 	// Return the batch hash and encoded batch header
-	return batchHash[:], batchHeader.Encode(), nil
+	return batchHash[:], batchHeader, nil
 }
 
 // handleBatchSealing determines which version to use for compression and calculates the data hash.
@@ -93,17 +95,20 @@ func (e *Executor) handleBatchSealing(blockTimestamp uint64) ([]byte, common.Has
 }
 
 // createBatchHeader creates a BatchHeader from the given parameters.
-func (e *Executor) createBatchHeader(dataHash common.Hash, sidecar *eth.BlobTxSidecar, sequencerSetVerifyHash common.Hash) types.BatchHeader {
+func (e *Executor) createBatchHeader(dataHash common.Hash, sidecar *eth.BlobTxSidecar, sequencerSetVerifyHash common.Hash, blockTimestamp uint64) types.BatchHeaderBytes {
 	blobHashes := []common.Hash{types.EmptyVersionedHash}
 	if sidecar != nil && len(sidecar.Blobs) > 0 {
 		blobHashes = sidecar.BlobHashes()
 	}
 
-	l1MessagePopped := e.batchingCache.totalL1MessagePopped - e.batchingCache.parentBatchHeader.TotalL1MessagePopped
+	parentBatchHeaderTotalL1, _ := e.batchingCache.parentBatchHeader.TotalL1MessagePopped()
 
-	return types.BatchHeader{
-		Version:                0,
-		BatchIndex:             e.batchingCache.parentBatchHeader.BatchIndex + 1,
+	l1MessagePopped := e.batchingCache.totalL1MessagePopped - parentBatchHeaderTotalL1
+
+	parentBatchIndex, _ := e.batchingCache.parentBatchHeader.BatchIndex()
+	parentBatchHash, _ := e.batchingCache.parentBatchHeader.Hash()
+	batchHeaderV0 := types.BatchHeaderV0{
+		BatchIndex:             parentBatchIndex + 1,
 		L1MessagePopped:        l1MessagePopped,
 		TotalL1MessagePopped:   e.batchingCache.totalL1MessagePopped,
 		DataHash:               dataHash,
@@ -112,20 +117,34 @@ func (e *Executor) createBatchHeader(dataHash common.Hash, sidecar *eth.BlobTxSi
 		PostStateRoot:          e.batchingCache.postStateRoot,
 		WithdrawalRoot:         e.batchingCache.withdrawRoot,
 		SequencerSetVerifyHash: sequencerSetVerifyHash,
-		ParentBatchHash:        e.batchingCache.parentBatchHeader.Hash(),
+		ParentBatchHash:        parentBatchHash,
 	}
+	if e.isBatchUpgraded(blockTimestamp) {
+		batchHeaderV1 := types.BatchHeaderV1{
+			BatchHeaderV0:   batchHeaderV0,
+			LastBlockNumber: e.batchingCache.lastPackedBlockHeight,
+		}
+		return batchHeaderV1.Bytes()
+	}
+
+	return batchHeaderV0.Bytes()
 }
 
 // logSealedBatch logs the details of the sealed batch for debugging purposes.
-func (e *Executor) logSealedBatch(batchHeader types.BatchHeader) {
-	e.logger.Info("Sealed batch header", "batchHash", batchHeader.Hash().Hex())
+func (e *Executor) logSealedBatch(batchHeader types.BatchHeaderBytes, batchHash common.Hash) {
+	e.logger.Info("Sealed batch header", "batchHash", batchHash.Hex())
+	batchIndex, _ := batchHeader.BatchIndex()
+	l1MessagePopped, _ := batchHeader.L1MessagePopped()
+	totalL1MessagePopped, _ := batchHeader.TotalL1MessagePopped()
+	dataHash, _ := batchHeader.DataHash()
+	parentBatchHash, _ := batchHeader.ParentBatchHash()
 	e.logger.Info(fmt.Sprintf("===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===blockNum: %d \n===ParentBatchHash: %x \n",
-		batchHeader.BatchIndex,
-		batchHeader.L1MessagePopped,
-		batchHeader.TotalL1MessagePopped,
-		batchHeader.DataHash,
+		batchIndex,
+		l1MessagePopped,
+		totalL1MessagePopped,
+		dataHash,
 		e.batchingCache.batchData.BlockNum(),
-		batchHeader.ParentBatchHash))
+		parentBatchHash))
 
 	blockContexts, _ := e.batchingCache.batchData.Encode()
 	e.logger.Info(fmt.Sprintf("===blockContexts: %x \n", blockContexts))
