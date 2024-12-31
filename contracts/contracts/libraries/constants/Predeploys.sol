@@ -93,11 +93,6 @@ library Predeploys {
     address internal constant MORPH_TOKEN = 0x5300000000000000000000000000000000000013;
 
     /**
-     * @notice Address of the DISTRIBUTE predeploy.
-     */
-    address internal constant DISTRIBUTE = 0x5300000000000000000000000000000000000014;
-
-    /**
      * @notice Address of the L2_STAKING predeploy.
      */
     address internal constant L2_STAKING = 0x5300000000000000000000000000000000000015;
@@ -116,4 +111,9 @@ library Predeploys {
      * @notice Address of the L2_REVERSE_ERC20_GATEWAY predeploy.
      */
     address internal constant L2_REVERSE_ERC20_GATEWAY = 0x5300000000000000000000000000000000000018;
+
+    /**
+     * @notice Address of the System.
+     */
+    address internal constant System = 0x5300000000000000000000000000000000000019;
 }
