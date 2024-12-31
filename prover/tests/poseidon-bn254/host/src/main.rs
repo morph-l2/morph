@@ -1,41 +1,40 @@
 use alloy::primitives::B256;
 use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
 use sp1_sdk::{ProverClient, SP1Stdin};
-use std::time::Instant;
+// use std::time::Instant;
+
 fn main() {
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
 
-    let native_hash = cacl_poseidon_hash();
-    println!("native_hash: {}", native_hash);
-    println!("hash generated with native execution: {}", hex::encode(native_hash));
+    // Step1. Run in native
+    let hash_native = cacl_poseidon_hash();
+    println!("hash_native: {}", hash_native);
 
+    // Step2. Run in sp1-vm
     // The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
     let dev_elf: &[u8] = include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
-
     // Setup the prover client.
     let client = ProverClient::new();
-
     // Setup the inputs.
-    let mut stdin = SP1Stdin::new();
-
-    let data = vec![1, 2];
-    stdin.write(&data);
-
+    let stdin = SP1Stdin::new();
     // Execute the program in sp1-vm
-    let (mut public_values, execution_report) =
-        client.execute(dev_elf, stdin.clone()).run().unwrap();
-    println!("Program executed successfully.");
+    let (public_values, execution_report) = client.execute(dev_elf, stdin.clone()).run().unwrap();
     // Record the number of cycles executed.
-    println!("Number of cycles: {}", execution_report.total_instruction_count());
+    println!(
+        "Program executed successfully, Number of cycles: {}",
+        execution_report.total_instruction_count()
+    );
     println!("public_values: {:?}", public_values);
+    let hash_bytes: [u8; 32] = public_values.to_vec()[8..40].try_into().unwrap();
+    let hash_vm = B256::from_slice(&hash_bytes);
 
-    let rt_data = public_values.read::<[u8; 32]>();
-    // let rt_data: [u8; 32] = public_values.to_vec()[8..40].try_into().unwrap();
-    // println!("rt_data: {:?}", rt_data);
+    println!("hash generated with sp1-vm execution: {}", hash_vm);
 
-    println!("hash generated with sp1-vm execution: {}", hex::encode(B256::from_slice(&rt_data)));
+    assert_eq!(hash_vm, hash_native, "hash_vm == hash_native ");
+    println!("Values are correct!");
 
+    // Prove
     // let start = Instant::now();
 
     // // Setup the program for proving.

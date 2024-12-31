@@ -15,8 +15,6 @@ fn cacl_poseidon_hash() -> B256 {
 }
 
 pub fn main() {
-    let _x = sp1_zkvm::io::read_vec();
-
     let hash_bytes = cacl_poseidon_hash();
     // Commit to the public values of the program. The final proof will have a commitment to all the
     // bytes that were committed to.
