@@ -1,6 +1,6 @@
 # Lido's Morph Bridge
 
-The document outlines the process of bridging ERC20-compatible tokens[^*] between the Ethereum and Morph chains.
+The document outlines the process of bridging ERC20-compatible tokens between the Ethereum and Morph chains.
 
 This marks the initial phase of Lido's integration into the Morph protocol. The primary objective of this implementation is to establish a solid foundation for Lido's long-term expansion goals on the Morph chain. The broader vision for Lido's integration into Layer 2 solutions includes:
 
@@ -9,10 +9,6 @@ This marks the initial phase of Lido's integration into the Morph protocol. The 
 - Maintaining a user experience on Layer 2 that closely resembles that of the Ethereum mainnet
 At this stage, the implementation aims to deliver a scalable and reliable solution for Lido to bridge ERC20-compatible tokens between Morph and the Ethereum chain.
 
-[*]: Please note that the current implementation may not accommodate non-standard ERC20 functionalities. For instance, rebasable tokens or those with transfer fees may not function correctly. If your token has unique ERC20 logic, please verify its compatibility with the bridge before use.
-
-
-
 ## Security surface overview
 
 | Statement                                                                                                                                    | Answer                                                                                                                                                                                                                                                                             |
@@ -20,14 +16,14 @@ At this stage, the implementation aims to deliver a scalable and reliable soluti
 | It is possible to bridge wstETH forth and back using this bridge                                                                             | Yes                                                                                                                                                                                                                                                                                |
 | The bridge using a canonical mechanism for message/value passing                                                                             | Yes                                                                                                                                                                                                                                                                                |
 | The bridge is upgradeable                                                                                                                    | Yes                                                                                                                                                                                                                                                                                |
-| Upgrade authority for the bridge                                                                                                             | TBA                                                                                                                                                                                                                                                                                |
+| Upgrade authority for the bridge                                                                                                             | Yes                                                                                                                                                                                                                                                                                |
 | Emergency pause/cancel mechanisms and their authorities                                                                                      | TBA                                                                                                                                                                                                                                                                                |
 | The bridged token support permits and ERC-1271                                                                                               | Yes                                                                                                                                                                                                                                                                                |
 | Are the following things in the scope of this bridge deployment:                                                                             |                                                                                                                                                                                                                                                                                    |
 | - Passing the (w)stETH/USD price feed                                                                                                        | No                                                                                                                                                                                                                                                                                 |
-| - Passing Lido DAO governance decisions                                                                                                      | [Lido DAO Agent](https://etherscan.io/address/0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c) representation [on Morph (address TBD)] via [MorphBridgeExecutor](TBD) |
+| - Passing Lido DAO governance decisions                                                                                                      | [Lido DAO Agent](https://etherscan.io/address/0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c) representation via [MorphBridgeExecutor](TBD) |
 | Bridges are complicated in that the transaction can succeed on one side and fail on the other. What's the handling mechanism for this issue? | TBA                                                                                                                                                                                                                                                                                |
-| Is there a deployment script that sets all the parameters and authorities correctly?                                                         | No, what we do is that we upgrading from existing gateway, will need to involve the multisig operation by Morph                                                                                                                                                                             |
+| Is there a deployment script that sets all the parameters and authorities correctly?                                                         | No, We use hardhat tasks to deploy and perform related permission operations after the test is completed.                                                                                                                                                                             |
 | Is there a post-deploy check script that, given a deployment, checks that all parameters and authorities are set correctly?                  | No                                                                                                                                                                                                                                                                                 |
 
 ## Morph's Bridging Flow
@@ -56,8 +52,7 @@ The technical implementation prioritizes the following requirements for the cont
 A high-level overview of the proposed solution can be found in the diagram below:
 
 
-[](https://imgur.com/rbIvCr6)
-
+![](https://i.imgur.com/rbIvCr6.png)
 
 - [**`LidoGatewayManager`**](./LidoGatewayManager.sol): This contract includes administrative methods to manage and monitor the state of the bridging process.
 - [**`LidoBridgeableTokens`**](./LidoBridgeableTokens.sol) : This contract implements the logic for validating tokens involved in the bridging process.
@@ -69,6 +64,11 @@ A high-level overview of the proposed solution can be found in the diagram below
 ## Morph's Bridging Flow
 
 You can find the general process for bridging tokens through Morph's Lido bridge here: [ETH and ERC20 Token Bridge](https://docs.morphl2.io/docs/build-on-morph/build-on-morph/bridge-between-morph-and-ethereum).
+
+The goal of cross-chain governance is bridging the Lido DAO governance decisions, voted by the LDO holders on Ethereum, to Morph network. The main component of this bridge is MorphBridgeExecutor contract on L2, which queues the action sets sent from L1 Lido Agent through L1Executor.
+
+![](https://i.imgur.com/4cgEo63.png)
+
 
 ## Deployment Process
 
@@ -97,15 +97,13 @@ If this invariant is violated, Lido will enter a dispute period to suspend both 
 
 ### Attack on L1CrossDomainMessenger
 
-According to Morph documentation, the `L1CrossDomainMessenger`:
-
-> The L1 Cross Domain Messenger contract sends messages from L1 to L2 and relays messages from L2 to L1.
+According to the Morph documentation, the `L1CrossDomainMessenger` contract sends messages from L1 to L2 and executes the challenged L2 messages in the `Rollup`.
 
 This contract plays a crucial role in L2-to-L1 communication, as all messages from L2 that are finalized by a challenger and verified by Merkle proof are executed on behalf of this contract.
 
-If there is a vulnerability in the `L1CrossDomainMessenger` that allows an attacker to send arbitrary messages while bypassing the challenge and Merkle proof, they could potentially drain tokens from the L1 bridge.
+If there is a vulnerability in the `L1CrossDomainMessenger` or `Rollup` that allows an attacker to send arbitrary messages while bypassing the challenge and Merkle proof, they could potentially drain tokens from the L1 bridge.
 
-Additionally, the upgradeability of the `L1CrossDomainMessenger` poses risks. An attacker could exploit this by replacing the implementation with malicious functionality, which could lead to the theft of all locked tokens on the L1 bridge.
+Additionally, the upgradeability of the `L1CrossDomainMessenger` and `Rollup` poses risks. An attacker could exploit this by replacing the implementation with malicious functionality, which could lead to the theft of all locked tokens on the L1 bridge.
 
 To respond swiftly to such an attack, Lido can implement monitoring of the Proxy contract to raise an alert in the event of an implementation upgrade.
 
