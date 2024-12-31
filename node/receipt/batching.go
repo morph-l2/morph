@@ -36,8 +36,8 @@ func NewIterativeBatchCall[K any, V any](
 	requestsKeys []K,
 	makeRequest func(K) (V, rpc.BatchElem),
 	getBatch BatchCallContextFn,
-	batchSize int) *IterativeBatchCall[K, V] {
-
+	batchSize int,
+) *IterativeBatchCall[K, V] {
 	if len(requestsKeys) < batchSize {
 		batchSize = len(requestsKeys)
 	}

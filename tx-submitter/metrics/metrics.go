@@ -25,7 +25,6 @@ type Metrics struct {
 }
 
 func NewMetrics() *Metrics {
-
 	return &Metrics{
 		RpcErrors: promauto.NewCounter(prometheus.CounterOpts{
 			Name:      "submitter_rpc_errors",

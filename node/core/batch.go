@@ -102,7 +102,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 
 		var txsPayload []byte
 		var l1TxHashes []common.Hash
-		var totalL1MessagePopped = parentBatchHeader.TotalL1MessagePopped
+		totalL1MessagePopped := parentBatchHeader.TotalL1MessagePopped
 		var lastHeightBeforeCurrentBatch uint64
 		var lastBlockStateRoot common.Hash
 		var lastBlockWithdrawRoot common.Hash
@@ -393,7 +393,7 @@ func (e *Executor) setCurrentBlock(currentBlockBytes []byte, currentTxs tmtypes.
 	if err != nil {
 		return err
 	}
-	var curBlock = new(types.WrappedBlock)
+	curBlock := new(types.WrappedBlock)
 	if err = curBlock.UnmarshalBinary(currentBlockBytes); err != nil {
 		return err
 	}
@@ -496,7 +496,7 @@ func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, 
 }
 
 func wrappedBlockFromBytes(blockBytes []byte) (*types.WrappedBlock, error) {
-	var curBlock = new(types.WrappedBlock)
+	curBlock := new(types.WrappedBlock)
 	if err := curBlock.UnmarshalBinary(blockBytes); err != nil {
 		return nil, err
 	}

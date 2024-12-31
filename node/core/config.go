@@ -56,7 +56,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	output := io.Writer(os.Stderr)
 	if ctx.GlobalIsSet(flags.LogFilename.Name) {
 		logFilename := ctx.GlobalString(flags.LogFilename.Name)
-		f, err := os.OpenFile(filepath.Clean(logFilename), os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+		f, err := os.OpenFile(filepath.Clean(logFilename), os.O_CREATE|os.O_RDWR, os.FileMode(0o600))
 		if err != nil {
 			return fmt.Errorf("wrong log.filename set: %d", err)
 		}
@@ -114,7 +114,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
 			return fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
-		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
+		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0o600); err != nil {
 			return err
 		}
 	}

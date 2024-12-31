@@ -33,7 +33,6 @@ func NewEventInfoStorage(db *db.Db) *EventInfoStorage {
 }
 
 func (e *EventInfoStorage) Store() error {
-
 	// Convert struct to JSON string
 	jsonData, err := json.Marshal(e.EventInfo)
 	if err != nil {
@@ -49,6 +48,7 @@ func (e *EventInfoStorage) Store() error {
 	}
 	return nil
 }
+
 func (e *EventInfoStorage) Load() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

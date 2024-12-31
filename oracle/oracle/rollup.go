@@ -18,9 +18,7 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 )
 
-var (
-	MaxEpochCount = 50
-)
+var MaxEpochCount = 50
 
 type SequencerSetUpdateEpoch struct {
 	Submitters []common.Address

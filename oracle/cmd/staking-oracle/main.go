@@ -19,7 +19,6 @@ var (
 )
 
 func main() {
-
 	app := cli.NewApp()
 	app.Flags = flags.Flags
 	app.Version = fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate))

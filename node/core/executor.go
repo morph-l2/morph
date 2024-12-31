@@ -130,7 +130,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		if err != nil {
 			return nil, err
 		}
-		//executor.syncer.Start()
+		// executor.syncer.Start()
 		executor.l1MsgReader = executor.syncer
 		return executor, nil
 	}
@@ -324,7 +324,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	// end block
 	e.updateNextL1MessageIndex(l2Block)
 
-	var newValidatorSet = consensusData.ValidatorSet
+	newValidatorSet := consensusData.ValidatorSet
 	var newBatchParams *tmproto.BatchParams
 	if !e.devSequencer {
 		if newValidatorSet, err = e.updateSequencerSet(); err != nil {

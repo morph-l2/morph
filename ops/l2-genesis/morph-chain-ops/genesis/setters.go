@@ -14,15 +14,13 @@ import (
 	"morph-l2/morph-deployer/morph-chain-ops/state"
 )
 
-var (
-	// UntouchablePredeploys are addresses in the predeploy namespace
-	// that should not be touched by the migration process.
-	UntouchablePredeploys = map[common.Address]bool{
-		//predeploys.ProxyAdminAddr:         true,
-		predeploys.MorphStandardERC20Addr: true,
-		predeploys.L2WETHAddr:             true,
-	}
-)
+// UntouchablePredeploys are addresses in the predeploy namespace
+// that should not be touched by the migration process.
+var UntouchablePredeploys = map[common.Address]bool{
+	// predeploys.ProxyAdminAddr:         true,
+	predeploys.MorphStandardERC20Addr: true,
+	predeploys.L2WETHAddr:             true,
+}
 
 // FundDevAccounts will fund each of the development accounts.
 func FundDevAccounts(db vm.StateDB) {

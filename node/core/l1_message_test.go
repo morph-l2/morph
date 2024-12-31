@@ -142,7 +142,7 @@ func TestValidateL1Messages(t *testing.T) {
 			l1MsgReader:    &l1Reader,
 			logger:         tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		}
-		//block.Transactions
+		// block.Transactions
 		l2tx := eth.NewTx(&eth.LegacyTx{
 			Nonce:    1,
 			GasPrice: big.NewInt(1000000000),
@@ -183,7 +183,6 @@ func TestValidateL1Messages(t *testing.T) {
 		err = executor.validateL1Messages(block, collectedL1TxHashes)
 		require.ErrorIs(t, err, types.ErrWrongNextL1MessageIndex)
 	})
-
 }
 
 var _ types.L1MessageReader = (*testL1MsgReader)(nil)

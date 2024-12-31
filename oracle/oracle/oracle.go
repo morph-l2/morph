@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
-
 	"io"
 	"math/big"
 	"os"
@@ -96,7 +95,7 @@ func NewOracle(cfg *config.Config, m *metrics.Metrics) (*Oracle, error) {
 	var logHandler log.Handler
 	output := io.Writer(os.Stderr)
 	if cfg.LogFilename != "" {
-		f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+		f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0o600))
 		if err != nil {
 			return nil, fmt.Errorf("wrong log.filename set: %d", err)
 		}
@@ -247,7 +246,6 @@ func (o *Oracle) Start() {
 			}
 		}()
 	}
-
 }
 
 func (o *Oracle) waitReceiptWithCtx(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {

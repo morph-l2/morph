@@ -59,6 +59,5 @@ func DoCtx(ctx context.Context, maxAttempts int, strategy Strategy, op Operation
 			}
 			time.AfterFunc(strategy.Duration(attempt-1), doReattempt)
 		}
-
 	}
 }

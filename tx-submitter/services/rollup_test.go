@@ -115,7 +115,6 @@ func TestGetGasTipAndCap(t *testing.T) {
 	r = NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, nil, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 	_, _, _, err = r.GetGasTipAndCap()
 	require.ErrorContains(t, err, "tip is too high")
-
 }
 
 func TestReSubmitTx(t *testing.T) {
@@ -151,5 +150,4 @@ func TestReSubmitTx(t *testing.T) {
 	tx, err := r.ReSubmitTx(false, oldTx)
 	require.NoError(t, err)
 	require.EqualValues(t, config.MinTip, tx.GasTipCap().Uint64())
-
 }

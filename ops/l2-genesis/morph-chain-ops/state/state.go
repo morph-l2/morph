@@ -83,7 +83,6 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 		storageType := layout.Types[target.Type]
 		if storageType.Label == "" {
 			return nil, fmt.Errorf("storage type for %s not found", label)
-
 		}
 
 		storage, err := EncodeStorage(target, value, storageType)

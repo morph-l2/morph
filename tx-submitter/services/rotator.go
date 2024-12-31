@@ -43,7 +43,6 @@ func (r *Rotator) StartEventIndexer() {
 // UpdateState updates the state of the rotator
 // updated by event listener in the future
 func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staking) error {
-
 	epochUpdateTime, err := GetEpochUpdateTime(r.l2GovAddr, clients)
 	if err != nil {
 		log.Error("failed to get epoch update time", "err", err)
@@ -108,7 +107,6 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 
 // GetCurrentSubmitter returns the current sequencer that should be submitting
 func (r *Rotator) CurrentSubmitter(clients []iface.L2Client, l1Staking iface.IL1Staking) (*common.Address, error) {
-
 	err := r.UpdateState(clients, l1Staking)
 	if err != nil {
 		return nil, fmt.Errorf("update state err: %w", err)
@@ -126,7 +124,6 @@ func (r *Rotator) CurrentSubmitter(clients []iface.L2Client, l1Staking iface.IL1
 	seqIdx := sec / r.epoch.Int64() % int64(len(r.GetSequencerSet()))
 
 	return &r.GetSubmitterSet()[seqIdx], nil
-
 }
 
 func (r *Rotator) SetSubmitterSet(newSet []common.Address) {
@@ -134,6 +131,7 @@ func (r *Rotator) SetSubmitterSet(newSet []common.Address) {
 	defer r.mu.Unlock()
 	r.submitterSet = newSet
 }
+
 func (r *Rotator) GetSubmitterSet() []common.Address {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -150,5 +148,4 @@ func (r *Rotator) GetSequencerSet() []common.Address {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.sequencerSet
-
 }

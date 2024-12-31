@@ -17,7 +17,7 @@ type IBlockMonitor interface {
 }
 
 type BlockMonitor struct {
-	blockGenerateTime    time.Duration //12s for Dencun
+	blockGenerateTime    time.Duration // 12s for Dencun
 	latestBlockTime      time.Time
 	noGrowthBlockCntTime time.Duration
 	client               iface.L1Client

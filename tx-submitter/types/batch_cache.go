@@ -24,6 +24,7 @@ func (b *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, bool) {
 	batch, ok := b.batchCache[batchIndex]
 	return batch, ok
 }
+
 func (b *BatchCache) Set(batchIndex uint64, batch *eth.RPCRollupBatch) {
 	b.m.Lock()
 	defer b.m.Unlock()

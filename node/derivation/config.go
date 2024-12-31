@@ -128,7 +128,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
 			return fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
-		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
+		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0o600); err != nil {
 			return err
 		}
 	}
