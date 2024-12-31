@@ -1,16 +1,17 @@
 # Lido's Morph Bridge
 
-The document details the implementation of the bridging of the ERC20 compatible tokens[^*] between Ethereum and Morph chains.
+The document outlines the process of bridging ERC20-compatible tokens[^*] between the Ethereum and Morph chains.
 
-It's the first step of Lido's integration into the Morph protocol. The main goal of the current implementation is to be the strong foundation for the long-term goals of the Lido expansion in the Morph chain. The long-run picture of the Lido's integration into L2s includes:
+This marks the initial phase of Lido's integration into the Morph protocol. The primary objective of this implementation is to establish a solid foundation for Lido's long-term expansion goals on the Morph chain. The broader vision for Lido's integration into Layer 2 solutions includes:
 
-- Bridging of Lido's tokens from L1 to L2 chains
-- Instant ETH staking on L2 chains with receiving stETH/wstETH on the corresponding L2 immediately
-- Keeping UX on L2 as close as possible to the UX on Ethereum mainnet
+- Bridging Lido's tokens from Layer 1 to Layer 2 chains
+- Enabling instant ETH staking on Layer 2 chains, with users receiving stETH/wstETH immediately on the corresponding Layer 2
+- Maintaining a user experience on Layer 2 that closely resembles that of the Ethereum mainnet
+At this stage, the implementation aims to deliver a scalable and reliable solution for Lido to bridge ERC20-compatible tokens between Morph and the Ethereum chain.
 
-At this point, the implementation must provide a scalable and reliable solution for Lido to bridge ERC20 compatible tokens between Morph and the Ethereum chain.
+[*]: Please note that the current implementation may not accommodate non-standard ERC20 functionalities. For instance, rebasable tokens or those with transfer fees may not function correctly. If your token has unique ERC20 logic, please verify its compatibility with the bridge before use.
 
-[^*]: The current implementation might not support the non-standard functionality of the ERC20 tokens. For example, rebasable tokens or tokens with transfers fee will work incorrectly. In case your token implements some non-typical ERC20 logic, make sure it is compatible with the bridge before usage.
+
 
 ## Security surface overview
 
@@ -26,81 +27,88 @@ At this point, the implementation must provide a scalable and reliable solution 
 | - Passing the (w)stETH/USD price feed                                                                                                        | No                                                                                                                                                                                                                                                                                 |
 | - Passing Lido DAO governance decisions                                                                                                      | [Lido DAO Agent](https://etherscan.io/address/0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c) representation [on Morph (address TBD)] via [MorphBridgeExecutor](TBD) |
 | Bridges are complicated in that the transaction can succeed on one side and fail on the other. What's the handling mechanism for this issue? | TBA                                                                                                                                                                                                                                                                                |
-| Is there a deployment script that sets all the parameters and authorities correctly?                                                         | No, we are upgrading from existing gateway, will need to involve multisig operation by Morph                                                                                                                                                                                      |
+| Is there a deployment script that sets all the parameters and authorities correctly?                                                         | No, what we do is that we upgrading from existing gateway, will need to involve the multisig operation by Morph                                                                                                                                                                             |
 | Is there a post-deploy check script that, given a deployment, checks that all parameters and authorities are set correctly?                  | No                                                                                                                                                                                                                                                                                 |
 
 ## Morph's Bridging Flow
 
-The default implementation of the Morph bridging solution consists of two parts: `L1StandardERC20Gateway` and `L2StandardERC20Gateway`. These contracts allow bridging the ERC20 tokens between Ethereum and Morph chains.
+The default Morph bridging solution consists of two components: `L1StandardERC20Gateway` and `L2StandardERC20Gateway`. These contracts facilitate the bridging of ERC20 tokens between the Ethereum and Morph chains.
 
-In the standard bridge, when ERC20 is deposited on L1 and transferred to the bridge contract it remains "locked" there while the equivalent amount is minted in the L2 token. For withdrawals, the opposite happens the L2 token amount is burned then the same amount of L1 tokens is transferred to the recipient.
+In the standard bridge, when an ERC20 token is deposited on Layer 1 and sent to the bridge contract, it is "locked" there while an equivalent amount of the L2 token is minted. For withdrawals, the process is reversed: the L2 token amount is burned, and the same amount of L1 tokens is sent to the recipient.
 
-The default Morph bridge is suitable for the short-term goal of the Lido (bridging of the wstETH token into Morph), but it complicates the achievement of the long-term goals. For example, implementation of the staking from L2's very likely will require extending the token and gateway implementations.
+While the default Morph bridge meets Lido's short-term goal of bridging the wstETH token into Morph, it poses challenges for achieving long-term objectives. For instance, implementing staking from Layer 2 will likely require modifications to both the token and gateway implementations.
 
-Additionally, Morph provides functionality to implement the custom bridge solution utilizing the same cross-domain infrastructure as the Standard bridge. The only constraint for the custom bridge to be compatible with the default Morph Gateway is the implementation of the `IL1ERC20Gateway` and `IL2ERC20Gateway` interfaces.
+Moreover, Morph offers the flexibility to create a custom bridge solution using the same cross-domain infrastructure as the standard bridge. The only requirement for a custom bridge to be compatible with the default Morph Gateway is the implementation of the `IL1ERC20Gateway` and `IL2ERC20Gateway` interfaces.
 
-The rest of the document provides a technical specification of the bridge Lido will use to transfer tokens between Ethereum and Morpholl chains.
+The remainder of the document includes technical specifications for the bridge that Lido will use to transfer tokens between the Ethereum and Morph chains.
+
 
 ## Lido's Bridge Implementation
 
-The current implementation of the tokens bridge provides functionality to bridge the specified type of ERC20 compatible token between Ethereum and Morph chains. Additionally, the bridge provides some administrative features, like the **temporary disabling of the deposits and withdrawals**. It's necessary when bridging must be disabled fast because of the malicious usage of the bridge or vulnerability in the contracts. Also, it might be helpful in the implementation upgrade process.
+The current implementation of the token bridge enables the transfer of ERC20-compatible tokens between Ethereum and Morph chains. It also includes administrative features, such as the ability to temporarily disable deposits and withdrawals. This functionality is crucial for quickly addressing potential malicious activities or vulnerabilities within the contracts, as well as facilitating the upgrade process.
 
-The technical implementation focuses on the following requirements for the contracts:
+The technical implementation prioritizes the following requirements for the contracts:
 
-- **Scalability** - current implementation must provide the ability to be extended with new functionality in the future.
-- **Simplicity** - implemented contracts must be clear, simple, and expressive for developers who will work with code in the future.
-- **Gas efficiency** - implemented solution must be efficient in terms of gas costs for the end-user, but at the same time, it must not violate the previous requirement.
+- **Scalability**: The current design must allow for future extensions and new functionalities.
+- **Simplicity**: The contracts should be clear, straightforward, and easy for future developers to understand and work with.
+- **Gas Efficiency**: The solution should minimize gas costs for users while maintaining clarity and simplicity.
 
-A high-level overview of the proposed solution might be found in the below diagram:
+A high-level overview of the proposed solution can be found in the diagram below:
 
-![](https://i.imgur.com/rbIvCr6.png)
 
-- [**`LidoGatewayManager`**](./LidoGatewayManager.sol) - contains administrative methods to retrieve and control the state of the bridging process.
-- [**`LidoBridgeableTokens`**](./LidoBridgeableTokens.sol) - contains the logic for validation of tokens used in the bridging process.
-- [**`L1LidoGateway`**](./L1LidoGateway.sol) - Ethereum's counterpart of the bridge to bridge registered ERC20 compatible tokens between Ethereum and Morph chains.
-- [**`L2LidoGateway`**](./L2LidoGateway.sol) - Morph's counterpart of the bridge to bridge registered ERC20 compatible tokens between Ethereum and Morph chains
-- [**`MorphStandardERC20`**](../libraries/token/MorphStandardERC20.sol) - an implementation of the `ERC20` token with administrative methods to mint and burn tokens.
-- [**`TransparentUpgradeableProxy`**](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/transparent/TransparentUpgradeableProxy.sol) - the ERC1967 proxy with extra admin functionality.
+[](https://imgur.com/rbIvCr6)
+
+
+- [**`LidoGatewayManager`**](./LidoGatewayManager.sol): This contract includes administrative methods to manage and monitor the state of the bridging process.
+- [**`LidoBridgeableTokens`**](./LidoBridgeableTokens.sol) : This contract implements the logic for validating tokens involved in the bridging process.
+- [**`L1LidoGateway`**](./L1LidoGateway.sol): This contract serves as Ethereum's counterpart for bridging registered ERC20-compatible tokens between Ethereum and Morph chains.
+- [**`L2LidoGateway`**](./L2LidoGateway.sol): This contract acts as Morph's counterpart for bridging registered ERC20-compatible tokens between Ethereum and Morph chains.
+- [**`MorphStandardERC20`**](../libraries/token/MorphStandardERC20.sol): This is an implementation of the `ERC20` token, equipped with administrative methods for minting and burning tokens.
+- [**`TransparentUpgradeableProxy`**](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/transparent/TransparentUpgradeableProxy.sol) : This is an ERC1967 proxy that includes additional administrative functionalities.
 
 ## Morph's Bridging Flow
 
-The general process of bridging tokens via Morph's Lido bridge can be found here: [ETH and ERC20 Token Bridge](https://docs.morphl2.io/docs/build-on-morph/build-on-morph/bridge-between-morph-and-ethereum).
+You can find the general process for bridging tokens through Morph's Lido bridge here: [ETH and ERC20 Token Bridge](https://docs.morphl2.io/docs/build-on-morph/build-on-morph/bridge-between-morph-and-ethereum).
 
 ## Deployment Process
 
-To reduce the gas costs for users, contracts `L1LidoGateway`, `L2LidoGateway`, and `MorphStandardERC20` contracts use immutable variables as much as possible. But some of those variables are cross-referred. For example, `L1LidoGateway` has reference to `L2LidoGateway` and vice versa. As we use proxies, we can deploy proxies at first and without calling the `initialize` function from each gateway. Then call the `initialize` function with correct contract addresses.
+To minimize gas costs for users, the `L1LidoGateway`, `L2LidoGateway`, and `MorphStandardERC20` contracts utilize immutable variables wherever possible. However, some of these variables reference each other; for instance, `L1LidoGateway` refers to `L2LidoGateway` and vice versa. By using proxies, we can initially deploy them without invoking the `initialize` function for each gateway, and then call the `initialize` function with the correct contract addresses.
 
-Another option - pre-calculate the future address of the deployed contract offchain and deployed the implementation using pre-calculated addresses. But it is less fault-tolerant than the solution above.
+Alternatively, we could pre-calculate the future addresses of the deployed contracts off-chain and deploy the implementation using these pre-calculated addresses, but this approach is less fault-tolerant than the first option.
 
 ## Integration Risks
 
-As an additional link in the tokens flow chain, the Morph protocol and bridges add points of failure. Below are the main risks of the current integration:
+As an additional component in the token flow chain, the Morph protocol and bridges introduce potential points of failure. The main risks associated with the current integration are outlined below:
 
-### Minting of uncollateralized L2 token
+### Minting of Uncollateralized L2 Tokens
 
-Such an attack might happen if an attacker obtains the right to call `L2LidoGateway.finalizeDepositERC20()` directly. In such a scenario, an attacker can mint uncollaterized tokens on L2 and initiate withdrawal later.
+An attack could occur if an attacker gains access to call `L2LidoGateway.finalizeDepositERC20()` directly. In this scenario, they could mint uncollateralized tokens on L2 and later initiate a withdrawal.
 
-The best way to detect such an attack is an offchain monitoring of the minting and depositing/withdrawal events. Based on such events might be tracked following stats:
+To detect such an attack, off-chain monitoring of minting and deposit/withdrawal events is essential. The following statistics can be tracked based on these events:
 
-- `l1ERC20TokenBridgedAmount` - total number of token bridged on L1 bridge contract
-- `l2TokenTotalSupply` - total number of minted L2 tokens
-- `l2TokenNotFinalizedDeposit` - total number of locked L1 tokens which aren’t finalize relayed from the L2 bridge
-- `l2TokenNotWithdrawn` - total number of burned L2 tokens which aren’t withdrawn from the L1 bridge
+- `l1ERC20TokenBridgedAmount`: Total number of tokens bridged on the L1 bridge contract.
+- `l2TokenTotalSupply`: Total number of minted L2 tokens.
+- `l2TokenNotFinalizedDeposit`: Total number of locked L1 tokens that have not been finalized and relayed from the L2 bridge.
+- `l2TokenNotWithdrawn`: Total number of burned L2 tokens that have not been withdrawn from the L1 bridge.
 
-At any time following invariant must be satisfied: `l1ERC20TokenBridgedAmount == l2TokenTotalSupply + l2TokenNotWithdrawn + l2TokenNotFinalizedDeposit`.
+The following invariant must always hold true: `l1ERC20TokenBridgedAmount == l2TokenTotalSupply + l2TokenNotWithdrawn + l2TokenNotFinalizedDeposit`.
 
-In the case of invariant violation, Lido will have a dispute period to suspend the L1 and L2 bridges. Disabled bridges forbid the minting of L2Token and withdrawal of minted tokens till the resolution of the issue.
+If this invariant is violated, Lido will enter a dispute period to suspend both the L1 and L2 bridges. During this time, the bridges will be disabled, preventing the minting of L2 tokens and the withdrawal of minted tokens until the issue is resolved.
 
-### Attack to L1CrossDomainMessenger
+### Attack on L1CrossDomainMessenger
 
-According to the Morph documentation, `L1CrossDomainMessenger`:
+According to Morph documentation, the `L1CrossDomainMessenger`:
 
-> The L1 Cross Domain Messenger contract sends messages from L1 to L2 and relays messages from L2 onto L1.
+> The L1 Cross Domain Messenger contract sends messages from L1 to L2 and relays messages from L2 to L1.
 
-This contract is central in the L2-to-L1 communication process since all messages from L2 that finalized by challenger and verified by merkle proof are executed on behalf of this contract.
+This contract plays a crucial role in L2-to-L1 communication, as all messages from L2 that are finalized by a challenger and verified by Merkle proof are executed on behalf of this contract.
 
-In case of a vulnerability in the `L1CrossDomainMessenger`, which allows the attacker to send arbitrary messages bypassing the challenge and merkle proof, an attacker can immediately drain tokens from the L1 bridge.
+If there is a vulnerability in the `L1CrossDomainMessenger` that allows an attacker to send arbitrary messages while bypassing the challenge and Merkle proof, they could potentially drain tokens from the L1 bridge.
 
-Additional risk creates the upgradeability of the `L1CrossDomainMessenger`. Exist a risk of an attack with the replacement of the implementation with some malicious functionality. Such an attack might be reduced to the above vulnerability and steal all locked tokens on the L1 bridge.
+Additionally, the upgradeability of the `L1CrossDomainMessenger` poses risks. An attacker could exploit this by replacing the implementation with malicious functionality, which could lead to the theft of all locked tokens on the L1 bridge.
 
-To respond quickly to such an attack, Lido can set up monitoring of the Proxy contract, which will ring the alarm in case of an implementation upgrade.
+To respond swiftly to such an attack, Lido can implement monitoring of the Proxy contract to raise an alert in the event of an implementation upgrade.
+
+--- 
+
+Feel free to ask if you need further adjustments or additional information!
