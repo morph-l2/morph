@@ -1,0 +1,21 @@
+[package]
+version = "0.1.0"
+name = "poseidon-bn254-host"
+edition = "2021"
+
+
+[dependencies]
+sp1-sdk = { workspace = true }
+hex = { workspace = true }
+poseidon-bn254 = { workspace = true, features = ["bn254"] }
+alloy = { workspace = true, features = [
+    "consensus",
+    "eips",
+    "k256",
+    "rlp",
+    "serde",
+] }
+
+
+[build-dependencies]
+sp1-helper = { workspace = true }

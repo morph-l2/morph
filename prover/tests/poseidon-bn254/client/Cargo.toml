@@ -1,0 +1,9 @@
+[package]
+version = "0.1.0"
+name = "poseidon-bn254-client"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+alloy = { workspace = true, features = ["consensus", "eips", "k256", "rlp", "serde"] }
+poseidon-bn254 = { workspace = true, features = ["bn254"] }

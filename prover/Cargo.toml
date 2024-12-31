@@ -47,12 +47,12 @@ c-kzg = "1.0.3"
 kzg-rs = { git = "https://github.com/morph-l2/kzg-rs.git", branch = "sp1-bls-dev" }
 sha2 = "0.10.8"
 
-sp1-zkvm =  { git = "https://github.com/morph-l2/sp1.git", branch = "memcopy-dev"}
-sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "memcopy-dev"}
-sp1-helper = { git = "https://github.com/morph-l2/sp1.git", branch = "memcopy-dev"}
+sp1-zkvm =  { git = "https://github.com/morph-l2/sp1.git", branch = "fix-memcopy-chip"}
+sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "fix-memcopy-chip"}
+sp1-helper = { git = "https://github.com/morph-l2/sp1.git", branch = "fix-memcopy-chip"}
 
 # dependencies from scroll-tech
-poseidon-bn254 = { git = "https://github.com/morph-l2/poseidon-bn254", branch = "sp1_compile", features = ["bn254"] }
+poseidon-bn254 = { git = "https://github.com/morph-l2/poseidon-bn254", branch = "main", features = ["bn254"] }
 zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features= ["rs_zktrie"] }
 
 
