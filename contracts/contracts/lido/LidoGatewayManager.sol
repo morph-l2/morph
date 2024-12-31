@@ -8,6 +8,9 @@ import {GatewayBase} from "../libraries/gateway/GatewayBase.sol";
 
 // solhint-disable func-name-mixedcase
 
+/**
+ * @custom:security-contact official@morphl2.io
+ */
 abstract contract LidoGatewayManager is GatewayBase {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
