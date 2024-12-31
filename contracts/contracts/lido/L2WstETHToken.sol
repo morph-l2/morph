@@ -8,6 +8,9 @@ import {SignatureCheckerUpgradeable} from "@openzeppelin/contracts-upgradeable/u
 
 import {MorphStandardERC20} from "../libraries/token/MorphStandardERC20.sol";
 
+/**
+ * @custom:security-contact official@morphl2.io
+ */
 contract L2WstETHToken is MorphStandardERC20 {
     /**********
      * Errors *

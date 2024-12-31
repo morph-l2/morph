@@ -2,6 +2,9 @@
 
 pragma solidity =0.8.24;
 
+/**
+ * @custom:security-contact official@morphl2.io
+ */
 abstract contract LidoBridgeableTokens {
     /*************
      * Constants *

@@ -11,6 +11,9 @@ import {GatewayBase} from "../libraries/gateway/GatewayBase.sol";
 import {LidoBridgeableTokens} from "./LidoBridgeableTokens.sol";
 import {LidoGatewayManager} from "./LidoGatewayManager.sol";
 
+/**
+ * @custom:security-contact official@morphl2.io
+ */
 contract L1LidoGateway is L1ERC20Gateway, LidoBridgeableTokens, LidoGatewayManager {
     /**********
      * Errors *
