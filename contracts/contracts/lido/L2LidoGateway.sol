@@ -43,8 +43,9 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
     /// @param _l1Token The address of the bridged token in the L1 chain
     /// @param _l2Token The address of the token minted on the L2 chain when token bridged
     constructor(address _l1Token, address _l2Token) LidoBridgeableTokens(_l1Token, _l2Token) {
-        require(_l1Token != address(0), "zero l1token address");
-        require(_l2Token != address(0), "zero l2Token address");
+        if (_l1Token == address(0) || _l2Token ==address(0)){
+              revert ErrorZeroAddress();
+        }
 
         _disableInitializers();
     }
@@ -62,7 +63,7 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
 
     /// @notice Initialize the storage of L2LidoGateway v2.
     /// @param _depositsEnabler The address of user who can enable deposits
-    /// @param _depositsEnabler The address of user who can disable deposits
+    /// @param _depositsDisabler The address of user who can disable deposits
     /// @param _withdrawalsEnabler The address of user who can enable withdrawals
     /// @param _withdrawalsDisabler The address of user who can disable withdrawals
     function initializeV2(
@@ -155,9 +156,10 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         IMorphERC20Upgradeable(_l2Token).burn(_from, _amount);
 
         // 3. Generate message passed to L1LidoGateway.
+        address _l1Token = l1Token;
         bytes memory _message = abi.encodeCall(
             IL1ERC20Gateway.finalizeWithdrawERC20,
-            (l1Token, _l2Token, _from, _to, _amount, _data)
+            (_l1Token, _l2Token, _from, _to, _amount, _data)
         );
 
         uint256 nonce = IL2CrossDomainMessenger(messenger).messageNonce();
@@ -165,6 +167,6 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         // 4. send message to L2CrossDomainMessenger
         IL2CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit);
 
-        emit WithdrawERC20(l1Token, _l2Token, _from, _to, _amount, _data, nonce);
+        emit WithdrawERC20(_l1Token, _l2Token, _from, _to, _amount, _data, nonce);
     }
 }

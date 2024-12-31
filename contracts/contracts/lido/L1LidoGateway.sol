@@ -42,8 +42,9 @@ contract L1LidoGateway is L1ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
     /// @param _l1Token The address of the bridged token in the L1 chain
     /// @param _l2Token The address of the token minted on the L2 chain when token bridged
     constructor(address _l1Token, address _l2Token) LidoBridgeableTokens(_l1Token, _l2Token) {
-        require(_l1Token != address(0), "zero l1token address");
-        require(_l2Token != address(0), "zero l2Token address");
+        if (_l1Token == address(0) || _l2Token ==address(0)){
+              revert ErrorZeroAddress();
+        }
 
         _disableInitializers();
     }
@@ -124,9 +125,10 @@ contract L1LidoGateway is L1ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         if (_data.length != 0) revert DepositAndCallIsNotAllowed();
 
         // 2. Generate message passed to L2LidoGateway.
+        address _l2Token = l2Token;
         bytes memory _message = abi.encodeCall(
             IL2ERC20Gateway.finalizeDepositERC20,
-            (_token, l2Token, _from, _to, _amount, _data)
+            (_token, _l2Token, _from, _to, _amount, _data)
         );
 
         uint256 nonce = IL1CrossDomainMessenger(messenger).messageNonce();
@@ -134,6 +136,6 @@ contract L1LidoGateway is L1ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
         // 3. Send message to L1CrossDomainMessenger.
         IL1CrossDomainMessenger(messenger).sendMessage{value: msg.value}(counterpart, 0, _message, _gasLimit, _from);
 
-        emit DepositERC20(_token, l2Token, _from, _to, _amount, _data, nonce);
+        emit DepositERC20(_token, _l2Token, _from, _to, _amount, _data, nonce);
     }
 }

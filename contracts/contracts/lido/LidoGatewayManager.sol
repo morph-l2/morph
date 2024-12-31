@@ -131,7 +131,7 @@ abstract contract LidoGatewayManager is GatewayBase {
 
     /// @notice Initialize the storage of LidoGatewayManager.
     /// @param _depositsEnabler The address of user who can enable deposits
-    /// @param _depositsEnabler The address of user who can disable deposits
+    /// @param _depositsDisabler The address of user who can disable deposits
     /// @param _withdrawalsEnabler The address of user who can enable withdrawals
     /// @param _withdrawalsDisabler The address of user who can disable withdrawals
     function __LidoGatewayManager_init(
