@@ -77,7 +77,7 @@ where
 
         // Assembling a batche of the same commitment.
         #[rustfmt::skip]
-        //   Below is the encoding for `BatchHeader`, reference: morph-repo/contracts/contracts/libraries/codec/BatchHeaderCodecV0.sol
+        //   Below is the encoding for `BatchHeader`, reference: morph-repo/contracts/contracts/libraries/codec/BatchHeaderCodecV1.sol
         //    
         //   * Field                   Bytes       Type        Index   Comments
         //   * version                 1           uint8       0       The batch version
@@ -92,6 +92,8 @@ where
         //   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
         //   * parentBatchHash         32          bytes32     217     The parent batch hash
         //   * skippedL1MessageBitmap  dynamic     uint256[]   249     A bitmap to indicate which L1 messages are skipped in the batch
+        //   @dev Below is the feilds for `BatchHeader` V1
+        //   * lastBlockNumber         8           uint64      249     The last block number in this batch
         // ```
         let batch_store = ShadowRollup::BatchStore {
             prevStateRoot: batch_header
