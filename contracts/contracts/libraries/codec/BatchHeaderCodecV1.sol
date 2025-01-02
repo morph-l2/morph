@@ -17,7 +17,7 @@ pragma solidity ^0.8.24;
 ///   * withdrawRootHash        32          bytes32     153     L2 withdrawal tree root hash
 ///   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
 ///   * parentBatchHash         32          bytes32     217     The parent batch hash
-/// 
+///
 /// @dev Below is the feilds for `BatchHeader` V1
 ///   * lastBlockNumber         8           uint64      249     The last block number in this batch
 /// ```
@@ -56,9 +56,4 @@ library BatchHeaderCodecV1 {
             mstore(add(batchPtr, 249), shl(192, _lastBlockNumber))
         }
     }
-
-
-    
-
-
 }
