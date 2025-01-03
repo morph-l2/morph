@@ -48,8 +48,9 @@ type Derivation struct {
 	l1BeaconClient        *L1BeaconClient
 	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
-	rollupABI       *abi.ABI
-	legacyRollupABI *abi.ABI // before remove skipMap
+	rollupABI             *abi.ABI
+	legacyRollupABI       *abi.ABI // before remove skipMap
+	beforeMoveBlockCtxABI *abi.ABI
 
 	db Database
 
@@ -95,6 +96,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	if err != nil {
 		return nil, err
 	}
+	beforeMoveBlockCtxAbi, err := types.BeforeMoveBlockCtxABI.GetAbi()
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	logger = logger.With("module", "derivation")
 	metrics := PrometheusMetrics("morphnode")
@@ -118,6 +123,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		rollup:                rollup,
 		rollupABI:             rollupAbi,
 		legacyRollupABI:       legacyRollupAbi,
+		beforeMoveBlockCtxABI: beforeMoveBlockCtxAbi,
 		logger:                logger,
 		RollupContractAddress: cfg.RollupContractAddress,
 		confirmations:         cfg.L1.Confirmations,
@@ -329,8 +335,8 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 
 func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 	var batch geth.RPCRollupBatch
-	if bytes.Equal(d.rollupABI.Methods["commitBatch"].ID, data[:4]) {
-		args, err := d.rollupABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
+	if bytes.Equal(d.beforeMoveBlockCtxABI.Methods["commitBatch"].ID, data[:4]) {
+		args, err := d.beforeMoveBlockCtxABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
 		if err != nil {
 			return batch, fmt.Errorf("submitBatches Unpack error:%v", err)
 		}
@@ -365,13 +371,35 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 			WithdrawalRoot         [32]uint8 "json:\"withdrawalRoot\""
 		})
 		batch = geth.RPCRollupBatch{
-			Version:                uint(rollupBatchData.Version),
-			ParentBatchHeader:      rollupBatchData.ParentBatchHeader,
-			BlockContexts:          rollupBatchData.BlockContexts,
-			SkippedL1MessageBitmap: rollupBatchData.SkippedL1MessageBitmap,
-			PrevStateRoot:          common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
-			PostStateRoot:          common.BytesToHash(rollupBatchData.PostStateRoot[:]),
-			WithdrawRoot:           common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+			Version:           uint(rollupBatchData.Version),
+			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+			BlockContexts:     rollupBatchData.BlockContexts,
+			PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+		}
+	} else if bytes.Equal(d.rollupABI.Methods["commitBatch"].ID, data[:4]) {
+		args, err := d.rollupABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
+		if err != nil {
+			return batch, fmt.Errorf("submitBatches Unpack error:%v", err)
+		}
+		rollupBatchData := args[0].(struct {
+			Version           uint8     "json:\"version\""
+			ParentBatchHeader []uint8   "json:\"parentBatchHeader\""
+			LastBlockNumber   uint64    "json:\"lastBlockNumber\""
+			NumL1Messages     uint16    "json:\"numL1Messages\""
+			PrevStateRoot     [32]uint8 "json:\"prevStateRoot\""
+			PostStateRoot     [32]uint8 "json:\"postStateRoot\""
+			WithdrawalRoot    [32]uint8 "json:\"withdrawalRoot\""
+		})
+		batch = geth.RPCRollupBatch{
+			Version:           uint(rollupBatchData.Version),
+			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+			LastBlockNumber:   rollupBatchData.LastBlockNumber,
+			NumL1Messages:     rollupBatchData.NumL1Messages,
+			PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 		}
 	} else {
 		return batch, types.ErrNotCommitBatchTx
@@ -380,18 +408,26 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*BatchInfo, error) {
-	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
+	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
+	parentBatchIndex, err := parentBatchHeader.BatchIndex()
 	if err != nil {
-		return nil, fmt.Errorf("decode batch header error:%v", err)
+		return nil, fmt.Errorf("decode batch header index error:%v", err)
 	}
+	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+	if err != nil {
+		return nil, fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
+	}
+
 	batchInfo := new(BatchInfo)
-	if err := batchInfo.ParseBatch(batch); err != nil {
+	parentBatchBlock := d.db.ReadBlockNumberByIndex(parentBatchIndex)
+	if err := batchInfo.ParseBatch(batch, parentBatchBlock); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
-	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped, l2Height); err != nil {
+	d.db.WriteBatchBlockNumber(batchInfo.batchIndex, batchInfo.lastBlockNumber)
+	if err := d.handleL1Message(batchInfo, totalL1MessagePopped, l2Height); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
-	batchInfo.batchIndex = parentBatchHeader.BatchIndex + 1
+	batchInfo.batchIndex = parentBatchIndex + 1
 	return batchInfo, nil
 }
 

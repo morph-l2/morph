@@ -37,7 +37,8 @@ func (o *Oracle) getBlockTimeAndNumber(isFinalized bool) (uint64, *big.Int, erro
 			return 0, nil, fmt.Errorf("batch not found")
 		}
 		var batchData derivation.BatchInfo
-		if err = batchData.ParseBatch(*batch); err != nil {
+		// TODO
+		if err = batchData.ParseBatch(*batch, new(uint64)); err != nil {
 			return 0, nil, fmt.Errorf("parse batch error:%v", err)
 		}
 		lastBlockNumber = big.NewInt(int64(batchData.LastBlockNumber()))

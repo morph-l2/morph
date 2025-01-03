@@ -3,8 +3,9 @@ package db
 import "encoding/binary"
 
 var (
-	syncedL1HeightKey = []byte("LastSyncedL1Height")
-	L1MessagePrefix   = []byte("l1")
+	syncedL1HeightKey      = []byte("LastSyncedL1Height")
+	L1MessagePrefix        = []byte("l1")
+	BatchBlockNumberPrefix = []byte("batch")
 
 	derivationL1HeightKey = []byte("LastDerivationL1Height")
 )
@@ -19,4 +20,9 @@ func encodeEnqueueIndex(index uint64) []byte {
 // L1MessageKey = L1MessagePrefix + enqueueIndex (uint64 big endian)
 func L1MessageKey(enqueueIndex uint64) []byte {
 	return append(L1MessagePrefix, encodeEnqueueIndex(enqueueIndex)...)
+}
+
+// BatchBlockNumberKey = BatchBlockNumberKeyPrefix + batchIndex (uint64 big endian)
+func BatchBlockNumberKey(batchIndex uint64) []byte {
+	return append(BatchBlockNumberPrefix, encodeEnqueueIndex(batchIndex)...)
 }
