@@ -266,7 +266,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             }
             assembly {
                 _batchPtr := mload(0x40)
-                mstore(0x40, add(_batchPtr, mul(_headerLength, 32)))
+                mstore(0x40, add(_batchPtr, _headerLength))
             }
 
             // store entries, the order matters
@@ -275,12 +275,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
             BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
             BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
+            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
             BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
             BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
             BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
             BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
             BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
-            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
             // store last block number if version >= 1
             if (batchDataInput.version >= 1) {
                 BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
