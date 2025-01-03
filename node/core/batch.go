@@ -17,7 +17,7 @@ import (
 )
 
 type BatchingCache struct {
-	parentBatchHeader *types.BatchHeader
+	parentBatchHeader *types.BatchHeaderBytes
 	prevStateRoot     common.Hash
 
 	// accumulated batch data
@@ -28,7 +28,7 @@ type BatchingCache struct {
 
 	lastPackedBlockHeight uint64
 	// caches sealedBatchHeader according to the above accumulated batch data
-	sealedBatchHeader *types.BatchHeader
+	sealedBatchHeader *types.BatchHeaderBytes
 	sealedSidecar     *eth.BlobTxSidecar
 
 	currentBlockContext               []byte
@@ -80,7 +80,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			return false, err
 		}
 
-		parentBatchHeader := new(types.BatchHeader)
+		var parentBatchHeader types.BatchHeaderBytes
 		if len(parentBatchHeaderBytes) == 0 {
 			genesisHeader, err := e.l2Client.HeaderByNumber(context.Background(), big.NewInt(0))
 			if err != nil {
@@ -90,21 +90,23 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			if err != nil {
 				return false, err
 			}
-			parentBatchHeader = &genesisBatchHeader
+			parentBatchHeader = genesisBatchHeader.Bytes()
 		} else {
-			*parentBatchHeader, err = types.DecodeBatchHeader(parentBatchHeaderBytes)
-			if err != nil {
-				return false, err
-			}
+			parentBatchHeader = parentBatchHeaderBytes
 		}
 
 		var txsPayload []byte
 		var l1TxHashes []common.Hash
-		var totalL1MessagePopped = parentBatchHeader.TotalL1MessagePopped
 		var lastHeightBeforeCurrentBatch uint64
 		var lastBlockStateRoot common.Hash
 		var lastBlockWithdrawRoot common.Hash
 		var l2TxNum int
+
+		totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+		if err != nil {
+			e.logger.Error("failed to get totalL1MessagePopped from parentBatchHeader", "error", err)
+			return false, err
+		}
 
 		for i, blockBz := range blocks {
 			wBlock := new(types.WrappedBlock)
@@ -143,7 +145,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 			return false, fmt.Errorf("wrong propose height passed. lastPackedBlockHeight: %d, passed height: %d", e.batchingCache.lastPackedBlockHeight, curHeight)
 		}
 
-		e.batchingCache.parentBatchHeader = parentBatchHeader
+		e.batchingCache.parentBatchHeader = &parentBatchHeader
 		header, err := e.l2Client.HeaderByNumber(context.Background(), big.NewInt(int64(lastHeightBeforeCurrentBatch)))
 		if err != nil {
 			return false, err
@@ -153,7 +155,8 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		e.batchingCache.withdrawRoot = lastBlockWithdrawRoot
 
 		// initialize latest batch index
-		e.metrics.BatchIndex.Set(float64(e.batchingCache.parentBatchHeader.BatchIndex))
+		index, _ := e.batchingCache.parentBatchHeader.BatchIndex()
+		e.metrics.BatchIndex.Set(float64(index))
 	}
 
 	block, err := types.WrappedBlockFromBytes(currentBlockBytes)
@@ -291,7 +294,7 @@ func ParsingTxs(transactions tmtypes.Txs, totalL1MessagePoppedBefore uint64) (tx
 	return
 }
 
-func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {
+func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeaderV0, error) {
 	wb := types.WrappedBlock{
 		ParentHash:  genesisHeader.ParentHash,
 		Miner:       genesisHeader.Coinbase,
@@ -307,8 +310,7 @@ func GenesisBatchHeader(genesisHeader *eth.Header) (types.BatchHeader, error) {
 	batchData := types.NewBatchData()
 	batchData.Append(blockContext, nil, nil)
 
-	return types.BatchHeader{
-		Version:              0,
+	return types.BatchHeaderV0{
 		BatchIndex:           0,
 		L1MessagePopped:      0,
 		TotalL1MessagePopped: 0,

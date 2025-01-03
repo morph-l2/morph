@@ -10,8 +10,7 @@ import (
 )
 
 func TestBatchHeader(t *testing.T) {
-	expectedBatchHeader := BatchHeader{
-		Version:                0,
+	expectedBatchHeaderV0 := BatchHeaderV0{
 		BatchIndex:             10,
 		L1MessagePopped:        5,
 		TotalL1MessagePopped:   20,
@@ -23,21 +22,53 @@ func TestBatchHeader(t *testing.T) {
 		SequencerSetVerifyHash: common.BigToHash(big.NewInt(104)),
 		ParentBatchHash:        common.BigToHash(big.NewInt(200)),
 	}
-	bytes := expectedBatchHeader.Encode()
+	batchHeaderBytes := expectedBatchHeaderV0.Bytes()
 
-	decoded, err := DecodeBatchHeader(bytes)
+	version, err := batchHeaderBytes.Version()
 	require.NoError(t, err)
-	require.EqualValues(t, expectedBatchHeader.Version, decoded.Version)
-	require.EqualValues(t, expectedBatchHeader.BatchIndex, decoded.BatchIndex)
-	require.EqualValues(t, expectedBatchHeader.L1MessagePopped, decoded.L1MessagePopped)
-	require.EqualValues(t, expectedBatchHeader.TotalL1MessagePopped, decoded.TotalL1MessagePopped)
-	require.EqualValues(t, expectedBatchHeader.DataHash, decoded.DataHash)
-	require.EqualValues(t, expectedBatchHeader.BlobVersionedHash, decoded.BlobVersionedHash)
-	require.EqualValues(t, expectedBatchHeader.PrevStateRoot, decoded.PrevStateRoot)
-	require.EqualValues(t, expectedBatchHeader.PostStateRoot, decoded.PostStateRoot)
-	require.EqualValues(t, expectedBatchHeader.WithdrawalRoot, decoded.WithdrawalRoot)
-	require.EqualValues(t, expectedBatchHeader.SequencerSetVerifyHash, decoded.SequencerSetVerifyHash)
-	require.EqualValues(t, expectedBatchHeader.ParentBatchHash, decoded.ParentBatchHash)
+	batchIndex, err := batchHeaderBytes.BatchIndex()
+	require.NoError(t, err)
+	l1MessagePopped, err := batchHeaderBytes.L1MessagePopped()
+	require.NoError(t, err)
+	totalL1MessagePopped, err := batchHeaderBytes.TotalL1MessagePopped()
+	require.NoError(t, err)
+	dataHash, err := batchHeaderBytes.DataHash()
+	require.NoError(t, err)
+	blobVersionedHash, err := batchHeaderBytes.BlobVersionedHash()
+	require.NoError(t, err)
+	prevStateRoot, err := batchHeaderBytes.PrevStateRoot()
+	require.NoError(t, err)
+	postStateRoot, err := batchHeaderBytes.PostStateRoot()
+	require.NoError(t, err)
+	withdrawalRoot, err := batchHeaderBytes.WithdrawalRoot()
+	require.NoError(t, err)
+	sequencerSetVerifyHash, err := batchHeaderBytes.SequencerSetVerifyHash()
+	require.NoError(t, err)
+	parentBatchHash, err := batchHeaderBytes.ParentBatchHash()
+	require.NoError(t, err)
+
+	require.EqualValues(t, 0, version)
+	require.EqualValues(t, expectedBatchHeaderV0.BatchIndex, batchIndex)
+	require.EqualValues(t, expectedBatchHeaderV0.L1MessagePopped, l1MessagePopped)
+	require.EqualValues(t, expectedBatchHeaderV0.TotalL1MessagePopped, totalL1MessagePopped)
+	require.EqualValues(t, expectedBatchHeaderV0.DataHash, dataHash)
+	require.EqualValues(t, expectedBatchHeaderV0.BlobVersionedHash, blobVersionedHash)
+	require.EqualValues(t, expectedBatchHeaderV0.PrevStateRoot, prevStateRoot)
+	require.EqualValues(t, expectedBatchHeaderV0.PostStateRoot, postStateRoot)
+	require.EqualValues(t, expectedBatchHeaderV0.WithdrawalRoot, withdrawalRoot)
+	require.EqualValues(t, expectedBatchHeaderV0.SequencerSetVerifyHash, sequencerSetVerifyHash)
+	require.EqualValues(t, expectedBatchHeaderV0.ParentBatchHash, parentBatchHash)
+
+	expectedBatchHeaderV1 := BatchHeaderV1{
+		BatchHeaderV0:   expectedBatchHeaderV0,
+		LastBlockNumber: 1000,
+	}.Bytes()
+	version, err = expectedBatchHeaderV1.Version()
+	require.NoError(t, err)
+	lastBlockNumber, err := expectedBatchHeaderV1.LastBlockNumber()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, version)
+	require.EqualValues(t, 1000, lastBlockNumber)
 }
 
 func TestMethodID(t *testing.T) {

@@ -4,6 +4,7 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
+import {BatchHeaderCodecV1} from "../../libraries/codec/BatchHeaderCodecV1.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -219,7 +220,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external payable override onlyActiveStaker nonReqRevert whenNotPaused {
-        require(batchDataInput.version == 0, "invalid version");
+        require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
         require(batchDataInput.postStateRoot != bytes32(0), "new state root is zero");
 
@@ -258,8 +259,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
 
-        {
+        {            
             uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
+            if (batchDataInput.version == 1) {
+                _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
+            }
             assembly {
                 _batchPtr := mload(0x40)
                 mstore(0x40, add(_batchPtr, mul(_headerLength, 32)))
@@ -277,6 +281,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
             BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
             BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
+            // store last block number if version >= 1
+            if (batchDataInput.version >= 1) {
+                BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
+            }
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
             uint256 proveRemainingTime = 0;
@@ -699,16 +707,33 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
     }
 
+    /// @notice Extract the version number from a batch header
+    /// @param batchHeader The encoded batch header bytes
+    /// @return version The version of the batch header
+    function _getBatchVersion(bytes calldata batchHeader) internal pure returns (uint8 version) {
+        require(batchHeader.length > 0, "Empty batch header");
+        version = uint8(batchHeader[0]); // Safe extraction of the first byte
+    }
+
     /// @dev Internal function to load batch header from calldata to memory.
     /// @param _batchHeader The batch header in calldata.
     /// @return _memPtr     The start memory offset of loaded batch header.
     /// @return _batchHash  The hash of the loaded batch header.
     function _loadBatchHeader(bytes calldata _batchHeader) internal pure returns (uint256 _memPtr, bytes32 _batchHash) {
+        uint8 _version = _getBatchVersion(_batchHeader);
+
         // load to memory
         uint256 _length;
-        (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
+        if (_version == 0) {
+            (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
+        } else if (_version == 1) {
+             (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
+        } else {
+            revert("Unsupported batch version");
+        }
 
         // compute batch hash
+        // all the versions use the same way to compute batch hash
         _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
     }
 

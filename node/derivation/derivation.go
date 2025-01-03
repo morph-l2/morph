@@ -408,20 +408,26 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*BatchInfo, error) {
-	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
+	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
+	parentBatchIndex, err := parentBatchHeader.BatchIndex()
 	if err != nil {
-		return nil, fmt.Errorf("decode batch header error:%v", err)
+		return nil, fmt.Errorf("decode batch header index error:%v", err)
 	}
+	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+	if err != nil {
+		return nil, fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
+	}
+
 	batchInfo := new(BatchInfo)
-	parentBatchBlock := d.db.ReadBlockNumberByIndex(parentBatchHeader.BatchIndex)
+	parentBatchBlock := d.db.ReadBlockNumberByIndex(parentBatchIndex)
 	if err := batchInfo.ParseBatch(batch, parentBatchBlock); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
 	d.db.WriteBatchBlockNumber(batchInfo.batchIndex, batchInfo.lastBlockNumber)
-	if err := d.handleL1Message(batchInfo, parentBatchHeader.TotalL1MessagePopped, l2Height); err != nil {
+	if err := d.handleL1Message(batchInfo, totalL1MessagePopped, l2Height); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
-	batchInfo.batchIndex = parentBatchHeader.BatchIndex + 1
+	batchInfo.batchIndex = parentBatchIndex + 1
 	return batchInfo, nil
 }
 
