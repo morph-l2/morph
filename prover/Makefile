@@ -1,7 +1,6 @@
 build-plonk-circuits:
 	docker build -f Dockerfile.sp1-plonk -t sp1-plonk:latest .
 
-
 save-plonk-circuits:
 	rm -rf plonk-circuits && \
 	mkdir -p plonk-circuits && \
@@ -17,11 +16,10 @@ start-server:
 stop-server:
 	docker compose -f docker-compose-app.yml down
 
-
 build-shadow-prove:
-	cd bin/shadow-prove
+	cd bin/shadow-prove && \
 	cargo build --release
 
 build-challenge:
-	cd bin/challenge
+	cd bin/challenge && \
 	cargo build --release
