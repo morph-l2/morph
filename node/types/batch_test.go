@@ -22,7 +22,7 @@ func TestBatchHeader(t *testing.T) {
 		SequencerSetVerifyHash: common.BigToHash(big.NewInt(104)),
 		ParentBatchHash:        common.BigToHash(big.NewInt(200)),
 	}
-	batchHeaderBytes := BatchHeaderBytes(expectedBatchHeaderV0.Bytes())
+	batchHeaderBytes := expectedBatchHeaderV0.Bytes()
 
 	version, err := batchHeaderBytes.Version()
 	require.NoError(t, err)
