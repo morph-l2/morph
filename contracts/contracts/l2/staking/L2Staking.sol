@@ -604,7 +604,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice transfer morph token
     function _transfer(address _to, uint256 _amount) internal {
         uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
+        require(IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount), "transfer failed");
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
     }
@@ -612,7 +612,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice transfer morph token from
     function _transferFrom(address _from, address _to, uint256 _amount) internal {
         uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IMorphToken(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount);
+        require(IMorphToken(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount), "transferFrom failed");
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
     }
