@@ -421,7 +421,7 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*Ba
 func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped, l2Height uint64) error {
 	totalL1MessagePopped := parentTotalL1MessagePopped
 	for bIndex, block := range rollupData.blockContexts {
-		// This may happen to nodes started from sanpshot, in which case we will no longer handle L1Msg
+		// This may happen to nodes started from snapshot, in which case we will no longer handle L1Msg
 		if block.Number <= l2Height {
 			continue
 		}

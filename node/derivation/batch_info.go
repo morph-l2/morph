@@ -111,10 +111,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	length := blockCount * 60
 	for _, blob := range batch.Sidecar.Blobs {
 		blobCopy := blob
-		// TODO
-		//if isEmptyBlob(blob) {
-		//	return eth.Transactions{}, nil
-		//}
 		blobData, err := types.RetrieveBlobBytes(&blobCopy)
 		if err != nil {
 			return err
