@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"morph-l2/node/zstd"
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
@@ -15,6 +14,7 @@ import (
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
 
 	"morph-l2/node/types"
+	"morph-l2/node/zstd"
 )
 
 type BlockContext struct {
@@ -80,25 +80,30 @@ func (bi *BatchInfo) TxNum() uint64 {
 
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
-	parentBatchHeader, err := types.DecodeBatchHeader(batch.ParentBatchHeader)
+	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
+	parentBatchIndex, err := parentBatchHeader.BatchIndex()
 	if err != nil {
-		return fmt.Errorf("decode parent batch header error:%v", err)
+		return fmt.Errorf("decode batch header index error:%v", err)
 	}
-	bi.parentTotalL1MessagePopped = parentBatchHeader.TotalL1MessagePopped
+	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+	if err != nil {
+		return fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
+	}
+	bi.parentTotalL1MessagePopped = totalL1MessagePopped
 	bi.root = batch.PostStateRoot
-	bi.batchIndex = parentBatchHeader.BatchIndex + 1
+	bi.batchIndex = parentBatchIndex + 1
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
 	tq := newTxQueue()
 	var rawBlockContexts hexutil.Bytes
 	var txsData []byte
 	var blockCount uint64
-	// TODO parentBatchBlock = parentBatchHeader.LastBlock
-	var parentBatchBlock uint64
 	if batch.BlockContexts == nil {
-		//if parentBatchBlock == nil {
-		//	return fmt.Errorf("block number of parent batch not found")
-		//}
+		parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
+		if err != nil {
+			return fmt.Errorf("decode batch header lastBlockNumber error:%v", err)
+		}
+
 		blockCount = batch.LastBlockNumber - parentBatchBlock
 	}
 	// If BlockContexts is not nil, the block context should not be included in the blob.
@@ -192,7 +197,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	}
 	bi.txNum += txsNum
 	bi.blockContexts = blockContexts
-
 	return nil
 }
 

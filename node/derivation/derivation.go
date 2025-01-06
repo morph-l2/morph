@@ -415,7 +415,6 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*Ba
 	if err := d.handleL1Message(batchInfo, batchInfo.parentTotalL1MessagePopped, l2Height); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
-
 	return batchInfo, nil
 }
 
