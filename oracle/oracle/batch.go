@@ -180,8 +180,7 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 		// set batchIndex to new batch index + 1
 		batchIndex = rollupCommitBatch.BatchIndex.Uint64() + 1
 		var batchData derivation.BatchInfo
-		// TODO
-		if err = batchData.ParseBatch(batch, new(uint64)); err != nil {
+		if err = batchData.ParseBatch(batch); err != nil {
 			return fmt.Errorf("parse batch error:%v", err)
 		}
 		log.Info("received new batch", "batch_index", rollupCommitBatch.BatchIndex.Uint64())

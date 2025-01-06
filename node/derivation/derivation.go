@@ -408,33 +408,20 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*BatchInfo, error) {
-	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
-	parentBatchIndex, err := parentBatchHeader.BatchIndex()
-	if err != nil {
-		return nil, fmt.Errorf("decode batch header index error:%v", err)
-	}
-	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
-	if err != nil {
-		return nil, fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
-	}
-
 	batchInfo := new(BatchInfo)
-	parentBatchBlock := d.db.ReadBlockNumberByIndex(parentBatchIndex)
-	if err := batchInfo.ParseBatch(batch, parentBatchBlock); err != nil {
+	if err := batchInfo.ParseBatch(batch); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
-	d.db.WriteBatchBlockNumber(batchInfo.batchIndex, batchInfo.lastBlockNumber)
-	if err := d.handleL1Message(batchInfo, totalL1MessagePopped, l2Height); err != nil {
+	if err := d.handleL1Message(batchInfo, batchInfo.parentTotalL1MessagePopped, l2Height); err != nil {
 		return nil, fmt.Errorf("handle l1 message error:%v", err)
 	}
-	batchInfo.batchIndex = parentBatchIndex + 1
 	return batchInfo, nil
 }
 
 func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped, l2Height uint64) error {
 	totalL1MessagePopped := parentTotalL1MessagePopped
 	for bIndex, block := range rollupData.blockContexts {
-		// This may happen to nodes started from sanpshot, in which case we will no longer handle L1Msg
+		// This may happen to nodes started from snapshot, in which case we will no longer handle L1Msg
 		if block.Number <= l2Height {
 			continue
 		}
@@ -449,9 +436,6 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
 			for _, l1Message := range l1Messages {
-				if rollupData.skippedL1MessageBitmap != nil && rollupData.skippedL1MessageBitmap.Bit(int(l1Message.QueueIndex)-int(parentTotalL1MessagePopped)) == 1 {
-					continue
-				}
 				transaction := eth.NewTx(&l1Message.L1MessageTx)
 				l1Transactions = append(l1Transactions, transaction)
 			}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"morph-l2/node/zstd"
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
@@ -15,6 +14,7 @@ import (
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
 
 	"morph-l2/node/types"
+	"morph-l2/node/zstd"
 )
 
 type BlockContext struct {
@@ -57,9 +57,9 @@ type BatchInfo struct {
 	lastBlockNumber  uint64
 	firstBlockNumber uint64
 
-	root                   common.Hash
-	withdrawalRoot         common.Hash
-	skippedL1MessageBitmap *big.Int
+	root                       common.Hash
+	withdrawalRoot             common.Hash
+	parentTotalL1MessagePopped uint64
 }
 
 func (bi *BatchInfo) FirstBlockNumber() uint64 {
@@ -79,8 +79,19 @@ func (bi *BatchInfo) TxNum() uint64 {
 }
 
 // ParseBatch This method is externally referenced for parsing Batch
-func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, parentBatchBlock *uint64) error {
+func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
+	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
+	parentBatchIndex, err := parentBatchHeader.BatchIndex()
+	if err != nil {
+		return fmt.Errorf("decode batch header index error:%v", err)
+	}
+	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+	if err != nil {
+		return fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
+	}
+	bi.parentTotalL1MessagePopped = totalL1MessagePopped
 	bi.root = batch.PostStateRoot
+	bi.batchIndex = parentBatchIndex + 1
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
 	tq := newTxQueue()
@@ -88,18 +99,18 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, parentBatchBlock *uin
 	var txsData []byte
 	var blockCount uint64
 	if batch.BlockContexts == nil {
-		if parentBatchBlock == nil {
-			return fmt.Errorf("block number of parent batch not found")
+		parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
+		if err != nil {
+			return fmt.Errorf("decode batch header lastBlockNumber error:%v", err)
 		}
-		blockCount = batch.LastBlockNumber - *parentBatchBlock
+
+		blockCount = batch.LastBlockNumber - parentBatchBlock
 	}
+	// If BlockContexts is not nil, the block context should not be included in the blob.
+	// Therefore, the required length must be zero.
 	length := blockCount * 60
 	for _, blob := range batch.Sidecar.Blobs {
 		blobCopy := blob
-		// TODO
-		//if isEmptyBlob(blob) {
-		//	return eth.Transactions{}, nil
-		//}
 		blobData, err := types.RetrieveBlobBytes(&blobCopy)
 		if err != nil {
 			return err
@@ -182,7 +193,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, parentBatchBlock *uin
 	}
 	bi.txNum += txsNum
 	bi.blockContexts = blockContexts
-
 	return nil
 }
 

@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
-	"morph-l2/node/derivation"
 
 	"github.com/morph-l2/go-ethereum/ethclient"
+
+	"morph-l2/node/derivation"
 )
 
 var (
@@ -19,16 +19,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	parentBatch, err := l2Client.GetRollupBatchByIndex(context.Background(), batchIndex-1)
-	if err != nil {
-		log.Fatalf("failed to get batch, index: %d, err: %v", batchIndex-1, err)
-	}
 	batch, err := l2Client.GetRollupBatchByIndex(context.Background(), batchIndex)
 	if err != nil {
-		log.Fatalf("failed to get batch, index: %d, err: %v", batchIndex, err)
+		panic(err)
 	}
 	batchInfo := new(derivation.BatchInfo)
-	if err = batchInfo.ParseBatch(*batch, &parentBatch.LastBlockNumber); err != nil {
+	if err = batchInfo.ParseBatch(*batch); err != nil {
 		panic(err)
 	}
 	fmt.Println("batch index: ", batchIndex)
