@@ -115,7 +115,7 @@ var Subcommands = cli.Commands{
 				if err != nil {
 					return err
 				}
-				fmt.Printf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Encode())
+				fmt.Printf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Bytes())
 				if err := writeGenesisFile(genBatchHeaderFile, genesisBatchHeader); err != nil {
 					return err
 				}

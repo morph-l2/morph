@@ -408,7 +408,6 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*BatchInfo, error) {
-
 	batchInfo := new(BatchInfo)
 	if err := batchInfo.ParseBatch(batch); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)

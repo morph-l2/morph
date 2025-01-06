@@ -58,12 +58,15 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		return fmt.Errorf("failed to encode block contexts: %w", err)
 	}
 
+	parentBatchIndex, _ := e.batchingCache.parentBatchHeader.BatchIndex()
+	hash, _ := e.batchingCache.sealedBatchHeader.Hash()
+	l1MessagePopped, _ := e.batchingCache.sealedBatchHeader.L1MessagePopped()
 	// Construct the batch and commit it
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
 		Version:                  0,
-		Index:                    e.batchingCache.parentBatchHeader.BatchIndex + 1,
-		Hash:                     e.batchingCache.sealedBatchHeader.Hash(),
-		ParentBatchHeader:        e.batchingCache.parentBatchHeader.Encode(),
+		Index:                    parentBatchIndex + 1,
+		Hash:                     hash,
+		ParentBatchHeader:        *e.batchingCache.parentBatchHeader,
 		CurrentSequencerSetBytes: sequencerSetBytes,
 		BlockContexts:            blockContexts,
 		PrevStateRoot:            e.batchingCache.prevStateRoot,
@@ -71,18 +74,18 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		WithdrawRoot:             e.batchingCache.withdrawRoot,
 		Sidecar:                  e.batchingCache.sealedSidecar,
 		LastBlockNumber:          e.batchingCache.lastPackedBlockHeight,
-		NumL1Messages:            uint16(e.batchingCache.sealedBatchHeader.L1MessagePopped),
+		NumL1Messages:            uint16(l1MessagePopped),
 	}, batchSigs); err != nil {
 		return fmt.Errorf("failed to commit batch to L2 client: %w", err)
 	}
 
 	// Update batch index metric
-	e.metrics.BatchIndex.Set(float64(e.batchingCache.parentBatchHeader.BatchIndex + 1))
+	e.metrics.BatchIndex.Set(float64(parentBatchIndex + 1))
 
 	// Commit the batch and reset the cache for the next batch
 	e.commitSealedBatch(curHeight)
 
-	e.logger.Info("Committed batch", "batchIndex", e.batchingCache.parentBatchHeader.BatchIndex+1)
+	e.logger.Info("Committed batch", "batchIndex", parentBatchIndex+1)
 	return nil
 }
 
