@@ -477,7 +477,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused onlyActiveStaker{
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
