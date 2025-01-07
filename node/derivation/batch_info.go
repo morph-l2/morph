@@ -1,16 +1,20 @@
 package derivation
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	geth "github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
 
 	"morph-l2/node/types"
+	"morph-l2/node/zstd"
 )
 
 type BlockContext struct {
@@ -53,9 +57,9 @@ type BatchInfo struct {
 	lastBlockNumber  uint64
 	firstBlockNumber uint64
 
-	root                   common.Hash
-	withdrawalRoot         common.Hash
-	skippedL1MessageBitmap *big.Int
+	root                       common.Hash
+	withdrawalRoot             common.Hash
+	parentTotalL1MessagePopped uint64
 }
 
 func (bi *BatchInfo) FirstBlockNumber() uint64 {
@@ -76,29 +80,80 @@ func (bi *BatchInfo) TxNum() uint64 {
 
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
-	bi.root = batch.PostStateRoot
-	bi.withdrawalRoot = batch.WithdrawRoot
-	// If skipMap is zero value, there are no msgs that can be skipped
-	if len(batch.SkippedL1MessageBitmap[:]) != 0 {
-		bi.skippedL1MessageBitmap = new(big.Int).SetBytes(batch.SkippedL1MessageBitmap[:])
+	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
+	parentBatchIndex, err := parentBatchHeader.BatchIndex()
+	if err != nil {
+		return fmt.Errorf("decode batch header index error:%v", err)
 	}
+	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+	if err != nil {
+		return fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
+	}
+	bi.parentTotalL1MessagePopped = totalL1MessagePopped
+	bi.root = batch.PostStateRoot
+	bi.batchIndex = parentBatchIndex + 1
+	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
 	tq := newTxQueue()
+	var rawBlockContexts hexutil.Bytes
+	var txsData []byte
+	var blockCount uint64
+	if batch.BlockContexts == nil {
+		parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
+		if err != nil {
+			return fmt.Errorf("decode batch header lastBlockNumber error:%v", err)
+		}
+
+		blockCount = batch.LastBlockNumber - parentBatchBlock
+	}
+	// If BlockContexts is not nil, the block context should not be included in the blob.
+	// Therefore, the required length must be zero.
+	length := blockCount * 60
 	for _, blob := range batch.Sidecar.Blobs {
 		blobCopy := blob
-		data, err := types.DecodeTxsFromBlob(&blobCopy)
+		blobData, err := types.RetrieveBlobBytes(&blobCopy)
 		if err != nil {
 			return err
 		}
-		tq.enqueue(data)
+		batchBytes, err := zstd.DecompressBatchBytes(blobData)
+		if err != nil {
+			return err
+		}
+		reader := bytes.NewReader(batchBytes)
+		if batch.BlockContexts == nil {
+			if len(batchBytes) < int(length) {
+				rawBlockContexts = append(rawBlockContexts, batchBytes...)
+				length -= uint64(len(batchBytes))
+				reader.Reset(nil)
+			} else {
+				bcBytes := make([]byte, length)
+				_, err = reader.Read(bcBytes)
+				if err != nil {
+					return fmt.Errorf("read block context error:%s", err.Error())
+				}
+				rawBlockContexts = append(rawBlockContexts, bcBytes...)
+				length = 0
+			}
+		}
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return fmt.Errorf("read txBytes error:%s", err.Error())
+		}
+		txsData = append(txsData, data...)
 	}
-
-	blockNum := binary.BigEndian.Uint16(batch.BlockContexts[:2])
-	rawBlockContexts := batch.BlockContexts[2:]
+	if batch.BlockContexts != nil {
+		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
+		rawBlockContexts = batch.BlockContexts[2 : 60*blockCount+2]
+	}
+	data, err := types.DecodeTxsFromBytes(txsData)
+	if err != nil {
+		return err
+	}
+	tq.enqueue(data)
 	var txsNum uint64
 	var l1MsgNum uint64
-	blockContexts := make([]*BlockContext, int(blockNum))
-	for i := 0; i < int(blockNum); i++ {
+	blockContexts := make([]*BlockContext, int(blockCount))
+	for i := 0; i < int(blockCount); i++ {
 		var block BlockContext
 		if err := block.Decode(rawBlockContexts[i*60 : i*60+60]); err != nil {
 			return fmt.Errorf("decode chunk block context error:%v", err)
@@ -106,7 +161,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		if i == 0 {
 			bi.firstBlockNumber = block.Number
 		}
-		if i == int(blockNum)-1 {
+		if i == int(blockCount)-1 {
 			bi.lastBlockNumber = block.Number
 		}
 		var safeL2Data catalyst.SafeL2Data
@@ -138,7 +193,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	}
 	bi.txNum += txsNum
 	bi.blockContexts = blockContexts
-
 	return nil
 }
 
