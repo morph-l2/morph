@@ -1,5 +1,5 @@
 # Build Stage
-FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.22-ubuntu as builder
 
 # Set working directory and copy necessary files
 COPY . /morph
@@ -9,7 +9,7 @@ WORKDIR /morph/node
 RUN make build
 
 # Final Stage
-FROM morph/go-ubuntu-builder:go-1.22-ubuntu
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.22-ubuntu
 
 # Update and install dependencies, then clean up unnecessary files
 RUN apt-get -qq update \

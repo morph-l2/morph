@@ -58,12 +58,17 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		return fmt.Errorf("failed to encode block contexts: %w", err)
 	}
 
+	version, err := e.batchingCache.sealedBatchHeader.Version()
+	if err != nil {
+		return fmt.Errorf("failed to get batch version: %w", err)
+	}
+
 	parentBatchIndex, _ := e.batchingCache.parentBatchHeader.BatchIndex()
 	hash, _ := e.batchingCache.sealedBatchHeader.Hash()
 	l1MessagePopped, _ := e.batchingCache.sealedBatchHeader.L1MessagePopped()
 	// Construct the batch and commit it
 	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
-		Version:                  0,
+		Version:                  uint(version),
 		Index:                    parentBatchIndex + 1,
 		Hash:                     hash,
 		ParentBatchHeader:        *e.batchingCache.parentBatchHeader,
