@@ -98,7 +98,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	var rawBlockContexts hexutil.Bytes
 	var txsData []byte
 	var blockCount uint64
-	if batch.Version < 1 {
+	if batch.Version > 0 {
 		parentVersion, err := parentBatchHeader.Version()
 		if err != nil {
 			return fmt.Errorf("decode batch header version error:%v", err)
