@@ -98,13 +98,36 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	var rawBlockContexts hexutil.Bytes
 	var txsData []byte
 	var blockCount uint64
-	if batch.BlockContexts == nil {
-		parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
+	if batch.Version < 1 {
+		parentVersion, err := parentBatchHeader.Version()
 		if err != nil {
-			return fmt.Errorf("decode batch header lastBlockNumber error:%v", err)
+			return fmt.Errorf("decode batch header version error:%v", err)
+		}
+		if parentVersion == 0 {
+			if len(batch.Sidecar.Blobs) == 0 {
+				return fmt.Errorf("blobs lenght can not be zero")
+			}
+			blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
+			if err != nil {
+				return err
+			}
+			batchBytes, err := zstd.DecompressBatchBytes(blobData)
+			if err != nil {
+				return fmt.Errorf("decompress batch bytes error:%v", err)
+			}
+			var startBlock BlockContext
+			if err := startBlock.Decode(batchBytes[:60]); err != nil {
+				return fmt.Errorf("decode chunk block context error:%v", err)
+			}
+			blockCount = batch.LastBlockNumber - startBlock.Number + 1
+		} else {
+			parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
+			if err != nil {
+				return fmt.Errorf("decode batch header lastBlockNumber error:%v", err)
+			}
+			blockCount = batch.LastBlockNumber - parentBatchBlock
 		}
 
-		blockCount = batch.LastBlockNumber - parentBatchBlock
 	}
 	// If BlockContexts is not nil, the block context should not be included in the blob.
 	// Therefore, the required length must be zero.

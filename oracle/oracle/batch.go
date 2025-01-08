@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	nodetypes "morph-l2/node/types"
 	"time"
 
 	"morph-l2/bindings/bindings"
@@ -161,6 +162,19 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 				PrevStateRoot: common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
 				PostStateRoot: common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 				WithdrawRoot:  common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+			}
+			parentBatchHeader := nodetypes.BatchHeaderBytes(batch.ParentBatchHeader)
+			parentVersion, err := parentBatchHeader.Version()
+			if batch.Version == 1 && parentVersion == 0 {
+				parentBatchIndex, err := parentBatchHeader.BatchIndex()
+				if err != nil {
+					return fmt.Errorf("decode parent batch index error:%v", err)
+				}
+				parentBatch, err := o.l2Client.GetRollupBatchByIndex(o.ctx, parentBatchIndex)
+				if err != nil {
+					return fmt.Errorf("get parent batch error:%v", err)
+				}
+				batch.Sidecar = parentBatch.Sidecar
 			}
 		} else {
 			continue
