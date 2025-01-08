@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	nodetypes "morph-l2/node/types"
 	"time"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
+	nodetypes "morph-l2/node/types"
 	"morph-l2/oracle/backoff"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
