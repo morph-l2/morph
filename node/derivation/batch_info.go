@@ -105,7 +105,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		}
 		if parentVersion == 0 {
 			if len(batch.Sidecar.Blobs) == 0 {
-				return fmt.Errorf("blobs lenght can not be zero")
+				return fmt.Errorf("blobs length can not be zero")
 			}
 			blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
 			if err != nil {
