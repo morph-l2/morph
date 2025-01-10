@@ -10,6 +10,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/derivation"
+	nodetypes "morph-l2/node/types"
 	"morph-l2/oracle/backoff"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
@@ -161,6 +162,22 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 				PrevStateRoot: common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
 				PostStateRoot: common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 				WithdrawRoot:  common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+			}
+			parentBatchHeader := nodetypes.BatchHeaderBytes(batch.ParentBatchHeader)
+			parentVersion, err := parentBatchHeader.Version()
+			if err != nil {
+				return fmt.Errorf("decode parent batch version error:%v", err)
+			}
+			if batch.Version == 1 && parentVersion == 0 {
+				parentBatchIndex, err := parentBatchHeader.BatchIndex()
+				if err != nil {
+					return fmt.Errorf("decode parent batch index error:%v", err)
+				}
+				parentBatch, err := o.l2Client.GetRollupBatchByIndex(o.ctx, parentBatchIndex)
+				if err != nil {
+					return fmt.Errorf("get parent batch error:%v", err)
+				}
+				batch.Sidecar = parentBatch.Sidecar
 			}
 		} else {
 			continue
