@@ -165,6 +165,9 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 			}
 			parentBatchHeader := nodetypes.BatchHeaderBytes(batch.ParentBatchHeader)
 			parentVersion, err := parentBatchHeader.Version()
+			if err != nil {
+				return fmt.Errorf("decode parent batch version error:%v", err)
+			}
 			if batch.Version == 1 && parentVersion == 0 {
 				parentBatchIndex, err := parentBatchHeader.BatchIndex()
 				if err != nil {
