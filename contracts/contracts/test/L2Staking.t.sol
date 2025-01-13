@@ -3,14 +3,12 @@ pragma solidity =0.8.24;
 
 import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {IRecord} from "../l2/staking/IRecord.sol";
 import {Types} from "../libraries/common/Types.sol";
 import {L2StakingBaseTest} from "./base/L2StakingBase.t.sol";
 import {L2Staking} from "../l2/staking/L2Staking.sol";
 import {IL2Staking} from "../l2/staking/IL2Staking.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
-import {IDistribute} from "../l2/staking/IDistribute.sol";
 import {console} from "forge-std/Test.sol";
 
 import "forge-std/console.sol";

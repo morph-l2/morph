@@ -8,8 +8,6 @@ import {Types} from "../../libraries/common/Types.sol";
 import {MorphToken} from "../../l2/system/MorphToken.sol";
 import {L2Staking} from "../../l2/staking/L2Staking.sol";
 import {Sequencer} from "../../l2/staking/Sequencer.sol";
-import {Distribute} from "../../l2/staking/Distribute.sol";
-import {Record} from "../../l2/staking/Record.sol";
 import {Gov} from "../../l2/staking/Gov.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 
@@ -39,12 +37,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
     // Morph token
     MorphToken public morphToken;
-
-    // Distribute
-    Distribute public distribute;
-
-    // Record
-    Record public record;
 
     //Oracle address
     address public oracleAddress = address(1000);
