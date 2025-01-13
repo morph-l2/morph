@@ -67,7 +67,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// @notice constructor
     constructor() {
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
-        SYSTEM_ADDRESS = Predeploys.System;
+        SYSTEM_ADDRESS = Predeploys.SYSTEM;
     }
 
     /**************

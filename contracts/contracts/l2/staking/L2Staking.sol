@@ -4,6 +4,8 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
+import {DoubleEndedQueueUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
 
 import {Types} from "../../libraries/common/Types.sol";
 import {Predeploys} from "../../libraries/constants/Predeploys.sol";
@@ -14,6 +16,8 @@ import {IMorphToken} from "../system/IMorphToken.sol";
 
 contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+    using CountersUpgradeable for CountersUpgradeable.Counter;
+    using DoubleEndedQueueUpgradeable for DoubleEndedQueueUpgradeable.Bytes32Deque;
 
     /*************
      * Constants *
@@ -21,6 +25,9 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice reward epoch, seconds of one day (3600 * 24)
     uint256 private constant REWARD_EPOCH = 86400;
+
+    /// @notice commission rate base
+    uint256 private constant COMMISSION_RATE_BASE = 100; // 100%
 
     /// @notice MorphToken contract address
     address public immutable MORPH_TOKEN_CONTRACT;
@@ -77,8 +84,14 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice the delegation of a delegator
     mapping(address staker => mapping(address delegator => DelegatorDelegation)) public delegatorDelegations;
 
-    /// @notice delegator's undelegations
-    mapping(address delegator => Undelegation[]) public undelegations;
+    // hash of the undelegate request => undelegate request
+    mapping(bytes32 => UndelegateRequest) private _undelegateRequests;
+
+    // delegator address => undelegate request queue(hash of the request)
+    mapping(address => DoubleEndedQueueUpgradeable.Bytes32Deque) private _undelegateRequestsQueue;
+
+    // delegator address => personal undelegate sequence
+    mapping(address => CountersUpgradeable.Counter) private _undelegateSequence;
 
     /**********************
      * Function Modifiers *
@@ -86,23 +99,19 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice must be staker
     modifier onlyStaker(address addr) {
-        if (stakerRankings[_msgSender()] == 0) {
-            revert ErrNotStaker();
-        }
+        if (stakerRankings[_msgSender()] == 0) revert ErrNotStaker();
         _;
     }
 
     /// @notice check nonce
     modifier checkNonce(uint256 _nonce) {
-        if (_nonce != nonce) {
-            revert ErrInvalidNonce();
-        }
+        if (_nonce != nonce) revert ErrInvalidNonce();
         _;
     }
 
     /// @notice Ensures that the caller message from system
     modifier onlSystem() {
-        require(_msgSender() == SYSTEM_ADDRESS, "only system contract allowed");
+        if (_msgSender() != SYSTEM_ADDRESS) revert ErrOnlySystem();
         _;
     }
 
@@ -115,7 +124,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     constructor(address payable _otherStaking) Staking(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherStaking) {
         MORPH_TOKEN_CONTRACT = Predeploys.MORPH_TOKEN;
         SEQUENCER_CONTRACT = Predeploys.SEQUENCER;
-        SYSTEM_ADDRESS = Predeploys.System;
+        SYSTEM_ADDRESS = Predeploys.SYSTEM;
     }
 
     /***************
@@ -270,18 +279,12 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /// @notice setCommissionPercentage set delegate commission percentage
-    /// @param percentage    commission percentage
-    function setCommissionPercentage(uint256 percentage) external onlyStaker(_msgSender()) {
-        require(percentage <= 20, "invalid commission");
-        uint256 oldPercentage = commissions[_msgSender()].percentage;
-        uint256 epochEffective = rewardStarted ? currentEpoch() + 1 : 0;
-        commissions[_msgSender()] = Commission(
-            epochEffective,
-            oldPercentage,
-            percentage,
-            commissions[_msgSender()].amount
-        );
-        emit CommissionUpdated(_msgSender(), percentage, oldPercentage, epochEffective);
+    /// @param rate    commission percentage
+    function setCommissionRate(uint256 rate) external onlyStaker(_msgSender()) {
+        require(rate <= 20, "invalid commission");
+        uint256 oldRate = commissions[_msgSender()].rate;
+        commissions[_msgSender()] = Commission({rate: rate, amount: commissions[_msgSender()].amount});
+        emit CommissionUpdated(_msgSender(), rate, oldRate);
     }
 
     /// @notice claimCommission claim unclaimed commission reward of a staker
@@ -364,51 +367,52 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice delegator stake morph to delegatee
     /// @param delegatee    stake to whom
     /// @param amount       stake amount
-    function delegateStake(address delegatee, uint256 amount) external onlyStaker(delegatee) nonReentrant {
-        require(amount > 0, "invalid stake amount");
+    function delegate(address delegatee, uint256 amount) external onlyStaker(delegatee) nonReentrant {
+        if (amount == 0) revert ErrZeroAmount();
 
         uint256 effectiveEpoch = rewardStarted ? currentEpoch() + 1 : 0;
         delegators[delegatee].add(_msgSender()); // will not be added repeatedly
 
-        // update delegateeDelegations
-        if (!rewardStarted) {
-            // reward not start yet, checkpoint should be 0
-            delegateeDelegations[delegatee].checkpoint = 0;
-            delegateeDelegations[delegatee].amount += amount;
-            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
-            delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = amount} before reward start
-            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
-        } else if (delegateeDelegations[delegatee].checkpoint < effectiveEpoch) {
-            // first delegate stake at this epoch, update checkpoint & preAmount & preShare
-            delegateeDelegations[delegatee].checkpoint = effectiveEpoch;
-            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
-            delegateeDelegations[delegatee].amount += amount;
-            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
-            delegateeDelegations[delegatee].share = 0; // TODO
-        } else {
-            // non-first delegate stake at the current epoch, do not update checkpoint & preAmount & preShare
-            delegateeDelegations[delegatee].amount += amount;
-            delegateeDelegations[delegatee].share = 0; // TODO
-        }
-
-        // update delegatorDelegations
+        // ***********************************************************************************************
+        // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
             // reward not start yet, checkpoint should be 0
             delegatorDelegations[delegatee][_msgSender()].checkpoint = 0;
             delegatorDelegations[delegatee][_msgSender()].share += amount; // {share = amount} before reward start
             delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
                 .share;
-        } else if (delegatorDelegations[delegatee][_msgSender()].checkpoint < effectiveEpoch) {
-            // first delegate stake at this epoch, update checkpoint & preShare
+
+            delegateeDelegations[delegatee].checkpoint = 0;
+            delegateeDelegations[delegatee].amount += amount;
+            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
+            delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = amount} before reward start
+            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
+        }
+
+        // first delegate stake at this epoch, update checkpoint & preShare
+        if (delegatorDelegations[delegatee][_msgSender()].checkpoint < effectiveEpoch) {
             delegatorDelegations[delegatee][_msgSender()].checkpoint = effectiveEpoch;
             delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
                 .share;
-            delegatorDelegations[delegatee][_msgSender()].share = 0; //TODO
-        } else {
-            // non-first delegate stake at the current epoch, do not update checkpoint & preShare
-            delegatorDelegations[delegatee][_msgSender()].checkpoint = effectiveEpoch;
-            delegatorDelegations[delegatee][_msgSender()].share = 0; //TODO
         }
+
+        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
+        if (delegateeDelegations[delegatee].checkpoint < effectiveEpoch) {
+            delegateeDelegations[delegatee].checkpoint = effectiveEpoch;
+            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
+            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
+        }
+
+        uint256 _tshare = delegateeDelegations[delegatee].share;
+        uint256 _tAmount = delegateeDelegations[delegatee].amount;
+        uint256 _uShare = delegatorDelegations[delegatee][_msgSender()].share;
+
+        delegatorDelegations[delegatee][_msgSender()].share = _uShare + (amount * _tshare) / _tAmount;
+
+        delegateeDelegations[delegatee].amount += amount;
+        delegateeDelegations[delegatee].share = _tshare + (amount * _tshare) / _tAmount;
+
+        // ***********************************************************************************************
 
         if (delegateeDelegations[delegatee].amount == amount) {
             candidateNumber += 1;
@@ -432,15 +436,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             }
         }
 
-        emit Delegated(
-            delegatee,
-            _msgSender(),
-            amount,
-            delegateeDelegations[delegatee].amount,
-            delegateeDelegations[delegatee].share,
-            delegatorDelegations[delegatee][_msgSender()].share,
-            effectiveEpoch
-        );
+        emit Delegated(delegatee, _msgSender(), amount, delegateeDelegations[delegatee].amount);
 
         // transfer morph token from delegator to this
         _transferFrom(_msgSender(), address(this), amount);
@@ -452,23 +448,13 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         }
     }
 
-    /// @notice delegator redelegate stake morph token to new delegatee
-    /// @param delegateeFrom    old delegatee
-    /// @param delegateeTo      new delegatee
-    /// @param amount           amount
-    function redelegateStake(
-        address delegateeFrom,
-        address delegateeTo,
-        uint256 amount
-    ) external onlyStaker(delegateeFrom) onlyStaker(delegateeTo) nonReentrant {
-        // TODO
-    }
-
     /// @notice delegator undelegate stake morph token
     /// @param delegatee    delegatee address
     /// @param amount       undelegate stake amount, undelegate all if set 0
-    function undelegateStake(address delegatee, uint256 amount) external nonReentrant {
-        require(_isStakingTo(delegatee), "staking amount is zero");
+    function undelegate(address delegatee, uint256 amount) external nonReentrant {
+        if (amount == 0) revert ErrZeroAmount();
+        if (_getDelegationAmount(delegatee, _msgSender()) == 0) revert ErrZeroShares();
+        if (_getDelegationAmount(delegatee, _msgSender()) < amount) revert ErrInsufficientBalance();
 
         // weather staker has been removed
         bool removed = stakerRankings[delegatee] == 0;
@@ -478,53 +464,51 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             ? effectiveEpoch + undelegateLockEpochs // reward started and staker is active
             : 0; // equal to 0 if reward not started
 
-        // Undelegation memory undelegation = Undelegation(delegatee, delegations[delegatee][_msgSender()], unlockEpoch);
-        // undelegations[_msgSender()].push(undelegation);
-        // delete delegations[delegatee][_msgSender()];
-        // stakerDelegations[delegatee] -= undelegation.amount;
-        // delegators[delegatee].remove(_msgSender());
+        UndelegateRequest memory request = UndelegateRequest({amount: amount, unlockEpoch: unlockEpoch});
+        bytes32 hash = keccak256(abi.encodePacked(_msgSender(), _useSequence(_msgSender())));
+        // the hash should not exist in the queue
+        // this will not happen in normal cases
+        if (_undelegateRequests[hash].amount != 0) revert ErrRequestExisted();
+        _undelegateRequests[hash] = request;
+        _undelegateRequestsQueue[_msgSender()].pushBack(hash);
 
-        // -----------------------------------------------------------------------------------------------
+        // update delegatorDelegations & delegateeDelegations
+        if (!rewardStarted) {
+            // reward not start yet, checkpoint should be 0
+            delegatorDelegations[delegatee][_msgSender()].checkpoint = 0;
+            delegatorDelegations[delegatee][_msgSender()].share -= amount; // {share = amount} before reward start
+            delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
+                .share;
 
-        // // update delegateeDelegations
-        // if (!rewardStarted) {
-        //     // reward not start yet, checkpoint should be 0
-        //     delegateeDelegations[delegatee].checkpoint = 0;
-        //     delegateeDelegations[delegatee].amount += amount;
-        //     delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
-        //     delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = amount} before reward start
-        //     delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
-        // } else if (delegateeDelegations[delegatee].checkpoint < effectiveEpoch) {
-        //     // first delegate stake at this epoch, update checkpoint & preAmount & preShare
-        //     delegateeDelegations[delegatee].checkpoint = effectiveEpoch;
-        //     delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
-        //     delegateeDelegations[delegatee].amount += amount;
-        //     delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
-        //     delegateeDelegations[delegatee].share = 0; // TODO
-        // } else {
-        //     // non-first delegate stake at the current epoch, do not update checkpoint & preAmount & preShare
-        //     delegateeDelegations[delegatee].amount += amount;
-        //     delegateeDelegations[delegatee].share = 0; // TODO
-        // }
+            delegateeDelegations[delegatee].checkpoint = 0;
+            delegateeDelegations[delegatee].amount -= amount;
+            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
+            delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = amount} before reward start
+            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
+        }
 
-        // // update delegatorDelegations
-        // if (!rewardStarted) {
-        //     // reward not start yet, checkpoint should be 0
-        //     delegatorDelegations[delegatee][_msgSender()].checkpoint = 0;
-        //     delegatorDelegations[delegatee][_msgSender()].share += amount; // {share = amount} before reward start
-        //     delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
-        //         .share;
-        // } else if (delegatorDelegations[delegatee][_msgSender()].checkpoint < effectiveEpoch) {
-        //     // first delegate stake at this epoch, update checkpoint & preShare
-        //     delegatorDelegations[delegatee][_msgSender()].checkpoint = effectiveEpoch;
-        //     delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
-        //         .share;
-        //     delegatorDelegations[delegatee][_msgSender()].share = 0; //TODO
-        // } else {
-        //     // non-first delegate stake at the current epoch, do not update checkpoint & preShare
-        //     delegatorDelegations[delegatee][_msgSender()].checkpoint = effectiveEpoch;
-        //     delegatorDelegations[delegatee][_msgSender()].share = 0; //TODO
-        // }
+        // first delegate stake at this epoch, update checkpoint & preShare
+        if (delegatorDelegations[delegatee][_msgSender()].checkpoint < effectiveEpoch) {
+            delegatorDelegations[delegatee][_msgSender()].checkpoint = effectiveEpoch;
+            delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
+                .share;
+        }
+
+        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
+        if (delegateeDelegations[delegatee].checkpoint < effectiveEpoch) {
+            delegateeDelegations[delegatee].checkpoint = effectiveEpoch;
+            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
+            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
+        }
+
+        uint256 _tshare = delegateeDelegations[delegatee].share;
+        uint256 _tAmount = delegateeDelegations[delegatee].amount;
+        uint256 _uShare = delegatorDelegations[delegatee][_msgSender()].share;
+
+        delegatorDelegations[delegatee][_msgSender()].share = _uShare - (amount * _tshare) / _tAmount;
+
+        delegateeDelegations[delegatee].amount += amount;
+        delegateeDelegations[delegatee].share = _tshare - (amount * _tshare) / _tAmount;
 
         uint256 beforeRanking = stakerRankings[delegatee];
         if (!removed && rewardStarted && beforeRanking < candidateNumber) {
@@ -548,16 +532,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             candidateNumber -= 1;
         }
 
-        emit Undelegated(
-            delegatee,
-            _msgSender(),
-            amount,
-            delegateeDelegations[delegatee].amount,
-            delegateeDelegations[delegatee].share,
-            delegatorDelegations[delegatee][_msgSender()].share,
-            effectiveEpoch,
-            unlockEpoch
-        );
+        emit Undelegated(delegatee, _msgSender(), amount, delegateeDelegations[delegatee].amount, unlockEpoch);
 
         if (
             !removed &&
@@ -569,61 +544,243 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         }
     }
 
-    /// @notice delegator cliam delegate staking value
-    function claimUndelegation() external nonReentrant {
-        uint256 totalAmount;
-        uint256 length = undelegations[_msgSender()].length;
+    /// @notice delegator redelegate stake morph token to new delegatee
+    /// @param delegateeFrom    old delegatee
+    /// @param delegateeTo      new delegatee
+    /// @param amount           amount
+    function redelegate(
+        address delegateeFrom,
+        address delegateeTo,
+        uint256 amount
+    ) external onlyStaker(delegateeFrom) onlyStaker(delegateeTo) nonReentrant {
+        if (amount == 0) revert ErrZeroAmount();
+        if (_getDelegationAmount(delegateeFrom, _msgSender()) == 0) revert ErrZeroShares();
+        if (_getDelegationAmount(delegateeFrom, _msgSender()) < amount) revert ErrInsufficientBalance();
 
-        for (uint256 i = 0; i < length; ) {
-            // if the reward is not started yet, claiming directly is allowed
-            if (!rewardStarted || undelegations[_msgSender()][i].unlockEpoch <= currentEpoch()) {
-                totalAmount += undelegations[_msgSender()][i].amount;
+        bool updateSequencerSet;
 
-                // event params
-                address delegatee = undelegations[_msgSender()][i].delegatee;
-                uint256 unlockEpoch = undelegations[_msgSender()][i].unlockEpoch;
-                uint256 amount = undelegations[_msgSender()][i].amount;
+        // weather staker has been removed
+        uint256 effectiveEpoch = rewardStarted ? currentEpoch() + 1 : 0;
 
-                if (i < length - 1) {
-                    undelegations[_msgSender()][i] = undelegations[_msgSender()][length - 1];
+        // ***************************** undelegate from old delegatee ***************************** //
+        bool removed = stakerRankings[delegateeFrom] == 0;
+
+        // update delegatorDelegations & delegateeDelegations
+        if (!rewardStarted) {
+            // reward not start yet, checkpoint should be 0
+            delegatorDelegations[delegateeFrom][_msgSender()].checkpoint = 0;
+            delegatorDelegations[delegateeFrom][_msgSender()].share -= amount; // {share = amount} before reward start
+            delegatorDelegations[delegateeFrom][_msgSender()].preShare = delegatorDelegations[delegateeFrom][
+                _msgSender()
+            ].share;
+
+            delegateeDelegations[delegateeFrom].checkpoint = 0;
+            delegateeDelegations[delegateeFrom].amount -= amount;
+            delegateeDelegations[delegateeFrom].preAmount = delegateeDelegations[delegateeFrom].amount;
+            delegateeDelegations[delegateeFrom].share = delegateeDelegations[delegateeFrom].amount; // {share = amount} before reward start
+            delegateeDelegations[delegateeFrom].preShare = delegateeDelegations[delegateeFrom].share;
+        }
+
+        // first delegate stake at this epoch, update checkpoint & preShare
+        if (delegatorDelegations[delegateeFrom][_msgSender()].checkpoint < effectiveEpoch) {
+            delegatorDelegations[delegateeFrom][_msgSender()].checkpoint = effectiveEpoch;
+            delegatorDelegations[delegateeFrom][_msgSender()].preShare = delegatorDelegations[delegateeFrom][
+                _msgSender()
+            ].share;
+        }
+
+        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
+        if (delegateeDelegations[delegateeFrom].checkpoint < effectiveEpoch) {
+            delegateeDelegations[delegateeFrom].checkpoint = effectiveEpoch;
+            delegateeDelegations[delegateeFrom].preAmount = delegateeDelegations[delegateeFrom].amount;
+            delegateeDelegations[delegateeFrom].preShare = delegateeDelegations[delegateeFrom].share;
+        }
+
+        uint256 _tshare = delegateeDelegations[delegateeFrom].share;
+        uint256 _tAmount = delegateeDelegations[delegateeFrom].amount;
+        uint256 _uShare = delegatorDelegations[delegateeFrom][_msgSender()].share;
+
+        delegatorDelegations[delegateeFrom][_msgSender()].share = _uShare - (amount * _tshare) / _tAmount;
+
+        delegateeDelegations[delegateeFrom].amount += amount;
+        delegateeDelegations[delegateeFrom].share = _tshare - (amount * _tshare) / _tAmount;
+
+        uint256 beforeRanking = stakerRankings[delegateeFrom];
+        if (!removed && rewardStarted && beforeRanking < candidateNumber) {
+            // update stakers and rankings
+            for (uint256 i = stakerRankings[delegateeFrom] - 1; i < candidateNumber - 1; i++) {
+                if (
+                    delegateeDelegations[stakerAddresses[i + 1]].amount >
+                    delegateeDelegations[stakerAddresses[i]].amount
+                ) {
+                    address tmp = stakerAddresses[i];
+                    stakerAddresses[i] = stakerAddresses[i + 1];
+                    stakerAddresses[i + 1] = tmp;
+                    stakerRankings[stakerAddresses[i]] = i + 1;
+                    stakerRankings[stakerAddresses[i + 1]] = i + 2;
                 }
-                undelegations[_msgSender()].pop();
-                length = length - 1;
-
-                emit UndelegationClaimed(delegatee, _msgSender(), unlockEpoch, amount);
-            } else {
-                i = i + 1;
             }
         }
 
-        require(totalAmount > 0, "no Morph token to claim");
+        // update candidateNumber
+        if (!removed && delegateeDelegations[delegateeFrom].amount == 0) {
+            candidateNumber -= 1;
+        }
+
+        if (
+            !removed &&
+            rewardStarted &&
+            beforeRanking <= latestSequencerSetSize &&
+            (stakerRankings[delegateeFrom] > latestSequencerSetSize || stakerRankings[delegateeFrom] > candidateNumber)
+        ) {
+            updateSequencerSet = true;
+        }
+
+        // ***************************** bond to new delegatee ***************************** //
+
+        delegators[delegateeTo].add(_msgSender()); // will not be added repeatedly
+
+        // update delegatorDelegations & delegateeDelegations
+        if (!rewardStarted) {
+            // reward not start yet, checkpoint should be 0
+            delegatorDelegations[delegateeTo][_msgSender()].checkpoint = 0;
+            delegatorDelegations[delegateeTo][_msgSender()].share += amount; // {share = amount} before reward start
+            delegatorDelegations[delegateeTo][_msgSender()].preShare = delegatorDelegations[delegateeTo][_msgSender()]
+                .share;
+
+            delegateeDelegations[delegateeTo].checkpoint = 0;
+            delegateeDelegations[delegateeTo].amount += amount;
+            delegateeDelegations[delegateeTo].preAmount = delegateeDelegations[delegateeTo].amount;
+            delegateeDelegations[delegateeTo].share = delegateeDelegations[delegateeTo].amount; // {share = amount} before reward start
+            delegateeDelegations[delegateeTo].preShare = delegateeDelegations[delegateeTo].share;
+        }
+
+        // first delegate stake at this epoch, update checkpoint & preShare
+        if (delegatorDelegations[delegateeTo][_msgSender()].checkpoint < effectiveEpoch) {
+            delegatorDelegations[delegateeTo][_msgSender()].checkpoint = effectiveEpoch;
+            delegatorDelegations[delegateeTo][_msgSender()].preShare = delegatorDelegations[delegateeTo][_msgSender()]
+                .share;
+        }
+
+        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
+        if (delegateeDelegations[delegateeTo].checkpoint < effectiveEpoch) {
+            delegateeDelegations[delegateeTo].checkpoint = effectiveEpoch;
+            delegateeDelegations[delegateeTo].preAmount = delegateeDelegations[delegateeTo].amount;
+            delegateeDelegations[delegateeTo].preShare = delegateeDelegations[delegateeTo].share;
+        }
+
+        _tshare = delegateeDelegations[delegateeTo].share;
+        _tAmount = delegateeDelegations[delegateeTo].amount;
+        _uShare = delegatorDelegations[delegateeTo][_msgSender()].share;
+
+        delegatorDelegations[delegateeTo][_msgSender()].share = _uShare + (amount * _tshare) / _tAmount;
+
+        delegateeDelegations[delegateeTo].amount += amount;
+        delegateeDelegations[delegateeTo].share = _tshare + (amount * _tshare) / _tAmount;
+
+        if (delegateeDelegations[delegateeTo].amount == amount) {
+            candidateNumber += 1;
+        }
+
+        beforeRanking = stakerRankings[delegateeTo];
+        if (rewardStarted && beforeRanking > 1) {
+            // update stakers and rankings
+            for (uint256 i = beforeRanking - 1; i > 0; i--) {
+                if (
+                    delegateeDelegations[stakerAddresses[i]].amount >
+                    delegateeDelegations[stakerAddresses[i - 1]].amount
+                ) {
+                    address tmp = stakerAddresses[i - 1];
+                    stakerAddresses[i - 1] = stakerAddresses[i];
+                    stakerAddresses[i] = tmp;
+
+                    stakerRankings[stakerAddresses[i - 1]] = i;
+                    stakerRankings[stakerAddresses[i]] = i + 1;
+                }
+            }
+        }
+
+        if (
+            rewardStarted &&
+            beforeRanking > latestSequencerSetSize &&
+            stakerRankings[delegateeTo] <= sequencerSetMaxSize
+        ) {
+            updateSequencerSet = true;
+        }
+
+        // ********************************************************************************* //
+
+        if (updateSequencerSet) {
+            _updateSequencerSet();
+        }
+
+        emit Redelegated(
+            delegateeFrom,
+            delegateeTo,
+            _msgSender(),
+            amount,
+            delegateeDelegations[delegateeFrom].amount,
+            delegateeDelegations[delegateeTo].amount
+        );
+    }
+
+    /// @notice delegator cliam delegate staking value
+    /// @param number   the number of undelegate requests to be claimed. 0 means claim all
+    /// @return amount  the total amount of MPH claimed
+    function claimUndelegation(uint256 number) external nonReentrant returns (uint256) {
+        // number == 0 means claim all
+        // number should not exceed the length of the queue
+        if (_undelegateRequestsQueue[_msgSender()].length() == 0) revert ErrNoUndelegateRequest();
+
+        number = (number == 0 || number > _undelegateRequestsQueue[_msgSender()].length())
+            ? _undelegateRequestsQueue[_msgSender()].length()
+            : number;
+
+        uint256 totalAmount;
+        while (number != 0) {
+            bytes32 hash = _undelegateRequestsQueue[_msgSender()].front();
+            UndelegateRequest memory request = _undelegateRequests[hash];
+            if (currentEpoch() < request.unlockEpoch) {
+                break;
+            }
+
+            // remove from the queue
+            _undelegateRequestsQueue[_msgSender()].popFront();
+
+            totalAmount += request.amount;
+            --number;
+        }
+        if (totalAmount == 0) revert ErrNoClaimableUndelegateRequest();
+
         _transfer(_msgSender(), totalAmount);
+
+        return totalAmount;
     }
 
     /// @dev distribute inflation by system on epoch end
     /// @param epochIndex         epoch index
     /// @param sequencers         sequencers
     /// @param rewards            total rewards
-    function distributeInflation(
+    function distribute(
         uint256 epochIndex,
         address[] calldata sequencers,
         uint256[] calldata rewards
     ) external onlSystem {
-        // mintedEpochCount++;
-        // require(mintedEpochCount - 1 == epochIndex, "invalid epoch index");
-        // require(
-        //     delegatorRewards.length == sequencers.length && commissionsAmount.length == sequencers.length,
-        //     "invalid data length"
-        // );
-        // for (uint256 i = 0; i < sequencers.length; i++) {
-        //     distributions[sequencers[i]][epochIndex].delegatorRewardAmount = delegatorRewards[i];
-        //     if (distributions[sequencers[i]][epochIndex].delegationAmount == 0 && epochIndex > 0) {
-        //         distributions[sequencers[i]][epochIndex].delegationAmount = distributions[sequencers[i]][epochIndex - 1]
-        //             .delegationAmount;
-        //     }
-        //     commissions[sequencers[i]] += commissionsAmount[i];
-        //     emit Distributed(sequencers[i], delegatorRewards[i], commissionsAmount[i]);
-        // }
+        if (currentEpoch() != epochIndex) revert ErrInvalidEpoch();
+        if (sequencers.length != rewards.length) revert ErrInvalidRewards();
+
+        for (uint256 i = 0; i < sequencers.length; i++) {
+            uint256 commissionRate = commissions[sequencers[i]].rate;
+            uint256 commissionAmount = (rewards[i] * commissionRate) / COMMISSION_RATE_BASE;
+            uint256 rewardAmount = rewards[i] - commissionAmount;
+            commissions[sequencers[i]].amount += commissionAmount;
+            delegateeDelegations[sequencers[i]].amount += rewardAmount;
+
+            delegateeDelegations[sequencers[i]].preAmount = delegateeDelegations[sequencers[i]].amount;
+            delegateeDelegations[sequencers[i]].checkpoint = epochIndex;
+
+            emit Distributed(sequencers[i], rewardAmount, commissionAmount);
+        }
     }
 
     /// @dev claim commission reward
@@ -641,6 +798,65 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /*************************
      * Public View Functions *
      *************************/
+
+    /// @notice return the total length of delegator's pending undelegate queue.
+    /// @param delegator    delegator
+    function pendingUndelegateRequest(address delegator) public view returns (uint256) {
+        return _undelegateRequestsQueue[delegator].length();
+    }
+
+    /// @notice return the total number of delegator's claimable undelegate requests.
+    /// @param delegator   delegator
+    function claimableUndelegateRequest(address delegator) public view returns (uint256) {
+        uint256 length = _undelegateRequestsQueue[delegator].length();
+        uint256 count;
+        for (uint256 i; i < length; ++i) {
+            bytes32 hash = _undelegateRequestsQueue[delegator].at(i);
+            UndelegateRequest memory request = _undelegateRequests[hash];
+            if (currentEpoch() >= request.unlockEpoch) {
+                ++count;
+            } else {
+                break;
+            }
+        }
+        return count;
+    }
+
+    /// @notice return the sum of first `number` requests' MPH locked in delegator's undelegate queue.
+    /// @param delegator    delegator
+    /// @param number       number
+    function lockedAmount(address delegator, uint256 number) public view returns (uint256) {
+        // number == 0 means all
+        // number should not exceed the length of the queue
+        if (_undelegateRequestsQueue[delegator].length() == 0) {
+            return 0;
+        }
+        number = (number == 0 || number > _undelegateRequestsQueue[delegator].length())
+            ? _undelegateRequestsQueue[delegator].length()
+            : number;
+
+        uint256 _totalAmount;
+        for (uint256 i; i < number; ++i) {
+            bytes32 hash = _undelegateRequestsQueue[delegator].at(i);
+            UndelegateRequest memory request = _undelegateRequests[hash];
+            _totalAmount += request.amount;
+        }
+        return _totalAmount;
+    }
+
+    /// @notice return the undelegate request at _index.
+    /// @param delegator    delegator
+    /// @param _index       index
+    function undelegateRequest(address delegator, uint256 _index) public view returns (UndelegateRequest memory) {
+        bytes32 hash = _undelegateRequestsQueue[delegator].at(_index);
+        return _undelegateRequests[hash];
+    }
+
+    /// @notice return the personal undelegate sequence of the delegator.
+    /// @param delegator    delegator
+    function undelegateSequence(address delegator) public view returns (uint256) {
+        return _undelegateSequence[delegator].current();
+    }
 
     /// @notice return current reward epoch index
     function currentEpoch() public view returns (uint256) {
@@ -718,12 +934,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return stakerAddresses.length;
     }
 
-    /// @notice get undelegations of a delegator
-    /// @param delegator delegator
-    function getUndelegations(address delegator) external view returns (Undelegation[] memory) {
-        return undelegations[delegator];
-    }
-
     /// @notice query all unclaimed commission of a delegatee
     /// @param delegatee     delegatee address
     function queryUnclaimedCommission(address delegatee) external view returns (uint256 amount) {
@@ -737,24 +947,38 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return _getDelegationAmount(delegatee, delegator);
     }
 
+    /// @notice query pre-delegation amount of a delegator
+    /// @param delegatee     delegatee address
+    /// @param delegator     delegator address
+    function queryPreDelegationAmount(address delegatee, address delegator) external view returns (uint256 amount) {
+        return _getPreDelegationAmount(delegatee, delegator);
+    }
+
     /**********************
      * Internal Functions *
      **********************/
 
+    /// @notice use sequence
+    function _useSequence(address delegator) internal returns (uint256 current) {
+        CountersUpgradeable.Counter storage sequence = _undelegateSequence[delegator];
+        current = sequence.current();
+        sequence.increment();
+    }
+
     /// @notice transfer morph token
     function _transfer(address _to, uint256 _amount) internal {
         uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
+        if (!IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount)) revert ErrTransferFailed();
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
+        if (_amount == 0 || balanceAfter - balanceBefore != _amount) revert ErrTransferFailed();
     }
 
     /// @notice transfer morph token from
     function _transferFrom(address _from, address _to, uint256 _amount) internal {
         uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        IMorphToken(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount);
+        if (!IMorphToken(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount)) revert ErrTransferFailed();
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
+        if (_amount == 0 || balanceAfter - balanceBefore != _amount) revert ErrTransferFailed();
     }
 
     /// @notice check if the user has staked to delegatee
@@ -781,30 +1005,21 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         latestSequencerSetSize = sequencerSet.length;
     }
 
-    /// @notice whether there is a undedeletion unclaimed
-    function _unclaimedUndelegation(address delegator, address delegatee) internal view returns (bool) {
-        for (uint256 i = 0; i < undelegations[delegator].length; i++) {
-            if (undelegations[delegator][i].delegatee == delegatee) {
-                return true;
-            }
-        }
-        return false;
+    /// @notice query delegation amount of a delegator
+    /// @param delegatee     delegatee address
+    /// @param delegator     delegator address
+    function _getDelegationAmount(address delegatee, address delegator) internal view returns (uint256 amount) {
+        return
+            (delegateeDelegations[delegatee].amount * delegatorDelegations[delegatee][delegator].share) /
+            delegateeDelegations[delegatee].share;
     }
 
     /// @notice query delegation amount of a delegator
     /// @param delegatee     delegatee address
     /// @param delegator     delegator address
-    function _getDelegationAmount(address delegatee, address delegator) internal view returns (uint256 amount) {
-        uint256 cEpoch = currentEpoch();
-        uint256 share = cEpoch < delegatorDelegations[delegatee][delegator].checkpoint
-            ? delegatorDelegations[delegatee][delegator].preShare
-            : delegatorDelegations[delegatee][delegator].share;
-        uint256 tShare = cEpoch < delegateeDelegations[delegatee].checkpoint
-            ? delegateeDelegations[delegatee].preShare
-            : delegateeDelegations[delegatee].share;
-        uint256 tAmount = cEpoch < delegateeDelegations[delegatee].checkpoint
-            ? delegateeDelegations[delegatee].preAmount
-            : delegateeDelegations[delegatee].amount;
-        return (tAmount * share) / tShare;
+    function _getPreDelegationAmount(address delegatee, address delegator) internal view returns (uint256 amount) {
+        return
+            (delegateeDelegations[delegatee].amount * delegatorDelegations[delegatee][delegator].preShare) /
+            delegateeDelegations[delegatee].share;
     }
 }

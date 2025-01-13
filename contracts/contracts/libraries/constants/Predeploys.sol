@@ -83,11 +83,6 @@ library Predeploys {
     address internal constant L2_WETH = 0x5300000000000000000000000000000000000011;
 
     /**
-     * @notice Address of the RECORD predeploy.
-     */
-    address internal constant RECORD = 0x5300000000000000000000000000000000000012;
-
-    /**
      * @notice Address of the MORPH_TOKEN predeploy.
      */
     address internal constant MORPH_TOKEN = 0x5300000000000000000000000000000000000013;
@@ -115,5 +110,5 @@ library Predeploys {
     /**
      * @notice Address of the System.
      */
-    address internal constant System = 0x5300000000000000000000000000000000000019;
+    address internal constant SYSTEM = 0x5300000000000000000000000000000000000019;
 }
