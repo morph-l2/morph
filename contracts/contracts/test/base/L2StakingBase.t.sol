@@ -8,8 +8,6 @@ import {Types} from "../../libraries/common/Types.sol";
 import {MorphToken} from "../../l2/system/MorphToken.sol";
 import {L2Staking} from "../../l2/staking/L2Staking.sol";
 import {Sequencer} from "../../l2/staking/Sequencer.sol";
-import {Distribute} from "../../l2/staking/Distribute.sol";
-import {Record} from "../../l2/staking/Record.sol";
 import {Gov} from "../../l2/staking/Gov.sol";
 import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 
@@ -40,12 +38,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     // Morph token
     MorphToken public morphToken;
 
-    // Distribute
-    Distribute public distribute;
-
-    // Record
-    Record public record;
-
     //Oracle address
     address public oracleAddress = address(1000);
     uint256 public nextBatchSubmissionIndex = 1;
@@ -73,26 +65,14 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             Predeploys.MORPH_TOKEN,
             address(new TransparentUpgradeableProxy(address(emptyContract), address(multisig), new bytes(0))).code
         );
-        hevm.etch(
-            Predeploys.DISTRIBUTE,
-            address(new TransparentUpgradeableProxy(address(emptyContract), address(multisig), new bytes(0))).code
-        );
-        hevm.etch(
-            Predeploys.RECORD,
-            address(new TransparentUpgradeableProxy(address(emptyContract), address(multisig), new bytes(0))).code
-        );
         TransparentUpgradeableProxy sequencerProxy = TransparentUpgradeableProxy(payable(Predeploys.SEQUENCER));
         TransparentUpgradeableProxy govProxy = TransparentUpgradeableProxy(payable(Predeploys.GOV));
         TransparentUpgradeableProxy l2StakingProxy = TransparentUpgradeableProxy(payable(Predeploys.L2_STAKING));
         TransparentUpgradeableProxy morphTokenProxy = TransparentUpgradeableProxy(payable(Predeploys.MORPH_TOKEN));
-        TransparentUpgradeableProxy distributeProxy = TransparentUpgradeableProxy(payable(Predeploys.DISTRIBUTE));
-        TransparentUpgradeableProxy recordProxy = TransparentUpgradeableProxy(payable(Predeploys.RECORD));
         hevm.store(address(sequencerProxy), bytes32(PROXY_OWNER_KEY), bytes32(abi.encode(address(multisig))));
         hevm.store(address(govProxy), bytes32(PROXY_OWNER_KEY), bytes32(abi.encode(address(multisig))));
         hevm.store(address(l2StakingProxy), bytes32(PROXY_OWNER_KEY), bytes32(abi.encode(address(multisig))));
         hevm.store(address(morphTokenProxy), bytes32(PROXY_OWNER_KEY), bytes32(abi.encode(address(multisig))));
-        hevm.store(address(distributeProxy), bytes32(PROXY_OWNER_KEY), bytes32(abi.encode(address(multisig))));
-        hevm.store(address(recordProxy), bytes32(PROXY_OWNER_KEY), bytes32(abi.encode(address(multisig))));
 
         hevm.startPrank(multisig);
         // deploy impl contracts
@@ -100,7 +80,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         L2Staking l2StakingImpl = new L2Staking(payable(NON_ZERO_ADDRESS));
         Sequencer sequencerImpl = new Sequencer();
         Distribute distributeImpl = new Distribute();
-        Record recordImpl = new Record();
         Gov govImpl = new Gov();
 
         // upgrade proxy

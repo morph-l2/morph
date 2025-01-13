@@ -58,14 +58,6 @@ contract MorphTokenTest is L2StakingBaseTest {
         assertEq(morphToken.L2_STAKING_CONTRACT(), Predeploys.L2_STAKING);
     }
 
-    function test_distribute_contract_succeeds() public {
-        assertEq(morphToken.DISTRIBUTE_CONTRACT(), Predeploys.DISTRIBUTE);
-    }
-
-    function test_record_contract_succeeds() public {
-        assertEq(morphToken.RECORD_CONTRACT(), Predeploys.RECORD);
-    }
-
     function test_name_succeeds() public {
         assertEq(morphToken.name(), "Morph");
     }
@@ -160,15 +152,15 @@ contract MorphTokenTest is L2StakingBaseTest {
         assertEq(morphToken.epochInflationRates(newCount - 1).effectiveEpochIndex, newEpochIndex);
     }
 
-    function test_mintInflations_notRecord_reverts() public {
-        hevm.startPrank(Predeploys.DISTRIBUTE);
-        hevm.expectRevert("only record contract allowed");
+    function test_mintInflations_notSystem_reverts() public {
+        hevm.startPrank(Predeploys.L2_STAKING);
+        hevm.expectRevert("only system address allowed");
         morphToken.mintInflations(0);
         hevm.stopPrank();
     }
 
     function test_mintInflations_notStart_reverts() public {
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         hevm.warp(block.timestamp + rewardStartTime - 2);
         hevm.expectRevert("reward is not started yet");
         morphToken.mintInflations(0);
@@ -176,7 +168,7 @@ contract MorphTokenTest is L2StakingBaseTest {
     }
 
     function test_mintInflations_invalidEpoch_reverts() public {
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         hevm.warp(block.timestamp + rewardStartTime);
         hevm.expectRevert("the specified time has not yet been reached");
         morphToken.mintInflations(0);
@@ -184,7 +176,7 @@ contract MorphTokenTest is L2StakingBaseTest {
     }
 
     function test_mintInflations_exceedCurrentEpoch_reverts() public {
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         hevm.warp(block.timestamp + rewardStartTime * 2);
         uint256 exceedingEpoch = l2Staking.currentEpoch() + 1;
         hevm.expectRevert("the specified time has not yet been reached");
@@ -193,7 +185,7 @@ contract MorphTokenTest is L2StakingBaseTest {
     }
 
     function test_mintInflations_check_reverts() public {
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         uint256 beforeTotal = morphToken.totalSupply();
         hevm.warp(block.timestamp + rewardStartTime * 2);
         morphToken.mintInflations(0);
@@ -206,13 +198,13 @@ contract MorphTokenTest is L2StakingBaseTest {
     }
 
     function test_mintInflations_succeeds() public {
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         uint256 beforeTotal = morphToken.totalSupply();
-        uint256 dbb = morphToken.balanceOf(Predeploys.DISTRIBUTE);
+        uint256 dbb = morphToken.balanceOf(Predeploys.L2_STAKING);
         hevm.warp(block.timestamp + rewardStartTime * 2);
         morphToken.mintInflations(0);
         uint256 afterTotal = morphToken.totalSupply();
-        uint256 dab = morphToken.balanceOf(Predeploys.DISTRIBUTE);
+        uint256 dab = morphToken.balanceOf(Predeploys.L2_STAKING);
         assertEq(afterTotal - beforeTotal, morphToken.inflation(0));
         assertEq(dab - dbb, morphToken.inflation(0));
         hevm.stopPrank();
@@ -223,7 +215,7 @@ contract MorphTokenTest is L2StakingBaseTest {
         morphToken.updateRate(1596535874529 + 100, 1);
         hevm.stopPrank();
 
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         hevm.warp(block.timestamp + REWARD_EPOCH * 3);
         morphToken.mintInflations(0);
         uint256 oldTotal = morphToken.totalSupply();
@@ -413,7 +405,7 @@ contract MorphTokenTest is L2StakingBaseTest {
     }
 
     function test_inflation_succeeds() public {
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         uint256 beforeTotal = morphToken.totalSupply();
         hevm.warp(block.timestamp + rewardStartTime * 2);
         morphToken.mintInflations(0);
@@ -423,7 +415,7 @@ contract MorphTokenTest is L2StakingBaseTest {
     }
 
     function test_inflationMintedEpochs_succeeds() public {
-        hevm.startPrank(Predeploys.RECORD);
+        hevm.startPrank(Predeploys.SYSTEM);
         uint256 beforeTotal = morphToken.totalSupply();
         hevm.warp(block.timestamp + rewardStartTime * 2);
         assertEq(morphToken.inflationMintedEpochs(), 0);

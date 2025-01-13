@@ -126,10 +126,6 @@ l2-sequencer-bindings: compile
 	./gen_bindings.sh contracts/l2/staking/Sequencer.sol:Sequencer $(pkg)
 l2-staking-bindings: compile
 	./gen_bindings.sh contracts/l2/staking/L2Staking.sol:L2Staking $(pkg)
-l2-distribute-bindings: compile
-	./gen_bindings.sh contracts/l2/staking/Distribute.sol:Distribute $(pkg)
-l2-record-bindings: compile
-	./gen_bindings.sh contracts/l2/staking/Record.sol:Record $(pkg)
 
 # Gateways
 l2-eth-gateway-bindings: compile
