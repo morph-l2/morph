@@ -56,6 +56,30 @@ interface IL2Staking {
      * Errors *
      ***********/
 
+    /// @notice error invalid owner
+    error ErrInvalidOwner();
+    /// @notice error zero sequencer size
+    error ErrZeroSequencerSize();
+    /// @notice error invalid sequencer size
+    error ErrInvalidSequencerSize();
+    /// @notice error zero lock epochs
+    error ErrZeroLockEpochs();
+    /// @notice error reward started
+    error ErrRewardStarted();
+    /// @notice error reward not started
+    error ErrRewardNotStarted();
+    /// @notice error start time not reached
+    error ErrStartTimeNotReached();
+    /// @notice error invalid start time
+    error ErrInvalidStartTime();
+    /// @notice error no candidate
+    error ErrNoCandidate();
+    /// @notice error no stakers
+    error ErrNoStakers();
+    /// @notice error invalid commission rate
+    error ErrInvalidCommissionRate();
+    /// @notice error no commission to claim
+    error ErrNoCommission();
     /// @notice error not staker
     error ErrNotStaker();
     /// @notice error invalid nonce
@@ -80,6 +104,8 @@ interface IL2Staking {
     error ErrInvalidEpoch();
     // @notice error invalid rewards
     error ErrInvalidRewards();
+    // @notice error invalid page size
+    error ErrInvalidPageSize();
 
     /**********
      * Events *

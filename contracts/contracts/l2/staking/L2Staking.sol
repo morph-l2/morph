@@ -144,14 +144,11 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         uint256 _rewardStartTime,
         Types.StakerInfo[] calldata _stakers
     ) public initializer {
-        require(_owner != address(0), "invalid owner address");
-        require(_sequencersMaxSize > 0, "sequencersSize must greater than 0");
-        require(_undelegateLockEpochs > 0, "invalid undelegateLockEpochs");
-        require(
-            _rewardStartTime > block.timestamp && _rewardStartTime % REWARD_EPOCH == 0,
-            "invalid reward start time"
-        );
-        require(_stakers.length > 0, "invalid initial stakers");
+        if (_owner == address(0)) revert ErrInvalidOwner();
+        if (_sequencersMaxSize == 0) revert ErrZeroSequencerSize();
+        if (_undelegateLockEpochs == 0) revert ErrZeroLockEpochs();
+        if (_rewardStartTime <= block.timestamp || _rewardStartTime % REWARD_EPOCH != 0) revert ErrInvalidStartTime();
+        if (_stakers.length == 0) revert ErrNoStakers();
 
         _transferOwnership(_owner);
         __ReentrancyGuard_init();
@@ -281,7 +278,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice setCommissionPercentage set delegate commission percentage
     /// @param rate    commission percentage
     function setCommissionRate(uint256 rate) external onlyStaker(_msgSender()) {
-        require(rate <= 20, "invalid commission");
+        if (rate > 20) revert ErrInvalidCommissionRate();
         uint256 oldRate = commissions[_msgSender()].rate;
         commissions[_msgSender()] = Commission({rate: rate, amount: commissions[_msgSender()].amount});
         emit CommissionUpdated(_msgSender(), rate, oldRate);
@@ -289,22 +286,17 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice claimCommission claim unclaimed commission reward of a staker
     function claimCommission() external nonReentrant {
-        require(commissions[_msgSender()].amount > 0, "no commission to claim");
-
+        if (commissions[_msgSender()].amount == 0) revert ErrNoCommission();
         uint256 amount = commissions[_msgSender()].amount;
         commissions[_msgSender()].amount = 0;
         _transfer(_msgSender(), amount);
-
         emit CommissionClaimed(_msgSender(), amount);
     }
 
     /// @notice update params
     /// @param _sequencerSetMaxSize   max size of sequencer set
     function updateSequencerSetMaxSize(uint256 _sequencerSetMaxSize) external onlyOwner {
-        require(
-            _sequencerSetMaxSize > 0 && _sequencerSetMaxSize != sequencerSetMaxSize,
-            "invalid new sequencer set max size"
-        );
+        if (_sequencerSetMaxSize == 0 || _sequencerSetMaxSize == sequencerSetMaxSize) revert ErrInvalidSequencerSize();
         uint256 _oldSequencerSetMaxSize = sequencerSetMaxSize;
         sequencerSetMaxSize = _sequencerSetMaxSize;
         emit SequencerSetMaxSizeUpdated(_oldSequencerSetMaxSize, _sequencerSetMaxSize);
@@ -322,13 +314,13 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice advance layer2 stage
     /// @param _rewardStartTime   reward start time
     function updateRewardStartTime(uint256 _rewardStartTime) external onlyOwner {
-        require(!rewardStarted, "reward already started");
-        require(
-            _rewardStartTime > block.timestamp &&
-                _rewardStartTime % REWARD_EPOCH == 0 &&
-                _rewardStartTime != rewardStartTime,
-            "invalid reward start time"
-        );
+        if (rewardStarted) revert ErrRewardStarted();
+        if (
+            _rewardStartTime <= block.timestamp ||
+            _rewardStartTime % REWARD_EPOCH != 0 ||
+            _rewardStartTime == rewardStartTime
+        ) revert ErrInvalidStartTime();
+
         uint256 _oldTime = rewardStartTime;
         rewardStartTime = _rewardStartTime;
         emit RewardStartTimeUpdated(_oldTime, _rewardStartTime);
@@ -336,8 +328,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice start reward
     function startReward() external onlyOwner {
-        require(block.timestamp >= rewardStartTime, "can't start before reward start time");
-        require(candidateNumber > 0, "none candidate");
+        if (block.timestamp < rewardStartTime) revert ErrStartTimeNotReached();
+        if (candidateNumber == 0) revert ErrNoCandidate();
 
         rewardStarted = true;
 
@@ -780,18 +772,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         }
     }
 
-    /// @dev claim commission reward
-    /// @param delegatee         delegatee address
-    function claimCommission(address delegatee) external nonReentrant {
-        require(commissions[delegatee].amount > 0, "no commission to claim");
-
-        uint256 amount = commissions[delegatee].amount;
-        commissions[delegatee].amount = 0;
-        _transfer(delegatee, amount);
-
-        emit CommissionClaimed(delegatee, amount);
-    }
-
     /*************************
      * Public View Functions *
      *************************/
@@ -857,7 +837,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice return current reward epoch index
     function currentEpoch() public view returns (uint256) {
-        require(block.timestamp >= rewardStartTime, "reward is not started yet");
+        if (block.timestamp < rewardStartTime) revert ErrRewardNotStarted();
         return (block.timestamp - rewardStartTime) / REWARD_EPOCH;
     }
 
@@ -882,7 +862,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         uint256 pageSize,
         uint256 pageIndex
     ) external view returns (uint256 delegatorsTotalNumber, address[] memory delegatorsInPage) {
-        require(pageSize > 0, "invalid page size");
+        if (pageSize == 0) revert ErrInvalidPageSize();
 
         delegatorsTotalNumber = delegators[staker].length();
         delegatorsInPage = new address[](pageSize);
