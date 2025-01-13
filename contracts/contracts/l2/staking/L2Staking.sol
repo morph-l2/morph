@@ -436,7 +436,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             }
         }
 
-        emit Delegated(delegatee, _msgSender(), amount, delegateeDelegations[delegatee].amount);
+        uint256 delegateeAmount = delegateeDelegations[delegatee].amount;
+        emit Delegated(delegatee, _msgSender(), amount, delegateeAmount);
 
         // transfer morph token from delegator to this
         _transferFrom(_msgSender(), address(this), amount);
@@ -532,7 +533,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             candidateNumber -= 1;
         }
 
-        emit Undelegated(delegatee, _msgSender(), amount, delegateeDelegations[delegatee].amount, unlockEpoch);
+        uint256 delegateeAmount = delegateeDelegations[delegatee].amount;
+        emit Undelegated(delegatee, _msgSender(), amount, delegateeAmount, unlockEpoch);
 
         if (
             !removed &&
@@ -714,14 +716,9 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
             _updateSequencerSet();
         }
 
-        emit Redelegated(
-            delegateeFrom,
-            delegateeTo,
-            _msgSender(),
-            amount,
-            delegateeDelegations[delegateeFrom].amount,
-            delegateeDelegations[delegateeTo].amount
-        );
+        uint256 delegateeFromAmount = delegateeDelegations[delegateeFrom].amount;
+        uint256 delegateeToAmount = delegateeDelegations[delegateeTo].amount;
+        emit Redelegated(delegateeFrom, delegateeTo, _msgSender(), amount, delegateeFromAmount, delegateeToAmount);
     }
 
     /// @notice delegator cliam delegate staking value
