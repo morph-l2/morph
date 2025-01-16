@@ -109,7 +109,7 @@ start-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-holesky:
 
 # prover
 # testnet
-build-bk-prod-morph-prod-testnet-to-morph-prover-holeksy:
+build-bk-prod-morph-prod-testnet-to-morph-prover-holesky:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
 	cp prover/target/release/prover-server dist/
