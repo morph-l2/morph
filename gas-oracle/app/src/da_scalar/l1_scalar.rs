@@ -10,15 +10,12 @@ use super::{
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
 use crate::{
-    abi::{
-        gas_price_oracle_abi::GasPriceOracle,
-        rollup_abi::{CommitBatchCall, Rollup},
-    },
+    abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
     external_sign::ExternalSign,
     metrics::ORACLE_SERVICE_METRICS,
     signer::send_transaction,
 };
-use ethers::{abi::AbiDecode, prelude::*, utils::hex};
+use ethers::{prelude::*, utils::hex};
 use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
@@ -227,47 +224,10 @@ impl ScalarUpdater {
         tx_hash: TxHash,
         block_num: U64,
     ) -> Result<(u64, u64), ScalarError> {
-        //Step1.  Get transaction
-        let tx = self
-            .l1_provider
-            .get_transaction(tx_hash)
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!("l1_provider.get_transaction err: {:#?}", e)))
-            })?
-            .ok_or_else(|| {
-                ScalarError::Error(anyhow!(format!(
-                    "ll1_provider.get_transaction is none, tx_hash= {:#?}",
-                    tx_hash
-                )))
-            })?;
-
-        log::info!("hit self rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
-
-        //Step2. Parse transaction data
-        let data = tx.input;
-        if data.is_empty() {
-            return Err(ScalarError::Error(anyhow!(format!(
-                "overhead_inspect tx.input is empty, tx_hash= {:#?}",
-                tx_hash
-            ))));
-        }
-        let param = CommitBatchCall::decode(&data).map_err(|e| {
-            ScalarError::Error(anyhow!(format!(
-                "overhead_inspect decode tx.input error, tx_hash= {:#?}, err= {:#?}",
-                tx_hash, e
-            )))
-        })?;
-
-        let block_contexts: Bytes = param.batch_data_input.block_contexts;
-        let l2_txn = extract_txn_num(block_contexts).unwrap_or(0);
-
-        //Step3. Calculate l2 data gas
-        let l2_data_len = self
-            .calculate_l2_data_len_from_blob(tx_hash, block_num, l2_txn)
-            .await
-            .map_err(|e| {
-                log::error!("calculate_l2_data_len_from_blob error: {:#?}", e);
+        //Step1. get_data_from_blob
+        let (l2_data_len, l2_txn) =
+            self.get_data_from_blob(tx_hash, block_num).await.map_err(|e| {
+                log::error!("get_data_from_blob error: {:#?}", e);
                 e
             })?;
 
@@ -292,7 +252,7 @@ impl ScalarUpdater {
             ))));
         }
 
-        //Step4. Calculate scalar
+        //Step2. Calculate scalar
         let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION /
             l2_txn.max(self.txn_per_batch);
         let blob_scalar = if l2_data_len > 0 {
@@ -315,15 +275,11 @@ impl ScalarUpdater {
         Ok((commit_scalar, blob_scalar))
     }
 
-    async fn calculate_l2_data_len_from_blob(
+    async fn get_data_from_blob(
         &self,
         tx_hash: TxHash,
         block_num: U64,
-        l2_txn: u64,
-    ) -> Result<u64, ScalarError> {
-        if l2_txn == 0 {
-            return Ok(0);
-        }
+    ) -> Result<(u64, u64), ScalarError> {
         let blob_tx = self
             .l1_provider
             .get_transaction(tx_hash)
@@ -351,7 +307,7 @@ impl ScalarUpdater {
         let indexed_hashes = data_and_hashes_from_txs(&blob_block.transactions, &blob_tx);
         if indexed_hashes.is_empty() {
             log::info!("no blob in this batch, batch_tx_hash: {:#?}", tx_hash);
-            return Ok(0);
+            return Ok((0, 0));
         }
 
         // Waiting for the next L1 block to be produced.
@@ -407,9 +363,17 @@ impl ScalarUpdater {
             ))));
         }
 
-        let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
+        let tx_payloads = extract_tx_payload(indexed_hashes, sidecars)?;
+        let data_with_txn_count: Vec<(u64, u64)> = tx_payloads
+            .iter()
+            .map(|batch: &Vec<u8>| (batch.len() as u64, extract_txn_num(batch).unwrap()))
+            .collect();
 
-        Ok(tx_payload.len() as u64)
+        let (total_size, total_count) = data_with_txn_count
+            .iter()
+            .fold((0u64, 0u64), |acc, &(size, count)| (acc.0 + size, acc.1 + count));
+
+        Ok((total_size, total_count))
     }
 }
 

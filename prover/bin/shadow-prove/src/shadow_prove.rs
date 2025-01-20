@@ -93,8 +93,7 @@ async fn handle_with_prover<T, P, N>(
 {
     let l2_rpc = var("SHADOW_PROVING_L2_RPC").expect("Cannot detect L2_RPC env var");
     let batch_index = batch_info.batch_index;
-    let blocks = &batch_info.blocks;
-    let blocks_len = blocks.len();
+    let blocks_len = batch_info.end_block - batch_info.start_block + 1;
 
     METRICS.shadow_blocks_len.set(blocks_len as i64);
     METRICS.shadow_batch_index.set(batch_index as i64);
@@ -106,7 +105,7 @@ async fn handle_with_prover<T, P, N>(
             "Start prove batch of: {:?}, blocks.len = {:?}, block_start = {:#?}",
             batch_index,
             blocks_len,
-            blocks[0]
+            batch_info.start_block
         );
 
         // Query existing proof
@@ -121,8 +120,8 @@ async fn handle_with_prover<T, P, N>(
         // Request the proverServer to prove.
         let request = ProveRequest {
             batch_index,
-            start_block: *blocks.first().unwrap_or(&0u64),
-            end_block: *blocks.last().unwrap_or(&0u64),
+            start_block: batch_info.start_block,
+            end_block: batch_info.end_block,
             rpc: l2_rpc.to_owned(),
             shadow: true,
         };
@@ -155,7 +154,7 @@ async fn handle_with_prover<T, P, N>(
         }
 
         // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 1600 * blocks_len; //block_prove_time =30min
+        let mut max_waiting_time: usize = 1600 * blocks_len as usize; //block_prove_time =30min
         while max_waiting_time > 300 {
             sleep(Duration::from_secs(300)).await;
             max_waiting_time -= 300; // Query results every 5 minutes.

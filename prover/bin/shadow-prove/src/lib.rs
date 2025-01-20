@@ -9,5 +9,6 @@ pub mod util;
 #[derive(Clone, Debug)]
 pub struct BatchInfo {
     pub batch_index: u64,
-    pub blocks: Vec<u64>,
+    pub start_block: u64,
+    pub end_block: u64,
 }

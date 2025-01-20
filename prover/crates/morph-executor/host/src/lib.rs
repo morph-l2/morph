@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use morph_executor_utils::read_env_var;
-use sbv_primitives::{types::BlockTrace, TxTrace};
+use sbv_primitives::{types::BlockTrace, Block, TxTrace};
 use std::{io::Write, path::Path, sync::Arc};
 use zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 
@@ -39,9 +39,24 @@ pub fn get_blob_info(block_trace: &Vec<BlockTrace>) -> Result<BlobInfo, anyhow::
 }
 
 pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
-    // collect txns
+    let num_blocks = block_trace.len();
+    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(2 + num_blocks * 60);
+    batch_from_trace.extend_from_slice(&(num_blocks as u16).to_be_bytes());
     let mut tx_bytes: Vec<u8> = vec![];
     for trace in block_trace {
+        // BlockContext
+        // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
+        let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
+        block_ctx.extend_from_slice(&trace.number().to_be_bytes());
+        block_ctx.extend_from_slice(&trace.timestamp().to_be_bytes::<32>());
+        block_ctx
+            .extend_from_slice(&trace.base_fee_per_gas().unwrap_or_default().to_be_bytes::<32>());
+        block_ctx.extend_from_slice(&trace.gas_limit().to_be_bytes::<32>());
+        block_ctx.extend_from_slice(&(trace.transactions.len() as u16).to_be_bytes());
+        block_ctx.extend_from_slice(&(trace.num_l1_txs() as u16).to_be_bytes());
+        batch_from_trace.extend(block_ctx);
+
+        // Collect txns
         let x = trace
             .transactions
             .iter()
@@ -50,8 +65,8 @@ pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
             .collect::<Vec<u8>>();
         tx_bytes.extend(x);
     }
-
-    encode_blob(tx_bytes)
+    batch_from_trace.extend(tx_bytes);
+    encode_blob(batch_from_trace)
 }
 
 pub fn encode_blob(tx_bytes: Vec<u8>) -> [u8; 131072] {

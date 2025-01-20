@@ -1,4 +1,4 @@
-use crate::abi::rollup_abi::{CommitBatchCall, Rollup, RollupErrors};
+use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
 use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
 use crate::util::read_env_var;
@@ -152,7 +152,7 @@ impl ChallengeHandler {
                 None => continue,
             };
 
-            let mut batch_info = match batch_inspect(l1_provider, challenged_rollup_hash).await {
+            let mut batch_info = match batch_inspect(l1_rollup, l1_provider, batch_index, challenged_rollup_hash).await {
                 Some(mut b) => {
                     b.batch_index = batch_index;
                     b.parent_batch_hash = batch_hash.as_bytes().try_into().unwrap_or_default();
@@ -161,15 +161,15 @@ impl ChallengeHandler {
                 None => continue,
             };
 
-            let blocks = &batch_info.blocks_info;
+            let blocks_len = batch_info.end_block - batch_info.start_block + 1;
             log::info!(
                 "batch info: batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, end_block = {:#?}",
                 batch_info.batch_index,
-                blocks.len(),
-                blocks.first().unwrap_or(&0u64),
-                blocks.last().unwrap_or(&0u64),
+                batch_info.end_block - batch_info.start_block + 1,
+                batch_info.start_block,
+                batch_info.end_block,
             );
-            METRICS.blocks_len.set(blocks.len() as i64);
+            METRICS.blocks_len.set((batch_info.end_block - batch_info.start_block + 1) as i64);
 
             if let Some(batch_proof) = query_proof(batch_index).await {
                 if !batch_proof.proof_data.is_empty() {
@@ -183,8 +183,8 @@ impl ChallengeHandler {
             // Step4. Make a call to the Prove server.
             let request = ProveRequest {
                 batch_index,
-                start_block: *blocks.first().unwrap_or(&0u64),
-                end_block: *blocks.last().unwrap_or(&0u64),
+                start_block: batch_info.start_block,
+                end_block: batch_info.end_block,
                 rpc: l2_rpc.to_owned(),
             };
             let rt = tokio::task::spawn_blocking(move || util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch"))
@@ -218,7 +218,7 @@ impl ChallengeHandler {
             }
 
             // Step5. query proof and prove onchain state.
-            let mut max_waiting_time: usize = 1600 * blocks.len(); //block_prove_time =30min
+            let mut max_waiting_time: usize = 1600 * blocks_len as usize; //block_prove_time =30min
             while max_waiting_time > 300 {
                 sleep(Duration::from_secs(300)).await;
                 max_waiting_time -= 300;
@@ -408,7 +408,8 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
 struct BatchInfo {
     version: u8,
     batch_index: u64,
-    blocks_info: Vec<u64>,
+    start_block: u64,
+    end_block: u64,
     l1_message_popped: u64,
     total_l1_message_popped: u64,
     data_hash: [u8; 32],
@@ -420,7 +421,14 @@ struct BatchInfo {
     parent_batch_hash: [u8; 32],
 }
 
-async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<BatchInfo> {
+async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, batch_index: u64, hash: TxHash) -> Option<BatchInfo> {
+    let prev_batch_last_bn: U256 = match l1_rollup.batch_data_store(U256::from(batch_index - 1)).await {
+        Ok(s) => s.2,
+        Err(e) => {
+            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+            return None;
+        }
+    };
     //Step1.  Get transaction
     let result = l1_provider.get_transaction(hash).await;
     let tx = match result {
@@ -452,15 +460,17 @@ async fn batch_inspect(l1_provider: &Provider<Http>, hash: TxHash) -> Option<Bat
     let prev_state_root: [u8; 32] = param.batch_data_input.prev_state_root;
     let post_state_root: [u8; 32] = param.batch_data_input.post_state_root;
     let withdrawal_root: [u8; 32] = param.batch_data_input.withdrawal_root;
-    let block_contexts: Bytes = param.batch_data_input.block_contexts;
-    let (blocks_info, total_l1_txn) = decode_blocks(block_contexts).unwrap_or_default();
+    let last_block_number: u64 = param.batch_data_input.last_block_number;
+    let num_l1_messages = param.batch_data_input.num_l1_messages;
+
     let mut batch_info = BatchInfo {
         version,
         prev_state_root,
         post_state_root,
         withdrawal_root,
-        blocks_info,
-        l1_message_popped: total_l1_txn,
+        start_block: prev_batch_last_bn.as_u64() + 1,
+        end_block: last_block_number,
+        l1_message_popped: num_l1_messages as u64,
         ..Default::default()
     };
 
@@ -496,39 +506,9 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.withdrawal_root);
         batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
         batch_header.extend_from_slice(&self.parent_batch_hash);
+        batch_header.extend_from_slice(&self.end_block.to_be_bytes());
         Bytes::from(batch_header)
     }
-}
-
-fn decode_blocks(block_contexts: Bytes) -> Option<(Vec<u64>, u64)> {
-    if block_contexts.is_empty() {
-        return None;
-    }
-
-    let mut blocks: Vec<u64> = vec![];
-    let mut txn_in_batch = 0u32;
-    let mut total_l1_txn = 0u64;
-    let bs: &[u8] = &block_contexts;
-
-    // decode blocks from batch
-    // |   2 bytes   | 60 bytes | ... | 60 bytes |
-    // | num blocks |  block 1 | ... |  block n |
-    let num_blocks: u16 = ((bs[0] as u16) << 8) | (bs[1] as u16);
-
-    for i in 0..num_blocks as usize {
-        let block_num = u64::from_be_bytes(bs.get((60.mul(i) + 2)..(60.mul(i) + 2 + 8))?.try_into().unwrap());
-        let txs_num = u16::from_be_bytes(bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().unwrap());
-        let l1_txs_num = u16::from_be_bytes(bs.get((60.mul(i) + 2 + 58)..(60.mul(i) + 2 + 60))?.try_into().unwrap());
-        txn_in_batch += txs_num as u32;
-        total_l1_txn += l1_txs_num as u64;
-
-        blocks.push(block_num);
-    }
-
-    METRICS.txn_len.set(txn_in_batch.into());
-    log::info!("total_l2txn_in_batch: {:#?}", txn_in_batch);
-    log::debug!("num_blocks: {:#?}, decode_blocks: {:#?}", num_blocks, blocks);
-    Some((blocks, total_l1_txn))
 }
 
 async fn send_transaction(
@@ -589,11 +569,7 @@ async fn sign_tx(
 
 pub fn contract_error<M: Middleware>(e: ContractError<M>) -> String {
     let error_msg = if let Some(contract_err) = e.as_revert() {
-        if let Some(data) = RollupErrors::decode_with_selector(contract_err.as_ref()) {
-            format!("exec error: {:?}", data)
-        } else {
-            format!("unknown contract error: {:?}", contract_err)
-        }
+        format!("contract error: {:?}", contract_err)
     } else {
         format!("error: {:?}", e)
     };

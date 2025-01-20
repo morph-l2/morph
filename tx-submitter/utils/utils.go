@@ -38,8 +38,8 @@ func Loop(ctx context.Context, period time.Duration, f func()) {
 func ParseFBatchIndex(calldata []byte) uint64 {
 	abi, _ := bindings.RollupMetaData.GetAbi()
 	parms, _ := abi.Methods["finalizeBatch"].Inputs.Unpack(calldata[4:])
-	batchHeader, _ := ntype.DecodeBatchHeader(parms[0].([]byte))
-	return batchHeader.BatchIndex
+	batchIndex, _ := ntype.BatchHeaderBytes(parms[0].([]byte)).BatchIndex()
+	return batchIndex
 }
 
 func ParseParentBatchIndex(calldata []byte) uint64 {
@@ -121,10 +121,10 @@ func ParseBusinessInfo(tx *types.Transaction, a *abi.ABI) []interface{} {
 			if err != nil {
 				log.Error("unpack finalizeBatch error", "err", err)
 			}
-			batchHeader, _ := ntype.DecodeBatchHeader(parms[0].([]byte))
+			batchIndex, _ := ntype.BatchHeaderBytes(parms[0].([]byte)).BatchIndex()
 			res = append(res,
 				"method", method,
-				"finalizedIndex", batchHeader.BatchIndex,
+				"finalizedIndex", batchIndex,
 			)
 
 		}

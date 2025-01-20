@@ -46,7 +46,7 @@ func main() {
 	start := time.Now()
 	var count int
 	for {
-		if count == 10000000 || time.Now().Sub(start) > duration {
+		if count == 10000000 || time.Since(start) > duration {
 			fmt.Println("completed")
 			break
 		}

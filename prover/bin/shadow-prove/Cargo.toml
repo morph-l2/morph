@@ -10,7 +10,7 @@ repository = "https://github.com/morph-l2/morph/tree/main/prover"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-alloy = { version = "0.3", features = [
+alloy = { version = "0.8", features = [
     "contract",
     "signer-local",
     "rpc-types-eth",
