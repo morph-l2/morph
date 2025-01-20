@@ -67,7 +67,7 @@ func SetupNode(tmCfg *config.Config, privValidator types.PrivValidator, executor
 		return nil, fmt.Errorf("failed to load bls priv key")
 	}
 
-	//var app types.Application
+	// var app types.Application
 	n, err := tmnode.NewNode(
 		tmCfg,
 		executor,

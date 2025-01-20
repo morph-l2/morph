@@ -304,7 +304,6 @@ func (o *Oracle) setStartBlock() {
 				return nil
 			}
 			return ErrRewardNotStart
-
 		}()
 		if err != nil {
 			if errors.Is(err, ErrRewardNotStart) {

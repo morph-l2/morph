@@ -13,6 +13,7 @@ func EncodeTx(tx *types.Transaction) (string, error) {
 	}
 	return string(txbs), nil
 }
+
 func ParseTx(tx string) (*types.Transaction, error) {
 	var res types.Transaction
 	if err := res.UnmarshalJSON([]byte(tx)); err != nil {

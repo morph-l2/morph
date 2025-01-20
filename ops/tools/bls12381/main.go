@@ -89,7 +89,7 @@ func main() {
 	byteRaw := blssignatures.PublicKeyToBytes(aggPubKeys)
 	fmt.Println("aggPubKeys length: ", len(byteRaw))
 
-	//the below behavior acts like: bls12381.NewG2().EncodePoint(aggPubKeys.key)
+	// the below behavior acts like: bls12381.NewG2().EncodePoint(aggPubKeys.key)
 	byteRaw = byteRaw[1:]
 	out := make([]byte, 256)
 	// encode x

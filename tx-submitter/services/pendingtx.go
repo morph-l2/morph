@@ -141,6 +141,7 @@ func (pt *PendingTxs) GetAll() []TxInfo {
 	defer pt.mu.Unlock()
 	return pt.getAll()
 }
+
 func (pt *PendingTxs) getAll() []TxInfo {
 	// copy txs and return
 	txs := make([]TxInfo, 0, len(pt.txinfos))
@@ -180,6 +181,7 @@ func (pt *PendingTxs) TrySetFailedBatchIndex(index uint64) {
 
 	pt.failedIndex = &index
 }
+
 func (pt *PendingTxs) SetPindex(index uint64) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
@@ -211,7 +213,6 @@ func (pt *PendingTxs) HaveFailed() bool {
 }
 
 func (pt *PendingTxs) ExistedIndex(index uint64) bool {
-
 	txs := pt.GetAll()
 
 	abi, _ := bindings.RollupMetaData.GetAbi()
@@ -229,5 +230,4 @@ func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 
 	}
 	return false
-
 }

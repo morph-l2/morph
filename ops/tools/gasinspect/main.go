@@ -41,7 +41,6 @@ func main() {
 	//rollupTxCostInfo(client, common.HexToHash("0xdd82c92dc80f55c76471a805f26f3f740dfccbe0179db3f539c4da0f3a7ea677"))
 	//
 	//rollupTxCostInfo(client, common.HexToHash("0xf5ab1ddc7d5aed9e016ad943475d0baffdbe6c2d94be1b951b419dbeca9edea8"))
-
 }
 
 func rollupTxCostInfo(client *ethclient.Client, txHash common.Hash) {

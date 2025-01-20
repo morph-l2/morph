@@ -126,7 +126,7 @@ var (
 	TxFeeLimitFlag = cli.Uint64Flag{
 		Name:     "tx_fee_limit",
 		Usage:    "The maximum fee for a transaction",
-		Value:    5e17, //0.5eth
+		Value:    5e17, // 0.5eth
 		EnvVar:   prefixEnvVar("TX_FEE_LIMIT"),
 		Required: true,
 	}
@@ -217,25 +217,25 @@ var (
 	TipFeeBumpFlag = cli.Uint64Flag{
 		Name:   "TIP_FEE_BUMP",
 		Usage:  "The fee bump for tip",
-		Value:  120, //bumpTip = tip * TipFeeBump/100
+		Value:  120, // bumpTip = tip * TipFeeBump/100
 		EnvVar: prefixEnvVar("TIP_FEE_BUMP"),
 	}
 	MaxTipFlag = cli.Uint64Flag{
 		Name:   "max_tip",
 		Usage:  "The maximum tip for a transaction",
-		Value:  10e9, //10gwei
+		Value:  10e9, // 10gwei
 		EnvVar: prefixEnvVar("MAX_TIP"),
 	}
 	MinTipFlag = cli.Uint64Flag{
 		Name:   "min_tip",
 		Usage:  "The minimum tip for a transaction",
-		Value:  5e8, //0.5gwei
+		Value:  5e8, // 0.5gwei
 		EnvVar: prefixEnvVar("MIN_TIP"),
 	}
 	MaxBaseFeeFlag = cli.Uint64Flag{
 		Name:   "max_base_fee",
 		Usage:  "The maximum base fee for a transaction",
-		Value:  100e9, //100gwei
+		Value:  100e9, // 100gwei
 		EnvVar: prefixEnvVar("MAX_BASE_FEE"),
 	}
 

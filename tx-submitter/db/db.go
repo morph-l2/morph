@@ -10,9 +10,7 @@ import (
 	"github.com/morph-l2/go-ethereum/ethdb/leveldb"
 )
 
-var (
-	ErrKeyNotFound = fmt.Errorf("not found")
-)
+var ErrKeyNotFound = fmt.Errorf("not found")
 
 type Db struct {
 	db *leveldb.Database
@@ -27,6 +25,7 @@ func New(pathname string) (*Db, error) {
 	}
 	return &Db{db: ldb}, nil
 }
+
 func (d *Db) GetFloat(key string) (float64, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -40,6 +39,7 @@ func (d *Db) GetFloat(key string) (float64, error) {
 	}
 	return res, nil
 }
+
 func (d *Db) PutFloat(key string, val float64) error {
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -50,6 +50,7 @@ func (d *Db) PutFloat(key string, val float64) error {
 	}
 	return nil
 }
+
 func (d *Db) GetString(key string) (string, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -59,11 +60,13 @@ func (d *Db) GetString(key string) (string, error) {
 	}
 	return string(v), nil
 }
+
 func (d *Db) PutString(key, val string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	return d.db.Put([]byte(key), []byte(val))
 }
+
 func (d *Db) Close() error {
 	return d.db.Close()
 }

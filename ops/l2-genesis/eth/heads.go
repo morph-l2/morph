@@ -54,7 +54,8 @@ type L1BlockRefsSource interface {
 // on provided interval and with request timeout. Results are returned with provided callback fn,
 // which may block to pause/back-pressure polling.
 func PollBlockChanges(ctx context.Context, log log.Logger, src L1BlockRefsSource, fn HeadSignalFn,
-	label BlockLabel, interval time.Duration, timeout time.Duration) ethereum.Subscription {
+	label BlockLabel, interval time.Duration, timeout time.Duration,
+) ethereum.Subscription {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
 		if interval <= 0 {
 			log.Warn("polling of block is disabled", "interval", interval, "label", label)

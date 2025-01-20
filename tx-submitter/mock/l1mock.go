@@ -54,6 +54,7 @@ func (c *L1ClientWrapper) SubscribeNewHead(ctx context.Context, ch chan<- *types
 func (c *L1ClientWrapper) SetBlock(block *types.Block) {
 	c.Block = block
 }
+
 func (c *L1ClientWrapper) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error) {
 	return nil, nil
 }
@@ -61,27 +62,35 @@ func (c *L1ClientWrapper) CodeAt(ctx context.Context, contract common.Address, b
 func (c *L1ClientWrapper) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
 	return nil, nil
 }
+
 func (c *L1ClientWrapper) PendingCodeAt(ctx context.Context, account common.Address) ([]byte, error) {
 	return nil, nil
 }
+
 func (c *L1ClientWrapper) PendingNonceAt(ctx context.Context, account common.Address) (uint64, error) {
 	return 0, nil
 }
+
 func (c *L1ClientWrapper) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 	return big.NewInt(0), nil
 }
+
 func (c *L1ClientWrapper) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 	return c.TipCap, nil
 }
+
 func (c *L1ClientWrapper) EstimateGas(ctx context.Context, call ethereum.CallMsg) (gas uint64, err error) {
 	return 0, nil
 }
+
 func (c *L1ClientWrapper) SendTransaction(ctx context.Context, tx *types.Transaction) error {
 	return nil
 }
+
 func (c *L1ClientWrapper) FilterLogs(ctx context.Context, query ethereum.FilterQuery) ([]types.Log, error) {
 	return nil, nil
 }
+
 func (c *L1ClientWrapper) SubscribeFilterLogs(ctx context.Context, query ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error) {
 	return nil, nil
 }

@@ -2,8 +2,9 @@ package types
 
 import (
 	"math/big"
-	"morph-l2/node/zstd"
 	"testing"
+
+	"morph-l2/node/zstd"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
