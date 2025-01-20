@@ -1192,7 +1192,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 
 	tip, gasFeeCap, blobFeeCap, err := r.GetGasTipAndCap()
 	if err != nil {
-		log.Error("get tip and cap", "err", err)
+		return nil, fmt.Errorf("get gas tip and cap error:%w", err)
 	}
 	if !resend {
 		// bump tip & feeCap
