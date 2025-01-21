@@ -1,2 +1,4 @@
 target
 contracts
+bin/challenge
+bin/shadow-prove
