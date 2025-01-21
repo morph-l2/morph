@@ -1239,7 +1239,7 @@ dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -4261,7 +4261,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "157c5a9d7ea5c2ed2d9fb8f495b64759f7816c7eaea54ba3978f0d63000162e3"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.91",
@@ -5339,7 +5339,7 @@ dependencies = [
 [[package]]
 name = "sp1-build"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5351,7 +5351,7 @@ dependencies = [
 [[package]]
 name = "sp1-core-executor"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5385,7 +5385,7 @@ dependencies = [
 [[package]]
 name = "sp1-core-machine"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "bincode",
  "cfg-if 1.0.0",
@@ -5432,7 +5432,7 @@ dependencies = [
 [[package]]
 name = "sp1-curves"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "cfg-if 1.0.0",
  "curve25519-dalek",
@@ -5454,7 +5454,7 @@ dependencies = [
 [[package]]
 name = "sp1-derive"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5463,7 +5463,7 @@ dependencies = [
 [[package]]
 name = "sp1-helper"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "sp1-build",
 ]
@@ -5479,7 +5479,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "bincode",
  "serde",
@@ -5488,7 +5488,7 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "bincode",
  "hex",
@@ -5505,7 +5505,7 @@ dependencies = [
 [[package]]
 name = "sp1-prover"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5542,7 +5542,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-circuit"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -5575,7 +5575,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-compiler"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -5596,7 +5596,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-core"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "backtrace",
  "ff 0.13.0",
@@ -5631,7 +5631,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-derive"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5640,7 +5640,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-gnark-ffi"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5665,7 +5665,7 @@ dependencies = [
 [[package]]
 name = "sp1-sdk"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "alloy-signer 0.5.4",
  "alloy-signer-local",
@@ -5707,7 +5707,7 @@ dependencies = [
 [[package]]
 name = "sp1-stark"
 version = "3.0.0"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -5740,7 +5740,7 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "3.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#ae9cc09462415997940b020e43e13e932d67f9ce"
+source = "git+https://github.com/morph-l2/sp1.git?branch=fix-memcopy-chip#24ed56e9df83cd950aacabdeed81e81288b03bfb"
 dependencies = [
  "cfg-if 1.0.0",
  "getrandom",
