@@ -5,17 +5,20 @@ use tokio::time::{sleep, Duration};
 
 use super::{
     blob_client::BeaconNode,
-    calculate::{data_and_hashes_from_txs, extract_tx_payload, extract_txn_num},
+    calculate::{data_and_hashes_from_txs, extract_tx_payload, extract_txn_count},
     error::ScalarError,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
 use crate::{
-    abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
+    abi::{
+        gas_price_oracle_abi::GasPriceOracle,
+        rollup_abi::{CommitBatchCall, Rollup},
+    },
     external_sign::ExternalSign,
     metrics::ORACLE_SERVICE_METRICS,
     signer::send_transaction,
 };
-use ethers::{prelude::*, utils::hex};
+use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
@@ -343,6 +346,19 @@ impl ScalarUpdater {
             }
         };
 
+        // Parse last_block_num
+        if blob_tx.input.is_empty() {
+            log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", tx_hash);
+            return Err(ScalarError::Error(anyhow!(format!("commitBatch tx.input empty"))));
+        }
+        let param = if let Ok(_param) = CommitBatchCall::decode(&blob_tx.input) {
+            _param
+        } else {
+            log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", tx_hash);
+            return Err(ScalarError::Error(anyhow!(format!("decode commitBatch tx.input error",))));
+        };
+        let last_block_num: u64 = param.batch_data_input.last_block_number;
+
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
         let sidecars_rt = self
             .beacon_node
@@ -366,7 +382,9 @@ impl ScalarUpdater {
         let tx_payloads = extract_tx_payload(indexed_hashes, sidecars)?;
         let data_with_txn_count: Vec<(u64, u64)> = tx_payloads
             .iter()
-            .map(|batch: &Vec<u8>| (batch.len() as u64, extract_txn_num(batch).unwrap()))
+            .map(|batch: &Vec<u8>| {
+                (batch.len() as u64, extract_txn_count(batch, last_block_num).unwrap_or_default())
+            })
             .collect();
 
         let (total_size, total_count) = data_with_txn_count

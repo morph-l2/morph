@@ -80,21 +80,22 @@ pub(super) fn extract_tx_payload(
     Ok(batch_bytes)
 }
 
-pub fn extract_txn_num(origin_batch: &Vec<u8>) -> Option<u64> {
-    if origin_batch.is_empty() || origin_batch.len() < 2 {
+pub fn extract_txn_count(origin_batch: &Vec<u8>, last_block_num: u64) -> Option<u64> {
+    if origin_batch.is_empty() || origin_batch.len() < 8 {
         return None;
     }
-    let block_num = u16::from_be_bytes(origin_batch[0..2].try_into().unwrap_or_default());
-    if origin_batch.len() < 2 + 60 * block_num as usize {
+    let first_block_num = u64::from_be_bytes(origin_batch[0..8].try_into().unwrap_or_default());
+    let block_count = last_block_num - first_block_num + 1;
+    if origin_batch.len() < 60 * block_count as usize {
         log::error!("invalid blob batch len");
         return None;
     }
     let mut txn_count_in_batch = 0u64;
-    for i in 0..block_num as usize {
-        let bys = &origin_batch[60 * i + 58..60 * i + 60];
+    for i in 0..block_count as usize {
+        let bys = &origin_batch[60 * i + 56..60 * i + 58];
         let num_txn = u16::from_be_bytes(bys.try_into().unwrap_or_default());
 
-        let bys = &origin_batch[60 * i + 60..60 * i + 62];
+        let bys = &origin_batch[60 * i + 60..58 * i + 60];
         let num_l1_messages = u16::from_be_bytes(bys.try_into().unwrap_or_default());
         if num_txn < num_l1_messages {
             log::error!("total_txn_in_batch < l1_txn_in_batch");
