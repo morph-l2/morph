@@ -95,7 +95,7 @@ pub fn extract_txn_count(origin_batch: &Vec<u8>, last_block_num: u64) -> Option<
         let bys = &origin_batch[60 * i + 56..60 * i + 58];
         let num_txn = u16::from_be_bytes(bys.try_into().unwrap_or_default());
 
-        let bys = &origin_batch[60 * i + 60..58 * i + 60];
+        let bys = &origin_batch[60 * i + 58..60 * i + 60];
         let num_l1_messages = u16::from_be_bytes(bys.try_into().unwrap_or_default());
         if num_txn < num_l1_messages {
             log::error!("total_txn_in_batch < l1_txn_in_batch");
