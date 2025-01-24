@@ -101,7 +101,6 @@ pub fn extract_txn_count(origin_batch: &Vec<u8>, last_block_num: u64) -> Option<
             log::error!("total_txn_in_batch < l1_txn_in_batch");
             return None;
         }
-        log::debug!("total_txn_in_batch: {:#?}, l1_txn_in_batch: {:#?}", num_txn, num_l1_messages);
 
         txn_count_in_batch += (num_txn - num_l1_messages) as u64;
     }

@@ -397,8 +397,47 @@ impl ScalarUpdater {
 
 #[cfg(test)]
 mod tests {
+    use crate::da_scalar::blob::Blob;
+
     use super::*;
-    use std::{env::var, str::FromStr, sync::Arc};
+    use std::{env::var, fs, path::Path, str::FromStr, sync::Arc};
+
+    #[test]
+    fn test_blob_data() {
+        let blob_data_path = Path::new("data/blob_with_context.data");
+        let data = fs::read_to_string(blob_data_path).expect("Unable to read file");
+        let hex_data: Vec<u8> = hex::decode(data.trim()).unwrap();
+
+        let mut blob_array = [0u8; 131072];
+        blob_array.copy_from_slice(&hex_data);
+
+        let blob_struct = Blob(blob_array);
+        let origin_batch = blob_struct
+            .get_origin_batch()
+            .map_err(|e| {
+                ScalarError::CalculateError(anyhow!(format!(
+                    "Failed to decode blob tx payload: {}",
+                    e
+                )))
+            })
+            .unwrap();
+
+        let mut tx_payloads: Vec<Vec<u8>> = vec![];
+        tx_payloads.push(origin_batch);
+
+        let data_with_txn_count: Vec<(u64, u64)> = tx_payloads
+            .iter()
+            .map(|batch: &Vec<u8>| {
+                (batch.len() as u64, extract_txn_count(batch, 328208).unwrap_or_default())
+            })
+            .collect();
+
+        let (total_size, total_count) = data_with_txn_count
+            .iter()
+            .fold((0u64, 0u64), |acc, &(size, count)| (acc.0 + size, acc.1 + count));
+
+        println!("total_size: {}, total_count: {}", total_size, total_count)
+    }
 
     #[tokio::test]
     #[ignore]

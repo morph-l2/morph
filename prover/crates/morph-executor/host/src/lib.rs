@@ -40,18 +40,17 @@ pub fn get_blob_info(block_trace: &Vec<BlockTrace>) -> Result<BlobInfo, anyhow::
 
 pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
     let num_blocks = block_trace.len();
-    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(2 + num_blocks * 60);
-    batch_from_trace.extend_from_slice(&(num_blocks as u16).to_be_bytes());
+    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(num_blocks * 60);
     let mut tx_bytes: Vec<u8> = vec![];
     for trace in block_trace {
         // BlockContext
         // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
         let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
         block_ctx.extend_from_slice(&trace.number().to_be_bytes());
-        block_ctx.extend_from_slice(&trace.timestamp().to_be_bytes::<32>());
+        block_ctx.extend_from_slice(&trace.timestamp().to::<u64>().to_be_bytes());
         block_ctx
             .extend_from_slice(&trace.base_fee_per_gas().unwrap_or_default().to_be_bytes::<32>());
-        block_ctx.extend_from_slice(&trace.gas_limit().to_be_bytes::<32>());
+        block_ctx.extend_from_slice(&trace.gas_limit().to::<u64>().to_be_bytes());
         block_ctx.extend_from_slice(&(trace.transactions.len() as u16).to_be_bytes());
         block_ctx.extend_from_slice(&(trace.num_l1_txs() as u16).to_be_bytes());
         batch_from_trace.extend(block_ctx);
