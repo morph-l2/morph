@@ -506,7 +506,6 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.withdrawal_root);
         batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
         batch_header.extend_from_slice(&self.parent_batch_hash);
-        batch_header.extend_from_slice(&self.end_block.to_be_bytes());
         Bytes::from(batch_header)
     }
 }
