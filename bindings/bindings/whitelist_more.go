@@ -9,7 +9,7 @@ import (
 	"morph-l2/bindings/solc"
 )
 
-const WhitelistStorageLayoutJSON = "{\"storage\":null,\"types\":{}}"
+const WhitelistStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/libraries/common/Whitelist.sol:Whitelist\",\"label\":\"owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"contracts/libraries/common/Whitelist.sol:Whitelist\",\"label\":\"isWhitelisted\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_mapping(t_address,t_bool)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_mapping(t_address,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(address =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_address\",\"value\":\"t_bool\"}}}"
 
 var WhitelistStorageLayout = new(solc.StorageLayout)
 

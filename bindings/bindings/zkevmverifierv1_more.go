@@ -9,7 +9,7 @@ import (
 	"morph-l2/bindings/solc"
 )
 
-const ZkEvmVerifierV1StorageLayoutJSON = "{\"storage\":null,\"types\":{}}"
+const ZkEvmVerifierV1StorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/libraries/verifier/ZkEvmVerifierV1.sol:ZkEvmVerifierV1\",\"label\":\"programVkey\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_bytes32\"}],\"types\":{\"t_bytes32\":{\"encoding\":\"inplace\",\"label\":\"bytes32\",\"numberOfBytes\":\"32\"}}}"
 
 var ZkEvmVerifierV1StorageLayout = new(solc.StorageLayout)
 
