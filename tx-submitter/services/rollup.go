@@ -1193,7 +1193,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 
 	tip, gasFeeCap, blobFeeCap, err := r.GetGasTipAndCap()
 	if err != nil {
-		log.Error("get tip and cap", "err", err)
+		return nil, fmt.Errorf("get gas tip and cap error:%w", err)
 	}
 	if !resend {
 		// bump tip & feeCap
@@ -1219,6 +1219,19 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 		if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
 			log.Info("replace tip is too low, update tip to min tip ", "tip", tip, "min_tip", r.cfg.MinTip)
 			tip = big.NewInt(int64(r.cfg.MinTip))
+			// recalc feecap
+			head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
+			if err != nil {
+				return nil, fmt.Errorf("get l1 head error:%w", err)
+			}
+			if head.BaseFee != nil {
+				gasFeeCap = new(big.Int).Add(
+					tip,
+					new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+				)
+			} else {
+				gasFeeCap = new(big.Int).Set(tip)
+			}
 		}
 	}
 
