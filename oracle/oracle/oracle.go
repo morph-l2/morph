@@ -63,7 +63,7 @@ func Main() func(ctx *cli.Context) error {
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 		<-(chan struct{})(nil)
-		log.Info("staking oracle stoped")
+		log.Info("staking oracle stopped")
 		return nil
 	}
 }
