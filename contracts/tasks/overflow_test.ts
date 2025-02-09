@@ -170,8 +170,8 @@ task("upgradeRollup")
 
         const upgradeTx = await RollupProxyWithSigner.upgradeTo(rollupNewImpl.address)
         console.log("upgradeTx hash: ", upgradeTx.hash)
-        const recipt = await upgradeTx.wait()
-        console.log("recipt status: ", recipt.status)
+        const receipt = await upgradeTx.wait()
+        console.log("receipt status: ", receipt.status)
 
         console.log("after upgrade the impl contract is :", await RollupProxy.callStatic.implementation({
             from: ethers.constants.AddressZero,
