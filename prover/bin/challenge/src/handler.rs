@@ -293,12 +293,7 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 }
 
 async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(H256, H256)> {
-    let start = if latest > U64::from(7200 * 5) {
-        // Depends on challenge period
-        latest - U64::from(7200 * 5)
-    } else {
-        U64::from(1)
-    };
+    let start = U64::from(10);
 
     let challenged_hash = query_tx_hash(l1_rollup, start, batch_index, l1_provider).await.or_else(|| {
         log::warn!("challenged_hash is none");
@@ -354,12 +349,7 @@ async fn query_tx_hash(l1_rollup: &RollupType, start: U64, batch_index: u64, l1_
 }
 
 async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Option<u64> {
-    let start = if latest > U64::from(7200 * 5) {
-        // Depends on challenge period
-        latest - U64::from(7200 * 5)
-    } else {
-        U64::from(1)
-    };
+    let start = U64::from(10);
     let filter = l1_rollup.challenge_state_filter().filter.from_block(start).address(l1_rollup.address());
     let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
         Ok(logs) => logs,
