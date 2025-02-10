@@ -70,6 +70,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Store committed batch hash.
     mapping(uint256 batchIndex => bytes32 batchHash) public override committedBatches;
 
+    /// @notice Store committed public input hash.
+    mapping(uint256 batchIndex => bytes32 piHash) public piHashs;
+
+    /// @notice Store committed blobVersioned hash.
+    mapping(uint256 batchIndex => bytes32 blobHash) public blobVersionedHashs;
+
+    /// @notice Store committed public data hash.
+    mapping(uint256 batchIndex => bytes32 dataHash) public dataHashs;
+
     /// @notice Store committed batch base.
     mapping(uint256 batchIndex => BatchData) public batchDataStore;
 
@@ -615,12 +624,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     }
 
     /// @dev Internal function to verify the zk proof.
-    function _verifyProof(uint256 memPtr, bytes calldata _batchProof) private view {
+    function _verifyProof(uint256 memPtr, bytes calldata _batchProof) private {
         // Check validity of proof
         require(_batchProof.length > 0, "Invalid batch proof");
 
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         bytes32 _blobVersionedHash = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
+        bytes32 _dataHash = BatchHeaderCodecV0.getDataHash(memPtr);
 
         bytes32 _publicInputHash = keccak256(
             abi.encodePacked(
@@ -629,10 +639,16 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 BatchHeaderCodecV0.getPostStateHash(memPtr),
                 BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
                 BatchHeaderCodecV0.getSequencerSetVerifyHash(memPtr),
-                BatchHeaderCodecV0.getDataHash(memPtr),
+                _dataHash,
                 _blobVersionedHash
             )
         );
+
+        // test data
+        piHashs[_batchIndex] = _publicInputHash;
+        blobVersionedHashs[_batchIndex] = _blobVersionedHash;
+        dataHashs[_batchIndex] = _dataHash;
+        
 
         IRollupVerifier(verifier).verifyAggregateProof(
             BatchHeaderCodecV0.getVersion(memPtr),
