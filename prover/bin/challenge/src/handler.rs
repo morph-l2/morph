@@ -293,9 +293,9 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 }
 
 async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(H256, H256)> {
-    let start = if latest > U64::from(7200 * 3) {
+    let start = if latest > U64::from(7200 * 5) {
         // Depends on challenge period
-        latest - U64::from(7200 * 3)
+        latest - U64::from(7200 * 5)
     } else {
         U64::from(1)
     };
@@ -354,9 +354,9 @@ async fn query_tx_hash(l1_rollup: &RollupType, start: U64, batch_index: u64, l1_
 }
 
 async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Option<u64> {
-    let start = if latest > U64::from(7200 * 3) {
+    let start = if latest > U64::from(7200 * 5) {
         // Depends on challenge period
-        latest - U64::from(7200 * 3)
+        latest - U64::from(7200 * 5)
     } else {
         U64::from(1)
     };
@@ -419,6 +419,27 @@ struct BatchInfo {
     withdrawal_root: [u8; 32],
     sequencer_set_verify_hash: [u8; 32],
     parent_batch_hash: [u8; 32],
+}
+
+use hex;
+impl std::fmt::Debug for BatchInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BatchInfo")
+            .field("version", &self.version)
+            .field("batch_index", &self.batch_index)
+            .field("start_block", &self.start_block)
+            .field("end_block", &self.end_block)
+            .field("l1_message_popped", &self.l1_message_popped)
+            .field("total_l1_message_popped", &self.total_l1_message_popped)
+            .field("data_hash", &hex::encode(self.data_hash))
+            .field("blob_versioned_hash", &hex::encode(self.blob_versioned_hash))
+            .field("prev_state_root", &hex::encode(self.prev_state_root))
+            .field("post_state_root", &hex::encode(self.post_state_root))
+            .field("withdrawal_root", &hex::encode(self.withdrawal_root))
+            .field("sequencer_set_verify_hash", &hex::encode(self.sequencer_set_verify_hash))
+            .field("parent_batch_hash", &hex::encode(self.parent_batch_hash))
+            .finish()
+    }
 }
 
 async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, batch_index: u64, hash: TxHash) -> Option<BatchInfo> {
@@ -486,10 +507,11 @@ async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, bat
 impl BatchInfo {
     fn fill_ext(&mut self, batch_header_ex: Vec<u8>) -> &Self {
         log::debug!("batch_header_ex len: {:#?}", batch_header_ex.len());
-
+        
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
         self.blob_versioned_hash = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
         self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
+        log::info!("=====> batch_info: {:#?}", self);
         self
     }
 
@@ -506,6 +528,7 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.withdrawal_root);
         batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
         batch_header.extend_from_slice(&self.parent_batch_hash);
+        batch_header.extend_from_slice(&self.end_block.to_be_bytes());
         Bytes::from(batch_header)
     }
 }
