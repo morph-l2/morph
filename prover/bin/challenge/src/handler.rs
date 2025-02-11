@@ -241,6 +241,8 @@ impl ChallengeHandler {
     }
 
     async fn prove_state(&self, batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
+        let rollup_dev: String = read_parse_env("ROLLUP_DEV");
+
         for _ in 0..MAX_RETRY_TIMES {
             sleep(Duration::from_secs(12)).await;
             log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
@@ -248,7 +250,14 @@ impl ChallengeHandler {
 
             let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l1_rollup.client();
             let calldata = l1_rollup.prove_state(batch_header.clone(), proof).calldata();
-            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
+            let result = send_transaction(
+                Address::from_str(&rollup_dev).unwrap(),
+                calldata,
+                &client,
+                &self.ext_signer,
+                &self.l1_provider,
+            )
+            .await;
             if let Ok(tx_hash) = result {
                 METRICS.verify_result.set(1);
                 log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
@@ -497,7 +506,7 @@ async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, bat
 impl BatchInfo {
     fn fill_ext(&mut self, batch_header_ex: Vec<u8>) -> &Self {
         log::debug!("batch_header_ex len: {:#?}", batch_header_ex.len());
-        
+
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
         self.blob_versioned_hash = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
         self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
