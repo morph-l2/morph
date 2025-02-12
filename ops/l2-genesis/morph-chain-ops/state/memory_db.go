@@ -27,37 +27,37 @@ type MemoryStateDB struct {
 }
 
 func (db *MemoryStateDB) GetKeccakCodeHash(address common.Address) common.Hash {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (db *MemoryStateDB) GetPoseidonCodeHash(address common.Address) common.Hash {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (db *MemoryStateDB) GetRootHash() common.Hash {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (db *MemoryStateDB) GetLiveStateAccount(addr common.Address) *types.StateAccount {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (db *MemoryStateDB) GetProof(addr common.Address) ([][]byte, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (db *MemoryStateDB) GetProofByHash(addrHash common.Hash) ([][]byte, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (db *MemoryStateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byte, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -104,7 +104,6 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 			Nonce:   0,
 		}
 	}
-
 }
 
 func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {

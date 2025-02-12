@@ -18,7 +18,7 @@ import (
 )
 
 func TestSyncer_GetL1Message(t *testing.T) {
-	//prepare msg
+	// prepare msg
 	to := common.BigToAddress(big.NewInt(101))
 	msg := types.L1Message{
 		L1MessageTx: gethTypes.L1MessageTx{
@@ -32,10 +32,10 @@ func TestSyncer_GetL1Message(t *testing.T) {
 		L1TxHash: common.BigToHash(big.NewInt(1111)),
 	}
 
-	//prepare context
+	// prepare context
 	ctx := PrepareContext()
 
-	//syncer
+	// syncer
 	store := prepareDB(msg)
 	store.WriteLatestSyncedL1Height(100)
 	syncConfig := DefaultConfig()
@@ -54,7 +54,6 @@ func TestSyncer_GetL1Message(t *testing.T) {
 	require.EqualValues(t, msg.Value, actualMsg.Value)
 	require.EqualValues(t, msg.Data, actualMsg.Data)
 	require.EqualValues(t, msg.Sender, actualMsg.Sender)
-
 }
 
 func prepareDB(msg types.L1Message) *db.Store {

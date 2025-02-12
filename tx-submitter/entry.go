@@ -38,7 +38,6 @@ import (
 // e.g. GitVersion, to be captured and used once the function is executed.
 func Main() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-
 		cfg, err := utils.NewConfig(cliCtx)
 		if err != nil {
 			return err
@@ -84,7 +83,7 @@ func Main() func(ctx *cli.Context) error {
 		// for collection. Otherwise, logs will only be posted to stdout.
 		output := io.Writer(os.Stdout)
 		if cfg.LogFilename != "" {
-			f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+			f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0o600))
 			if err != nil {
 				return fmt.Errorf("wrong log.filename set: %d", err)
 			}

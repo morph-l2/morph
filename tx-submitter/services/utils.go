@@ -17,9 +17,11 @@ const (
 )
 
 // new = old * (100 + priceBump) / 100
-var priceBumpPercent = big.NewInt(100 + priceBump)
-var blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
-var oneHundred = big.NewInt(100)
+var (
+	priceBumpPercent     = big.NewInt(100 + priceBump)
+	blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
+	oneHundred           = big.NewInt(100)
+)
 
 var blobCommitmentVersionKZG uint8 = 0x01
 
@@ -45,7 +47,6 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 }
 
 func calcFee(receipt *types.Receipt) float64 {
-
 	if receipt == nil || receipt.EffectiveGasPrice == nil {
 		return 0
 	}
@@ -57,7 +58,6 @@ func calcFee(receipt *types.Receipt) float64 {
 		if receipt.BlobGasPrice != nil {
 			blobfee = new(big.Int).Mul(big.NewInt(int64(receipt.BlobGasUsed)), receipt.BlobGasPrice)
 		}
-
 	}
 
 	fee := new(big.Int).Add(calldatafee, blobfee)
@@ -71,5 +71,4 @@ func ToEtherFloat(weiAmt *big.Int) float64 {
 	etherAmt := new(big.Rat).SetFrac(weiAmt, big.NewInt(params.Ether))
 	fEtherAmt, _ := etherAmt.Float64()
 	return fEtherAmt
-
 }

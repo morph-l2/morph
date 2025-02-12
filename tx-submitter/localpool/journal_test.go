@@ -7,7 +7,6 @@ import (
 )
 
 func getTestJournal() *Journal {
-
 	jn := New("journal.rlp")
 	err := jn.rm()
 	if err != nil {
@@ -30,6 +29,7 @@ func TestAddToFileStart(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello", fl)
 }
+
 func TestAddToFileEnd(t *testing.T) {
 	jn := getTestJournal()
 	err := jn.AddToFileEnd("hello")
@@ -43,5 +43,4 @@ func TestAddToFileEnd(t *testing.T) {
 	ll, err := jn.GetLastLine()
 	require.NoError(t, err)
 	require.Equal(t, "hello", ll)
-
 }

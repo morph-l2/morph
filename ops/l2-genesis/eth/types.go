@@ -122,8 +122,7 @@ type Uint256Quantity = uint256.Int
 
 type Data = hexutil.Bytes
 
-//type PayloadID = engine.PayloadID
-
+// type PayloadID = engine.PayloadID
 type ExecutionPayload struct {
 	ParentHash    common.Hash     `json:"parentHash"`
 	FeeRecipient  common.Address  `json:"feeRecipient"`
@@ -275,7 +274,7 @@ type ForkchoiceUpdatedResult struct {
 	// the result of the payload execution
 	PayloadStatus PayloadStatusV1 `json:"payloadStatus"`
 	// the payload id if requested
-	//PayloadID *PayloadID `json:"payloadId"`
+	// PayloadID *PayloadID `json:"payloadId"`
 }
 
 // SystemConfig represents the rollup system configuration that carries over in every L2 block,

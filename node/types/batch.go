@@ -34,7 +34,7 @@ type BatchHeader struct {
 	ParentBatchHash        common.Hash
 	SkippedL1MessageBitmap hexutil.Bytes
 
-	//cache
+	// cache
 	EncodedBytes hexutil.Bytes
 }
 

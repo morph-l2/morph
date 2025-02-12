@@ -58,7 +58,6 @@ func ParseParentBatchIndex(calldata []byte) uint64 {
 
 // ParseL1Mempool parses the L1 mempool and returns the transactions.
 func ParseL1Mempool(rpc *rpc.Client, addr common.Address) ([]*types.Transaction, error) {
-
 	var result map[string]map[string]*types.Transaction
 	err := rpc.Call(&result, "txpool_contentFrom", addr)
 	if err != nil {
@@ -82,11 +81,9 @@ func ParseL1Mempool(rpc *rpc.Client, addr common.Address) ([]*types.Transaction,
 	}
 
 	return txs, nil
-
 }
 
 func ParseMempoolLatestBatchIndex(id []byte, txs []*types.Transaction) uint64 {
-
 	var res uint64
 	for _, tx := range txs {
 		if bytes.Equal(tx.Data()[:4], id) {
@@ -98,7 +95,6 @@ func ParseMempoolLatestBatchIndex(id []byte, txs []*types.Transaction) uint64 {
 	}
 
 	return res + 1
-
 }
 
 func ParseBusinessInfo(tx *types.Transaction, a *abi.ABI) []interface{} {
@@ -174,7 +170,6 @@ func ParseNonce(s string) (uint64, uint64, error) {
 }
 
 func ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
-
 	var l1msgcnt uint64
 	blockNum := binary.BigEndian.Uint16(blockContexts[:2])
 	remainingBz := blockContexts[2:]

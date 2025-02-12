@@ -25,6 +25,7 @@ type Journal struct {
 func New(path string) *Journal {
 	return &Journal{path: path}
 }
+
 func (j *Journal) Init() error {
 	// create file if file not exist
 	_, err := os.Stat(j.path)
@@ -39,7 +40,6 @@ func (j *Journal) Init() error {
 		} else {
 			return fmt.Errorf("failed to stat journal file: %w", err)
 		}
-
 	}
 
 	return nil
@@ -63,7 +63,6 @@ func (j *Journal) AddToFileEnd(str string) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return addToFileEnd(j.path, str)
-
 }
 
 func (j *Journal) ParseAllTxsAndCleanJournal() ([]*types.Transaction, error) {
@@ -80,7 +79,6 @@ func (j *Journal) ParseAllTxsAndCleanJournal() ([]*types.Transaction, error) {
 
 func (j *Journal) ParseAllTxs() ([]*types.Transaction, error) {
 	content, err := readFileContent(j.path)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse txs: %w", err)
 	}
@@ -101,7 +99,6 @@ func (j *Journal) ParseAllTxs() ([]*types.Transaction, error) {
 	}
 
 	return ans, nil
-
 }
 
 func addToFileStart(path string, str string) error {
@@ -116,7 +113,7 @@ func addToFileStart(path string, str string) error {
 		newContent = str
 	}
 
-	err = os.WriteFile(path, []byte(newContent), 0600)
+	err = os.WriteFile(path, []byte(newContent), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to write journal file: %w", err)
 	}
@@ -165,7 +162,7 @@ func addToFileEnd(path string, str string) error {
 	} else {
 		newContent = str
 	}
-	err = os.WriteFile(path, []byte(newContent), 0600)
+	err = os.WriteFile(path, []byte(newContent), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to add line to file end: %w", err)
 	}
@@ -191,11 +188,12 @@ func readFileContent(path string) (string, error) {
 	}
 	return string(content), nil
 }
+
 func getLines(str string) []string {
 	return strings.Split(str, "\n")
 }
-func getFirstLine(path string) (string, error) {
 
+func getFirstLine(path string) (string, error) {
 	content, err := readFileContent(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to get first line: %w", err)
@@ -210,7 +208,6 @@ func getFirstLine(path string) (string, error) {
 	}
 
 	return "", nil
-
 }
 
 func getLastLine(path string) (string, error) {

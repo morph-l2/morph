@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
 	"morph-l2/node/zstd"
 
 	eth "github.com/morph-l2/go-ethereum/core/types"
@@ -248,7 +249,7 @@ func isEmptyBlob(blob *kzg4844.Blob) bool {
 }
 
 func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
-	//the occupied byte length for storing the size of the following rlp encoded bytes
+	// the occupied byte length for storing the size of the following rlp encoded bytes
 	sizeByteLen := firstByte - 0xf7
 
 	// the size of the following rlp encoded bytes

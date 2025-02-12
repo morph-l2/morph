@@ -8,7 +8,6 @@ import (
 )
 
 func TestIsGrowth(t *testing.T) {
-
 	blockCnt := int64(2)
 	monitor := NewBlockMonitor(blockCnt, nil)
 	monitor.latestBlockTime = time.Time{}
@@ -19,5 +18,4 @@ func TestIsGrowth(t *testing.T) {
 
 	monitor.latestBlockTime = time.Now().Add(-monitor.noGrowthBlockCntTime)
 	require.Equal(t, false, monitor.IsGrowth())
-
 }

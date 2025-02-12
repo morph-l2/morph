@@ -120,7 +120,7 @@ func (h *Hardhat) initSingleDeployment() error {
 					entry["name"],
 				)
 			}
-			//fmt.Println("=======>> init hardhat deployment instance:", deployment)
+			// fmt.Println("=======>> init hardhat deployment instance:", deployment)
 			h.deployments = append(h.deployments, &deployment)
 			knownDeployments[deployment.Name] = entry["name"].(string)
 
