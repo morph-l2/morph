@@ -229,7 +229,7 @@ def devnet_deploy(paths, args):
 
 
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
-                 '-d'], check=False, cwd=paths.ops_dir,
+                 '--no-recreate','-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],

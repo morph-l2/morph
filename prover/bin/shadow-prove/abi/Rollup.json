@@ -16,16 +16,6 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "ErrorIncorrectBatchLength",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ErrorNoBlockInBatch",
-    "type": "error"
-  },
-  {
     "anonymous": false,
     "inputs": [
       {
@@ -619,9 +609,14 @@
             "type": "bytes"
           },
           {
-            "internalType": "bytes",
-            "name": "blockContexts",
-            "type": "bytes"
+            "internalType": "uint64",
+            "name": "lastBlockNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint16",
+            "name": "numL1Messages",
+            "type": "uint16"
           },
           {
             "internalType": "bytes32",

@@ -5,7 +5,7 @@ use tokio::time::{sleep, Duration};
 
 use super::{
     blob_client::BeaconNode,
-    calculate::{data_and_hashes_from_txs, extract_tx_payload, extract_txn_num},
+    calculate::{data_and_hashes_from_txs, extract_tx_payload, extract_txn_count},
     error::ScalarError,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
@@ -227,47 +227,10 @@ impl ScalarUpdater {
         tx_hash: TxHash,
         block_num: U64,
     ) -> Result<(u64, u64), ScalarError> {
-        //Step1.  Get transaction
-        let tx = self
-            .l1_provider
-            .get_transaction(tx_hash)
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!("l1_provider.get_transaction err: {:#?}", e)))
-            })?
-            .ok_or_else(|| {
-                ScalarError::Error(anyhow!(format!(
-                    "ll1_provider.get_transaction is none, tx_hash= {:#?}",
-                    tx_hash
-                )))
-            })?;
-
-        log::info!("hit self rollup tx hash: {:#?}, blocknum: {:#?}", tx_hash, block_num);
-
-        //Step2. Parse transaction data
-        let data = tx.input;
-        if data.is_empty() {
-            return Err(ScalarError::Error(anyhow!(format!(
-                "overhead_inspect tx.input is empty, tx_hash= {:#?}",
-                tx_hash
-            ))));
-        }
-        let param = CommitBatchCall::decode(&data).map_err(|e| {
-            ScalarError::Error(anyhow!(format!(
-                "overhead_inspect decode tx.input error, tx_hash= {:#?}, err= {:#?}",
-                tx_hash, e
-            )))
-        })?;
-
-        let block_contexts: Bytes = param.batch_data_input.block_contexts;
-        let l2_txn = extract_txn_num(block_contexts).unwrap_or(0);
-
-        //Step3. Calculate l2 data gas
-        let l2_data_len = self
-            .calculate_l2_data_len_from_blob(tx_hash, block_num, l2_txn)
-            .await
-            .map_err(|e| {
-                log::error!("calculate_l2_data_len_from_blob error: {:#?}", e);
+        //Step1. get_data_from_blob
+        let (l2_data_len, l2_txn) =
+            self.get_data_from_blob(tx_hash, block_num).await.map_err(|e| {
+                log::error!("get_data_from_blob error: {:#?}", e);
                 e
             })?;
 
@@ -292,7 +255,7 @@ impl ScalarUpdater {
             ))));
         }
 
-        //Step4. Calculate scalar
+        //Step2. Calculate scalar
         let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION /
             l2_txn.max(self.txn_per_batch);
         let blob_scalar = if l2_data_len > 0 {
@@ -315,15 +278,11 @@ impl ScalarUpdater {
         Ok((commit_scalar, blob_scalar))
     }
 
-    async fn calculate_l2_data_len_from_blob(
+    async fn get_data_from_blob(
         &self,
         tx_hash: TxHash,
         block_num: U64,
-        l2_txn: u64,
-    ) -> Result<u64, ScalarError> {
-        if l2_txn == 0 {
-            return Ok(0);
-        }
+    ) -> Result<(u64, u64), ScalarError> {
         let blob_tx = self
             .l1_provider
             .get_transaction(tx_hash)
@@ -351,7 +310,7 @@ impl ScalarUpdater {
         let indexed_hashes = data_and_hashes_from_txs(&blob_block.transactions, &blob_tx);
         if indexed_hashes.is_empty() {
             log::info!("no blob in this batch, batch_tx_hash: {:#?}", tx_hash);
-            return Ok(0);
+            return Ok((0, 0));
         }
 
         // Waiting for the next L1 block to be produced.
@@ -387,6 +346,19 @@ impl ScalarUpdater {
             }
         };
 
+        // Parse last_block_num
+        if blob_tx.input.is_empty() {
+            log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", tx_hash);
+            return Err(ScalarError::Error(anyhow!(format!("commitBatch tx.input empty"))));
+        }
+        let param = if let Ok(_param) = CommitBatchCall::decode(&blob_tx.input) {
+            _param
+        } else {
+            log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", tx_hash);
+            return Err(ScalarError::Error(anyhow!(format!("decode commitBatch tx.input error",))));
+        };
+        let last_block_num: u64 = param.batch_data_input.last_block_number;
+
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
         let sidecars_rt = self
             .beacon_node
@@ -407,16 +379,65 @@ impl ScalarUpdater {
             ))));
         }
 
-        let tx_payload = extract_tx_payload(indexed_hashes, sidecars)?;
+        let tx_payloads = extract_tx_payload(indexed_hashes, sidecars)?;
+        let data_with_txn_count: Vec<(u64, u64)> = tx_payloads
+            .iter()
+            .map(|batch: &Vec<u8>| {
+                (batch.len() as u64, extract_txn_count(batch, last_block_num).unwrap_or_default())
+            })
+            .collect();
 
-        Ok(tx_payload.len() as u64)
+        let (total_size, total_count) = data_with_txn_count
+            .iter()
+            .fold((0u64, 0u64), |acc, &(size, count)| (acc.0 + size, acc.1 + count));
+
+        Ok((total_size, total_count))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::da_scalar::blob::Blob;
+
     use super::*;
-    use std::{env::var, str::FromStr, sync::Arc};
+    use std::{env::var, fs, path::Path, str::FromStr, sync::Arc};
+
+    #[test]
+    fn test_blob_data() {
+        let blob_data_path = Path::new("data/blob_with_context.data");
+        let data = fs::read_to_string(blob_data_path).expect("Unable to read file");
+        let hex_data: Vec<u8> = hex::decode(data.trim()).unwrap();
+
+        let mut blob_array = [0u8; 131072];
+        blob_array.copy_from_slice(&hex_data);
+
+        let blob_struct = Blob(blob_array);
+        let origin_batch = blob_struct
+            .get_origin_batch()
+            .map_err(|e| {
+                ScalarError::CalculateError(anyhow!(format!(
+                    "Failed to decode blob tx payload: {}",
+                    e
+                )))
+            })
+            .unwrap();
+
+        let mut tx_payloads: Vec<Vec<u8>> = vec![];
+        tx_payloads.push(origin_batch);
+
+        let data_with_txn_count: Vec<(u64, u64)> = tx_payloads
+            .iter()
+            .map(|batch: &Vec<u8>| {
+                (batch.len() as u64, extract_txn_count(batch, 328208).unwrap_or_default())
+            })
+            .collect();
+
+        let (total_size, total_count) = data_with_txn_count
+            .iter()
+            .fold((0u64, 0u64), |acc, &(size, count)| (acc.0 + size, acc.1 + count));
+
+        println!("total_size: {}, total_count: {}", total_size, total_count)
+    }
 
     #[tokio::test]
     #[ignore]

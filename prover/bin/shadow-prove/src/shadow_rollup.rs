@@ -1,5 +1,6 @@
 use crate::{metrics::METRICS, util::read_env_var, BatchInfo};
 use alloy::{
+    consensus::Transaction,
     network::{Network, ReceiptResponse},
     primitives::{Address, Bytes, TxHash, U256, U64},
     providers::{Provider, RootProvider},
@@ -10,7 +11,6 @@ use alloy::{
         Transport,
     },
 };
-use std::ops::Mul;
 
 use crate::{
     Rollup::{self, RollupInstance},
@@ -20,6 +20,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct BatchSyncer<T, P, N> {
     l1_provider: RootProvider<Http<Client>>,
+    l2_provider: RootProvider<Http<Client>>,
     l1_rollup: RollupInstance<Http<Client>, RootProvider<Http<Client>>>,
     l1_shadow_rollup: ShadowRollupInstance<T, P, N>,
 }
@@ -33,13 +34,14 @@ where
     pub fn new(
         rollup_address: Address,
         shadow_rollup_address: Address,
-        provider: RootProvider<Http<Client>>,
+        l1_provider: RootProvider<Http<Client>>,
+        l2_provider: RootProvider<Http<Client>>,
         wallet: P,
     ) -> Self {
-        let l1_rollup = Rollup::RollupInstance::new(rollup_address, provider.clone());
+        let l1_rollup = Rollup::RollupInstance::new(rollup_address, l1_provider.clone());
         let l1_shadow_rollup = ShadowRollup::new(shadow_rollup_address, wallet);
 
-        Self { l1_provider: provider, l1_rollup, l1_shadow_rollup }
+        Self { l1_provider, l2_provider, l1_rollup, l1_shadow_rollup }
     }
 
     /**
@@ -55,6 +57,7 @@ where
             U64::from(latest),
             &self.l1_rollup,
             &self.l1_provider,
+            &self.l2_provider,
         )
         .await
         {
@@ -74,7 +77,7 @@ where
 
         // Assembling a batche of the same commitment.
         #[rustfmt::skip]
-        //   Below is the encoding for `BatchHeader`, reference: morph-repo/contracts/contracts/libraries/codec/BatchHeaderCodecV0.sol
+        //   Below is the encoding for `BatchHeader`, reference: morph-repo/contracts/contracts/libraries/codec/BatchHeaderCodecV1.sol
         //    
         //   * Field                   Bytes       Type        Index   Comments
         //   * version                 1           uint8       0       The batch version
@@ -89,6 +92,8 @@ where
         //   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
         //   * parentBatchHash         32          bytes32     217     The parent batch hash
         //   * skippedL1MessageBitmap  dynamic     uint256[]   249     A bitmap to indicate which L1 messages are skipped in the batch
+        //   @dev Below is the feilds for `BatchHeader` V1
+        //   * lastBlockNumber         8           uint64      249     The last block number in this batch
         // ```
         let batch_store = ShadowRollup::BatchStore {
             prevStateRoot: batch_header
@@ -156,6 +161,7 @@ async fn get_committed_batch<T, P, N>(
     latest: U64,
     l1_rollup: &RollupInstance<T, P, N>,
     l1_provider: &RootProvider<Http<Client>>,
+    l2_provider: &RootProvider<Http<Client>>,
 ) -> Result<Option<(BatchInfo, Bytes)>, String>
 where
     P: Provider<T, N> + Clone,
@@ -177,11 +183,47 @@ where
         log::warn!("There have been no commit_batch logs for the last 600 blocks");
         return Ok(None);
     }
-    if logs.len() < 2 {
+    if logs.len() < 3 {
         log::warn!("No enough commit_batch logs for the last 600 blocks");
         return Ok(None);
     }
     logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
+
+    let batch_index = match logs.get(logs.len() - 2) {
+        Some(log) => {
+            let _index = U256::from_be_slice(log.topics()[1].as_slice());
+            _index.to::<u64>()
+        }
+        None => {
+            return Err("find commit_batch log error".to_string());
+        }
+    };
+
+    if batch_index == 0 {
+        return Err(String::from("batch_index is 0"));
+    }
+    let (blocks, total_txn_count) =
+        match batch_blocks_inspect(l1_rollup, l2_provider, batch_index).await {
+            Some(block_txn) => block_txn,
+            None => return Err(String::from("batch_blocks_inspect none")),
+        };
+
+    if blocks.0 <= blocks.1 {
+        return Err(String::from("blocks is empty"));
+    }
+
+    if blocks.1 - blocks.0 + 1 > read_env_var("SHADOW_PROVING_MAX_BLOCK", 300) {
+        log::warn!("Too many blocks in the latest batch to shadow prove");
+        return Ok(None);
+    }
+
+    if total_txn_count > read_env_var("SHADOW_PROVING_MAX_TXN", 600) {
+        log::warn!("Too many txn in the latest batch to shadow prove");
+        return Ok(None);
+    }
+
+    let batch_info: BatchInfo =
+        BatchInfo { batch_index, start_block: blocks.0, end_block: blocks.1 };
 
     // A rollup commit_batch_input contains prev batch_header.
     let next_tx_hash = match logs.last() {
@@ -194,41 +236,6 @@ where
     let batch_header = batch_header_inspect(l1_provider, next_tx_hash)
         .await
         .ok_or_else(|| "Failed to inspect batch header".to_string())?;
-
-    let (batch_index, tx_hash) = match logs.get(logs.len() - 2) {
-        Some(log) => {
-            let _index = U256::from_be_slice(log.topics()[1].as_slice());
-            let _tx_hash = log.transaction_hash.unwrap_or_default();
-            (_index.to::<u64>(), _tx_hash)
-        }
-        None => {
-            return Err("find commit_batch log error".to_string());
-        }
-    };
-
-    if batch_index == 0 {
-        return Err(String::from("batch_index is 0"));
-    }
-    let (blocks, total_txn_count) = match batch_blocks_inspect(l1_provider, tx_hash).await {
-        Some(block_txn) => block_txn,
-        None => return Err(String::from("batch_blocks_inspect none")),
-    };
-
-    if blocks.is_empty() {
-        return Err(String::from("blocks is empty"));
-    }
-
-    if blocks.len() > read_env_var("SHADOW_PROVING_MAX_BLOCK", 300) {
-        log::warn!("Too many blocks in the latest batch to shadow prove");
-        return Ok(None);
-    }
-
-    if total_txn_count > read_env_var("SHADOW_PROVING_MAX_TXN", 600) {
-        log::warn!("Too many txn in the latest batch to shadow prove");
-        return Ok(None);
-    }
-
-    let batch_info: BatchInfo = BatchInfo { batch_index, blocks };
 
     log::info!("Found the committed batch, batch index = {:#?}", batch_index);
     Ok(Some((batch_info, batch_header)))
@@ -253,7 +260,7 @@ pub async fn batch_header_inspect(
     };
 
     //Step2. Parse transaction data
-    let data = tx.input;
+    let data = tx.input();
 
     if data.is_empty() {
         log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
@@ -269,74 +276,51 @@ pub async fn batch_header_inspect(
     Some(parent_batch_header)
 }
 
-async fn batch_blocks_inspect(
-    l1_provider: &RootProvider<Http<Client>>,
-    hash: TxHash,
-) -> Option<(Vec<u64>, u32)> {
-    //Step1.  Get transaction
-    let result = l1_provider.get_transaction_by_hash(hash).await;
-    let tx = match result {
-        Ok(Some(tx)) => tx,
-        Ok(None) => {
-            log::error!("l1_provider.get_transaction is none");
-            return None;
-        }
+async fn batch_blocks_inspect<T, P, N>(
+    l1_rollup: &RollupInstance<T, P, N>,
+    l2_provider: &RootProvider<Http<Client>>,
+    batch_index: u64,
+) -> Option<((u64, u64), u64)>
+where
+    P: Provider<T, N> + Clone,
+    T: Transport + Clone,
+    N: Network,
+{
+    let prev_bn = match l1_rollup.batchDataStore(U256::from(batch_index - 1)).call().await {
+        Ok(s) => s.blockNumber.to::<u64>(),
         Err(e) => {
-            log::error!("l1_provider.get_transaction err: {:#?}", e);
+            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
             return None;
         }
     };
 
-    //Step2. Parse transaction data
-    let data = tx.input;
-
-    if data.is_empty() {
-        log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
-        return None;
-    }
-    let param = if let Ok(_param) = Rollup::commitBatchCall::abi_decode(&data, false) {
-        _param
-    } else {
-        log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
-        return None;
+    let current_bn = match l1_rollup.batchDataStore(U256::from(batch_index)).call().await {
+        Ok(s) => s.blockNumber.to::<u64>(),
+        Err(e) => {
+            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+            return None;
+        }
     };
-    let block_contexts: Bytes = param.batchDataInput.blockContexts;
-    decode_blocks(block_contexts)
-}
 
-fn decode_blocks(block_contexts: Bytes) -> Option<(Vec<u64>, u32)> {
-    if block_contexts.is_empty() || block_contexts.len() < 2 {
-        return Some((vec![], 0));
+    let mut total_tx_count: u64 = 0;
+    for i in prev_bn + 1..current_bn + 1 {
+        total_tx_count += l2_provider
+            .get_block_transaction_count_by_number(i.into())
+            .await
+            .unwrap_or_default()
+            .unwrap_or_default();
     }
 
-    let mut blocks: Vec<u64> = vec![];
-    let mut txn_in_batch = 0u32;
-    let bs: &[u8] = &block_contexts;
-
-    // decode blocks from batch
-    // |   2 byte   | 60 bytes | ... | 60 bytes |
-    // | num blocks |  block 1 | ... |  block n |
-    // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
-    let num_blocks: u16 = ((bs[0] as u16) << 8) | (bs[1] as u16);
-
-    for i in 0..num_blocks as usize {
-        let block_num =
-            u64::from_be_bytes(bs.get((60.mul(i) + 2)..(60.mul(i) + 2 + 8))?.try_into().ok()?);
-        let txs_num = u16::from_be_bytes(
-            bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().ok()?,
-        );
-        txn_in_batch += txs_num as u32;
-        blocks.push(block_num);
-    }
-
-    METRICS.shadow_txn_len.set(txn_in_batch.into());
     log::info!(
         "decode_blocks, blocks_len: {:#?}, start_block: {:#?}, txn_in_batch: {:?}",
-        num_blocks,
-        blocks.first().unwrap_or(&0),
-        txn_in_batch
+        current_bn - prev_bn,
+        prev_bn + 1,
+        total_tx_count
     );
-    Some((blocks, txn_in_batch))
+
+    METRICS.shadow_txn_len.set(total_tx_count as i64);
+
+    Some(((prev_bn + 1, current_bn), total_tx_count))
 }
 
 async fn is_prove_success<T, P, N>(
@@ -364,24 +348,6 @@ where
 }
 
 #[tokio::test]
-async fn test_decode_blocks() {
-    use std::{fs::File, io::Read, str::FromStr};
-
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
-
-    let mut file = File::open("./src/input.data").unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    let input = Bytes::from_str(contents.as_str()).unwrap();
-
-    let param = Rollup::commitBatchCall::abi_decode(&input, false).unwrap();
-    let blocks: Bytes = param.batchDataInput.blockContexts;
-    let rt = decode_blocks(blocks).unwrap();
-    assert!(rt.0.len() == 11);
-    assert!(rt.0[3] == 1112u64);
-}
-
-#[tokio::test]
 async fn test_sync_batch() {
     use alloy::{
         network::EthereumWallet,
@@ -395,13 +361,18 @@ async fn test_sync_batch() {
     let l1_rpc: String = var("SHADOW_PROVING_VERIFY_L1_RPC").unwrap_or(
         var("SHADOW_PROVING_L1_RPC").expect("Shadow prove cannot detect L1_RPC env var"),
     );
+    let l2_rpc: String = var("SHADOW_PROVING_VERIFY_L2_RPC").unwrap_or(
+        var("SHADOW_PROVING_L2_RPC").expect("Shadow prove cannot detect L2_RPC env var"),
+    );
     let private_key = var("SHADOW_PROVING_PRIVATE_KEY")
         .expect("Cannot detect SHADOW_PROVING_PRIVATE_KEY env var");
 
     let signer: PrivateKeySigner = private_key.parse().unwrap();
     let wallet: EthereumWallet = EthereumWallet::from(signer.clone());
-    let provider: RootProvider<Http<Client>> =
+    let l1_provider: RootProvider<Http<Client>> =
         ProviderBuilder::new().on_http(l1_rpc.parse().unwrap());
+    let l2_provider: RootProvider<Http<Client>> =
+        ProviderBuilder::new().on_http(l2_rpc.parse().unwrap());
 
     let rollup = var("SHADOW_PROVING_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
     let shadow_rollup =
@@ -415,7 +386,8 @@ async fn test_sync_batch() {
     let bs = BatchSyncer::new(
         Address::from_str(&rollup).unwrap(),
         Address::from_str(&shadow_rollup).unwrap(),
-        provider,
+        l1_provider,
+        l2_provider,
         l1_signer,
     );
     bs.sync_batch().await.unwrap();

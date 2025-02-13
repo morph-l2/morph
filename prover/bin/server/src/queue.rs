@@ -117,7 +117,7 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) {
     blocks.iter_mut().for_each(|blobk| blobk.flatten());
     let batch_info = EVMVerifier::verify(blocks).unwrap();
     let blob_info = morph_executor_host::get_blob_info(blocks).unwrap();
-    let (versioned_hash, _) = BlobVerifier::verify(&blob_info).unwrap();
+    let (versioned_hash, _) = BlobVerifier::verify(&blob_info, blocks.len()).unwrap();
 
     // Save batch_header
     // | batch_data_hash | versioned_hash | sequencer_root |

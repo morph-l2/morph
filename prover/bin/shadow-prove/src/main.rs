@@ -34,6 +34,7 @@ async fn main() {
 
     let l1_verify_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
     let l1_rpc: String = read_parse_env("SHADOW_PROVING_L1_RPC");
+    let l2_rpc: String = read_parse_env("SHADOW_PROVING_L2_RPC");
 
     let private_key: String = read_parse_env("SHADOW_PROVING_PRIVATE_KEY");
     let rollup: String = read_parse_env("SHADOW_PROVING_L1_ROLLUP");
@@ -41,8 +42,11 @@ async fn main() {
 
     let signer: PrivateKeySigner = private_key.parse().expect("parse PrivateKeySigner");
     let wallet: EthereumWallet = EthereumWallet::from(signer.clone());
-    let provider: RootProvider<Http<Client>> =
+    let l1_provider: RootProvider<Http<Client>> =
         ProviderBuilder::new().on_http(l1_rpc.parse().expect("parse l1_rpc to Url"));
+
+    let l2_provider: RootProvider<Http<Client>> =
+        ProviderBuilder::new().on_http(l2_rpc.parse().expect("parse l2_rpc to Url"));
 
     let verify_provider: RootProvider<Http<Client>> =
         ProviderBuilder::new().on_http(l1_verify_rpc.parse().expect("parse l1_rpc to Url"));
@@ -55,7 +59,8 @@ async fn main() {
     let batch_syncer = BatchSyncer::new(
         Address::from_str(&rollup).unwrap(),
         Address::from_str(&shadow_rollup).unwrap(),
-        provider.clone(),
+        l1_provider.clone(),
+        l2_provider.clone(),
         l1_signer.clone(),
     );
 
@@ -227,7 +232,7 @@ async fn test_prove_batch() {
     );
 
     let tx_hash = B256::from_str(&next_tx_hash).unwrap();
-    let batch_header = shadow_prove::shadow_rollup::batch_header_inspect(&provider, tx_hash)
+    let batch_header = shadow_proving::shadow_rollup::batch_header_inspect(&provider, tx_hash)
         .await
         .ok_or_else(|| "Failed to inspect batch header".to_string())
         .unwrap();
@@ -261,7 +266,7 @@ async fn test_prove_batch() {
     let rt = shadow_tx.send().await.unwrap();
     println!("commitBatch success: {:?}", rt.tx_hash());
 
-    let batch_info = BatchInfo { batch_index, blocks: vec![1000001, 1000002] };
+    let batch_info = BatchInfo { batch_index, start_block: 1000001, end_block: 1000002 };
 
     shadow_prover.prove(batch_info).await.unwrap();
 }
