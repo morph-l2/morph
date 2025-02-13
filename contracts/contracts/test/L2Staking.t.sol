@@ -1239,7 +1239,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(secondStaker, 2);
         uint256 balanceAfter = morphToken.balanceOf(bob);
 
-        // sequncer size = 3
+        // sequencer size = 3
         // proposal same blocks in epoch 2
         // commission = 1
         // alice delegate 5 ether morph token
@@ -2097,7 +2097,7 @@ contract L2StakingTest is L2StakingBaseTest {
         l2Staking.claimReward(firstStaker, 0);
         uint256 balanceAfter = morphToken.balanceOf(alice);
 
-        // sequncer size = 3
+        // sequencer size = 3
         // proposal same blocks in every epoch
         // commission = 1
         // alice delegate 5 ether morph token in epoch 0 - 1, undeletegate at epoch 1. valid reward epoch is 0, 1

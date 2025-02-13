@@ -434,7 +434,7 @@ task("l1staking-deploy-init")
             console.log("BLOCK_NUMBER: %s", blockNumber)
             const err = await storage(newPath, ImplStorageName.L1StakingStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
             if (err != '') {
-                console.log(`deploy L1Staking implemention failed ${err}`)
+                console.log(`deploy L1Staking implementation failed ${err}`)
                 return err
             }
         }
