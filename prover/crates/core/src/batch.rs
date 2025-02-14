@@ -31,9 +31,10 @@ impl BatchInfo {
         let post_state_root = traces.last().expect("at least 1 block needed").root_after();
 
         let mut data_hasher = Keccak::v256();
-        for trace in traces.iter() {
-            trace.hash_da_header(&mut data_hasher);
-        }
+        data_hasher.update(&traces.last().unwrap().number().to_be_bytes());
+        let num_l1_txs: u16 = traces.iter().map(|x| x.num_l1_txs()).sum::<u64>() as u16;
+        data_hasher.update(&num_l1_txs.to_be_bytes());
+
         for trace in traces.iter() {
             trace.hash_l1_msg(&mut data_hasher);
         }

@@ -1,4 +1,4 @@
-FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.22-ubuntu as builder
 
 # Copy source code and build application
 COPY . /morph
@@ -6,7 +6,7 @@ WORKDIR /morph/oracle
 RUN make build
 
 # Deploy stage using the same base image (morph/go-ubuntu-builder:go-1.22-ubuntu)
-FROM morph/go-ubuntu-builder:go-1.22-ubuntu
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.22-ubuntu
 
 # Install only necessary dependencies (e.g., ca-certificates for networking)
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*

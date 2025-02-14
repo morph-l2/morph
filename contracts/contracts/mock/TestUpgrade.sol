@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity =0.8.24;
 interface TestUpgrade {
     function va() external view returns (uint256);
     function vb() external view returns (uint256);

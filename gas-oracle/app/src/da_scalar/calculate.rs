@@ -5,7 +5,6 @@ use ethers::{
 use eyre::anyhow;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::ops::Mul;
 
 use super::{
     blob::{kzg_to_versioned_hash, Blob},
@@ -17,8 +16,8 @@ use super::{
 pub(super) fn extract_tx_payload(
     indexed_hashes: Vec<IndexedBlobHash>,
     sidecars: &[Value],
-) -> Result<Vec<u8>, ScalarError> {
-    let mut tx_payload = Vec::<u8>::new();
+) -> Result<Vec<Vec<u8>>, ScalarError> {
+    let mut batch_bytes = Vec::<Vec<u8>>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
             sidecar["index"].as_str().unwrap_or("1000").parse::<u64>().unwrap_or(1000) == i_h.index
@@ -63,14 +62,14 @@ pub(super) fn extract_tx_payload(
 
             let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
             let blob_struct = Blob(blob_array);
-            let mut origin_batch = blob_struct.get_origin_batch().map_err(|e| {
+            let origin_batch = blob_struct.get_origin_batch().map_err(|e| {
                 ScalarError::CalculateError(anyhow!(format!(
                     "Failed to decode blob tx payload: {}",
                     e
                 )))
             })?;
 
-            tx_payload.append(&mut origin_batch);
+            batch_bytes.push(origin_batch);
         } else {
             return Err(ScalarError::CalculateError(anyhow!(format!(
                 "no blob in response matches desired index: {}",
@@ -78,41 +77,35 @@ pub(super) fn extract_tx_payload(
             ))));
         }
     }
-    Ok(tx_payload)
+    Ok(batch_bytes)
 }
 
-pub fn extract_txn_num(block_contexts: Bytes) -> Option<u64> {
-    if block_contexts.is_empty() || block_contexts.len() < 2 {
+pub fn extract_txn_count(origin_batch: &Vec<u8>, last_block_num: u64) -> Option<u64> {
+    if origin_batch.is_empty() || origin_batch.len() < 8 {
         return None;
     }
-
-    let mut txn_in_batch = 0u64;
-    let mut l1_txn_in_batch = 0u64;
-    let bs: &[u8] = &block_contexts;
-
-    // decode blocks from batch
-    // |   2 byte   | 60 bytes | ... | 60 bytes |
-    // | num blocks |  block 1 | ... |  block n |
-    // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
-    let num_blocks: u16 = ((bs[0] as u16) << 8) | (bs[1] as u16);
-
-    for i in 0..num_blocks as usize {
-        let txs_num = u16::from_be_bytes(
-            bs.get((60.mul(i) + 2 + 56)..(60.mul(i) + 2 + 58))?.try_into().ok()?,
-        );
-        let l1_txs_num = u16::from_be_bytes(
-            bs.get((60.mul(i) + 2 + 58)..(60.mul(i) + 2 + 60))?.try_into().ok()?,
-        );
-        txn_in_batch += txs_num as u64;
-        l1_txn_in_batch += l1_txs_num as u64;
-    }
-
-    log::debug!("total_txn_in_batch: {:#?}, l1_txn_in_batch: {:#?}", txn_in_batch, l1_txn_in_batch);
-    if txn_in_batch < l1_txn_in_batch {
-        log::error!("total_txn_in_batch < l1_txn_in_batch");
+    let first_block_num = u64::from_be_bytes(origin_batch[0..8].try_into().unwrap_or_default());
+    let block_count = last_block_num - first_block_num + 1;
+    if origin_batch.len() < 60 * block_count as usize {
+        log::error!("invalid blob batch len");
         return None;
     }
-    Some(txn_in_batch - l1_txn_in_batch)
+    let mut txn_count_in_batch = 0u64;
+    for i in 0..block_count as usize {
+        let bys = &origin_batch[60 * i + 56..60 * i + 58];
+        let num_txn = u16::from_be_bytes(bys.try_into().unwrap_or_default());
+
+        let bys = &origin_batch[60 * i + 58..60 * i + 60];
+        let num_l1_messages = u16::from_be_bytes(bys.try_into().unwrap_or_default());
+        if num_txn < num_l1_messages {
+            log::error!("total_txn_in_batch < l1_txn_in_batch");
+            return None;
+        }
+
+        txn_count_in_batch += (num_txn - num_l1_messages) as u64;
+    }
+
+    Some(txn_count_in_batch)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

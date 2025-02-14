@@ -115,11 +115,11 @@ var Subcommands = cli.Commands{
 				if err != nil {
 					return err
 				}
-				fmt.Printf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Encode())
+				fmt.Printf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Bytes())
 				if err := writeGenesisFile(genBatchHeaderFile, genesisBatchHeader); err != nil {
 					return err
 				}
-				genesisBatchHeaderBytes = genesisBatchHeader.EncodedBytes
+				genesisBatchHeaderBytes = genesisBatchHeader.Bytes()
 			}
 
 			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlockHash, l2GenesisBlock.Number().Uint64(), l2GenesisBlock.Root(), withdrawRoot, genesisBatchHeaderBytes)

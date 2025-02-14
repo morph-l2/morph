@@ -80,5 +80,5 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 	l2GenesisBlock := l2Genesis.ToBlock(nil)
 	genesisBatchHeader, err := node.GenesisBatchHeader(l2GenesisBlock.Header())
 	require.NoError(t, err)
-	t.Logf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Encode())
+	t.Logf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Bytes())
 }

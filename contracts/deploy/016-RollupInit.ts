@@ -35,7 +35,7 @@ export const RollupInit = async (
     const MultipleVersionRollupVerifierImplStorageName = ImplStorageName.MultipleVersionRollupVerifierStorageName
     console.log('Deploy the MultipleVersionRollupVerifier ...')
     const MultipleVersionRollupVerifierFactory = await hre.ethers.getContractFactory(MultipleVersionRollupVerifierFactoryName)
-    const version = [0]
+    const version = [1]
     const verifiers = [ZkEvmVerifierV1Address]
     const MultipleVersionRollupVerifierContract = await MultipleVersionRollupVerifierFactory.deploy(version, verifiers)
     await MultipleVersionRollupVerifierContract.deployed()

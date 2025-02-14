@@ -121,7 +121,6 @@ func (s *Store) ReadL1MessageByIndex(index uint64) *types.L1Message {
 
 	}
 	return &l1Msg
-
 }
 
 func (s *Store) WriteLatestDerivationL1Height(latest uint64) {
