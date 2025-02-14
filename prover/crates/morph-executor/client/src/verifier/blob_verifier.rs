@@ -10,13 +10,16 @@ use crate::types::{blob::get_origin_batch, input::BlobInfo};
 pub struct BlobVerifier;
 
 impl BlobVerifier {
-    pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<u8>), anyhow::Error> {
+    pub fn verify(
+        blob_info: &BlobInfo,
+        num_blocks: usize,
+    ) -> Result<(B256, Vec<u8>), anyhow::Error> {
         // decode
         println!("cycle-tracker-start: decode_blob");
         let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
         cfg_if::cfg_if! {
             if #[cfg(not(target_os = "zkvm"))] {
-                let tx_list = crate::types::blob::decode_transactions(origin_batch.as_slice());
+                let tx_list = crate::types::blob::decode_transactions(&origin_batch.as_slice()[num_blocks*60..]);
                 println!("decoded tx_list_len: {:?}", tx_list.len());
             }
         }
