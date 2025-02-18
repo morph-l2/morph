@@ -401,7 +401,7 @@ func (e *Executor) batchByIndex(index uint64) (*eth.RollupBatch, []*eth.BatchSig
 				curIndex--
 			}
 		}
-		if curIndex == index {
+		if curIndex <= index {
 			blocks = append(blocks, nil)
 			copy(blocks[1:], blocks)
 			blocks[0] = block
@@ -412,36 +412,43 @@ func (e *Executor) batchByIndex(index uint64) (*eth.RollupBatch, []*eth.BatchSig
 
 	}
 
-	// [batchpoint,batchpoint)
-	if len(blocks) > 0 {
-		blocks = blocks[:len(blocks)-1]
+	// [batchpoint,...,batchpoint]
+	if len(blocks) < 2 {
+		return nil, nil, nil
 	}
+	point2 := blocks[len(blocks)-1]
+	point2BatchHeader := types.BatchHeaderBytes(point2.Data.L2BatchHeader.Bytes())
+	point2Height := point2.Height
 
-	return e.BlocksToBatch(blocks)
+	// [batchpoint,...,batchpoint)
+	blocks = blocks[:len(blocks)-1]
+
+	return e.BlocksToBatch(blocks, point2BatchHeader, point2Height)
 
 }
 
-func (e *Executor) BlocksToBatch(blocks []*tmtypes.Block) (*eth.RollupBatch, []*eth.BatchSignature, error) {
-	// [batchPoint,batchPoint)
-	if len(blocks) < 2 {
-		return nil, nil, fmt.Errorf("invalid blocks length: %d", len(blocks))
+// [batchPoint,batchPoint)
+// point 1,2,3,4 point2
+// batchblocks,point2 batchheader,point2 height)
+func (e *Executor) BlocksToBatch(blocks []*tmtypes.Block, point2BatchHeaer types.BatchHeaderBytes, point2Height int64) (*eth.RollupBatch, []*eth.BatchSignature, error) {
+
+	if len(blocks) < 1 {
+		return nil, nil, nil
 	}
-	if !blocks[0].IsBatchPoint() && !blocks[len(blocks)-1].IsBatchPoint() {
-		return nil, nil, fmt.Errorf("invalid blocks, need batchPoint at the start and end")
+	if !blocks[0].IsBatchPoint() {
+		return nil, nil, fmt.Errorf("invalid blocks, first block is not batch point")
 	}
-	point2 := blocks[len(blocks)-1]
 	blocks = blocks[:len(blocks)-1]
 	// get batchIndex at the last batchPoint
-	batchHeader := types.BatchHeaderBytes(point2.Data.L2BatchHeader.Bytes())
-	index, err := batchHeader.BatchIndex()
+	index, err := point2BatchHeaer.BatchIndex()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get batch index from batch header, error: %v", err)
 	}
-	version, err := batchHeader.Version()
+	version, err := point2BatchHeaer.Version()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get batch version from batch header, error: %v", err)
 	}
-	hash, err := batchHeader.Hash()
+	hash, err := point2BatchHeaer.Hash()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get batch hash from batch header, error: %v", err)
 	}
@@ -488,19 +495,19 @@ func (e *Executor) BlocksToBatch(blocks []*tmtypes.Block) (*eth.RollupBatch, []*
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get sequencer set bytes: %w", err)
 	}
-	prevStateRoot, err := batchHeader.PrevStateRoot()
+	prevStateRoot, err := point2BatchHeaer.PrevStateRoot()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get prev state root: %w", err)
 	}
-	l1MsgPopped, err := batchHeader.L1MessagePopped()
+	l1MsgPopped, err := point2BatchHeaer.L1MessagePopped()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get l1 message popped: %w", err)
 	}
-	postStateRoot, err := batchHeader.PostStateRoot()
+	postStateRoot, err := point2BatchHeaer.PostStateRoot()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get post state root: %w", err)
 	}
-	withdrawRoot, err := batchHeader.WithdrawalRoot()
+	withdrawRoot, err := point2BatchHeaer.WithdrawalRoot()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get withdraw root: %w", err)
 	}
@@ -527,8 +534,12 @@ func (e *Executor) BlocksToBatch(blocks []*tmtypes.Block) (*eth.RollupBatch, []*
 	}
 
 	// sigs
-	commit := e.tmDB.BlockStore.LoadSeenCommit(point2.Height)
-	validatorSet, err := e.tmDB.StateStore.LoadValidators(point2.Height)
+	// todo
+	commit := e.tmDB.BlockStore.LoadBlockCommit(point2Height)
+	validatorSet, err := e.tmDB.StateStore.LoadValidators(point2Height)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load validator set: %w", err)
+	}
 	blsDatas, err := l2node.GetBLSDatas(commit, validatorSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get BLS data: %w", err)

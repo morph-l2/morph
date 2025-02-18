@@ -126,15 +126,11 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		tmdb, err := db.NewTmDB(tmCfg)
-		if err != nil {
-			return err
-		}
 
 		tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
 		pubKey, _ := tmVal.GetPubKey()
 		newSyncerFunc := func() (*sync.Syncer, error) { return node.NewSyncer(ctx, home, nodeConfig) }
-		executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey, tmdb, nodedb)
+		executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey, nodedb)
 		if err != nil {
 			return err
 		}
@@ -148,6 +144,11 @@ func L2NodeMain(ctx *cli.Context) error {
 			if tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger); err != nil {
 				return fmt.Errorf("failed to setup consensus node, error: %v", err)
 			}
+			tmDB := &db.TmDB{
+				BlockStore: tmNode.BlockStore(),
+				StateStore: tmNode.StateStore(),
+			}
+			executor.SetTmDB(tmDB)
 			if err = tmNode.Start(); err != nil {
 				return fmt.Errorf("failed to start consensus node, error: %v", err)
 			}

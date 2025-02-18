@@ -71,7 +71,7 @@ func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
 	return currentHeader.NextL1MsgIndex, nil
 }
 
-func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubKey, tmdb *db.TmDB, nodedb *db.Store) (*Executor, error) {
+func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubKey, nodedb *db.Store) (*Executor, error) {
 	logger := config.Logger
 	logger = logger.With("module", "executor")
 	aClient, err := authclient.DialContext(context.Background(), config.L2.EngineAddr, config.L2.JwtSecret)
@@ -127,7 +127,6 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		UpgradeBatchTime:    config.UpgradeBatchTime,
 		logger:              logger,
 		metrics:             PrometheusMetrics("morphnode"),
-		tmDB:                tmdb,
 		nodeDB:              nodedb,
 	}
 
@@ -409,4 +408,8 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 
 func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
+}
+
+func (e *Executor) SetTmDB(tmdb *db.TmDB) {
+	e.tmDB = tmdb
 }
