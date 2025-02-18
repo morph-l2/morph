@@ -49,11 +49,11 @@ pub fn prove(
     // Execute the program in sp1-vm
     let mut stdin = SP1Stdin::new();
     stdin.write(&serde_json::to_string(&client_input).unwrap());
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
 
     if read_env_var("DEVNET", false) {
         let (mut public_values, execution_report) = client
-            .execute(BATCH_VERIFIER_ELF, stdin.clone())
+            .execute(BATCH_VERIFIER_ELF, &stdin.clone())
             .run()
             .map_err(|e| anyhow!(format!("sp1-vm execution err: {:?}", e)))?;
 
@@ -84,7 +84,7 @@ pub fn prove(
     // Generate the proof
     let start = Instant::now();
     let mut proof = client
-        .prove(&pk, stdin)
+        .prove(&pk, &stdin)
         .plonk()
         .run()
         .map_err(|e| anyhow!(format!("proving failed: {:?}", e)))?;

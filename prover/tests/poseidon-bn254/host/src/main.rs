@@ -13,13 +13,15 @@ fn main() {
 
     // Step2. Run in sp1-vm
     // The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
+    // let dev_elf: &[u8] = include_elf!("poseidon");
     let dev_elf: &[u8] = include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
+
     // Setup the prover client.
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
     // Setup the inputs.
     let stdin = SP1Stdin::new();
     // Execute the program in sp1-vm
-    let (public_values, execution_report) = client.execute(dev_elf, stdin.clone()).run().unwrap();
+    let (public_values, execution_report) = client.execute(dev_elf, &stdin.clone()).run().unwrap();
     // Record the number of cycles executed.
     println!(
         "Program executed successfully, Number of cycles: {}",

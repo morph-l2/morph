@@ -29,12 +29,18 @@ impl BlobVerifier {
         let commitent = Bytes48::from_slice(&blob_info.commitment).unwrap();
         let proof = Bytes48::from_slice(&blob_info.proof).unwrap();
 
-        // let verify_result =
-        //     kzg_rs::KzgProof::verify_blob_kzg_proof(blob, &commitent, &proof,
-        // &get_kzg_settings())         .map_err(|e| anyhow!("blob verification failed, kzg
-        // err: {:?}", e))?; if !verify_result {
-        //     return Err(anyhow!("The blob kzg verification result is Failed"));
-        // }
+        let verify_result =
+            kzg_rs::KzgProof::verify_blob_kzg_proof(blob, &commitent, &proof, &get_kzg_settings())
+                .map_err(|e| {
+                    anyhow!(
+                        "blob verification failed, kzg
+        err: {:?}",
+                        e
+                    )
+                })?;
+        if !verify_result {
+            return Err(anyhow!("The blob kzg verification result is Failed"));
+        }
         println!("cycle-tracker-end: verify_blob_kzg_proof");
         println!(
             "verify_blob_kzg_proof successfully, versioned_hash: {:?}",
