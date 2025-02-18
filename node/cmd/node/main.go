@@ -120,10 +120,21 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+		dbConfig := db.DefaultConfig()
+		dbConfig.SetCliContext(ctx)
+		nodedb, err := db.NewStore(dbConfig, home)
+		if err != nil {
+			return err
+		}
+		tmdb, err := db.NewTmDB(tmCfg)
+		if err != nil {
+			return err
+		}
+
 		tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
 		pubKey, _ := tmVal.GetPubKey()
 		newSyncerFunc := func() (*sync.Syncer, error) { return node.NewSyncer(ctx, home, nodeConfig) }
-		executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey)
+		executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey, tmdb, nodedb)
 		if err != nil {
 			return err
 		}

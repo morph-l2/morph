@@ -8,6 +8,7 @@ import (
 
 	"morph-l2/node/types"
 
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
@@ -350,4 +351,213 @@ func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, 
 
 func (e *Executor) isBatchUpgraded(blockTime uint64) bool {
 	return blockTime >= e.UpgradeBatchTime
+}
+
+func (e *Executor) BatchByIndex(index uint64) (*eth.RollupBatch, []*eth.BatchSignature, error) {
+
+	//todo: batch index = 1 ,genesis batch header
+	// query batch db
+	batch, sigs, err := e.nodeDB.GetBatchByIndex(index)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read batch from nodedb, index: %d, error: %v", index, err)
+	}
+
+	if batch != nil {
+		return batch, sigs, nil
+	}
+	// query tendermint db
+	batch, sigs, err = e.batchByIndex(index)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read batch from tmdb, index: %d, error: %v", index, err)
+	}
+	// store in nodedb
+	if err := e.nodeDB.ImportBatch(batch, sigs); err != nil {
+		return nil, nil, fmt.Errorf("failed to write batch to nodedb, index: %d, error: %v", index, err)
+	}
+	return batch, sigs, nil
+}
+
+// batchByIndex extract batch from tmdb
+func (e *Executor) batchByIndex(index uint64) (*eth.RollupBatch, []*eth.BatchSignature, error) {
+	// query batch db
+	h := e.tmDB.BlockStore.Height()
+	var curIndex uint64
+	var err error
+	var blocks []*tmtypes.Block
+	// var blocks
+	for i := h; i >= 1; i-- {
+		block := e.tmDB.BlockStore.LoadBlock(i)
+		if block == nil {
+			return nil, nil, fmt.Errorf("failed to load block from db, index: %d", i)
+		}
+		if block.IsBatchPoint() {
+			if curIndex == 0 {
+				batcherHeader := types.BatchHeaderBytes(block.Data.L2BatchHeader.Bytes())
+				curIndex, err = batcherHeader.BatchIndex()
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to get batch index from batch header, error: %v", err)
+				}
+			} else {
+				curIndex--
+			}
+		}
+		if curIndex == index {
+			blocks = append(blocks, nil)
+			copy(blocks[1:], blocks)
+			blocks[0] = block
+		}
+		if curIndex < index {
+			break
+		}
+
+	}
+
+	// [batchpoint,batchpoint)
+	if len(blocks) > 0 {
+		blocks = blocks[:len(blocks)-1]
+	}
+
+	return e.BlocksToBatch(blocks)
+
+}
+
+func (e *Executor) BlocksToBatch(blocks []*tmtypes.Block) (*eth.RollupBatch, []*eth.BatchSignature, error) {
+	// [batchPoint,batchPoint)
+	if len(blocks) < 2 {
+		return nil, nil, fmt.Errorf("invalid blocks length: %d", len(blocks))
+	}
+	if !blocks[0].IsBatchPoint() && !blocks[len(blocks)-1].IsBatchPoint() {
+		return nil, nil, fmt.Errorf("invalid blocks, need batchPoint at the start and end")
+	}
+	point2 := blocks[len(blocks)-1]
+	blocks = blocks[:len(blocks)-1]
+	// get batchIndex at the last batchPoint
+	batchHeader := types.BatchHeaderBytes(point2.Data.L2BatchHeader.Bytes())
+	index, err := batchHeader.BatchIndex()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get batch index from batch header, error: %v", err)
+	}
+	version, err := batchHeader.Version()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get batch version from batch header, error: %v", err)
+	}
+	hash, err := batchHeader.Hash()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get batch hash from batch header, error: %v", err)
+	}
+	parentBatchHeader := types.BatchHeaderBytes(blocks[0].Data.L2BatchHeader.Bytes())
+
+	batchData := types.NewBatchData()
+	var txsPayload []byte
+	var l1TxHashes []common.Hash
+	var lastHeightBeforeCurrentBatch uint64
+	var l2TxNum int
+
+	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+	if err != nil {
+		e.logger.Error("failed to get totalL1MessagePopped from parentBatchHeader", "error", err)
+		return nil, nil, err
+	}
+	lastBlockNum, err := parentBatchHeader.LastBlockNumber()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get last block number from parentBatchHeader, error: %v", err)
+	}
+	for _, block := range blocks {
+		wBlock := new(types.WrappedBlock)
+		if err = wBlock.UnmarshalBinary(block.Data.L2BlockMeta); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal wrapped block: %w", err)
+		}
+
+		totalL1MessagePoppedBefore := totalL1MessagePopped
+		txsPayload, l1TxHashes, totalL1MessagePopped, l2TxNum, err = ParsingTxs(block.Data.Txs, totalL1MessagePoppedBefore)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse txs: %w", err)
+		}
+		l1TxNum := int(totalL1MessagePopped - totalL1MessagePoppedBefore)
+		blockContext := wBlock.BlockContextBytes(l2TxNum+l1TxNum, l1TxNum)
+		batchData.Append(blockContext, txsPayload, l1TxHashes)
+	}
+	blockContexts, err := batchData.Encode()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to encode block contexts: %w", err)
+	}
+
+	// Get the sequencer set at current height - 1
+	callOpts := &bind.CallOpts{BlockNumber: big.NewInt(int64(lastHeightBeforeCurrentBatch))}
+	sequencerSetBytes, err := e.sequencerCaller.GetSequencerSetBytes(callOpts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get sequencer set bytes: %w", err)
+	}
+	prevStateRoot, err := batchHeader.PrevStateRoot()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get prev state root: %w", err)
+	}
+	l1MsgPopped, err := batchHeader.L1MessagePopped()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get l1 message popped: %w", err)
+	}
+	postStateRoot, err := batchHeader.PostStateRoot()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get post state root: %w", err)
+	}
+	withdrawRoot, err := batchHeader.WithdrawalRoot()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get withdraw root: %w", err)
+	}
+
+	var (
+		compressedPayload []byte
+	)
+	blockTimestamp := uint64(blocks[len(blocks)-1].Header.Time.Unix())
+	if e.isBatchUpgraded(blockTimestamp) {
+		compressedPayload, err = types.CompressBatchBytes(batchData.TxsPayloadV2())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to compress upgraded payload: %w", err)
+		}
+	} else {
+		compressedPayload, err = types.CompressBatchBytes(e.batchingCache.batchData.TxsPayload())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to compress payload: %w", err)
+		}
+	}
+
+	sidecar, err := types.MakeBlobTxSidecar(compressedPayload)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create blob sidecar: %w", err)
+	}
+
+	// sigs
+	commit := e.tmDB.BlockStore.LoadSeenCommit(point2.Height)
+	validatorSet, err := e.tmDB.StateStore.LoadValidators(point2.Height)
+	blsDatas, err := l2node.GetBLSDatas(commit, validatorSet)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get BLS data: %w", err)
+	}
+	batchSigs, err := e.ConvertBlsDatas(blsDatas)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to convert BLS data: %w", err)
+	}
+
+	batch := &eth.RollupBatch{
+		Index:                    index,
+		Hash:                     hash,
+		Version:                  uint(version),
+		ParentBatchHeader:        parentBatchHeader.Bytes(),
+		BlockContexts:            blockContexts,
+		SkippedL1MessageBitmap:   nil,
+		CurrentSequencerSetBytes: sequencerSetBytes,
+		PrevStateRoot:            prevStateRoot,
+		PostStateRoot:            postStateRoot,
+		WithdrawRoot:             withdrawRoot,
+		LastBlockNumber:          lastBlockNum,
+		NumL1Messages:            uint16(l1MsgPopped),
+		Sidecar:                  sidecar,
+	}
+
+	batchSigsPtr := make([]*eth.BatchSignature, len(batchSigs))
+	for i := range batchSigs {
+		batchSigsPtr[i] = &batchSigs[i]
+	}
+
+	return batch, batchSigsPtr, nil
 }
