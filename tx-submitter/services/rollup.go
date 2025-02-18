@@ -683,7 +683,7 @@ func (r *Rollup) rollup() error {
 	}
 
 	// set batch cache
-	// it shoud be removed after the batch is committed
+	// it should be removed after the batch is committed
 	r.batchCache.Set(batchIndex, batch)
 
 	signature, err := r.buildSignatureInput(batch)
@@ -1345,7 +1345,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 				return fmt.Errorf("put rollupFeeSum to leveldb failed, key: %s, %w", rollupSumKey, err)
 			}
 		} else {
-			return fmt.Errorf("get data from leveldb faild, key: %s, %w", rollupSumKey, err)
+			return fmt.Errorf("get data from leveldb failed, key: %s, %w", rollupSumKey, err)
 		}
 	}
 	log.Info("rollupFeeSum: %f", rollupFeeSum)
@@ -1358,7 +1358,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 				return fmt.Errorf("put finalizeFeeSum to leveldb failed, key: %s, %w", finalizeSumKey, err)
 			}
 		} else {
-			return fmt.Errorf("get data from leveldb faild, key: %s, %w", finalizeSumKey, err)
+			return fmt.Errorf("get data from leveldb failed, key: %s, %w", finalizeSumKey, err)
 		}
 	}
 	log.Info("finalizeFeeSum: %f", finalizeFeeSum)
@@ -1371,7 +1371,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 				return fmt.Errorf("put collectedL1FeeSum to leveldb failed, key: %s, %w", collectedL1FeeSumKey, err)
 			}
 		} else {
-			return fmt.Errorf("get data from leveldb faild, key: %s, %w", collectedL1FeeSumKey, err)
+			return fmt.Errorf("get data from leveldb failed, key: %s, %w", collectedL1FeeSumKey, err)
 		}
 	}
 	r.collectedL1FeeSum = collectedL1FeeSum
