@@ -92,6 +92,8 @@ interface IL2Staking {
     error ErrInsufficientBalance();
     /// @notice error only system address allowed
     error ErrOnlySystem();
+    /// @notice error only morph token contract allowed
+    error ErrOnlyMorphTokenContract();
     /// @notice error request existed
     error ErrRequestExisted();
     /// @notice error no undelegate request
@@ -100,10 +102,6 @@ interface IL2Staking {
     error ErrNoClaimableUndelegateRequest();
     // @notice error transfer failed
     error ErrTransferFailed();
-    // @notice error invalid epoch
-    error ErrInvalidEpoch();
-    // @notice error invalid rewards
-    error ErrInvalidRewards();
     // @notice error invalid page size
     error ErrInvalidPageSize();
 
@@ -289,9 +287,8 @@ interface IL2Staking {
     /// @notice claimCommission claim unclaimed commission reward of a staker
     function claimCommission() external;
 
-    /// @dev distribute inflation by system at end of the epoch
-    /// @param epochIndex         epoch index
-    /// @param sequencers         sequencers
-    /// @param rewards            total rewards
-    function distribute(uint256 epochIndex, address[] calldata sequencers, uint256[] calldata rewards) external;
+    /// @dev distribute inflation by MorphTokenContract on epoch end
+    /// @param amount        amount
+    /// @param epoch         epoch index
+    function distribute(uint256 amount, uint256 epoch) external;
 }

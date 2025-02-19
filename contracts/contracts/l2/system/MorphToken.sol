@@ -134,6 +134,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             uint256 increment = (_totalSupply * rate) / PRECISION;
             _inflations[i] = increment;
             _mint(L2_STAKING_CONTRACT, increment);
+            IL2Staking(L2_STAKING_CONTRACT).distribute(increment,i);
             emit InflationMinted(i, increment);
         }
 

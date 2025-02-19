@@ -93,6 +93,15 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     // delegator address => personal undelegate sequence
     mapping(address => CountersUpgradeable.Counter) private _undelegateSequence;
 
+    // total blocks of an epoch
+    EnumerableSetUpgradeable.AddressSet private epochSequencers;
+
+    // sequencers that has produced blocks
+    uint256 private epochTotalBlocks;
+
+    // blocks produced by sequencers
+    mapping(address seequencer => uint256) private epochSequencerBlocks;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -112,6 +121,12 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Ensures that the caller message from system
     modifier onlSystem() {
         if (_msgSender() != SYSTEM_ADDRESS) revert ErrOnlySystem();
+        _;
+    }
+
+    /// @notice Ensures that the caller message from system
+    modifier onlyMorphTokenContract() {
+        if (_msgSender() != MORPH_TOKEN_CONTRACT) revert ErrOnlyMorphTokenContract();
         _;
     }
 
@@ -399,10 +414,15 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         uint256 _tAmount = delegateeDelegations[delegatee].amount;
         uint256 _uShare = delegatorDelegations[delegatee][_msgSender()].share;
 
-        delegatorDelegations[delegatee][_msgSender()].share = _uShare + (amount * _tshare) / _tAmount;
-
-        delegateeDelegations[delegatee].amount += amount;
-        delegateeDelegations[delegatee].share = _tshare + (amount * _tshare) / _tAmount;
+        if (_tAmount == 0) {
+            delegatorDelegations[delegatee][_msgSender()].share = amount;
+            delegateeDelegations[delegatee].share = amount;
+            delegateeDelegations[delegatee].amount = amount;
+        } else {
+            delegatorDelegations[delegatee][_msgSender()].share = _uShare + (amount * _tshare) / _tAmount;
+            delegateeDelegations[delegatee].amount += amount;
+            delegateeDelegations[delegatee].share = _tshare + (amount * _tshare) / _tAmount;
+        }
 
         // ***********************************************************************************************
 
@@ -500,7 +520,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         delegatorDelegations[delegatee][_msgSender()].share = _uShare - (amount * _tshare) / _tAmount;
 
-        delegateeDelegations[delegatee].amount += amount;
+        delegateeDelegations[delegatee].amount -= amount;
         delegateeDelegations[delegatee].share = _tshare - (amount * _tshare) / _tAmount;
 
         uint256 beforeRanking = stakerRankings[delegatee];
@@ -596,7 +616,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         delegatorDelegations[delegateeFrom][_msgSender()].share = _uShare - (amount * _tshare) / _tAmount;
 
-        delegateeDelegations[delegateeFrom].amount += amount;
+        delegateeDelegations[delegateeFrom].amount -= amount;
         delegateeDelegations[delegateeFrom].share = _tshare - (amount * _tshare) / _tAmount;
 
         uint256 beforeRanking = stakerRankings[delegateeFrom];
@@ -746,30 +766,40 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return totalAmount;
     }
 
-    /// @dev distribute inflation by system on epoch end
-    /// @param epochIndex         epoch index
-    /// @param sequencers         sequencers
-    /// @param rewards            total rewards
-    function distribute(
-        uint256 epochIndex,
-        address[] calldata sequencers,
-        uint256[] calldata rewards
-    ) external onlSystem {
-        if (currentEpoch() != epochIndex) revert ErrInvalidEpoch();
-        if (sequencers.length != rewards.length) revert ErrInvalidRewards();
+    /// @dev distribute inflation by MorphTokenContract on epoch end
+    /// @param amount        total reward amount
+    /// @param epoch         epoch index
+    function distribute(uint256 amount, uint256 epoch) external onlyMorphTokenContract {
+        if (epochTotalBlocks != 0) {
+            for (uint256 i = 0; i < epochSequencers.length(); i++) {
+                uint256 commissionRate = commissions[epochSequencers.at(i)].rate;
+                uint256 rewardAmount = (amount * epochSequencerBlocks[epochSequencers.at(i)]) / epochTotalBlocks;
+                uint256 commissionAmount = (rewardAmount * commissionRate) / COMMISSION_RATE_BASE;
+                uint256 delegatorRewardAmount = rewardAmount - commissionAmount;
 
-        for (uint256 i = 0; i < sequencers.length; i++) {
-            uint256 commissionRate = commissions[sequencers[i]].rate;
-            uint256 commissionAmount = (rewards[i] * commissionRate) / COMMISSION_RATE_BASE;
-            uint256 rewardAmount = rewards[i] - commissionAmount;
-            commissions[sequencers[i]].amount += commissionAmount;
-            delegateeDelegations[sequencers[i]].amount += rewardAmount;
+                commissions[epochSequencers.at(i)].amount += commissionAmount;
+                delegateeDelegations[epochSequencers.at(i)].amount += delegatorRewardAmount;
+                delegateeDelegations[epochSequencers.at(i)].preAmount = delegateeDelegations[epochSequencers.at(i)]
+                    .amount;
+                delegateeDelegations[epochSequencers.at(i)].checkpoint = epoch;
 
-            delegateeDelegations[sequencers[i]].preAmount = delegateeDelegations[sequencers[i]].amount;
-            delegateeDelegations[sequencers[i]].checkpoint = epochIndex;
-
-            emit Distributed(sequencers[i], rewardAmount, commissionAmount);
+                emit Distributed(epochSequencers.at(i), delegatorRewardAmount, commissionAmount);
+            }
         }
+
+        // clean block record
+        for (uint256 i = 0; i < epochSequencers.length(); i++) {
+            delete epochSequencerBlocks[epochSequencers.at(i)];
+            epochSequencers.remove(epochSequencers.at(i));
+        }
+    }
+
+    /// @dev record block producer
+    /// @param sequencerAddr    producer address
+    function recordBlocks(address sequencerAddr) external onlSystem {
+        epochSequencers.add(sequencerAddr);
+        epochTotalBlocks += 1;
+        epochSequencerBlocks[sequencerAddr] += 1;
     }
 
     /*************************

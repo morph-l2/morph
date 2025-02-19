@@ -110,5 +110,5 @@ library Predeploys {
     /**
      * @notice Address of the System.
      */
-    address internal constant SYSTEM = 0x5300000000000000000000000000000000000019;
+    address internal constant SYSTEM = 0x5300000000000000000000000000000000000021;
 }
