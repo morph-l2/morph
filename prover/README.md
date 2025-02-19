@@ -1,12 +1,23 @@
 # Morph prover
-Generate zk proof for the l2 batch.
+Generate ZK Proof for L2 blocks.
+
+A high-performance zero-knowledge proof system for Layer 2 blocks validation. Built with SP1 zkVM, it implements an innovative shadow proving mechanism to handle proof challenges efficiently. The system generates PLONK proofs that are verifiable on Ethereum, supporting both synchronous and shadow proving modes for enhanced security and reliability.
+
+Key features:
+
+SP1 zkVM integration
+EVM-compatible PLONK proofs
+Stateless proving architecture
+Challenge-response mechanism
+Shadow proving support
+The prover serves as a crucial component in Morph L2's scaling solution, ensuring secure and verifiable transaction batches on Ethereum mainnet.
 
 ## Overview
 ### How the prover handles challenges and the process of shadow proving
 ![alt text](assets/prover.png)
 ## Requirements
 - [Rust](https://rustup.rs/)
-- [SP1](https://succinctlabs.github.io/sp1/getting-started/install.html)
+- [SP1](https://docs.succinct.xyz/docs/sp1/introduction)
 
 
 ## Build & Run
@@ -96,6 +107,7 @@ The vkey in the contract is defined in the programVkey field in ```contracts/src
 ```
 
 ### Build plonk circuits
+If the plonk circuit artifacts do not exist, you will need to create them to support generating plonk ploof.
 ```
 git clone https://github.com/morph-l2/sp1.git && cd sp1 && git checkout v4
 cd crates/prover
