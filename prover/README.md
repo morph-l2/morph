@@ -15,8 +15,12 @@ RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt cargo run 
 or
 
 ```sh
-RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --block-path ../../testdata/mainnet_batch_traces_l1.json
+RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --block-path ../../testdata/devnet_small_batch_traces.json
 ```
+
+### Prove 
+RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --block-path ../../testdata/devnet_small_batch_traces.json --prove
+
 
 ### Build the Program
 
