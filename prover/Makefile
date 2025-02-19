@@ -11,6 +11,9 @@ save-plonk-circuits:
 	tar --exclude='srs.bin' --exclude='srs_lagrange.bin' -czvf "../morph-dev.tar.gz" .
 	docker rm sp1-plonk-temp
 
+build-server:
+	docker-compose -f docker-compose-app.yml build  
+
 start-server:
 	docker compose -f docker-compose-app.yml up -d
 
