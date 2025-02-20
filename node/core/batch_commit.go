@@ -2,7 +2,6 @@ package node
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"math/big"
 	"morph-l2/node/types"
@@ -66,8 +65,13 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 	parentBatchIndex, _ := e.batchingCache.parentBatchHeader.BatchIndex()
 	hash, _ := e.batchingCache.sealedBatchHeader.Hash()
 	l1MessagePopped, _ := e.batchingCache.sealedBatchHeader.L1MessagePopped()
-	// Construct the batch and commit it
-	if err = e.l2Client.CommitBatch(context.Background(), &eth.RollupBatch{
+
+	// batchsigs type convert
+	var ptrBatchSigs []*eth.BatchSignature
+	for _, sig := range batchSigs {
+		ptrBatchSigs = append(ptrBatchSigs, &sig)
+	}
+	if err = e.nodeDB.ImportBatch(&eth.RollupBatch{
 		Version:                  uint(version),
 		Index:                    parentBatchIndex + 1,
 		Hash:                     hash,
@@ -80,8 +84,8 @@ func (e *Executor) CommitBatch(currentBlockBytes []byte, currentTxs tmtypes.Txs,
 		Sidecar:                  e.batchingCache.sealedSidecar,
 		LastBlockNumber:          e.batchingCache.lastPackedBlockHeight,
 		NumL1Messages:            uint16(l1MessagePopped),
-	}, batchSigs); err != nil {
-		return fmt.Errorf("failed to commit batch to L2 client: %w", err)
+	}, ptrBatchSigs); err != nil {
+		return fmt.Errorf("failed to store batch: %w", err)
 	}
 
 	// Update batch index metric
