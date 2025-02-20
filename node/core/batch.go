@@ -354,8 +354,6 @@ func (e *Executor) isBatchUpgraded(blockTime uint64) bool {
 }
 
 func (e *Executor) BatchByIndex(index uint64) (*eth.RollupBatch, []*eth.BatchSignature, error) {
-
-	//todo: batch index = 1 ,genesis batch header
 	// query batch db
 	batch, sigs, err := e.nodeDB.GetBatchByIndex(index)
 	if err != nil {
@@ -534,7 +532,6 @@ func (e *Executor) BlocksToBatch(blocks []*tmtypes.Block, point2BatchHeaer types
 	}
 
 	// sigs
-	// todo
 	commit := e.tmDB.BlockStore.LoadBlockCommit(point2Height)
 	validatorSet, err := e.tmDB.StateStore.LoadValidators(point2Height)
 	if err != nil {
