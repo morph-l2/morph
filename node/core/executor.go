@@ -22,6 +22,7 @@ import (
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/node/db"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
 )
@@ -57,6 +58,9 @@ type Executor struct {
 
 	logger  tmlog.Logger
 	metrics *Metrics
+
+	tmDB   *db.TmDB
+	nodeDB *db.Store
 }
 
 func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
@@ -67,7 +71,7 @@ func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
 	return currentHeader.NextL1MsgIndex, nil
 }
 
-func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubKey) (*Executor, error) {
+func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubKey, nodedb *db.Store) (*Executor, error) {
 	logger := config.Logger
 	logger = logger.With("module", "executor")
 	aClient, err := authclient.DialContext(context.Background(), config.L2.EngineAddr, config.L2.JwtSecret)
@@ -123,6 +127,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		UpgradeBatchTime:    config.UpgradeBatchTime,
 		logger:              logger,
 		metrics:             PrometheusMetrics("morphnode"),
+		nodeDB:              nodedb,
 	}
 
 	if config.DevSequencer {
@@ -403,4 +408,8 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 
 func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
+}
+
+func (e *Executor) SetTmDB(tmdb *db.TmDB) {
+	e.tmDB = tmdb
 }
