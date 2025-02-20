@@ -5474,7 +5474,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#ecd10b9f6077942c4c46c213c37f02f1be26e706"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#755f858d88523140c31ffb1ae8fc276c09338173"
 dependencies = [
  "bincode",
  "serde",
@@ -5783,7 +5783,7 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#ecd10b9f6077942c4c46c213c37f02f1be26e706"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#755f858d88523140c31ffb1ae8fc276c09338173"
 dependencies = [
  "cfg-if 1.0.0",
  "getrandom",
