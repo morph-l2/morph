@@ -20,23 +20,10 @@ The prover serves as a crucial component in Morph L2's scaling solution, ensurin
 - [SP1](https://docs.succinct.xyz/docs/sp1/introduction)
 
 
-## Build & Run
-### Build verifier-application as a RISC-V binary
-To build the program to risc-v bin:
-
-```sh
-cd bin/client
-cargo prove build  --docker --tag v4.0.0-rc.3 --output-directory ./bin/client/elf/
-```
-
-This will output the compiled ELF to the file bin/client/elf/riscv32im-succinct-zkvm-elf.
+## Execute & Prove
 
 ### Execute the Program
-
-
 To run the program without generating a proof:
-
-
 ```sh
 cd bin/host
 RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt cargo run --release
@@ -46,7 +33,6 @@ or
 ```sh
 RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --block-path ../../testdata/devnet_small_batch_traces.json
 ```
-
 This will execute the program and display the output.
 
 
@@ -59,24 +45,38 @@ To generate a PLONK proof that is small enough to be verified on-chain and verif
 
 ```sh
 cd bin/host
+RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --prove
+```
+or
+```sh
+cd bin/host
 RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --block-path ../../testdata/devnet_small_batch_traces.json --prove
 ```
 
 This command also generates a fixture that can be used to test the verification of SP1 zkVM proofs
 inside Solidity.
 
-## Retrieve the Verification Key
 
+## Verify the SP1 binaries
+First compile the RISC-V binary, then calculate the corresponding verification key, and finally confirm whether it is consistent with the vkey in the verifier contract. The vkey in the contract is defined in the programVkey field in ```contracts/src/deploy-config/l1.ts``` of the mono repo.
+
+### Build verifier-application as a RISC-V binary
+To build the program to risc-v bin:
+
+```sh
+cd bin/client
+cargo prove build  --docker --tag v4.0.0-rc.3 --output-directory ./bin/client/elf/
+```
+
+This will output the compiled ELF to the file bin/client/elf/riscv32im-succinct-zkvm-elf.
+
+### Retrieve the Verification Key
 To retrieve your `programVKey` for your on-chain contract, run the following command:
 
 ```sh
 cd bin/host
 RUST_LOG=info cargo run --bin vkey --release
 ```
-
-## Verify the SP1 binaries
-First retrieve the verification key, and then confirm whether it is consistent with the vkey in the verifier contract.
-The vkey in the contract is defined in the programVkey field in ```contracts/src/deploy-config/l1.ts``` of the mono repo.
 
 * On-chain verification key query path:
 ```
@@ -106,6 +106,15 @@ The vkey in the contract is defined in the programVkey field in ```contracts/src
 +----------------------+
 ```
 
+
+
+## Run prover in service mode
+
+### Build server
+```
+cd bin/server && RUST_LOG=info RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
+```
+
 ### Build plonk circuits
 If the plonk circuit artifacts do not exist, you will need to create them to support generating plonk ploof.
 ```
@@ -114,14 +123,6 @@ cd crates/prover
 RUST_LOG=info make build-circuits
 ```
 Move all plonk related build products to ~/.sp1/circuits/plonk/$(SP1_CIRCUIT_VERSION), SP1 prover will load it when starting to generate plonk proofs.
-
-
-## Run prover in service mode
-
-### Build
-```
-cd bin/server && RUST_LOG=info RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
-```
 
 ### Run
 ```
