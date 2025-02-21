@@ -5305,7 +5305,7 @@ dependencies = [
 [[package]]
 name = "sp1-build"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5317,7 +5317,7 @@ dependencies = [
 [[package]]
 name = "sp1-core-executor"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5356,7 +5356,7 @@ dependencies = [
 [[package]]
 name = "sp1-core-machine"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5412,7 +5412,7 @@ dependencies = [
 [[package]]
 name = "sp1-cuda"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5428,7 +5428,7 @@ dependencies = [
 [[package]]
 name = "sp1-curves"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "cfg-if 1.0.0",
  "dashu",
@@ -5449,7 +5449,7 @@ dependencies = [
 [[package]]
 name = "sp1-derive"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5458,7 +5458,7 @@ dependencies = [
 [[package]]
 name = "sp1-helper"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "sp1-build",
 ]
@@ -5474,7 +5474,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "bincode",
  "serde",
@@ -5495,7 +5495,7 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "bincode",
  "hex",
@@ -5530,7 +5530,7 @@ dependencies = [
 [[package]]
 name = "sp1-prover"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5572,7 +5572,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-circuit"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -5605,7 +5605,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-compiler"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -5626,7 +5626,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-core"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -5668,7 +5668,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-derive"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5677,7 +5677,7 @@ dependencies = [
 [[package]]
 name = "sp1-recursion-gnark-ffi"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5702,7 +5702,7 @@ dependencies = [
 [[package]]
 name = "sp1-sdk"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -5749,7 +5749,7 @@ dependencies = [
 [[package]]
 name = "sp1-stark"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -5783,7 +5783,7 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "4.0.1"
-source = "git+https://github.com/morph-l2/sp1.git?branch=v4#674da1426def300340279106a5f89ad777ea7e6a"
+source = "git+https://github.com/morph-l2/sp1.git?branch=v4#617cf718217007d7f1862eaddcac643a4f91ea86"
 dependencies = [
  "cfg-if 1.0.0",
  "getrandom",
