@@ -2,7 +2,7 @@ FROM sp1-base:latest
 
 COPY . /app
 WORKDIR /app
-RUN cd bin/server && RUST_LOG=info RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo build --release
+RUN cd bin/server && RUST_LOG=info RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo build --release --features native-gnark
 RUN cp target/release/prover-server ./
 
 CMD ["./prover-server"]
