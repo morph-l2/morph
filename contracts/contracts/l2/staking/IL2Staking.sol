@@ -20,26 +20,10 @@ interface IL2Staking {
     /// @notice DelegateeDelegation representing a delegatee's delegation info.
     ///
     /// @custom:field checkpoint    The epoch when the share was last changed
-    /// @custom:field preAmount     Total delegations of a delegatee
     /// @custom:field amount        Total delegations of a delegatee
-    /// @custom:field preShare      Total share of a delegatee at the start of an epoch
     /// @custom:field share         Total share of a delegatee at the end of an epoch
     struct DelegateeDelegation {
-        uint256 checkpoint;
-        uint256 preAmount;
         uint256 amount;
-        uint256 preShare;
-        uint256 share;
-    }
-
-    /// @notice DelegatorDelegation representing a delegator's delegation info.
-    ///
-    /// @custom:field checkpoint    The epoch when the share was last changed
-    /// @custom:field preShare      share of a delegator at the start of an epoch
-    /// @custom:field share         share of a delegator at the end of an epoch
-    struct DelegatorDelegation {
-        uint256 checkpoint;
-        uint256 preShare;
         uint256 share;
     }
 
@@ -289,6 +273,5 @@ interface IL2Staking {
 
     /// @dev distribute inflation by MorphTokenContract on epoch end
     /// @param amount        amount
-    /// @param epoch         epoch index
-    function distribute(uint256 amount, uint256 epoch) external;
+    function distribute(uint256 amount) external;
 }

@@ -82,7 +82,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     mapping(address staker => DelegateeDelegation) public delegateeDelegations;
 
     /// @notice the delegation of a delegator
-    mapping(address staker => mapping(address delegator => DelegatorDelegation)) public delegatorDelegations;
+    mapping(address staker => mapping(address delegator => uint256 share)) public delegatorDelegations;
 
     // hash of the undelegate request => undelegate request
     mapping(bytes32 => UndelegateRequest) private _undelegateRequests;
@@ -377,49 +377,27 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     function delegate(address delegatee, uint256 amount) external onlyStaker(delegatee) nonReentrant {
         if (amount == 0) revert ErrZeroAmount();
 
-        uint256 effectiveEpoch = rewardStarted ? currentEpoch() + 1 : 0;
         delegators[delegatee].add(_msgSender()); // will not be added repeatedly
 
         // ***********************************************************************************************
         // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
-            // reward not start yet, checkpoint should be 0
-            delegatorDelegations[delegatee][_msgSender()].checkpoint = 0;
-            delegatorDelegations[delegatee][_msgSender()].share += amount; // {share = amount} before reward start
-            delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
-                .share;
+            delegatorDelegations[delegatee][_msgSender()] += amount; // {share = amount} before reward start
 
-            delegateeDelegations[delegatee].checkpoint = 0;
             delegateeDelegations[delegatee].amount += amount;
-            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
             delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = amount} before reward start
-            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preShare
-        if (delegatorDelegations[delegatee][_msgSender()].checkpoint < effectiveEpoch) {
-            delegatorDelegations[delegatee][_msgSender()].checkpoint = effectiveEpoch;
-            delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
-                .share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
-        if (delegateeDelegations[delegatee].checkpoint < effectiveEpoch) {
-            delegateeDelegations[delegatee].checkpoint = effectiveEpoch;
-            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
-            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
         }
 
         uint256 _tshare = delegateeDelegations[delegatee].share;
         uint256 _tAmount = delegateeDelegations[delegatee].amount;
-        uint256 _uShare = delegatorDelegations[delegatee][_msgSender()].share;
+        uint256 _uShare = delegatorDelegations[delegatee][_msgSender()];
 
         if (_tAmount == 0) {
-            delegatorDelegations[delegatee][_msgSender()].share = amount;
+            delegatorDelegations[delegatee][_msgSender()] = amount;
             delegateeDelegations[delegatee].share = amount;
             delegateeDelegations[delegatee].amount = amount;
         } else {
-            delegatorDelegations[delegatee][_msgSender()].share = _uShare + (amount * _tshare) / _tAmount;
+            delegatorDelegations[delegatee][_msgSender()] = _uShare + (amount * _tshare) / _tAmount;
             delegateeDelegations[delegatee].amount += amount;
             delegateeDelegations[delegatee].share = _tshare + (amount * _tshare) / _tAmount;
         }
@@ -471,11 +449,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         // weather staker has been removed
         bool removed = stakerRankings[delegatee] == 0;
-        uint256 effectiveEpoch = rewardStarted ? currentEpoch() + 1 : 0;
 
-        uint256 unlockEpoch = rewardStarted
-            ? effectiveEpoch + undelegateLockEpochs // reward started and staker is active
-            : 0; // equal to 0 if reward not started
+        uint256 unlockEpoch = rewardStarted ? undelegateLockEpochs + 1 : 0;
 
         UndelegateRequest memory request = UndelegateRequest({amount: amount, unlockEpoch: unlockEpoch});
         bytes32 hash = keccak256(abi.encodePacked(_msgSender(), _useSequence(_msgSender())));
@@ -487,38 +462,17 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
-            // reward not start yet, checkpoint should be 0
-            delegatorDelegations[delegatee][_msgSender()].checkpoint = 0;
-            delegatorDelegations[delegatee][_msgSender()].share -= amount; // {share = amount} before reward start
-            delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
-                .share;
+            delegatorDelegations[delegatee][_msgSender()] -= amount; // {share = amount} before reward start
 
-            delegateeDelegations[delegatee].checkpoint = 0;
             delegateeDelegations[delegatee].amount -= amount;
-            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
             delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = amount} before reward start
-            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preShare
-        if (delegatorDelegations[delegatee][_msgSender()].checkpoint < effectiveEpoch) {
-            delegatorDelegations[delegatee][_msgSender()].checkpoint = effectiveEpoch;
-            delegatorDelegations[delegatee][_msgSender()].preShare = delegatorDelegations[delegatee][_msgSender()]
-                .share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
-        if (delegateeDelegations[delegatee].checkpoint < effectiveEpoch) {
-            delegateeDelegations[delegatee].checkpoint = effectiveEpoch;
-            delegateeDelegations[delegatee].preAmount = delegateeDelegations[delegatee].amount;
-            delegateeDelegations[delegatee].preShare = delegateeDelegations[delegatee].share;
         }
 
         uint256 _tshare = delegateeDelegations[delegatee].share;
         uint256 _tAmount = delegateeDelegations[delegatee].amount;
-        uint256 _uShare = delegatorDelegations[delegatee][_msgSender()].share;
+        uint256 _uShare = delegatorDelegations[delegatee][_msgSender()];
 
-        delegatorDelegations[delegatee][_msgSender()].share = _uShare - (amount * _tshare) / _tAmount;
+        delegatorDelegations[delegatee][_msgSender()] = _uShare - (amount * _tshare) / _tAmount;
 
         delegateeDelegations[delegatee].amount -= amount;
         delegateeDelegations[delegatee].share = _tshare - (amount * _tshare) / _tAmount;
@@ -573,48 +527,23 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         bool updateSequencerSet;
 
-        // weather staker has been removed
-        uint256 effectiveEpoch = rewardStarted ? currentEpoch() + 1 : 0;
-
         // ***************************** undelegate from old delegatee ***************************** //
+        // weather staker has been removed
         bool removed = stakerRankings[delegateeFrom] == 0;
 
         // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
-            // reward not start yet, checkpoint should be 0
-            delegatorDelegations[delegateeFrom][_msgSender()].checkpoint = 0;
-            delegatorDelegations[delegateeFrom][_msgSender()].share -= amount; // {share = amount} before reward start
-            delegatorDelegations[delegateeFrom][_msgSender()].preShare = delegatorDelegations[delegateeFrom][
-                _msgSender()
-            ].share;
+            delegatorDelegations[delegateeFrom][_msgSender()] -= amount; // {share = amount} before reward start
 
-            delegateeDelegations[delegateeFrom].checkpoint = 0;
             delegateeDelegations[delegateeFrom].amount -= amount;
-            delegateeDelegations[delegateeFrom].preAmount = delegateeDelegations[delegateeFrom].amount;
             delegateeDelegations[delegateeFrom].share = delegateeDelegations[delegateeFrom].amount; // {share = amount} before reward start
-            delegateeDelegations[delegateeFrom].preShare = delegateeDelegations[delegateeFrom].share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preShare
-        if (delegatorDelegations[delegateeFrom][_msgSender()].checkpoint < effectiveEpoch) {
-            delegatorDelegations[delegateeFrom][_msgSender()].checkpoint = effectiveEpoch;
-            delegatorDelegations[delegateeFrom][_msgSender()].preShare = delegatorDelegations[delegateeFrom][
-                _msgSender()
-            ].share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
-        if (delegateeDelegations[delegateeFrom].checkpoint < effectiveEpoch) {
-            delegateeDelegations[delegateeFrom].checkpoint = effectiveEpoch;
-            delegateeDelegations[delegateeFrom].preAmount = delegateeDelegations[delegateeFrom].amount;
-            delegateeDelegations[delegateeFrom].preShare = delegateeDelegations[delegateeFrom].share;
         }
 
         uint256 _tshare = delegateeDelegations[delegateeFrom].share;
         uint256 _tAmount = delegateeDelegations[delegateeFrom].amount;
-        uint256 _uShare = delegatorDelegations[delegateeFrom][_msgSender()].share;
+        uint256 _uShare = delegatorDelegations[delegateeFrom][_msgSender()];
 
-        delegatorDelegations[delegateeFrom][_msgSender()].share = _uShare - (amount * _tshare) / _tAmount;
+        delegatorDelegations[delegateeFrom][_msgSender()] = _uShare - (amount * _tshare) / _tAmount;
 
         delegateeDelegations[delegateeFrom].amount -= amount;
         delegateeDelegations[delegateeFrom].share = _tshare - (amount * _tshare) / _tAmount;
@@ -656,38 +585,17 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
-            // reward not start yet, checkpoint should be 0
-            delegatorDelegations[delegateeTo][_msgSender()].checkpoint = 0;
-            delegatorDelegations[delegateeTo][_msgSender()].share += amount; // {share = amount} before reward start
-            delegatorDelegations[delegateeTo][_msgSender()].preShare = delegatorDelegations[delegateeTo][_msgSender()]
-                .share;
+            delegatorDelegations[delegateeTo][_msgSender()] += amount; // {share = amount} before reward start
 
-            delegateeDelegations[delegateeTo].checkpoint = 0;
             delegateeDelegations[delegateeTo].amount += amount;
-            delegateeDelegations[delegateeTo].preAmount = delegateeDelegations[delegateeTo].amount;
             delegateeDelegations[delegateeTo].share = delegateeDelegations[delegateeTo].amount; // {share = amount} before reward start
-            delegateeDelegations[delegateeTo].preShare = delegateeDelegations[delegateeTo].share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preShare
-        if (delegatorDelegations[delegateeTo][_msgSender()].checkpoint < effectiveEpoch) {
-            delegatorDelegations[delegateeTo][_msgSender()].checkpoint = effectiveEpoch;
-            delegatorDelegations[delegateeTo][_msgSender()].preShare = delegatorDelegations[delegateeTo][_msgSender()]
-                .share;
-        }
-
-        // first delegate stake at this epoch, update checkpoint & preAmount & preShare
-        if (delegateeDelegations[delegateeTo].checkpoint < effectiveEpoch) {
-            delegateeDelegations[delegateeTo].checkpoint = effectiveEpoch;
-            delegateeDelegations[delegateeTo].preAmount = delegateeDelegations[delegateeTo].amount;
-            delegateeDelegations[delegateeTo].preShare = delegateeDelegations[delegateeTo].share;
         }
 
         _tshare = delegateeDelegations[delegateeTo].share;
         _tAmount = delegateeDelegations[delegateeTo].amount;
-        _uShare = delegatorDelegations[delegateeTo][_msgSender()].share;
+        _uShare = delegatorDelegations[delegateeTo][_msgSender()];
 
-        delegatorDelegations[delegateeTo][_msgSender()].share = _uShare + (amount * _tshare) / _tAmount;
+        delegatorDelegations[delegateeTo][_msgSender()] = _uShare + (amount * _tshare) / _tAmount;
 
         delegateeDelegations[delegateeTo].amount += amount;
         delegateeDelegations[delegateeTo].share = _tshare + (amount * _tshare) / _tAmount;
@@ -768,8 +676,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @dev distribute inflation by MorphTokenContract on epoch end
     /// @param amount        total reward amount
-    /// @param epoch         epoch index
-    function distribute(uint256 amount, uint256 epoch) external onlyMorphTokenContract {
+    function distribute(uint256 amount) external onlyMorphTokenContract {
         if (epochTotalBlocks != 0) {
             for (uint256 i = 0; i < epochSequencers.length(); i++) {
                 uint256 commissionRate = commissions[epochSequencers.at(i)].rate;
@@ -779,9 +686,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
                 commissions[epochSequencers.at(i)].amount += commissionAmount;
                 delegateeDelegations[epochSequencers.at(i)].amount += delegatorRewardAmount;
-                delegateeDelegations[epochSequencers.at(i)].preAmount = delegateeDelegations[epochSequencers.at(i)]
-                    .amount;
-                delegateeDelegations[epochSequencers.at(i)].checkpoint = epoch;
 
                 emit Distributed(epochSequencers.at(i), delegatorRewardAmount, commissionAmount);
             }
@@ -954,13 +858,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         return _getDelegationAmount(delegatee, delegator);
     }
 
-    /// @notice query pre-delegation amount of a delegator
-    /// @param delegatee     delegatee address
-    /// @param delegator     delegator address
-    function queryPreDelegationAmount(address delegatee, address delegator) external view returns (uint256 amount) {
-        return _getPreDelegationAmount(delegatee, delegator);
-    }
-
     /**********************
      * Internal Functions *
      **********************/
@@ -991,7 +888,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice check if the user has staked to delegatee
     /// @param delegatee    delegatee
     function _isStakingTo(address delegatee) internal view returns (bool) {
-        return delegatorDelegations[delegatee][_msgSender()].share > 0;
+        return delegatorDelegations[delegatee][_msgSender()] > 0;
     }
 
     /// @notice select the size of staker with the largest staking amount, the max size is ${sequencerSetMaxSize}
@@ -1017,16 +914,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param delegator     delegator address
     function _getDelegationAmount(address delegatee, address delegator) internal view returns (uint256 amount) {
         return
-            (delegateeDelegations[delegatee].amount * delegatorDelegations[delegatee][delegator].share) /
-            delegateeDelegations[delegatee].share;
-    }
-
-    /// @notice query delegation amount of a delegator
-    /// @param delegatee     delegatee address
-    /// @param delegator     delegator address
-    function _getPreDelegationAmount(address delegatee, address delegator) internal view returns (uint256 amount) {
-        return
-            (delegateeDelegations[delegatee].amount * delegatorDelegations[delegatee][delegator].preShare) /
+            (delegateeDelegations[delegatee].amount * delegatorDelegations[delegatee][delegator]) /
             delegateeDelegations[delegatee].share;
     }
 }
