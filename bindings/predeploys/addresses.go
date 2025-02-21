@@ -20,15 +20,16 @@ const (
 	GasPriceOracle             = "0x530000000000000000000000000000000000000F"
 	L2WETHGateway              = "0x5300000000000000000000000000000000000010"
 	L2WETH                     = "0x5300000000000000000000000000000000000011"
-	Record                     = "0x5300000000000000000000000000000000000012"
+	_                          = "0x5300000000000000000000000000000000000012"
 	MorphToken                 = "0x5300000000000000000000000000000000000013"
-	Distribute                 = "0x5300000000000000000000000000000000000014"
+	_                          = "0x5300000000000000000000000000000000000014"
 	L2Staking                  = "0x5300000000000000000000000000000000000015"
 	L2CustomERC20Gateway       = "0x5300000000000000000000000000000000000016"
 	Sequencer                  = "0x5300000000000000000000000000000000000017"
 	L2ReverseCustomGateway     = "0x5300000000000000000000000000000000000018"
 	L2WithdrawLockERC20Gateway = "0x5300000000000000000000000000000000000019"
 	L2USDCGateway              = "0x5300000000000000000000000000000000000020"
+	System                     = "0x5300000000000000000000000000000000000021"
 )
 
 var (
@@ -48,14 +49,13 @@ var (
 	MorphStandardERC20FactoryAddr  = common.HexToAddress(MorphStandardERC20Factory)
 	L2WETHGatewayAddr              = common.HexToAddress(L2WETHGateway)
 	L2WETHAddr                     = common.HexToAddress(L2WETH)
-	RecordAddr                     = common.HexToAddress(Record)
 	MorphTokenAddr                 = common.HexToAddress(MorphToken)
-	DistributeAddr                 = common.HexToAddress(Distribute)
 	L2StakingAddr                  = common.HexToAddress(L2Staking)
 	L2CustomERC20GatewayAddr       = common.HexToAddress(L2CustomERC20Gateway)
 	L2ReverseCustomGatewayAddr     = common.HexToAddress(L2ReverseCustomGateway)
 	L2WithdrawLockERC20GatewayAddr = common.HexToAddress(L2WithdrawLockERC20Gateway)
 	L2USDCGatewayAddr              = common.HexToAddress(L2USDCGateway)
+	SystemAddr                     = common.HexToAddress(System)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -67,7 +67,6 @@ func init() {
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["Sequencer"] = &SequencerAddr
 	Predeploys["Gov"] = &GovAddr
-	Predeploys["Record"] = &RecordAddr
 	Predeploys["L2GatewayRouter"] = &L2GatewayRouterAddr
 	Predeploys["L2ETHGateway"] = &L2ETHGatewayAddr
 	Predeploys["L2StandardERC20Gateway"] = &L2StandardERC20GatewayAddr
@@ -76,7 +75,6 @@ func init() {
 	Predeploys["MorphStandardERC20"] = &MorphStandardERC20Addr
 	Predeploys["MorphStandardERC20Factory"] = &MorphStandardERC20FactoryAddr
 	Predeploys["MorphToken"] = &MorphTokenAddr
-	Predeploys["Distribute"] = &DistributeAddr
 	Predeploys["L2Staking"] = &L2StakingAddr
 	Predeploys["L2TxFeeVault"] = &L2TxFeeVaultAddr
 	Predeploys["L2WETHGateway"] = &L2WETHGatewayAddr
@@ -85,4 +83,5 @@ func init() {
 	Predeploys["L2ReverseCustomGateway"] = &L2ReverseCustomGatewayAddr
 	Predeploys["L2WithdrawLockERC20Gateway"] = &L2WithdrawLockERC20GatewayAddr
 	Predeploys["L2USDCGateway"] = &L2USDCGatewayAddr
+	Predeploys["SYSTEM"] = &SystemAddr
 }

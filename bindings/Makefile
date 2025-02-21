@@ -29,8 +29,6 @@ bindings: \
 	l2-gov-bindings \
 	l2-sequencer-bindings \
 	l2-staking-bindings \
-	l2-distribute-bindings \
-	l2-record-bindings \
 	l2-eth-gateway-bindings \
 	l2-standard-erc20-gateway-bindings \
 	l2-gateway-router-bindings \
@@ -187,7 +185,7 @@ more: compile-forge
 	go run ./gen/main.go \
 		-artifacts ../contracts/artifacts \
 		-out ./bindings \
-		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,L1USDCGateway,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,L1LidoGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,L2LidoGateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther,L2USDCGateway,EnforcedTxGateway,L1ERC721Gateway,L1ERC1155Gateway,L1ReverseCustomGateway,L2WithdrawLockERC20Gateway,L2ReverseCustomGateway,Whitelist,ZkEvmVerifierV1,L2WstETHToken \
+		-contracts ProxyAdmin,TransparentUpgradeableProxy,L1MessageQueueWithGasPriceOracle,L1USDCGateway,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,L1LidoGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,L2Staking,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,L2LidoGateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther,L2USDCGateway,EnforcedTxGateway,L1ERC721Gateway,L1ERC1155Gateway,L1ReverseCustomGateway,L2WithdrawLockERC20Gateway,L2ReverseCustomGateway,Whitelist,ZkEvmVerifierV1,L2WstETHToken \
 		-package bindings
 
 mkdir:
