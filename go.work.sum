@@ -765,6 +765,10 @@ github.com/morph-l2/go-ethereum v1.10.14-0.20241028101924-8c247ffe3315 h1:egBq7X
 github.com/morph-l2/go-ethereum v1.10.14-0.20241028101924-8c247ffe3315/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
 github.com/morph-l2/go-ethereum v1.10.14-0.20241224100051-1582a364edc0 h1:w0RXAFr/x9fWNgQkcrmSnZseYCNkbBFDWgEIfSqhCeY=
 github.com/morph-l2/go-ethereum v1.10.14-0.20241224100051-1582a364edc0/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
+github.com/morph-l2/go-ethereum v1.10.14-0.20250218031646-de5160c106de h1:NOzYvFCuqWZ0bg2GAcC2S9cwd1rThSCTwyJCT8Iwfgc=
+github.com/morph-l2/go-ethereum v1.10.14-0.20250218031646-de5160c106de/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
+github.com/morph-l2/tendermint v0.3.1 h1:yqyM3/p9sCNmFSsIFeIxS5RBgXHWqbtyNHx16I9cIZ0=
+github.com/morph-l2/tendermint v0.3.1/go.mod h1:TtCzp9l6Z6yDUiwv3TbqKqw8Q8RKp3fSz5+adO1/Y8w=
 github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae/go.mod h1:qAyveg+e4CE+eKJXWVjKXM4ck2QobLqTDytGJbLLhJg=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f h1:KUppIJq7/+SVif2QVs3tOP0zanoHgBEVAwHxUSIzRqU=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
