@@ -6,6 +6,9 @@ TENDERMINT_TARGET_VERSION := v0.3.2-0.20250220094332-83d54a49cbba
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
 TENDERMINT_MODULE_NAME := github.com/morph-l2/tendermint
 
+.PHONY: check_deps
+check_deps:
+	@command -v cast > /dev/null 2>&1 || { echo "Error: 'cast' command not found."; exit 1; }
 .PHONY: update_mod
 update_mod:
 	@echo "Updating go.mod in $(MODULE)..."
@@ -34,7 +37,7 @@ update_all_mod:
 
 update:
 	go work sync
-	@$(MAKE) update_all_mod
+	# @$(MAKE) update_all_mod
 .PHONY: update
 
 submodules:
@@ -128,7 +131,7 @@ go-ubuntu-builder:
 
 ################## devnet 4 nodes ####################
 
-devnet-up: submodules go-ubuntu-builder
+devnet-up: check_deps submodules go-ubuntu-builder
 	python3 ops/devnet-morph/main.py --polyrepo-dir=.
 .PHONY: devnet-up
 
