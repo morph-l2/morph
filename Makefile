@@ -37,7 +37,7 @@ update_all_mod:
 
 update:
 	go work sync
-	# @$(MAKE) update_all_mod
+	@$(MAKE) update_all_mod
 .PHONY: update
 
 submodules:
