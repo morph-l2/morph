@@ -9,6 +9,7 @@ TENDERMINT_MODULE_NAME := github.com/morph-l2/tendermint
 .PHONY: check_deps
 check_deps:
 	@command -v cast > /dev/null 2>&1 || { echo "Error: 'cast' command not found."; exit 1; }
+	@command -v yarn > /dev/null 2>&1 || { echo "Error: 'yarn' command not found."; exit 1; }
 .PHONY: update_mod
 update_mod:
 	@echo "Updating go.mod in $(MODULE)..."
@@ -131,11 +132,11 @@ go-ubuntu-builder:
 
 ################## devnet 4 nodes ####################
 
-devnet-up: check_deps submodules go-ubuntu-builder
+devnet-up: check_deps submodules go-ubuntu-builder check-deploy-config
 	python3 ops/devnet-morph/main.py --polyrepo-dir=.
 .PHONY: devnet-up
 
-devnet-up-debugccc:
+devnet-up-debugccc: check-deploy-config
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --debugccc
 .PHONY: devnet-up-debugccc
 
@@ -156,8 +157,9 @@ devnet-clean: devnet-clean-build
 	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
 .PHONY: devnet-clean
 
-devnet-l1:
+devnet-l1: check-deploy-config
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
+.PHONY: devnet-l1
 
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
@@ -181,3 +183,21 @@ start-all-tx-submitter:
 # build geth
 geth: submodules
 	cd go-ethereum && env GO111MODULE=on GOWORK=off go run build/ci.go install ./cmd/geth
+
+################## deploy config checks ####################
+
+check-deploy-config:
+	@echo "Checking deploy config file..."
+	@if [ -f ops/l2-genesis/deploy-config/devnet-deploy-config.json ]; then \
+		if ! jq -e 'has("l2StakingPks")' ops/l2-genesis/deploy-config/devnet-deploy-config.json > /dev/null; then \
+			echo "l2StakingPks field not found in deploy config, adding it..."; \
+			jq '. + {"l2StakingPks": []}' ops/l2-genesis/deploy-config/devnet-deploy-config.json > ops/l2-genesis/deploy-config/temp.json && \
+			mv ops/l2-genesis/deploy-config/temp.json ops/l2-genesis/deploy-config/devnet-deploy-config.json; \
+			echo "l2StakingPks field added to deploy config."; \
+		else \
+			echo "l2StakingPks field already exists in deploy config."; \
+		fi; \
+	else \
+		echo "Deploy config file not found at ops/l2-genesis/deploy-config/devnet-deploy-config.json"; \
+	fi
+.PHONY: check-deploy-config
