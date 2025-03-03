@@ -91,6 +91,9 @@ func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.
 	endBlock := toBlock.Uint64()
 	startBlock := endBlock - ei.indexStep
 	lastProcessedBlock := fromBlock.Uint64()
+	if startBlock < lastProcessedBlock {
+		startBlock = lastProcessedBlock
+	}
 	logFilter := ei.GetFilter()
 
 	// Find the last unprocessed log
@@ -123,6 +126,7 @@ func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.
 					}
 				}
 			}
+			log.Info("backward indexing", "block_num", startBlock, "target_num", lastProcessedBlock)
 			// update query range
 			endBlock = startBlock
 			if endBlock <= lastProcessedBlock+ei.indexStep {
