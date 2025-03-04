@@ -250,6 +250,7 @@ services:
     command: >
       morphnode
       --home $NODE_DATA_DIR
+##      --log.level="consensus:debug,*:info"
 
   node-1:
     container_name: node-1
