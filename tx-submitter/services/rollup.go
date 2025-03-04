@@ -1239,6 +1239,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 	switch tx.Type() {
 	case ethtypes.DynamicFeeTxType:
 		newTx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+			ChainID:   tx.ChainId(),
 			To:        tx.To(),
 			Nonce:     tx.Nonce(),
 			GasFeeCap: gasFeeCap,
