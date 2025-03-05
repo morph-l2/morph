@@ -386,3 +386,11 @@ var optionalFlags = []cli.Flag{
 
 // Flags contains the list of configuration options available to the binary.
 var Flags = append(requiredFlags, optionalFlags...)
+
+var CancleTxFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:     "tx_hash",
+		Usage:    "The hash of the transaction to cancel",
+		Required: true,
+	},
+}
