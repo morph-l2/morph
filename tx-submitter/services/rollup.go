@@ -27,6 +27,7 @@ import (
 	"github.com/tendermint/tendermint/blssignatures"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/config"
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
@@ -64,7 +65,7 @@ type Rollup struct {
 	rollupFinalizeMu sync.Mutex
 	externalRsaPriv  *rsa.PrivateKey
 	// cfg
-	cfg utils.Config
+	cfg config.Config
 	// signer
 	signer ethtypes.Signer
 	// leveldb
@@ -93,7 +94,7 @@ func NewRollup(
 	priKey *ecdsa.PrivateKey,
 	rollupAddr common.Address,
 	abi *abi.ABI,
-	cfg utils.Config,
+	cfg config.Config,
 	rsaPriv *rsa.PrivateKey,
 	rotator *Rotator,
 	ldb *db.Db,

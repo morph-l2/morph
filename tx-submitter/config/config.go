@@ -1,11 +1,11 @@
-package utils
+package config
 
 import (
 	"time"
 
-	"github.com/urfave/cli"
-
 	"morph-l2/tx-submitter/flags"
+
+	"github.com/urfave/cli"
 )
 
 type Config struct {
@@ -186,4 +186,22 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+type CancelTxCfg struct {
+	/* Required Params */
+	TxHash string
+	Rpc    string
+
+	// external sign
+	ExternalSign        bool
+	ExternalSignAddress string
+	ExternalSignAppid   string
+	ExternalSignChain   string
+	ExternalSignUrl     string
+	ExternalSignRsaPriv string
+}
+
+func NewCancelTxCfg(ctx *cli.Context) {
+
 }

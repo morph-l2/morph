@@ -13,13 +13,13 @@ import (
 	"time"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/config"
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
-	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
@@ -39,7 +39,7 @@ import (
 func Main() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
 
-		cfg, err := utils.NewConfig(cliCtx)
+		cfg, err := config.NewConfig(cliCtx)
 		if err != nil {
 			return err
 		}
