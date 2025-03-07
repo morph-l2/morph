@@ -226,6 +226,11 @@ var (
 		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
 		EnvVar: prefixEnvVar("UPGRADE_BATCH_TIME"),
 	}
+	Morph204Time = cli.Uint64Flag{
+		Name:   "morph204Time",
+		Usage:  "Morph 204 upgrade time",
+		EnvVar: prefixEnvVar("MORPH_204_TIME"),
+	}
 	MainnetFlag = cli.BoolFlag{
 		Name:  "mainnet",
 		Usage: "Morph mainnet",

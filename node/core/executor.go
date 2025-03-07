@@ -120,7 +120,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		devSequencer:        config.DevSequencer,
 		rollupABI:           rollupAbi,
 		batchingCache:       NewBatchingCache(),
-		UpgradeBatchTime:    config.UpgradeBatchTime,
+		UpgradeBatchTime:    config.UpgradeConfig.BatchTime,
 		logger:              logger,
 		metrics:             PrometheusMetrics("morphnode"),
 	}
@@ -175,7 +175,16 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 		l1MsgTx := tx.AsL1MessageTx()
 		e.logger.Info("[debug]queueIndex in transactions: ", "queueIndex", l1MsgTx.QueueIndex, "gas", l1MsgTx.Gas, "hash", tx.Hash().String())
 	}
-	l2Block, err := e.l2Client.AssembleL2Block(context.Background(), big.NewInt(height), transactions)
+
+	var tmKey [32]byte
+	copy(tmKey[:], e.tmPubKey)
+	val, found := e.valsByTmKey[tmKey]
+	if !found {
+		e.logger.Error("no address found for this proposer", "public key", hexutil.Encode(tmKey[:]))
+		return nil, nil, false, errors.New("no address found for this proposer")
+	}
+	coinbase := val.address
+	l2Block, err := e.l2Client.AssembleL2Block(context.Background(), big.NewInt(height), coinbase, transactions)
 	if err != nil {
 		e.logger.Error("failed to assemble block", "height", height, "error", err)
 		return
