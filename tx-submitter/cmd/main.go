@@ -29,13 +29,34 @@ func main() {
 	)
 
 	app := cli.NewApp()
-	app.Flags = flags.Flags
+
+	submitterCmd := cli.Command{
+		Name:   "rollup",
+		Usage:  "Morph batch submitter",
+		Action: submitter.Main(),
+		Flags:  flags.Flags,
+	}
+
+	cancleTxCmd := cli.Command{
+		Name:  "cancel-tx",
+		Usage: "Cancel a transaction",
+		Flags: flags.CancleTxFlags,
+		Action: func(ctx *cli.Context) error {
+			txHash := ctx.String("tx_hash")
+			fmt.Printf("Canceling transaction with hash: %s\n", txHash)
+			return nil
+		},
+	}
+
+	app.Commands = []cli.Command{
+		submitterCmd,
+		cancleTxCmd,
+	}
 	app.Version = fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate))
 	app.Name = "tx-submitter"
 	app.Usage = "Batch Submitter Service"
 	app.Description = "Service for generating and submitting batched transactions " +
 		"that synchronize L2 state to L1 contracts"
-	app.Action = submitter.Main()
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)

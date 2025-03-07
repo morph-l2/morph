@@ -392,5 +392,25 @@ var CancleTxFlags = []cli.Flag{
 		Name:     "tx_hash",
 		Usage:    "The hash of the transaction to cancel",
 		Required: true,
+		EnvVar:   prefixEnvVar("TX_HASH"),
 	},
+	cli.StringFlag{
+		Name:     "rpc",
+		Usage:    "The RPC endpoint to use",
+		Required: true,
+		EnvVar:   prefixEnvVar("RPC"),
+	},
+	cli.StringFlag{
+		Name:   "private_key",
+		Usage:  "The private key to use for signing the cancel transaction",
+		EnvVar: prefixEnvVar("PRIVATE_KEY"),
+	},
+
+	// external sign
+	ExternalSign,
+	ExternalSignAddress,
+	ExternalSignAppid,
+	ExternalSignChain,
+	ExternalSignUrl,
+	ExternalSignRsaPriv,
 }
