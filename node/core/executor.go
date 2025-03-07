@@ -120,7 +120,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		devSequencer:        config.DevSequencer,
 		rollupABI:           rollupAbi,
 		batchingCache:       NewBatchingCache(),
-		UpgradeBatchTime:    config.UpgradeBatchTime,
+		UpgradeBatchTime:    config.UpgradeConfig.BatchTime,
 		logger:              logger,
 		metrics:             PrometheusMetrics("morphnode"),
 	}
