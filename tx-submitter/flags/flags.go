@@ -386,31 +386,3 @@ var optionalFlags = []cli.Flag{
 
 // Flags contains the list of configuration options available to the binary.
 var Flags = append(requiredFlags, optionalFlags...)
-
-var CancleTxFlags = []cli.Flag{
-	cli.StringFlag{
-		Name:     "tx_hash",
-		Usage:    "The hash of the transaction to cancel",
-		Required: true,
-		EnvVar:   prefixEnvVar("TX_HASH"),
-	},
-	cli.StringFlag{
-		Name:     "rpc",
-		Usage:    "The RPC endpoint to use",
-		Required: true,
-		EnvVar:   prefixEnvVar("RPC"),
-	},
-	cli.StringFlag{
-		Name:   "private_key",
-		Usage:  "The private key to use for signing the cancel transaction",
-		EnvVar: prefixEnvVar("PRIVATE_KEY"),
-	},
-
-	// external sign
-	ExternalSign,
-	ExternalSignAddress,
-	ExternalSignAppid,
-	ExternalSignChain,
-	ExternalSignUrl,
-	ExternalSignRsaPriv,
-}

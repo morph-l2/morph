@@ -38,14 +38,10 @@ func main() {
 	}
 
 	cancleTxCmd := cli.Command{
-		Name:  "cancel-tx",
-		Usage: "Cancel a transaction",
-		Flags: flags.CancleTxFlags,
-		Action: func(ctx *cli.Context) error {
-			txHash := ctx.String("tx_hash")
-			fmt.Printf("Canceling transaction with hash: %s\n", txHash)
-			return nil
-		},
+		Name:   "cancel-tx",
+		Usage:  "Cancel a transaction",
+		Flags:  flags.CancleTxFlags,
+		Action: submitter.CancleTx,
 	}
 
 	app.Commands = []cli.Command{

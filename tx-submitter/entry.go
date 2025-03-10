@@ -265,3 +265,12 @@ func Main() func(ctx *cli.Context) error {
 		return nil
 	}
 }
+
+func CancleTx(ctx *cli.Context) error {
+	cfg, err := config.NewCancelTxCfg(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create cancel tx config: %w", err)
+	}
+
+	return nil
+}

@@ -202,6 +202,19 @@ type CancelTxCfg struct {
 	ExternalSignRsaPriv string
 }
 
-func NewCancelTxCfg(ctx *cli.Context) {
+func NewCancelTxCfg(ctx *cli.Context) (CancelTxCfg, error) {
+	cfg := CancelTxCfg{
+		TxHash: ctx.String(flags.TxHashFlag.Name),
+		Rpc:    ctx.String(flags.L1EthRpcFlag.Name),
 
+		// external sign
+		ExternalSign:        ctx.Bool(flags.ExternalSign.Name),
+		ExternalSignAddress: ctx.String(flags.ExternalSignAddress.Name),
+		ExternalSignAppid:   ctx.String(flags.ExternalSignAppid.Name),
+		ExternalSignChain:   ctx.String(flags.ExternalSignChain.Name),
+		ExternalSignUrl:     ctx.String(flags.ExternalSignUrl.Name),
+		ExternalSignRsaPriv: ctx.String(flags.ExternalSignRsaPriv.Name),
+	}
+
+	return cfg, nil
 }
