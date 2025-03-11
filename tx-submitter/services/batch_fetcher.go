@@ -20,14 +20,19 @@ func NewBatchFetcher(l2Clients []iface.L2Client) *BatchFetcher {
 
 func (bf *BatchFetcher) GetRollupBatchByIndex(index uint64) (*eth.RPCRollupBatch, error) {
 	// Try each L2 client until we get a successful response
+	var lastErr error
 	for _, client := range bf.l2Clients {
 		batch, err := client.GetRollupBatchByIndex(context.Background(), index)
 		if err != nil {
+			lastErr = err
 			continue
 		}
 		if batch != nil {
 			return batch, nil
 		}
 	}
-	return nil, fmt.Errorf("failed to get batch %d from any L2 client", index)
+	if lastErr != nil {
+		return nil, fmt.Errorf("failed to get batch %d from any L2 client: %w", index, lastErr)
+	}
+	return nil, fmt.Errorf("batch %d not found in any L2 client", index)
 }
