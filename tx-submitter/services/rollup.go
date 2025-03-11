@@ -1192,7 +1192,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 
 	tip, gasFeeCap, blobFeeCap, err := r.GetGasTipAndCap()
 	if err != nil {
-		log.Error("get tip and cap", "err", err)
+		return nil, fmt.Errorf("get gas tip and cap error:%w", err)
 	}
 	if !resend {
 		// bump tip & feeCap
@@ -1218,6 +1218,19 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 		if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
 			log.Info("replace tip is too low, update tip to min tip ", "tip", tip, "min_tip", r.cfg.MinTip)
 			tip = big.NewInt(int64(r.cfg.MinTip))
+			// recalc feecap
+			head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
+			if err != nil {
+				return nil, fmt.Errorf("get l1 head error:%w", err)
+			}
+			if head.BaseFee != nil {
+				gasFeeCap = new(big.Int).Add(
+					tip,
+					new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+				)
+			} else {
+				gasFeeCap = new(big.Int).Set(tip)
+			}
 		}
 	}
 
@@ -1225,6 +1238,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 	switch tx.Type() {
 	case ethtypes.DynamicFeeTxType:
 		newTx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+			ChainID:   tx.ChainId(),
 			To:        tx.To(),
 			Nonce:     tx.Nonce(),
 			GasFeeCap: gasFeeCap,
@@ -1334,7 +1348,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 			return fmt.Errorf("get data from leveldb faild, key: %s, %w", rollupSumKey, err)
 		}
 	}
-	log.Info("rollupFeeSum: %f", rollupFeeSum)
+	log.Info(fmt.Sprintf("rollupFeeSum: %f", rollupFeeSum))
 	finalizeFeeSum, err := r.ldb.GetFloat(finalizeSumKey)
 	if err != nil {
 		log.Warn("read finalizeFeeSum from leveldb failed", "error", err)
@@ -1347,7 +1361,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 			return fmt.Errorf("get data from leveldb faild, key: %s, %w", finalizeSumKey, err)
 		}
 	}
-	log.Info("finalizeFeeSum: %f", finalizeFeeSum)
+	log.Info(fmt.Sprintf("finalizeFeeSum: %f", finalizeFeeSum))
 	collectedL1FeeSum, err := r.ldb.GetFloat(collectedL1FeeSumKey)
 	if err != nil {
 		log.Warn("read collectedL1FeeSum from leveldb failed", "error", err)
@@ -1361,7 +1375,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 		}
 	}
 	r.collectedL1FeeSum = collectedL1FeeSum
-	log.Info("collectedL1FeeSum: %f", collectedL1FeeSum)
+	log.Info(fmt.Sprintf("collectedL1FeeSum: %f", collectedL1FeeSum))
 
 	r.rollupFeeSum = rollupFeeSum
 	r.finalizeFeeSum = finalizeFeeSum
