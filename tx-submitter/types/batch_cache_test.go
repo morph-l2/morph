@@ -136,21 +136,16 @@ func TestBatchCache(t *testing.T) {
 		// Setup mock expectation to allow any number of calls
 		mockFetcher.On("GetRollupBatchByIndex", uint64(7)).Return(testBatch, nil).Maybe()
 
-		// Use mutex to protect cache operations
-		var mu sync.Mutex
-
 		var wg sync.WaitGroup
 		for i := 0; i < 10; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 
-				mu.Lock()
 				batch, ok := cache.Get(7)
 				if ok && batch != nil {
 					cache.Set(7, batch)
 				}
-				mu.Unlock()
 			}()
 		}
 
