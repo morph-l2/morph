@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/log"
 
 	node "morph-l2/node/core"
@@ -39,7 +40,7 @@ func (s *Sequencer) Start() {
 		select {
 		case <-blockTicker.C:
 			log.Info("start to build new block", "block number", s.currentBlock+1)
-			l2Data, err := s.engine.L2Client().AssembleL2Block(context.Background(), big.NewInt(s.currentBlock+1), nil)
+			l2Data, err := s.engine.L2Client().AssembleL2Block(context.Background(), big.NewInt(s.currentBlock+1), common.Address{}, nil)
 			if err != nil {
 				log.Error("error assembling block", "error", err)
 				continue
