@@ -102,7 +102,6 @@ func NewRollup(
 ) *Rollup {
 	// Create batch fetcher
 	batchFetcher := NewBatchFetcher(l2Clients)
-	
 	return &Rollup{
 		ctx:              ctx,
 		metrics:          metrics,
