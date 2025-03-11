@@ -722,7 +722,8 @@ func (r *Rollup) rollup() error {
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:           uint8(batch.Version),
 		ParentBatchHeader: batch.ParentBatchHeader,
-		BlockContexts:     batch.BlockContexts,
+		LastBlockNumber:   batch.LastBlockNumber,
+		NumL1Messages:     batch.NumL1Messages,
 		PrevStateRoot:     batch.PrevStateRoot,
 		PostStateRoot:     batch.PostStateRoot,
 		WithdrawalRoot:    batch.WithdrawRoot,
@@ -893,14 +894,32 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 }
 
 func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
-	tip, err := r.L1Client.SuggestGasTipCap(context.Background())
-	if err != nil {
-		return nil, nil, nil, err
-	}
+
 	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if head.BaseFee != nil {
+		log.Info("market fee info", "feecap", head.BaseFee)
+		if r.cfg.MaxBaseFee > 0 && head.BaseFee.Cmp(big.NewInt(int64(r.cfg.MaxBaseFee))) > 0 {
+			return nil, nil, nil, fmt.Errorf("base fee is too high, base fee %v exceeds max %v", head.BaseFee, r.cfg.MaxBaseFee)
+		}
+	}
+
+	tip, err := r.L1Client.SuggestGasTipCap(context.Background())
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	log.Info("market fee info", "tip", tip)
+
+	if r.cfg.TipFeeBump > 0 {
+		tip = new(big.Int).Mul(tip, big.NewInt(int64(r.cfg.TipFeeBump)))
+		tip = new(big.Int).Div(tip, big.NewInt(100))
+	}
+	if r.cfg.MaxTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MaxTip))) > 0 {
+		return nil, nil, nil, fmt.Errorf("tip is too high, tip %v exceeds max %v", tip, r.cfg.MaxTip)
+	}
+
 	var gasFeeCap *big.Int
 	if head.BaseFee != nil {
 		gasFeeCap = new(big.Int).Add(
@@ -917,15 +936,11 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
 	}
 
-	//calldata fee bump x*fee/100
-	if r.cfg.CalldataFeeBump > 0 {
-		// feecap
-		gasFeeCap = new(big.Int).Mul(gasFeeCap, big.NewInt(int64(r.cfg.CalldataFeeBump)))
-		gasFeeCap = new(big.Int).Div(gasFeeCap, big.NewInt(100))
-		// tip
-		tip = new(big.Int).Mul(tip, big.NewInt(int64(r.cfg.CalldataFeeBump)))
-		tip = new(big.Int).Div(tip, big.NewInt(100))
-	}
+	log.Info("fee info after bump",
+		"tip", tip,
+		"feecap", gasFeeCap,
+		"blobfee", blobFee,
+	)
 
 	return tip, gasFeeCap, blobFee, nil
 }
@@ -1143,7 +1158,7 @@ func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
 		return errors.New("nil tx")
 	}
 	// l1 health check
-	if !r.bm.IsGrowth() {
+	if r.bm != nil && !r.bm.IsGrowth() {
 		return fmt.Errorf("block not growth in %d blocks time", r.cfg.BlockNotIncreasedThreshold)
 	}
 
@@ -1154,7 +1169,9 @@ func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
 
 	// after send tx
 	// add to pending txs
-	r.pendingTxs.Add(tx)
+	if r.pendingTxs != nil {
+		r.pendingTxs.Add(tx)
+	}
 
 	return nil
 
@@ -1205,7 +1222,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 
 	tip, gasFeeCap, blobFeeCap, err := r.GetGasTipAndCap()
 	if err != nil {
-		log.Error("get tip and cap", "err", err)
+		return nil, fmt.Errorf("get gas tip and cap error:%w", err)
 	}
 	if !resend {
 		// bump tip & feeCap
@@ -1227,12 +1244,31 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 				blobFeeCap = bumpedBlobFeeCap
 			}
 		}
+
+		if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
+			log.Info("replace tip is too low, update tip to min tip ", "tip", tip, "min_tip", r.cfg.MinTip)
+			tip = big.NewInt(int64(r.cfg.MinTip))
+			// recalc feecap
+			head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
+			if err != nil {
+				return nil, fmt.Errorf("get l1 head error:%w", err)
+			}
+			if head.BaseFee != nil {
+				gasFeeCap = new(big.Int).Add(
+					tip,
+					new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+				)
+			} else {
+				gasFeeCap = new(big.Int).Set(tip)
+			}
+		}
 	}
 
 	var newTx *ethtypes.Transaction
 	switch tx.Type() {
 	case ethtypes.DynamicFeeTxType:
 		newTx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+			ChainID:   tx.ChainId(),
 			To:        tx.To(),
 			Nonce:     tx.Nonce(),
 			GasFeeCap: gasFeeCap,
@@ -1342,7 +1378,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 			return fmt.Errorf("get data from leveldb faild, key: %s, %w", rollupSumKey, err)
 		}
 	}
-	log.Info("rollupFeeSum: %f", rollupFeeSum)
+	log.Info(fmt.Sprintf("rollupFeeSum: %f", rollupFeeSum))
 	finalizeFeeSum, err := r.ldb.GetFloat(finalizeSumKey)
 	if err != nil {
 		log.Warn("read finalizeFeeSum from leveldb failed", "error", err)
@@ -1355,7 +1391,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 			return fmt.Errorf("get data from leveldb faild, key: %s, %w", finalizeSumKey, err)
 		}
 	}
-	log.Info("finalizeFeeSum: %f", finalizeFeeSum)
+	log.Info(fmt.Sprintf("finalizeFeeSum: %f", finalizeFeeSum))
 	collectedL1FeeSum, err := r.ldb.GetFloat(collectedL1FeeSumKey)
 	if err != nil {
 		log.Warn("read collectedL1FeeSum from leveldb failed", "error", err)
@@ -1369,7 +1405,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 		}
 	}
 	r.collectedL1FeeSum = collectedL1FeeSum
-	log.Info("collectedL1FeeSum: %f", collectedL1FeeSum)
+	log.Info(fmt.Sprintf("collectedL1FeeSum: %f", collectedL1FeeSum))
 
 	r.rollupFeeSum = rollupFeeSum
 	r.finalizeFeeSum = finalizeFeeSum

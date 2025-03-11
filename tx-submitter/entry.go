@@ -70,6 +70,10 @@ func Main() func(ctx *cli.Context) error {
 			"log_level", cfg.LogLevel,
 			"leveldb_pathname", cfg.LeveldbPathName,
 			"l1_stop_in_blocks", cfg.BlockNotIncreasedThreshold,
+			"min_tip", cfg.MinTip,
+			"max_tip", cfg.MaxTip,
+			"max_base", cfg.MaxBaseFee,
+			"tip_bump", cfg.TipFeeBump,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -189,6 +193,10 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect leveldb: %w", err)
 		}
 		eventInfoStorage := event.NewEventInfoStorage(ldb)
+		err = eventInfoStorage.Load()
+		if err != nil {
+			return err
+		}
 		eventIndexer := event.NewEventIndexer(l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep, eventInfoStorage)
 		// new rotator
 		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)

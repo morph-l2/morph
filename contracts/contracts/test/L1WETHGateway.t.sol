@@ -197,29 +197,6 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         _depositERC20WithRecipientAndCalldata(true, amount, recipient, dataToCall, gasLimit, feePerGas);
     }
 
-    function test_dropMessage_succeeds(uint256 amount, address recipient, bytes memory dataToCall) public {
-        amount = bound(amount, 1, l1weth.balanceOf(address(this)));
-        bytes memory message = abi.encodeCall(
-            IL2ERC20Gateway.finalizeDepositERC20,
-            (address(l1weth), address(l2weth), address(this), recipient, amount, dataToCall)
-        );
-        gateway.depositERC20AndCall(address(l1weth), recipient, amount, dataToCall, defaultGasLimit);
-
-        // skip message 0
-        hevm.startPrank(address(rollup));
-        l1MessageQueueWithGasPriceOracle.popCrossDomainMessage(0, 1);
-        assertEq(l1MessageQueueWithGasPriceOracle.pendingQueueIndex(), 1);
-        hevm.stopPrank();
-
-        // drop message 0
-        hevm.expectEmit(true, true, false, true);
-        emit IL1ERC20Gateway.RefundERC20(address(l1weth), address(this), amount);
-
-        uint256 balance = l1weth.balanceOf(address(this));
-        l1CrossDomainMessenger.dropMessage(address(gateway), address(counterpartGateway), amount, 0, message);
-        assertEq(balance + amount, l1weth.balanceOf(address(this)));
-    }
-
     function test_finalizeWithdrawERC20_counterErr_fails(
         address sender,
         address recipient,

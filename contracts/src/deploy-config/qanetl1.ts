@@ -6,15 +6,17 @@ const config = {
     // chainID config
     l1ChainID: 900,
     l2ChainID: 53077,
+    l1WETHAddress: "",
+    l1USDCAddress: "",
 
     // L1MessageQueue config
-    l1MessageQueueMaxGasLimit: 100000000,
+    l1MessageQueueMaxGasLimit: 30000000,
 
     // gasPriceOracle config
     l2BaseFee: 0.1,  // Gwei
 
     // verify contract config
-    programVkey: '0x00bc91a65e39100f3b075c9edf1a60fd1cb025b9413ea19c34c62d455e512685',
+    programVkey: '0x0067523b285111b45b465b927d56449351e78d802252ccbf4bcf5eae588b7356',
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 600,
@@ -38,10 +40,10 @@ const config = {
     stakingChallengerRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [
-        "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
-        "0x4a1f64dec538835c125874e275edca367bf6022a",
-        "0xbb8605961105bb3dcd0e86ef94a1bf9fb2270a29",
-        "0x7d7201ad7da2b9b9ab9a36c454a3c2d55c4fbdd8"
+        "0x675cfc328f9f2e79a51e499b2be44462270572fe",
+        "0xb096665645994775eeba8aa114752d569734dcb4",
+        "0x3a587733d38e5487d2a7e81d84625f25c99ab3a1",
+        "0xb6346ded94fc61b637763610d0c59846b7781080"
     ],
     l2SequencerTmKeys: [
         "0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb",

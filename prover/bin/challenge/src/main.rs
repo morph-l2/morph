@@ -48,10 +48,8 @@ async fn metric_mng() {
 fn register_metrics() {
     // detected batch index.
     REGISTRY.register(Box::new(METRICS.detected_batch_index.clone())).unwrap();
-    // chunks len.
+    // blocks len.
     REGISTRY.register(Box::new(METRICS.blocks_len.clone())).unwrap();
-    // txn len.
-    REGISTRY.register(Box::new(METRICS.txn_len.clone())).unwrap();
     // prover status.
     REGISTRY.register(Box::new(METRICS.verify_result.clone())).unwrap();
     // wallet balance.

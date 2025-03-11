@@ -1,5 +1,5 @@
 # Build Geth in a stock Go builder container
-FROM morph/go-ubuntu-builder:go-1.22-ubuntu as builder
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.22-ubuntu as builder
 COPY . /morph
 WORKDIR /morph/node
 RUN make build
