@@ -282,7 +282,7 @@ func (r *Rollup) ProcessTx() error {
 // Helper function to detect reorgs with retry
 func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 	var lastErr error
-	for i := 0; i < 3; i++ { // Try up to 3 times
+	for i := range 3 { // Try up to 3 times
 		hasReorg, depth, err := r.reorgDetector.DetectReorg(r.ctx)
 		if err == nil {
 			return hasReorg, depth, nil

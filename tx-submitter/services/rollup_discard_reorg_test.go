@@ -205,7 +205,7 @@ func TestProcessTxReorg(t *testing.T) {
 	}
 
 	// Add some transactions to the pending pool
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 			ChainID:   big.NewInt(1),
 			Nonce:     uint64(i),
