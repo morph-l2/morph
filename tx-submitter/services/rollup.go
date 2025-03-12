@@ -79,6 +79,7 @@ type Rollup struct {
 	batchCache       *types.BatchCache
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
+	reorgDetector    *ReorgDetector
 }
 
 func NewRollup(
@@ -100,8 +101,8 @@ func NewRollup(
 	bm *l1checker.BlockMonitor,
 	eventInfoStorage *event.EventInfoStorage,
 ) *Rollup {
-	// Create batch fetcher
 	batchFetcher := NewBatchFetcher(l2Clients)
+	reorgDetector := NewReorgDetector(l1, metrics)
 	return &Rollup{
 		ctx:              ctx,
 		metrics:          metrics,
@@ -122,6 +123,7 @@ func NewRollup(
 		ldb:              ldb,
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
+		reorgDetector:    reorgDetector,
 	}
 }
 
@@ -225,177 +227,278 @@ func (r *Rollup) Start() error {
 }
 
 func (r *Rollup) ProcessTx() error {
+	// Check for reorgs first with exponential backoff retry
+	hasReorg, depth, err := r.detectReorgWithRetry()
+	if err != nil {
+		log.Error("Failed to check for reorgs", "error", err)
+		return err
+	}
 
-	// case 1: in mempool
-	//          -> check timeout
-	// case 2: no in mempool
-	// case 2.1: discarded
-	// case 2.2: tx included -> success
-	// case 2.3: tx included -> failed
-	//          -> reset index to failed index
+	if hasReorg {
+		log.Warn("Chain reorganization detected, reprocessing transactions", "depth", depth)
+		if err := r.handleReorg(depth); err != nil {
+			return fmt.Errorf("failed to handle reorg: %w", err)
+		}
+	}
 
-	// get all local txs
+	// Get all local transactions
 	txRecords := r.pendingTxs.GetAll()
 	if len(txRecords) == 0 {
 		return nil
 	}
 
-	// query tx status
+	// Check if this submitter should process transactions
+	if err := r.checkSubmitterTurn(); err != nil {
+		if err == errNotMyTurn {
+			log.Info("wait my turn to process tx")
+			// If it's not our turn, we still want to process existing transactions
+			// but we won't submit new ones
+			for _, txRecord := range txRecords {
+				if err := r.processSingleTx(txRecord); err != nil {
+					log.Error("Failed to process transaction",
+						"hash", txRecord.Tx.Hash().String(),
+						"error", err)
+					continue // Continue with next tx instead of failing entire batch
+				}
+			}
+			return nil
+		}
+		return err
+	}
+
+	// Process each transaction
 	for _, txRecord := range txRecords {
-
-		rtx := txRecord.tx
-		method := utils.ParseMethod(rtx, r.abi)
-		log.Info("process tx", "hash", rtx.Hash().String(), "nonce", rtx.Nonce(), "method", method)
-		// query tx
-		_, ispending, err := r.L1Client.TransactionByHash(context.Background(), txRecord.tx.Hash())
-		if err != nil {
-			if !utils.ErrStringMatch(err, ethereum.NotFound) {
-				return fmt.Errorf("query tx  error:%w, tx: %s, nonce: %d", err, rtx.Hash().String(), rtx.Nonce())
-			}
-			r.pendingTxs.IncQueryTimes(rtx.Hash()) // not found in mempool, increase query times
-		} else {
-			log.Info("query tx success", "hash", rtx.Hash().Hex(), "pending", ispending)
+		if err := r.processSingleTx(txRecord); err != nil {
+			log.Error("Failed to process transaction",
+				"hash", txRecord.Tx.Hash().String(),
+				"error", err)
+			continue // Continue with next tx instead of failing entire batch
 		}
-
-		// exist in mempool
-		if ispending {
-			if txRecord.sendTime+uint64(r.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
-				log.Info("tx timeout", "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce(), "method", method)
-				newtx, err := r.ReSubmitTx(false, rtx)
-				if err != nil {
-					log.Error("resubmit tx", "error", err, "tx", rtx.Hash().Hex(), "nonce", rtx.Nonce())
-					return fmt.Errorf("resubmit tx error:%w", err)
-				} else {
-					log.Info("replace success", "old_tx", rtx.Hash().Hex(), "new_tx", newtx.Hash().String(), "nonce", rtx.Nonce())
-					r.pendingTxs.Remove(rtx.Hash())
-					r.pendingTxs.Add(newtx)
-				}
-			}
-		} else { // not in mempool
-			receipt, err := r.L1Client.TransactionReceipt(context.Background(), rtx.Hash())
-			if err != nil {
-				log.Error("query tx receipt error", "tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
-				if !utils.ErrStringMatch(err, ethereum.NotFound) {
-					return err
-				}
-
-				// sr.pendingTxs.txinfos
-				if txRecord.queryTimes >= 5 {
-					log.Warn("tx discarded",
-						"hash", rtx.Hash().String(),
-						"nonce", rtx.Nonce(),
-						"query_times", txRecord.queryTimes,
-					)
-					replacedtx, err := r.ReSubmitTx(true, rtx)
-					if err != nil {
-						log.Error("resend discarded tx", "old_tx", rtx.Hash().String(), "nonce", rtx.Nonce(), "error", err)
-						if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
-							log.Info("discarded tx removed",
-								"hash", rtx.Hash().String(),
-								"nonce", rtx.Nonce(),
-								"method", method,
-							)
-							r.pendingTxs.Remove(rtx.Hash())
-							return nil
-						}
-						return fmt.Errorf("resend discarded tx: %w", err)
-					} else {
-						r.pendingTxs.Remove(rtx.Hash())
-					}
-					r.pendingTxs.Add(replacedtx)
-					log.Info("resend discarded tx", "old_tx", rtx.Hash().String(), "new_tx", replacedtx.Hash().String(), "nonce", replacedtx.Nonce())
-				} else {
-					log.Info("tx is not found, neither in mempool nor in block", "hash", rtx.Hash().String(), "nonce", rtx.Nonce(), "query_times", txRecord.queryTimes)
-				}
-			} else {
-				logs := utils.ParseBusinessInfo(rtx, r.abi)
-				logs = append(logs,
-					"block", receipt.BlockNumber,
-					"hash", rtx.Hash().String(),
-					"status", receipt.Status,
-					"gas_used", receipt.GasUsed,
-					"type", rtx.Type(),
-					"nonce", rtx.Nonce(),
-					"blob_fee_cap", rtx.BlobGasFeeCap(),
-					"blob_gas", rtx.BlobGas(),
-					"tx_size", rtx.Size(),
-					"gas_limit", rtx.Gas(),
-					"gas_price", rtx.GasPrice(),
-				)
-
-				log.Info("tx included",
-					logs...,
-				)
-
-				if receipt.Status != ethtypes.ReceiptStatusSuccessful {
-					// if tx is commitBatch
-					if method == "commitBatch" {
-						parentindex := utils.ParseParentBatchIndex(rtx.Data())
-						index := parentindex + 1
-
-						// prevent the SetFailedStatus operation from
-						// happening between RemoveRollupRestriction
-						// and SetPindex in the rollup function
-						r.rollupFinalizeMu.Lock()
-						r.pendingTxs.TrySetFailedBatchIndex(index)
-						r.rollupFinalizeMu.Unlock()
-
-					}
-
-				} else {
-					if method == "commitBatch" && r.pendingTxs.failedIndex != nil {
-						log.Info("fail revover", "failed_index", r.pendingTxs.failedIndex)
-						r.pendingTxs.RemoveRollupRestriction()
-					}
-				}
-
-				r.pendingTxs.Remove(rtx.Hash())
-				// set metrics
-				fee := calcFee(receipt)
-				if fee == 0 {
-					log.Warn("fee is zero", "hash", rtx.Hash().Hex())
-				}
-				if method == "commitBatch" {
-					r.rollupFeeSum += fee
-					err = r.ldb.PutFloat(rollupSumKey, r.rollupFeeSum)
-					if err != nil {
-						log.Warn("put rollup fee sum error", "error", err)
-					}
-					r.metrics.SetRollupCost(fee)
-					index := utils.ParseParentBatchIndex(rtx.Data()) + 1
-					batch, ok := r.batchCache.Get(index)
-					if ok {
-						collectedL1FeeFloat := ToEtherFloat((*big.Int)(batch.CollectedL1Fee))
-						r.collectedL1FeeSum += collectedL1FeeFloat
-						err = r.ldb.PutFloat(collectedL1FeeSumKey, r.collectedL1FeeSum)
-						if err != nil {
-							log.Warn("put collected l1 fee sum error", "error", err)
-						}
-						r.metrics.SetCollectedL1Fee(ToEtherFloat((*big.Int)(batch.CollectedL1Fee)))
-						// remove batch from cache
-						r.batchCache.Delete(index)
-					} else {
-						log.Warn("batch not found in batchCache while set collect fee metrics",
-							"index", index,
-						)
-					}
-
-				} else if method == "finalizeBatch" {
-					r.finalizeFeeSum += fee
-					err = r.ldb.PutFloat(finalizeSumKey, r.finalizeFeeSum)
-					if err != nil {
-						log.Warn("put finalize fee sum error", "error", err)
-					}
-					r.metrics.SetFinalizeCost(fee)
-				}
-			}
-
-		}
-
 	}
 
 	return nil
+}
 
+// Helper function to detect reorgs with retry
+func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
+	var lastErr error
+	for i := 0; i < 3; i++ { // Try up to 3 times
+		hasReorg, depth, err := r.reorgDetector.DetectReorg(r.ctx)
+		if err == nil {
+			return hasReorg, depth, nil
+		}
+		lastErr = err
+		time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
+	}
+	return false, 0, lastErr
+}
+
+var errNotMyTurn = errors.New("not my turn")
+
+func (r *Rollup) checkSubmitterTurn() error {
+	cur, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
+	if err != nil {
+		return fmt.Errorf("rollup: get current submitter err, %w", err)
+	}
+	if cur.Hex() != r.WalletAddr().Hex() {
+		return errNotMyTurn
+	}
+	return nil
+}
+
+// Handle chain reorganization
+func (r *Rollup) handleReorg(depth uint64) error {
+	// Clear confirmed transactions that may have been affected by the reorg
+	r.pendingTxs.ClearConfirmedTxs()
+
+	// Reset any failed batch indices that may need to be retried
+	r.pendingTxs.RemoveRollupRestriction()
+
+	// Update metrics
+	r.metrics.SetReorgDepth(float64(depth))
+	r.metrics.IncReorgs()
+
+	return nil
+}
+
+// Process a single transaction
+func (r *Rollup) processSingleTx(txRecord *types.TxRecord) error {
+	rtx := txRecord.Tx
+	method := utils.ParseMethod(rtx, r.abi)
+
+	// Special handling for commit batch transactions
+	if method == "commitBatch" {
+		if err := r.handleCommitBatchTx(rtx); err != nil {
+			return err
+		}
+	}
+
+	log.Info("Processing transaction",
+		"hash", rtx.Hash().String(),
+		"nonce", rtx.Nonce(),
+		"method", method,
+		"query_times", txRecord.QueryTimes)
+
+	// Check transaction status
+	status, err := r.getTxStatus(rtx)
+	if err != nil {
+		return err
+	}
+
+	switch status.state {
+	case txStatusPending:
+		return r.handlePendingTx(txRecord, rtx, method)
+	case txStatusConfirmed:
+		return r.handleConfirmedTx(txRecord, rtx, method)
+	case txStatusMissing:
+		return r.handleMissingTx(txRecord, rtx, method)
+	default:
+		return fmt.Errorf("unknown transaction status: %v", status.state)
+	}
+}
+
+type txStatus struct {
+	state   int
+	receipt *ethtypes.Receipt
+}
+
+const (
+	txStatusPending = iota
+	txStatusConfirmed
+	txStatusMissing
+)
+
+func (r *Rollup) getTxStatus(tx *ethtypes.Transaction) (*txStatus, error) {
+	receipt, err := r.L1Client.TransactionReceipt(context.Background(), tx.Hash())
+	if err == nil {
+		return &txStatus{state: txStatusConfirmed, receipt: receipt}, nil
+	}
+
+	if !utils.ErrStringMatch(err, ethereum.NotFound) {
+		return nil, fmt.Errorf("query tx receipt error: %w", err)
+	}
+
+	// Check mempool
+	_, isPending, err := r.L1Client.TransactionByHash(context.Background(), tx.Hash())
+	if err != nil {
+		if !utils.ErrStringMatch(err, ethereum.NotFound) {
+			return nil, fmt.Errorf("query tx error: %w", err)
+		}
+		return &txStatus{state: txStatusMissing}, nil
+	}
+
+	if isPending {
+		return &txStatus{state: txStatusPending}, nil
+	}
+
+	return &txStatus{state: txStatusMissing}, nil
+}
+
+func (r *Rollup) handleCommitBatchTx(tx *ethtypes.Transaction) error {
+	cindexBig, err := r.Rollup.LastCommittedBatchIndex(nil)
+	if err != nil {
+		return fmt.Errorf("get last committed batch index error:%v", err)
+	}
+
+	batchIndex := utils.ParseParentBatchIndex(tx.Data())
+	if batchIndex <= cindexBig.Uint64() {
+		log.Info("Batch already committed, removing from pool",
+			"cur_batch_index", batchIndex,
+			"latest_committed_batch_index", cindexBig,
+		)
+		r.pendingTxs.Remove(tx.Hash())
+	}
+	return nil
+}
+
+func (r *Rollup) handlePendingTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
+	// Check for timeout
+	if txRecord.SendTime+uint64(r.cfg.TxTimeout.Seconds()) < uint64(time.Now().Unix()) {
+		log.Info("Transaction timed out",
+			"tx", tx.Hash().Hex(),
+			"nonce", tx.Nonce(),
+			"method", method)
+
+		// Try to replace the transaction with higher gas price
+		return r.replaceTimedOutTx(tx)
+	}
+	return nil
+}
+
+func (r *Rollup) replaceTimedOutTx(tx *ethtypes.Transaction) error {
+	newTx, err := r.ReSubmitTx(false, tx)
+	if err != nil {
+		log.Error("Failed to resubmit transaction",
+			"error", err,
+			"tx", tx.Hash().Hex(),
+			"nonce", tx.Nonce())
+		return fmt.Errorf("resubmit tx error: %w", err)
+	}
+
+	log.Info("Successfully replaced transaction",
+		"old_tx", tx.Hash().Hex(),
+		"new_tx", newTx.Hash().String(),
+		"nonce", tx.Nonce())
+
+	r.pendingTxs.Remove(tx.Hash())
+	r.pendingTxs.Add(newTx)
+	return nil
+}
+
+func (r *Rollup) handleMissingTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
+	r.pendingTxs.IncQueryTimes(tx.Hash())
+
+	// Mark transaction as unconfirmed since it's missing
+	txRecord.Confirmed = false
+
+	// Only resubmit after several retries
+	if txRecord.QueryTimes >= 5 {
+		return r.handleDiscardedTx(txRecord, tx, method)
+	}
+
+	log.Info("Transaction not found in mempool or chain",
+		"hash", tx.Hash().String(),
+		"nonce", tx.Nonce(),
+		"query_times", txRecord.QueryTimes)
+
+	return nil
+}
+
+func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
+	log.Warn("Transaction discarded",
+		"hash", tx.Hash().String(),
+		"nonce", tx.Nonce(),
+		"query_times", txRecord.QueryTimes)
+
+	// Try to resubmit with original parameters
+	replacedTx, err := r.ReSubmitTx(true, tx)
+	if err != nil {
+		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
+			// Transaction was probably confirmed in a reorg
+			log.Info("Discarded transaction removed (nonce too low)",
+				"hash", tx.Hash().String(),
+				"nonce", tx.Nonce(),
+				"method", method)
+			r.pendingTxs.Remove(tx.Hash())
+			return nil
+		}
+		return fmt.Errorf("resend discarded tx: %w", err)
+	}
+
+	r.pendingTxs.Remove(tx.Hash())
+	r.pendingTxs.Add(replacedTx)
+	log.Info("Successfully resubmitted discarded transaction",
+		"old_tx", tx.Hash().String(),
+		"new_tx", replacedTx.Hash().String(),
+		"nonce", replacedTx.Nonce())
+
+	return nil
+}
+
+// handleConfirmedTx handles a confirmed transaction
+func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, txType string) error {
+	r.pendingTxs.MarkConfirmed(tx.Hash())
+	return nil
 }
 
 func (r *Rollup) finalize() error {
@@ -570,8 +673,8 @@ func (r *Rollup) rollup() error {
 			return fmt.Errorf("failed to load storage in rollup: %w", err)
 		}
 		log.Info("indexer info",
-			"block_processed", r.eventInfoStorage.EventInfo.BlockProcessed,
-			"event_latest_emit_time", r.eventInfoStorage.EventInfo.BlockTime,
+			"block_processed", r.eventInfoStorage.BlockProcessed(),
+			"event_latest_emit_time", r.eventInfoStorage.BlockTime(),
 		)
 		// get current blocknumber
 		blockNumber, err := r.L1Client.BlockNumber(context.Background())
@@ -579,13 +682,13 @@ func (r *Rollup) rollup() error {
 			return fmt.Errorf("failed to get block number in rollup: %w", err)
 		}
 		// set metrics
-		r.metrics.SetIndexerBlockProcessed(r.eventInfoStorage.EventInfo.BlockProcessed)
+		r.metrics.SetIndexerBlockProcessed(r.eventInfoStorage.BlockProcessed())
 		// check if indexed block number is too old
-		if blockNumber > r.eventInfoStorage.EventInfo.BlockProcessed+100 {
+		if blockNumber > r.eventInfoStorage.BlockProcessed()+100 {
 			log.Info("indexed block number is too old, wait indexer to catch up",
 				"module", r.GetModuleName(),
 				"block_number", blockNumber,
-				"processed_block", r.eventInfoStorage.EventInfo.BlockProcessed)
+				"processed_block", r.eventInfoStorage.BlockProcessed())
 			return nil
 		}
 

@@ -7,12 +7,16 @@ import (
 
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/params"
-	"morph-l2/tx-submitter/utils"
 )
 
 type IEventStorage interface {
 	Store() error
 	Load() error
+	BlockProcessed() uint64
+	SetBlockProcessed(blockNum uint64)
+	BlockTime() uint64
+	SetBlockTime(blockTime uint64)
+	EventInfo() *EventInfo
 }
 
 type EventInfo struct {
@@ -21,21 +25,20 @@ type EventInfo struct {
 }
 
 type EventInfoStorage struct {
-	EventInfo
-	db *db.Db
-	mu sync.Mutex
+	eventInfo EventInfo
+	db        db.Database
+	mu        sync.RWMutex
 }
 
-func NewEventInfoStorage(db *db.Db) *EventInfoStorage {
+func NewEventInfoStorage(db db.Database) *EventInfoStorage {
 	return &EventInfoStorage{
 		db: db,
 	}
 }
 
 func (e *EventInfoStorage) Store() error {
-
 	// Convert struct to JSON string
-	jsonData, err := json.Marshal(e.EventInfo)
+	jsonData, err := json.Marshal(e.eventInfo)
 	if err != nil {
 		return fmt.Errorf("failed to convert struct to JSON: %w", err)
 	}
@@ -49,31 +52,56 @@ func (e *EventInfoStorage) Store() error {
 	}
 	return nil
 }
+
 func (e *EventInfoStorage) Load() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	evnetInfo, err := e.db.GetString(params.EventInfoKey)
+
+	jsonStr, err := e.db.GetString(params.EventInfoKey)
 	if err != nil {
-		if utils.ErrStringMatch(err, db.ErrKeyNotFound) {
-			e.EventInfo = EventInfo{}
-			jsonData, err := json.Marshal(e.EventInfo)
-			if err != nil {
-				return fmt.Errorf("failed to marshal json: %w", err)
-			}
-			err = e.db.PutString(params.EventInfoKey, string(jsonData))
-			if err != nil {
-				return fmt.Errorf("failed to init eventinfo to db: %w", err)
-			}
+		if err == db.ErrKeyNotFound {
+			// Initialize with default values if not found
+			e.eventInfo = EventInfo{}
 			return nil
 		}
-		return fmt.Errorf("failed to load eventinfo from db: %w", err)
+		return fmt.Errorf("failed to read from db: %w", err)
 	}
 
-	// parse json data to struct
-	err = json.Unmarshal([]byte(evnetInfo), &e.EventInfo)
+	err = json.Unmarshal([]byte(jsonStr), &e.eventInfo)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal JSON: %w", err)
+		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
 	return nil
+}
+
+func (e *EventInfoStorage) BlockProcessed() uint64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.eventInfo.BlockProcessed
+}
+
+func (e *EventInfoStorage) SetBlockProcessed(blockNum uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.eventInfo.BlockProcessed = blockNum
+}
+
+func (e *EventInfoStorage) BlockTime() uint64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.eventInfo.BlockTime
+}
+
+func (e *EventInfoStorage) SetBlockTime(blockTime uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.eventInfo.BlockTime = blockTime
+}
+
+func (e *EventInfoStorage) EventInfo() *EventInfo {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	info := e.eventInfo
+	return &info
 }
