@@ -63,11 +63,11 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 		return fmt.Errorf("GetCurrentSubmitter: failed to load storage: %w", err)
 	}
 	// if index not complete
-	if storage.BlockProcessed == 0 {
+	if storage.BlockProcessed() == 0 {
 		return errors.New("wait event index service to complete")
 	}
 
-	r.startTime = utils.MaxOfThreeBig(epochUpdateTime, sequcerUpdateTime, big.NewInt(int64(storage.BlockTime)))
+	r.startTime = utils.MaxOfThreeBig(epochUpdateTime, sequcerUpdateTime, big.NewInt(int64(storage.BlockTime())))
 
 	// get current sequencer set
 	seqSet, err := QuerySequencerSet(r.l2SequencerAddr, clients)
@@ -99,8 +99,8 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 		"start", r.startTime,
 		"epoch_update_time", epochUpdateTime,
 		"seq_update_time", sequcerUpdateTime,
-		"indexed_latest_block", storage.BlockProcessed,
-		"indexed_event_emit_time", storage.BlockTime,
+		"indexed_latest_block", storage.BlockProcessed(),
+		"indexed_event_emit_time", storage.BlockTime(),
 	)
 
 	return nil
