@@ -176,7 +176,7 @@ func (l *L1ClientWrapper) TransactionByHash(ctx context.Context, hash common.Has
 	if tx, ok := l.transactions[hash]; ok {
 		// If there's no receipt, the transaction is pending
 		// If there's a receipt, the transaction is not pending
-		_, hasReceipt = l.receipts[hash]
+		_, hasReceipt := l.receipts[hash]
 		return tx, !hasReceipt, nil
 	}
 	return nil, false, ethereum.NotFound
