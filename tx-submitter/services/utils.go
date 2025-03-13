@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/core/types"
+	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/params"
 )
@@ -44,24 +44,23 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 	return threshold
 }
 
-func calcFee(receipt *types.Receipt) float64 {
+// calcFee calculates the total fee for a transaction
+func calcFee(tx *ethtypes.Transaction, receipt *ethtypes.Receipt) *big.Float {
+	gasUsed := new(big.Float).SetUint64(receipt.GasUsed)
+	effectiveGasPrice := new(big.Float).SetInt(receipt.EffectiveGasPrice)
+	txFee := new(big.Float).Mul(gasUsed, effectiveGasPrice)
+	txFeeEth := new(big.Float).Quo(txFee, new(big.Float).SetInt(big.NewInt(params.Ether)))
 
-	if receipt == nil || receipt.EffectiveGasPrice == nil {
-		return 0
+	// Add blob fee if it's a blob transaction
+	if tx.Type() == ethtypes.BlobTxType {
+		blobGasUsed := new(big.Float).SetUint64(tx.BlobGas())
+		blobGasPrice := new(big.Float).SetInt(tx.BlobGasFeeCap())
+		blobFee := new(big.Float).Mul(blobGasUsed, blobGasPrice)
+		blobFeeEth := new(big.Float).Quo(blobFee, new(big.Float).SetInt(big.NewInt(params.Ether)))
+		txFeeEth.Add(txFeeEth, blobFeeEth)
 	}
 
-	calldatafee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
-	// blobfee
-	blobfee := big.NewInt(0)
-	if receipt.Type == types.BlobTxType {
-		if receipt.BlobGasPrice != nil {
-			blobfee = new(big.Int).Mul(big.NewInt(int64(receipt.BlobGasUsed)), receipt.BlobGasPrice)
-		}
-
-	}
-
-	fee := new(big.Int).Add(calldatafee, blobfee)
-	return ToEtherFloat(fee)
+	return txFeeEth
 }
 
 func ToEtherFloat(weiAmt *big.Int) float64 {

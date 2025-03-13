@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/constants"
 	"morph-l2/tx-submitter/types"
 	"morph-l2/tx-submitter/utils"
 
@@ -152,6 +153,7 @@ func (pt *PendingTxs) GetTxRecord(hash common.Hash) *types.TxRecord {
 }
 
 // IncQueryTimes increments the query times for a transaction
+// only for missing tx
 func (pt *PendingTxs) IncQueryTimes(txHash common.Hash) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
@@ -225,7 +227,7 @@ func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 
 	for i := len(txs) - 1; i >= 0; i-- {
 		tx := txs[i].Tx
-		if utils.ParseMethod(tx, abi) == MethodCommitBatch {
+		if utils.ParseMethod(tx, abi) == constants.MethodCommitBatch {
 			pindex := utils.ParseParentBatchIndex(tx.Data()) + 1
 			if index == pindex {
 				return true
@@ -264,39 +266,61 @@ func (pt *PendingTxs) RemoveRollupRestriction() {
 // Recover recovers transactions from the journal
 func (pt *PendingTxs) Recover(txs []*ethtypes.Transaction, abi *abi.ABI) error {
 	if len(txs) == 0 {
-		log.Info("Journal tx is empty")
 		return nil
 	}
 
-	var pbindex, pfindex uint64
+	log.Info("Starting to recover transactions", "count", len(txs))
+
+	var maxCommitBatchIndex, maxFinalizeBatchIndex uint64
+
 	for _, tx := range txs {
+		// Get method name
+		method := utils.ParseMethod(tx, abi)
+
+		// Get batch index based on method
+		var batchIndex uint64
+		if method == constants.MethodCommitBatch {
+			batchIndex = utils.ParseParentBatchIndex(tx.Data()) + 1
+			if batchIndex > maxCommitBatchIndex {
+				maxCommitBatchIndex = batchIndex
+			}
+		} else if method == constants.MethodFinalizeBatch {
+			batchIndex = utils.ParseFBatchIndex(tx.Data())
+			if batchIndex > maxFinalizeBatchIndex {
+				maxFinalizeBatchIndex = batchIndex
+			}
+		}
+
+		// Log transaction details
+		log.Info("Recovering transaction",
+			"hash", tx.Hash().String(),
+			"method", method,
+			"batch_index", batchIndex,
+			"nonce", tx.Nonce(),
+			"gas", tx.Gas(),
+			"gas_tip_cap", tx.GasTipCap().String(),
+			"gas_fee_cap", tx.GasFeeCap().String(),
+			"blob_gas", tx.BlobGas(),
+			"blob_fee_cap", tx.BlobGasFeeCap(),
+			"blob_hashes_count", len(tx.BlobHashes()),
+			"value", tx.Value().String(),
+			"size", tx.Size(),
+			"type", tx.Type(),
+		)
+
 		if err := pt.Add(tx); err != nil {
 			return fmt.Errorf("failed to add tx during recovery: %w", err)
 		}
-
-		method := utils.ParseMethod(tx, abi)
-		switch method {
-		case MethodCommitBatch:
-			index := utils.ParseParentBatchIndex(tx.Data())
-			if index > pbindex {
-				pbindex = index
-			}
-		case MethodFinalizeBatch:
-			findex := utils.ParseFBatchIndex(tx.Data())
-			if findex > pfindex {
-				pfindex = findex
-			}
-		}
 	}
 
-	pt.SetPindex(pbindex)
-	pt.SetPFinalize(pfindex)
+	pt.SetPindex(maxCommitBatchIndex)
+	pt.SetPFinalize(maxFinalizeBatchIndex)
 	pt.SetNonce(txs[len(txs)-1].Nonce())
 
 	log.Info("Recovered from mempool",
 		"tx_count", len(txs),
-		"max_batch_index", pbindex,
-		"max_finalize_index", pfindex,
+		"max_batch_index", maxCommitBatchIndex,
+		"max_finalize_index", maxFinalizeBatchIndex,
 		"max_nonce", pt.GetNonce(),
 	)
 

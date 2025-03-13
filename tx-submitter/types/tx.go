@@ -8,6 +8,6 @@ import (
 type TxRecord struct {
 	Tx         *types.Transaction
 	SendTime   uint64
-	QueryTimes uint64
-	Confirmed  bool // Track if transaction has been confirmed in a block
-} 
+	QueryTimes uint64 // missing tx query times
+	Confirmed  bool   // Track if transaction has been confirmed in a block
+}
