@@ -238,7 +238,9 @@ func (r *Rollup) ProcessTx() error {
 	}
 
 	if hasReorg {
-		log.Warn("Chain reorganization detected, reprocessing transactions", "depth", depth)
+		log.Info("Chain reorganization detected",
+			"depth", depth,
+			"action", "reprocessing_transactions")
 		if err := r.handleReorg(depth); err != nil {
 			return fmt.Errorf("failed to handle reorg: %w", err)
 		}
@@ -255,19 +257,30 @@ func (r *Rollup) ProcessTx() error {
 		if err == errNotMyTurn {
 			// Get current submitter index for logging
 			activeSubmitter, activeIndex, _ := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
-			log.Info("Waiting for my turn to process transactions",
-				"active_submitter_address", activeSubmitter.Hex(),
-				"active_submitter_index", activeIndex,
-				"total_submitters", len(r.rotator.GetSubmitterSet()))
 
-			// If it's not our turn, we still want to process existing transactions
-			// but we won't submit new ones
+			// Calculate rotation timing information
+			past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
+			start := time.Now().Unix() - past
+			end := start + r.rotator.epoch.Int64()
+			timeLeft := end - time.Now().Unix()
+
+			// Format timestamps for human readability
+			endTimeFormatted := utils.FormatTime(big.NewInt(end))
+			timeLeftFormatted := fmt.Sprintf("%dm%ds", timeLeft/60, timeLeft%60)
+
+			log.Info("Awaiting turn for transaction processing",
+				"current_submitter", activeSubmitter.Hex(),
+				"submitter_index", activeIndex,
+				"total_submitters", len(r.rotator.GetSubmitterSet()),
+				"next_rotation", endTimeFormatted,
+				"time_remaining", timeLeftFormatted)
+
+			// Process existing transactions without submitting new ones
 			for _, txRecord := range txRecords {
 				if err := r.processSingleTx(txRecord); err != nil {
-					log.Error("Failed to process transaction",
-						"hash", txRecord.Tx.Hash().String(),
+					log.Error("Transaction processing failed",
+						"tx_hash", txRecord.Tx.Hash().String(),
 						"error", err)
-					continue // Continue with next tx instead of failing entire batch
 				}
 			}
 			return nil
@@ -278,10 +291,9 @@ func (r *Rollup) ProcessTx() error {
 	// Process each transaction
 	for _, txRecord := range txRecords {
 		if err := r.processSingleTx(txRecord); err != nil {
-			log.Error("Failed to process transaction",
-				"hash", txRecord.Tx.Hash().String(),
+			log.Error("Transaction processing failed",
+				"tx_hash", txRecord.Tx.Hash().String(),
 				"error", err)
-			continue // Continue with next tx instead of failing entire batch
 		}
 	}
 
@@ -314,18 +326,34 @@ func (r *Rollup) checkSubmitterTurn() error {
 	activeAddress := activeSubmitter.Hex()
 	isMyTurn := activeAddress == myAddress
 
+	// Calculate rotation timing information
+	past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
+	start := time.Now().Unix() - past
+	end := start + r.rotator.epoch.Int64()
+	timeLeft := end - time.Now().Unix()
+
+	// Format timestamps for human readability
+	startTimeFormatted := utils.FormatTime(big.NewInt(start))
+	endTimeFormatted := utils.FormatTime(big.NewInt(end))
+	timeLeftFormatted := fmt.Sprintf("%dm%ds", timeLeft/60, timeLeft%60)
+
 	if !isMyTurn {
-		log.Info("Not currently the active submitter",
-			"active_submitter_address", activeAddress,
-			"active_submitter_index", submitterIndex,
+		log.Debug("Not active submitter",
+			"active_submitter", activeAddress,
+			"index", submitterIndex,
 			"my_address", myAddress,
-			"total_submitters", len(r.rotator.GetSubmitterSet()))
+			"total_submitters", len(r.rotator.GetSubmitterSet()),
+			"rotation_end", endTimeFormatted,
+			"time_remaining", timeLeftFormatted)
 		return errNotMyTurn
 	}
 
-	log.Info("I am the active submitter",
-		"my_submitter_index", submitterIndex,
-		"total_submitters", len(r.rotator.GetSubmitterSet()))
+	log.Info("Active submitter status",
+		"index", submitterIndex,
+		"total_submitters", len(r.rotator.GetSubmitterSet()),
+		"rotation_start", startTimeFormatted,
+		"rotation_end", endTimeFormatted,
+		"time_remaining", timeLeftFormatted)
 	return nil
 }
 
@@ -937,10 +965,10 @@ func (r *Rollup) rollup() error {
 		if err != nil {
 			return fmt.Errorf("failed to load storage in rollup: %w", err)
 		}
-		log.Info("indexer info",
-			"block_processed", r.eventInfoStorage.BlockProcessed(),
-			"event_latest_emit_time", r.eventInfoStorage.BlockTime(),
-		)
+		log.Debug("Indexer status",
+			"blocks_processed", r.eventInfoStorage.BlockProcessed(),
+			"last_event_time", r.eventInfoStorage.BlockTime())
+
 		// get current blocknumber
 		blockNumber, err := r.L1Client.BlockNumber(context.Background())
 		if err != nil {
@@ -950,10 +978,11 @@ func (r *Rollup) rollup() error {
 		r.metrics.SetIndexerBlockProcessed(r.eventInfoStorage.BlockProcessed())
 		// check if indexed block number is too old
 		if blockNumber > r.eventInfoStorage.BlockProcessed()+100 {
-			log.Info("indexed block number is too old, wait indexer to catch up",
+			log.Info("Indexer sync required",
 				"module", r.GetModuleName(),
-				"block_number", blockNumber,
-				"processed_block", r.eventInfoStorage.BlockProcessed())
+				"current_block", blockNumber,
+				"processed_block", r.eventInfoStorage.BlockProcessed(),
+				"blocks_behind", blockNumber-r.eventInfoStorage.BlockProcessed())
 			return nil
 		}
 
@@ -968,39 +997,45 @@ func (r *Rollup) rollup() error {
 		isMyTurn := activeAddress == myAddress
 		totalSubmitters := len(r.rotator.GetSubmitterSet())
 
-		log.Info("Rotation status",
-			"active_submitter_index", activeIndex,
-			"active_submitter_address", activeAddress,
+		// Format timestamps for human readability
+		startTimeFormatted := utils.FormatTime(big.NewInt(start))
+		endTimeFormatted := utils.FormatTime(big.NewInt(end))
+		timeLeftFormatted := fmt.Sprintf("%dm%ds", timeLeft/60, timeLeft%60)
+
+		log.Debug("Rotation status",
+			"submitter_index", activeIndex,
+			"active_submitter", activeAddress,
 			"my_address", myAddress,
 			"total_submitters", totalSubmitters,
 			"is_my_turn", isMyTurn,
-			"rotation_start_time", start,
-			"rotation_end_time", end,
-			"current_time", time.Now().Unix(),
-			"time_remaining", timeLeft,
-		)
+			"rotation_start", startTimeFormatted,
+			"rotation_end", endTimeFormatted,
+			"time_remaining", timeLeftFormatted)
 
 		if isMyTurn {
 			if timeLeft < r.cfg.RotatorBuffer {
-				log.Info("Not enough time left in my turn, waiting for next rotation",
-					"time_remaining", timeLeft,
-					"buffer_required", r.cfg.RotatorBuffer)
+				bufferFormatted := fmt.Sprintf("%dm%ds", r.cfg.RotatorBuffer/60, r.cfg.RotatorBuffer%60)
+				log.Info("Insufficient time for rollup",
+					"time_remaining", timeLeftFormatted,
+					"buffer_required", bufferFormatted)
 				return nil
 			}
 
-			log.Info("Starting rollup process",
-				"my_submitter_index", activeIndex,
+			log.Info("Starting rollup",
+				"submitter_index", activeIndex,
 				"total_submitters", totalSubmitters)
 		} else {
-			log.Info("Not my turn to submit",
-				"active_submitter_index", activeIndex,
-				"active_submitter_address", activeAddress)
+			log.Debug("Skipping rollup - not active submitter",
+				"active_index", activeIndex,
+				"active_submitter", activeAddress)
 			return nil
 		}
 	}
 
 	if len(r.pendingTxs.txinfos) > int(r.cfg.MaxTxsInPendingPool) {
-		log.Info("too many txs in mempool, wait")
+		log.Info("Pending pool full",
+			"current_size", len(r.pendingTxs.txinfos),
+			"max_size", r.cfg.MaxTxsInPendingPool)
 		return nil
 	}
 
@@ -1025,7 +1060,6 @@ func (r *Rollup) rollup() error {
 			} else {
 				batchIndex = r.pendingTxs.pindex + 1
 			}
-
 		} else {
 			batchIndex = cindex + 1
 		}
@@ -1035,19 +1069,22 @@ func (r *Rollup) rollup() error {
 	if r.pendingTxs.failedIndex != nil {
 		failedIndex = *r.pendingTxs.failedIndex
 	}
-	log.Info("batch index info",
-		"last_committed_batch_index", cindex,
-		"batch_index_will_get", batchIndex,
-		"current_processing_index", r.pendingTxs.pindex,
-		"failed_index", failedIndex,
-	)
+	log.Debug("Batch status",
+		"last_committed", cindex,
+		"next_batch", batchIndex,
+		"current_processing", r.pendingTxs.pindex,
+		"failed_batch", failedIndex)
+
 	if r.pendingTxs.ExistedIndex(batchIndex) {
-		log.Info("batch index already committed", "index", batchIndex)
+		log.Debug("Batch already committed",
+			"batch_index", batchIndex)
 		return nil
 	}
 
 	if r.pendingTxs.failedIndex != nil && batchIndex > *r.pendingTxs.failedIndex {
-		log.Warn("rollup rejected", "index", batchIndex)
+		log.Warn("Rollup rejected",
+			"batch_index", batchIndex,
+			"failed_index", *r.pendingTxs.failedIndex)
 		return nil
 	}
 
