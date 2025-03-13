@@ -253,7 +253,13 @@ func (r *Rollup) ProcessTx() error {
 	// Check if this submitter should process transactions
 	if err := r.checkSubmitterTurn(); err != nil {
 		if err == errNotMyTurn {
-			log.Info("wait my turn to process tx")
+			// Get current submitter index for logging
+			activeSubmitter, activeIndex, _ := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
+			log.Info("Waiting for my turn to process transactions",
+				"active_submitter_address", activeSubmitter.Hex(),
+				"active_submitter_index", activeIndex,
+				"total_submitters", len(r.rotator.GetSubmitterSet()))
+
 			// If it's not our turn, we still want to process existing transactions
 			// but we won't submit new ones
 			for _, txRecord := range txRecords {
@@ -299,13 +305,27 @@ func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 var errNotMyTurn = errors.New("not my turn")
 
 func (r *Rollup) checkSubmitterTurn() error {
-	cur, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
+	activeSubmitter, submitterIndex, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 	if err != nil {
 		return fmt.Errorf("rollup: get current submitter err, %w", err)
 	}
-	if cur.Hex() != r.WalletAddr().Hex() {
+
+	myAddress := r.WalletAddr().Hex()
+	activeAddress := activeSubmitter.Hex()
+	isMyTurn := activeAddress == myAddress
+
+	if !isMyTurn {
+		log.Info("Not currently the active submitter",
+			"active_submitter_address", activeAddress,
+			"active_submitter_index", submitterIndex,
+			"my_address", myAddress,
+			"total_submitters", len(r.rotator.GetSubmitterSet()))
 		return errNotMyTurn
 	}
+
+	log.Info("I am the active submitter",
+		"my_submitter_index", submitterIndex,
+		"total_submitters", len(r.rotator.GetSubmitterSet()))
 	return nil
 }
 
@@ -908,7 +928,7 @@ func (r *Rollup) rollup() error {
 	}
 
 	if !r.cfg.PriorityRollup {
-		cur, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
+		activeSubmitter, activeIndex, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
 		}
@@ -941,24 +961,40 @@ func (r *Rollup) rollup() error {
 		start := time.Now().Unix() - past
 		end := start + r.rotator.epoch.Int64()
 
-		log.Info("rotator info",
-			"turn", cur.Hex(),
-			"cur", r.WalletAddr(),
-			"start", start,
-			"end", end,
-			"now", time.Now().Unix(),
+		// Calculate time remaining in current turn
+		timeLeft := end - time.Now().Unix()
+		myAddress := r.WalletAddr().Hex()
+		activeAddress := activeSubmitter.Hex()
+		isMyTurn := activeAddress == myAddress
+		totalSubmitters := len(r.rotator.GetSubmitterSet())
+
+		log.Info("Rotation status",
+			"active_submitter_index", activeIndex,
+			"active_submitter_address", activeAddress,
+			"my_address", myAddress,
+			"total_submitters", totalSubmitters,
+			"is_my_turn", isMyTurn,
+			"rotation_start_time", start,
+			"rotation_end_time", end,
+			"current_time", time.Now().Unix(),
+			"time_remaining", timeLeft,
 		)
 
-		if cur.Hex() == r.WalletAddr().Hex() {
-			left := end - time.Now().Unix()
-			if left < r.cfg.RotatorBuffer {
-				log.Info("rollup time not enough, wait next turn", "left", left)
+		if isMyTurn {
+			if timeLeft < r.cfg.RotatorBuffer {
+				log.Info("Not enough time left in my turn, waiting for next rotation",
+					"time_remaining", timeLeft,
+					"buffer_required", r.cfg.RotatorBuffer)
 				return nil
 			}
 
-			log.Info("start to rollup")
+			log.Info("Starting rollup process",
+				"my_submitter_index", activeIndex,
+				"total_submitters", totalSubmitters)
 		} else {
-			log.Info("wait for my turn")
+			log.Info("Not my turn to submit",
+				"active_submitter_index", activeIndex,
+				"active_submitter_address", activeAddress)
 			return nil
 		}
 	}
