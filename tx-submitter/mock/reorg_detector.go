@@ -24,7 +24,12 @@ var _ iface.IReorgDetector = (*MockReorgDetector)(nil)
 
 // NewMockReorgDetector creates a new instance of MockReorgDetector
 func NewMockReorgDetector() *MockReorgDetector {
-	return &MockReorgDetector{}
+	m := &MockReorgDetector{}
+	// Initialize with default values
+	m.detectReorgReturn.hasReorg = false
+	m.detectReorgReturn.reorgDepth = 0
+	m.detectReorgReturn.err = nil
+	return m
 }
 
 // DetectReorg implements IReorgDetector.DetectReorg
