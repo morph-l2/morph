@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/hex"
 	"math/big"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
@@ -85,6 +87,14 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	// Create mock journal
 	mockJournal := mock.NewMockJournal()
 
+	// Create mock rollup
+	mockRollup := mock.NewMockRollup()
+
+	// Get Rollup ABI
+	rollupAbi, err := bindings.RollupMetaData.GetAbi()
+	require.NoError(t, err)
+	require.NotNil(t, rollupAbi)
+
 	// Create rollup instance
 	rollup := NewRollup(
 		context.Background(),
@@ -92,12 +102,12 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		nil,                      // l1RpcClient
 		l1Mock,                   // l1Client
 		[]iface.L2Client{l2Mock}, // l2Clients
-		nil,                      // rollup
+		mockRollup,               // rollup
 		l1Staking,                // staking
 		big.NewInt(1),            // chainId
 		privateKey,               // privKey
 		common.Address{},         // rollupAddr
-		nil,                      // abi
+		rollupAbi,                // abi
 		cfg,                      // cfg
 		nil,                      // rsaPriv
 		rotator,                  // rotator
@@ -165,8 +175,11 @@ func TestHandleDiscardedTx(t *testing.T) {
 func TestHandleReorg(t *testing.T) {
 	r, _, _ := setupTestRollup(t)
 
+	calldata := "13361101000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000f90000000000000036a700000000000000000000000000001d630ed957794a607e274cdd09fd72217c7c2d9c0be5c11f993d66bf58f1ba098d950170e28b2b52dabe6efe96dbcfe85f691872adb80af292efbb7ded8e53ada1a000d75f5b0490922155046b8428750e9eede0df103c264d67434112e0b4320b8702e53bafa072ec3bbdafbbed9601a82f193d6d64db604ed931a0617779ccebb63d83b92dd5879bfb5e44ba433bafbb65afc822c7d000210ec0d296c59446d2cfa4d7461c3b8d74650efdca322d5fe15e699d534ee47ec9321bcb82bc7a9ec6e9260ff211c1f2db0cf21655a25035100797bc47c339502a0f1a791c0739d4e96000000000000000"
+	data, err := hex.DecodeString(calldata)
+	require.NoError(t, err)
 	// Add some confirmed transactions
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 			ChainID:   big.NewInt(1),
 			Nonce:     uint64(i),
@@ -174,6 +187,7 @@ func TestHandleReorg(t *testing.T) {
 			GasFeeCap: big.NewInt(2e9),
 			Gas:       21000,
 			To:        &common.Address{},
+			Data:      data,
 		})
 		r.pendingTxs.Add(tx)
 		r.pendingTxs.MarkConfirmed(tx.Hash())
@@ -181,7 +195,7 @@ func TestHandleReorg(t *testing.T) {
 
 	// Test reorg handling
 	depth := uint64(2)
-	err := r.handleReorg(depth)
+	err = r.handleReorg(depth)
 	require.NoError(t, err)
 
 	// Verify metrics
