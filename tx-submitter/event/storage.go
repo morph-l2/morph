@@ -99,9 +99,8 @@ func (e *EventInfoStorage) SetBlockTime(blockTime uint64) {
 	e.eventInfo.BlockTime = blockTime
 }
 
-func (e *EventInfoStorage) EventInfo() *EventInfo {
+func (e *EventInfoStorage) EventInfo() EventInfo {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	info := e.eventInfo
-	return &info
+	return e.eventInfo
 }
