@@ -16,7 +16,7 @@ type IEventStorage interface {
 	SetBlockProcessed(blockNum uint64)
 	BlockTime() uint64
 	SetBlockTime(blockTime uint64)
-	EventInfo() *EventInfo
+	EventInfo() EventInfo
 }
 
 type EventInfo struct {
@@ -99,6 +99,8 @@ func (e *EventInfoStorage) SetBlockTime(blockTime uint64) {
 	e.eventInfo.BlockTime = blockTime
 }
 
+// EventInfo returns a copy of the current event info.
+// This ensures thread safety without exposing the internal state.
 func (e *EventInfoStorage) EventInfo() EventInfo {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
