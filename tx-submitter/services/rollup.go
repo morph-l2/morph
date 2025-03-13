@@ -735,8 +735,7 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 				r.batchCache.Delete(batchIndex)
 			} else {
 				// Contract bug detected - batch is not committed by anyone else but our transaction failed
-				// Stop rollup by not marking tx as confirmed
-				log.Crit("Critical error: batch commit transaction failed and batch is not committed by anyone", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
+				log.Warn("Critical error: batch commit transaction failed and batch is not committed by anyone", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
 			}
 		} else if method == constants.MethodFinalizeBatch {
 			batchIndex := utils.ParseFBatchIndex(tx.Data())
@@ -750,8 +749,7 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 				log.Warn("Batch finalize transaction failed but batch is already finalized by another submitter", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
 			} else {
 				// Contract bug detected - batch is not finalized by anyone else but our transaction failed
-				// Stop rollup by not marking tx as confirmed
-				log.Crit("Critical error: batch finalize transaction failed and batch is not finalized by anyone", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
+				log.Warn("Critical error: batch finalize transaction failed and batch is not finalized by anyone", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
 			}
 		}
 	} else { // Transaction succeeded
@@ -1672,11 +1670,23 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 
 	}
 
+	// weiToGwei converts wei value to gwei string representation
+	weiToGwei := func(wei *big.Int) string {
+		if wei == nil {
+			return "0"
+		}
+		gwei := new(big.Float).Quo(
+			new(big.Float).SetInt(wei),
+			new(big.Float).SetInt64(1e9),
+		)
+		return gwei.Text('f', 6)
+	}
+
 	log.Info("new tx info",
 		"tx_type", newTx.Type(),
-		"gas_tip", tip.String(), //todo: convert to gwei
-		"gas_fee_cap", gasFeeCap.String(), //todo: convert to gwei
-		"blob_fee_cap", blobFeeCap.String(), //todo: convert to gwei
+		"gas_tip_gwei", weiToGwei(tip),
+		"gas_fee_cap_gwei", weiToGwei(gasFeeCap),
+		"blob_fee_cap_gwei", weiToGwei(blobFeeCap),
 	)
 	// sign tx
 	newTx, err = r.Sign(newTx)
@@ -1891,9 +1901,9 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 
 	log.Info("new cancel tx info",
 		"tx_type", newTx.Type(),
-		"gas_tip", tip.String(),
-		"gas_fee_cap", gasFeeCap.String(),
-		"blob_fee_cap", blobFeeCap.String(),
+		"gas_tip_gwei", utils.WeiToGwei(tip),
+		"gas_fee_cap_gwei", utils.WeiToGwei(gasFeeCap),
+		"blob_fee_cap_gwei", utils.WeiToGwei(blobFeeCap),
 	)
 
 	// sign tx
