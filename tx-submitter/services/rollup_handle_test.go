@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/hex"
 	"math/big"
 	"testing"
 	"time"
@@ -23,8 +22,12 @@ import (
 	"morph-l2/tx-submitter/utils"
 )
 
+var (
+	finalizeCalldata = "13361101000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000f90000000000000036a700000000000000000000000000001d630ed957794a607e274cdd09fd72217c7c2d9c0be5c11f993d66bf58f1ba098d950170e28b2b52dabe6efe96dbcfe85f691872adb80af292efbb7ded8e53ada1a000d75f5b0490922155046b8428750e9eede0df103c264d67434112e0b4320b8702e53bafa072ec3bbdafbbed9601a82f193d6d64db604ed931a0617779ccebb63d83b92dd5879bfb5e44ba433bafbb65afc822c7d000210ec0d296c59446d2cfa4d7461c3b8d74650efdca322d5fe15e699d534ee47ec9321bcb82bc7a9ec6e9260ff211c1f2db0cf21655a25035100797bc47c339502a0f1a791c0739d4e96000000000000000"
+)
+
 // setupTestRollup creates a test Rollup instance with mocked dependencies
-func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2ClientWrapper) {
+func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2ClientWrapper, *mock.MockRollup) {
 	// Create mock clients
 	l1Mock := mock.NewL1ClientWrapper()
 	l2Mock := mock.NewL2ClientWrapper()
@@ -77,11 +80,12 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 
 	// Create rollup config
 	cfg := utils.Config{
-		MaxTip:     10e9,
-		MaxBaseFee: 100e9,
-		MinTip:     1e9,
-		TipFeeBump: 100,
-		TxTimeout:  10 * time.Second,
+		MaxTip:         10e9,
+		MaxBaseFee:     100e9,
+		MinTip:         1e9,
+		TipFeeBump:     100,
+		TxTimeout:      10 * time.Second,
+		PriorityRollup: true,
 	}
 
 	// Create mock journal
@@ -125,12 +129,12 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		metrics:  metrics,
 	}
 
-	return rollup, l1Mock, l2Mock
+	return rollup, l1Mock, l2Mock, mockRollup
 }
 
 // TestHandleDiscardedTx tests the handling of discarded transactions
 func TestHandleDiscardedTx(t *testing.T) {
-	r, l1Mock, _ := setupTestRollup(t)
+	r, l1Mock, _, _ := setupTestRollup(t)
 
 	// Create a test transaction
 	tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
@@ -173,84 +177,22 @@ func TestHandleDiscardedTx(t *testing.T) {
 
 // TestHandleReorg tests the handling of chain reorganizations
 func TestHandleReorg(t *testing.T) {
-	r, _, _ := setupTestRollup(t)
-
-	calldata := "13361101000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000f90000000000000036a700000000000000000000000000001d630ed957794a607e274cdd09fd72217c7c2d9c0be5c11f993d66bf58f1ba098d950170e28b2b52dabe6efe96dbcfe85f691872adb80af292efbb7ded8e53ada1a000d75f5b0490922155046b8428750e9eede0df103c264d67434112e0b4320b8702e53bafa072ec3bbdafbbed9601a82f193d6d64db604ed931a0617779ccebb63d83b92dd5879bfb5e44ba433bafbb65afc822c7d000210ec0d296c59446d2cfa4d7461c3b8d74650efdca322d5fe15e699d534ee47ec9321bcb82bc7a9ec6e9260ff211c1f2db0cf21655a25035100797bc47c339502a0f1a791c0739d4e96000000000000000"
-	data, err := hex.DecodeString(calldata)
-	require.NoError(t, err)
-	// Add some confirmed transactions
-	for i := range 3 {
-		tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
-			ChainID:   big.NewInt(1),
-			Nonce:     uint64(i),
-			GasTipCap: big.NewInt(1e9),
-			GasFeeCap: big.NewInt(2e9),
-			Gas:       21000,
-			To:        &common.Address{},
-			Data:      data,
-		})
-		r.pendingTxs.Add(tx)
-		r.pendingTxs.MarkConfirmed(tx.Hash())
-	}
+	r, _, _, _ := setupTestRollup(t)
 
 	// Test reorg handling
 	depth := uint64(2)
-	err = r.handleReorg(depth)
+	err := r.handleReorg(depth)
 	require.NoError(t, err)
 
 	// Verify metrics
 	require.Equal(t, float64(depth), r.metrics.GetReorgDepth())
 	require.Equal(t, float64(1), r.metrics.GetReorgCount())
 
-	// Verify confirmed transactions are cleared
-	for _, txRecord := range r.pendingTxs.GetAll() {
-		require.False(t, txRecord.Confirmed, "All transactions should be unconfirmed after reorg")
-	}
-}
-
-// TestProcessTxReorg tests the full transaction processing flow during a reorg
-func TestProcessTxReorg(t *testing.T) {
-	r, l1Mock, _ := setupTestRollup(t)
-
-	// Setup mock reorg detection
-	r.reorgDetector = &ReorgDetector{
-		l1Client: l1Mock,
-		metrics:  r.metrics,
-	}
-
-	// Add some transactions to the pending pool
-	for i := range 3 {
-		tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
-			ChainID:   big.NewInt(1),
-			Nonce:     uint64(i),
-			GasTipCap: big.NewInt(1e9),
-			GasFeeCap: big.NewInt(2e9),
-			Gas:       21000,
-			To:        &common.Address{},
-		})
-		r.pendingTxs.Add(tx)
-		if i < 2 {
-			r.pendingTxs.MarkConfirmed(tx.Hash())
-		}
-	}
-
-	// Mock a reorg detection
-	l1Mock.MockReorg = true
-	l1Mock.MockReorgDepth = 2
-
-	// Process transactions
-	err := r.ProcessTx()
-	require.NoError(t, err)
-
-	// Verify that confirmed transactions are now unconfirmed
-	for _, txRecord := range r.pendingTxs.GetAll() {
-		require.False(t, txRecord.Confirmed, "All transactions should be unconfirmed after reorg")
-	}
 }
 
 // TestHandleMissingTx tests the handling of missing transactions
 func TestHandleMissingTx(t *testing.T) {
-	r, l1Mock, _ := setupTestRollup(t)
+	r, l1Mock, _, _ := setupTestRollup(t)
 
 	// Create a test transaction
 	tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{

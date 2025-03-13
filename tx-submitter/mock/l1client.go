@@ -225,3 +225,10 @@ func (l *L1ClientWrapper) CodeAt(ctx context.Context, contract common.Address, b
 func (l *L1ClientWrapper) SimulateReorg() {
 	l.receipts = make(map[common.Hash]*types.Receipt)
 }
+
+func (l *L1ClientWrapper) AddTx(tx *types.Transaction) {
+	l.transactions[tx.Hash()] = tx
+}
+func (l *L1ClientWrapper) AddReceipt(receipt *types.Receipt) {
+	l.receipts[receipt.TxHash] = receipt
+}

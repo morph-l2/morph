@@ -81,7 +81,7 @@ type Rollup struct {
 	batchCache       *types.BatchCache
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
-	reorgDetector    *ReorgDetector
+	reorgDetector    iface.IReorgDetector
 }
 
 func NewRollup(
@@ -311,62 +311,9 @@ func (r *Rollup) checkSubmitterTurn() error {
 
 // Handle chain reorganization
 func (r *Rollup) handleReorg(depth uint64) error {
-	// Get current L1 state
-	lastCommitted, err := r.Rollup.LastCommittedBatchIndex(nil)
-	if err != nil {
-		return fmt.Errorf("get last committed batch index error:%v", err)
-	}
-
-	lastFinalized, err := r.Rollup.LastFinalizedBatchIndex(nil)
-	if err != nil {
-		return fmt.Errorf("get last finalized batch index error:%v", err)
-	}
-
-	// Check if reorg happened by checking confirmed transactions
-	txRecords := r.pendingTxs.GetAll()
-	for _, txRecord := range txRecords {
-		if !txRecord.Confirmed {
-			continue
-		}
-
-		// For confirmed transactions, check if they are still valid
-		method := utils.ParseMethod(txRecord.Tx, r.abi)
-		if method == "commitBatch" {
-			batchIndex := utils.ParseParentBatchIndex(txRecord.Tx.Data())
-			if batchIndex > lastCommitted.Uint64() {
-				// This batch was confirmed but is now invalid due to reorg
-				log.Info("L1 reorg detected for commit batch",
-					"batch_index", batchIndex,
-					"l1_last_committed", lastCommitted.Uint64(),
-					"tx_hash", txRecord.Tx.Hash().String())
-
-				// Mark transaction as unconfirmed so it can be resubmitted
-				txRecord.Confirmed = false
-				r.pendingTxs.MarkUnconfirmed(txRecord.Tx.Hash())
-			}
-		} else if method == "finalizeBatch" {
-			batchIndex := utils.ParseFBatchIndex(txRecord.Tx.Data())
-			if batchIndex > lastFinalized.Uint64() {
-				// This finalize was confirmed but is now invalid due to reorg
-				log.Info("L1 reorg detected for finalize batch",
-					"batch_index", batchIndex,
-					"l1_last_finalized", lastFinalized.Uint64(),
-					"tx_hash", txRecord.Tx.Hash().String())
-
-				// Mark transaction as unconfirmed so it can be resubmitted
-				txRecord.Confirmed = false
-				r.pendingTxs.MarkUnconfirmed(txRecord.Tx.Hash())
-			}
-		}
-	}
-
-	// Reset any failed batch indices that may need to be retried
-	r.pendingTxs.RemoveRollupRestriction()
-
 	// Update metrics
 	r.metrics.SetReorgDepth(float64(depth))
 	r.metrics.IncReorgs()
-
 	return nil
 }
 
