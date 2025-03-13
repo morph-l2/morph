@@ -96,11 +96,15 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 	log.Info(
 		"rotator state updated",
 		"epoch", r.epoch,
-		"start", r.startTime,
-		"epoch_update_time", epochUpdateTime,
-		"seq_update_time", sequcerUpdateTime,
+		"start_time", utils.FormatTime(r.startTime),
+		"start_timestamp", r.startTime,
+		"epoch_update_time", utils.FormatTime(epochUpdateTime),
+		"epoch_update_timestamp", epochUpdateTime,
+		"seq_update_time", utils.FormatTime(sequcerUpdateTime),
+		"seq_update_timestamp", sequcerUpdateTime,
 		"indexed_latest_block", storage.BlockProcessed(),
-		"indexed_event_emit_time", storage.BlockTime(),
+		"indexed_event_time", utils.FormatTime(big.NewInt(int64(storage.BlockTime()))),
+		"indexed_event_timestamp", storage.BlockTime(),
 	)
 
 	return nil

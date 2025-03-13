@@ -1002,7 +1002,7 @@ func (r *Rollup) rollup() error {
 	log.Info("batch index info",
 		"last_committed_batch_index", cindex,
 		"batch_index_will_get", batchIndex,
-		"pending_index", r.pendingTxs.pindex,
+		"current_processing_index", r.pendingTxs.pindex,
 		"failed_index", failedIndex,
 	)
 	if r.pendingTxs.ExistedIndex(batchIndex) {
