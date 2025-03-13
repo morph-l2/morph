@@ -120,10 +120,9 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	rollup.pendingTxs = NewPendingTxs([]byte{}, []byte{}, mockJournal)
 
 	// Initialize reorg detector
-	rollup.reorgDetector = &ReorgDetector{
-		l1Client: l1Mock,
-		metrics:  metrics,
-	}
+	// Use the mock implementation for controlled testing
+	mockReorgDetector := mock.NewMockReorgDetector()
+	rollup.reorgDetector = mockReorgDetector
 
 	return rollup, l1Mock, l2Mock, mockRollup
 }
