@@ -442,6 +442,30 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 		if err != nil {
 			return fmt.Errorf("failed to update rollup fee sum in leveldb: %w", err)
 		}
+
+		// Calculate and update L1 fee metrics
+		batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
+		batch, ok := r.batchCache.Get(batchIndex)
+		if ok {
+			collectedL1Fee := new(big.Float).Quo(new(big.Float).SetInt(batch.CollectedL1Fee.ToInt()), new(big.Float).SetInt(big.NewInt(params.Ether)))
+			collectedL1FeeFloat, _ := collectedL1Fee.Float64()
+
+			// Update metrics
+			r.collectedL1FeeSum += collectedL1FeeFloat
+			r.metrics.CollectedL1FeeSum.Add(collectedL1FeeFloat)
+
+			// Update leveldb
+			err := r.ldb.PutFloat(collectedL1FeeSumKey, r.collectedL1FeeSum)
+			if err != nil {
+				log.Error("failed to update collected L1 fee sum in leveldb", "error", err)
+			}
+
+			log.Info("Updated L1 fee metrics",
+				"batch_index", batchIndex,
+				"l1_fee_eth", collectedL1FeeFloat)
+		} else {
+			log.Warn("batch not found in cache", "batch_index", batchIndex)
+		}
 	} else if method == constants.MethodFinalizeBatch {
 		r.finalizeFeeSum += txFeeFloat
 		r.metrics.FinalizeCostSum.Add(txFeeFloat)
@@ -450,24 +474,6 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 		err := r.ldb.PutFloat(finalizeSumKey, r.finalizeFeeSum)
 		if err != nil {
 			return fmt.Errorf("failed to update finalize fee sum in leveldb: %w", err)
-		}
-	}
-
-	// If this is a blob transaction, calculate and update blob fee
-	if tx.Type() == ethtypes.BlobTxType {
-		blobGasUsed := tx.BlobGas()
-		blobGasPrice := tx.BlobGasFeeCap()
-		if blobGasUsed > 0 && blobGasPrice != nil {
-			blobFee := new(big.Float).SetInt(new(big.Int).Mul(big.NewInt(int64(blobGasUsed)), blobGasPrice))
-			blobFeeEth := new(big.Float).Quo(blobFee, new(big.Float).SetInt(big.NewInt(params.Ether)))
-			blobFeeFloat, _ := blobFeeEth.Float64()
-			r.collectedL1FeeSum += blobFeeFloat
-			r.metrics.CollectedL1FeeSum.Add(blobFeeFloat)
-			// Update leveldb
-			err := r.ldb.PutFloat(collectedL1FeeSumKey, r.collectedL1FeeSum)
-			if err != nil {
-				return fmt.Errorf("failed to update collected L1 fee sum in leveldb: %w", err)
-			}
 		}
 	}
 
@@ -725,6 +731,8 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 			if batchIndex <= lastCommitted.Uint64() {
 				// Another submitter has already committed this batch
 				log.Warn("Batch commit transaction failed but batch is already committed by another submitter", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
+				// Clean up batch from cache since it's already committed
+				r.batchCache.Delete(batchIndex)
 			} else {
 				// Contract bug detected - batch is not committed by anyone else but our transaction failed
 				// Stop rollup by not marking tx as confirmed
@@ -755,8 +763,11 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 		confirmations := currentBlock - status.receipt.BlockNumber.Uint64()
 
 		if method == constants.MethodCommitBatch {
-			batchIndex := utils.ParseParentBatchIndex(tx.Data())
+			batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
 			log.Info("Successfully committed batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "block_number", status.receipt.BlockNumber.Uint64(), "gas_used", status.receipt.GasUsed, "confirm", confirmations)
+
+			// Clean up batch from cache after successful commit
+			r.batchCache.Delete(batchIndex)
 		} else if method == constants.MethodFinalizeBatch {
 			batchIndex := utils.ParseFBatchIndex(tx.Data())
 			log.Info("Successfully finalized batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "block_number", status.receipt.BlockNumber.Uint64(), "gas_used", status.receipt.GasUsed, "confirm", confirmations)
@@ -1059,25 +1070,18 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	batch, err := GetRollupBatchByIndex(batchIndex, r.L2Clients)
-	if err != nil {
-		return fmt.Errorf("get rollup batch by index err:%v", err)
-	}
+	var batch *eth.RPCRollupBatch
+	var ok bool
 
-	// check if the batch is valid
-	if batch == nil {
-		log.Info("new batch not found, wait for the next turn")
+	batch, ok = r.batchCache.Get(batchIndex)
+	if !ok {
+		log.Info("batch not found, waiting for next iteration", "batch_index", batchIndex)
 		return nil
 	}
-
 	if len(batch.Signatures) == 0 {
 		log.Info("length of batch signature is empty, wait for the next turn")
 		return nil
 	}
-
-	// set batch cache
-	// it shoud be removed after the batch is committed
-	r.batchCache.Set(batchIndex, batch)
 
 	signature, err := r.buildSignatureInput(batch)
 	if err != nil {
@@ -1208,6 +1212,8 @@ func (r *Rollup) rollup() error {
 			r.pendingTxs.SetNonce(n1 - 1)
 			log.Info("update pnonce", "nonce", n1-1)
 		}
+		// Clean up batch from cache on send error
+		r.batchCache.Delete(batchIndex)
 		return fmt.Errorf("send tx error:%v", err.Error())
 	} else {
 		log.Info("rollup tx send to mempool succuess", "hash", signedTx.Hash().String())
