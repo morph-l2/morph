@@ -75,7 +75,7 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	l1Staking.SetActiveStakers(testStakers)
 
 	// Create rollup config
-	cfg := utils.Config{
+	defaultCfg := utils.Config{
 		MaxTip:         10e9,
 		MaxBaseFee:     100e9,
 		MinTip:         1e9,
@@ -99,21 +99,21 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	rollup := NewRollup(
 		context.Background(),
 		metrics,
-		nil,                      // l1RpcClient
-		l1Mock,                   // l1Client
-		[]iface.L2Client{l2Mock}, // l2Clients
-		mockRollup,               // rollup
-		l1Staking,                // staking
-		big.NewInt(1),            // chainId
-		privateKey,               // privKey
-		common.Address{},         // rollupAddr
-		rollupAbi,                // abi
-		cfg,                      // cfg
-		nil,                      // rsaPriv
-		rotator,                  // rotator
-		nil,                      // ldb
-		nil,                      // bm
-		eventStorage,             // eventInfoStorage
+		nil,
+		l1Mock,
+		[]iface.L2Client{l2Mock},
+		mockRollup,
+		l1Staking,
+		big.NewInt(1),
+		privateKey,
+		common.Address{},
+		rollupAbi,
+		defaultCfg,
+		nil,
+		rotator,
+		nil,
+		nil,
+		eventStorage,
 	)
 
 	// Initialize pending transactions
