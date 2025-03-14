@@ -44,19 +44,35 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 	return threshold
 }
 
-// calcFee calculates the total fee for a transaction
+// calcFee calculates the total transaction fee in ETH
+// For regular transactions: fee = gasUsed * effectiveGasPrice
+// For blob transactions: fee = (gasUsed * effectiveGasPrice) + (blobGasUsed * blobGasPrice)
 func calcFee(tx *ethtypes.Transaction, receipt *ethtypes.Receipt) *big.Float {
-	gasUsed := new(big.Float).SetUint64(receipt.GasUsed)
-	effectiveGasPrice := new(big.Float).SetInt(receipt.EffectiveGasPrice)
-	txFee := new(big.Float).Mul(gasUsed, effectiveGasPrice)
-	txFeeEth := new(big.Float).Quo(txFee, new(big.Float).SetInt(big.NewInt(params.Ether)))
+	if receipt == nil || tx == nil {
+		return new(big.Float).SetUint64(0)
+	}
 
-	// Add blob fee if it's a blob transaction
+	// Calculate base transaction fee
+	gasUsed := new(big.Float).SetUint64(receipt.GasUsed)
+	effectiveGasPrice := new(big.Float)
+	if receipt.EffectiveGasPrice != nil {
+		effectiveGasPrice.SetInt(receipt.EffectiveGasPrice)
+	}
+	txFee := new(big.Float).Mul(gasUsed, effectiveGasPrice)
+
+	// Convert to ETH
+	ethDenominator := new(big.Float).SetInt(big.NewInt(params.Ether))
+	txFeeEth := new(big.Float).Quo(txFee, ethDenominator)
+
+	// Add blob fee for blob transactions
 	if tx.Type() == ethtypes.BlobTxType {
 		blobGasUsed := new(big.Float).SetUint64(tx.BlobGas())
-		blobGasPrice := new(big.Float).SetInt(tx.BlobGasFeeCap())
+		blobGasPrice := new(big.Float)
+		if receipt.BlobGasPrice != nil {
+			blobGasPrice.SetInt(receipt.BlobGasPrice)
+		}
 		blobFee := new(big.Float).Mul(blobGasUsed, blobGasPrice)
-		blobFeeEth := new(big.Float).Quo(blobFee, new(big.Float).SetInt(big.NewInt(params.Ether)))
+		blobFeeEth := new(big.Float).Quo(blobFee, ethDenominator)
 		txFeeEth.Add(txFeeEth, blobFeeEth)
 	}
 
