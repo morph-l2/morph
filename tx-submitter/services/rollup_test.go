@@ -9,6 +9,7 @@ import (
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
@@ -121,38 +122,164 @@ func TestGetGasTipAndCap(t *testing.T) {
 
 func TestReSubmitTx(t *testing.T) {
 	l1Mock := mock.NewL1ClientWrapper()
-	initTip := big.NewInt(1e9)
-
-	baseFee := big.NewInt(1e9)
+	marketTip := big.NewInt(3e9) // 3 Gwei market tip
+	baseFee := big.NewInt(2e9)   // 2 Gwei base fee
 	excessBlobGas := uint64(1)
+	blobFee := eip4844.CalcBlobFee(excessBlobGas)
 	block := types.NewBlockWithHeader(
 		&types.Header{
 			BaseFee:       baseFee,
 			ExcessBlobGas: &excessBlobGas,
 		},
 	)
-	l1Mock.TipCap = initTip
+	l1Mock.TipCap = marketTip
 	l1Mock.Block = block
 	config := utils.Config{
 		MaxTip:     10e12,
 		MaxBaseFee: 100e9,
-		MinTip:     1e10,
-		TipFeeBump: 100,
+		MinTip:     1e9,
+		TipFeeBump: 0, // no bump for replace mode
 	}
 
 	priv, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
 	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, big.NewInt(1), priv, common.Address{}, nil, config, nil, nil, nil, nil, nil)
+
+	// Test nil tx
 	_, err = r.ReSubmitTx(false, nil)
 	require.ErrorContains(t, err, "nil tx")
-	oldTx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: initTip,
-	})
-	tx, err := r.ReSubmitTx(false, oldTx)
-	require.NoError(t, err)
-	require.EqualValues(t, config.MinTip, tx.GasTipCap().Uint64())
 
+	t.Run("DynamicFeeTx", func(t *testing.T) {
+		oldDynamicTx := types.NewTx(&types.DynamicFeeTx{
+			ChainID:   big.NewInt(1),
+			Nonce:     1,
+			GasTipCap: big.NewInt(2e9),  // 2 Gwei
+			GasFeeCap: big.NewInt(10e9), // 10 Gwei
+			Gas:       100000,
+			To:        &common.Address{},
+			Value:     big.NewInt(0),
+			Data:      []byte{1, 2, 3, 4},
+		})
+
+		// Test Replace Mode
+		t.Run("Replace", func(t *testing.T) {
+			newTx, err := r.ReSubmitTx(false, oldDynamicTx)
+			require.NoError(t, err)
+			require.NotNil(t, newTx)
+
+			// Verify fields preserved
+			require.Equal(t, oldDynamicTx.Nonce(), newTx.Nonce())
+			require.Equal(t, oldDynamicTx.Gas(), newTx.Gas())
+			require.Equal(t, oldDynamicTx.Data(), newTx.Data())
+			require.Equal(t, oldDynamicTx.Value(), newTx.Value())
+
+			// Verify fees are at least 1.1x of original
+			originalTip := oldDynamicTx.GasTipCap()
+			newTip := newTx.GasTipCap()
+			expectedTip := new(big.Int).Mul(originalTip, big.NewInt(110))
+			expectedTip = expectedTip.Div(expectedTip, big.NewInt(100))
+			require.True(t, newTip.Cmp(expectedTip) >= 0, "new tip should be at least 1.1x of original")
+
+			originalFeeCap := oldDynamicTx.GasFeeCap()
+			newFeeCap := newTx.GasFeeCap()
+			expectedFeeCap := new(big.Int).Mul(originalFeeCap, big.NewInt(110))
+			expectedFeeCap = expectedFeeCap.Div(expectedFeeCap, big.NewInt(100))
+			require.True(t, newFeeCap.Cmp(expectedFeeCap) >= 0, "new fee cap should be at least 1.1x of original")
+		})
+
+		// Test Resubmit Mode
+		t.Run("Resubmit", func(t *testing.T) {
+			newTx, err := r.ReSubmitTx(true, oldDynamicTx)
+			require.NoError(t, err)
+			require.NotNil(t, newTx)
+
+			// Verify fields preserved
+			require.Equal(t, oldDynamicTx.Nonce(), newTx.Nonce())
+			require.Equal(t, oldDynamicTx.Gas(), newTx.Gas())
+			require.Equal(t, oldDynamicTx.Data(), newTx.Data())
+			require.Equal(t, oldDynamicTx.Value(), newTx.Value())
+			require.Equal(t, oldDynamicTx.ChainId(), newTx.ChainId())
+
+			// Verify fees are market prices
+			require.Equal(t, marketTip.Uint64(), newTx.GasTipCap().Uint64(), "new tip should be market price")
+			require.True(t, newTx.GasFeeCap().Cmp(baseFee) > 0, "new fee cap should be higher than base fee")
+		})
+	})
+
+	t.Run("BlobTx", func(t *testing.T) {
+		oldBlobTx := types.NewTx(&types.BlobTx{
+			ChainID:    uint256.MustFromBig(big.NewInt(1)),
+			Nonce:      2,
+			GasTipCap:  uint256.MustFromBig(big.NewInt(2e9)),
+			GasFeeCap:  uint256.MustFromBig(big.NewInt(10e9)),
+			Gas:        200000,
+			To:         common.Address{},
+			Value:      uint256.NewInt(0),
+			Data:       []byte{1, 2, 3, 4},
+			BlobFeeCap: uint256.MustFromBig(big.NewInt(5e9)),
+			BlobHashes: []common.Hash{{1}},
+			Sidecar: &types.BlobTxSidecar{
+				Blobs:       []kzg4844.Blob{{1}},
+				Commitments: []kzg4844.Commitment{{1}},
+				Proofs:      []kzg4844.Proof{{1}},
+			},
+		})
+
+		// Test Replace Mode
+		t.Run("Replace", func(t *testing.T) {
+			newTx, err := r.ReSubmitTx(false, oldBlobTx)
+			require.NoError(t, err)
+			require.NotNil(t, newTx)
+
+			// Verify fields preserved
+			require.Equal(t, oldBlobTx.Nonce(), newTx.Nonce())
+			require.Equal(t, oldBlobTx.Gas(), newTx.Gas())
+			require.Equal(t, oldBlobTx.Data(), newTx.Data())
+			require.Equal(t, oldBlobTx.Value(), newTx.Value())
+			require.Equal(t, len(oldBlobTx.BlobHashes()), len(newTx.BlobHashes()))
+
+			// Verify fees are at least 2x of original
+			originalTip := oldBlobTx.GasTipCap()
+			newTip := newTx.GasTipCap()
+			expectedTip := new(big.Int).Mul(originalTip, big.NewInt(200))
+			expectedTip = expectedTip.Div(expectedTip, big.NewInt(100))
+			require.True(t, newTip.Cmp(expectedTip) >= 0, "new tip should be at least 2x of original")
+
+			originalFeeCap := oldBlobTx.GasFeeCap()
+			newFeeCap := newTx.GasFeeCap()
+			expectedFeeCap := new(big.Int).Mul(originalFeeCap, big.NewInt(200))
+			expectedFeeCap = expectedFeeCap.Div(expectedFeeCap, big.NewInt(100))
+			require.True(t, newFeeCap.Cmp(expectedFeeCap) >= 0, "new fee cap should be at least 2x of original")
+
+			originalBlobFeeCap := oldBlobTx.BlobGasFeeCap()
+			newBlobFeeCap := newTx.BlobGasFeeCap()
+			expectedBlobFeeCap := new(big.Int).Mul(originalBlobFeeCap, big.NewInt(200))
+			expectedBlobFeeCap = expectedBlobFeeCap.Div(expectedBlobFeeCap, big.NewInt(100))
+			require.True(t, newBlobFeeCap.Cmp(expectedBlobFeeCap) >= 0, "new blob fee cap should be at least 2x of original")
+		})
+
+		// Test Resubmit Mode
+		t.Run("Resubmit", func(t *testing.T) {
+			newTx, err := r.ReSubmitTx(true, oldBlobTx)
+			require.NoError(t, err)
+			require.NotNil(t, newTx)
+
+			// Verify fields preserved
+			require.Equal(t, oldBlobTx.Nonce(), newTx.Nonce())
+			require.Equal(t, oldBlobTx.Gas(), newTx.Gas())
+			require.Equal(t, oldBlobTx.Data(), newTx.Data())
+			require.Equal(t, oldBlobTx.Value(), newTx.Value())
+			require.Equal(t, len(oldBlobTx.BlobHashes()), len(newTx.BlobHashes()))
+
+			// Verify fees are market prices
+
+			require.Equal(t, marketTip.Uint64(), newTx.GasTipCap().Uint64(), "new tip should be market price")
+			require.True(t, newTx.GasFeeCap().Cmp(baseFee) > 0, "new fee cap should be higher than base fee")
+			require.NotNil(t, newTx.BlobGasFeeCap(), "new blob tx should have blob fee cap")
+			require.True(t, newTx.BlobGasFeeCap().Cmp(blobFee) == 0, "new blob fee cap should be equal to blob fee")
+		})
+	})
 }
 
 func TestCancelTx(t *testing.T) {
@@ -210,8 +337,19 @@ func TestCancelTx(t *testing.T) {
 	require.Equal(t, originalDynamicTx.Nonce(), cancelTx.Nonce())
 	require.Equal(t, originalDynamicTx.Gas(), cancelTx.Gas())
 	require.Equal(t, 0, len(cancelTx.Data()))
-	require.True(t, cancelTx.GasTipCap().Cmp(originalDynamicTx.GasTipCap()) >= 0)
-	require.True(t, cancelTx.GasFeeCap().Cmp(originalDynamicTx.GasFeeCap()) >= 0)
+
+	// Verify fee multipliers for DynamicFeeTx (1.2x)
+	originalTip := originalDynamicTx.GasTipCap()
+	cancelTip := cancelTx.GasTipCap()
+	expectedTip := new(big.Int).Mul(originalTip, big.NewInt(110))
+	expectedTip = expectedTip.Div(expectedTip, big.NewInt(100))
+	require.True(t, cancelTip.Cmp(expectedTip) >= 0, "cancel tx tip should be at least 1.1x of original")
+
+	originalFeeCap := originalDynamicTx.GasFeeCap()
+	cancelFeeCap := cancelTx.GasFeeCap()
+	expectedFeeCap := new(big.Int).Mul(originalFeeCap, big.NewInt(110))
+	expectedFeeCap = expectedFeeCap.Div(expectedFeeCap, big.NewInt(100))
+	require.True(t, cancelFeeCap.Cmp(expectedFeeCap) >= 0, "cancel tx fee cap should be at least 1.1x of original")
 
 	// Test 3: Cancel BlobTx
 	blobTx := types.NewTx(&types.BlobTx{
@@ -240,9 +378,19 @@ func TestCancelTx(t *testing.T) {
 	require.Equal(t, blobTx.Nonce(), cancelBlobTx.Nonce())
 	require.Equal(t, blobTx.Gas(), cancelBlobTx.Gas())
 	require.Equal(t, 0, len(cancelBlobTx.Data()))
-	require.True(t, cancelBlobTx.GasTipCap().Cmp(blobTx.GasTipCap()) >= 0)
-	require.True(t, cancelBlobTx.GasFeeCap().Cmp(blobTx.GasFeeCap()) >= 0)
-	require.True(t, cancelBlobTx.BlobGasFeeCap().Cmp(blobTx.BlobGasFeeCap()) >= 0)
+
+	// Verify fee multipliers for BlobTx (2x)
+	originalTip = blobTx.GasTipCap()
+	cancelTip = cancelBlobTx.GasTipCap()
+	require.True(t, cancelTip.Cmp(new(big.Int).Mul(originalTip, big.NewInt(2))) >= 0, "cancel blob tx tip should be at least 2x of original")
+
+	originalFeeCap = blobTx.GasFeeCap()
+	cancelFeeCap = cancelBlobTx.GasFeeCap()
+	require.True(t, cancelFeeCap.Cmp(new(big.Int).Mul(originalFeeCap, big.NewInt(2))) >= 0, "cancel blob tx fee cap should be at least 2x of original")
+
+	originalBlobFeeCap := blobTx.BlobGasFeeCap()
+	cancelBlobFeeCap := cancelBlobTx.BlobGasFeeCap()
+	require.True(t, cancelBlobFeeCap.Cmp(new(big.Int).Mul(originalBlobFeeCap, big.NewInt(2))) >= 0, "cancel blob tx blob fee cap should be at least 2x of original")
 	require.Equal(t, 1, len(cancelBlobTx.BlobHashes()))
 	require.Equal(t, 1, len(cancelBlobTx.BlobTxSidecar().Blobs))
 }
