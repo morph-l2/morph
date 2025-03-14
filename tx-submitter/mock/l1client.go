@@ -233,3 +233,8 @@ func (l *L1ClientWrapper) AddTx(tx *types.Transaction) {
 func (l *L1ClientWrapper) AddReceipt(receipt *types.Receipt) {
 	l.receipts[receipt.TxHash] = receipt
 }
+
+// ClearReceipts removes all receipts to simulate reorg
+func (l *L1ClientWrapper) ClearReceipts() {
+	l.receipts = make(map[common.Hash]*types.Receipt)
+}

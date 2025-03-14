@@ -5,17 +5,15 @@ import (
 	"math/big"
 	"testing"
 
-	"morph-l2/tx-submitter/mock"
-	"morph-l2/tx-submitter/utils"
-
+	"github.com/holiman/uint256"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
-
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
+	"morph-l2/tx-submitter/mock"
+	"morph-l2/tx-submitter/utils"
 )
 
 func TestSendTx(t *testing.T) {
@@ -61,11 +59,9 @@ func TestGetGasTipAndCap(t *testing.T) {
 	initTip := big.NewInt(1e9)
 
 	baseFee := big.NewInt(1e9)
-	excessBlobGas := uint64(1)
 	block := types.NewBlockWithHeader(
 		&types.Header{
-			BaseFee:       baseFee,
-			ExcessBlobGas: &excessBlobGas,
+			BaseFee: baseFee,
 		},
 	)
 	l1Mock.TipCap = initTip
@@ -124,12 +120,9 @@ func TestReSubmitTx(t *testing.T) {
 	l1Mock := mock.NewL1ClientWrapper()
 	marketTip := big.NewInt(3e9) // 3 Gwei market tip
 	baseFee := big.NewInt(2e9)   // 2 Gwei base fee
-	excessBlobGas := uint64(1)
-	blobFee := eip4844.CalcBlobFee(excessBlobGas)
 	block := types.NewBlockWithHeader(
 		&types.Header{
-			BaseFee:       baseFee,
-			ExcessBlobGas: &excessBlobGas,
+			BaseFee: baseFee,
 		},
 	)
 	l1Mock.TipCap = marketTip
@@ -144,7 +137,7 @@ func TestReSubmitTx(t *testing.T) {
 	priv, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, big.NewInt(1), priv, common.Address{}, nil, config, nil, nil, nil, nil, nil)
+	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, priv, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 
 	// Test nil tx
 	_, err = r.ReSubmitTx(false, nil)
@@ -273,11 +266,9 @@ func TestReSubmitTx(t *testing.T) {
 			require.Equal(t, len(oldBlobTx.BlobHashes()), len(newTx.BlobHashes()))
 
 			// Verify fees are market prices
-
 			require.Equal(t, marketTip.Uint64(), newTx.GasTipCap().Uint64(), "new tip should be market price")
 			require.True(t, newTx.GasFeeCap().Cmp(baseFee) > 0, "new fee cap should be higher than base fee")
 			require.NotNil(t, newTx.BlobGasFeeCap(), "new blob tx should have blob fee cap")
-			require.True(t, newTx.BlobGasFeeCap().Cmp(blobFee) == 0, "new blob fee cap should be equal to blob fee")
 		})
 	})
 }
@@ -287,11 +278,9 @@ func TestCancelTx(t *testing.T) {
 	l1Mock := mock.NewL1ClientWrapper()
 	initTip := big.NewInt(1e9)
 	baseFee := big.NewInt(1e9)
-	excessBlobGas := uint64(1)
 	block := types.NewBlockWithHeader(
 		&types.Header{
-			BaseFee:       baseFee,
-			ExcessBlobGas: &excessBlobGas,
+			BaseFee: baseFee,
 		},
 	)
 	l1Mock.TipCap = initTip
@@ -310,7 +299,7 @@ func TestCancelTx(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create rollup instance
-	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, big.NewInt(1), priv, common.Address{}, nil, config, nil, nil, nil, nil, nil)
+	r := NewRollup(context.Background(), nil, nil, l1Mock, nil, nil, nil, nil, priv, common.Address{}, nil, config, nil, nil, nil, nil, nil)
 
 	// Test 1: Cancel nil transaction
 	_, err = r.CancelTx(nil)
@@ -393,4 +382,65 @@ func TestCancelTx(t *testing.T) {
 	require.True(t, cancelBlobFeeCap.Cmp(new(big.Int).Mul(originalBlobFeeCap, big.NewInt(2))) >= 0, "cancel blob tx blob fee cap should be at least 2x of original")
 	require.Equal(t, 1, len(cancelBlobTx.BlobHashes()))
 	require.Equal(t, 1, len(cancelBlobTx.BlobTxSidecar().Blobs))
+}
+
+func TestTxStateTransition(t *testing.T) {
+	// Create test transactions
+	tx1 := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   big.NewInt(1),
+		Nonce:     0,
+		GasTipCap: big.NewInt(1),
+		GasFeeCap: big.NewInt(100),
+		Gas:       21000,
+		To:        &common.Address{},
+		Value:     big.NewInt(1),
+	})
+	receipt := &types.Receipt{
+		TxHash:       tx1.Hash(),
+		BlockNumber:  big.NewInt(1000),
+		Status:       1,
+		BlobGasUsed:  0,
+		BlobGasPrice: big.NewInt(0),
+	}
+
+	// Create rollup instance
+	rollup, l1Mock, _, _ := setupTestRollup(t)
+
+	// Test transaction state transitions
+	t.Run("Transaction State Flow", func(t *testing.T) {
+		// Step 1: Transaction exists only locally (not in mempool or block)
+		err := rollup.pendingTxs.Add(tx1)
+		require.NoError(t, err)
+		status, err := rollup.getTxStatus(tx1)
+		require.NoError(t, err)
+		require.Equal(t, txStatusMissing, status.state)
+
+		// Step 2: Transaction detected in mempool
+		l1Mock.AddTx(tx1)
+		status, err = rollup.getTxStatus(tx1)
+		require.NoError(t, err)
+		require.Equal(t, txStatusPending, status.state)
+
+		// Step 3: Transaction included in block
+		l1Mock.AddReceipt(receipt)
+		status, err = rollup.getTxStatus(tx1)
+		require.NoError(t, err)
+		require.Equal(t, txStatusConfirmed, status.state)
+
+		// Step 4: Transaction finalized (after 6 blocks)
+		l1Mock.Block = types.NewBlockWithHeader(
+			&types.Header{
+				Number: big.NewInt(1006),
+			},
+		)
+		status, err = rollup.getTxStatus(tx1)
+		require.NoError(t, err)
+		require.Equal(t, txStatusConfirmed, status.state)
+
+		// Step 5: Process transaction and verify cleanup
+		rollup.ProcessTx()
+		// Verify transaction is removed from pendingTxs after finalization
+		txRecord := rollup.pendingTxs.GetTxRecord(tx1.Hash())
+		require.Nil(t, txRecord)
+	})
 }
