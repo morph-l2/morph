@@ -135,3 +135,15 @@ func ParseStringToType[T any](s string) (T, error) {
 
 	return result, nil
 }
+
+// WeiToGwei converts wei value to gwei string representation
+func WeiToGwei(wei *big.Int) string {
+	if wei == nil {
+		return "0"
+	}
+	gwei := new(big.Float).Quo(
+		new(big.Float).SetInt(wei),
+		new(big.Float).SetInt64(1e9),
+	)
+	return gwei.Text('f', 9)
+}

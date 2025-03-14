@@ -1,9 +1,56 @@
-.idea
-.env*
-build
-tx-submitter
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
 .DS_Store
-.vscode
-*.log
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# Binary files
+tx-submitter
+**/tx-submitter
+build/
 *debug_bin*
+
+# Config and Environment files
+.env*
+
+# Test and Debug files
+test/
+testleveldb/
+test_data/
+debug/
+*.test
+*.log
+*.pprof
+cpu.prof
+mem.prof
+trace.out
+
+# Coverage reports
+coverage.txt
+
+# Transaction files
 journal.rlp
+journal*.rlp
+
+# Temporary files
+tmp/

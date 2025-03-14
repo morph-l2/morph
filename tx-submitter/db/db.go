@@ -8,10 +8,11 @@ import (
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/go-ethereum/ethdb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 var (
-	ErrKeyNotFound = fmt.Errorf("not found")
+	ErrKeyNotFound = errors.ErrNotFound
 )
 
 type Db struct {
@@ -55,6 +56,9 @@ func (d *Db) GetString(key string) (string, error) {
 	defer d.m.Unlock()
 	v, err := d.db.Get([]byte(key))
 	if err != nil {
+		if err == errors.ErrNotFound {
+			return "", ErrKeyNotFound
+		}
 		return "", fmt.Errorf("failed to get key from leveldb %w", err)
 	}
 	return string(v), nil
