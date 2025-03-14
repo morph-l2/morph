@@ -376,6 +376,7 @@ func TestTxStateTransition(t *testing.T) {
 
 	// Create rollup instance
 	rollup, l1Mock, _, _ := setupTestRollup(t)
+	rollup.cfg.PriorityRollup = true
 
 	// Test transaction state transitions
 	t.Run("Transaction State Flow", func(t *testing.T) {
