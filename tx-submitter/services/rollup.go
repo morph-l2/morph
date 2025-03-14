@@ -285,16 +285,6 @@ func (r *Rollup) ProcessTx() error {
 				"total_submitters", len(r.rotator.GetSubmitterSet()),
 				"next_rotation", endTimeFormatted,
 				"time_remaining", timeLeftFormatted)
-
-			// Process existing transactions without submitting new ones
-			for _, txRecord := range txRecords {
-				if err := r.processSingleTx(txRecord); err != nil {
-					log.Error("Transaction processing failed",
-						"tx_hash", txRecord.Tx.Hash().String(),
-						"error", err)
-					return fmt.Errorf("transaction processing failed: %w", err)
-				}
-			}
 			return nil
 		}
 		return err
@@ -306,6 +296,7 @@ func (r *Rollup) ProcessTx() error {
 			log.Error("Transaction processing failed",
 				"tx_hash", txRecord.Tx.Hash().String(),
 				"error", err)
+			return fmt.Errorf("transaction processing failed: %w", err)
 		}
 	}
 
@@ -329,6 +320,9 @@ func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 var errNotMyTurn = errors.New("not my turn")
 
 func (r *Rollup) checkSubmitterTurn() error {
+	if r.cfg.PriorityRollup {
+		return nil
+	}
 	activeSubmitter, submitterIndex, err := r.getCachedSubmitter()
 	if err != nil {
 		return fmt.Errorf("rollup: get current submitter err, %w", err)
