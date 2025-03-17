@@ -241,3 +241,33 @@ func dataAndHashesFromTxs(txs types.Transactions, targetTx *types.Transaction) [
 	}
 	return hashes
 }
+
+// GetBlobSidecarsEnhanced is an enhanced version of GetBlobSidecars method, combining two approaches to fetch blob data
+// If the first method fails or returns no blobs, it will try the second method
+func (cl *L1BeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) ([]*BlobSidecar, error) {
+	// First try using the original GetBlobSidecars method
+	blobSidecars, err := cl.GetBlobSidecars(ctx, ref, hashes)
+	if err != nil || len(blobSidecars) == 0 {
+		// If failed or no blobs retrieved, try the second method
+		slotFn, err := cl.GetTimeToSlotFn(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get timeToSlotFn: %w", err)
+		}
+
+		slot, err := slotFn(ref.Time)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate slot: %w", err)
+		}
+
+		// Build request URL and use apiReq method directly
+		method := fmt.Sprintf("%s%d", sidecarsMethodPrefix, slot)
+		var blobResp APIGetBlobSidecarsResponse
+		if err := cl.apiReq(ctx, &blobResp, method); err != nil {
+			return nil, fmt.Errorf("failed to request blob sidecars: %w", err)
+		}
+
+		return blobResp.Data, nil
+	}
+
+	return blobSidecars, nil
+}
