@@ -978,7 +978,7 @@ func (r *Rollup) rollup() error {
 		endTimeFormatted := utils.FormatTime(big.NewInt(end))
 		timeLeftFormatted := fmt.Sprintf("%dm%ds", timeLeft/60, timeLeft%60)
 
-		log.Debug("Rotation status",
+		log.Info("Rotation status",
 			"submitter_index", activeIndex,
 			"active_submitter", activeAddress,
 			"my_address", myAddress,
