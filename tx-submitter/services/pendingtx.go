@@ -40,9 +40,8 @@ type PendingTxs struct {
 	txinfos map[common.Hash]*types.TxRecord
 	pnonce  uint64 // pending nonce
 
-	failedIndex *uint64
-	pindex      uint64 // pending batch index
-	pfinalize   uint64
+	pindex    uint64 // pending batch index
+	pfinalize uint64
 
 	commitBatchId   []byte
 	finalizeBatchId []byte
@@ -235,32 +234,6 @@ func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 		}
 	}
 	return false
-}
-
-// HaveFailed checks if there are any failed transactions
-func (pt *PendingTxs) HaveFailed() bool {
-	pt.mu.RLock()
-	defer pt.mu.RUnlock()
-	return pt.failedIndex != nil
-}
-
-// TrySetFailedBatchIndex tries to set the failed batch index
-func (pt *PendingTxs) TrySetFailedBatchIndex(index uint64) {
-	currentPindex := pt.GetPindex()
-	if index > currentPindex {
-		return
-	}
-
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	pt.failedIndex = &index
-}
-
-// RemoveRollupRestriction removes the rollup restriction
-func (pt *PendingTxs) RemoveRollupRestriction() {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	pt.failedIndex = nil
 }
 
 // Recover recovers transactions from the journal
