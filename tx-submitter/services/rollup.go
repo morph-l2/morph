@@ -116,7 +116,7 @@ func NewRollup(
 		abi:              abi,
 		rotator:          rotator,
 		cfg:              cfg,
-		signer:           ethtypes.NewLondonSigner(chainId),
+		signer:           ethtypes.LatestSignerForChainID(chainId),
 		externalRsaPriv:  rsaPriv,
 		batchCache:       types.NewBatchCache(batchFetcher),
 		ldb:              ldb,
