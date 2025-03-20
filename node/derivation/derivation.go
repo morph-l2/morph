@@ -339,8 +339,9 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 			Time: header.Time,
 		}, indexedBlobHashes)
 		if err != nil {
-			d.logger.Error("Failed to get blobs, continuing processing", "error", err)
-		} else if len(blobSidecars) > 0 {
+			return nil, fmt.Errorf("failed to get blobs, continuing processing:%v", err)
+		}
+		if len(blobSidecars) > 0 {
 			// Create blob sidecar
 			var blobTxSidecar eth.BlobTxSidecar
 			matchedCount := 0
@@ -384,6 +385,8 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 			if matchedCount > 0 {
 				batch.Sidecar = blobTxSidecar
 			}
+		} else {
+			return nil, fmt.Errorf("not matched blob,txHash:%v,blockNumber:%v", txHash, blockNumber)
 		}
 	}
 
