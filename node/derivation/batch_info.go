@@ -181,6 +181,10 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		if err := block.Decode(rawBlockContexts[i*60 : i*60+60]); err != nil {
 			return fmt.Errorf("decode chunk block context error:%v", err)
 		}
+		fmt.Println("block.", block.Number)
+		fmt.Println("block.txsNum:", block.txsNum)
+		fmt.Println("block.l1MsgNum:", block.l1MsgNum)
+		fmt.Println("len(batch.Sidecar.Blobs):", len(batch.Sidecar.Blobs))
 		if i == 0 {
 			bi.firstBlockNumber = block.Number
 		}
