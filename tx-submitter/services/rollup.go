@@ -1038,11 +1038,9 @@ func (r *Rollup) rollup() error {
 	}
 
 	batch, ok := r.batchCache.Get(batchIndex)
-	if !ok || len(batch.Signatures) == 0 {
-		log.Info("Batch validation failed",
-			"batch_index", batchIndex,
-			"found", ok,
-			"has_signatures", ok && len(batch.Signatures) > 0)
+	if !ok {
+		log.Info("Batch not found in cache",
+			"batch_index", batchIndex)
 		return nil
 	}
 
