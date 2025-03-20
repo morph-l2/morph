@@ -76,6 +76,9 @@ func (bi *BatchInfo) TxNum() uint64 {
 
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
+	if len(batch.Sidecar.Blobs) == 0 {
+		return fmt.Errorf("blobs length can not be zero")
+	}
 	bi.root = batch.PostStateRoot
 	bi.withdrawalRoot = batch.WithdrawRoot
 	// If skipMap is zero value, there are no msgs that can be skipped
@@ -122,11 +125,9 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		}
 		var txs []*eth.Transaction
 		var err error
-		if len(batch.Sidecar.Blobs) != 0 {
-			txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
-			if err != nil {
-				return fmt.Errorf("decode txsPayload error:%v", err)
-			}
+		txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
+		if err != nil {
+			return fmt.Errorf("decode txsPayload error:%v", err)
 		}
 		txsNum += uint64(block.txsNum)
 		l1MsgNum += uint64(block.l1MsgNum)
