@@ -113,27 +113,31 @@ func NewRollup(
 	eventInfoStorage *event.EventInfoStorage,
 ) *Rollup {
 	batchFetcher := NewBatchFetcher(l2Clients)
-	return &Rollup{
-		ctx:              ctx,
-		metrics:          metrics,
-		l1RpcClient:      l1RpcClient,
-		L1Client:         l1,
-		Rollup:           rollup,
-		Staking:          staking,
-		L2Clients:        l2Clients,
-		privKey:          priKey,
-		chainId:          chainId,
-		rollupAddr:       rollupAddr,
-		abi:              abi,
-		rotator:          rotator,
-		cfg:              cfg,
-		signer:           ethtypes.LatestSignerForChainID(chainId),
-		externalRsaPriv:  rsaPriv,
-		batchCache:       types.NewBatchCache(batchFetcher),
-		ldb:              ldb,
-		bm:               bm,
-		eventInfoStorage: eventInfoStorage,
+	reorgDetector := NewReorgDetector(l1, metrics)
+	r := &Rollup{
+		ctx:                   ctx,
+		metrics:               metrics,
+		l1RpcClient:           l1RpcClient,
+		L1Client:              l1,
+		Rollup:                rollup,
+		Staking:               staking,
+		L2Clients:             l2Clients,
+		privKey:               priKey,
+		chainId:               chainId,
+		rollupAddr:            rollupAddr,
+		abi:                   abi,
+		rotator:               rotator,
+		cfg:                   cfg,
+		signer:                ethtypes.LatestSignerForChainID(chainId),
+		externalRsaPriv:       rsaPriv,
+		batchCache:            types.NewBatchCache(batchFetcher),
+		ldb:                   ldb,
+		bm:                    bm,
+		eventInfoStorage:      eventInfoStorage,
+		reorgDetector:         reorgDetector,
+		submitterCacheTimeout: 5 * time.Second, // Cache submitter info for 5 seconds
 	}
+	return r
 }
 
 func (r *Rollup) Start() error {
