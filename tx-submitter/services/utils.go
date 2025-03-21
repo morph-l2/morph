@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
-	ethtypes "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/params"
 )
@@ -44,39 +44,24 @@ func calcThresholdValue(x *big.Int, isBlobTx bool) *big.Int {
 	return threshold
 }
 
-// calcFee calculates the total transaction fee in ETH
-// For regular transactions: fee = gasUsed * effectiveGasPrice
-// For blob transactions: fee = (gasUsed * effectiveGasPrice) + (blobGasUsed * blobGasPrice)
-func calcFee(tx *ethtypes.Transaction, receipt *ethtypes.Receipt) *big.Float {
-	if receipt == nil || tx == nil {
-		return new(big.Float).SetUint64(0)
+func calcFee(receipt *types.Receipt) float64 {
+
+	if receipt == nil || receipt.EffectiveGasPrice == nil {
+		return 0
 	}
 
-	// Calculate base transaction fee
-	gasUsed := new(big.Float).SetUint64(receipt.GasUsed)
-	effectiveGasPrice := new(big.Float)
-	if receipt.EffectiveGasPrice != nil {
-		effectiveGasPrice.SetInt(receipt.EffectiveGasPrice)
-	}
-	txFee := new(big.Float).Mul(gasUsed, effectiveGasPrice)
-
-	// Convert to ETH
-	ethDenominator := new(big.Float).SetInt(big.NewInt(params.Ether))
-	txFeeEth := new(big.Float).Quo(txFee, ethDenominator)
-
-	// Add blob fee for blob transactions
-	if tx.Type() == ethtypes.BlobTxType {
-		blobGasUsed := new(big.Float).SetUint64(tx.BlobGas())
-		blobGasPrice := new(big.Float)
+	calldatafee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
+	// blobfee
+	blobfee := big.NewInt(0)
+	if receipt.Type == types.BlobTxType {
 		if receipt.BlobGasPrice != nil {
-			blobGasPrice.SetInt(receipt.BlobGasPrice)
+			blobfee = new(big.Int).Mul(big.NewInt(int64(receipt.BlobGasUsed)), receipt.BlobGasPrice)
 		}
-		blobFee := new(big.Float).Mul(blobGasUsed, blobGasPrice)
-		blobFeeEth := new(big.Float).Quo(blobFee, ethDenominator)
-		txFeeEth.Add(txFeeEth, blobFeeEth)
+
 	}
 
-	return txFeeEth
+	fee := new(big.Int).Add(calldatafee, blobfee)
+	return ToEtherFloat(fee)
 }
 
 func ToEtherFloat(weiAmt *big.Int) float64 {

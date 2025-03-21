@@ -82,7 +82,7 @@ func (j *Journal) ParseAllTxs() ([]*types.Transaction, error) {
 	content, err := readFileContent(j.path)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read journal file: %w", err)
+		return nil, fmt.Errorf("failed to parse txs: %w", err)
 	}
 
 	if len(content) == 0 {

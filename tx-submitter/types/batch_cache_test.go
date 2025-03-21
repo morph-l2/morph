@@ -30,13 +30,8 @@ func TestBatchCache(t *testing.T) {
 
 		expectedBatch := &eth.RPCRollupBatch{
 			Version: 1,
-			Signatures: []eth.RPCBatchSignature{
-				{
-					Signature: []byte("signature"),
-				},
-			},
 		}
-		mockFetcher.On("GetRollupBatchByIndex", uint64(1)).Return(expectedBatch, nil)
+		mockFetcher.On("GetRollupBatchByIndex", uint64(1)).Return(expectedBatch, nil).Once()
 
 		batch, ok := cache.Get(1)
 		assert.True(t, ok)
@@ -69,23 +64,13 @@ func TestBatchCache(t *testing.T) {
 
 		batch := &eth.RPCRollupBatch{
 			Version: 1,
-			Signatures: []eth.RPCBatchSignature{
-				{
-					Signature: []byte("signature"),
-				},
-			},
 		}
-
-		// Add this line to set up the mock expectation
-		mockFetcher.On("GetRollupBatchByIndex", uint64(3)).Return(batch, nil).Maybe()
 
 		cache.Set(3, batch)
 
 		gotBatch, ok := cache.Get(3)
 		assert.True(t, ok)
 		assert.Equal(t, batch, gotBatch)
-
-		mockFetcher.AssertExpectations(t)
 	})
 
 	t.Run("Delete batch", func(t *testing.T) {
@@ -94,11 +79,6 @@ func TestBatchCache(t *testing.T) {
 
 		batch := &eth.RPCRollupBatch{
 			Version: 1,
-			Signatures: []eth.RPCBatchSignature{
-				{
-					Signature: []byte("signature"),
-				},
-			},
 		}
 
 		cache.Set(4, batch)
@@ -122,22 +102,8 @@ func TestBatchCache(t *testing.T) {
 		mockFetcher := new(MockBatchFetcher)
 		cache := NewBatchCache(mockFetcher)
 
-		batch1 := &eth.RPCRollupBatch{
-			Version: 1,
-			Signatures: []eth.RPCBatchSignature{
-				{
-					Signature: []byte("signature1"),
-				},
-			},
-		}
-		batch2 := &eth.RPCRollupBatch{
-			Version: 2,
-			Signatures: []eth.RPCBatchSignature{
-				{
-					Signature: []byte("signature2"),
-				},
-			},
-		}
+		batch1 := &eth.RPCRollupBatch{Version: 1}
+		batch2 := &eth.RPCRollupBatch{Version: 2}
 
 		cache.Set(5, batch1)
 		cache.Set(6, batch2)
@@ -164,14 +130,7 @@ func TestBatchCache(t *testing.T) {
 		cache := NewBatchCache(mockFetcher)
 
 		// Pre-set a batch to avoid nil pointer in concurrent access
-		testBatch := &eth.RPCRollupBatch{
-			Version: 7,
-			Signatures: []eth.RPCBatchSignature{
-				{
-					Signature: []byte("signature"),
-				},
-			},
-		}
+		testBatch := &eth.RPCRollupBatch{Version: 7}
 		cache.Set(7, testBatch)
 
 		// Setup mock expectation to allow any number of calls
