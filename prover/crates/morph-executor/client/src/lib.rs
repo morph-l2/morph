@@ -15,7 +15,8 @@ pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
     let mut tx_bytes: Vec<u8> = vec![];
     for trace in &input.l2_traces {
         // BlockContext
-        // Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2) || Miner(20)
+        // Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2)
+        // || Miner(20)
         let mut block_ctx: Vec<u8> = Vec::with_capacity(80);
         block_ctx.extend_from_slice(&trace.number().to_be_bytes());
         block_ctx.extend_from_slice(&trace.timestamp().to::<u64>().to_be_bytes());
