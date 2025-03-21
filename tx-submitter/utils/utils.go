@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -36,10 +37,32 @@ func Loop(ctx context.Context, period time.Duration, f func()) {
 }
 
 func ParseFBatchIndex(calldata []byte) uint64 {
-	abi, _ := bindings.RollupMetaData.GetAbi()
-	parms, _ := abi.Methods["finalizeBatch"].Inputs.Unpack(calldata[4:])
-	batchIndex, _ := ntype.BatchHeaderBytes(parms[0].([]byte)).BatchIndex()
-	return batchIndex
+	if len(calldata) < 4 {
+		return 0
+	}
+
+	abi, err := bindings.RollupMetaData.GetAbi()
+	if err != nil {
+		return 0
+	}
+
+	method, exists := abi.Methods["finalizeBatch"]
+	if !exists {
+		return 0
+	}
+
+	parms, err := method.Inputs.Unpack(calldata[4:])
+	if err != nil || len(parms) == 0 {
+		return 0
+	}
+
+	batchBytes, ok := parms[0].([]byte)
+	if !ok || len(batchBytes) < 9 {
+		return 0
+	}
+
+	// 1-9 is batch index
+	return binary.BigEndian.Uint64(batchBytes[1:9])
 }
 
 func ParseParentBatchIndex(calldata []byte) uint64 {
@@ -54,6 +77,46 @@ func ParseParentBatchIndex(calldata []byte) uint64 {
 	pbh := v.FieldByName("ParentBatchHeader")
 	batchIndex := binary.BigEndian.Uint64(pbh.Bytes()[1:9])
 	return batchIndex
+}
+
+// SetFBatchIndex sets the batch index in the calldata while preserving all other data
+func SetFBatchIndex(calldata []byte, batchIndex uint64) error {
+	if len(calldata) < 4 {
+		return fmt.Errorf("calldata too short")
+	}
+
+	abi, err := bindings.RollupMetaData.GetAbi()
+	if err != nil {
+		return fmt.Errorf("failed to get ABI: %w", err)
+	}
+
+	method, exists := abi.Methods["finalizeBatch"]
+	if !exists {
+		return fmt.Errorf("finalizeBatch method not found in ABI")
+	}
+
+	parms, err := method.Inputs.Unpack(calldata[4:])
+	if err != nil || len(parms) == 0 {
+		return fmt.Errorf("failed to unpack parameters: %w", err)
+	}
+
+	batchBytes, ok := parms[0].([]byte)
+	if !ok || len(batchBytes) < 9 {
+		return fmt.Errorf("invalid batch bytes")
+	}
+
+	// Modify only the batch index (bytes 1-9) while keeping other data unchanged
+	binary.BigEndian.PutUint64(batchBytes[1:9], batchIndex)
+
+	// Re-encode the parameters
+	encodedParams, err := method.Inputs.Pack(batchBytes)
+	if err != nil {
+		return fmt.Errorf("failed to pack parameters: %w", err)
+	}
+
+	// Update only the parameter portion, keeping the method ID unchanged
+	copy(calldata[4:], encodedParams)
+	return nil
 }
 
 // ParseL1Mempool parses the L1 mempool and returns the transactions.
@@ -184,4 +247,13 @@ func ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
 	}
 
 	return l1msgcnt
+}
+
+// FormatTime formats a timestamp into RFC3339 format string.
+// Returns "N/A" for nil or non-positive timestamps.
+func FormatTime(timestamp *big.Int) string {
+	if timestamp == nil || timestamp.Int64() <= 0 {
+		return "N/A"
+	}
+	return time.Unix(timestamp.Int64(), 0).Format(time.RFC3339)
 }

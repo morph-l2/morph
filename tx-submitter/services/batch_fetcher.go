@@ -27,7 +27,8 @@ func (bf *BatchFetcher) GetRollupBatchByIndex(index uint64) (*eth.RPCRollupBatch
 			lastErr = err
 			continue
 		}
-		if batch != nil {
+		// Validate that batch exists and has signatures before returning
+		if batch != nil && len(batch.Signatures) > 0 {
 			return batch, nil
 		}
 	}
