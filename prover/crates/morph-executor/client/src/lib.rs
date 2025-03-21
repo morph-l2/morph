@@ -11,11 +11,12 @@ pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
     let num_blocks = input.l2_traces.len();
     let (versioned_hash, batch_data) = BlobVerifier::verify(&input.blob_info, num_blocks).unwrap();
     println!("cycle-tracker-start: traces-to-data");
-    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(num_blocks * 60);
+    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(num_blocks * 80);
     let mut tx_bytes: Vec<u8> = vec![];
     for trace in &input.l2_traces {
         // BlockContext
-        let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
+        // Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2) || Miner(20)
+        let mut block_ctx: Vec<u8> = Vec::with_capacity(80);
         block_ctx.extend_from_slice(&trace.number().to_be_bytes());
         block_ctx.extend_from_slice(&trace.timestamp().to::<u64>().to_be_bytes());
         block_ctx
@@ -23,6 +24,7 @@ pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
         block_ctx.extend_from_slice(&trace.gas_limit().to::<u64>().to_be_bytes());
         block_ctx.extend_from_slice(&(trace.transactions.len() as u16).to_be_bytes());
         block_ctx.extend_from_slice(&(trace.num_l1_txs() as u16).to_be_bytes());
+        block_ctx.extend_from_slice(trace.coinbase().as_slice());
         batch_from_trace.extend(block_ctx);
 
         // Collect txns
