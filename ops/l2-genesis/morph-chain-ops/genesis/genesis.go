@@ -35,9 +35,15 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		sequencerFeeVaultReceipt = predeploys.L2TxFeeVaultAddr
 	}
 
-	var morph203Time *uint64
+	var (
+		morph203Time *uint64
+		morph204Time *uint64
+	)
 	if config.Morph203Time != nil {
 		morph203Time = config.Morph203Time
+	}
+	if config.Morph204Time != nil {
+		morph204Time = config.Morph204Time
 	}
 
 	morphChainConfig := params.ChainConfig{
@@ -61,6 +67,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		BernoulliBlock:          big.NewInt(0),
 		CurieBlock:              big.NewInt(0),
 		Morph203Time:            morph203Time,
+		Morph204Time:            morph204Time,
 		TerminalTotalDifficulty: big.NewInt(0),
 		Morph: params.MorphConfig{
 			UseZktrie:                 true,

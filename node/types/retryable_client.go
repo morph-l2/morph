@@ -45,9 +45,9 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 	}
 }
 
-func (rc *RetryableClient) AssembleL2Block(ctx context.Context, number *big.Int, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
+func (rc *RetryableClient) AssembleL2Block(ctx context.Context, number *big.Int, coinbase common.Address, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.authClient.AssembleL2Block(ctx, number, transactions)
+		resp, respErr := rc.authClient.AssembleL2Block(ctx, number, coinbase, transactions)
 		if respErr != nil {
 			rc.logger.Info("failed to AssembleL2Block", "error", respErr)
 			if retryableError(respErr) {
