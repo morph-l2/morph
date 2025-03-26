@@ -100,7 +100,8 @@ func NewRollup(
 	bm *l1checker.BlockMonitor,
 	eventInfoStorage *event.EventInfoStorage,
 ) *Rollup {
-
+	// Create batch fetcher
+	batchFetcher := NewBatchFetcher(l2Clients)
 	return &Rollup{
 		ctx:              ctx,
 		metrics:          metrics,
@@ -117,7 +118,7 @@ func NewRollup(
 		cfg:              cfg,
 		signer:           ethtypes.LatestSignerForChainID(chainId),
 		externalRsaPriv:  rsaPriv,
-		batchCache:       types.NewBatchCache(),
+		batchCache:       types.NewBatchCache(batchFetcher),
 		ldb:              ldb,
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
