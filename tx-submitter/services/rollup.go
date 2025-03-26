@@ -82,15 +82,6 @@ type Rollup struct {
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
-	// Cache for current submitter info
-	submitterCache struct {
-		submitter      common.Address
-		submitterIdx   uint64
-		lastUpdateTime time.Time
-		mu             sync.RWMutex
-	}
-	// Cache refresh interval
-	submitterCacheTimeout time.Duration
 }
 
 func NewRollup(
@@ -115,27 +106,26 @@ func NewRollup(
 	batchFetcher := NewBatchFetcher(l2Clients)
 	reorgDetector := NewReorgDetector(l1, metrics)
 	r := &Rollup{
-		ctx:                   ctx,
-		metrics:               metrics,
-		l1RpcClient:           l1RpcClient,
-		L1Client:              l1,
-		Rollup:                rollup,
-		Staking:               staking,
-		L2Clients:             l2Clients,
-		privKey:               priKey,
-		chainId:               chainId,
-		rollupAddr:            rollupAddr,
-		abi:                   abi,
-		rotator:               rotator,
-		cfg:                   cfg,
-		signer:                ethtypes.LatestSignerForChainID(chainId),
-		externalRsaPriv:       rsaPriv,
-		batchCache:            types.NewBatchCache(batchFetcher),
-		ldb:                   ldb,
-		bm:                    bm,
-		eventInfoStorage:      eventInfoStorage,
-		reorgDetector:         reorgDetector,
-		submitterCacheTimeout: 5 * time.Second, // Cache submitter info for 5 seconds
+		ctx:              ctx,
+		metrics:          metrics,
+		l1RpcClient:      l1RpcClient,
+		L1Client:         l1,
+		Rollup:           rollup,
+		Staking:          staking,
+		L2Clients:        l2Clients,
+		privKey:          priKey,
+		chainId:          chainId,
+		rollupAddr:       rollupAddr,
+		abi:              abi,
+		rotator:          rotator,
+		cfg:              cfg,
+		signer:           ethtypes.LatestSignerForChainID(chainId),
+		externalRsaPriv:  rsaPriv,
+		batchCache:       types.NewBatchCache(batchFetcher),
+		ldb:              ldb,
+		bm:               bm,
+		eventInfoStorage: eventInfoStorage,
+		reorgDetector:    reorgDetector,
 	}
 	return r
 }
@@ -313,7 +303,7 @@ func (r *Rollup) checkSubmitterTurn() error {
 	if r.cfg.PriorityRollup {
 		return nil
 	}
-	activeSubmitter, submitterIndex, err := r.getCachedSubmitter()
+	activeSubmitter, submitterIndex, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 	if err != nil {
 		return fmt.Errorf("rollup: get current submitter err, %w", err)
 	}
@@ -932,7 +922,7 @@ func (r *Rollup) finalize() error {
 func (r *Rollup) rollup() error {
 	// Get current block height
 	if !r.cfg.PriorityRollup {
-		activeSubmitter, activeIndex, err := r.getCachedSubmitter()
+		activeSubmitter, activeIndex, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 		if err != nil {
 			return fmt.Errorf("rollup: get current submitter err, %w", err)
 		}
@@ -1001,7 +991,7 @@ func (r *Rollup) rollup() error {
 				"submitter_index", activeIndex,
 				"total_submitters", totalSubmitters)
 		} else {
-			log.Debug("Skipping rollup - not active submitter",
+			log.Info("Skipping rollup - not active submitter",
 				"active_index", activeIndex,
 				"active_submitter", activeAddress)
 			return nil
@@ -1894,36 +1884,4 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 	}
 
 	return newTx, nil
-}
-
-// Add this method to get cached submitter info
-func (r *Rollup) getCachedSubmitter() (common.Address, uint64, error) {
-	r.submitterCache.mu.RLock()
-	if time.Since(r.submitterCache.lastUpdateTime) < r.submitterCacheTimeout {
-		defer r.submitterCache.mu.RUnlock()
-		return r.submitterCache.submitter, r.submitterCache.submitterIdx, nil
-	}
-	r.submitterCache.mu.RUnlock()
-
-	// Need to update cache
-	r.submitterCache.mu.Lock()
-	defer r.submitterCache.mu.Unlock()
-
-	// Double check after acquiring write lock
-	if time.Since(r.submitterCache.lastUpdateTime) < r.submitterCacheTimeout {
-		return r.submitterCache.submitter, r.submitterCache.submitterIdx, nil
-	}
-
-	// Get fresh data
-	submitter, idx, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
-	if err != nil {
-		return common.Address{}, 0, err
-	}
-
-	// Update cache with proper type conversion
-	r.submitterCache.submitter = *submitter
-	r.submitterCache.submitterIdx = uint64(idx)
-	r.submitterCache.lastUpdateTime = time.Now()
-
-	return *submitter, uint64(idx), nil
 }
