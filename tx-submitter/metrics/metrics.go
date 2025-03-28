@@ -20,6 +20,8 @@ type Metrics struct {
 	FinalizeCost          prometheus.Gauge
 	CollectedL1FeeSum     prometheus.Gauge
 	IndexerBlockProcessed prometheus.Gauge
+	LastCommittedBatch    prometheus.Gauge
+	LastFinalizedBatch    prometheus.Gauge
 	reorgs                prometheus.Counter
 	reorgDepthVal         uint64
 	reorgCountVal         uint64
@@ -61,6 +63,14 @@ func NewMetrics() *Metrics {
 			Name: "tx_submitter_indexer_block_processed",
 			Help: "Latest block number processed by the indexer",
 		}),
+		LastCommittedBatch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "tx_submitter_last_committed_batch",
+			Help: "Latest batch committed by the submitter",
+		}),
+		LastFinalizedBatch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "tx_submitter_last_finalized_batch",
+			Help: "Latest batch finalized by the submitter",
+		}),
 		reorgs: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "tx_submitter_reorgs_total",
 			Help: "Total number of chain reorganizations detected",
@@ -73,6 +83,21 @@ func NewMetrics() *Metrics {
 			[]string{"type"},
 		),
 	}
+
+	// Register metrics with Prometheus
+	// We use Register instead of MustRegister to avoid panics if metrics are already registered
+	_ = prometheus.Register(m.WalletBalance)
+	_ = prometheus.Register(m.RpcErrors)
+	_ = prometheus.Register(m.RollupCostSum)
+	_ = prometheus.Register(m.FinalizeCostSum)
+	_ = prometheus.Register(m.RollupCost)
+	_ = prometheus.Register(m.FinalizeCost)
+	_ = prometheus.Register(m.CollectedL1FeeSum)
+	_ = prometheus.Register(m.IndexerBlockProcessed)
+	_ = prometheus.Register(m.LastCommittedBatch)
+	_ = prometheus.Register(m.LastFinalizedBatch)
+	_ = prometheus.Register(m.reorgs)
+	_ = prometheus.Register(m.confirmedTxs)
 
 	return m
 }
@@ -107,6 +132,16 @@ func (m *Metrics) SetCollectedL1Fee(cost float64) {
 // SetIndexerBlockProcessed sets the indexer block processed metric
 func (m *Metrics) SetIndexerBlockProcessed(blockNumber uint64) {
 	m.IndexerBlockProcessed.Set(float64(blockNumber))
+}
+
+// SetLastCommittedBatch sets the last committed batch index metric
+func (m *Metrics) SetLastCommittedBatch(index uint64) {
+	m.LastCommittedBatch.Set(float64(index))
+}
+
+// SetLastFinalizedBatch sets the last finalized batch index metric
+func (m *Metrics) SetLastFinalizedBatch(index uint64) {
+	m.LastFinalizedBatch.Set(float64(index))
 }
 
 // IncReorgs increments the reorg counter
@@ -155,6 +190,8 @@ func (m *Metrics) UnregisterMetrics() {
 	prometheus.Unregister(m.FinalizeCost)
 	prometheus.Unregister(m.CollectedL1FeeSum)
 	prometheus.Unregister(m.IndexerBlockProcessed)
+	prometheus.Unregister(m.LastCommittedBatch)
+	prometheus.Unregister(m.LastFinalizedBatch)
 	prometheus.Unregister(m.reorgs)
 	prometheus.Unregister(m.confirmedTxs)
 }
