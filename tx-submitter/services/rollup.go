@@ -165,7 +165,6 @@ func (r *Rollup) Start() error {
 
 	// metrics
 	go utils.Loop(r.ctx, 10*time.Second, func() {
-
 		// get balacnce of wallet
 		balance, err := r.L1Client.BalanceAt(context.Background(), r.WalletAddr(), nil)
 		if err != nil {
@@ -184,8 +183,21 @@ func (r *Rollup) Start() error {
 			log.Warn("parse balance to float error", "error", err)
 			return
 		}
-
 		r.metrics.SetWalletBalance(balanceEthFloat)
+		// last committed batch
+		lastCommittedBatch, err := r.Rollup.LastCommittedBatchIndex(nil)
+		if err != nil {
+			log.Warn("get last committed batch error", "error", err)
+			return
+		}
+		r.metrics.SetLastCommittedBatch(lastCommittedBatch.Uint64())
+		// last finalized batch
+		lastFinalizedBatch, err := r.Rollup.LastFinalizedBatchIndex(nil)
+		if err != nil {
+			log.Warn("get last finalized batch error", "error", err)
+			return
+		}
+		r.metrics.SetLastFinalizedBatch(lastFinalizedBatch.Uint64())
 
 	})
 
