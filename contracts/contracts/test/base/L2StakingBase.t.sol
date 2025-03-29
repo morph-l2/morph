@@ -17,7 +17,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     uint256 public constant REWARD_EPOCH = 86400;
 
     uint256 public beginSeq = 10;
-    uint256 public version = 0;
 
     bytes[] public sequencerBLSKeys;
     address[] public sequencerAddresses;
@@ -38,12 +37,12 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     // Morph token
     MorphToken public morphToken;
 
-    //Oracle address
-    address public oracleAddress = address(1000);
-    uint256 public nextBatchSubmissionIndex = 1;
+    // system address
+    address system = Predeploys.SYSTEM;
 
     uint256 public constant VOTING_DURATION = 1000;
     uint256 public constant ROLLUP_EPOCH = 1000;
+    uint256 public constant LOCKED_EPOCH = 1000;
     uint256 public constant MAX_CHUNKS = 1000000000;
 
     function setUp() public virtual override {
@@ -79,7 +78,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
         MorphToken morphTokenImpl = new MorphToken();
         L2Staking l2StakingImpl = new L2Staking(payable(NON_ZERO_ADDRESS));
         Sequencer sequencerImpl = new Sequencer();
-        Distribute distributeImpl = new Distribute();
         Gov govImpl = new Gov();
 
         // upgrade proxy
@@ -112,35 +110,23 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             address(l2StakingImpl),
             abi.encodeCall(
                 L2Staking.initialize,
-                (multisig, SEQUENCER_SIZE * 2, ROLLUP_EPOCH, rewardStartTime, stakerInfos)
+                (multisig, SEQUENCER_SIZE * 2, LOCKED_EPOCH, rewardStartTime, stakerInfos)
             )
         );
         ITransparentUpgradeableProxy(address(morphTokenProxy)).upgradeToAndCall(
             address(morphTokenImpl),
             abi.encodeCall(MorphToken.initialize, ("Morph", "MPH", multisig, 1000000000 ether, 1596535874529))
         );
-        ITransparentUpgradeableProxy(address(distributeProxy)).upgradeToAndCall(
-            address(distributeImpl),
-            abi.encodeCall(Distribute.initialize, (multisig))
-        );
-        ITransparentUpgradeableProxy(address(recordProxy)).upgradeToAndCall(
-            address(recordImpl),
-            abi.encodeCall(Record.initialize, (multisig, oracleAddress, nextBatchSubmissionIndex))
-        );
 
         // set address
         sequencer = Sequencer(payable(address(sequencerProxy)));
         gov = Gov(payable(address(govProxy)));
         l2Staking = L2Staking(payable(address(l2StakingProxy)));
-        distribute = Distribute(payable(address(distributeProxy)));
-        record = Record(payable(address(recordProxy)));
         morphToken = MorphToken(payable(address(morphTokenProxy)));
 
         _changeAdmin(address(sequencer));
         _changeAdmin(address(gov));
         _changeAdmin(address(l2Staking));
-        _changeAdmin(address(distribute));
-        _changeAdmin(address(record));
         _changeAdmin(address(morphToken));
 
         hevm.stopPrank();
