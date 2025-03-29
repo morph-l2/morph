@@ -132,14 +132,8 @@ interface IL2Staking {
 
     /// @notice Emitted claim info
     /// @param delegator   delegator
-    /// @param unlockEpoch unlock epoch index
     /// @param amount      staking amount
-    event UndelegationClaimed(
-        address indexed delegatee,
-        address indexed delegator,
-        uint256 unlockEpoch,
-        uint256 amount
-    );
+    event UndelegationClaimed(address indexed delegator, uint256 amount);
 
     /// @notice Emitted staker added
     /// @param addr     staker address

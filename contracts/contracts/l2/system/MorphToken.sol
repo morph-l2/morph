@@ -56,7 +56,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
 
     /// @notice Ensures that the caller message from system
     modifier onlSystem() {
-        require(_msgSender() == SYSTEM_ADDRESS, "only system contract allowed");
+        require(_msgSender() == SYSTEM_ADDRESS, "only system address allowed");
         _;
     }
 
@@ -112,13 +112,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     }
 
     /// @dev mint inflations
-    /// @param upToEpochIndex mint up to which epoch
-    function mintInflations(uint256 upToEpochIndex) external onlSystem {
+    function mintInflations() external onlSystem {
         // inflations can only be minted for epochs that have ended.
-        require(
-            IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > upToEpochIndex,
-            "the specified time has not yet been reached"
-        );
+        require(IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > 0, "no inflations yet");
+        uint256 upToEpochIndex = IL2Staking(L2_STAKING_CONTRACT).currentEpoch() - 1;
         require(upToEpochIndex >= _inflationMintedEpochs, "all inflations minted");
 
         // the index of next epoch to mint is equal to the count of minted epochs

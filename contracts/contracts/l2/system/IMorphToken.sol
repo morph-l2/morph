@@ -95,6 +95,5 @@ interface IMorphToken is IERC20MetadataUpgradeable {
     function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
     /// @dev mint inflations
-    /// @param upToEpochIndex mint up to which epoch
-    function mintInflations(uint256 upToEpochIndex) external;
+    function mintInflations() external;
 }
