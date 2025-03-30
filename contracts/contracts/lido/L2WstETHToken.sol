@@ -8,7 +8,20 @@ import {SignatureCheckerUpgradeable} from "@openzeppelin/contracts-upgradeable/u
 
 import {MorphStandardERC20} from "../libraries/token/MorphStandardERC20.sol";
 
+/**
+ * @custom:security-contact official@morphl2.io
+ */
 contract L2WstETHToken is MorphStandardERC20 {
+    /**********
+     * Errors *
+     **********/
+    
+    /// @dev Thrown when the deadline is expired.
+    error ErrorExpiredDeadline();
+    
+    /// @dev Thrown when the given signature is invalid.
+    error ErrorInvalidSignature();
+    
     /*************
      * Constants *
      *************/
@@ -33,16 +46,16 @@ contract L2WstETHToken is MorphStandardERC20 {
         bytes32 r,
         bytes32 s
     ) public virtual override(ERC20PermitUpgradeable, IERC20PermitUpgradeable) {
-        require(block.timestamp <= deadline, "ERC20Permit: expired deadline");
-
+        if (block.timestamp > deadline) {
+            revert ErrorExpiredDeadline();
+        }
         bytes32 structHash = keccak256(abi.encode(_PERMIT_TYPEHASH, owner, spender, value, _useNonce(owner), deadline));
 
         bytes32 hash = _hashTypedDataV4(structHash);
 
-        require(
-            SignatureCheckerUpgradeable.isValidSignatureNow(owner, hash, abi.encodePacked(r, s, v)),
-            "ERC20Permit: invalid signature"
-        );
+        if (!SignatureCheckerUpgradeable.isValidSignatureNow(owner, hash, abi.encodePacked(r, s, v))){
+            revert ErrorInvalidSignature();
+        }
 
         _approve(owner, spender, value);
     }

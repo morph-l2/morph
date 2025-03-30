@@ -16,10 +16,10 @@ type EventIndexer struct {
 	deployBlock *big.Int // Block number of contract deployment
 	filterQuery ethereum.FilterQuery
 	indexStep   uint64 // index step
-	storage     *EventInfoStorage
+	storage     IEventStorage
 }
 
-func NewEventIndexer(client *ethclient.Client, deployedBlock *big.Int, filter ethereum.FilterQuery, indexStep uint64, storage *EventInfoStorage) *EventIndexer {
+func NewEventIndexer(client *ethclient.Client, deployedBlock *big.Int, filter ethereum.FilterQuery, indexStep uint64, storage IEventStorage) *EventIndexer {
 	return &EventIndexer{
 		client:      client,
 		deployBlock: deployedBlock,
@@ -32,8 +32,8 @@ func NewEventIndexer(client *ethclient.Client, deployedBlock *big.Int, filter et
 func (l *EventIndexer) Index() {
 	log.Info("event indexer started")
 
-	if l.storage.BlockProcessed == 0 {
-		l.storage.BlockProcessed = l.deployBlock.Uint64()
+	if l.storage.BlockProcessed() == 0 {
+		l.storage.SetBlockProcessed(l.deployBlock.Uint64())
 		err := l.storage.Store()
 		if err != nil {
 			log.Error("failed to store initial block number", "error", err)
@@ -45,7 +45,6 @@ func (l *EventIndexer) Index() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-
 		// Get the current block number
 		currentBlock, err := l.client.BlockNumber(context.Background())
 		if err != nil {
@@ -53,35 +52,33 @@ func (l *EventIndexer) Index() {
 			continue
 		}
 
-		if currentBlock <= l.storage.BlockProcessed {
-			log.Info("no new block to index", "current_block", currentBlock, "last_processed_block", l.storage.BlockProcessed)
+		if currentBlock <= l.storage.BlockProcessed() {
+			log.Info("no new block to index", "current_block", currentBlock, "last_processed_block", l.storage.BlockProcessed())
 			continue
 		}
 
 		// Perform indexing operation
-		indexedEventInfo, err := l.index(l.client, big.NewInt(int64(l.storage.BlockProcessed)), big.NewInt(int64(currentBlock)))
+		indexedEventInfo, err := l.index(l.client, big.NewInt(int64(l.storage.BlockProcessed())), big.NewInt(int64(currentBlock)))
 		if err != nil {
 			log.Error("indexing operation failed", "error", err)
 			continue
 		}
 
 		if indexedEventInfo != nil {
-			l.storage.EventInfo = *indexedEventInfo
+			l.storage.SetBlockProcessed(indexedEventInfo.BlockProcessed)
 		} else {
-			l.storage.EventInfo = EventInfo{
-				BlockProcessed: currentBlock,
-			}
+			l.storage.SetBlockProcessed(currentBlock)
 		}
+
 		// Update storage
 		err = l.storage.Store()
 		if err != nil {
 			log.Error("event index complete, failed to update storage", "error", err)
 		} else {
-			log.Info("event index complete, storage updated", "processed_block", l.storage.EventInfo.BlockProcessed, "block_time", l.storage.EventInfo.BlockTime)
+			info := l.storage.EventInfo()
+			log.Info("event index complete, storage updated", "processed_block", info.BlockProcessed, "block_time", info.BlockTime)
 		}
-
 	}
-
 }
 
 // filter logs from from_block to to_block
@@ -91,6 +88,9 @@ func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.
 	endBlock := toBlock.Uint64()
 	startBlock := endBlock - ei.indexStep
 	lastProcessedBlock := fromBlock.Uint64()
+	if startBlock < lastProcessedBlock {
+		startBlock = lastProcessedBlock
+	}
 	logFilter := ei.GetFilter()
 
 	// Find the last unprocessed log
@@ -123,6 +123,7 @@ func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.
 					}
 				}
 			}
+			log.Info("backward indexing", "block_num", startBlock, "target_num", lastProcessedBlock)
 			// update query range
 			endBlock = startBlock
 			if endBlock <= lastProcessedBlock+ei.indexStep {
@@ -139,6 +140,6 @@ func (ei *EventIndexer) index(client *ethclient.Client, fromBlock, toBlock *big.
 func (l *EventIndexer) GetFilter() ethereum.FilterQuery {
 	return l.filterQuery
 }
-func (l *EventIndexer) GetStorage() *EventInfoStorage {
+func (l *EventIndexer) GetStorage() IEventStorage {
 	return l.storage
 }

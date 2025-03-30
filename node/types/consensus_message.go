@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
@@ -144,4 +145,27 @@ func (wb *WrappedBlock) DecodeBlockContext(bc []byte) (uint16, uint16, error) {
 		return 0, 0, err
 	}
 	return txsNum, l1MsgNum, nil
+}
+
+func WrappedBlockFromBytes(blockBytes []byte) (*WrappedBlock, error) {
+	var curBlock = new(WrappedBlock)
+	if err := curBlock.UnmarshalBinary(blockBytes); err != nil {
+		return nil, err
+	}
+	return curBlock, nil
+}
+
+func HeightFromBlockBytes(blockBytes []byte) (uint64, error) {
+	curBlock, err := WrappedBlockFromBytes(blockBytes)
+	if err != nil {
+		return 0, err
+	}
+	return curBlock.Number, nil
+}
+
+func HeightFromBlockContextBytes(blockContextBytes []byte) (uint64, error) {
+	if len(blockContextBytes) != 60 {
+		return 0, fmt.Errorf("wrong block context bytes length, input: %x", blockContextBytes)
+	}
+	return binary.BigEndian.Uint64(blockContextBytes[:8]), nil
 }

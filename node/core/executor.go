@@ -146,7 +146,7 @@ var _ l2node.L2Node = (*Executor)(nil)
 
 func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byte, collectedL1Msgs bool, err error) {
 	if e.l1MsgReader == nil {
-		err = fmt.Errorf("RequestBlockData is not alllowed to be called")
+		err = fmt.Errorf("RequestBlockData is not allowed to be called")
 		return
 	}
 	e.logger.Info("RequestBlockData request", "height", height)
@@ -208,7 +208,7 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 
 func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, err error) {
 	if e.l1MsgReader == nil {
-		return false, fmt.Errorf("RequestBlockData is not alllowed to be called")
+		return false, fmt.Errorf("RequestBlockData is not allowed to be called")
 	}
 	if len(metaData) == 0 {
 		e.logger.Error("metaData cannot be nil")

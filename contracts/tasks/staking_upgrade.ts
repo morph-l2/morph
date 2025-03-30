@@ -446,7 +446,7 @@ task("l1staking-deploy-init")
                 blockNumber || 0
             )
             if (err != "") {
-                console.log(`deploy L1Staking implemention failed ${err}`)
+                console.log(`deploy L1Staking implementation failed ${err}`)
                 return err
             }
         }
