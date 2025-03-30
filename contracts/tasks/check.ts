@@ -105,11 +105,9 @@ task("check-l2-status").setAction(async (taskArgs, hre) => {
     owner = await govContract.owner()
     const votingDuration = await govContract.votingDuration()
     const batchBlockInterval = await govContract.batchBlockInterval()
-    const batchMaxBytes = await govContract.batchMaxBytes()
     const batchTimeout = await govContract.batchTimeout()
-    const maxChunks = await govContract.maxChunks()
     console.log(
-        `Gov params check \n owner ${owner} \n votingDuration ${votingDuration} \n batchMaxBytes ${batchMaxBytes} \n batchBlockInterval ${batchBlockInterval} \n batchTimeout ${batchTimeout} \n maxChunks ${maxChunks}`
+        `Gov params check \n owner ${owner} \n votingDuration ${votingDuration} \n batchBlockInterval ${batchBlockInterval} \n batchTimeout ${batchTimeout}`
     )
     console.log("-----------------------------------\n")
 

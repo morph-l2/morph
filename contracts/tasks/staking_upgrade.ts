@@ -734,9 +734,7 @@ task("gov-upgrade")
             GovFactory.interface.encodeFunctionData("initializeV2", [
                 l2Config.govVotingDuration,
                 l2Config.govBatchBlockInterval,
-                l2Config.govBatchMaxBytes,
                 l2Config.govBatchTimeout,
-                l2Config.govBatchMaxChunks,
             ])
         )
         const rec = await res.wait()
