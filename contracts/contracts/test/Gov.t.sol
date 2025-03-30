@@ -19,23 +19,19 @@ contract GovTest is L2StakingBaseTest {
     function test_initialize_paramsCheck_reverts() public {
         hevm.expectRevert("Initializable: contract is already initialized");
         hevm.prank(multisig);
-        gov.initialize(multisig, 0, 0, 0, 0);
+        gov.initialize(multisig, 0, 0, 0);
 
         // reset initialize
         hevm.store(address(gov), bytes32(uint256(0)), bytes32(uint256(0)));
 
         hevm.expectRevert("invalid proposal voting duration");
         hevm.prank(multisig);
-        gov.initialize(multisig, 0, 0, 0, 0);
-
-        hevm.expectRevert("invalid rollup epoch");
-        hevm.prank(multisig);
-        gov.initialize(multisig, 1, 0, 0, 0);
+        gov.initialize(multisig, 0, 0, 0);
 
         // _batchBlockInterval
         hevm.expectRevert("invalid batch params");
         hevm.prank(multisig);
-        gov.initialize(multisig, 1, 0, 0, 1);
+        gov.initialize(multisig, 1, 0, 0);
     }
 
     /**
@@ -44,24 +40,22 @@ contract GovTest is L2StakingBaseTest {
     function test_createProposal_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         address user = address(uint160(beginSeq));
         uint256 nextProposalID = gov.currentProposalID() + 1;
         hevm.expectEmit(true, true, true, true);
-        emit IGov.ProposalCreated(nextProposalID, user, 0, finalizationPeriodSeconds, ROLLUP_EPOCH);
+        emit IGov.ProposalCreated(nextProposalID, user, 0, finalizationPeriodSeconds);
         hevm.startPrank(address(user));
         uint256 proposalID = gov.createProposal(proposal);
         uint256 currentProposalID = gov.currentProposalID();
         assertEq(proposalID, nextProposalID);
         assertEq(proposalID, currentProposalID);
-        (uint256 batchBlockInterval_, uint256 batchTimeout_, uint256 rollupEpoch_) = gov.proposalData(proposalID);
+        (uint256 batchBlockInterval_, uint256 batchTimeout_) = gov.proposalData(proposalID);
         hevm.stopPrank();
         assertEq(batchBlockInterval_, proposal.batchBlockInterval);
         assertEq(batchTimeout_, proposal.batchTimeout);
-        assertEq(rollupEpoch_, proposal.rollupEpoch);
 
         uint256 expirationTime;
         bool finished;
@@ -83,8 +77,7 @@ contract GovTest is L2StakingBaseTest {
     function test_vote_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -101,7 +94,7 @@ contract GovTest is L2StakingBaseTest {
             voteCnt++;
             if (voteCnt > ((SEQUENCER_SIZE * 2) / 3)) {
                 hevm.expectEmit(true, true, true, true);
-                emit IGov.ProposalExecuted(proposalID, 0, finalizationPeriodSeconds, ROLLUP_EPOCH);
+                emit IGov.ProposalExecuted(proposalID, 0, finalizationPeriodSeconds);
             }
             gov.vote(proposalID);
             hevm.stopPrank();
@@ -129,8 +122,7 @@ contract GovTest is L2StakingBaseTest {
     function test_proposalExecute_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             1, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -186,7 +178,6 @@ contract GovTest is L2StakingBaseTest {
 
         assertEq(gov.batchBlockInterval(), 1);
         assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
-        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
     }
 
     /**
@@ -197,8 +188,7 @@ contract GovTest is L2StakingBaseTest {
     function test_executeWithNewSequencers_succeeds() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -284,8 +274,7 @@ contract GovTest is L2StakingBaseTest {
     function test_vote_expired_reverts() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -308,8 +297,7 @@ contract GovTest is L2StakingBaseTest {
     function test_vote_repeatVoting_reverts() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -339,8 +327,7 @@ contract GovTest is L2StakingBaseTest {
     function test_createProposal_onlySequencer_reverts() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -351,31 +338,12 @@ contract GovTest is L2StakingBaseTest {
     }
 
     /**
-     * @notice createProposal: Reverts if rollup epoch is zero.
-     */
-    function test_createProposal_zeroRollupEpoch_reverts() external {
-        IGov.ProposalData memory proposal = IGov.ProposalData(
-            0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            0 // rollupEpoch
-        );
-
-        // Expect revert due to zero rollup epoch.
-        hevm.expectRevert("invalid rollup epoch");
-        address user = address(uint160(beginSeq));
-        hevm.startPrank(address(user));
-        gov.createProposal(proposal);
-        hevm.stopPrank();
-    }
-
-    /**
      * @notice createProposal: Reverts if batch parameters are zero.
      */
     function test_createProposal_zeroBatchParams_reverts() external {
         IGov.ProposalData memory proposal = IGov.ProposalData(
             0, // batchBlockInterval
-            0, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            0 // batchTimeout
         );
 
         // Expect revert due to zero batch params.
@@ -444,8 +412,7 @@ contract GovTest is L2StakingBaseTest {
     function test_deleteOldData_reverts() external {
         IGov.ProposalData memory proposal0 = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -478,7 +445,6 @@ contract GovTest is L2StakingBaseTest {
 
         assertEq(gov.batchBlockInterval(), 0);
         assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
-        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
         assertEq(gov.undeletedProposalStart(), 0);
 
         hevm.prank(address(user));
@@ -494,8 +460,7 @@ contract GovTest is L2StakingBaseTest {
     function test_deleteOldData_succeeds() external {
         IGov.ProposalData memory proposal0 = IGov.ProposalData(
             0, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -528,7 +493,6 @@ contract GovTest is L2StakingBaseTest {
 
         assertEq(gov.batchBlockInterval(), 0);
         assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
-        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
         assertEq(gov.undeletedProposalStart(), 0);
 
         hevm.prank(address(user));
@@ -539,8 +503,7 @@ contract GovTest is L2StakingBaseTest {
 
         IGov.ProposalData memory proposal1 = IGov.ProposalData(
             100, // batchBlockInterval
-            finalizationPeriodSeconds, // batchTimeout
-            ROLLUP_EPOCH // rollupEpoch
+            finalizationPeriodSeconds // batchTimeout
         );
 
         // create proposal
@@ -578,13 +541,11 @@ contract GovTest is L2StakingBaseTest {
         (expirationTime, executed) = gov.proposalInfos(preProposalID);
         assertEq(expirationTime, 0);
         assertFalse(executed);
-        (uint256 batchBlockInterval, uint256 batchTimeout, uint256 rollupEpoch) = gov.proposalData(preProposalID);
+        (uint256 batchBlockInterval, uint256 batchTimeout) = gov.proposalData(preProposalID);
         assertEq(batchBlockInterval, 0);
         assertEq(batchTimeout, 0);
-        assertEq(rollupEpoch, 0);
 
         assertEq(gov.batchBlockInterval(), 100);
         assertEq(gov.batchTimeout(), finalizationPeriodSeconds);
-        assertEq(gov.rollupEpoch(), ROLLUP_EPOCH);
     }
 }
