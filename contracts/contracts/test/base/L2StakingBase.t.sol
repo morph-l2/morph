@@ -14,7 +14,6 @@ import {L2MessageBaseTest} from "./L2MessageBase.t.sol";
 contract L2StakingBaseTest is L2MessageBaseTest {
     uint256 public constant SEQUENCER_RATIO_PRECISION = 1e8;
     uint256 public constant INFLATION_RATIO_PRECISION = 1e16;
-    uint256 public constant REWARD_EPOCH = 86400;
 
     uint256 public beginSeq = 10;
 
@@ -23,6 +22,8 @@ contract L2StakingBaseTest is L2MessageBaseTest {
 
     uint256 public constant SEQUENCER_SIZE = 3;
     uint256 public constant NEXT_EPOCH_START = 1700000000;
+    uint256 public constant UNDELEGATE_LOCKED_EPOCHS = 14;
+    uint256 public constant REWARD_EPOCH = 86400;
     uint256 public rewardStartTime = 86400;
 
     // Sequencer config
@@ -41,8 +42,6 @@ contract L2StakingBaseTest is L2MessageBaseTest {
     address system = Predeploys.SYSTEM;
 
     uint256 public constant VOTING_DURATION = 1000;
-    uint256 public constant ROLLUP_EPOCH = 1000;
-    uint256 public constant LOCKED_EPOCH = 1000;
     uint256 public constant MAX_CHUNKS = 1000000000;
 
     function setUp() public virtual override {
@@ -100,8 +99,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
                     multisig,
                     VOTING_DURATION, // _votingDuration
                     0, // _batchBlockInterval
-                    finalizationPeriodSeconds, // _batchTimeout
-                    ROLLUP_EPOCH // rollupEpoch
+                    finalizationPeriodSeconds // _batchTimeout
                 )
             )
         );
@@ -110,7 +108,7 @@ contract L2StakingBaseTest is L2MessageBaseTest {
             address(l2StakingImpl),
             abi.encodeCall(
                 L2Staking.initialize,
-                (multisig, SEQUENCER_SIZE * 2, LOCKED_EPOCH, rewardStartTime, stakerInfos)
+                (multisig, SEQUENCER_SIZE * 2, UNDELEGATE_LOCKED_EPOCHS, rewardStartTime, stakerInfos)
             )
         );
         ITransparentUpgradeableProxy(address(morphTokenProxy)).upgradeToAndCall(
