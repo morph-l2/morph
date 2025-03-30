@@ -15,11 +15,9 @@ interface IGov {
 
     /// @custom:field batchBlockInterval
     /// @custom:field batchTimeout
-    /// @custom:field rollupEpoch
     struct ProposalData {
         uint256 batchBlockInterval;
         uint256 batchTimeout;
-        uint256 rollupEpoch;
     }
 
     /**********
@@ -31,17 +29,11 @@ interface IGov {
         uint256 indexed proposalID,
         address indexed creator,
         uint256 batchBlockInterval,
-        uint256 batchTimeout,
-        uint256 rollupEpoch
+        uint256 batchTimeout
     );
 
     /// @notice event of proposal executed
-    event ProposalExecuted(
-        uint256 indexed proposalID,
-        uint256 batchBlockInterval,
-        uint256 batchTimeout,
-        uint256 rollupEpoch
-    );
+    event ProposalExecuted(uint256 indexed proposalID, uint256 batchBlockInterval, uint256 batchTimeout);
 
     /// @notice proposal voting duration updated
     /// @param oldProposalVotingDuration    old proposal voting duration
@@ -58,11 +50,6 @@ interface IGov {
     /// @param newBatchTimeout  new batch timeout
     event BatchTimeoutUpdated(uint256 oldBatchTimeout, uint256 newBatchTimeout);
 
-    /// @notice rollup epoch updated
-    /// @param odlRollupEpoch   old rollup epoch
-    /// @param newRollupEpoch   new rollup epoch
-    event RollupEpochUpdated(uint256 odlRollupEpoch, uint256 newRollupEpoch);
-
     /*************************
      * Public View Functions *
      *************************/
@@ -72,9 +59,6 @@ interface IGov {
 
     /// @notice batch timeout
     function batchTimeout() external view returns (uint256);
-
-    /// @notice rollup epoch
-    function rollupEpoch() external view returns (uint256);
 
     /// @notice current proposal ID number
     function currentProposalID() external view returns (uint256);

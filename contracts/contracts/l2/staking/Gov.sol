@@ -37,12 +37,6 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice deprecated, to delete
     uint256 private maxChunks;
 
-    /// @notice rollup epoch
-    uint256 public override rollupEpoch;
-
-    /// @notice rollup epoch last modified timestamp
-    uint256 public rollupEpochUpdateTime;
-
     /// @notice proposal voting duration
     uint256 public votingDuration;
 
@@ -95,17 +89,14 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @param _votingDuration proposal interval
     /// @param _batchBlockInterval batch block interval
     /// @param _batchTimeout batch timeout
-    /// @param _rollupEpoch rollup epoch
     function initialize(
         address _owner,
         uint256 _votingDuration,
         uint256 _batchBlockInterval,
-        uint256 _batchTimeout,
-        uint256 _rollupEpoch
+        uint256 _batchTimeout
     ) public initializer {
         require(_owner != address(0), "invalid owner address");
         require(_votingDuration > 0, "invalid proposal voting duration");
-        require(_rollupEpoch > 0, "invalid rollup epoch");
         require(_batchBlockInterval != 0 || _batchTimeout != 0, "invalid batch params");
 
         _transferOwnership(_owner);
@@ -113,13 +104,10 @@ contract Gov is IGov, OwnableUpgradeable {
         votingDuration = _votingDuration;
         batchBlockInterval = _batchBlockInterval;
         batchTimeout = _batchTimeout;
-        rollupEpoch = _rollupEpoch;
-        rollupEpochUpdateTime = block.timestamp;
 
         emit VotingDurationUpdated(0, _votingDuration);
         emit BatchBlockIntervalUpdated(0, _batchBlockInterval);
         emit BatchTimeoutUpdated(0, _batchTimeout);
-        emit RollupEpochUpdated(0, _rollupEpoch);
     }
 
     /************************
@@ -128,20 +116,13 @@ contract Gov is IGov, OwnableUpgradeable {
 
     /// @notice create a proposal
     function createProposal(ProposalData calldata proposal) external onlySequencer returns (uint256) {
-        require(proposal.rollupEpoch != 0, "invalid rollup epoch");
         require(proposal.batchBlockInterval != 0 || proposal.batchTimeout != 0, "invalid batch params");
 
         currentProposalID++;
         proposalData[currentProposalID] = proposal;
         proposalInfos[currentProposalID] = ProposalInfo(block.timestamp + votingDuration, false);
 
-        emit ProposalCreated(
-            currentProposalID,
-            _msgSender(),
-            proposal.batchBlockInterval,
-            proposal.batchTimeout,
-            proposal.rollupEpoch
-        );
+        emit ProposalCreated(currentProposalID, _msgSender(), proposal.batchBlockInterval, proposal.batchTimeout);
 
         return (currentProposalID);
     }
@@ -246,15 +227,9 @@ contract Gov is IGov, OwnableUpgradeable {
             batchTimeout = proposalData[proposalID].batchTimeout;
             emit BatchTimeoutUpdated(_oldValue, proposalData[proposalID].batchTimeout);
         }
-        if (rollupEpoch != proposalData[proposalID].rollupEpoch) {
-            uint256 _oldValue = rollupEpoch;
-            rollupEpoch = proposalData[proposalID].rollupEpoch;
-            rollupEpochUpdateTime = block.timestamp;
-            emit RollupEpochUpdated(_oldValue, proposalData[proposalID].rollupEpoch);
-        }
         proposalInfos[proposalID].executed = true;
 
-        emit ProposalExecuted(proposalID, batchBlockInterval, batchTimeout, rollupEpoch);
+        emit ProposalExecuted(proposalID, batchBlockInterval, batchTimeout);
     }
 
     /// @notice check whether the proposal has been passed
