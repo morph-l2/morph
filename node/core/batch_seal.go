@@ -61,7 +61,7 @@ func (e *Executor) SealBatch() ([]byte, []byte, error) {
 }
 
 // handleBatchSealing determines which version to use for compression and calculates the data hash.
-func (e *Executor) handleBatchSealing(blockTimestamp uint64) ([]byte, common.Hash, error) {
+func (e *Executor) handleBatchSealing(_ uint64) ([]byte, common.Hash, error) {
 	var (
 		compressedPayload []byte
 		batchDataHash     common.Hash
@@ -69,29 +69,17 @@ func (e *Executor) handleBatchSealing(blockTimestamp uint64) ([]byte, common.Has
 	)
 
 	// Check if the batch should use the upgraded version
-	if e.isBatchUpgraded(blockTimestamp) {
-		compressedPayload, err = types.CompressBatchBytes(e.batchingCache.batchData.TxsPayloadV2())
-		if err != nil {
-			return nil, common.Hash{}, fmt.Errorf("failed to compress upgraded payload: %w", err)
-		}
-
-		if len(compressedPayload) <= types.MaxBlobBytesSize {
-			batchDataHash, err = e.batchingCache.batchData.DataHashV2()
-			if err != nil {
-				return nil, common.Hash{}, fmt.Errorf("failed to calculate upgraded data hash: %w", err)
-			}
-			return compressedPayload, batchDataHash, nil
-		}
-	}
-
-	// Fallback to old version if upgraded is not used
-	compressedPayload, err = types.CompressBatchBytes(e.batchingCache.batchData.TxsPayload())
+	compressedPayload, err = types.CompressBatchBytes(e.batchingCache.batchData.TxsPayloadV2())
 	if err != nil {
-		return nil, common.Hash{}, fmt.Errorf("failed to compress payload: %w", err)
+		return nil, common.Hash{}, fmt.Errorf("failed to compress upgraded payload: %w", err)
 	}
-	batchDataHash = e.batchingCache.batchData.DataHash()
 
+	batchDataHash, err = e.batchingCache.batchData.DataHashV2()
+	if err != nil {
+		return nil, common.Hash{}, fmt.Errorf("failed to calculate upgraded data hash: %w", err)
+	}
 	return compressedPayload, batchDataHash, nil
+
 }
 
 // createBatchHeader creates a BatchHeader from the given parameters.
@@ -107,27 +95,23 @@ func (e *Executor) createBatchHeader(dataHash common.Hash, sidecar *eth.BlobTxSi
 
 	parentBatchIndex, _ := e.batchingCache.parentBatchHeader.BatchIndex()
 	parentBatchHash, _ := e.batchingCache.parentBatchHeader.Hash()
-	batchHeaderV0 := types.BatchHeaderV0{
-		BatchIndex:             parentBatchIndex + 1,
-		L1MessagePopped:        l1MessagePopped,
-		TotalL1MessagePopped:   e.batchingCache.totalL1MessagePopped,
-		DataHash:               dataHash,
-		BlobVersionedHash:      blobHashes[0],
-		PrevStateRoot:          e.batchingCache.prevStateRoot,
-		PostStateRoot:          e.batchingCache.postStateRoot,
-		WithdrawalRoot:         e.batchingCache.withdrawRoot,
-		SequencerSetVerifyHash: sequencerSetVerifyHash,
-		ParentBatchHash:        parentBatchHash,
-	}
-	if e.isBatchUpgraded(blockTimestamp) {
-		batchHeaderV1 := types.BatchHeaderV1{
-			BatchHeaderV0:   batchHeaderV0,
-			LastBlockNumber: e.batchingCache.lastPackedBlockHeight,
-		}
-		return batchHeaderV1.Bytes()
-	}
 
-	return batchHeaderV0.Bytes()
+	batchHeaderV1 := types.BatchHeaderV1{
+		BatchHeaderV0: types.BatchHeaderV0{
+			BatchIndex:             parentBatchIndex + 1,
+			L1MessagePopped:        l1MessagePopped,
+			TotalL1MessagePopped:   e.batchingCache.totalL1MessagePopped,
+			DataHash:               dataHash,
+			BlobVersionedHash:      blobHashes[0],
+			PrevStateRoot:          e.batchingCache.prevStateRoot,
+			PostStateRoot:          e.batchingCache.postStateRoot,
+			WithdrawalRoot:         e.batchingCache.withdrawRoot,
+			SequencerSetVerifyHash: sequencerSetVerifyHash,
+			ParentBatchHash:        parentBatchHash,
+		},
+		LastBlockNumber: e.batchingCache.lastPackedBlockHeight,
+	}
+	return batchHeaderV1.Bytes()
 }
 
 // logSealedBatch logs the details of the sealed batch for debugging purposes.

@@ -105,7 +105,7 @@ func (wb *WrappedBlock) UnmarshalBinary(b []byte) error {
 }
 
 func (wb *WrappedBlock) BlockContextBytes(txsNum, l1MsgNum int) []byte {
-	// Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2)
+	// Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2) || Miner(20)
 	blsBytes := make([]byte, 60)
 	copy(blsBytes[:8], Uint64ToBigEndianBytes(wb.Number))
 	copy(blsBytes[8:16], Uint64ToBigEndianBytes(wb.Timestamp))
@@ -117,6 +117,11 @@ func (wb *WrappedBlock) BlockContextBytes(txsNum, l1MsgNum int) []byte {
 	copy(blsBytes[48:56], Uint64ToBigEndianBytes(wb.GasLimit))
 	copy(blsBytes[56:58], Uint16ToBigEndianBytes(uint16(txsNum)))
 	copy(blsBytes[58:60], Uint16ToBigEndianBytes(uint16(l1MsgNum)))
+
+	if wb.Miner != types.EmptyAddress {
+		blsBytes = append(blsBytes, make([]byte, common.AddressLength)...)
+		copy(blsBytes[60:], wb.Miner.Bytes())
+	}
 
 	return blsBytes
 }
