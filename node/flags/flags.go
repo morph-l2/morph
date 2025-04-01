@@ -198,8 +198,14 @@ var (
 
 	DerivationBaseHeight = cli.Uint64Flag{
 		Name:   "derivation.baseHeight",
-		Usage:  "The starting height of l2 derive, usually the node snapshot or other trusted starting height, before which stateRoot will not be checked",
+		Usage:  "L2 snapshot base block height",
 		EnvVar: prefixEnvVar("DERIVATION_BASE_HEIGHT"),
+	}
+
+	DerivationUpgradeTime = cli.Uint64Flag{
+		Name:   "derivation.upgradeTime",
+		Usage:  "Timestamp threshold for block context format upgrade",
+		EnvVar: prefixEnvVar("DERIVATION_UPGRADE_TIME"),
 	}
 
 	DerivationPollInterval = cli.DurationFlag{
@@ -218,6 +224,12 @@ var (
 		Name:   "derivation.fetchBlockRange",
 		Usage:  "Number of blocks that we collect in a single eth_getLogs query",
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
+	}
+
+	DerivationConfirmations = cli.Int64Flag{
+		Name:   "derivation.confirmations",
+		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
+		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
 	}
 
 	// Batch rules
@@ -240,11 +252,6 @@ var (
 		Usage: "Morph Holesky",
 	}
 
-	DerivationConfirmations = cli.Int64Flag{
-		Name:   "derivation.confirmations",
-		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
-		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
-	}
 	// Logger
 	LogLevel = &cli.StringFlag{
 		Name:   "log.level",
@@ -341,6 +348,7 @@ var Flags = []cli.Flag{
 	RollupContractAddress,
 	DerivationStartHeight,
 	DerivationBaseHeight,
+	DerivationUpgradeTime,
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,

@@ -80,137 +80,223 @@ func (bi *BatchInfo) TxNum() uint64 {
 	return bi.txNum
 }
 
+const (
+	// BlockContextStandardLength is the full length of a block context with all fields
+	BlockContextStandardLength = 80
+	// BlockContextLegacyLength is the length of a legacy block context without coinbase
+	BlockContextLegacyLength = 60
+	// TimestampOffset is the offset of timestamp field in block context
+	TimestampOffset = 8
+	// TimestampLength is the length of timestamp field in bytes
+	TimestampLength = 8
+)
+
 // ParseBatch This method is externally referenced for parsing Batch
-func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
+func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, upgradeTime uint64) error {
 	if len(batch.Sidecar.Blobs) == 0 {
 		return fmt.Errorf("blobs length can not be zero")
 	}
+
+	// Parse parent batch header
 	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
 	parentBatchIndex, err := parentBatchHeader.BatchIndex()
 	if err != nil {
-		return fmt.Errorf("decode batch header index error:%v", err)
+		return fmt.Errorf("decode batch header index error: %v", err)
 	}
+
 	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
 	if err != nil {
-		return fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
+		return fmt.Errorf("decode batch header totalL1MessagePopped error: %v", err)
 	}
+
+	// Initialize batch info fields
 	bi.parentTotalL1MessagePopped = totalL1MessagePopped
 	bi.root = batch.PostStateRoot
 	bi.batchIndex = parentBatchIndex + 1
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
+
 	tq := newTxQueue()
 	var rawBlockContexts hexutil.Bytes
 	var blockCount uint64
+
+	// Calculate block count based on version
 	if batch.Version > 0 {
 		parentVersion, err := parentBatchHeader.Version()
 		if err != nil {
-			return fmt.Errorf("decode batch header version error:%v", err)
+			return fmt.Errorf("decode batch header version error: %v", err)
 		}
+
 		if parentVersion == 0 {
+			// Handle version upgrade scenario
 			blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
 			if err != nil {
-				return err
+				return fmt.Errorf("retrieve blob bytes error: %v", err)
 			}
+
 			batchBytes, err := zstd.DecompressBatchBytes(blobData)
 			if err != nil {
-				return fmt.Errorf("decompress batch bytes error:%v", err)
+				return fmt.Errorf("decompress batch bytes error: %v", err)
 			}
+
+			// Ensure we have enough data for block context
+			if len(batchBytes) < BlockContextLegacyLength {
+				return fmt.Errorf("insufficient batch bytes for block context, got %d bytes", len(batchBytes))
+			}
+
 			var startBlock BlockContext
 			// coinbase does not enter batch at this time
-			if err := startBlock.Decode(batchBytes[:60]); err != nil {
-				return fmt.Errorf("decode chunk block context error:%v", err)
+			if err := startBlock.Decode(batchBytes[:BlockContextLegacyLength]); err != nil {
+				return fmt.Errorf("decode chunk block context error: %v", err)
 			}
+
 			blockCount = batch.LastBlockNumber - startBlock.Number + 1
 		} else {
 			parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
 			if err != nil {
-				return fmt.Errorf("decode batch header lastBlockNumber error:%v", err)
+				return fmt.Errorf("decode batch header lastBlockNumber error: %v", err)
 			}
+
 			blockCount = batch.LastBlockNumber - parentBatchBlock
 		}
-
 	}
+
 	var txsNum uint64
 	blockContexts := make([]*BlockContext, int(blockCount))
-	blob := batch.Sidecar.Blobs[0]
-	blobCopy := blob
-	blobData, err := types.RetrieveBlobBytes(&blobCopy)
+
+	// Process blob data
+	blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
 	if err != nil {
-		return err
+		return fmt.Errorf("retrieve blob bytes error: %v", err)
 	}
+
 	batchBytes, err := zstd.DecompressBatchBytes(blobData)
 	if err != nil {
-		return err
+		return fmt.Errorf("decompress batch bytes error: %v", err)
 	}
+
 	reader := bytes.NewReader(batchBytes)
 	start := 0
 
+	// Process block contexts
 	for i := 0; i < int(blockCount); i++ {
 		var timestamp uint64
 		var block BlockContext
 
-		timestampBytes := rawBlockContexts[start+8 : start+16]
+		// Ensure we have enough data in rawBlockContexts
+		if start+TimestampOffset+TimestampLength > len(rawBlockContexts) {
+			return fmt.Errorf("insufficient block context data, needed %d but got %d bytes",
+				start+TimestampOffset+TimestampLength, len(rawBlockContexts))
+		}
+
+		timestampBytes := rawBlockContexts[start+TimestampOffset : start+TimestampOffset+TimestampLength]
 		if err := binary.Read(bytes.NewReader(timestampBytes), binary.BigEndian, &timestamp); err != nil {
-			return err
+			return fmt.Errorf("read timestamp error: %v", err)
 		}
-		bctxLength := 80
-		// TODO timestamp
-		if timestamp < 1000 {
-			bctxLength = 60
+
+		blockContextLength := BlockContextStandardLength
+
+		if timestamp < upgradeTime {
+			blockContextLength = BlockContextLegacyLength
 		}
-		if err := block.Decode(rawBlockContexts[start : start+bctxLength]); err != nil {
-			return fmt.Errorf("decode chunk block context error:%v", err)
+
+		// Ensure we have enough data for the full block context
+		if start+blockContextLength > len(rawBlockContexts) {
+			return fmt.Errorf("insufficient block context data for block %d, needed %d but got %d bytes",
+				i, start+blockContextLength, len(rawBlockContexts))
 		}
+
+		if err := block.Decode(rawBlockContexts[start : start+blockContextLength]); err != nil {
+			return fmt.Errorf("decode block context error: %v", err)
+		}
+
+		// Set boundary block numbers
 		if i == 0 {
 			bi.firstBlockNumber = block.Number
 		}
 		if i == int(blockCount)-1 {
 			bi.lastBlockNumber = block.Number
 		}
+
+		// Setup SafeL2Data
 		var safeL2Data catalyst.SafeL2Data
 		safeL2Data.Number = block.Number
 		safeL2Data.GasLimit = block.GasLimit
 		safeL2Data.BaseFee = block.BaseFee
 		safeL2Data.Timestamp = block.Timestamp
+
+		// Handle zero BaseFee case
 		if block.BaseFee != nil && block.BaseFee.Cmp(big.NewInt(0)) == 0 {
 			safeL2Data.BaseFee = nil
 		}
-		// TODO coinbase
-		if block.txsNum < block.l1MsgNum {
-			return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
-		}
-		block.SafeL2Data = &safeL2Data
 
+		// Validate transaction numbers
+		if block.txsNum < block.l1MsgNum {
+			return fmt.Errorf("txsNum must be greater than or equal to l1MsgNum, txsNum: %v, l1MsgNum: %v",
+				block.txsNum, block.l1MsgNum)
+		}
+
+		block.SafeL2Data = &safeL2Data
 		blockContexts[i] = &block
+
+		// Move to next block context
+		start += blockContextLength
 	}
+
+	// Read transaction data
 	txsData, err := io.ReadAll(reader)
 	if err != nil {
-		return fmt.Errorf("read txBytes error:%s", err.Error())
+		return fmt.Errorf("read transaction data error: %s", err.Error())
 	}
+
+	// Check if block contexts are provided directly
 	if batch.BlockContexts != nil {
+		// First 2 bytes contain the block count
+		if len(batch.BlockContexts) < 2 {
+			return fmt.Errorf("insufficient block contexts data: %d bytes", len(batch.BlockContexts))
+		}
+
 		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
-		rawBlockContexts = batch.BlockContexts[2 : 60*blockCount+2]
+
+		// Ensure we have enough data for the block contexts
+		expectedMinLength := 2 + int(blockCount)*BlockContextLegacyLength
+		if len(batch.BlockContexts) < expectedMinLength {
+			return fmt.Errorf("insufficient block contexts data: got %d, expected at least %d bytes",
+				len(batch.BlockContexts), expectedMinLength)
+		}
+
+		rawBlockContexts = batch.BlockContexts[2 : 2+BlockContextLegacyLength*blockCount]
 	}
+
+	// Decode transactions
 	data, err := types.DecodeTxsFromBytes(txsData)
 	if err != nil {
-		return err
+		return fmt.Errorf("decode transactions error: %v", err)
 	}
+
+	// Process transactions
 	tq.enqueue(data)
 
 	for i := 0; i < int(blockCount); i++ {
-		var txs []*eth.Transaction
-		var err error
-		txs, err = tq.dequeue(int(blockContexts[i].txsNum) - int(blockContexts[i].l1MsgNum))
-		if err != nil {
-			return fmt.Errorf("decode txsPayload error:%v", err)
+		// Skip if index is out of bounds
+		if i >= len(blockContexts) {
+			return fmt.Errorf("block context index out of bounds: %d >= %d", i, len(blockContexts))
 		}
+
+		txCount := int(blockContexts[i].txsNum) - int(blockContexts[i].l1MsgNum)
+		txs, err := tq.dequeue(txCount)
+		if err != nil {
+			return fmt.Errorf("decode transaction payload error: %v", err)
+		}
+
 		txsNum += uint64(blockContexts[i].txsNum)
 		// l1 transactions will be inserted later in front of L2 transactions
 		blockContexts[i].SafeL2Data.Transactions = encodeTransactions(txs)
 	}
+
 	bi.txNum += txsNum
 	bi.blockContexts = blockContexts
+
 	return nil
 }
 
