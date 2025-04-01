@@ -82,6 +82,9 @@ func (bi *BatchInfo) TxNum() uint64 {
 
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
+	if len(batch.Sidecar.Blobs) == 0 {
+		return fmt.Errorf("blobs length can not be zero")
+	}
 	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
 	parentBatchIndex, err := parentBatchHeader.BatchIndex()
 	if err != nil {
@@ -98,7 +101,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	bi.version = uint64(batch.Version)
 	tq := newTxQueue()
 	var rawBlockContexts hexutil.Bytes
-	var txsData []byte
 	var blockCount uint64
 	if batch.Version > 0 {
 		parentVersion, err := parentBatchHeader.Version()
@@ -106,9 +108,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			return fmt.Errorf("decode batch header version error:%v", err)
 		}
 		if parentVersion == 0 {
-			if len(batch.Sidecar.Blobs) == 0 {
-				return fmt.Errorf("blobs length can not be zero")
-			}
 			blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
 			if err != nil {
 				return err
@@ -132,103 +131,35 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		}
 
 	}
-	// If BlockContexts is not nil, the block context should not be included in the blob.
-	// Therefore, the required length must be zero.
-	length := blockCount * 60
-	if len(batch.Sidecar.Blobs) > 0 {
-		blob := batch.Sidecar.Blobs[0]
-		blobCopy := blob
-		blobData, err := types.RetrieveBlobBytes(&blobCopy)
-		if err != nil {
-			return err
-		}
-		batchBytes, err := zstd.DecompressBatchBytes(blobData)
-		if err != nil {
-			return err
-		}
-		//reader := bytes.NewReader(batchBytes)
-		//if batch.BlockContexts == nil {
-		//	if len(batchBytes) < int(length) {
-		//		rawBlockContexts = append(rawBlockContexts, batchBytes...)
-		//		length -= uint64(len(batchBytes))
-		//		reader.Reset(nil)
-		//	} else {
-		//		bcBytes := make([]byte, length)
-		//		_, err = reader.Read(bcBytes)
-		//		if err != nil {
-		//			return fmt.Errorf("read block context error:%s", err.Error())
-		//		}
-		//		rawBlockContexts = append(rawBlockContexts, bcBytes...)
-		//		length = 0
-		//	}
-		//}
-		data, err := io.ReadAll(reader)
-		if err != nil {
-			return fmt.Errorf("read txBytes error:%s", err.Error())
-		}
-		txsData = append(txsData, data...)
-	}
-	for _, blob := range batch.Sidecar.Blobs {
-		blobCopy := blob
-		blobData, err := types.RetrieveBlobBytes(&blobCopy)
-		if err != nil {
-			return err
-		}
-		batchBytes, err := zstd.DecompressBatchBytes(blobData)
-		if err != nil {
-			return err
-		}
-		reader := bytes.NewReader(batchBytes)
-		if batch.BlockContexts == nil {
-			if len(batchBytes) < int(length) {
-				rawBlockContexts = append(rawBlockContexts, batchBytes...)
-				length -= uint64(len(batchBytes))
-				reader.Reset(nil)
-			} else {
-				bcBytes := make([]byte, length)
-				_, err = reader.Read(bcBytes)
-				if err != nil {
-					return fmt.Errorf("read block context error:%s", err.Error())
-				}
-				rawBlockContexts = append(rawBlockContexts, bcBytes...)
-				length = 0
-			}
-		}
-		data, err := io.ReadAll(reader)
-		if err != nil {
-			return fmt.Errorf("read txBytes error:%s", err.Error())
-		}
-		txsData = append(txsData, data...)
-	}
-	if batch.BlockContexts != nil {
-		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
-		rawBlockContexts = batch.BlockContexts[2 : 60*blockCount+2]
-	}
-	data, err := types.DecodeTxsFromBytes(txsData)
+	var txsNum uint64
+	blockContexts := make([]*BlockContext, int(blockCount))
+	blob := batch.Sidecar.Blobs[0]
+	blobCopy := blob
+	blobData, err := types.RetrieveBlobBytes(&blobCopy)
 	if err != nil {
 		return err
 	}
-	tq.enqueue(data)
-	var txsNum uint64
-	var l1MsgNum uint64
-	blockContexts := make([]*BlockContext, int(blockCount))
+	batchBytes, err := zstd.DecompressBatchBytes(blobData)
+	if err != nil {
+		return err
+	}
+	reader := bytes.NewReader(batchBytes)
 	start := 0
 
 	for i := 0; i < int(blockCount); i++ {
-		var block BlockContext
-		timestampBytes := rawBlockContexts[start+8 : start+16]
 		var timestamp uint64
-		if err := binary.Read(bytes.NewReader(timestampBytes), binary.BigEndian, &timestamp); err != nil {
-			return
-		}
-		// TODO timestamp
-		bctxLength := 80
+		var block BlockContext
 
+		timestampBytes := rawBlockContexts[start+8 : start+16]
+		if err := binary.Read(bytes.NewReader(timestampBytes), binary.BigEndian, &timestamp); err != nil {
+			return err
+		}
+		bctxLength := 80
+		// TODO timestamp
 		if timestamp < 1000 {
 			bctxLength = 60
 		}
-
-		if err := block.Decode(rawBlockContexts[i*60 : i*60+60]); err != nil {
+		if err := block.Decode(rawBlockContexts[start : start+bctxLength]); err != nil {
 			return fmt.Errorf("decode chunk block context error:%v", err)
 		}
 		if i == 0 {
@@ -249,21 +180,34 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		if block.txsNum < block.l1MsgNum {
 			return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
 		}
-		var txs []*eth.Transaction
-		var err error
-		if len(batch.Sidecar.Blobs) != 0 {
-			txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
-			if err != nil {
-				return fmt.Errorf("decode txsPayload error:%v", err)
-			}
-		}
-		txsNum += uint64(block.txsNum)
-		l1MsgNum += uint64(block.l1MsgNum)
-		// l1 transactions will be inserted later in front of L2 transactions
-		safeL2Data.Transactions = encodeTransactions(txs)
 		block.SafeL2Data = &safeL2Data
 
 		blockContexts[i] = &block
+	}
+	txsData, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("read txBytes error:%s", err.Error())
+	}
+	if batch.BlockContexts != nil {
+		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
+		rawBlockContexts = batch.BlockContexts[2 : 60*blockCount+2]
+	}
+	data, err := types.DecodeTxsFromBytes(txsData)
+	if err != nil {
+		return err
+	}
+	tq.enqueue(data)
+
+	for i := 0; i < int(blockCount); i++ {
+		var txs []*eth.Transaction
+		var err error
+		txs, err = tq.dequeue(int(blockContexts[i].txsNum) - int(blockContexts[i].l1MsgNum))
+		if err != nil {
+			return fmt.Errorf("decode txsPayload error:%v", err)
+		}
+		txsNum += uint64(blockContexts[i].txsNum)
+		// l1 transactions will be inserted later in front of L2 transactions
+		blockContexts[i].SafeL2Data.Transactions = encodeTransactions(txs)
 	}
 	bi.txNum += txsNum
 	bi.blockContexts = blockContexts
