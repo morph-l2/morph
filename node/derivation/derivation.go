@@ -295,11 +295,6 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		return nil, err
 	}
 	// query blob
-	block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
-	if err != nil {
-		return nil, err
-	}
-	indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), tx)
 	header, err := d.l1Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockNumber)))
 	if err != nil {
 		return nil, err
@@ -378,13 +373,11 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	} else {
 		return nil, fmt.Errorf("not matched blob,txHash:%v,blockNumber:%v", txHash, blockNumber)
 	}
-	batch.Sidecar = bts
 	l2Height, err := d.l2Client.BlockNumber(d.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query l2 block number error:%v", err)
 	}
 	rollupData, err := d.parseBatch(batch, l2Height)
-	rollupData, err := d.parseBatch(batch)
 	if err != nil {
 		d.logger.Error("parse batch failed", "txNonce", tx.Nonce(), "txHash", txHash,
 			"l1BlockNumber", blockNumber)
