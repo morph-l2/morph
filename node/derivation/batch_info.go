@@ -92,7 +92,7 @@ const (
 )
 
 // ParseBatch This method is externally referenced for parsing Batch
-func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, upgradeTime uint64) error {
+func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) error {
 	if len(batch.Sidecar.Blobs) == 0 {
 		return fmt.Errorf("blobs length can not be zero")
 	}
@@ -196,7 +196,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, upgradeTime uint64) e
 
 		blockContextLength := BlockContextStandardLength
 
-		if timestamp < upgradeTime {
+		if timestamp < morph204Time {
 			blockContextLength = BlockContextLegacyLength
 		}
 

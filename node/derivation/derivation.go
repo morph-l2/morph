@@ -61,7 +61,7 @@ type Derivation struct {
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
-	upgradeTime         uint64 // Timestamp threshold for block context format
+	morph204Time        uint64 // Timestamp threshold for block context format
 	stop                chan struct{}
 }
 
@@ -136,7 +136,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		fetchBlockRange:       cfg.FetchBlockRange,
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
-		upgradeTime:           cfg.UpgradeTime,
+		morph204Time:          cfg.Morph204Time,
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
@@ -412,7 +412,7 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*BatchInfo, error) {
 	batchInfo := new(BatchInfo)
 	// Set the derivation reference to access configuration
-	if err := batchInfo.ParseBatch(batch, d.upgradeTime); err != nil {
+	if err := batchInfo.ParseBatch(batch, d.morph204Time); err != nil {
 		return nil, fmt.Errorf("parse batch error:%v", err)
 	}
 	if err := d.handleL1Message(batchInfo, batchInfo.parentTotalL1MessagePopped, l2Height); err != nil {

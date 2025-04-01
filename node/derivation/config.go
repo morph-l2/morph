@@ -44,7 +44,7 @@ type Config struct {
 	MetricsPort           uint64          `json:"metrics_port"`
 	MetricsHostname       string          `json:"metrics_hostname"`
 	MetricsServerEnable   bool            `json:"metrics_server_enable"`
-	UpgradeTime           uint64          `json:"upgrade_time"`
+	Morph204Time          uint64          `json:"upgrade_time"`
 }
 
 func DefaultConfig() *Config {
@@ -92,8 +92,8 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.BaseHeight = ctx.GlobalUint64(flags.DerivationBaseHeight.Name)
 	}
 
-	if ctx.GlobalIsSet(flags.DerivationUpgradeTime.Name) {
-		c.UpgradeTime = ctx.GlobalUint64(flags.UpgradeBatchTime.Name)
+	if ctx.GlobalIsSet(flags.Morph204Time.Name) {
+		c.Morph204Time = ctx.GlobalUint64(flags.Morph204Time.Name)
 	}
 
 	if ctx.GlobalIsSet(flags.DerivationPollInterval.Name) {

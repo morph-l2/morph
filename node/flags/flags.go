@@ -202,12 +202,6 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_BASE_HEIGHT"),
 	}
 
-	DerivationUpgradeTime = cli.Uint64Flag{
-		Name:   "derivation.upgradeTime",
-		Usage:  "Timestamp threshold for block context format upgrade",
-		EnvVar: prefixEnvVar("DERIVATION_UPGRADE_TIME"),
-	}
-
 	DerivationPollInterval = cli.DurationFlag{
 		Name:   "derivation.pollInterval",
 		Usage:  "Frequency at which we query for rollup data",
@@ -348,7 +342,6 @@ var Flags = []cli.Flag{
 	RollupContractAddress,
 	DerivationStartHeight,
 	DerivationBaseHeight,
-	DerivationUpgradeTime,
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
@@ -356,6 +349,7 @@ var Flags = []cli.Flag{
 	L1BeaconAddr,
 
 	// batch rules
+	Morph204Time,
 	UpgradeBatchTime,
 	MainnetFlag,
 	HoleskyFlag,
