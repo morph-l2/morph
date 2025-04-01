@@ -24,6 +24,7 @@ type BlockContext struct {
 	GasLimit  uint64
 	txsNum    uint16
 	l1MsgNum  uint16
+	coinbase  common.Address
 
 	SafeL2Data *catalyst.SafeL2Data
 	L2TxHashes []byte
@@ -42,6 +43,7 @@ func (b *BlockContext) Decode(bc []byte) error {
 	b.GasLimit = wb.GasLimit
 	b.txsNum = txsNum
 	b.l1MsgNum = l1MsgNum
+	b.coinbase = wb.Miner
 	return nil
 }
 
@@ -116,6 +118,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 				return fmt.Errorf("decompress batch bytes error:%v", err)
 			}
 			var startBlock BlockContext
+			// coinbase does not enter batch at this time
 			if err := startBlock.Decode(batchBytes[:60]); err != nil {
 				return fmt.Errorf("decode chunk block context error:%v", err)
 			}
@@ -132,6 +135,39 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	// If BlockContexts is not nil, the block context should not be included in the blob.
 	// Therefore, the required length must be zero.
 	length := blockCount * 60
+	if len(batch.Sidecar.Blobs) > 0 {
+		blob := batch.Sidecar.Blobs[0]
+		blobCopy := blob
+		blobData, err := types.RetrieveBlobBytes(&blobCopy)
+		if err != nil {
+			return err
+		}
+		batchBytes, err := zstd.DecompressBatchBytes(blobData)
+		if err != nil {
+			return err
+		}
+		//reader := bytes.NewReader(batchBytes)
+		//if batch.BlockContexts == nil {
+		//	if len(batchBytes) < int(length) {
+		//		rawBlockContexts = append(rawBlockContexts, batchBytes...)
+		//		length -= uint64(len(batchBytes))
+		//		reader.Reset(nil)
+		//	} else {
+		//		bcBytes := make([]byte, length)
+		//		_, err = reader.Read(bcBytes)
+		//		if err != nil {
+		//			return fmt.Errorf("read block context error:%s", err.Error())
+		//		}
+		//		rawBlockContexts = append(rawBlockContexts, bcBytes...)
+		//		length = 0
+		//	}
+		//}
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return fmt.Errorf("read txBytes error:%s", err.Error())
+		}
+		txsData = append(txsData, data...)
+	}
 	for _, blob := range batch.Sidecar.Blobs {
 		blobCopy := blob
 		blobData, err := types.RetrieveBlobBytes(&blobCopy)
@@ -176,8 +212,22 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	var txsNum uint64
 	var l1MsgNum uint64
 	blockContexts := make([]*BlockContext, int(blockCount))
+	start := 0
+
 	for i := 0; i < int(blockCount); i++ {
 		var block BlockContext
+		timestampBytes := rawBlockContexts[start+8 : start+16]
+		var timestamp uint64
+		if err := binary.Read(bytes.NewReader(timestampBytes), binary.BigEndian, &timestamp); err != nil {
+			return
+		}
+		// TODO timestamp
+		bctxLength := 80
+
+		if timestamp < 1000 {
+			bctxLength = 60
+		}
+
 		if err := block.Decode(rawBlockContexts[i*60 : i*60+60]); err != nil {
 			return fmt.Errorf("decode chunk block context error:%v", err)
 		}
@@ -195,6 +245,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		if block.BaseFee != nil && block.BaseFee.Cmp(big.NewInt(0)) == 0 {
 			safeL2Data.BaseFee = nil
 		}
+		// TODO coinbase
 		if block.txsNum < block.l1MsgNum {
 			return fmt.Errorf("txsNum must be or equal to or greater than l1MsgNum,txsNum:%v,l1MsgNum:%v", block.txsNum, block.l1MsgNum)
 		}

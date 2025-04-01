@@ -149,6 +149,11 @@ func (wb *WrappedBlock) DecodeBlockContext(bc []byte) (uint16, uint16, error) {
 	if err := binary.Read(reader, binary.BigEndian, &l1MsgNum); err != nil {
 		return 0, 0, err
 	}
+	if reader.Len() > 0 {
+		if err := binary.Read(reader, binary.BigEndian, &wb.Miner); err != nil {
+			return 0, 0, err
+		}
+	}
 	return txsNum, l1MsgNum, nil
 }
 
