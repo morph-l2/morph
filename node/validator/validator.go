@@ -38,11 +38,12 @@ func NewValidator(cfg *Config, rollup *bindings.Rollup, logger tmlog.Logger) (*V
 		return nil, fmt.Errorf("dial l1 node error:%v", err)
 	}
 	return &Validator{
-		cli:        cli,
-		contract:   rollup,
-		privateKey: cfg.PrivateKey,
-		l1ChainID:  cfg.L1ChainID,
-		logger:     logger,
+		cli:             cli,
+		contract:        rollup,
+		privateKey:      cfg.PrivateKey,
+		l1ChainID:       cfg.L1ChainID,
+		challengeEnable: cfg.challengeEnable,
+		logger:          logger,
 	}, nil
 }
 
@@ -68,13 +69,6 @@ func (v *Validator) ChallengeState(batchIndex uint64) error {
 	}
 	opts.GasPrice = gasPrice
 	opts.NoSend = true
-	//publicKey := v.privateKey.Public()
-	// publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	// if !ok {
-	// 	log.Error("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
-	// }
-
-	//receiver := crypto.PubkeyToAddress(*publicKeyECDSA)
 	batchHash, err := v.contract.CommittedBatches(
 		&bind.CallOpts{
 			Pending: false,
