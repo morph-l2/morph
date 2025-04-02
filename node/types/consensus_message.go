@@ -157,6 +157,45 @@ func (wb *WrappedBlock) DecodeBlockContext(bc []byte) (uint16, uint16, error) {
 	return txsNum, l1MsgNum, nil
 }
 
+// DecodeBlockContextSkip16 number and timestamp are skipped when DecodeBlock
+func (wb *WrappedBlock) DecodeBlockContextSkip16(bc []byte) (uint16, uint16, error) {
+	reader := bytes.NewReader(bc)
+	bsBaseFee := make([]byte, 32)
+	if err := binary.Read(reader, binary.BigEndian, &bsBaseFee); err != nil {
+		return 0, 0, err
+	}
+	wb.BaseFee = new(big.Int).SetBytes(bsBaseFee)
+	if err := binary.Read(reader, binary.BigEndian, &wb.GasLimit); err != nil {
+		return 0, 0, err
+	}
+	var txsNum, l1MsgNum uint16
+	if err := binary.Read(reader, binary.BigEndian, &txsNum); err != nil {
+		return 0, 0, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &l1MsgNum); err != nil {
+		return 0, 0, err
+	}
+	if reader.Len() > 0 {
+		if err := binary.Read(reader, binary.BigEndian, &wb.Miner); err != nil {
+			return 0, 0, err
+		}
+	}
+	return txsNum, l1MsgNum, nil
+}
+
+// DecodeNumberAndTime only decode number and timestamp
+func DecodeNumberAndTime(bc []byte) (uint64, uint64, error) {
+	reader := bytes.NewReader(bc)
+	var number, timestamp uint64
+	if err := binary.Read(reader, binary.BigEndian, &number); err != nil {
+		return 0, 0, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &timestamp); err != nil {
+		return 0, 0, err
+	}
+	return number, timestamp, nil
+}
+
 func WrappedBlockFromBytes(blockBytes []byte) (*WrappedBlock, error) {
 	var curBlock = new(WrappedBlock)
 	if err := curBlock.UnmarshalBinary(blockBytes); err != nil {

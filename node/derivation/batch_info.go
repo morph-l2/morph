@@ -17,6 +17,13 @@ import (
 	"morph-l2/node/zstd"
 )
 
+const (
+	// BlockContextStandardLength is the full length of a block context with all fields
+	BlockContextStandardLength = 80
+	// BlockContextLegacyLength is the length of a legacy block context without coinbase
+	BlockContextLegacyLength = 60
+)
+
 type BlockContext struct {
 	Number    uint64 `json:"number"`
 	Timestamp uint64 `json:"timestamp"`
@@ -32,18 +39,33 @@ type BlockContext struct {
 }
 
 func (b *BlockContext) Decode(bc []byte) error {
+	if err := b.DecodeNumberAndTime(bc[:16]); err != nil {
+		return err
+	}
+	return b.DecodeSkipNumberAndTime(bc[16:])
+}
+
+func (b *BlockContext) DecodeSkipNumberAndTime(bc []byte) error {
 	wb := new(types.WrappedBlock)
 	txsNum, l1MsgNum, err := wb.DecodeBlockContext(bc)
 	if err != nil {
 		return err
 	}
-	b.Number = wb.Number
-	b.Timestamp = wb.Timestamp
 	b.BaseFee = wb.BaseFee
 	b.GasLimit = wb.GasLimit
 	b.txsNum = txsNum
 	b.l1MsgNum = l1MsgNum
 	b.coinbase = wb.Miner
+	return nil
+}
+
+func (b *BlockContext) DecodeNumberAndTime(bc []byte) error {
+	number, time, err := types.DecodeNumberAndTime(bc)
+	if err != nil {
+		return err
+	}
+	b.Number = number
+	b.Timestamp = time
 	return nil
 }
 
@@ -80,16 +102,9 @@ func (bi *BatchInfo) TxNum() uint64 {
 	return bi.txNum
 }
 
-const (
-	// BlockContextStandardLength is the full length of a block context with all fields
-	BlockContextStandardLength = 80
-	// BlockContextLegacyLength is the length of a legacy block context without coinbase
-	BlockContextLegacyLength = 60
-	// TimestampOffset is the offset of timestamp field in block context
-	TimestampOffset = 8
-	// TimestampLength is the length of timestamp field in bytes
-	TimestampLength = 8
-)
+func (bi *BatchInfo) getBlockCount() {
+
+}
 
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) error {
@@ -117,54 +132,9 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 	bi.version = uint64(batch.Version)
 
 	tq := newTxQueue()
-	var rawBlockContexts hexutil.Bytes
-	var blockCount uint64
+	var rawBlockContextsAndTxs hexutil.Bytes
 
-	// Calculate block count based on version
-	if batch.Version > 0 {
-		parentVersion, err := parentBatchHeader.Version()
-		if err != nil {
-			return fmt.Errorf("decode batch header version error: %v", err)
-		}
-
-		if parentVersion == 0 {
-			// Handle version upgrade scenario
-			blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
-			if err != nil {
-				return fmt.Errorf("retrieve blob bytes error: %v", err)
-			}
-
-			batchBytes, err := zstd.DecompressBatchBytes(blobData)
-			if err != nil {
-				return fmt.Errorf("decompress batch bytes error: %v", err)
-			}
-
-			// Ensure we have enough data for block context
-			if len(batchBytes) < BlockContextLegacyLength {
-				return fmt.Errorf("insufficient batch bytes for block context, got %d bytes", len(batchBytes))
-			}
-
-			var startBlock BlockContext
-			// coinbase does not enter batch at this time
-			if err := startBlock.Decode(batchBytes[:BlockContextLegacyLength]); err != nil {
-				return fmt.Errorf("decode chunk block context error: %v", err)
-			}
-
-			blockCount = batch.LastBlockNumber - startBlock.Number + 1
-		} else {
-			parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
-			if err != nil {
-				return fmt.Errorf("decode batch header lastBlockNumber error: %v", err)
-			}
-
-			blockCount = batch.LastBlockNumber - parentBatchBlock
-		}
-	}
-
-	var txsNum uint64
-	blockContexts := make([]*BlockContext, int(blockCount))
-
-	// Process blob data
+	// Handle version upgrade scenario
 	blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
 	if err != nil {
 		return fmt.Errorf("retrieve blob bytes error: %v", err)
@@ -175,38 +145,61 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		return fmt.Errorf("decompress batch bytes error: %v", err)
 	}
 
-	reader := bytes.NewReader(batchBytes)
-	start := 0
+	// Calculate block count based on version
+	var blockCount uint64
+	if batch.Version > 0 {
+		rawBlockContextsAndTxs = batchBytes
+		// Ensure we have enough data for block context
+		if len(batchBytes) < 16 {
+			return fmt.Errorf("insufficient batch bytes for block context, got %d bytes", len(batchBytes))
+		}
 
+		var startBlock BlockContext
+		// coinbase does not enter batch at this time
+		if err := startBlock.DecodeNumberAndTime(batchBytes[:16]); err != nil {
+			return fmt.Errorf("decode chunk block context error: %v", err)
+		}
+
+		blockCount = batch.LastBlockNumber - startBlock.Number + 1
+	} else {
+		// First 2 bytes contain the block count
+		if len(batch.BlockContexts) < 2 {
+			return fmt.Errorf("insufficient block contexts data: %d bytes", len(batch.BlockContexts))
+		}
+
+		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
+		rawBlockContextsAndTxs = append(rawBlockContextsAndTxs, batch.BlockContexts[2:]...)
+		rawBlockContextsAndTxs = append(rawBlockContextsAndTxs, batchBytes...)
+	}
+
+	var txsNum uint64
+	blockContexts := make([]*BlockContext, int(blockCount))
+
+	reader := bytes.NewReader(rawBlockContextsAndTxs)
 	// Process block contexts
 	for i := 0; i < int(blockCount); i++ {
-		var timestamp uint64
 		var block BlockContext
-
-		// Ensure we have enough data in rawBlockContexts
-		if start+TimestampOffset+TimestampLength > len(rawBlockContexts) {
-			return fmt.Errorf("insufficient block context data, needed %d but got %d bytes",
-				start+TimestampOffset+TimestampLength, len(rawBlockContexts))
+		numberAndTimeBytes := make([]byte, 16)
+		_, err = reader.Read(numberAndTimeBytes)
+		if err != nil {
+			return fmt.Errorf("read block context numberAndTimeBytes error:%s", err.Error())
+		}
+		if err := block.DecodeNumberAndTime(numberAndTimeBytes); err != nil {
+			return fmt.Errorf("decode number and timestamp error: %v", err)
 		}
 
-		timestampBytes := rawBlockContexts[start+TimestampOffset : start+TimestampOffset+TimestampLength]
-		if err := binary.Read(bytes.NewReader(timestampBytes), binary.BigEndian, &timestamp); err != nil {
-			return fmt.Errorf("read timestamp error: %v", err)
+		// Fix the blockContextLength
+		skipedBlockContextLength := BlockContextStandardLength - 16
+		if block.Timestamp < morph204Time {
+			skipedBlockContextLength = BlockContextLegacyLength - 16
+		}
+		bcBytes := make([]byte, skipedBlockContextLength)
+		_, err = reader.Read(bcBytes)
+		if err != nil {
+			return fmt.Errorf("read skiped block context  error:%s", err.Error())
 		}
 
-		blockContextLength := BlockContextStandardLength
-
-		if timestamp < morph204Time {
-			blockContextLength = BlockContextLegacyLength
-		}
-
-		// Ensure we have enough data for the full block context
-		if start+blockContextLength > len(rawBlockContexts) {
-			return fmt.Errorf("insufficient block context data for block %d, needed %d but got %d bytes",
-				i, start+blockContextLength, len(rawBlockContexts))
-		}
-
-		if err := block.Decode(rawBlockContexts[start : start+blockContextLength]); err != nil {
+		if err = block.DecodeSkipNumberAndTime(bcBytes); err != nil {
 			return fmt.Errorf("decode block context error: %v", err)
 		}
 
@@ -238,34 +231,12 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 
 		block.SafeL2Data = &safeL2Data
 		blockContexts[i] = &block
-
-		// Move to next block context
-		start += blockContextLength
 	}
 
 	// Read transaction data
 	txsData, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("read transaction data error: %s", err.Error())
-	}
-
-	// Check if block contexts are provided directly
-	if batch.BlockContexts != nil {
-		// First 2 bytes contain the block count
-		if len(batch.BlockContexts) < 2 {
-			return fmt.Errorf("insufficient block contexts data: %d bytes", len(batch.BlockContexts))
-		}
-
-		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
-
-		// Ensure we have enough data for the block contexts
-		expectedMinLength := 2 + int(blockCount)*BlockContextLegacyLength
-		if len(batch.BlockContexts) < expectedMinLength {
-			return fmt.Errorf("insufficient block contexts data: got %d, expected at least %d bytes",
-				len(batch.BlockContexts), expectedMinLength)
-		}
-
-		rawBlockContexts = batch.BlockContexts[2 : 2+BlockContextLegacyLength*blockCount]
 	}
 
 	// Decode transactions
