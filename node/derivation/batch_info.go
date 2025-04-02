@@ -38,13 +38,6 @@ type BlockContext struct {
 	TxHashes   []byte
 }
 
-func (b *BlockContext) Decode(bc []byte) error {
-	if err := b.DecodeNumberAndTime(bc[:16]); err != nil {
-		return err
-	}
-	return b.DecodeSkipNumberAndTime(bc[16:])
-}
-
 func (b *BlockContext) DecodeSkipNumberAndTime(bc []byte) error {
 	wb := new(types.WrappedBlock)
 	txsNum, l1MsgNum, err := wb.DecodeBlockContext(bc)
