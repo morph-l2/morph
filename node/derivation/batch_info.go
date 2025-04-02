@@ -102,10 +102,6 @@ func (bi *BatchInfo) TxNum() uint64 {
 	return bi.txNum
 }
 
-func (bi *BatchInfo) getBlockCount() {
-
-}
-
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) error {
 	if len(batch.Sidecar.Blobs) == 0 {
@@ -189,14 +185,14 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		}
 
 		// Fix the blockContextLength
-		skipedBlockContextLength := BlockContextStandardLength - 16
+		skippedBlockContextLength := BlockContextStandardLength - 16
 		if block.Timestamp < morph204Time {
-			skipedBlockContextLength = BlockContextLegacyLength - 16
+			skippedBlockContextLength = BlockContextLegacyLength - 16
 		}
-		bcBytes := make([]byte, skipedBlockContextLength)
+		bcBytes := make([]byte, skippedBlockContextLength)
 		_, err = reader.Read(bcBytes)
 		if err != nil {
-			return fmt.Errorf("read skiped block context  error:%s", err.Error())
+			return fmt.Errorf("read skipped block context  error:%s", err.Error())
 		}
 
 		if err = block.DecodeSkipNumberAndTime(bcBytes); err != nil {
