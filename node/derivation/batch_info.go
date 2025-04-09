@@ -127,7 +127,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 	if batch.Version > 0 {
 		rawBlockContextsAndTxs = batchBytes
 		// Ensure we have enough data for block context
-		if len(batchBytes) < 16 {
+		if len(batchBytes) < 60 {
 			return fmt.Errorf("insufficient batch bytes for block context, got %d bytes", len(batchBytes))
 		}
 
@@ -167,8 +167,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		var coinbase common.Address
 		// handle coinbase
 		if morph204Time != 0 && block.Timestamp >= morph204Time {
-			//skippedBlockContextLength = BlockContextLegacyLength - 16
-
 			coinbaseBytes := make([]byte, common.AddressLength)
 			_, err = reader.Read(coinbaseBytes)
 			if err != nil {
