@@ -36,7 +36,7 @@ type BlockContext struct {
 	TxHashes   []byte
 }
 
-func (b *BlockContext) DecodeBlockContext(bc []byte) error {
+func (b *BlockContext) Decode(bc []byte) error {
 	wb := new(types.WrappedBlock)
 	txsNum, l1MsgNum, err := wb.DecodeBlockContext(bc)
 	if err != nil {
@@ -48,6 +48,10 @@ func (b *BlockContext) DecodeBlockContext(bc []byte) error {
 	b.l1MsgNum = l1MsgNum
 	b.coinbase = wb.Miner
 	return nil
+}
+
+func decodeCoinbase(bc []byte) (common.Address, error) {
+	return types.DecodeCoinbase(bc)
 }
 
 type BatchInfo struct {
@@ -133,7 +137,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 
 		var startBlock BlockContext
 		// coinbase does not enter batch at this time
-		if err := startBlock.DecodeBlockContext(batchBytes[:60]); err != nil {
+		if err := startBlock.Decode(batchBytes[:60]); err != nil {
 			return fmt.Errorf("decode chunk block context error: %v", err)
 		}
 
@@ -161,7 +165,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		if err != nil {
 			return fmt.Errorf("read block context numberAndTimeBytes error:%s", err.Error())
 		}
-		if err := block.DecodeBlockContext(bcBytes); err != nil {
+		if err := block.Decode(bcBytes); err != nil {
 			return fmt.Errorf("decode number and timestamp error: %v", err)
 		}
 		var coinbase common.Address
@@ -172,7 +176,11 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 			if err != nil {
 				return fmt.Errorf("read skipped block context  error:%s", err.Error())
 			}
-			coinbase = common.BytesToAddress(coinbaseBytes)
+
+			coinbase, err = decodeCoinbase(coinbaseBytes)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Set boundary block numbers
