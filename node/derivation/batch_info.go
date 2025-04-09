@@ -18,8 +18,6 @@ import (
 )
 
 const (
-	// BlockContextStandardLength is the full length of a block context with all fields
-	BlockContextStandardLength = 80
 	// BlockContextLegacyLength is the length of a legacy block context without coinbase
 	BlockContextLegacyLength = 60
 )
