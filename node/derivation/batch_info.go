@@ -38,7 +38,7 @@ type BlockContext struct {
 	TxHashes   []byte
 }
 
-func (b *BlockContext) DecodeSkipNumberAndTime(bc []byte) error {
+func (b *BlockContext) DecodeBlockContext(bc []byte) error {
 	wb := new(types.WrappedBlock)
 	txsNum, l1MsgNum, err := wb.DecodeBlockContext(bc)
 	if err != nil {
@@ -49,16 +49,6 @@ func (b *BlockContext) DecodeSkipNumberAndTime(bc []byte) error {
 	b.txsNum = txsNum
 	b.l1MsgNum = l1MsgNum
 	b.coinbase = wb.Miner
-	return nil
-}
-
-func (b *BlockContext) DecodeNumberAndTime(bc []byte) error {
-	number, time, err := types.DecodeNumberAndTime(bc)
-	if err != nil {
-		return err
-	}
-	b.Number = number
-	b.Timestamp = time
 	return nil
 }
 
@@ -145,7 +135,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 
 		var startBlock BlockContext
 		// coinbase does not enter batch at this time
-		if err := startBlock.DecodeNumberAndTime(batchBytes[:16]); err != nil {
+		if err := startBlock.DecodeBlockContext(batchBytes[:60]); err != nil {
 			return fmt.Errorf("decode chunk block context error: %v", err)
 		}
 
@@ -168,28 +158,25 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 	// Process block contexts
 	for i := 0; i < int(blockCount); i++ {
 		var block BlockContext
-		numberAndTimeBytes := make([]byte, 16)
-		_, err = reader.Read(numberAndTimeBytes)
+		bcBytes := make([]byte, BlockContextLegacyLength)
+		_, err = reader.Read(bcBytes)
 		if err != nil {
 			return fmt.Errorf("read block context numberAndTimeBytes error:%s", err.Error())
 		}
-		if err := block.DecodeNumberAndTime(numberAndTimeBytes); err != nil {
+		if err := block.DecodeBlockContext(bcBytes); err != nil {
 			return fmt.Errorf("decode number and timestamp error: %v", err)
 		}
+		var coinbase common.Address
+		// handle coinbase
+		if morph204Time != 0 && block.Timestamp >= morph204Time {
+			//skippedBlockContextLength = BlockContextLegacyLength - 16
 
-		// Fix the blockContextLength
-		skippedBlockContextLength := BlockContextStandardLength - 16
-		if block.Timestamp < morph204Time {
-			skippedBlockContextLength = BlockContextLegacyLength - 16
-		}
-		bcBytes := make([]byte, skippedBlockContextLength)
-		_, err = reader.Read(bcBytes)
-		if err != nil {
-			return fmt.Errorf("read skipped block context  error:%s", err.Error())
-		}
-
-		if err = block.DecodeSkipNumberAndTime(bcBytes); err != nil {
-			return fmt.Errorf("decode block context error: %v", err)
+			coinbaseBytes := make([]byte, common.AddressLength)
+			_, err = reader.Read(coinbaseBytes)
+			if err != nil {
+				return fmt.Errorf("read skipped block context  error:%s", err.Error())
+			}
+			coinbase = common.BytesToAddress(coinbaseBytes)
 		}
 
 		// Set boundary block numbers
@@ -206,6 +193,8 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		safeL2Data.GasLimit = block.GasLimit
 		safeL2Data.BaseFee = block.BaseFee
 		safeL2Data.Timestamp = block.Timestamp
+		// TODO coinbase
+		fmt.Println(coinbase)
 
 		// Handle zero BaseFee case
 		if block.BaseFee != nil && block.BaseFee.Cmp(big.NewInt(0)) == 0 {
