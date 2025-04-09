@@ -341,7 +341,3 @@ func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, 
 	}
 	return &bs, nil
 }
-
-func (e *Executor) isBatchUpgraded(blockTime uint64) bool {
-	return blockTime >= e.UpgradeBatchTime
-}

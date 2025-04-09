@@ -152,6 +152,13 @@ func (wb *WrappedBlock) DecodeBlockContext(bc []byte) (uint16, uint16, error) {
 	return txsNum, l1MsgNum, nil
 }
 
+func DecodeCoinbase(bc []byte) (common.Address, error) {
+	if len(bc) != common.AddressLength {
+		return common.Address{}, fmt.Errorf("invalid bytes length expect 20 have %v", len(bc))
+	}
+	return common.BytesToAddress(bc), nil
+}
+
 func WrappedBlockFromBytes(blockBytes []byte) (*WrappedBlock, error) {
 	var curBlock = new(WrappedBlock)
 	if err := curBlock.UnmarshalBinary(blockBytes); err != nil {
