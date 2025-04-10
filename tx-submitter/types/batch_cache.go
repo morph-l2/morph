@@ -45,12 +45,20 @@ func (b *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, bool) {
 			return nil, false
 		}
 
-		if fetchedBatch != nil {
-			// Store in cache for future use
+		// Validate batch before caching - batch must exist and have signatures
+		if fetchedBatch != nil && len(fetchedBatch.Signatures) > 0 {
+			// Store valid batch in cache for future use
 			b.m.Lock()
 			b.batchCache[batchIndex] = fetchedBatch
 			b.m.Unlock()
 
+			return fetchedBatch, true
+		} else if fetchedBatch != nil {
+			// Batch exists but doesn't have signatures, don't cache it
+			log.Debug("Batch validation failed - no signatures",
+				"batch_index", batchIndex,
+				"found", fetchedBatch != nil,
+				"has_signatures", len(fetchedBatch.Signatures) > 0)
 			return fetchedBatch, true
 		}
 	}
@@ -59,6 +67,15 @@ func (b *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, bool) {
 }
 
 func (b *BatchCache) Set(batchIndex uint64, batch *eth.RPCRollupBatch) {
+	// Validate batch before caching - batch must exist and have signatures
+	if batch == nil || len(batch.Signatures) == 0 {
+		log.Debug("Refusing to cache invalid batch",
+			"batch_index", batchIndex,
+			"exists", batch != nil,
+			"has_signatures", batch != nil && len(batch.Signatures) > 0)
+		return
+	}
+
 	b.m.Lock()
 	defer b.m.Unlock()
 
