@@ -1223,13 +1223,17 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 			if err != nil {
 				return nil, fmt.Errorf("get l1 head error:%w", err)
 			}
+			var recalculatedFeecap *big.Int
 			if head.BaseFee != nil {
-				gasFeeCap = new(big.Int).Add(
+				recalculatedFeecap = new(big.Int).Add(
 					tip,
 					new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
 				)
 			} else {
-				gasFeeCap = new(big.Int).Set(tip)
+				recalculatedFeecap = new(big.Int).Set(tip)
+			}
+			if recalculatedFeecap.Cmp(gasFeeCap) > 0 {
+				gasFeeCap = recalculatedFeecap
 			}
 		}
 	}
