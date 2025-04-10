@@ -34,10 +34,6 @@ import (
 var (
 	RollupEventTopic     = "CommitBatch(uint256,bytes32)"
 	RollupEventTopicHash = crypto.Keccak256Hash([]byte(RollupEventTopic))
-
-	// ForceGetAllBlobs controls whether to force using the method that gets all blobs
-	// Set to true for QA testing, false for production
-	ForceGetAllBlobs = true
 )
 
 type Derivation struct {
@@ -319,19 +315,15 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		var indexedBlobHashes []IndexedBlobHash
 
 		// Only try to build IndexedBlobHash array if not forcing get all blobs
-		if !ForceGetAllBlobs {
-			// Try to get the block to build IndexedBlobHash array
-			block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
-			if err == nil {
-				// Successfully got the block, now build IndexedBlobHash array
-				d.logger.Info("Building IndexedBlobHash array from block", "blockNumber", blockNumber)
-				indexedBlobHashes = dataAndHashesFromTxs(block.Transactions(), tx)
-				d.logger.Info("Built IndexedBlobHash array", "count", len(indexedBlobHashes))
-			} else {
-				d.logger.Info("Failed to get block, will try fetching all blobs", "blockNumber", blockNumber, "error", err)
-			}
+		// Try to get the block to build IndexedBlobHash array
+		block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
+		if err == nil {
+			// Successfully got the block, now build IndexedBlobHash array
+			d.logger.Info("Building IndexedBlobHash array from block", "blockNumber", blockNumber)
+			indexedBlobHashes = dataAndHashesFromTxs(block.Transactions(), tx)
+			d.logger.Info("Built IndexedBlobHash array", "count", len(indexedBlobHashes))
 		} else {
-			d.logger.Info("ForceGetAllBlobs is enabled, fetching all blobs for testing")
+			d.logger.Info("Failed to get block, will try fetching all blobs", "blockNumber", blockNumber, "error", err)
 		}
 
 		// Get all blobs corresponding to this timestamp
