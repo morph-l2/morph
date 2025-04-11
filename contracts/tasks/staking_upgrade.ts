@@ -2,14 +2,14 @@ import "@nomiclabs/hardhat-web3"
 import "@nomiclabs/hardhat-ethers"
 import "@nomiclabs/hardhat-waffle"
 
-import fs from "fs";
+import fs from "fs"
 import assert from "assert"
 import { task } from "hardhat/config"
 import { ethers } from "ethers"
 import { assertContractVariable, getContractAddressByName, awaitCondition, storage } from "../src/deploy-utils"
 import { ImplStorageName, ProxyStorageName, ContractFactoryName } from "../src/types"
 import { predeploys } from "../src"
-import { hexlify } from "ethers/lib/utils";
+import { hexlify } from "ethers/lib/utils"
 
 task("rollup-deploy-init")
     .addParam("storagepath")
@@ -64,20 +64,26 @@ task("rollup-deploy-init")
             const Factory = await hre.ethers.getContractFactory(ZkEvmVerifierV1ContractFactoryName)
             const contract = await Factory.deploy(config.programVkey)
             await contract.deployed()
-            console.log("%s=%s ; TX_HASH: %s", ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+            console.log(
+                "%s=%s ; TX_HASH: %s",
+                ZkEvmVerifierV1ImplStorageName,
+                contract.address.toLocaleLowerCase(),
+                contract.deployTransaction.hash
+            )
             let blockNumber = await hre.ethers.provider.getBlockNumber()
             console.log("BLOCK_NUMBER: %s", blockNumber)
-            let err = await storage(newPath, ZkEvmVerifierV1ImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-            if (err != '') {
+            let err = await storage(
+                newPath,
+                ZkEvmVerifierV1ImplStorageName,
+                contract.address.toLocaleLowerCase(),
+                blockNumber || 0
+            )
+            if (err != "") {
                 return err
             }
 
-
             // deploy MultipleVersionRollupVerifier
-            const ZkEvmVerifierV1Address = getContractAddressByName(
-                newPath,
-                ImplStorageName.ZkEvmVerifierV1StorageName
-            )
+            const ZkEvmVerifierV1Address = getContractAddressByName(newPath, ImplStorageName.ZkEvmVerifierV1StorageName)
             const MultipleVersionRollupVerifierFactoryName = ContractFactoryName.MultipleVersionRollupVerifier
             const MultipleVersionRollupVerifierImplStorageName =
                 ImplStorageName.MultipleVersionRollupVerifierStorageName
@@ -231,10 +237,7 @@ task("rollup-import-genesis-batch")
             }
             let res = await Rollup.importGenesisBatch(batchHeader)
             let rec = await res.wait()
-            console.log(
-                `importGenesisBatch(%s) ${rec.status == 1 ? "success" : "failed"}`,
-                batchHeader,
-            )
+            console.log(`importGenesisBatch(%s) ${rec.status == 1 ? "success" : "failed"}`, batchHeader)
             res = await Rollup.addChallenger(challenger)
             rec = await res.wait()
             console.log(`addChallenger(%s) ${rec.status == 1 ? "success" : "failed"}`, challenger)
@@ -382,7 +385,6 @@ task("l1cdm-upgrade")
         }
     })
 
-
 task("l1staking-deploy-init")
     .addParam("storagepath")
     .addParam("newpath")
@@ -397,7 +399,10 @@ task("l1staking-deploy-init")
         const L1StakingProxyStorageName = ProxyStorageName.L1StakingProxyStorageName
         const WhitelistImplAddress = getContractAddressByName(storagePath, ImplStorageName.Whitelist)
         const EmptyContractAddr = getContractAddressByName(storagePath, ImplStorageName.EmptyContract)
-        const L1CrossDomainMessengerProxyAddress = getContractAddressByName(storagePath, ProxyStorageName.L1CrossDomainMessengerProxyStorageName)
+        const L1CrossDomainMessengerProxyAddress = getContractAddressByName(
+            storagePath,
+            ProxyStorageName.L1CrossDomainMessengerProxyStorageName
+        )
 
         // deploy L1Staking proxy
         {
@@ -406,7 +411,12 @@ task("l1staking-deploy-init")
             const proxy = await ProxyFactory.deploy(EmptyContractAddr, await deployer.getAddress(), "0x")
             await proxy.deployed()
             const blockNumber = await hre.ethers.provider.getBlockNumber()
-            const err = await storage(newPath, L1StakingProxyStorageName, proxy.address.toLocaleLowerCase(), blockNumber || 0)
+            const err = await storage(
+                newPath,
+                L1StakingProxyStorageName,
+                proxy.address.toLocaleLowerCase(),
+                blockNumber || 0
+            )
             if (err != "") {
                 console.log(`deploy L1Staking proxy failed ${err}`)
                 return err
@@ -419,21 +429,23 @@ task("l1staking-deploy-init")
             const Factory = await hre.ethers.getContractFactory(ContractFactoryName.L1Staking)
             const contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress)
             await contract.deployed()
-            console.log("%s=%s ; TX_HASH: %s", ImplStorageName.L1StakingStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-            await assertContractVariable(
-                contract,
-                'MESSENGER',
-                L1CrossDomainMessengerProxyAddress
+            console.log(
+                "%s=%s ; TX_HASH: %s",
+                ImplStorageName.L1StakingStorageName,
+                contract.address.toLocaleLowerCase(),
+                contract.deployTransaction.hash
             )
-            await assertContractVariable(
-                contract,
-                'OTHER_STAKING',
-                predeploys.L2Staking.toLowerCase()
-            )
+            await assertContractVariable(contract, "MESSENGER", L1CrossDomainMessengerProxyAddress)
+            await assertContractVariable(contract, "OTHER_STAKING", predeploys.L2Staking.toLowerCase())
             const blockNumber = await hre.ethers.provider.getBlockNumber()
             console.log("BLOCK_NUMBER: %s", blockNumber)
-            const err = await storage(newPath, ImplStorageName.L1StakingStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-            if (err != '') {
+            const err = await storage(
+                newPath,
+                ImplStorageName.L1StakingStorageName,
+                contract.address.toLocaleLowerCase(),
+                blockNumber || 0
+            )
+            if (err != "") {
                 console.log(`deploy L1Staking implementation failed ${err}`)
                 return err
             }
@@ -446,9 +458,13 @@ task("l1staking-deploy-init")
             const L1StakingProxyAddress = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
             const L1StakingImplAddress = getContractAddressByName(newPath, ImplStorageName.L1StakingStorageName)
             const L1StakingFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Staking)
-            const IL1StakingProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1StakingProxyAddress, deployer)
+            const IL1StakingProxy = await hre.ethers.getContractAt(
+                ContractFactoryName.DefaultProxyInterface,
+                L1StakingProxyAddress,
+                deployer
+            )
 
-            console.log('Upgrading the Staking proxy...')
+            console.log("Upgrading the Staking proxy...")
             const admin: string = config.contractAdmin
             const stakingChallengerRewardPercentage: number = config.stakingChallengerRewardPercentage
             const limit: number = config.stakingMinDeposit
@@ -456,22 +472,23 @@ task("l1staking-deploy-init")
             const gasLimitAdd: number = config.stakingCrossChainGaslimitAdd
             const gasLimitRemove: number = config.stakingCrossChainGaslimitRemove
 
-            if (!ethers.utils.isAddress(admin)
-                || lock <= 0
-                || limit <= 0
-                || gasLimitAdd <= 0
-                || gasLimitRemove <= 0
-                || stakingChallengerRewardPercentage > 100
-                || stakingChallengerRewardPercentage <= 0
+            if (
+                !ethers.utils.isAddress(admin) ||
+                lock <= 0 ||
+                limit <= 0 ||
+                gasLimitAdd <= 0 ||
+                gasLimitRemove <= 0 ||
+                stakingChallengerRewardPercentage > 100 ||
+                stakingChallengerRewardPercentage <= 0
             ) {
-                console.error('please check your address')
-                return ''
+                console.error("please check your address")
+                return ""
             }
 
             // Upgrade and initialize the proxy.
             await IL1StakingProxy.upgradeToAndCall(
                 L1StakingImplAddress,
-                L1StakingFactory.interface.encodeFunctionData('initialize', [
+                L1StakingFactory.interface.encodeFunctionData("initialize", [
                     RollupProxyAddress,
                     hre.ethers.utils.parseEther(limit.toString()),
                     hre.ethers.utils.parseEther(lock.toString()),
@@ -484,56 +501,29 @@ task("l1staking-deploy-init")
             await awaitCondition(
                 async () => {
                     return (
-                        (await IL1StakingProxy.implementation()).toLocaleLowerCase() === L1StakingImplAddress.toLocaleLowerCase()
+                        (await IL1StakingProxy.implementation()).toLocaleLowerCase() ===
+                        L1StakingImplAddress.toLocaleLowerCase()
                     )
                 },
                 3000,
                 1000
             )
 
-            const contractTmp = new ethers.Contract(
-                L1StakingProxyAddress,
-                L1StakingFactory.interface,
-                deployer,
-            )
+            const contractTmp = new ethers.Contract(L1StakingProxyAddress, L1StakingFactory.interface, deployer)
 
+            await assertContractVariable(contractTmp, "rollupContract", RollupProxyAddress)
+            await assertContractVariable(contractTmp, "rewardPercentage", stakingChallengerRewardPercentage)
+            await assertContractVariable(contractTmp, "stakingValue", hre.ethers.utils.parseEther(limit.toString()))
             await assertContractVariable(
                 contractTmp,
-                'rollupContract',
-                RollupProxyAddress
-            )
-            await assertContractVariable(
-                contractTmp,
-                'rewardPercentage',
-                stakingChallengerRewardPercentage
-            )
-            await assertContractVariable(
-                contractTmp,
-                'stakingValue',
-                hre.ethers.utils.parseEther(limit.toString())
-            )
-            await assertContractVariable(
-                contractTmp,
-                'withdrawalLockBlocks',
+                "withdrawalLockBlocks",
                 hre.ethers.utils.parseEther(lock.toString())
             )
-            await assertContractVariable(
-                contractTmp,
-                'gasLimitAddStaker',
-                gasLimitAdd
-            )
-            await assertContractVariable(
-                contractTmp,
-                'gasLimitRemoveStakers',
-                gasLimitRemove
-            )
-            await assertContractVariable(
-                contractTmp,
-                'owner',
-                await deployer.getAddress(),
-            )
+            await assertContractVariable(contractTmp, "gasLimitAddStaker", gasLimitAdd)
+            await assertContractVariable(contractTmp, "gasLimitRemoveStakers", gasLimitRemove)
+            await assertContractVariable(contractTmp, "owner", await deployer.getAddress())
             // Wait for the transaction to execute properly.
-            console.log('StakingProxy upgrade success')
+            console.log("StakingProxy upgrade success")
         }
 
         // ------------------ Admin transfer -----------------
@@ -571,15 +561,19 @@ task("l1staking-deploy-init")
         // set L1Staking address to gasPriceOracle whitelist
         {
             const L1StakingProxyAddress = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
-            const WhitelistCheckerImpl = await hre.ethers.getContractAt(ContractFactoryName.Whitelist, WhitelistImplAddress, deployer)
+            const WhitelistCheckerImpl = await hre.ethers.getContractAt(
+                ContractFactoryName.Whitelist,
+                WhitelistImplAddress,
+                deployer
+            )
             let addList = [L1StakingProxyAddress]
             const res = await WhitelistCheckerImpl.updateWhitelistStatus(addList, true)
             await res.wait()
             for (let i = 0; i < addList.length; i++) {
                 let res = await WhitelistCheckerImpl.isSenderAllowed(addList[i])
                 if (res != true) {
-                    console.error('whitelist check failed')
-                    return ''
+                    console.error("whitelist check failed")
+                    return ""
                 }
             }
             console.log(`add ${addList} to whitelist success`)
@@ -588,7 +582,11 @@ task("l1staking-deploy-init")
         // set staker whitelist
         {
             const L1StakingProxyAddress = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
-            const L1Staking = await hre.ethers.getContractAt(ContractFactoryName.L1Staking, L1StakingProxyAddress, deployer)
+            const L1Staking = await hre.ethers.getContractAt(
+                ContractFactoryName.L1Staking,
+                L1StakingProxyAddress,
+                deployer
+            )
             const whiteListAdd = config.l2SequencerAddresses
             // set sequencer to white list
             await L1Staking.updateWhitelist(whiteListAdd, [])
@@ -596,9 +594,7 @@ task("l1staking-deploy-init")
                 // Wait for the transaction to execute properly.
                 await awaitCondition(
                     async () => {
-                        return (
-                            await L1Staking.whitelist(config.l2SequencerAddresses[i]) === true
-                        )
+                        return (await L1Staking.whitelist(config.l2SequencerAddresses[i])) === true
                     },
                     3000,
                     1000
@@ -644,7 +640,7 @@ task("check-params")
     })
 
 // test command
-// rm -rf ./deployFile.json && \                                                                            
+// rm -rf ./deployFile.json && \
 // yarn hardhat deploy --storagepath ./deployFile.json --network l1 && \
 // yarn hardhat initialize  --storagepath ./deployFile.json --network l1 && \
 // yarn hardhat fund --network l1 && \
@@ -658,87 +654,74 @@ task("check-params")
 // yarn hardhat register --storagepath ./newFile.json --network l1
 
 // immutable upgrade test
-task("impl-test")
-    .setAction(async (taskArgs, hre) => {
-        const deployer = hre.ethers.provider.getSigner()
-        const V1Factory = await hre.ethers.getContractFactory("TestUpgradeV1")
-        const V2Factory = await hre.ethers.getContractFactory("TestUpgradeV2")
+task("impl-test").setAction(async (taskArgs, hre) => {
+    const deployer = hre.ethers.provider.getSigner()
+    const V1Factory = await hre.ethers.getContractFactory("TestUpgradeV1")
+    const V2Factory = await hre.ethers.getContractFactory("TestUpgradeV2")
 
-        const v1Impl = await V1Factory.deploy()
-        await v1Impl.deployed()
-        const v2Impl = await V2Factory.deploy()
-        await v2Impl.deployed()
-        console.log(`V1 and V2 impl deploy success and v1: ${v1Impl.address} , v2: ${v2Impl.address}`)
+    const v1Impl = await V1Factory.deploy()
+    await v1Impl.deployed()
+    const v2Impl = await V2Factory.deploy()
+    await v2Impl.deployed()
+    console.log(`V1 and V2 impl deploy success and v1: ${v1Impl.address} , v2: ${v2Impl.address}`)
 
-        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
-        const proxyAdmin = await ProxyAdminFactory.deploy()
-        await proxyAdmin.deployed()
-        const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
-        const proxy = await ProxyFactory.deploy(v1Impl.address, await deployer.getAddress(), "0x")
-        await proxy.deployed()
-        const IProxyContract = await hre.ethers.getContractAt(
-            ContractFactoryName.DefaultProxyInterface,
-            proxy.address,
-            deployer
-        )
+    const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
+    const proxyAdmin = await ProxyAdminFactory.deploy()
+    await proxyAdmin.deployed()
+    const ProxyFactory = await hre.ethers.getContractFactory(ContractFactoryName.DefaultProxy)
+    const proxy = await ProxyFactory.deploy(v1Impl.address, await deployer.getAddress(), "0x")
+    await proxy.deployed()
+    const IProxyContract = await hre.ethers.getContractAt(
+        ContractFactoryName.DefaultProxyInterface,
+        proxy.address,
+        deployer
+    )
 
-        // transfer owner to proxy admin
-        {
-            const res = await IProxyContract.changeAdmin(proxyAdmin.address)
-            const rec = await res.wait()
-            console.log(`proxy admin change to proxy admin ${rec.status === 1}`)
-        }
+    // transfer owner to proxy admin
+    {
+        const res = await IProxyContract.changeAdmin(proxyAdmin.address)
+        const rec = await res.wait()
+        console.log(`proxy admin change to proxy admin ${rec.status === 1}`)
+    }
 
-        const consoleParams = async (factory) => {
-            const contractTmp = new ethers.Contract(
-                proxy.address,
-                factory.interface,
-                hre.ethers.provider,
-            )
-            let va = await contractTmp.va({ from: hre.ethers.constants.AddressZero })
-            let vb = await contractTmp.vb({ from: hre.ethers.constants.AddressZero })
-            let vc = await contractTmp.vc({ from: hre.ethers.constants.AddressZero })
-            let version = await contractTmp.version({ from: hre.ethers.constants.AddressZero })
-            console.log(`va ${va} ; vb ${vb} ; vc ${vc} ; version ${version}`)
-        }
-        let contract = new ethers.Contract(
-            proxy.address,
-            V1Factory.interface,
-            deployer,
-        )
-        let res = await contract.setVersion(100)
-        let rec = await res.wait()
-        console.log(`update version to 100 ${rec.status === 1}`)
-        await consoleParams(V1Factory)
+    const consoleParams = async (factory) => {
+        const contractTmp = new ethers.Contract(proxy.address, factory.interface, hre.ethers.provider)
+        let va = await contractTmp.va({ from: hre.ethers.constants.AddressZero })
+        let vb = await contractTmp.vb({ from: hre.ethers.constants.AddressZero })
+        let vc = await contractTmp.vc({ from: hre.ethers.constants.AddressZero })
+        let version = await contractTmp.version({ from: hre.ethers.constants.AddressZero })
+        console.log(`va ${va} ; vb ${vb} ; vc ${vc} ; version ${version}`)
+    }
+    let contract = new ethers.Contract(proxy.address, V1Factory.interface, deployer)
+    let res = await contract.setVersion(100)
+    let rec = await res.wait()
+    console.log(`update version to 100 ${rec.status === 1}`)
+    await consoleParams(V1Factory)
 
-        // upgrade
-        {
-            const res = await proxyAdmin.upgrade(proxy.address, v2Impl.address)
-            const rec = await res.wait()
-            console.log(`upgrade to v2 impl ${rec.status === 1}`)
-        }
-        contract = new ethers.Contract(
-            proxy.address,
-            V2Factory.interface,
-            deployer,
-        )
-        res = await contract.setVersion(101)
-        rec = await res.wait()
-        console.log(`update version to 101 ${rec.status === 1}`)
-        res = await contract.setOtherVersion(99)
-        rec = await res.wait()
-        console.log(`update otherVersion to 99 ${rec.status === 1}`)
-        console.log("upgrade success")
-        await consoleParams(V2Factory)
-    })
+    // upgrade
+    {
+        const res = await proxyAdmin.upgrade(proxy.address, v2Impl.address)
+        const rec = await res.wait()
+        console.log(`upgrade to v2 impl ${rec.status === 1}`)
+    }
+    contract = new ethers.Contract(proxy.address, V2Factory.interface, deployer)
+    res = await contract.setVersion(101)
+    rec = await res.wait()
+    console.log(`update version to 101 ${rec.status === 1}`)
+    res = await contract.setOtherVersion(99)
+    rec = await res.wait()
+    console.log(`update otherVersion to 99 ${rec.status === 1}`)
+    console.log("upgrade success")
+    await consoleParams(V2Factory)
+})
 
 // ------------------------------------ L2 Upgrade ------------------------------------
 task("gov-upgrade")
     .addParam("l2config")
     .setAction(async (taskArgs, hre) => {
-        const data = fs.readFileSync(taskArgs.l2config);
+        const data = fs.readFileSync(taskArgs.l2config)
         // @ts-ignore
-        const l2Config = JSON.parse(data);
+        const l2Config = JSON.parse(data)
         const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
         const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
 
@@ -748,42 +731,22 @@ task("gov-upgrade")
         const res = await proxyAdmin.upgradeAndCall(
             predeploys.Gov,
             newGovImpl.address,
-            GovFactory.interface.encodeFunctionData('initializeV2', [
+            GovFactory.interface.encodeFunctionData("initializeV2", [
                 l2Config.govVotingDuration,
                 l2Config.govBatchBlockInterval,
-                l2Config.govBatchMaxBytes,
                 l2Config.govBatchTimeout,
-                l2Config.govBatchMaxChunks,
-                l2Config.govRollupEpoch,
             ])
         )
         const rec = await res.wait()
         console.log(`gov upgrade ${rec.status === 1}`)
     })
 
-task("distribute-deploy")
-    .setAction(async (taskArgs, hre) => {
-        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
-        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
-
-        const DistributeFactory = await hre.ethers.getContractFactory("Distribute")
-        const distribute = await DistributeFactory.deploy()
-        await distribute.deployed()
-        const res = await proxyAdmin.upgradeAndCall(
-            predeploys.Distribute,
-            distribute.address,
-            DistributeFactory.interface.encodeFunctionData('initialize', [])
-        )
-        const rec = await res.wait()
-        console.log(`distribute upgrade ${rec.status === 1}, new impl ${distribute.address}`)
-    })
-
 task("morph-token-deploy")
     .addParam("l2config")
     .setAction(async (taskArgs, hre) => {
-        const data = fs.readFileSync(taskArgs.l2config);
+        const data = fs.readFileSync(taskArgs.l2config)
         // @ts-ignore
-        const l2Config = JSON.parse(data);
+        const l2Config = JSON.parse(data)
         const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
         const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
 
@@ -794,7 +757,7 @@ task("morph-token-deploy")
         const res = await proxyAdmin.upgradeAndCall(
             predeploys.MorphToken,
             morphToken.address,
-            MorphTokenFactory.interface.encodeFunctionData('initialize', [
+            MorphTokenFactory.interface.encodeFunctionData("initialize", [
                 l2Config.morphTokenName,
                 l2Config.morphTokenSymbol,
                 l2Config.morphTokenOwner,
@@ -809,9 +772,9 @@ task("morph-token-deploy")
 task("sequencer-deploy")
     .addParam("l2config")
     .setAction(async (taskArgs, hre) => {
-        const data = fs.readFileSync(taskArgs.l2config);
+        const data = fs.readFileSync(taskArgs.l2config)
         // @ts-ignore
-        const l2Config = JSON.parse(data);
+        const l2Config = JSON.parse(data)
         const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
         const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
 
@@ -827,37 +790,10 @@ task("sequencer-deploy")
         const res = await proxyAdmin.upgradeAndCall(
             predeploys.Sequencer,
             sequencer.address,
-            SequencerFactory.interface.encodeFunctionData(
-                'initialize',
-                [addresses])
+            SequencerFactory.interface.encodeFunctionData("initialize", [addresses])
         )
         const rec = await res.wait()
         console.log(`sequencer upgrade ${rec.status === 1}, new impl ${sequencer.address}`)
-    })
-
-task("record-deploy")
-    .addParam("l2config")
-    .setAction(async (taskArgs, hre) => {
-        const data = fs.readFileSync(taskArgs.l2config);
-        // @ts-ignore
-        const l2Config = JSON.parse(data);
-
-        const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
-        const proxyAdmin = ProxyAdminFactory.attach(predeploys.ProxyAdmin)
-
-        const RecordFactory = await hre.ethers.getContractFactory("Record")
-        const record = await RecordFactory.deploy()
-        await record.deployed()
-        const res = await proxyAdmin.upgradeAndCall(
-            predeploys.Record,
-            record.address,
-            RecordFactory.interface.encodeFunctionData('initialize', [
-                l2Config.recordOracleAddress,
-                l2Config.recordNextBatchSubmissionIndex,
-            ])
-        )
-        const rec = await res.wait()
-        console.log(`Record upgrade ${rec.status === 1}, new impl ${record.address}`)
     })
 
 task("l2-staking-deploy")
@@ -865,9 +801,9 @@ task("l2-staking-deploy")
     .addParam("l2config")
     .setAction(async (taskArgs, hre) => {
         const newPath = taskArgs.newpath
-        const data = fs.readFileSync(taskArgs.l2config);
+        const data = fs.readFileSync(taskArgs.l2config)
         // @ts-ignore
-        const l2Config = JSON.parse(data);
+        const l2Config = JSON.parse(data)
         const L1StakingProxyAddr = getContractAddressByName(newPath, ProxyStorageName.L1StakingProxyStorageName)
 
         const ProxyAdminFactory = await hre.ethers.getContractFactory(ContractFactoryName.ProxyAdmin)
@@ -889,7 +825,7 @@ task("l2-staking-deploy")
         const res = await proxyAdmin.upgradeAndCall(
             predeploys.L2Staking,
             staking.address,
-            L2StakingFactory.interface.encodeFunctionData('initialize', [
+            L2StakingFactory.interface.encodeFunctionData("initialize", [
                 l2Config.l2StakingSequencerMaxSize,
                 l2Config.l2StakingUnDelegatedLockEpochs,
                 l2Config.l2StakingRewardStartTime,

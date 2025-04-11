@@ -19,11 +19,8 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// @notice l2 staking contract address
     address public immutable L2_STAKING_CONTRACT;
 
-    /// @notice distribute contract address
-    address public immutable DISTRIBUTE_CONTRACT;
-
-    /// @notice record contract address
-    address public immutable RECORD_CONTRACT;
+    /// @notice system address
+    address public immutable SYSTEM_ADDRESS;
 
     /*************
      * Variables *
@@ -57,9 +54,9 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
      * Function Modifiers *
      **********************/
 
-    /// @notice Ensures that the caller message from record contract.
-    modifier onlyRecordContract() {
-        require(_msgSender() == RECORD_CONTRACT, "only record contract allowed");
+    /// @notice Ensures that the caller message from system
+    modifier onlSystem() {
+        require(_msgSender() == SYSTEM_ADDRESS, "only system address allowed");
         _;
     }
 
@@ -70,8 +67,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// @notice constructor
     constructor() {
         L2_STAKING_CONTRACT = Predeploys.L2_STAKING;
-        DISTRIBUTE_CONTRACT = Predeploys.DISTRIBUTE;
-        RECORD_CONTRACT = Predeploys.RECORD;
+        SYSTEM_ADDRESS = Predeploys.SYSTEM;
     }
 
     /**************
@@ -116,13 +112,10 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     }
 
     /// @dev mint inflations
-    /// @param upToEpochIndex mint up to which epoch
-    function mintInflations(uint256 upToEpochIndex) external onlyRecordContract {
+    function mintInflations() external onlSystem {
         // inflations can only be minted for epochs that have ended.
-        require(
-            IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > upToEpochIndex,
-            "the specified time has not yet been reached"
-        );
+        require(IL2Staking(L2_STAKING_CONTRACT).currentEpoch() > 0, "no inflations yet");
+        uint256 upToEpochIndex = IL2Staking(L2_STAKING_CONTRACT).currentEpoch() - 1;
         require(upToEpochIndex >= _inflationMintedEpochs, "all inflations minted");
 
         // the index of next epoch to mint is equal to the count of minted epochs
@@ -137,7 +130,8 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
             }
             uint256 increment = (_totalSupply * rate) / PRECISION;
             _inflations[i] = increment;
-            _mint(DISTRIBUTE_CONTRACT, increment);
+            _mint(L2_STAKING_CONTRACT, increment);
+            IL2Staking(L2_STAKING_CONTRACT).distribute(increment);
             emit InflationMinted(i, increment);
         }
 
