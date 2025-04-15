@@ -24,11 +24,6 @@ license = "MIT OR Apache-2.0"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 repository = "https://github.com/morph-l2/morph/tree/main/prover"
 
-
-
-
-
-
 [workspace.dependencies]
 alloy ={ version ="0.3"}
 hex = "0.4"

@@ -33,13 +33,14 @@ contract EvmTest is Test {
     }
 
     // Prove state success.
-    function test_ValidProof() public view {
+    function test_ValidProof() public {
         ProofFixture memory fixture = loadFixture();
         evm.verifyPlonk(fixture.proof, fixture.publicValues);
     }
 
     // Prove state fail.
-    function testFail_InValidProof() public view {
+    function testRevert_InValidProof() public {
+        vm.expectRevert();
         ProofFixture memory fixture = loadFixture();
         // Create a fake proof.
         fixture.proof[31] = 0x00;

@@ -13,6 +13,8 @@ import {
     ContractFactoryName,
 } from "../src/types"
 
+import { Mutex } from 'async-mutex';
+
 export const AdminTransferByProxyStorageName = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
@@ -48,6 +50,102 @@ export const AdminTransferByProxyStorageName = async (
     )
     console.log(`admin transfer successful `)
     return ''
+}
+
+export const AdminTransferByProxyStorageNameConcurrently = async (
+    hre: HardhatRuntimeEnvironment,
+    path: string,
+    deployer: any,
+    storageName: string,
+    nonce: number
+): Promise<string> => {
+    const EmptyContractImplAddr = getContractAddressByName(path, ImplStorageName.EmptyContract)
+    const ProxyAdminImplAddr = getContractAddressByName(path, ImplStorageName.ProxyAdmin)
+    const ProxyAddr = getContractAddressByName(path, storageName)
+    const deployerAddr = (await deployer.getAddress()).toLocaleLowerCase()
+
+    const IProxyContract = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, ProxyAddr, deployer)
+    {
+        if (storageName != ProxyStorageName.L1USDCGatewayProxyStorageName) {
+            const implAddr = (await IProxyContract.implementation()).toLocaleLowerCase()
+            const admin = (await IProxyContract.admin()).toLocaleLowerCase()
+            if (implAddr === EmptyContractImplAddr.toLocaleLowerCase()) {
+                return `Proxy implementation address ${implAddr} should not be empty contract address ${EmptyContractImplAddr}`
+            }
+            if (admin !== deployerAddr) {
+                return `Proxy admin address ${admin} should deployer address ${deployerAddr}`
+            }
+        }
+    }
+    console.log(`change ${storageName} admin transfer from ${deployerAddr} to ProxyAdmin ${ProxyAdminImplAddr} `)
+    // Set the transaction object, including specifying nonce
+    const tx = await IProxyContract.populateTransaction.changeAdmin(ProxyAdminImplAddr)
+    // Manually specify nonce
+    const txWithNonce = {
+        ...tx,
+        nonce: nonce,
+    }
+    // Send transaction
+    const res = await deployer.sendTransaction(txWithNonce)
+    await res.wait()
+    await assertContractVariable(
+        IProxyContract,
+        'admin',
+        ProxyAdminImplAddr,
+        ProxyAdminImplAddr // caller
+    )
+    console.log(`admin transfer successful `)
+    return ''
+}
+
+export const AdminTransferConcurrently = async (
+    hre: HardhatRuntimeEnvironment,
+    path: string,
+    deployer: any,
+    configTmp: any
+): Promise<string> => {
+    console.log("Start to transfer admin concurrrently...")
+    const contractsToChange = [
+        ProxyStorageName.L1CrossDomainMessengerProxyStorageName,
+        ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName,
+        ProxyStorageName.L1StakingProxyStorageName,
+        ProxyStorageName.RollupProxyStorageName,
+        ProxyStorageName.L1GatewayRouterProxyStorageName,
+        ProxyStorageName.L1ETHGatewayProxyStorageName,
+        ProxyStorageName.L1StandardERC20GatewayProxyStorageName,
+        ProxyStorageName.L1CustomERC20GatewayProxyStorageName,
+        ProxyStorageName.L1WithdrawLockERC20GatewayProxyStorageName,
+        ProxyStorageName.L1ReverseCustomGatewayProxyStorageName,
+        ProxyStorageName.L1ERC721GatewayProxyStorageName,
+        ProxyStorageName.L1ERC1155GatewayProxyStorageName,
+        ProxyStorageName.EnforcedTxGatewayProxyStorageName,
+        ProxyStorageName.L1WETHGatewayProxyStorageName,
+        ProxyStorageName.L1USDCGatewayProxyStorageName
+    ];
+
+    let nonce = await hre.ethers.provider.getTransactionCount(deployer.getAddress())
+    const mutex = new Mutex();
+    const results = await Promise.all(contractsToChange.map(async (storageName) => {
+        const release = await mutex.acquire(); // Acquire lock for getting nonce 
+        const nonceToUse = nonce
+        nonce++;  // Increment nonce for each deployment
+        release();  // Release the lock
+
+        const err = await AdminTransferByProxyStorageNameConcurrently(hre, path, deployer, storageName, nonceToUse);
+        if (err !== '') {
+            return { storageName, error: err };
+        }
+        return { storageName, error: '' };
+    }));
+
+    // Check for errors
+    for (const result of results) {
+        if (result.error !== '') {
+            return `Error occurred during admin transfer for ${result.storageName}: ${result.error}`;
+        }
+    }
+
+    return '';
 }
 
 export const AdminTransfer = async (
@@ -170,4 +268,4 @@ export const AdminTransfer = async (
     return ''
 }
 
-module.exports = { AdminTransfer, AdminTransferByProxyStorageName }
+module.exports = { AdminTransfer, AdminTransferByProxyStorageName, AdminTransferConcurrently, AdminTransferByProxyStorageNameConcurrently }

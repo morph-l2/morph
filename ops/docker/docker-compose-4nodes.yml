@@ -225,11 +225,10 @@ services:
     depends_on:
       morph-geth-0:
         condition: service_started
-    image: morph-node-0:latest
+    image: morph-node:latest
     build:
       context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-node-4
-      target: node0
+      dockerfile: ops/docker/Dockerfile.l2-node
     restart: unless-stopped
     ports:
       - "26656"
@@ -246,7 +245,7 @@ services:
       - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
       - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
     volumes:
-      - "node_data_0:${NODE_DATA_DIR}"
+      - ".devnet/node0:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
@@ -255,15 +254,9 @@ services:
   node-1:
     container_name: node-1
     depends_on:
-      morph-geth-1:
-        condition: service_started
       node-0:
         condition: service_started
-    image: morph-node-1:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-node-4
-      target: node1
+    image: morph-node:latest
     restart: unless-stopped
     ports:
       - "26656"
@@ -280,7 +273,7 @@ services:
       - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
       - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
     volumes:
-      - "node_data_1:${NODE_DATA_DIR}"
+      - ".devnet/node1:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
@@ -289,15 +282,9 @@ services:
   node-2:
     container_name: node-2
     depends_on:
-      morph-geth-2:
-        condition: service_started
       node-0:
         condition: service_started
-    image: morph-node-2:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-node-4
-      target: node2
+    image: morph-node:latest
     restart: unless-stopped
     ports:
       - "26656"
@@ -315,7 +302,7 @@ services:
       - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
       - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
     volumes:
-      - "node_data_2:${NODE_DATA_DIR}"
+      - ".devnet/node2:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
@@ -324,15 +311,9 @@ services:
   node-3:
     container_name: node-3
     depends_on:
-      morph-geth-3:
-        condition: service_started
       node-0:
         condition: service_started
-    image: morph-node-3:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-node-4
-      target: node3
+    image: morph-node:latest
     restart: unless-stopped
     ports:
       - "26656"
@@ -350,7 +331,7 @@ services:
       - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
       - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
     volumes:
-      - "node_data_3:${NODE_DATA_DIR}"
+      - ".devnet/node3:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
@@ -384,13 +365,9 @@ services:
   sentry-node-0:
     container_name: sentry-node-0
     depends_on:
-      sentry-geth-0:
+      node-0:
         condition: service_started
-    image: sentry-node-0:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-node-4
-      target: sentry0
+    image: morph-node:latest
     restart: unless-stopped
     ports:
       - "26656"
@@ -407,7 +384,7 @@ services:
       - MORPH_NODE_L1_CONFIRMATIONS=0
       - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
     volumes:
-      - "sentry_node_data:${NODE_DATA_DIR}"
+      - ".devnet/node4:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
@@ -442,9 +419,8 @@ services:
      depends_on:
        validator_geth:
            condition: service_started
-     build:
-       context: ../..
-       dockerfile: ops/docker/Dockerfile.l2-node-1
+       node-0:
+         condition: service_started
      image: morph-node:latest
      ports:
        - "26660"
