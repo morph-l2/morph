@@ -80,6 +80,9 @@ func (bi *BatchInfo) TxNum() uint64 {
 
 // ParseBatch This method is externally referenced for parsing Batch
 func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
+	if len(batch.Sidecar.Blobs) == 0 {
+		return fmt.Errorf("blobs length can not be zero")
+	}
 	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
 	parentBatchIndex, err := parentBatchHeader.BatchIndex()
 	if err != nil {
@@ -104,9 +107,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			return fmt.Errorf("decode batch header version error:%v", err)
 		}
 		if parentVersion == 0 {
-			if len(batch.Sidecar.Blobs) == 0 {
-				return fmt.Errorf("blobs length can not be zero")
-			}
 			blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
 			if err != nil {
 				return err
@@ -200,11 +200,9 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		}
 		var txs []*eth.Transaction
 		var err error
-		if len(batch.Sidecar.Blobs) != 0 {
-			txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
-			if err != nil {
-				return fmt.Errorf("decode txsPayload error:%v", err)
-			}
+		txs, err = tq.dequeue(int(block.txsNum) - int(block.l1MsgNum))
+		if err != nil {
+			return fmt.Errorf("decode txsPayload error:%v", err)
 		}
 		txsNum += uint64(block.txsNum)
 		l1MsgNum += uint64(block.l1MsgNum)
