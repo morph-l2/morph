@@ -300,7 +300,7 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	// query blob
 	block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get l1 block by number error:%v", err)
 	}
 	indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), tx)
 	header, err := d.l1Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockNumber)))
