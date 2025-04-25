@@ -376,6 +376,8 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 			d.logger.Info("Blob matching results", "matched", matchedCount, "expected", len(blobHashes))
 			if matchedCount > 0 {
 				batch.Sidecar = blobTxSidecar
+			} else {
+				return nil, fmt.Errorf("no matching versionedHash was found")
 			}
 		} else {
 			return nil, fmt.Errorf("not matched blob,txHash:%v,blockNumber:%v", txHash, blockNumber)
