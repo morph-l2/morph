@@ -90,13 +90,6 @@ var (
 		EnvVar:   prefixEnvVar("L2_SEQUENCER_ADDRESS"),
 		Value:    predeploys.Sequencer,
 	}
-	L2GovAddressFlag = cli.StringFlag{
-		Name:     "l2_gov_address",
-		Usage:    "Address of the gov contract",
-		Required: false,
-		EnvVar:   prefixEnvVar("L2_GOV_ADDRESS"),
-		Value:    predeploys.Gov,
-	}
 
 	/* Optional Flags */
 	LogLevelFlag = cli.StringFlag{
@@ -324,6 +317,14 @@ var (
 		Value:  5,
 		EnvVar: prefixEnvVar("BLOCK_NOT_INCREASED_THRESHOLD"),
 	}
+
+	RollupEpochFlag = cli.Uint64Flag{
+		Name:     "rollup_epoch",
+		Usage:    "The rollup epoch",
+		Value:    3600, // seconds
+		EnvVar:   prefixEnvVar("ROLLUP_EPOCH"),
+		Required: true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -337,6 +338,7 @@ var requiredFlags = []cli.Flag{
 	TxFeeLimitFlag,
 	L1StakingAddressFlag,
 	L1StakingDeployedBlocknumFlag,
+	RollupEpochFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -362,7 +364,6 @@ var optionalFlags = []cli.Flag{
 
 	PrivateKeyFlag,
 	L2SequencerAddressFlag,
-	L2GovAddressFlag,
 	TipFeeBumpFlag,
 	MaxTipFlag,
 	MinTipFlag,

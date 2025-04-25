@@ -25,9 +25,6 @@ type IL2Sequencer interface {
 	GetSequencerSet2() ([]common.Address, error)
 }
 
-type IL2Gov interface {
-	RollupEpoch(opts *bind.CallOpts) (*big.Int, error)
-}
 type IL1Staking interface {
 	IsStaker(opts *bind.CallOpts, addr common.Address) (bool, error)
 	GetStakersBitmap(opts *bind.CallOpts, _stakers []common.Address) (*big.Int, error)

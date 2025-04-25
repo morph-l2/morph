@@ -24,15 +24,14 @@ type Rotator struct {
 	epoch           *big.Int   // epoch for rotation
 	mu              sync.Mutex // lock
 	l2SequencerAddr common.Address
-	l2GovAddr       common.Address
 	indexer         *event.EventIndexer
 }
 
-func NewRotator(l2SeqencerAddr, l2GovAddr common.Address, indexer *event.EventIndexer) *Rotator {
+func NewRotator(l2SeqencerAddr common.Address, indexer *event.EventIndexer, rollupEpoch uint64) *Rotator {
 	return &Rotator{
 		l2SequencerAddr: l2SeqencerAddr,
-		l2GovAddr:       l2GovAddr,
 		indexer:         indexer,
+		epoch:           big.NewInt(int64(rollupEpoch)),
 	}
 }
 
@@ -43,12 +42,7 @@ func (r *Rotator) StartEventIndexer() {
 // UpdateState updates the state of the rotator
 // updated by event listener in the future
 func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staking) error {
-
-	epochUpdateTime, err := GetEpochUpdateTime(r.l2GovAddr, clients)
-	if err != nil {
-		log.Error("failed to get epoch update time", "err", err)
-		return fmt.Errorf("GetCurrentSubmitter: failed to get epoch update time: %w", err)
-	}
+	epochUpdateTime := new(big.Int)
 	// sequencer set update time
 	sequcerUpdateTime, err := GetSequencerSetUpdateTime(r.l2SequencerAddr, clients)
 	if err != nil {
@@ -76,13 +70,6 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 		return fmt.Errorf("UpdateState: failed to get sequencer set: %w", err)
 	}
 	r.SetSequencerSet(seqSet)
-	// get current epoch
-	epoch, err := GetEpoch(r.l2GovAddr, clients)
-	if err != nil {
-		log.Error("failed to get epoch", "err", err)
-		return err
-	}
-	r.epoch = epoch
 
 	// get l1staking active staker set
 	stakers, err := l1Staking.GetActiveStakers(nil)

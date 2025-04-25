@@ -1380,29 +1380,6 @@ func QuerySequencerSet(addr common.Address, clients []iface.L2Client) ([]common.
 	return nil, fmt.Errorf("no sequencer set found after querying all clients")
 }
 
-// query epoch from gov contract on l2
-func GetEpoch(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
-	if len(clients) < 1 {
-		return nil, fmt.Errorf("no client to query epoch")
-	}
-	for _, client := range clients {
-		// l2 gov
-		l2Gov, err := bindings.NewGov(addr, client)
-		if err != nil {
-			log.Warn("failed to connect to gov", "error", err)
-			continue
-		}
-		// get epoch
-		epoch, err := l2Gov.RollupEpoch(nil)
-		if err != nil {
-			log.Warn("failed to get epoch", "error", err)
-			continue
-		}
-		return epoch, nil
-	}
-	return nil, fmt.Errorf("no epoch found after querying all clients")
-}
-
 // query sequencer set update time from sequencer contract on l2
 func GetSequencerSetUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
 
@@ -1425,31 +1402,6 @@ func GetSequencerSetUpdateTime(addr common.Address, clients []iface.L2Client) (*
 		return updateTime, nil
 	}
 	return nil, fmt.Errorf("no sequencer set update time found after querying all clients")
-}
-
-// query epoch update time from gov contract on l2
-func GetEpochUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
-	if len(clients) < 1 {
-		return nil, fmt.Errorf("no client to query epoch update time")
-	}
-	for _, client := range clients {
-		// l2 gov
-		l2Gov, err := bindings.NewGov(addr, client)
-		if err != nil {
-			log.Warn("failed to connect to gov", "error", err)
-			continue
-		}
-		// get epoch update time
-		updateTime, err := l2Gov.RollupEpochUpdateTime(nil)
-		if err != nil {
-			log.Warn("failed to get epoch update time", "error", err)
-			continue
-		}
-		return updateTime, nil
-
-	}
-	return nil, fmt.Errorf("no epoch update time found after querying all clients")
-
 }
 
 func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
