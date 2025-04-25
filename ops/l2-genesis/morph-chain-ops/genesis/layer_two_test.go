@@ -47,9 +47,6 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		SequencerFeeVaultRecipient: address1,
 		L2BridgeFeeVaultRecipient:  address1,
 
-		RecordOracleAddress:            address1,
-		RecordNextBatchSubmissionIndex: 1,
-
 		// L2Staking configs
 		L2StakingSequencerMaxSize:      1,
 		L2StakingUnDelegatedLockEpochs: 1,
@@ -60,7 +57,6 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 
 		GovVotingDuration:     1000,
 		GovBatchBlockInterval: 20,
-		GovRollupEpoch:        600,
 		GovBatchTimeout:       100,
 
 		// MorphToken

@@ -102,7 +102,6 @@ type DeployConfig struct {
 	// Gov configs
 	GovVotingDuration     uint64 `json:"govVotingDuration"`
 	GovBatchBlockInterval uint64 `json:"govBatchBlockInterval"`
-	GovRollupEpoch        uint64 `json:"govRollupEpoch"`
 	GovBatchTimeout       uint64 `json:"govBatchTimeout"`
 
 	// L2Staking configs
@@ -112,10 +111,6 @@ type DeployConfig struct {
 	L2StakingAddresses             []common.Address `json:"l2StakingAddresses"`
 	L2StakingTmKeys                []common.Hash    `json:"l2StakingTmKeys"`
 	L2StakingBlsKeys               []hexutil.Bytes  `json:"l2StakingBlsKeys"`
-
-	// Record configs
-	RecordOracleAddress            common.Address `json:"recordOracleAddress"`
-	RecordNextBatchSubmissionIndex uint64         `json:"recordNextBatchSubmissionIndex"`
 
 	// MorphToken configs
 	//MorphTokenOwner              common.Address `json:"morphTokenOwner"`
@@ -373,9 +368,6 @@ func (d *DeployConfig) Check() error {
 	if d.GovBatchTimeout <= 0 {
 		return fmt.Errorf("GovBatchTimeout must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
-	if d.GovRollupEpoch <= 0 {
-		return fmt.Errorf("GovRollupEpoch must be greater than 0: %w", ErrInvalidDeployConfig)
-	}
 	if d.GasPriceOracleOwner == (common.Address{}) {
 		return fmt.Errorf("GasPriceOracleOwner cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
@@ -384,12 +376,6 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.GasPriceOracleScalar <= 0 {
 		return fmt.Errorf("GasPriceOracleScalar must be greater than 0: %w", ErrInvalidDeployConfig)
-	}
-	if d.RecordOracleAddress == (common.Address{}) {
-		return fmt.Errorf("RecordOracleAddress cannot be address(0): %w", ErrInvalidDeployConfig)
-	}
-	if d.RecordNextBatchSubmissionIndex <= 0 {
-		return fmt.Errorf("RecordNextBatchSubmissionIndex cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
 	if d.L2StakingSequencerMaxSize <= 0 {
 		return fmt.Errorf("L2StakingSequencerMaxSize must be greater than 0: %w", ErrInvalidDeployConfig)
@@ -454,18 +440,6 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	//	"_initialized":  1,
 	//	"_initializing": false,
 	//}
-	storage["Record"] = state.StorageValues{
-		"_initialized":             1,
-		"_initializing":            false,
-		"_owner":                   config.FinalSystemOwner,
-		"oracle":                   config.RecordOracleAddress,
-		"nextBatchSubmissionIndex": config.RecordNextBatchSubmissionIndex,
-	}
-	storage["Distribute"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"_owner":        config.FinalSystemOwner,
-	}
 	storage["L2Staking"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
@@ -481,7 +455,6 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"votingDuration":     config.GovVotingDuration,
 		"batchBlockInterval": config.GovBatchBlockInterval,
 		"batchTimeout":       config.GovBatchTimeout,
-		"rollupEpoch":        config.GovRollupEpoch,
 	}
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"messageRoot": common.HexToHash("0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757"),

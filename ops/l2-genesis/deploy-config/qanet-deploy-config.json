@@ -28,9 +28,6 @@
     "l2GenesisBlockGasLimit": "0xbebc200",
     "useMPT": false,
 
-    "recordOracleAddress": "0x7161F66BDf7C980B61b426122BBEfff813c0cdF0",
-    "recordNextBatchSubmissionIndex": 1,
-
     "morphTokenName": "Morph Token",
     "morphTokenSymbol": "Morph",
     "morphTokenOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",

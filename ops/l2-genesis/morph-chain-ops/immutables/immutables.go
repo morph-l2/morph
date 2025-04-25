@@ -66,12 +66,6 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 			Name: "Gov",
 		},
 		{
-			Name: "Distribute",
-		},
-		{
-			Name: "Record",
-		},
-		{
 			Name: "L2Staking",
 			Args: []interface{}{
 				immutable["L2Staking"]["OTHER_STAKING"],
@@ -239,10 +233,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeploySequencer(opts, backend)
 	case "Gov":
 		_, tx, _, err = bindings.DeployGov(opts, backend)
-	case "Distribute":
-		_, tx, _, err = bindings.DeployDistribute(opts, backend)
-	case "Record":
-		_, tx, _, err = bindings.DeployRecord(opts, backend)
 	case "L2Staking":
 		l1StakingAddr, ok := deployment.Args[0].(common.Address)
 		if !ok {
