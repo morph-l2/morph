@@ -1188,6 +1188,16 @@ contract L2StakingTest is L2StakingBaseTest {
             l2Staking.recordBlocks(address(uint160(beginSeq + i)));
             l2Staking.recordBlocks(address(uint160(beginSeq + i)));
         }
+        // console.log("........................................");
+        // console.log("current epoch: %s", l2Staking.currentEpoch());
+        // console.log("total blocks: %s", l2Staking.epochTotalBlocks());
+        // console.log("first staker blocks: %s", l2Staking.epochSequencerBlocks(firstStaker));
+        // console.log("second staker blocks: %s", l2Staking.epochSequencerBlocks(secondStaker));
+        assertEq(l2Staking.epochTotalBlocks(), 4, "total-blocks");
+        assertEq(l2Staking.epochSequencerBlocks(firstStaker), 2, "blocks-firstStaker");
+        assertEq(l2Staking.epochSequencerBlocks(secondStaker), 2, "blocks-secondStaker");
+        // console.log("........................................");
+
         hevm.warp(block.timestamp + REWARD_EPOCH);
         hevm.expectEmit(true, true, true, true);
         emit IMorphToken.InflationMinted(l2Staking.currentEpoch() - 1, inflation);
@@ -1230,12 +1240,15 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         uint256 inflation0 = _updateToNextEpochWithDistribute(2);
-        assertEq(l2Staking.currentEpoch(), 1);
-        assertEq(inflation0, 159653587452900000000000);
-        assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 79831793726450000000000);
-        assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 79831793726450000000000);
-        assertEq(l2Staking.queryDelegationAmount(firstStaker, bob), 0 ether);
-        assertEq(l2Staking.queryDelegationAmount(secondStaker, bob), 0 ether);
+        assertEq(inflation0, 159653587452900000000000, "inflation-0");
+        assertEq(l2Staking.currentEpoch(), 1, "current-e1");
+        assertEq(l2Staking.epochTotalBlocks(), 0, "total-blocks-e1");
+        assertEq(l2Staking.epochSequencerBlocks(firstStaker), 0, "blocks-firstStaker-e1");
+        assertEq(l2Staking.epochSequencerBlocks(secondStaker), 0, "blocks-secondStaker-e1");
+        assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 79831793726450000000000, "alice-first-e1");
+        assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 79831793726450000000000, "alice-second-e1");
+        assertEq(l2Staking.queryDelegationAmount(firstStaker, bob), 0 ether, "bob-first-e1");
+        assertEq(l2Staking.queryDelegationAmount(secondStaker, bob), 0 ether, "bob-second-e1");
 
         hevm.startPrank(bob);
         morphToken.approve(address(l2Staking), type(uint256).max);
@@ -1252,35 +1265,38 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.stopPrank();
 
         uint256 inflation1 = _updateToNextEpochWithDistribute(2);
-        assertEq(l2Staking.currentEpoch(), 2);
-        assertEq(inflation1, 159679076720886580788309);
-        // TODO: FIX
-        // assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 0);
-        // assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 0);
-        // assertEq(l2Staking.queryDelegationAmount(firstStaker, bob), 0);
-        // assertEq(l2Staking.queryDelegationAmount(secondStaker, bob), 0);
+        assertEq(inflation1, 159679076720886580788309, "inflation-1");
+        assertEq(l2Staking.currentEpoch(), 2, "current-e2");
+        assertEq(l2Staking.epochTotalBlocks(), 0, "total-blocks-e2");
+        assertEq(l2Staking.epochSequencerBlocks(firstStaker), 0, "blocks-firstStaker-e2");
+        assertEq(l2Staking.epochSequencerBlocks(secondStaker), 0, "blocks-secondStaker-e2");
+        assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 159666331915002996157441, "alice-first-e2");
+        assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 159666331915002996157441, "alice-second-e2");
+        assertEq(l2Staking.queryDelegationAmount(firstStaker, bob), 10000171890294236712, "bob-first-e2");
+        assertEq(l2Staking.queryDelegationAmount(secondStaker, bob), 10000171890294236712, "bob-second-e2");
 
-        // hevm.startPrank(alice);
-        // hevm.expectEmit(true, true, true, true);
-        // emit IL2Staking.Delegated(firstStaker, alice, 5 ether, 0);
-        // l2Staking.delegate(firstStaker, 5 ether);
-        // hevm.expectEmit(true, true, true, true);
-        // emit IL2Staking.Delegated(secondStaker, alice, 5 ether, 0);
-        // l2Staking.delegate(secondStaker, 5 ether);
-        // assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 0);
-        // assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 0);
-        // assertEq(morphToken.balanceOf(alice), 0 ether);
-        // hevm.stopPrank();
+        hevm.startPrank(alice);
+        hevm.expectEmit(true, true, true, true);
+        emit IL2Staking.Delegated(firstStaker, alice, 5 ether, 159681332086893290394154);
+        l2Staking.delegate(firstStaker, 5 ether);
+        hevm.expectEmit(true, true, true, true);
+        emit IL2Staking.Delegated(secondStaker, alice, 5 ether, 159681332086893290394154);
+        l2Staking.delegate(secondStaker, 5 ether);
+        assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 159671331915002996157439);
+        assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 159671331915002996157439);
+        assertEq(morphToken.balanceOf(alice), 0 ether);
+        hevm.stopPrank();
 
-        // uint256 inflation2 = _updateToNextEpochWithDistribute(2);
-        // assertEq(l2Staking.currentEpoch(), 3);
-        // assertEq(inflation2, 10 ether);
-        // assertEq(morphToken.balanceOf(alice), 0 ether);
-        // assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 5 ether);
-        // assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 5 ether);
-        // assertEq(morphToken.balanceOf(bob), 10 ether);
-        // assertEq(l2Staking.queryDelegationAmount(firstStaker, bob), 5 ether);
-        // assertEq(l2Staking.queryDelegationAmount(secondStaker, bob), 5 ether);
+        uint256 inflation2 = _updateToNextEpochWithDistribute(2);
+        assertEq(inflation2, 159704570058326237182599, "inflation-2");
+        assertEq(l2Staking.currentEpoch(), 3, "current-e3");
+        assertEq(l2Staking.epochTotalBlocks(), 0, "total-blocks-e3");
+        assertEq(morphToken.balanceOf(alice), 0 ether);
+        assertEq(l2Staking.queryDelegationAmount(firstStaker, alice), 239518616130572639318717, "alice-first-e3");
+        assertEq(l2Staking.queryDelegationAmount(secondStaker, alice), 239518616130572639318717, "alice-second-e3");
+        assertEq(morphToken.balanceOf(bob), 10 ether);
+        assertEq(l2Staking.queryDelegationAmount(firstStaker, bob), 15000985483769666735, "bob-first-e3");
+        assertEq(l2Staking.queryDelegationAmount(secondStaker, bob), 15000985483769666735, "bob-second-e3");
     }
 
     /**

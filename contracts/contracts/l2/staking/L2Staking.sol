@@ -97,10 +97,10 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     EnumerableSetUpgradeable.AddressSet private epochSequencers;
 
     // sequencers that has produced blocks
-    uint256 private epochTotalBlocks;
+    uint256 public epochTotalBlocks;
 
     // blocks produced by sequencers
-    mapping(address seequencer => uint256) private epochSequencerBlocks;
+    mapping(address seequencer => uint256) public epochSequencerBlocks;
 
     /**********************
      * Function Modifiers *
@@ -686,10 +686,13 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         }
 
         // clean block record
-        for (uint256 i = 0; i < epochSequencers.length(); i++) {
-            delete epochSequencerBlocks[epochSequencers.at(i)];
-            epochSequencers.remove(epochSequencers.at(i));
+        uint256 sequencerSetSize = epochSequencers.length();
+        for (uint256 i = 0; i < sequencerSetSize; i++) {
+            delete epochSequencerBlocks[epochSequencers.at(0)];
+            // remove the first element, then the last one will be moved to the first
+            epochSequencers.remove(epochSequencers.at(0));
         }
+        epochTotalBlocks = 0;
     }
 
     /// @dev record block producer
