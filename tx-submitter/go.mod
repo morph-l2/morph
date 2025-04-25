@@ -10,6 +10,7 @@ require (
 	github.com/morph-l2/go-ethereum v1.10.14-0.20250218031646-de5160c106de
 	github.com/prometheus/client_golang v1.17.0
 	github.com/stretchr/testify v1.9.0
+	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
 	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.14
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -71,8 +72,8 @@ require (
 	github.com/scroll-tech/zktrie v0.8.4 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/status-im/keycard-go v0.3.2 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
-	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
 	github.com/tklauser/go-sysconf v0.3.13 // indirect
 	github.com/tklauser/numcpus v0.7.0 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
