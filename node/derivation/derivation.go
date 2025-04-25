@@ -13,8 +13,10 @@ import (
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
+	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	geth "github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/ethclient/authclient"
@@ -297,26 +299,91 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	if err != nil {
 		return nil, err
 	}
-	// query blob
-	block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
-	if err != nil {
-		return nil, err
-	}
-	indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), tx)
+
+	// Get block header to retrieve timestamp
 	header, err := d.l1Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockNumber)))
 	if err != nil {
 		return nil, err
 	}
-	var bts eth.BlobTxSidecar
-	if len(indexedBlobHashes) != 0 {
-		bts, err = d.l1BeaconClient.GetBlobSidecar(context.Background(), L1BlockRef{
+
+	// Get transaction blob hashes
+	blobHashes := tx.BlobHashes()
+	if len(blobHashes) > 0 {
+		d.logger.Info("Transaction contains blobs", "txHash", txHash, "blobCount", len(blobHashes))
+
+		// Initialize indexedBlobHashes as nil
+		var indexedBlobHashes []IndexedBlobHash
+
+		// Only try to build IndexedBlobHash array if not forcing get all blobs
+		// Try to get the block to build IndexedBlobHash array
+		block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
+		if err == nil {
+			// Successfully got the block, now build IndexedBlobHash array
+			d.logger.Info("Building IndexedBlobHash array from block", "blockNumber", blockNumber)
+			indexedBlobHashes = dataAndHashesFromTxs(block.Transactions(), tx)
+			d.logger.Info("Built IndexedBlobHash array", "count", len(indexedBlobHashes))
+		} else {
+			d.logger.Info("Failed to get block, will try fetching all blobs", "blockNumber", blockNumber, "error", err)
+		}
+
+		// Get all blobs corresponding to this timestamp
+		blobSidecars, err := d.l1BeaconClient.GetBlobSidecarsEnhanced(d.ctx, L1BlockRef{
 			Time: header.Time,
 		}, indexedBlobHashes)
 		if err != nil {
-			return nil, fmt.Errorf("getBlockSidecar error:%v", err)
+			return nil, fmt.Errorf("failed to get blobs, continuing processing:%v", err)
+		}
+		if len(blobSidecars) > 0 {
+			// Create blob sidecar
+			var blobTxSidecar eth.BlobTxSidecar
+			matchedCount := 0
+
+			// Match blobs
+			for _, sidecar := range blobSidecars {
+				var commitment kzg4844.Commitment
+				copy(commitment[:], sidecar.KZGCommitment[:])
+				versionedHash := KZGToVersionedHash(commitment)
+
+				for _, expectedHash := range blobHashes {
+					if bytes.Equal(versionedHash[:], expectedHash[:]) {
+						matchedCount++
+						d.logger.Info("Found matching blob", "index", sidecar.Index, "hash", versionedHash.Hex())
+
+						// Decode and process blob data
+						var blob Blob
+						b, err := hexutil.Decode(sidecar.Blob)
+						if err != nil {
+							d.logger.Error("Failed to decode blob data", "error", err)
+							continue
+						}
+						copy(blob[:], b)
+
+						// Verify blob
+						if err := VerifyBlobProof(&blob, commitment, kzg4844.Proof(sidecar.KZGProof)); err != nil {
+							d.logger.Error("Blob verification failed", "error", err)
+							continue
+						}
+
+						// Add to sidecar
+						blobTxSidecar.Blobs = append(blobTxSidecar.Blobs, *blob.KZGBlob())
+						blobTxSidecar.Commitments = append(blobTxSidecar.Commitments, commitment)
+						blobTxSidecar.Proofs = append(blobTxSidecar.Proofs, kzg4844.Proof(sidecar.KZGProof))
+						break
+					}
+				}
+			}
+
+			d.logger.Info("Blob matching results", "matched", matchedCount, "expected", len(blobHashes))
+			if matchedCount == 0 {
+				return nil, fmt.Errorf("no matching versionedHash was found")
+			}
+			batch.Sidecar = blobTxSidecar
+		} else {
+			return nil, fmt.Errorf("not matched blob,txHash:%v,blockNumber:%v", txHash, blockNumber)
 		}
 	}
-	batch.Sidecar = bts
+
+	// Get L2 height
 	l2Height, err := d.l2Client.BlockNumber(d.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query l2 block number error:%v", err)
