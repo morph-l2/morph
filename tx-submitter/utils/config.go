@@ -48,7 +48,6 @@ type Config struct {
 	Finalize bool
 	// L2 contract
 	L2SequencerAddress string
-	L2GovAddress       string
 
 	// metrics
 	MetricsServerEnable bool
@@ -110,6 +109,8 @@ type Config struct {
 	// leveldb path name
 	LeveldbPathName            string
 	BlockNotIncreasedThreshold int64
+
+	RollupEpoch uint64
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -130,7 +131,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		RollupAddress:    ctx.GlobalString(flags.RollupAddressFlag.Name),
 		// L2 contract
 		L2SequencerAddress: ctx.GlobalString(flags.L2SequencerAddressFlag.Name),
-		L2GovAddress:       ctx.GlobalString(flags.L2GovAddressFlag.Name),
 		// metrics
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
@@ -183,6 +183,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		LeveldbPathName: ctx.GlobalString(flags.LeveldbPathNameFlag.Name),
 		// BlockNotIncreasedThreshold
 		BlockNotIncreasedThreshold: ctx.GlobalInt64(flags.BlockNotIncreasedThreshold.Name),
+
+		RollupEpoch: ctx.GlobalUint64(flags.RollupEpochFlag.Name),
 	}
 
 	return cfg, nil

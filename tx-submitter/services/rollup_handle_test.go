@@ -63,7 +63,7 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	)
 
 	// Create mock rotator
-	rotator := NewRotator(common.Address{}, common.Address{}, indexer)
+	rotator := NewRotator(common.Address{}, indexer, 3600)
 
 	// Create mock L1Staking
 	l1Staking := mock.NewMockL1Staking()

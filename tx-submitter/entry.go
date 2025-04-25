@@ -50,7 +50,6 @@ func Main() func(ctx *cli.Context) error {
 			"l2_rpcs", cfg.L2EthRpcs,
 			"rollup_addr", cfg.RollupAddress,
 			"l2_sequencer_addr", cfg.L2SequencerAddress,
-			"l2_gov_addr", cfg.L2GovAddress,
 			"l1_staking_addr", cfg.L1StakingAddress,
 			"fee_limit", cfg.TxFeeLimit,
 			"finalize_enable", cfg.Finalize,
@@ -199,7 +198,7 @@ func Main() func(ctx *cli.Context) error {
 		}
 		eventIndexer := event.NewEventIndexer(l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep, eventInfoStorage)
 		// new rotator
-		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
+		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), eventIndexer, cfg.RollupEpoch)
 		// start rorator event indexer
 		rotator.StartEventIndexer()
 
