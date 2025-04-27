@@ -22,9 +22,19 @@ import (
 	"morph-l2/node/types"
 )
 
+type UpgradeConfig struct {
+	BatchTime    uint64
+	Morph204Time uint64
+}
+
 var (
-	MainnetUpgradeBatchTime uint64 = 2000
-	HoleskyUpgradeBatchTime uint64 = 350000
+	MainnetUpgradeConfig = UpgradeConfig{
+		Morph204Time: 0,
+	}
+
+	HoleskyUpgradeConfig = UpgradeConfig{
+		Morph204Time: 0,
+	}
 )
 
 type Config struct {
@@ -34,7 +44,7 @@ type Config struct {
 	GovAddress                    common.Address  `json:"gov_address"`
 	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
-	UpgradeBatchTime              uint64          `json:"upgrade_batch_time"`
+	UpgradeConfig                 *UpgradeConfig  `json:"upgrade_config"`
 	DevSequencer                  bool            `json:"dev_sequencer"`
 	Logger                        tmlog.Logger    `json:"logger"`
 }
@@ -157,15 +167,25 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.DevSequencer = ctx.GlobalBool(flags.DevSequencer.Name)
 	}
 
-	// setup batch upgrade index
+	// setup upgrade config
 	switch {
 	case ctx.GlobalIsSet(flags.MainnetFlag.Name):
-		c.UpgradeBatchTime = MainnetUpgradeBatchTime
+		c.UpgradeConfig = &MainnetUpgradeConfig
 	case ctx.GlobalIsSet(flags.HoleskyFlag.Name):
-		c.UpgradeBatchTime = HoleskyUpgradeBatchTime
-	case ctx.GlobalIsSet(flags.UpgradeBatchTime.Name):
-		c.UpgradeBatchTime = ctx.GlobalUint64(flags.UpgradeBatchTime.Name)
-		logger.Info("set UpgradeBatchTime: ", ctx.GlobalUint64(flags.UpgradeBatchTime.Name))
+		c.UpgradeConfig = &HoleskyUpgradeConfig
+	}
+	if c.UpgradeConfig == nil {
+		c.UpgradeConfig = &UpgradeConfig{}
+		if ctx.GlobalIsSet(flags.UpgradeBatchTime.Name) {
+			logger.Info("set UpgradeBatchTime: ", ctx.GlobalUint64(flags.UpgradeBatchTime.Name))
+			upgradeBatchTime := ctx.GlobalUint64(flags.UpgradeBatchTime.Name)
+			c.UpgradeConfig.BatchTime = upgradeBatchTime
+		}
+		if ctx.GlobalIsSet(flags.Morph204Time.Name) {
+			logger.Info("set Morph204Time: ", ctx.GlobalUint64(flags.Morph204Time.Name))
+			morph204Time := ctx.GlobalUint64(flags.Morph204Time.Name)
+			c.UpgradeConfig.Morph204Time = morph204Time
+		}
 	}
 
 	return nil

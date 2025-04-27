@@ -1,6 +1,6 @@
 ################## update dependencies ####################
 
-ETHEREUM_TARGET_VERSION := v1.10.14-0.20250218031646-de5160c106de
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20250226070544-6039a12094aa
 TENDERMINT_TARGET_VERSION := v0.3.2-0.20250115141431-c84dfe5c8533
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -128,7 +128,7 @@ go-ubuntu-builder:
 
 ################## devnet 4 nodes ####################
 
-devnet-up: submodules go-ubuntu-builder
+devnet-up:  go-ubuntu-builder
 	python3 ops/devnet-morph/main.py --polyrepo-dir=.
 .PHONY: devnet-up
 

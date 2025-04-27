@@ -178,13 +178,7 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		return false, err
 	}
 
-	var exceeded bool
-	if e.isBatchUpgraded(block.Timestamp) {
-		exceeded, err = e.batchingCache.batchData.WillExceedCompressedSizeLimit(e.batchingCache.currentBlockContext, e.batchingCache.currentTxsPayload)
-	} else {
-		exceeded, err = e.batchingCache.batchData.EstimateCompressedSizeWithNewPayload(e.batchingCache.currentTxsPayload)
-	}
-	return exceeded, err
+	return e.batchingCache.batchData.WillExceedCompressedSizeLimit(e.batchingCache.currentBlockContext, e.batchingCache.currentTxsPayload)
 }
 
 func (e *Executor) AppendBlsData(height int64, batchHash []byte, data l2node.BlsData) error {
@@ -346,8 +340,4 @@ func (e *Executor) ConvertBlsData(blsData l2node.BlsData) (*eth.BatchSignature, 
 		Signature:    blsData.Signature,
 	}
 	return &bs, nil
-}
-
-func (e *Executor) isBatchUpgraded(blockTime uint64) bool {
-	return blockTime >= e.UpgradeBatchTime
 }

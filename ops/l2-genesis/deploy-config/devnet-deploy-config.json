@@ -29,7 +29,6 @@
     "morphTokenOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "morphTokenInitialSupply": 1000000000,
     "morphTokenDailyInflationRate": 1,
-
     "l2StakingSequencerMaxSize": 4,
     "l2StakingUnDelegatedLockEpochs": 2,
     "l2StakingRewardStartTime": 1728000000,

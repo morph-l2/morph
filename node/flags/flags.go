@@ -198,7 +198,7 @@ var (
 
 	DerivationBaseHeight = cli.Uint64Flag{
 		Name:   "derivation.baseHeight",
-		Usage:  "The starting height of l2 derive, usually the node snapshot or other trusted starting height, before which stateRoot will not be checked",
+		Usage:  "L2 snapshot base block height",
 		EnvVar: prefixEnvVar("DERIVATION_BASE_HEIGHT"),
 	}
 
@@ -220,11 +220,22 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
 
+	DerivationConfirmations = cli.Int64Flag{
+		Name:   "derivation.confirmations",
+		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
+		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
+	}
+
 	// Batch rules
 	UpgradeBatchTime = cli.Uint64Flag{
 		Name:   "upgrade.batchTime",
 		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
 		EnvVar: prefixEnvVar("UPGRADE_BATCH_TIME"),
+	}
+	Morph204Time = cli.Uint64Flag{
+		Name:   "morph204Time",
+		Usage:  "Morph 204 upgrade time",
+		EnvVar: prefixEnvVar("MORPH_204_TIME"),
 	}
 	MainnetFlag = cli.BoolFlag{
 		Name:  "mainnet",
@@ -235,11 +246,6 @@ var (
 		Usage: "Morph Holesky",
 	}
 
-	DerivationConfirmations = cli.Int64Flag{
-		Name:   "derivation.confirmations",
-		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
-		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
-	}
 	// Logger
 	LogLevel = &cli.StringFlag{
 		Name:   "log.level",
@@ -343,6 +349,7 @@ var Flags = []cli.Flag{
 	L1BeaconAddr,
 
 	// batch rules
+	Morph204Time,
 	UpgradeBatchTime,
 	MainnetFlag,
 	HoleskyFlag,
