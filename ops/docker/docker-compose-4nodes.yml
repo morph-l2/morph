@@ -231,7 +231,7 @@ services:
       dockerfile: ops/docker/Dockerfile.l2-node
     restart: unless-stopped
     ports:
-      - "26656"
+      - "26656:26656"
       - "26657:26657"
       - "26658"
       - "26660"

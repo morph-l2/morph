@@ -29,3 +29,5 @@ contracts/holesky.json
 
 # logs
 *.log
+
+node/.devnet

@@ -5,7 +5,7 @@ go 1.22
 replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.2
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20250415093656-13225617e0fb
+	github.com/morph-l2/go-ethereum v1.10.14-0.20250424061025-60753b445d15
 	github.com/tendermint/tendermint v0.35.9
 )
 
@@ -21,6 +21,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v1.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
+	github.com/deckarep/golang-set/v2 v2.7.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/ethereum/c-kzg-4844/bindings/go v0.0.0-20230126171313-363c7d7593b4 // indirect

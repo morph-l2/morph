@@ -48,6 +48,8 @@ const (
 	collectedL1FeeSumKey = "collected_l1_fee_sum"
 )
 
+var ErrOversizedData = errors.New("oversized data")
+
 type Rollup struct {
 	ctx         context.Context
 	metrics     *metrics.Metrics
@@ -883,7 +885,7 @@ func (r *Rollup) finalize() error {
 	})
 
 	if uint64(tx.Size()) > txMaxSize {
-		return core.ErrOversizedData
+		return ErrOversizedData
 	}
 
 	signedTx, err := r.Sign(tx)
