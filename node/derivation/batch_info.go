@@ -170,7 +170,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		}
 		var coinbase common.Address
 		// handle coinbase
-		if morph204Time != 0 && block.Timestamp >= morph204Time {
+		if morph204Time == 0 || block.Timestamp >= morph204Time {
 			coinbaseBytes := make([]byte, common.AddressLength)
 			_, err = reader.Read(coinbaseBytes)
 			if err != nil {

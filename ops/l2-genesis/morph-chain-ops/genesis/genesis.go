@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -41,9 +42,12 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 	)
 	if config.Morph203Time != nil {
 		morph203Time = config.Morph203Time
+		fmt.Printf("set morph203Time: %d\n", morph203Time)
 	}
 	if config.Morph204Time != nil {
 		morph204Time = config.Morph204Time
+		fmt.Printf("set morph204Time: %d\n", morph204Time)
+
 	}
 
 	morphChainConfig := params.ChainConfig{

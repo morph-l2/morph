@@ -1,6 +1,6 @@
 ################## update dependencies ####################
 
-ETHEREUM_TARGET_VERSION := v1.10.14-0.20250226070544-6039a12094aa
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20250425070859-09af684fe1f3
 TENDERMINT_TARGET_VERSION := v0.3.2-0.20250115141431-c84dfe5c8533
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -28,7 +28,6 @@ update_all_mod:
 	@$(MAKE) update_mod MODULE=node
 	@$(MAKE) update_mod MODULE=ops/l2-genesis
 	@$(MAKE) update_mod MODULE=ops/tools
-	@$(MAKE) update_mod MODULE=oracle
 	@$(MAKE) update_mod MODULE=tx-submitter
 
 
@@ -63,7 +62,6 @@ lint-go:
 	make -C node lint
 	make -C ops/l2-genesis lint
 	make -C ops/tools lint
-	make -C oracle lint
 	make -C tx-submitter lint
 .PHONY: lint-go
 
