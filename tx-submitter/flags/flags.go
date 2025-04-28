@@ -319,11 +319,10 @@ var (
 	}
 
 	RollupEpochFlag = cli.Uint64Flag{
-		Name:     "rollup_epoch",
-		Usage:    "The rollup epoch",
-		Value:    3600, // seconds
-		EnvVar:   prefixEnvVar("ROLLUP_EPOCH"),
-		Required: true,
+		Name:   "rollup_epoch",
+		Usage:  "The rollup epoch",
+		Value:  3600, // seconds
+		EnvVar: prefixEnvVar("ROLLUP_EPOCH"),
 	}
 )
 
