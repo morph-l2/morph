@@ -26,6 +26,7 @@
   "govRollupEpoch": 100,
 
   "morph203Time": 0,
+  "morph205Time": 0,
 
   "recordOracleAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "recordNextBatchSubmissionIndex": 1,

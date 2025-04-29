@@ -18,6 +18,7 @@ COMMAND="geth \
 --datadir="$GETH_DATA_DIR" \
 --verbosity=3 \
 --mev.enable \
+--mev.bundle.gasprice.floor=100000 \
 --http \
 --http.corsdomain="*" \
 --http.vhosts="*" \

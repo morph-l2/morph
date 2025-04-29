@@ -20,36 +20,27 @@ import (
 
 var (
 	chainId     *big.Int
-	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode("0x3e4bde571b86929bf08e2aaad9a6a1882664cd5e65b96fff7d03e1c4e6dfa15c"))
-	urls        = []string{"http://localhost:8945", "http://localhost:8545", "http://localhost:8645", "http://localhost:8745", "http://localhost:8845"}
-	senderNum   = 10
-	duration    = 120 * time.Minute
+	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"))
+	senderNum   = 5
 )
 
 func main() {
-	var err error
-	clients := make([]*ethclient.Client, len(urls))
-	for i, url := range urls {
-		client, err := ethclient.Dial(url)
-		if err != nil {
-			panic(err)
-		}
-		clients[i] = client
+	client, err := ethclient.Dial("http://localhost:8545")
+	if err != nil {
+		panic(fmt.Errorf("failed to connect to client: %v", err))
 	}
-	chainId, err = clients[0].ChainID(context.Background())
+	paymasterClient, err := ethclient.Dial("http://localhost:8045")
+	if err != nil {
+		panic(fmt.Errorf("failed to connect to paymaster client: %v", err))
+	}
+	chainId, err = client.ChainID(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	senderPks := distribute(clients[0])
+	senderPks := distribute(client)
 	receiver, _ := crypto.GenerateKey()
 	to := crypto.PubkeyToAddress(receiver.PublicKey)
-	start := time.Now()
-	var count int
 	for {
-		if count == 10000000 || time.Since(start) > duration {
-			fmt.Println("completed")
-			break
-		}
 		for i, sender := range senderPks {
 			go func(s *ecdsa.PrivateKey, senderIndex int) {
 				transactOpts, err := bind.NewKeyedTransactorWithChainID(s, chainId)
@@ -57,19 +48,19 @@ func main() {
 					panic(err)
 				}
 				transactOpts.Value = big.NewInt(10)
-				index := senderIndex % len(clients)
-				client := clients[index]
-				_, err = Transfer(transactOpts, to, client)
+				transactOpts.GasTipCap = big.NewInt(0)
+				transactOpts.GasFeeCap = big.NewInt(0)
+				_, err = Transfer(transactOpts, to, paymasterClient)
 				if err != nil {
 					fmt.Printf("error found when transfer: %v \n", err)
 				}
 				fmt.Println("sent tx done")
 			}(sender, i)
 		}
-		count++
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(20 * time.Second)
 		fmt.Println()
 	}
+
 }
 
 func distribute(client *ethclient.Client) []*ecdsa.PrivateKey {

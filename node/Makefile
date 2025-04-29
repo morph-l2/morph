@@ -93,6 +93,17 @@ install-tendermint:
 	env GO111MODULE=on CGO_ENABLED=1 go install -v $(LDFLAGS) ./cmd/tendermint
 .PHONY: tendermint
 
+local-clean:
+	if [ -d .devnet ]; then \
+		find .devnet/config -type f ! -name 'config.toml' ! -name 'genesis.json' -delete; \
+		rm -rf .devnet/data/*; \
+	fi
+.PHONY: local-clean
+
+local-up:
+	sh ./run-local.sh
+.PHONY: local-up
+
 
 
 

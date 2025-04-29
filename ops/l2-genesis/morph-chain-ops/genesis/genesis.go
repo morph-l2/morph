@@ -40,6 +40,11 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		morph203Time = config.Morph203Time
 	}
 
+	var morph205Time *uint64
+	if config.Morph205Time != nil {
+		morph205Time = config.Morph205Time
+	}
+
 	morphChainConfig := params.ChainConfig{
 		ChainID:                 new(big.Int).SetUint64(config.L2ChainID),
 		HomesteadBlock:          big.NewInt(0),
@@ -61,6 +66,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		BernoulliBlock:          big.NewInt(0),
 		CurieBlock:              big.NewInt(0),
 		Morph203Time:            morph203Time,
+		Morph205Time:            morph205Time,
 		TerminalTotalDifficulty: big.NewInt(0),
 		Morph: params.MorphConfig{
 			UseZktrie:                 true,
