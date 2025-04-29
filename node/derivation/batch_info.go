@@ -199,7 +199,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		safeL2Data.GasLimit = block.GasLimit
 		safeL2Data.BaseFee = block.BaseFee
 		safeL2Data.Timestamp = block.Timestamp
-		// Separate parse
 		safeL2Data.Miner = block.coinbase
 
 		// Handle zero BaseFee case
