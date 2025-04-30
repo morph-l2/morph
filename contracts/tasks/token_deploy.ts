@@ -611,3 +611,40 @@ task("deploy-l2-MigrationUSDC")
         const newtoken = await migrationProxy.NEW_USDC()
         console.log(`owner ${owner}, oldtoken ${oldtoken}, newtoken ${newtoken}`)
     })
+
+task("upgrade-l2-MorphToken")
+    .addParam("owner")
+    .addParam("supply")
+    .addParam("rate")
+    .setAction(async (taskArgs, hre) => {
+            const proxyAddr = '0x5300000000000000000000000000000000000013'
+            const adminAddr = '0x530000000000000000000000000000000000000b'
+
+            if (!hre.ethers.utils.isAddress(taskArgs.owner)) {
+                    throw new Error("owner address invalid");
+            }
+            // deploy morph token impl
+            const ContractFactory = await hre.ethers.getContractFactory("MorphToken")
+            const contract = await ContractFactory.deploy()
+            await contract.deployed()
+            console.log(`MorphToken impl deployed at ${contract.address}`)
+
+            const proxyAdmin = await hre.ethers.getContractAt('ProxyAdmin', adminAddr)
+
+            const proxy = await hre.ethers.getContractAt('ITransparentUpgradeableProxy', proxyAddr)
+            console.log("before upgrade the impl contract is :", await proxy.connect(hre.waffle.provider).callStatic.implementation({
+                    from: adminAddr,
+            }))
+
+            let res = await proxyAdmin.upgrade(proxyAddr, contract.address)
+            let rec = await res.wait()
+            console.log(`receipt status : ${rec.status}`)
+            console.log("after upgrade the impl contract is :", await proxy.connect(hre.waffle.provider).callStatic.implementation({
+                    from: adminAddr,
+            }))
+
+            const token = await hre.ethers.getContractAt('MorphToken', proxyAddr)
+             res = await token.initialize("Morph Token","Morph",taskArgs.owner,taskArgs.supply,taskArgs.rate)
+             rec = await res.wait()
+            console.log(`initialize receipt status : ${rec.status}`)
+    })
