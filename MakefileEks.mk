@@ -70,29 +70,6 @@ build-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	/data/secret-manager-wrapper  ./shadow-proving
 
-# staking-oracle
-# mainnet
-build-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o oracle/staking-oracle ./oracle/cmd/staking-oracle
-	cp oracle/staking-oracle dist/
-	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -xvzf secret-manager-wrapper.tar.gz
-
-start-bk-prod-morph-prod-mainnet-to-morph-staking-oracle:
-	/data/secret-manager-wrapper  ./staking-oracle
-
-# qanet
-build-bk-test-morph-test-qanet-to-morph-staking-oracle-qanet:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o oracle/staking-oracle ./oracle/cmd/staking-oracle
-	cp oracle/staking-oracle dist/
-	aws s3 cp s3://morph-7637-morph-technical-department-qanet-data/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -xvzf secret-manager-wrapper.tar.gz
-
-start-bk-test-morph-test-qanet-to-morph-staking-oracle-qanet:
-	/data/secret-manager-wrapper  ./staking-oracle
-
 
 # gas-oracle
 # testnet
@@ -144,15 +121,3 @@ build-bk-prod-morph-prod-testnet-to-morph-shadow-proving-holesky:
 
 start-bk-prod-morph-prod-testnet-to-morph-shadow-proving-holesky:
 	/data/secret-manager-wrapper  ./shadow-proving
-
-# staking-oracle
-# testnet
-build-bk-prod-morph-prod-testnet-to-morph-staking-oracle-holesky:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o oracle/staking-oracle ./oracle/cmd/staking-oracle
-	cp oracle/staking-oracle dist/
-	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -xvzf secret-manager-wrapper.tar.gz
-
-start-bk-prod-morph-prod-testnet-to-morph-staking-oracle-holesky:
-	/data/secret-manager-wrapper  ./staking-oracle

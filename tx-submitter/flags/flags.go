@@ -319,11 +319,10 @@ var (
 	}
 
 	RollupEpochFlag = cli.Uint64Flag{
-		Name:     "rollup_epoch",
-		Usage:    "The rollup epoch",
-		Value:    3600, // seconds
-		EnvVar:   prefixEnvVar("ROLLUP_EPOCH"),
-		Required: true,
+		Name:   "rollup_epoch",
+		Usage:  "The rollup epoch",
+		Value:  3600, // seconds
+		EnvVar: prefixEnvVar("ROLLUP_EPOCH"),
 	}
 )
 
@@ -338,7 +337,6 @@ var requiredFlags = []cli.Flag{
 	TxFeeLimitFlag,
 	L1StakingAddressFlag,
 	L1StakingDeployedBlocknumFlag,
-	RollupEpochFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -383,6 +381,7 @@ var optionalFlags = []cli.Flag{
 	EventIndexStepFlag,
 	LeveldbPathNameFlag,
 	BlockNotIncreasedThreshold,
+	RollupEpochFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

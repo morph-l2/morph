@@ -42,10 +42,12 @@ func (b *BlockContext) Decode(bc []byte) error {
 	if err != nil {
 		return err
 	}
+	b.Number = wb.Number
 	b.BaseFee = wb.BaseFee
 	b.GasLimit = wb.GasLimit
 	b.txsNum = txsNum
 	b.l1MsgNum = l1MsgNum
+	b.Timestamp = wb.Timestamp
 	b.coinbase = wb.Miner
 	return nil
 }
@@ -168,7 +170,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		if err := block.Decode(bcBytes); err != nil {
 			return fmt.Errorf("decode number and timestamp error: %v", err)
 		}
-		var coinbase common.Address
 		// handle coinbase
 		if morph204Time == 0 || block.Timestamp >= morph204Time {
 			coinbaseBytes := make([]byte, common.AddressLength)
@@ -177,10 +178,11 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 				return fmt.Errorf("read skipped block context  error:%s", err.Error())
 			}
 
-			coinbase, err = decodeCoinbase(coinbaseBytes)
+			coinbase, err := decodeCoinbase(coinbaseBytes)
 			if err != nil {
 				return err
 			}
+			block.coinbase = coinbase
 		}
 
 		// Set boundary block numbers
@@ -197,8 +199,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		safeL2Data.GasLimit = block.GasLimit
 		safeL2Data.BaseFee = block.BaseFee
 		safeL2Data.Timestamp = block.Timestamp
-		// TODO coinbase
-		fmt.Println(coinbase)
+		safeL2Data.Miner = block.coinbase
 
 		// Handle zero BaseFee case
 		if block.BaseFee != nil && block.BaseFee.Cmp(big.NewInt(0)) == 0 {
@@ -214,7 +215,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 		block.SafeL2Data = &safeL2Data
 		blockContexts[i] = &block
 	}
-
 	// Read transaction data
 	txsData, err := io.ReadAll(reader)
 	if err != nil {
@@ -229,7 +229,6 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch, morph204Time uint64) 
 
 	// Process transactions
 	tq.enqueue(data)
-
 	for i := 0; i < int(blockCount); i++ {
 		// Skip if index is out of bounds
 		if i >= len(blockContexts) {
