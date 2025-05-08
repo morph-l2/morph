@@ -84,7 +84,6 @@ fmt-go:
 	cd $(PWD)/node/ && go mod tidy
 	cd $(PWD)/ops/l2-genesis/ && go mod tidy
 	cd $(PWD)/ops/tools/ && go mod tidy
-	cd $(PWD)/oracle/ && go mod tidy
 	cd $(PWD)/tx-submitter/ && go mod tidy
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs gofmt -w -s
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs misspell -w
