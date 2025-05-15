@@ -441,16 +441,17 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param delegatee    delegatee address
     /// @param amount       undelegate stake amount, undelegate all if set 0
     function undelegate(address delegatee, uint256 amount) external nonReentrant {
-        if (amount == 0) revert ErrZeroAmount();
-        if (_getDelegationAmount(delegatee, _msgSender()) == 0) revert ErrZeroShares();
-        if (_getDelegationAmount(delegatee, _msgSender()) < amount) revert ErrInsufficientBalance();
+        uint256 delegationAmount = _getDelegationAmount(delegatee, _msgSender());
+        if (delegationAmount == 0) revert ErrZeroShares();
+        if (delegationAmount < amount) revert ErrInsufficientBalance();
+        uint256 _amount = (amount == 0) ? delegationAmount : amount;
 
         // weather staker has been removed
         bool removed = stakerRankings[delegatee] == 0;
 
         uint256 unlockEpoch = rewardStarted ? undelegateLockEpochs + 1 : 0;
 
-        UndelegateRequest memory request = UndelegateRequest({amount: amount, unlockEpoch: unlockEpoch});
+        UndelegateRequest memory request = UndelegateRequest({amount: _amount, unlockEpoch: unlockEpoch});
         bytes32 hash = keccak256(abi.encodePacked(_msgSender(), _useSequence(_msgSender())));
         // the hash should not exist in the queue
         // this will not happen in normal cases
@@ -460,17 +461,17 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
-            delegatorDelegations[delegatee][_msgSender()] -= amount; // {share = amount} before reward start
-            delegateeDelegations[delegatee].amount -= amount;
-            delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = amount} before reward start
+            delegatorDelegations[delegatee][_msgSender()] -= _amount; // {share = _amount} before reward start
+            delegateeDelegations[delegatee].amount -= _amount;
+            delegateeDelegations[delegatee].share = delegateeDelegations[delegatee].amount; // {share = _amount} before reward start
         } else {
             uint256 _tshare = delegateeDelegations[delegatee].share;
             uint256 _tAmount = delegateeDelegations[delegatee].amount;
             uint256 _uShare = delegatorDelegations[delegatee][_msgSender()];
 
-            delegatorDelegations[delegatee][_msgSender()] = _uShare - (amount * _tshare) / _tAmount;
-            delegateeDelegations[delegatee].amount -= amount;
-            delegateeDelegations[delegatee].share = _tshare - (amount * _tshare) / _tAmount;
+            delegatorDelegations[delegatee][_msgSender()] = _uShare - (_amount * _tshare) / _tAmount;
+            delegateeDelegations[delegatee].amount -= _amount;
+            delegateeDelegations[delegatee].share = _tshare - (_amount * _tshare) / _tAmount;
         }
 
         uint256 beforeRanking = stakerRankings[delegatee];
@@ -496,7 +497,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         }
 
         uint256 delegateeAmount = delegateeDelegations[delegatee].amount;
-        emit Undelegated(delegatee, _msgSender(), amount, delegateeAmount, unlockEpoch);
+        emit Undelegated(delegatee, _msgSender(), _amount, delegateeAmount, unlockEpoch);
 
         if (
             !removed &&
@@ -511,15 +512,16 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice delegator redelegate stake morph token to new delegatee
     /// @param delegateeFrom    old delegatee
     /// @param delegateeTo      new delegatee
-    /// @param amount           amount
+    /// @param amount           redelegate stake amount, redelegate all if set 0
     function redelegate(
         address delegateeFrom,
         address delegateeTo,
         uint256 amount
     ) external onlyStaker(delegateeFrom) onlyStaker(delegateeTo) nonReentrant {
-        if (amount == 0) revert ErrZeroAmount();
+        uint256 delegationAmount = _getDelegationAmount(delegateeFrom, _msgSender());
         if (_getDelegationAmount(delegateeFrom, _msgSender()) == 0) revert ErrZeroShares();
         if (_getDelegationAmount(delegateeFrom, _msgSender()) < amount) revert ErrInsufficientBalance();
+        uint256 _amount = (amount == 0) ? delegationAmount : amount;
 
         bool updateSequencerSet;
 
@@ -529,16 +531,16 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
-            delegatorDelegations[delegateeFrom][_msgSender()] -= amount; // {share = amount} before reward start
-            delegateeDelegations[delegateeFrom].amount -= amount;
-            delegateeDelegations[delegateeFrom].share = delegateeDelegations[delegateeFrom].amount; // {share = amount} before reward start
+            delegatorDelegations[delegateeFrom][_msgSender()] -= _amount; // {share = _amount} before reward start
+            delegateeDelegations[delegateeFrom].amount -= _amount;
+            delegateeDelegations[delegateeFrom].share = delegateeDelegations[delegateeFrom].amount; // {share = _amount} before reward start
         } else {
             uint256 _tshare = delegateeDelegations[delegateeFrom].share;
             uint256 _tAmount = delegateeDelegations[delegateeFrom].amount;
             uint256 _uShare = delegatorDelegations[delegateeFrom][_msgSender()];
 
             delegatorDelegations[delegateeFrom][_msgSender()] = _uShare - (amount * _tshare) / _tAmount;
-            delegateeDelegations[delegateeFrom].amount -= amount;
+            delegateeDelegations[delegateeFrom].amount -= _amount;
             delegateeDelegations[delegateeFrom].share = _tshare - (amount * _tshare) / _tAmount;
         }
 
@@ -579,20 +581,20 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         // update delegatorDelegations & delegateeDelegations
         if (!rewardStarted) {
-            delegatorDelegations[delegateeTo][_msgSender()] += amount; // {share = amount} before reward start
-            delegateeDelegations[delegateeTo].amount += amount;
-            delegateeDelegations[delegateeTo].share = delegateeDelegations[delegateeTo].amount; // {share = amount} before reward start
+            delegatorDelegations[delegateeTo][_msgSender()] += _amount; // {share = _amount} before reward start
+            delegateeDelegations[delegateeTo].amount += _amount;
+            delegateeDelegations[delegateeTo].share = delegateeDelegations[delegateeTo].amount; // {share = _amount} before reward start
         } else {
             uint256 _tshare = delegateeDelegations[delegateeTo].share;
             uint256 _tAmount = delegateeDelegations[delegateeTo].amount;
             uint256 _uShare = delegatorDelegations[delegateeTo][_msgSender()];
 
             delegatorDelegations[delegateeTo][_msgSender()] = _uShare + (amount * _tshare) / _tAmount;
-            delegateeDelegations[delegateeTo].amount += amount;
+            delegateeDelegations[delegateeTo].amount += _amount;
             delegateeDelegations[delegateeTo].share = _tshare + (amount * _tshare) / _tAmount;
         }
 
-        if (delegateeDelegations[delegateeTo].amount == amount) {
+        if (delegateeDelegations[delegateeTo].amount == _amount) {
             candidateNumber += 1;
         }
 
@@ -630,7 +632,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         uint256 delegateeFromAmount = delegateeDelegations[delegateeFrom].amount;
         uint256 delegateeToAmount = delegateeDelegations[delegateeTo].amount;
-        emit Redelegated(delegateeFrom, delegateeTo, _msgSender(), amount, delegateeFromAmount, delegateeToAmount);
+        emit Redelegated(delegateeFrom, delegateeTo, _msgSender(), _amount, delegateeFromAmount, delegateeToAmount);
     }
 
     /// @notice delegator cliam delegate staking value

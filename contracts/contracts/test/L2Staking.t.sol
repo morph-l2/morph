@@ -649,6 +649,35 @@ contract L2StakingTest is L2StakingBaseTest {
     }
 
     /**
+     * @notice undelegate all when undelegate amount is zero
+     */
+    function test_undelegate_zeroAmount_succeeds() public {
+        hevm.startPrank(bob);
+        morphToken.approve(address(l2Staking), type(uint256).max);
+        l2Staking.delegate(firstStaker, morphBalance);
+        (uint256 stakerAmount0, ) = l2Staking.delegateeDelegations(firstStaker);
+        uint256 amount0 = l2Staking.queryDelegationAmount(firstStaker, bob);
+        assertEq(stakerAmount0, amount0);
+        hevm.stopPrank();
+
+        hevm.startPrank(multisig);
+        l2Staking.startReward();
+        hevm.stopPrank();
+
+        hevm.startPrank(bob);
+        // Verify the Undelegated event is emitted successfully.
+        hevm.expectEmit(true, true, true, true);
+        emit IL2Staking.Undelegated(firstStaker, bob, morphBalance, 0, UNDELEGATE_LOCKED_EPOCHS + 1);
+        l2Staking.undelegate(firstStaker, 0);
+        uint256 amount1 = l2Staking.queryDelegationAmount(firstStaker, bob);
+        assertEq(amount1, 0);
+        // Verify the total stake amount of firstStaker is correct
+        (uint256 stakerAmount1, ) = l2Staking.delegateeDelegations(firstStaker);
+        assertEq(stakerAmount1, 0);
+        hevm.stopPrank();
+    }
+
+    /**
      * @notice undelegate, staker removed
      */
     function test_undelegateWhenStakerRemoved_succeeds() public {
@@ -696,16 +725,6 @@ contract L2StakingTest is L2StakingBaseTest {
         hevm.startPrank(alice);
         l2Staking.undelegate(secondStaker, l2Staking.queryDelegationAmount(secondStaker, alice));
         assertEq(l2Staking.candidateNumber(), SEQUENCER_SIZE - 2);
-        hevm.stopPrank();
-    }
-
-    /**
-     * @notice failed unstaking, when undelegate amount is zero
-     */
-    function test_undelegate_zeroAmount_reverts() public {
-        hevm.startPrank(bob);
-        hevm.expectRevert(IL2Staking.ErrZeroAmount.selector);
-        l2Staking.undelegate(firstStaker, 0);
         hevm.stopPrank();
     }
 
