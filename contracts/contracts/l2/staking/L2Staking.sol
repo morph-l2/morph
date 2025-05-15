@@ -651,7 +651,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         while (number != 0) {
             bytes32 hash = _undelegateRequestsQueue[_msgSender()].front();
             UndelegateRequest memory request = _undelegateRequests[hash];
-            if (currentEpoch() < request.unlockEpoch) {
+            if (rewardStarted && currentEpoch() < request.unlockEpoch) {
                 break;
             }
 
@@ -719,17 +719,18 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @param delegator   delegator
     function claimableUndelegateRequest(address delegator) public view returns (uint256) {
         uint256 length = _undelegateRequestsQueue[delegator].length();
-        uint256 count;
-        for (uint256 i; i < length; ++i) {
+
+        if (!rewardStarted) {
+            return length;
+        }
+        for (uint256 i = 0; i < length; ++i) {
             bytes32 hash = _undelegateRequestsQueue[delegator].at(i);
             UndelegateRequest memory request = _undelegateRequests[hash];
-            if (currentEpoch() >= request.unlockEpoch) {
-                ++count;
-            } else {
-                break;
+            if (currentEpoch() < request.unlockEpoch) {
+                return i;
             }
         }
-        return count;
+        return length;
     }
 
     /// @notice return the sum of first `number` requests' MPH locked in delegator's undelegate queue.
