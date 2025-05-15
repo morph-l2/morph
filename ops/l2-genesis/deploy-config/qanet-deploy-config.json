@@ -36,7 +36,7 @@
 
     "l2StakingSequencerMaxSize": 4,
     "l2StakingUnDelegatedLockEpochs": 2,
-    "l2StakingRewardStartTime": 1728000000,
+    "l2StakingRewardStartTime": 1764460800,
     "l2StakingAddresses": [
         "0x675cfc328f9f2e79a51e499b2be44462270572fe",
         "0xb096665645994775eeba8aa114752d569734dcb4",
