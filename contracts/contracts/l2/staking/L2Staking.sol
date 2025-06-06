@@ -449,7 +449,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         // weather staker has been removed
         bool removed = stakerRankings[delegatee] == 0;
 
-        uint256 unlockEpoch = rewardStarted ? undelegateLockEpochs + 1 : 0;
+        uint256 unlockEpoch = rewardStarted ? (currentEpoch() + undelegateLockEpochs + 1) : 0;
 
         UndelegateRequest memory request = UndelegateRequest({amount: _amount, unlockEpoch: unlockEpoch});
         bytes32 hash = keccak256(abi.encodePacked(_msgSender(), _useSequence(_msgSender())));
