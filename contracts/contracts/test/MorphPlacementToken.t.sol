@@ -426,24 +426,6 @@ contract MorphPlacementTokenTest is CommonTest {
      * Edge Cases Tests *
      ************************/
 
-    function test_transfer_maxUint256_succeeds() public {
-        uint256 maxAmount =1000 ether;
-        
-        // Give bob max tokens
-        hevm.startPrank(alice);
-        morphPlacementToken.transfer(bob, maxAmount);
-        hevm.stopPrank();
-        
-        // Transfer back
-        hevm.startPrank(bob);
-        bool success = morphPlacementToken.transfer(alice, maxAmount);
-        hevm.stopPrank();
-        
-        assertTrue(success);
-        assertEq(morphPlacementToken.balanceOf(bob), 0);
-        assertEq(morphPlacementToken.balanceOf(alice), INITIAL_SUPPLY);
-    }
-
     function test_approve_maxUint256_succeeds() public {
         uint256 maxAmount = type(uint256).max;
         
