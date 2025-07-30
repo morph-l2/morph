@@ -9,13 +9,6 @@ import {IMorphPlacementToken} from "./IMorphPlacementToken.sol";
 
 contract MorphPlacementToken is IMorphPlacementToken, OwnableUpgradeable, PausableUpgradeable {
     /*************
-     * Constants *
-     *************/
-
-    /// @notice daily inflation ratio precision
-    uint256 private constant PRECISION = 1e16;
-
-    /*************
      * Variables *
      *************/
 
