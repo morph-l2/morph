@@ -23,3 +23,15 @@ task("rollup-upgrade-hc")
             taskArgs.prevStateRoot,
         ]))
     })
+
+
+task("deploy-morph-placement-token")
+    .setAction(async (taskArgs, hre) => {
+        const MorphPlacementTokenFactory = await hre.ethers.getContractFactory("MorphPlacementToken");
+        const morphPlacementToken = await MorphPlacementTokenFactory.deploy();
+        await morphPlacementToken.deployed();
+
+        let blockNumber = await hre.ethers.provider.getBlockNumber();
+        console.log(`MorphPlacementToken deployed at ${morphPlacementToken.address} and initialized at block ${blockNumber}`);
+    });
+  

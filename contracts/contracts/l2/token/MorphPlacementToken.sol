@@ -3,10 +3,11 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import {IMorphToken} from "./IMorphToken.sol";
+import {IMorphPlacementToken} from "./IMorphPlacementToken.sol";
 
-contract MorphToken is IMorphToken, OwnableUpgradeable {
+contract MorphPlacementToken is IMorphPlacementToken, OwnableUpgradeable, PausableUpgradeable {
     /*************
      * Constants *
      *************/
@@ -37,6 +38,12 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
      * Initialize *
      **************/
 
+   /// @notice constructor
+    constructor() {
+       _disableInitializers();
+    }
+
+
     /// @dev See {IMorphToken-initialize}.
     function initialize(
         string memory name_,
@@ -48,6 +55,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         _symbol = symbol_;
         _mint(_owner, initialSupply_);
         _transferOwnership(_owner);
+        __Pausable_init();
     }
 
     /************************
@@ -192,6 +200,17 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
         return _allowances[owner][spender];
     }
 
+    /// @notice Pause the contract
+    /// @dev This function can only called by contract owner.
+    /// @param _status The pause status to update.
+    function setPause(bool _status) external onlyOwner {
+        if (_status) {
+            _pause();
+        } else {
+            _unpause();
+        }
+    }
+
     /**********************
      * Internal Functions *
      **********************/
@@ -208,7 +227,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// - `from` cannot be the zero address.
     /// - `to` cannot be the zero address.
     /// - `from` must have a balance of at least `amount`.
-    function _transfer(address from, address to, uint256 amount) internal {
+    function _transfer(address from, address to, uint256 amount) whenNotPaused internal {
         require(from != address(0), "transfer from the zero address");
         require(to != address(0), "transfer to the zero address");
 
@@ -232,7 +251,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     /// Requirements:
     ///
     /// - `account` cannot be the zero address.
-    function _mint(address account, uint256 amount) internal {
+    function _mint(address account, uint256 amount) whenNotPaused internal {
         require(account != address(0), "mint to the zero address");
         _totalSupply += amount;
         unchecked {
@@ -252,7 +271,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
      * - `account` cannot be the zero address.
      * - `account` must have at least `amount` tokens.
      */
-    function _burn(address account, uint256 amount) internal {
+    function _burn(address account, uint256 amount) whenNotPaused internal {
         require(account != address(0), "ERC20: burn from the zero address");
 
         uint256 accountBalance = _balances[account];
@@ -277,7 +296,7 @@ contract MorphToken is IMorphToken, OwnableUpgradeable {
     ///
     /// - `owner` cannot be the zero address.
     /// - `spender` cannot be the zero address.
-    function _approve(address owner, address spender, uint256 amount) internal {
+    function _approve(address owner, address spender, uint256 amount) whenNotPaused internal {
         require(owner != address(0), "approve from the zero address");
         require(spender != address(0), "approve to the zero address");
 

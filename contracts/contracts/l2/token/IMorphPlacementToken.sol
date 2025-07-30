@@ -7,7 +7,7 @@ import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/tok
 /**
  /// @dev Interface of the MorphToken standard as defined in the EIP.
  */
-interface IMorphToken is IERC20MetadataUpgradeable {
+interface IMorphPlacementToken is IERC20MetadataUpgradeable {
     /// @dev Atomically increases the allowance granted to `spender` by the caller.
     ///
     /// This is an alternative to {approve} that can be used as a mitigation for
