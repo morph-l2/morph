@@ -38,11 +38,10 @@ contract MorphPlacementToken is IMorphPlacementToken, OwnableUpgradeable, Pausab
      * Initialize *
      **************/
 
-   /// @notice constructor
+    /// @notice constructor
     constructor() {
-       _disableInitializers();
+        _disableInitializers();
     }
-
 
     /// @dev See {IMorphToken-initialize}.
     function initialize(
@@ -227,7 +226,7 @@ contract MorphPlacementToken is IMorphPlacementToken, OwnableUpgradeable, Pausab
     /// - `from` cannot be the zero address.
     /// - `to` cannot be the zero address.
     /// - `from` must have a balance of at least `amount`.
-    function _transfer(address from, address to, uint256 amount) whenNotPaused internal {
+    function _transfer(address from, address to, uint256 amount) internal whenNotPaused {
         require(from != address(0), "transfer from the zero address");
         require(to != address(0), "transfer to the zero address");
 
@@ -251,7 +250,7 @@ contract MorphPlacementToken is IMorphPlacementToken, OwnableUpgradeable, Pausab
     /// Requirements:
     ///
     /// - `account` cannot be the zero address.
-    function _mint(address account, uint256 amount) whenNotPaused internal {
+    function _mint(address account, uint256 amount) internal whenNotPaused {
         require(account != address(0), "mint to the zero address");
         _totalSupply += amount;
         unchecked {
@@ -271,7 +270,7 @@ contract MorphPlacementToken is IMorphPlacementToken, OwnableUpgradeable, Pausab
      * - `account` cannot be the zero address.
      * - `account` must have at least `amount` tokens.
      */
-    function _burn(address account, uint256 amount) whenNotPaused internal {
+    function _burn(address account, uint256 amount) internal whenNotPaused {
         require(account != address(0), "ERC20: burn from the zero address");
 
         uint256 accountBalance = _balances[account];
@@ -296,7 +295,7 @@ contract MorphPlacementToken is IMorphPlacementToken, OwnableUpgradeable, Pausab
     ///
     /// - `owner` cannot be the zero address.
     /// - `spender` cannot be the zero address.
-    function _approve(address owner, address spender, uint256 amount) whenNotPaused internal {
+    function _approve(address owner, address spender, uint256 amount) internal whenNotPaused {
         require(owner != address(0), "approve from the zero address");
         require(spender != address(0), "approve to the zero address");
 
