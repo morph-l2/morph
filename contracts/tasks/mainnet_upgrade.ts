@@ -51,7 +51,7 @@ task("init-morph-placement-token")
 
         let res = await token.initialize(
             "Morph Placement Token",
-            "mphp",
+            "MPHP",
             taskArgs.owner,
             hre.ethers.utils.parseEther("10000000000")
         )
