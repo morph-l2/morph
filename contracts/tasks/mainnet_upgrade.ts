@@ -28,7 +28,7 @@ task("rollup-upgrade-hc")
 
 task("deploy-morph-placement-token")
     .setAction(async (taskArgs, hre) => {
-        const MorphPlacementTokenFactory = await hre.ethers.getContractFactory("MorphPlacementTokenT");
+        const MorphPlacementTokenFactory = await hre.ethers.getContractFactory("MorphPlacementToken");
         const morphPlacementToken = await MorphPlacementTokenFactory.deploy();
         await morphPlacementToken.deployed();
 
