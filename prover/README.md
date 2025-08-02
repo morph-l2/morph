@@ -4,7 +4,7 @@ Generate zk proof for the l2 batch.
 ## Requirements
 
 - [Rust](https://rustup.rs/)
-- [SP1](https://succinctlabs.github.io/sp1/getting-started/install.html)
+- [SP1](https://docs.succinct.xyz/docs/sp1/getting-started/install)
 
 
 ### Fast Run 
