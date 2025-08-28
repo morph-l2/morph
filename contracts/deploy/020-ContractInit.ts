@@ -54,12 +54,9 @@ export const ContractInit = async (
         // import genesis batch 
         const batchHeader: string = config.batchHeader
 
-        // submitter and challenger
-        const submitter: string = config.rollupProposer
+        // challenger
         const challenger: string = config.rollupChallenger
-        if (!ethers.utils.isAddress(submitter)
-            || !ethers.utils.isAddress(challenger)
-        ) {
+        if (!ethers.utils.isAddress(challenger)) {
             console.error('please check your address')
             return ''
         }
