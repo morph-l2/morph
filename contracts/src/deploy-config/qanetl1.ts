@@ -23,7 +23,6 @@ const config = {
     rollupProofWindow: 86400,
     proofRewardPercent: 70,
     // challenge config
-    rollupProposer: '0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d',
     rollupChallenger: '0x71616250f7CAaa8a5DC295dc5851D6b1E49188a7',
     // genesis config
     batchHeader: '',
