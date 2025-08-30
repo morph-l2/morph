@@ -178,7 +178,7 @@ var (
 		Name:   "heartbeat.url",
 		Usage:  "Sets the URL to heartbeat to",
 		EnvVar: prefixEnvVar("HEARTBEAT_URL"),
-		Value:  "https://heartbeat.optimism.io",
+		Value:  "https://status.optimism.io",
 	}
 	BackupL2UnsafeSyncRPC = cli.StringFlag{
 		Name:     "l2.backup-unsafe-sync-rpc",
