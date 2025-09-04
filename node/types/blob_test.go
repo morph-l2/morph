@@ -1,8 +1,8 @@
 package types
 
 import (
+	"github.com/holiman/uint256"
 	"math/big"
-	"morph-l2/node/zstd"
 	"testing"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
@@ -97,7 +97,31 @@ func generateContractTx(isLegacy bool) (*eth.Transaction, error) {
 	return auth.Signer(address, contractTx)
 }
 
-func TestDecodeTxsFromBlob(t *testing.T) {
+func generateSetCodeTx() *eth.Transaction {
+	privKey, _ := crypto.GenerateKey()
+	address := crypto.PubkeyToAddress(privKey.PublicKey)
+	to := common.BigToAddress(big.NewInt(100))
+	data := rand.Bytes(100)
+	inner := &eth.SetCodeTx{
+		ChainID:   uint256.NewInt(2810),
+		Nonce:     1,
+		GasFeeCap: uint256.NewInt(1e10),
+		GasTipCap: uint256.NewInt(1e8),
+		Gas:       500000,
+		To:        to,
+		Value:     uint256.NewInt(1),
+		Data:      data,
+		AccessList: []eth.AccessTuple{{
+			Address:     address,
+			StorageKeys: []common.Hash{common.BigToHash(big.NewInt(2))},
+		}},
+		AuthList: []eth.SetCodeAuthorization{},
+	}
+	return eth.NewTx(inner)
+
+}
+
+func TestDecodeTxsFromBytes(t *testing.T) {
 	transferTx, err := generateTransferTx(false)
 	require.NoError(t, err)
 	transferTxBz, err := transferTx.MarshalBinary()
@@ -113,16 +137,17 @@ func TestDecodeTxsFromBlob(t *testing.T) {
 	contractTxBz, err := contractTx.MarshalBinary()
 	require.NoError(t, err)
 
+	setCodeTx := generateSetCodeTx()
+	require.NoError(t, err)
+	setCodeTxBz, err := setCodeTx.MarshalBinary()
+	require.NoError(t, err)
+
 	cks := BatchData{
-		txsPayload: append(append(transferTxBz, legacyContractTxBz...), contractTxBz...),
+		txsPayload: append(append(append(transferTxBz, legacyContractTxBz...), contractTxBz...), setCodeTxBz...),
 	}
-	compressedBlobBytes, err := zstd.CompressBatchBytes(cks.TxsPayload())
+	txs, err := DecodeTxsFromBytes(cks.TxsPayload())
 	require.NoError(t, err)
-	b, err := MakeBlobCanonical(compressedBlobBytes)
-	require.NoError(t, err)
-	txs, err := DecodeTxsFromBlob(b)
-	require.NoError(t, err)
-	require.EqualValues(t, 3, txs.Len())
+	require.EqualValues(t, 4, txs.Len())
 	require.EqualValues(t, transferTx.Hash(), txs[0].Hash())
 	require.EqualValues(t, legacyContractTx.Hash(), txs[1].Hash())
 	require.EqualValues(t, contractTx.Hash(), txs[2].Hash())
