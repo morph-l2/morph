@@ -8,6 +8,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core"
+	"github.com/morph-l2/go-ethereum/core/tracing"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/core/vm"
 	"github.com/morph-l2/go-ethereum/crypto"
@@ -107,7 +108,7 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 
 }
 
-func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
+func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int, reason tracing.BalanceChangeReason) *big.Int {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
@@ -116,13 +117,15 @@ func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
 		panic(fmt.Sprintf("%s not in state", addr))
 	}
 	if account.Balance.Sign() == 0 {
-		return
+		return common.Big0
 	}
+	prev := new(big.Int).Set(account.Balance)
 	account.Balance = new(big.Int).Sub(account.Balance, amount)
 	db.genesis.Alloc[addr] = account
+	return prev
 }
 
-func (db *MemoryStateDB) AddBalance(addr common.Address, amount *big.Int) {
+func (db *MemoryStateDB) AddBalance(addr common.Address, amount *big.Int, reason tracing.BalanceChangeReason) *big.Int {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
@@ -130,8 +133,10 @@ func (db *MemoryStateDB) AddBalance(addr common.Address, amount *big.Int) {
 	if !ok {
 		panic(fmt.Sprintf("%s not in state", addr))
 	}
+	prev := new(big.Int).Set(account.Balance)
 	account.Balance = new(big.Int).Add(account.Balance, amount)
 	db.genesis.Alloc[addr] = account
+	return prev
 }
 
 func (db *MemoryStateDB) GetBalance(addr common.Address) *big.Int {
@@ -156,7 +161,7 @@ func (db *MemoryStateDB) GetNonce(addr common.Address) uint64 {
 	return account.Nonce
 }
 
-func (db *MemoryStateDB) SetNonce(addr common.Address, value uint64) {
+func (db *MemoryStateDB) SetNonce(addr common.Address, value uint64, _ tracing.NonceChangeReason) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
@@ -196,16 +201,17 @@ func (db *MemoryStateDB) GetCode(addr common.Address) []byte {
 	return account.Code
 }
 
-func (db *MemoryStateDB) SetCode(addr common.Address, code []byte) {
+func (db *MemoryStateDB) SetCode(addr common.Address, code []byte) []byte {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
-		return
+		return nil
 	}
 	account.Code = code
 	db.genesis.Alloc[addr] = account
+	return code
 }
 
 func (db *MemoryStateDB) GetCodeSize(addr common.Address) uint64 {
@@ -249,7 +255,7 @@ func (db *MemoryStateDB) GetState(addr common.Address, key common.Hash) common.H
 	return account.Storage[key]
 }
 
-func (db *MemoryStateDB) SetState(addr common.Address, key, value common.Hash) {
+func (db *MemoryStateDB) SetState(addr common.Address, key, value common.Hash) common.Hash {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
@@ -257,8 +263,10 @@ func (db *MemoryStateDB) SetState(addr common.Address, key, value common.Hash) {
 	if !ok {
 		panic(fmt.Sprintf("%s not in state", addr))
 	}
+	prev := account.Storage[key]
 	account.Storage[key] = value
 	db.genesis.Alloc[addr] = account
+	return prev
 }
 
 func (db *MemoryStateDB) Suicide(common.Address) bool {
