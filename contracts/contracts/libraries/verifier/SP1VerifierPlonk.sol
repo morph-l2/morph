@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity =0.8.24;
 
 import {ISP1Verifier, ISP1VerifierWithHash} from "./ISP1Verifier.sol";
 import {PlonkVerifier} from "./PlonkVerifier.sol";
@@ -23,9 +23,7 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
 
     /// @notice Hashes the public values to a field elements inside Bn254.
     /// @param publicValues The public values.
-    function hashPublicValues(
-        bytes calldata publicValues
-    ) public pure returns (bytes32) {
+    function hashPublicValues(bytes calldata publicValues) public pure returns (bytes32) {
         return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     }
 
@@ -33,11 +31,7 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
     /// @param programVKey The verification key for the RISC-V program.
     /// @param publicValues The public values encoded as bytes.
     /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
-    function verifyProof(
-        bytes32 programVKey,
-        bytes calldata publicValues,
-        bytes calldata proofBytes
-    ) external view {
+    function verifyProof(bytes32 programVKey, bytes calldata publicValues, bytes calldata proofBytes) external view {
         bytes4 receivedSelector = bytes4(proofBytes[:4]);
         bytes4 expectedSelector = bytes4(VERIFIER_HASH());
         if (receivedSelector != expectedSelector) {

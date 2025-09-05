@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"math/big"
+	"strings"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/morph-l2/go-ethereum"
@@ -15,13 +16,14 @@ import (
 )
 
 const (
-	ConnectionRefused = "connection refused"
-	EOFError          = "EOF"
-	JWTStaleToken     = "stale token"
-	JWTExpiredToken   = "token is expired"
-	MinerClosed       = "miner closed"
-	ExecutionAborted  = "execution aborted"
-	Timeout           = "timed out"
+	ConnectionRefused       = "connection refused"
+	EOFError                = "EOF"
+	JWTStaleToken           = "stale token"
+	JWTExpiredToken         = "token is expired"
+	MinerClosed             = "miner closed"
+	ExecutionAborted        = "execution aborted"
+	Timeout                 = "timed out"
+	DiscontinuousBlockError = "discontinuous block number"
 )
 
 type RetryableClient struct {
@@ -220,7 +222,7 @@ func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, 
 	return
 }
 
-// currently we want every error retryable
+// currently we want every error retryable, except the DiscontinuousBlockError
 func retryableError(err error) bool {
 	// return strings.Contains(err.Error(), ConnectionRefused) ||
 	// 	strings.Contains(err.Error(), EOFError) ||
@@ -229,5 +231,5 @@ func retryableError(err error) bool {
 	// 	strings.Contains(err.Error(), MinerClosed) ||
 	// 	strings.Contains(err.Error(), ExecutionAborted) ||
 	// 	strings.Contains(err.Error(), Timeout)
-	return true
+	return !strings.Contains(err.Error(), DiscontinuousBlockError)
 }

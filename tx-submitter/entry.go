@@ -10,10 +10,13 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
 	"morph-l2/tx-submitter/utils"
@@ -65,6 +68,12 @@ func Main() func(ctx *cli.Context) error {
 			"rough_estimate_base_gas", cfg.RollupTxGasBase,
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
 			"log_level", cfg.LogLevel,
+			"leveldb_pathname", cfg.LeveldbPathName,
+			"l1_stop_in_blocks", cfg.BlockNotIncreasedThreshold,
+			"min_tip", cfg.MinTip,
+			"max_tip", cfg.MaxTip,
+			"max_base", cfg.MaxBaseFee,
+			"tip_bump", cfg.TipFeeBump,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -96,14 +105,11 @@ func Main() func(ctx *cli.Context) error {
 			}
 			output = io.MultiWriter(output, logFile)
 		}
-
 		logHandler := log.StreamHandler(output, log.TerminalFormat(false))
-
 		logLevel, err := log.LvlFromString(cfg.LogLevel)
 		if err != nil {
 			return err
 		}
-
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 		l1RpcClient, err := rpc.Dial(cfg.L1EthRpc)
@@ -182,12 +188,23 @@ func Main() func(ctx *cli.Context) error {
 			},
 		}
 
-		eventIndexer := event.NewEventIndexer(cfg.StakingEventStoreFilename, l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep)
-
+		ldb, err := db.New(cfg.LeveldbPathName)
+		if err != nil {
+			return fmt.Errorf("failed to connect leveldb: %w", err)
+		}
+		eventInfoStorage := event.NewEventInfoStorage(ldb)
+		err = eventInfoStorage.Load()
+		if err != nil {
+			return err
+		}
+		eventIndexer := event.NewEventIndexer(l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep, eventInfoStorage)
 		// new rotator
 		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
 		// start rorator event indexer
 		rotator.StartEventIndexer()
+
+		// blockmonitor
+		bm := l1checker.NewBlockMonitor(cfg.BlockNotIncreasedThreshold, l1Client)
 
 		// new rollup service
 		sr := services.NewRollup(
@@ -205,11 +222,11 @@ func Main() func(ctx *cli.Context) error {
 			cfg,
 			rsaPriv,
 			rotator,
+			ldb,
+			bm,
+			eventInfoStorage,
 		)
-		// init rollup service
-		if err := sr.PreCheck(); err != nil {
-			return err
-		}
+
 		// metrics
 		{
 			if cfg.MetricsServerEnable {
@@ -223,11 +240,6 @@ func Main() func(ctx *cli.Context) error {
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
-		// log external sign info
-		if cfg.ExternalSign {
-
-		}
-
 		log.Info("external sign info",
 			"external_sign", cfg.ExternalSign,
 			"appid", cfg.ExternalSignAppid,
@@ -236,7 +248,12 @@ func Main() func(ctx *cli.Context) error {
 			"url", cfg.ExternalSignUrl,
 		)
 
-		sr.Start()
+		err = sr.Start()
+		for err != nil {
+			log.Error("rollup service start failed", "error", err)
+			time.Sleep(time.Second * 5)
+			err = sr.Start()
+		}
 
 		// Catch CTRL-C to ensure a graceful shutdown.
 		interrupt := make(chan os.Signal, 1)

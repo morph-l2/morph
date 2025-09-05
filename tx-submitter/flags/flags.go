@@ -214,11 +214,29 @@ var (
 		Value:  "StakingEventStore.json",
 	}
 
-	CalldataFeeBumpFlag = cli.Uint64Flag{
-		Name:   "call_data_fee_bump",
-		Usage:  "The fee bump for call data",
-		Value:  100, //fee = x * origin_fee/100
-		EnvVar: prefixEnvVar("CALL_DATA_FEE_BUMP"),
+	TipFeeBumpFlag = cli.Uint64Flag{
+		Name:   "TIP_FEE_BUMP",
+		Usage:  "The fee bump for tip",
+		Value:  120, //bumpTip = tip * TipFeeBump/100
+		EnvVar: prefixEnvVar("TIP_FEE_BUMP"),
+	}
+	MaxTipFlag = cli.Uint64Flag{
+		Name:   "max_tip",
+		Usage:  "The maximum tip for a transaction",
+		Value:  10e9, //10gwei
+		EnvVar: prefixEnvVar("MAX_TIP"),
+	}
+	MinTipFlag = cli.Uint64Flag{
+		Name:   "min_tip",
+		Usage:  "The minimum tip for a transaction",
+		Value:  5e8, //0.5gwei
+		EnvVar: prefixEnvVar("MIN_TIP"),
+	}
+	MaxBaseFeeFlag = cli.Uint64Flag{
+		Name:   "max_base_fee",
+		Usage:  "The maximum base fee for a transaction",
+		Value:  100e9, //100gwei
+		EnvVar: prefixEnvVar("MAX_BASE_FEE"),
 	}
 
 	MaxTxsInPendingPoolFlag = cli.Uint64Flag{
@@ -292,6 +310,20 @@ var (
 		Value:  100,
 		EnvVar: prefixEnvVar("EVENT_INDEX_STEP"),
 	}
+	LeveldbPathNameFlag = cli.StringFlag{
+		Name:   "leveldb_path_name",
+		Usage:  "The path name of the leveldb",
+		EnvVar: prefixEnvVar("LEVELDB_PATH_NAME"),
+		Value:  "submitter-leveldb",
+	}
+
+	// l1 block not incremented threshold
+	BlockNotIncreasedThreshold = cli.Int64Flag{
+		Name:   "block_not_increased_threshold",
+		Usage:  "The threshold for block not incremented",
+		Value:  5,
+		EnvVar: prefixEnvVar("BLOCK_NOT_INCREASED_THRESHOLD"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -331,7 +363,10 @@ var optionalFlags = []cli.Flag{
 	PrivateKeyFlag,
 	L2SequencerAddressFlag,
 	L2GovAddressFlag,
-	CalldataFeeBumpFlag,
+	TipFeeBumpFlag,
+	MaxTipFlag,
+	MinTipFlag,
+	MaxBaseFeeFlag,
 	MaxTxsInPendingPoolFlag,
 
 	// external sign
@@ -345,6 +380,8 @@ var optionalFlags = []cli.Flag{
 	RotatorBufferFlag,
 	StakingEventStoreFileFlag,
 	EventIndexStepFlag,
+	LeveldbPathNameFlag,
+	BlockNotIncreasedThreshold,
 }
 
 // Flags contains the list of configuration options available to the binary.

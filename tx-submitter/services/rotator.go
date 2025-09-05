@@ -56,18 +56,18 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 		return fmt.Errorf("GetCurrentSubmitter: failed to get sequencer set update time: %w", err)
 	}
 
-	storage := event.NewEventInfoStorage(r.indexer.GetStorePath())
+	storage := r.indexer.GetStorage()
 	err = storage.Load()
 	if err != nil {
 		log.Error("failed to load storage", "err", err)
 		return fmt.Errorf("GetCurrentSubmitter: failed to load storage: %w", err)
 	}
 	// if index not complete
-	if storage.BlockProcessed == 0 {
+	if storage.BlockProcessed() == 0 {
 		return errors.New("wait event index service to complete")
 	}
 
-	r.startTime = utils.MaxOfThreeBig(epochUpdateTime, sequcerUpdateTime, big.NewInt(int64(storage.BlockTime)))
+	r.startTime = utils.MaxOfThreeBig(epochUpdateTime, sequcerUpdateTime, big.NewInt(int64(storage.BlockTime())))
 
 	// get current sequencer set
 	seqSet, err := QuerySequencerSet(r.l2SequencerAddr, clients)
@@ -92,30 +92,44 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 	}
 	submitterSet := utils.IntersectionOfAddresses(r.GetSequencerSet(), stakers)
 	r.SetSubmitterSet(submitterSet)
+	// rotator info
+	log.Info(
+		"rotator state updated",
+		"epoch", r.epoch,
+		"start_time", utils.FormatTime(r.startTime),
+		"start_timestamp", r.startTime,
+		"epoch_update_time", utils.FormatTime(epochUpdateTime),
+		"epoch_update_timestamp", epochUpdateTime,
+		"seq_update_time", utils.FormatTime(sequcerUpdateTime),
+		"seq_update_timestamp", sequcerUpdateTime,
+		"indexed_latest_block", storage.BlockProcessed(),
+		"indexed_event_time", utils.FormatTime(big.NewInt(int64(storage.BlockTime()))),
+		"indexed_event_timestamp", storage.BlockTime(),
+	)
 
 	return nil
 }
 
 // GetCurrentSubmitter returns the current sequencer that should be submitting
-func (r *Rotator) CurrentSubmitter(clients []iface.L2Client, l1Staking iface.IL1Staking) (*common.Address, error) {
+func (r *Rotator) CurrentSubmitter(clients []iface.L2Client, l1Staking iface.IL1Staking) (*common.Address, int64, error) {
 
 	err := r.UpdateState(clients, l1Staking)
 	if err != nil {
-		return nil, fmt.Errorf("update state err: %w", err)
+		return nil, 0, fmt.Errorf("update state err: %w", err)
 	}
 
 	if len(r.GetSubmitterSet()) == 0 {
-		return nil, fmt.Errorf("GetCurrentSubmitter: sequencer set is empty")
+		return nil, 0, fmt.Errorf("GetCurrentSubmitter: sequencer set is empty")
 	}
 
 	if r.epoch.Int64() == 0 {
-		return nil, fmt.Errorf("GetCurrentSubmitter: epoch is 0")
+		return nil, 0, fmt.Errorf("GetCurrentSubmitter: epoch is 0")
 	}
 
 	sec := time.Now().Unix() - r.startTime.Int64()
 	seqIdx := sec / r.epoch.Int64() % int64(len(r.GetSequencerSet()))
 
-	return &r.GetSubmitterSet()[seqIdx], nil
+	return &r.GetSubmitterSet()[seqIdx], seqIdx, nil
 
 }
 

@@ -170,6 +170,12 @@ var (
 		EnvVar: prefixEnvVar("VALIDATOR"),
 	}
 
+	ChallengeEnable = cli.BoolFlag{
+		Name:   "validator.challengeEnable",
+		Usage:  "Enable the validator challenge",
+		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
+	}
+
 	// validator
 	ValidatorPrivateKey = cli.StringFlag{
 		Name:   "validator.privateKey",
@@ -190,6 +196,12 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_START_HEIGHT"),
 	}
 
+	DerivationBaseHeight = cli.Uint64Flag{
+		Name:   "derivation.baseHeight",
+		Usage:  "The starting height of l2 derive, usually the node snapshot or other trusted starting height, before which stateRoot will not be checked",
+		EnvVar: prefixEnvVar("DERIVATION_BASE_HEIGHT"),
+	}
+
 	DerivationPollInterval = cli.DurationFlag{
 		Name:   "derivation.pollInterval",
 		Usage:  "Frequency at which we query for rollup data",
@@ -206,6 +218,27 @@ var (
 		Name:   "derivation.fetchBlockRange",
 		Usage:  "Number of blocks that we collect in a single eth_getLogs query",
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
+	}
+
+	// Batch rules
+	UpgradeBatchTime = cli.Uint64Flag{
+		Name:   "upgrade.batchTime",
+		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
+		EnvVar: prefixEnvVar("UPGRADE_BATCH_TIME"),
+	}
+	MainnetFlag = cli.BoolFlag{
+		Name:  "mainnet",
+		Usage: "Morph mainnet",
+	}
+	HoleskyFlag = cli.BoolFlag{
+		Name:  "holesky",
+		Usage: "Morph Holesky",
+	}
+
+	DerivationConfirmations = cli.Int64Flag{
+		Name:   "derivation.confirmations",
+		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
+		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
 	}
 	// Logger
 	LogLevel = &cli.StringFlag{
@@ -294,6 +327,7 @@ var Flags = []cli.Flag{
 	TendermintConfigPath,
 	MockEnabled,
 	ValidatorEnable,
+	ChallengeEnable,
 
 	// validator
 	ValidatorPrivateKey,
@@ -301,10 +335,17 @@ var Flags = []cli.Flag{
 	// derivation
 	RollupContractAddress,
 	DerivationStartHeight,
+	DerivationBaseHeight,
 	DerivationPollInterval,
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
+	DerivationConfirmations,
 	L1BeaconAddr,
+
+	// batch rules
+	UpgradeBatchTime,
+	MainnetFlag,
+	HoleskyFlag,
 
 	// logger
 	LogLevel,

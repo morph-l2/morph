@@ -162,14 +162,12 @@ github.com/mmcloughlin/addchain v0.4.0/go.mod h1:A86O+tHqZLMNO4w6ZZ4FlVQEadcoqky
 github.com/mmcloughlin/profile v0.1.1/go.mod h1:IhHD7q1ooxgwTgjxQYkACGA77oFTDdFVejUS1/tS/qU=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
-github.com/morph-l2/externalsign v0.3.0 h1:eVGON//ofO5eJSZvJQW+8HUeaGlg4seaS99SzS8GQc4=
-github.com/morph-l2/externalsign v0.3.0/go.mod h1:b6NJ4GUiiG/gcSJsp3p8ExsIs4ZdphlrVALASnVoGJE=
 github.com/morph-l2/externalsign v0.3.1 h1:UYFDZFB0L85A4rDvuwLNBiGEi0kSmg9AZ2v8Q5O4dQo=
 github.com/morph-l2/externalsign v0.3.1/go.mod h1:b6NJ4GUiiG/gcSJsp3p8ExsIs4ZdphlrVALASnVoGJE=
-github.com/morph-l2/go-ethereum v1.10.14-0.20241021080617-0ff2a10a9625 h1:4+cbRSS4lacSIC81RXxvA04UHhGVC4SHVn+bKeqhPSM=
-github.com/morph-l2/go-ethereum v1.10.14-0.20241021080617-0ff2a10a9625/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
-github.com/morph-l2/tendermint v0.3.1 h1:yqyM3/p9sCNmFSsIFeIxS5RBgXHWqbtyNHx16I9cIZ0=
-github.com/morph-l2/tendermint v0.3.1/go.mod h1:TtCzp9l6Z6yDUiwv3TbqKqw8Q8RKp3fSz5+adO1/Y8w=
+github.com/morph-l2/go-ethereum v1.10.14-0.20250424011308-f42440d1ace1 h1:Mtl4361Zdc8w3SgCI7L/NuPeLaVdX1L/uP/D4ur/9Yw=
+github.com/morph-l2/go-ethereum v1.10.14-0.20250424011308-f42440d1ace1/go.mod h1:sMJCfHOBzVRDkM2yF/Hy+oUk2rgC0CQZHTLs0cyzhhk=
+github.com/morph-l2/tendermint v0.3.2 h1:Gu6Uj2G6c3YP2NAKFi7A46JZaOCdD4zfZDKCjt0pDm8=
+github.com/morph-l2/tendermint v0.3.2/go.mod h1:TtCzp9l6Z6yDUiwv3TbqKqw8Q8RKp3fSz5+adO1/Y8w=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
@@ -241,6 +239,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
+github.com/stretchr/objx v0.5.2 h1:xuMeJ0Sdp5ZMRXx/aWO6RZxdr3beISkG5/G/aIRr3pY=
+github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/8L+MA=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=

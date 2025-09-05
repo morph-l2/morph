@@ -162,6 +162,35 @@ contract MultipleVersionRollupVerifierTest is DSTestPlus {
         assertEq(verifier.getVerifier(version, 10000), address(v2));
     }
 
+    function test_getVerifier_failures(uint256 version) external {
+        verifier.initialize(address(rollup));
+        hevm.assume(version != 0);
+
+        verifier.updateVerifier(version, 10, address(v0));
+        verifier.updateVerifier(version, 100, address(v1));
+        verifier.updateVerifier(version, 300, address(v2));
+
+        hevm.startPrank(address(1));
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorVerifierNotFound.selector);
+        verifier.getVerifier(version, 1);
+        hevm.stopPrank();
+
+        hevm.startPrank(address(1));
+        hevm.expectRevert(MultipleVersionRollupVerifier.ErrorVerifierNotFound.selector);
+        verifier.getVerifier(version, 9);
+        hevm.stopPrank();
+
+        assertEq(verifier.getVerifier(version, 10), address(v0));
+        assertEq(verifier.getVerifier(version, 11), address(v0));
+        assertEq(verifier.getVerifier(version, 99), address(v0));
+        assertEq(verifier.getVerifier(version, 100), address(v1));
+        assertEq(verifier.getVerifier(version, 101), address(v1));
+        assertEq(verifier.getVerifier(version, 299), address(v1));
+        assertEq(verifier.getVerifier(version, 300), address(v2));
+        assertEq(verifier.getVerifier(version, 301), address(v2));
+        assertEq(verifier.getVerifier(version, 10000), address(v2));
+    }
+
     function test_verifyAggregateProof_succeeds(uint256 version) external {
         verifier.initialize(address(rollup));
         hevm.assume(version != 0);

@@ -3,18 +3,21 @@ package event
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
+
+	"morph-l2/tx-submitter/db"
+	"morph-l2/tx-submitter/params"
 )
 
 type IEventStorage interface {
 	Store() error
 	Load() error
+	BlockProcessed() uint64
+	SetBlockProcessed(blockNum uint64)
+	BlockTime() uint64
+	SetBlockTime(blockTime uint64)
+	EventInfo() EventInfo
 }
-
-var (
-	defaultFilename = "event_info.json"
-)
 
 type EventInfo struct {
 	BlockTime      uint64 `json:"block_time"`      // event emit time
@@ -22,55 +25,84 @@ type EventInfo struct {
 }
 
 type EventInfoStorage struct {
-	EventInfo
-	Filename string `json:"filename"` // filename
-	lock     sync.Mutex
+	eventInfo EventInfo
+	db        db.Database
+	mu        sync.RWMutex
 }
 
-func NewEventInfoStorage(filename string) *EventInfoStorage {
-	if filename == "" {
-		filename = defaultFilename
-	}
+func NewEventInfoStorage(db db.Database) *EventInfoStorage {
 	return &EventInfoStorage{
-		Filename: filename,
+		db: db,
 	}
 }
 
 func (e *EventInfoStorage) Store() error {
-
 	// Convert struct to JSON string
-	jsonData, err := json.Marshal(e)
+	jsonData, err := json.Marshal(e.eventInfo)
 	if err != nil {
 		return fmt.Errorf("failed to convert struct to JSON: %w", err)
 	}
 
-	e.lock.Lock()
-	defer e.lock.Unlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	// Write JSON data to file
-	err = os.WriteFile(e.Filename, jsonData, 0600)
+	err = e.db.PutString(params.EventInfoKey, string(jsonData))
 	if err != nil {
-		return fmt.Errorf("failed to write to file: %w", err)
+		return fmt.Errorf("failed to write to db: err=%w, data=%v", err, jsonData)
+	}
+	return nil
+}
+
+func (e *EventInfoStorage) Load() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	jsonStr, err := e.db.GetString(params.EventInfoKey)
+	if err != nil {
+		if err == db.ErrKeyNotFound {
+			// Initialize with default values if not found
+			e.eventInfo = EventInfo{}
+			return nil
+		}
+		return fmt.Errorf("failed to read from db: %w", err)
+	}
+
+	err = json.Unmarshal([]byte(jsonStr), &e.eventInfo)
+	if err != nil {
+		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
 	return nil
 }
-func (e *EventInfoStorage) Load() error {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	jsonData, err := os.ReadFile(e.Filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			e.EventInfo = EventInfo{}
-			return nil
-		}
-		return fmt.Errorf("failed to read file: %w", err)
-	}
 
-	// parse json data to struct
-	err = json.Unmarshal(jsonData, e)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal JSON: %w", err)
-	}
+func (e *EventInfoStorage) BlockProcessed() uint64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.eventInfo.BlockProcessed
+}
 
-	return nil
+func (e *EventInfoStorage) SetBlockProcessed(blockNum uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.eventInfo.BlockProcessed = blockNum
+}
+
+func (e *EventInfoStorage) BlockTime() uint64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.eventInfo.BlockTime
+}
+
+func (e *EventInfoStorage) SetBlockTime(blockTime uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.eventInfo.BlockTime = blockTime
+}
+
+// EventInfo returns a copy of the current event info.
+// This ensures thread safety without exposing the internal state.
+func (e *EventInfoStorage) EventInfo() EventInfo {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.eventInfo
 }

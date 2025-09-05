@@ -4,7 +4,7 @@ pragma solidity =0.8.24;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
-import {BatchCodecV0} from "../../libraries/codec/BatchCodecV0.sol";
+import {BatchHeaderCodecV1} from "../../libraries/codec/BatchHeaderCodecV1.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -97,6 +97,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice prove remaining
     uint256 public proveRemaining;
 
+    /// @notice committedStateRoots
+    mapping(uint256 batchIndex => bytes32 stateRoot) public committedStateRoots;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -124,7 +127,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      ***************/
 
     /// @notice constructor
-    /// @param _chainID     The chain ID
+    /// @param _chainID The chain ID
     constructor(uint64 _chainID) {
         LAYER_2_CHAIN_ID = _chainID;
         _disableInitializers();
@@ -171,6 +174,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit UpdateProofRewardPercent(0, _proofRewardPercent);
     }
 
+    function initialize2(bytes32 _prevStateRoot) external reinitializer(2) {
+        require(_getInitializedVersion() == 2, "must have initialized!");
+        require(_prevStateRoot != bytes32(0), "can not set state root with bytes32(0)!");
+
+        if (committedStateRoots[lastCommittedBatchIndex] == bytes32(0)) {
+            committedStateRoots[lastCommittedBatchIndex] = _prevStateRoot;
+        }
+    }
+
     /************************
      * Restricted Functions *
      ************************/
@@ -182,6 +194,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        // check batch index is 0
+        require(_batchIndex == 0, "invalid batch index");
         bytes32 _postStateRoot = BatchHeaderCodecV0.getPostStateHash(memPtr);
         require(_postStateRoot != bytes32(0), "zero state root");
         // check all fields except `dataHash` and `lastBlockHash` are zero
@@ -192,6 +206,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         committedBatches[_batchIndex] = _batchHash;
         batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0, 0);
 
+        committedStateRoots[_batchIndex] = _postStateRoot;
         finalizedStateRoots[_batchIndex] = _postStateRoot;
         lastCommittedBatchIndex = _batchIndex;
         lastFinalizedBatchIndex = _batchIndex;
@@ -205,10 +220,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external payable override onlyActiveStaker nonReqRevert whenNotPaused {
-        require(batchDataInput.version == 0, "invalid version");
-        // check whether the batch is empty
-        uint256 _blockContextsLength = batchDataInput.blockContexts.length;
-        require(_blockContextsLength > 0, "batch is empty");
+        require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
         require(batchDataInput.postStateRoot != bytes32(0), "new state root is zero");
 
@@ -226,60 +238,57 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // the variable `batchPtr` will be reused later for the current batch
         (uint256 _batchPtr, bytes32 _parentBatchHash) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr);
-        require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
         require(committedBatches[_batchIndex + 1] == bytes32(0), "batch already committed");
         require(_batchIndex == lastCommittedBatchIndex, "incorrect batch index");
+        require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
+        require(committedStateRoots[_batchIndex] == batchDataInput.prevStateRoot, "incorrect previous state root");
 
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0.getTotalL1MessagePopped(_batchPtr);
         // compute the data hash for batch
-        uint256 _totalL1MessagesPoppedInBatch;
-        uint256 _totalNumL1Messages;
-        bytes32 dataHash;
-        (dataHash, _totalNumL1Messages) = _commitBatch(
-            batchDataInput.blockContexts,
-            _totalL1MessagesPoppedInBatch,
-            _totalL1MessagesPoppedOverall,
-            batchDataInput.skippedL1MessageBitmap
+        bytes32 dataHash = _commitBatch(
+            batchDataInput.lastBlockNumber,
+            batchDataInput.numL1Messages,
+            _totalL1MessagesPoppedOverall
         );
+
         unchecked {
-            _totalL1MessagesPoppedInBatch += _totalNumL1Messages;
-            _totalL1MessagesPoppedOverall += _totalNumL1Messages;
-        }
-        // check the length of bitmap
-        unchecked {
-            require(
-                ((_totalL1MessagesPoppedInBatch + 255) / 256) * 32 == batchDataInput.skippedL1MessageBitmap.length,
-                "wrong bitmap length"
-            );
+            _totalL1MessagesPoppedOverall += batchDataInput.numL1Messages;
         }
         assembly {
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
 
-        {
-            uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_FIXED_LENGTH +
-                batchDataInput.skippedL1MessageBitmap.length;
+        {            
+            uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
+            if (batchDataInput.version == 1) {
+                _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
+            }
             assembly {
                 _batchPtr := mload(0x40)
-                mstore(0x40, add(_batchPtr, mul(_headerLength, 32)))
+                mstore(0x40, add(_batchPtr, _headerLength))
             }
+
             // store entries, the order matters
             BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
             BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
-            BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, _totalL1MessagesPoppedInBatch);
+            BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
             BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
             BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
+            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
             BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
             BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
             BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
             BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
             BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
-            BatchHeaderCodecV0.storeSkippedBitmap(_batchPtr, batchDataInput.skippedL1MessageBitmap);
-            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
+            // store last block number if version >= 1
+            if (batchDataInput.version >= 1) {
+                BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
+            }
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
+            committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
             uint256 proveRemainingTime = 0;
-            if (inChallenge){
+            if (inChallenge) {
                 // Make the batch finalize time longer than the time required for the current challenge
                 proveRemainingTime = proofWindow + challenges[batchChallenged].startTime - block.timestamp;
             }
@@ -287,7 +296,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             batchDataStore[_batchIndex] = BatchData(
                 block.timestamp,
                 block.timestamp + finalizationPeriodSeconds + proveRemainingTime,
-                _loadL2BlockNumber(batchDataInput.blockContexts),
+                batchDataInput.lastBlockNumber,
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
                 IL1Staking(l1StakingContract).getStakerBitmap(_msgSender()) // => batchSignature.signedSequencersBitmap
@@ -468,7 +477,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused {
+    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused onlyActiveStaker{
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
@@ -500,7 +509,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
-
         require(batchExist(_batchIndex), "batch not exist");
         require(!batchInChallenge(_batchIndex), "batch in challenge");
         require(!batchChallengedSuccess(_batchIndex), "batch should be revert");
@@ -524,12 +532,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         // Pop finalized and non-skipped message from L1MessageQueue.
         _popL1Messages(
-            BatchHeaderCodecV0.getSkippedBitmapPtr(memPtr),
             BatchHeaderCodecV0.getTotalL1MessagePopped(memPtr),
             BatchHeaderCodecV0.getL1MessagePopped(memPtr)
         );
 
         delete batchDataStore[_batchIndex - 1];
+        delete committedStateRoots[_batchIndex - 1];
         delete challenges[_batchIndex - 1];
 
         emit FinalizeBatch(
@@ -588,25 +596,19 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      **********************/
 
     /// @dev Internal function to pop finalized l1 messages.
-    /// @param bitmapPtr The memory offset of `skippedL1MessageBitmap`.
     /// @param totalL1MessagePopped The total number of L1 messages popped in all batches including current batch.
     /// @param l1MessagePopped The number of L1 messages popped in current batch.
-    function _popL1Messages(uint256 bitmapPtr, uint256 totalL1MessagePopped, uint256 l1MessagePopped) internal {
+    function _popL1Messages(uint256 totalL1MessagePopped, uint256 l1MessagePopped) internal {
         if (l1MessagePopped == 0) return;
         unchecked {
             uint256 startIndex = totalL1MessagePopped - l1MessagePopped;
-            uint256 bitmap;
 
             for (uint256 i = 0; i < l1MessagePopped; i += 256) {
                 uint256 _count = 256;
                 if (l1MessagePopped - i < _count) {
                     _count = l1MessagePopped - i;
                 }
-                assembly {
-                    bitmap := mload(bitmapPtr)
-                    bitmapPtr := add(bitmapPtr, 0x20)
-                }
-                IL1MessageQueue(messageQueue).popCrossDomainMessage(startIndex, _count, bitmap);
+                IL1MessageQueue(messageQueue).popCrossDomainMessage(startIndex, _count);
                 startIndex += 256;
             }
         }
@@ -705,99 +707,64 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
     }
 
+    /// @notice Extract the version number from a batch header
+    /// @param batchHeader The encoded batch header bytes
+    /// @return version The version of the batch header
+    function _getBatchVersion(bytes calldata batchHeader) internal pure returns (uint8 version) {
+        require(batchHeader.length > 0, "Empty batch header");
+        version = uint8(batchHeader[0]); // Safe extraction of the first byte
+    }
+
     /// @dev Internal function to load batch header from calldata to memory.
     /// @param _batchHeader The batch header in calldata.
     /// @return _memPtr     The start memory offset of loaded batch header.
     /// @return _batchHash  The hash of the loaded batch header.
     function _loadBatchHeader(bytes calldata _batchHeader) internal pure returns (uint256 _memPtr, bytes32 _batchHash) {
+        uint8 _version = _getBatchVersion(_batchHeader);
+
         // load to memory
         uint256 _length;
-        (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
+        if (_version == 0) {
+            (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
+        } else if (_version == 1) {
+             (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
+        } else {
+            revert("Unsupported batch version");
+        }
 
         // compute batch hash
+        // all the versions use the same way to compute batch hash
         _batchHash = BatchHeaderCodecV0.computeBatchHash(_memPtr, _length);
     }
 
-    /// @dev Internal function to load the latestL2BlockNumber.
-    /// @param _blockContexts The batch block contexts in memory.
-    function _loadL2BlockNumber(bytes memory _blockContexts) internal pure returns (uint256) {
-        uint256 blockPtr;
-        uint256 batchPtr;
-        assembly {
-            batchPtr := add(_blockContexts, 0x20)
-            blockPtr := add(batchPtr, 2)
-        }
-        uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
-        for (uint256 i = 0; i < _numBlocks - 1; i++) {
-            unchecked {
-                blockPtr += BatchCodecV0.BLOCK_CONTEXT_LENGTH;
-            }
-        }
-        uint256 l2BlockNumber = BatchCodecV0.getBlockNumber(blockPtr);
-        return l2BlockNumber;
-    }
-
-    /// @dev Internal function to commit a batch with version 1.
-    /// @param _blockContexts The encoded block contexts to commit.
-    /// @param _totalL1MessagesPoppedInBatch The total number of L1 messages popped in current batch.
+    /// @dev Internal function to commit a batch with version 0.
+    /// @param _lastBlockNumber The last block number in this batch.
+    /// @param _numL1Messages The number of L1 messages in this batch
     /// @param _totalL1MessagesPoppedOverall The total number of L1 messages popped in all batches including current batch.
-    /// @param _skippedL1MessageBitmap The bitmap indicates whether each L1 message is skipped or not.
     /// @return _dataHash The computed data hash for this batch.
-    /// @return _totalNumL1MessagesInBatch The total number of L1 message popped in current batch
     function _commitBatch(
-        bytes memory _blockContexts,
-        uint256 _totalL1MessagesPoppedInBatch,
-        uint256 _totalL1MessagesPoppedOverall,
-        bytes calldata _skippedL1MessageBitmap
-    ) internal view returns (bytes32 _dataHash, uint256 _totalNumL1MessagesInBatch) {
-        uint256 batchPtr;
+        uint64 _lastBlockNumber,
+        uint16 _numL1Messages,
+        uint256 _totalL1MessagesPoppedOverall
+    ) internal view returns (bytes32 _dataHash) {
         uint256 startDataPtr;
         uint256 dataPtr;
 
         assembly {
             dataPtr := mload(0x40)
             startDataPtr := dataPtr
-            batchPtr := add(_blockContexts, 0x20) // skip batchContexts.length
         }
 
-        uint256 _numBlocks = BatchCodecV0.validateBatchLength(batchPtr, _blockContexts.length);
         assembly {
-            batchPtr := add(batchPtr, 2) // skip numBlocks
-        }
-        // concatenate block contexts, use scope to avoid stack too deep
-        for (uint256 i = 0; i < _numBlocks; i++) {
-            dataPtr = BatchCodecV0.copyBlockContext(batchPtr, dataPtr, i);
-            uint256 blockPtr = batchPtr + i * BatchCodecV0.BLOCK_CONTEXT_LENGTH;
-            uint256 _numL1MessagesInBlock = BatchCodecV0.getNumL1Messages(blockPtr);
-            unchecked {
-                _totalNumL1MessagesInBatch += _numL1MessagesInBlock;
-            }
-        }
-        assembly {
-            mstore(0x40, add(dataPtr, mul(_totalNumL1MessagesInBatch, 0x20))) // reserve memory for l1 message hashes
+            mstore(dataPtr, shl(192, _lastBlockNumber)) // store lastBlockNumber
+            dataPtr := add(dataPtr, 8)
+            mstore(dataPtr, shl(240, _numL1Messages)) // store numL1Messages
+            dataPtr := add(dataPtr, 2)
+            mstore(0x40, add(dataPtr, mul(_numL1Messages, 0x20))) // reserve memory for l1 message hashes
         }
 
-        // concatenate tx hashes
-        while (_numBlocks > 0) {
-            // concatenate l1 message hashes
-            uint256 _numL1MessagesInBlock = BatchCodecV0.getNumL1Messages(batchPtr);
-            dataPtr = _loadL1MessageHashes(
-                dataPtr,
-                _numL1MessagesInBlock,
-                _totalL1MessagesPoppedInBatch,
-                _totalL1MessagesPoppedOverall,
-                _skippedL1MessageBitmap
-            );
-            uint256 _numTransactionsInBlock = BatchCodecV0.getNumTransactions(batchPtr);
-            require(_numTransactionsInBlock >= _numL1MessagesInBlock, "num txs less than num L1 msgs");
-            unchecked {
-                _totalL1MessagesPoppedInBatch += _numL1MessagesInBlock;
-                _totalL1MessagesPoppedOverall += _numL1MessagesInBlock;
-
-                _numBlocks -= 1;
-                batchPtr += BatchCodecV0.BLOCK_CONTEXT_LENGTH;
-            }
-        }
+        // concatenate l1 message hashes
+        dataPtr = _loadL1MessageHashes(dataPtr, _numL1Messages, _totalL1MessagesPoppedOverall);
 
         // compute data hash and store to memory
         assembly {
@@ -808,16 +775,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev Internal function to load L1 message hashes from the message queue.
     /// @param _ptr                             The memory offset to store the transaction hash.
     /// @param _numL1Messages                   The number of L1 messages to load.
-    /// @param _totalL1MessagesPoppedInBatch    The total number of L1 messages popped in current batch.
     /// @param _totalL1MessagesPoppedOverall    The total number of L1 messages popped in all batches including current batch.
-    /// @param _skippedL1MessageBitmap          The bitmap indicates whether each L1 message is skipped or not.
     /// @return uint256                         The new memory offset after loading.
     function _loadL1MessageHashes(
         uint256 _ptr,
         uint256 _numL1Messages,
-        uint256 _totalL1MessagesPoppedInBatch,
-        uint256 _totalL1MessagesPoppedOverall,
-        bytes calldata _skippedL1MessageBitmap
+        uint256 _totalL1MessagesPoppedOverall
     ) internal view returns (uint256) {
         if (_numL1Messages == 0) {
             return _ptr;
@@ -825,34 +788,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         IL1MessageQueue _messageQueue = IL1MessageQueue(messageQueue);
 
         unchecked {
-            uint256 _bitmap;
-            uint256 rem;
             for (uint256 i = 0; i < _numL1Messages; i++) {
-                uint256 quo = _totalL1MessagesPoppedInBatch >> 8;
-                rem = _totalL1MessagesPoppedInBatch & 0xff;
-
-                // load bitmap every 256 bits
-                if (i == 0 || rem == 0) {
-                    assembly {
-                        _bitmap := calldataload(add(_skippedL1MessageBitmap.offset, mul(0x20, quo)))
-                    }
+                bytes32 _hash = _messageQueue.getCrossDomainMessage(_totalL1MessagesPoppedOverall);
+                assembly {
+                    mstore(_ptr, _hash)
+                    _ptr := add(_ptr, 0x20)
                 }
-                if (((_bitmap >> rem) & 1) == 0) {
-                    // message not skipped
-                    bytes32 _hash = _messageQueue.getCrossDomainMessage(_totalL1MessagesPoppedOverall);
-                    assembly {
-                        mstore(_ptr, _hash)
-                        _ptr := add(_ptr, 0x20)
-                    }
-                }
-
-                _totalL1MessagesPoppedInBatch += 1;
                 _totalL1MessagesPoppedOverall += 1;
             }
-
-            // check last L1 message is not skipped, _totalL1MessagesPoppedInBatch must > 0
-            rem = (_totalL1MessagesPoppedInBatch - 1) & 0xff;
-            require(((_bitmap >> rem) & 1) == 0, "cannot skip last L1 message");
         }
 
         return _ptr;

@@ -1,17 +1,31 @@
 pub mod types;
 mod verifier;
 use alloy::hex;
-use sbv_primitives::{TxTrace, B256};
+use sbv_primitives::{Block, TxTrace, B256};
 use sbv_utils::dev_info;
 use types::input::ClientInput;
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 
 pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
     // Verify DA
-    let (versioned_hash, batch_data) = BlobVerifier::verify(&input.blob_info).unwrap();
+    let num_blocks = input.l2_traces.len();
+    let (versioned_hash, batch_data) = BlobVerifier::verify(&input.blob_info, num_blocks).unwrap();
     println!("cycle-tracker-start: traces-to-data");
+    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(num_blocks * 60);
     let mut tx_bytes: Vec<u8> = vec![];
     for trace in &input.l2_traces {
+        // BlockContext
+        let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
+        block_ctx.extend_from_slice(&trace.number().to_be_bytes());
+        block_ctx.extend_from_slice(&trace.timestamp().to::<u64>().to_be_bytes());
+        block_ctx
+            .extend_from_slice(&trace.base_fee_per_gas().unwrap_or_default().to_be_bytes::<32>());
+        block_ctx.extend_from_slice(&trace.gas_limit().to::<u64>().to_be_bytes());
+        block_ctx.extend_from_slice(&(trace.transactions.len() as u16).to_be_bytes());
+        block_ctx.extend_from_slice(&(trace.num_l1_txs() as u16).to_be_bytes());
+        batch_from_trace.extend(block_ctx);
+
+        // Collect txns
         let x = trace
             .transactions
             .iter()
@@ -20,8 +34,10 @@ pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
             .collect::<Vec<u8>>();
         tx_bytes.extend(x);
     }
+    batch_from_trace.extend(tx_bytes);
+
     println!("cycle-tracker-end: traces-to-data");
-    assert_eq!(batch_data, tx_bytes, "blob data mismatch!");
+    assert_eq!(batch_data, batch_from_trace, "blob data mismatch!");
 
     // Verify EVM exec.
     println!("cycle-tracker-start: evm-verify");

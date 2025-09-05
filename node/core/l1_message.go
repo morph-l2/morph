@@ -19,11 +19,10 @@ func (e *Executor) updateNextL1MessageIndex(l2Block *catalyst.ExecutableL2Data) 
 // validateL1Messages has the constraints
 // 1. all the collected L1 messages belonged to the given L1TxHash are exist.
 // 2. the collected L1 messages belonged to the given L1TxHash are sequenced correctly.
-// 3. the L1 messages from the block.Transactions are sorted correctly(queueIndex increases but does not have to be continuous).
+// 3. the L1 messages from the block.Transactions are sorted correctly.
 // 4. the L1 message from the block.Transactions must be one of the collected L1Messages.
 // 5. all the L1 messages from the block.Transactions must precede other normal L2 transactions.
-// 6. the block.NextL1MessageIndex MUST be greater the queue index of the last involved L1Message in the block.
-// 7. the skipped transactions from ExecutableL2Data extracted Must be the same as the ones from Layer1.
+// 6. the block.NextL1MessageIndex MUST be equal to the queue index of the last involved L1Message in the block.
 func (e *Executor) validateL1Messages(block *catalyst.ExecutableL2Data, collectedL1TxHashes []common.Hash) error {
 	nextExpectedIndex := e.nextL1MsgIndex
 
@@ -54,7 +53,6 @@ func (e *Executor) validateL1Messages(block *catalyst.ExecutableL2Data, collecte
 
 	nextExpectedIndex = e.nextL1MsgIndex
 	L1SectionOver := false
-	var skipped eth.Transactions
 	// check the L1 messages from block.Transactions
 	for i, txBz := range block.Transactions {
 		if !isL1MessageTxType(txBz) {
@@ -74,7 +72,7 @@ func (e *Executor) validateL1Messages(block *catalyst.ExecutableL2Data, collecte
 		currentTxQueueIndex := tx.L1MessageQueueIndex()
 
 		// constraints 3
-		if currentTxQueueIndex < nextExpectedIndex {
+		if currentTxQueueIndex != nextExpectedIndex {
 			return types.ErrInvalidL1MessageOrder
 		}
 
@@ -96,44 +94,17 @@ func (e *Executor) validateL1Messages(block *catalyst.ExecutableL2Data, collecte
 			e.logger.Error("wrong L1Message content", "index", currentTxQueueIndex)
 			return types.ErrUnknownL1Message
 		}
-		for queueIndex := nextExpectedIndex; queueIndex < currentTxQueueIndex; queueIndex++ {
-			skippedTx, ok := cache[queueIndex]
-			if !ok {
-				e.logger.Error("lost skipped L1Message collected", "queueIndex", queueIndex)
-				return types.ErrInvalidSkippedL1Message
-			}
-			skipped = append(skipped, skippedTx)
-		}
 		nextExpectedIndex = currentTxQueueIndex + 1
 	}
 
 	// constraints 6
-	if block.NextL1MessageIndex < nextExpectedIndex {
+	if block.NextL1MessageIndex != nextExpectedIndex {
 		e.logger.Error("wrong NextL1MessageIndex in the block",
 			"indexOfLastInvolvedL1Tx", nextExpectedIndex-1,
 			"block.NextL1MessageIndex", block.NextL1MessageIndex)
 		return types.ErrWrongNextL1MessageIndex
 	}
-	for queueIndex := nextExpectedIndex; queueIndex < block.NextL1MessageIndex; queueIndex++ {
-		skippedTx, ok := cache[queueIndex]
-		if !ok {
-			e.logger.Error("lost skipped L1Message collected", "queueIndex", queueIndex)
-			return types.ErrInvalidL1Message
-		}
-		skipped = append(skipped, skippedTx)
-	}
 
-	// constraints 7
-	if len(skipped) != len(block.SkippedTxs) {
-		e.logger.Error("found wrong number of skipped txs", "expected skippedTx num", len(skipped), "actual", len(block.SkippedTxs))
-		return types.ErrInvalidSkippedL1Message
-	}
-	for i, skippedTx := range skipped {
-		if skippedTx.Hash() != block.SkippedTxs[i].Tx.Hash() {
-			e.logger.Error("found wrong skipped tx hash", "expected skippedTx hash", skippedTx.Hash().Hex(), "actual", block.SkippedTxs[i].Tx.Hash())
-			return types.ErrInvalidSkippedL1Message
-		}
-	}
 	return nil
 }
 

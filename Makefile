@@ -1,7 +1,7 @@
 ################## update dependencies ####################
 
-ETHEREUM_TARGET_VERSION := morph-v2.0.1
-TENDERMINT_TARGET_VERSION := v0.3.1
+ETHEREUM_TARGET_VERSION := morph-v2.0.5
+TENDERMINT_TARGET_VERSION := v0.3.2
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
 TENDERMINT_MODULE_NAME := github.com/morph-l2/tendermint
@@ -143,6 +143,7 @@ devnet-down:
 devnet-clean-build: devnet-down
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/l2-genesis/.devnet
+	rm -rf ops/docker/.devnet
 	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
 	rm -rf ops/docker/execution/geth
 .PHONY: devnet-clean-build

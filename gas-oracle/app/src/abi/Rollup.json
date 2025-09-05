@@ -16,16 +16,6 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "ErrorIncorrectBatchLength",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ErrorNoBlockInBatch",
-    "type": "error"
-  },
-  {
     "anonymous": false,
     "inputs": [
       {
@@ -619,14 +609,14 @@
             "type": "bytes"
           },
           {
-            "internalType": "bytes",
-            "name": "blockContexts",
-            "type": "bytes"
+            "internalType": "uint64",
+            "name": "lastBlockNumber",
+            "type": "uint64"
           },
           {
-            "internalType": "bytes",
-            "name": "skippedL1MessageBitmap",
-            "type": "bytes"
+            "internalType": "uint16",
+            "name": "numL1Messages",
+            "type": "uint16"
           },
           {
             "internalType": "bytes32",
@@ -689,6 +679,25 @@
       {
         "internalType": "bytes32",
         "name": "batchHash",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "batchIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "committedStateRoots",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "stateRoot",
         "type": "bytes32"
       }
     ],
@@ -800,6 +809,19 @@
       }
     ],
     "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_prevStateRoot",
+        "type": "bytes32"
+      }
+    ],
+    "name": "initialize2",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -22,7 +22,7 @@ var (
 	chainId     *big.Int
 	fundPrivKey = crypto.ToECDSAUnsafe(hexutil.MustDecode("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"))
 	urls        = []string{"http://localhost:8945", "http://localhost:8545", "http://localhost:8645", "http://localhost:8745", "http://localhost:8845"}
-	senderNum   = 50
+	senderNum   = 10
 	duration    = 120 * time.Minute
 )
 
@@ -46,7 +46,7 @@ func main() {
 	start := time.Now()
 	var count int
 	for {
-		if count == 10000000 || time.Now().Sub(start) > duration {
+		if count == 10000000 || time.Since(start) > duration {
 			fmt.Println("completed")
 			break
 		}
@@ -67,7 +67,7 @@ func main() {
 			}(sender, i)
 		}
 		count++
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(800 * time.Millisecond)
 		fmt.Println()
 	}
 }

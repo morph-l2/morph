@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 
 // solhint-disable no-inline-assembly
 
-/// @dev Below is the encoding for `BatchHeader` V0, total 249 + ceil(l1MessagePopped / 256) * 32 bytes.
+/// @dev Below is the encoding for `BatchHeader` V0, total 249
 /// ```text
 ///   * Field                   Bytes       Type        Index   Comments
 ///   * version                 1           uint8       0       The batch version
@@ -18,11 +18,10 @@ pragma solidity ^0.8.24;
 ///   * withdrawRootHash        32          bytes32     153     L2 withdrawal tree root hash
 ///   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
 ///   * parentBatchHash         32          bytes32     217     The parent batch hash
-///   * skippedL1MessageBitmap  dynamic     uint256[]   249     A bitmap to indicate which L1 messages are skipped in the batch
 /// ```
 library BatchHeaderCodecV0 {
     /// @dev The length of fixed parts of the batch header.
-    uint256 internal constant BATCH_HEADER_FIXED_LENGTH = 249;
+    uint256 internal constant BATCH_HEADER_LENGTH = 249;
 
     /// @notice Load batch header in calldata to memory.
     /// @param _batchHeader The encoded batch header bytes in calldata.
@@ -30,19 +29,12 @@ library BatchHeaderCodecV0 {
     /// @return length The length in bytes of the batch header.
     function loadAndValidate(bytes calldata _batchHeader) internal pure returns (uint256 batchPtr, uint256 length) {
         length = _batchHeader.length;
-        require(length >= BATCH_HEADER_FIXED_LENGTH, "batch header length too small");
+        require(length >= BATCH_HEADER_LENGTH, "batch header length too small");
         // copy batch header to memory.
         assembly {
             batchPtr := mload(0x40)
             calldatacopy(batchPtr, _batchHeader.offset, length)
             mstore(0x40, add(batchPtr, length))
-        }
-
-        // check batch header length
-        uint256 _l1MessagePopped = getL1MessagePopped(batchPtr);
-
-        unchecked {
-            require(length == BATCH_HEADER_FIXED_LENGTH + ((_l1MessagePopped + 255) / 256) * 32, "wrong bitmap length");
         }
     }
 
@@ -130,26 +122,6 @@ library BatchHeaderCodecV0 {
     function getParentBatchHash(uint256 batchPtr) internal pure returns (bytes32 _parentBatchHash) {
         assembly {
             _parentBatchHash := mload(add(batchPtr, 217))
-        }
-    }
-
-    /// @notice Get the start memory offset for skipped L1 messages bitmap.
-    /// @param batchPtr The start memory offset of the batch header in memory.
-    /// @return _bitmapPtr the start memory offset for skipped L1 messages bitmap.
-    function getSkippedBitmapPtr(uint256 batchPtr) internal pure returns (uint256 _bitmapPtr) {
-        assembly {
-            _bitmapPtr := add(batchPtr, BATCH_HEADER_FIXED_LENGTH)
-        }
-    }
-
-    /// @notice Get the skipped L1 messages bitmap.
-    /// @param batchPtr The start memory offset of the batch header in memory.
-    /// @param index The index of bitmap to load.
-    /// @return _bitmap The bitmap from bits `index * 256` to `index * 256 + 255`.
-    function getSkippedBitmap(uint256 batchPtr, uint256 index) internal pure returns (uint256 _bitmap) {
-        assembly {
-            batchPtr := add(batchPtr, BATCH_HEADER_FIXED_LENGTH)
-            _bitmap := mload(add(batchPtr, mul(index, 32)))
         }
     }
 
@@ -255,19 +227,6 @@ library BatchHeaderCodecV0 {
     function storeParentBatchHash(uint256 batchPtr, bytes32 _parentBatchHash) internal pure {
         assembly {
             mstore(add(batchPtr, 217), _parentBatchHash)
-        }
-    }
-
-    /// @notice Store the skipped L1 message bitmap of batch header.
-    /// @param batchPtr The start memory offset of the batch header in memory.
-    /// @param _skippedL1MessageBitmap The skipped L1 message bitmap.
-    function storeSkippedBitmap(uint256 batchPtr, bytes calldata _skippedL1MessageBitmap) internal pure {
-        assembly {
-            calldatacopy(
-                add(batchPtr, BATCH_HEADER_FIXED_LENGTH),
-                _skippedL1MessageBitmap.offset,
-                _skippedL1MessageBitmap.length
-            )
         }
     }
 
