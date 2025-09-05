@@ -19,11 +19,14 @@ ops/l2-genesis/.devnet
 ops/l2-genesis/.qanet
 ops/l2-genesis/.testnet
 ops/l2-genesis/.holesky
+ops/l2-genesis/.hoodi
 ops/l2-genesis/.mainnet
 ops/l2-genesis/.morphtestnet
 ops/devnet-morph/devnet/__pycache__
 contracts/qanetL1.json
 contracts/holesky.json
+contracts/hoodi.json
+contracts/mainnet.json
 .env
 
 # logs
