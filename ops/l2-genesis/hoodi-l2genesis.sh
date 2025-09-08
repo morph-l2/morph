@@ -12,7 +12,7 @@ if [ ! -d "$FOLDER" ]; then
 fi
 
 
-RPC_URL="https://lively-rough-waterfall.ethereum-hoodi.quiknode.pro/d8fff67053b31bea1d8dfa52e4f39841784ea82f/"
+RPC_URL="https://rpc.hoodi.ethpandaops.io"
 
 echo "RPC_URL is $RPC_URL"
 cat "deploy-config/hoodi-deploy-config.json" > $FOLDER/hoodi-deploy-config.json
