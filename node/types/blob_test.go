@@ -1,10 +1,10 @@
 package types
 
 import (
-	"github.com/holiman/uint256"
 	"math/big"
 	"testing"
 
+	"github.com/holiman/uint256"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
