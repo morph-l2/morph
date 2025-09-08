@@ -33,10 +33,19 @@
   "morphTokenOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "morphTokenInitialSupply": 1000000000,
   "morphTokenDailyInflationRate": 1,
+  
+  "morph203Time": 0,
+  "morph300Time": 0,
 
   "l2StakingSequencerMaxSize": 4,
   "l2StakingUnDelegatedLockEpochs": 2,
   "l2StakingRewardStartTime": 1728000000,
+  "l2StakingPks": [
+    "0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32",
+    "0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10",
+    "0x6fd437eef7a83c486bd2e0a802ae071b3912d125ac31ac08f60841fd891559ae",
+    "0x9ae53aecdaebe4dcbfec96f3123a2a8c53f9596bf4b3d5adc9a388ccb361b4c0"
+  ],
   "l2StakingAddresses": [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
     "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",
