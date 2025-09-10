@@ -35,6 +35,11 @@
         "deploy:holesky": "rm -f holesky.json && hardhat deploy --network holesky --storagepath holesky.json",
         "initialize:holesky": "hardhat initialize --network holesky --storagepath holesky.json",
         "register:holesky": "hardhat register --network holesky --storagepath holesky.json",
+
+        "deploy:hoodi": "rm -f hoodi.json && hardhat deploy --network hoodi --storagepath hoodi.json",
+        "initialize:hoodi": "hardhat initialize --network hoodi --storagepath hoodi.json",
+        "register:hoodi": "hardhat register --network hoodi --storagepath hoodi.json",
+
         "deploy:qanetL1": "rm -f qanetL1.json && hardhat deploy --network qanetl1 --storagepath qanetL1.json",
         "initialize:qanetL1": "hardhat initialize --network qanetl1 --storagepath qanetL1.json",
         "register:qanetL1": "hardhat register --network qanetl1 --storagepath qanetL1.json"
