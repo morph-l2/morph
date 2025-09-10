@@ -1,6 +1,7 @@
 {
   "l1ChainID": 560048,
   "l2ChainID": 2910,
+  "l2GenesisBlockTimestamp": "0x68CCF160",
 
   "finalSystemOwner": "0x2910beed7B7F86f4bE9907b2e91FA0a216a67f2E",
   "proxyAdminOwner": "0x2910beed7B7F86f4bE9907b2e91FA0a216a67f2E",
