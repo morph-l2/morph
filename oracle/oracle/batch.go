@@ -95,7 +95,7 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 		if err != nil {
 			return fmt.Errorf("get transaction by hash error:%v", err)
 		}
-		signer := types.NewLondonSignerWithEIP4844(tx.ChainId())
+		signer := types.NewMorph300Signer(tx.ChainId())
 		msg, err := tx.AsMessage(signer, tx.GasFeeCap())
 		if err != nil {
 			return err

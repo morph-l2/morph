@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/tracing"
 	"github.com/morph-l2/go-ethereum/core/vm"
 	"github.com/morph-l2/go-ethereum/log"
 
@@ -28,7 +29,7 @@ var (
 func FundDevAccounts(db vm.StateDB) {
 	for _, account := range DevAccounts {
 		db.CreateAccount(account)
-		db.AddBalance(account, devBalance)
+		db.AddBalance(account, devBalance, tracing.BalanceChangeUnspecified)
 	}
 }
 
@@ -139,12 +140,12 @@ func SetPrecompileBalances(db vm.StateDB) {
 	for i := 0; i < 256; i++ {
 		addr := common.BytesToAddress([]byte{byte(i)})
 		db.CreateAccount(addr)
-		db.AddBalance(addr, common.Big1)
+		db.AddBalance(addr, common.Big1, tracing.BalanceIncreaseGenesisBalance)
 	}
 }
 
 func SetL2CrossDomainMessengerBalances(db *state.MemoryStateDB) {
-	db.AddBalance(predeploys.L2CrossDomainMessengerAddr, lockedBalance)
+	db.AddBalance(predeploys.L2CrossDomainMessengerAddr, lockedBalance, tracing.BalanceIncreaseGenesisBalance)
 	log.Info("Set balance to address of L2CrossDomainMessenger =>", "address:", predeploys.L2CrossDomainMessengerAddr, "balance:", lockedBalance)
 }
 
