@@ -107,6 +107,20 @@ build-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-holesky:
 start-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-holesky:
 	/data/secret-manager-wrapper ./app
 
+# gas-oracle
+# hoodi
+build-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-hoodi:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/gas-oracle/app && cargo build --release
+	cp gas-oracle/app/target/release/app dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+
+start-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-hoodi:
+	/data/secret-manager-wrapper ./app
+
+
 # prover
 # testnet
 build-bk-prod-morph-prod-testnet-to-morph-prover-holesky:
