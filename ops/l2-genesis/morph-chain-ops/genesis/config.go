@@ -128,7 +128,7 @@ type DeployConfig struct {
 
 	// Upgrade configs
 	Morph203Time *uint64 `json:"morph203Time,omitempty"`
-	Morph300Time *uint64 `json:"morph300Time,omitempty"`
+	ViridianTime *uint64 `json:"viridianTime,omitempty"`
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
