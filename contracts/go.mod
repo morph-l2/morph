@@ -6,7 +6,7 @@ replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.
 
 require (
 	github.com/iden3/go-iden3-crypto v0.0.16
-	github.com/morph-l2/go-ethereum v1.10.14-0.20250424011308-f42440d1ace1
+	github.com/morph-l2/go-ethereum v1.10.14-0.20250928031346-21f6f6c718e5
 	github.com/stretchr/testify v1.9.0
 )
 
