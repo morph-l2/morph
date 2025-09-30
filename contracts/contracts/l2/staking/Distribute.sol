@@ -199,7 +199,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
         uint256 endEpochIndex = (targetEpochIndex == 0 || targetEpochIndex > mintedEpochCount - 1)
             ? mintedEpochCount - 1
             : targetEpochIndex;
-        uint256 reward = _claim(delegatee, delegator, endEpochIndex);
+        (uint256 reward, ) = _claim(delegatee, delegator, endEpochIndex);
         if (reward > 0) {
             _transfer(delegator, reward);
         }
@@ -217,13 +217,19 @@ contract Distribute is IDistribute, OwnableUpgradeable {
             ? mintedEpochCount - 1
             : targetEpochIndex;
         uint256 reward;
-        for (uint256 i = 0; i < unclaimed[delegator].delegatees.length(); i++) {
+        for (uint256 i = 0; i < unclaimed[delegator].delegatees.length(); ) {
+            bool removed = false;
             address delegatee = unclaimed[delegator].delegatees.at(i);
             if (
                 unclaimed[delegator].delegatees.contains(delegatee) &&
                 unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex
             ) {
-                reward += _claim(delegatee, delegator, endEpochIndex);
+                (uint256 rewardTmp, bool removedTmp) = _claim(delegatee, delegator, endEpochIndex);
+                reward += rewardTmp;
+                removed = removedTmp;
+            }
+            if (!removed) {
+                i++;
             }
         }
         if (reward > 0) {
@@ -354,7 +360,11 @@ contract Distribute is IDistribute, OwnableUpgradeable {
     }
 
     /// @notice claim delegator morph reward
-    function _claim(address delegatee, address delegator, uint256 endEpochIndex) internal returns (uint256 reward) {
+    function _claim(
+        address delegatee,
+        address delegator,
+        uint256 endEpochIndex
+    ) internal returns (uint256 reward, bool removed) {
         require(unclaimed[delegator].delegatees.contains(delegatee), "no remaining reward");
         require(unclaimed[delegator].unclaimedStart[delegatee] <= endEpochIndex, "all reward claimed");
 
@@ -371,6 +381,7 @@ contract Distribute is IDistribute, OwnableUpgradeable {
 
             // if undelegated, remove delegator unclaimed info after claimed all
             if (unclaimed[delegator].undelegated[delegatee] && unclaimed[delegator].unclaimedEnd[delegatee] == i) {
+                removed = true;
                 unclaimed[delegator].delegatees.remove(delegatee);
                 delete unclaimed[delegator].undelegated[delegatee];
                 delete unclaimed[delegator].unclaimedStart[delegatee];

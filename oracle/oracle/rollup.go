@@ -140,7 +140,7 @@ func (o *Oracle) recordRollupEpoch() error {
 		}
 		epochs, err := o.generateRollupEpoch(epochIndex.Int64(), rollupEpoch.EndTime.Int64(), epochTime.Int64(), updateTime, int64(endBlock), int64(header.Time), math.MaxInt64, sets)
 		if err != nil {
-			return fmt.Errorf("gernerate rollup epoch info error:%v", err)
+			return fmt.Errorf("generate rollup epoch info error:%v", err)
 		}
 		rollupEpochInfos = append(rollupEpochInfos, epochs...)
 	}

@@ -69,6 +69,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice challenge deposit value
     uint256 public challengeDeposit;
 
+    /// @notice nonce of staking L1 => L2 msg
+    uint256 public nonce;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -219,6 +222,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
 
         uint256 valueSum;
         for (uint256 i = 0; i < sequencers.length; i++) {
+            if (sequencers[i] == address(0)) {
+                continue;
+            }
             if (withdrawals[sequencers[i]] > 0) {
                 delete withdrawals[sequencers[i]];
                 valueSum += stakingValue;
@@ -475,9 +481,10 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         MESSENGER.sendMessage(
             address(OTHER_STAKING),
             0,
-            abi.encodeCall(IL2Staking.addStaker, (add)),
+            abi.encodeCall(IL2Staking.addStaker, (nonce, add)),
             gasLimitAddStaker
         );
+        nonce = nonce + 1;
     }
 
     /// @notice remove stakers
@@ -486,16 +493,22 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         MESSENGER.sendMessage(
             address(OTHER_STAKING),
             0,
-            abi.encodeCall(IL2Staking.removeStakers, (remove)),
+            abi.encodeCall(IL2Staking.removeStakers, (nonce, remove)),
             gasLimitRemoveStakers
         );
+        nonce = nonce + 1;
     }
 
     /// @notice clean staker store
     function _cleanStakerStore() internal {
         uint256 i = 0;
         while (i < deleteList.length) {
-            if (deleteableHeight[deleteList[i]] <= block.number) {
+            if (deleteList[i] == address(0)) {
+                // clean deleteList
+                delete deleteableHeight[deleteList[i]];
+                deleteList[i] = deleteList[deleteList.length - 1];
+                deleteList.pop();
+            } else if (deleteableHeight[deleteList[i]] <= block.number) {
                 // clean stakerSet
                 delete stakerSet[stakerIndexes[deleteList[i]] - 1];
                 delete stakerIndexes[deleteList[i]];

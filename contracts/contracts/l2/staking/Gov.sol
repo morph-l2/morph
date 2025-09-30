@@ -50,7 +50,7 @@ contract Gov is IGov, OwnableUpgradeable {
     uint256 public override currentProposalID;
 
     /// @notice the start index of undeleted proposals
-    uint256 private undeletedProposalStart;
+    uint256 public undeletedProposalStart;
 
     /// @notice proposal data
     mapping(uint256 proposalID => ProposalData) public proposalData;
@@ -60,6 +60,9 @@ contract Gov is IGov, OwnableUpgradeable {
 
     /// @notice proposal voter info
     mapping(uint256 proposalID => EnumerableSetUpgradeable.AddressSet) internal votes;
+
+    /// @notice latest executed proposal ID
+    uint256 public latestExecutedProposalID;
 
     /**********************
      * Function Modifiers *
@@ -146,6 +149,7 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice vote a proposal
     function vote(uint256 proposalID) external onlySequencer {
         require(proposalID <= currentProposalID, "invalid proposalID");
+        require(proposalID > latestExecutedProposalID, "expired proposalID");
         require(proposalID >= undeletedProposalStart, "proposal pruned");
         uint256 expirationTime = proposalInfos[proposalID].expirationTime;
         require(
@@ -160,6 +164,7 @@ contract Gov is IGov, OwnableUpgradeable {
         }
     }
 
+    /// @notice set voting duration
     function setVotingDuration(uint256 _votingDuration) external onlyOwner {
         require(_votingDuration > 0 && _votingDuration != votingDuration, "invalid new proposal voting duration");
         uint256 _oldVotingDuration = votingDuration;
@@ -180,6 +185,19 @@ contract Gov is IGov, OwnableUpgradeable {
         _executeProposal(proposalID);
     }
 
+    /// @notice execute a passed proposal
+    /// @param deleteTo      last proposal ID to delete
+    function cleanUpExpiredProposals(uint256 deleteTo) external {
+        require(deleteTo < latestExecutedProposalID, "only allow to delete the proposal befor latest passed proposal");
+        // when a proposal is passed, the previous proposals will be invalidated and deleted
+        for (uint256 i = undeletedProposalStart; i <= deleteTo; i++) {
+            delete proposalData[i];
+            delete proposalInfos[i];
+            delete votes[i];
+        }
+        undeletedProposalStart = deleteTo + 1;
+    }
+
     /*************************
      * Public View Functions *
      *************************/
@@ -187,7 +205,13 @@ contract Gov is IGov, OwnableUpgradeable {
     /// @notice return proposal status. {finished, passed, executed}
     function proposalStatus(uint256 proposalID) public view returns (bool, bool, bool) {
         require(proposalID <= currentProposalID, "invalid proposalID");
+        require(proposalID >= latestExecutedProposalID, "expired proposal");
         require(proposalID >= undeletedProposalStart, "proposal pruned");
+
+        if (proposalID == latestExecutedProposalID) {
+            return (true, true, true);
+        }
+
         bool executed = proposalInfos[proposalID].executed;
         uint256 expirationTime = proposalInfos[proposalID].expirationTime;
         return (
@@ -210,6 +234,8 @@ contract Gov is IGov, OwnableUpgradeable {
 
     /// @notice execute a passed proposal
     function _executeProposal(uint256 proposalID) internal {
+        latestExecutedProposalID = proposalID;
+
         if (batchBlockInterval != proposalData[proposalID].batchBlockInterval) {
             uint256 _oldValue = batchBlockInterval;
             batchBlockInterval = proposalData[proposalID].batchBlockInterval;
@@ -227,14 +253,6 @@ contract Gov is IGov, OwnableUpgradeable {
             emit RollupEpochUpdated(_oldValue, proposalData[proposalID].rollupEpoch);
         }
         proposalInfos[proposalID].executed = true;
-
-        // when a proposal is passed, the previous proposals will be invalidated and deleted
-        for (uint256 i = undeletedProposalStart; i < proposalID; i++) {
-            delete proposalData[i];
-            delete proposalInfos[i];
-            delete votes[i];
-        }
-        undeletedProposalStart = proposalID;
 
         emit ProposalExecuted(proposalID, batchBlockInterval, batchTimeout, rollupEpoch);
     }

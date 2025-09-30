@@ -81,39 +81,57 @@ task("crossHash")
     .addParam("message")
     .addParam("count")
     .setAction(async (taskArgs, hre) => {
-        const addr = taskArgs.contractaddr
-        const message = taskArgs.message
-        const count = taskArgs.count
+        try {
+            const addr = taskArgs.contractaddr;
+            const message = taskArgs.message;
+            const count = taskArgs.count;
 
-        const deployer = await hre.ethers.provider.getSigner();
-        const MyContract = await hre.ethers.getContractFactory("L1OverflowTester", deployer);
-        const contract = MyContract.attach(addr);
+            const deployer = await hre.ethers.provider.getSigner();
+            const MyContract = await hre.ethers.getContractFactory("L1OverflowTester", deployer);
+            const contract = MyContract.attach(addr);
 
-        console.log("sending tx for crossHash......")
-        //const options = {value: ethers.utils.parseEther("1.0")}
-        const txn = await contract["crossHash(string,uint256)"](message, count, { value: ethers.utils.parseEther("0.002") })
+            console.log("Sending transaction for crossHash...");
+            const txn = await contract["crossHash(string,uint256)"](message, count, { 
+                value: ethers.utils.parseEther("0.002") 
+            });
 
-        //let txn = await contract.crossHash(message, count, options)
-        await txn.wait();
-        console.log(txn)
-
-    })
+            const receipt = await txn.wait();
+            console.log("Transaction successful:", {
+                hash: txn.hash,
+                blockNumber: receipt.blockNumber,
+                status: receipt.status === 1 ? 'Success' : 'Failed'
+            });
+        } catch (error) {
+            console.error("Error in crossHash task:", error.message);
+            throw error;
+        }
+    });
 
 task("updateLimit")
     .addParam("contractaddr")
     .addParam("gaslimit")
     .setAction(async (taskArgs, hre) => {
-        const addr = taskArgs.contractaddr
-        const gasLimit = taskArgs.gaslimit
-        const deployer = await hre.ethers.provider.getSigner();
-        const MyContract = await hre.ethers.getContractFactory("L1OverflowTester", deployer);
-        const contract = MyContract.attach(addr);
+        try {
+            const addr = taskArgs.contractaddr;
+            const gasLimit = taskArgs.gaslimit;
+            const deployer = await hre.ethers.provider.getSigner();
+            const MyContract = await hre.ethers.getContractFactory("L1OverflowTester", deployer);
+            const contract = MyContract.attach(addr);
 
-        console.log("sending tx for updateGasLimit......");
-        let txn = await contract.updateGasLimit(gasLimit);
-        await txn.wait();
-        console.log(txn);
-    })
+            console.log("Sending transaction for updateGasLimit...");
+            const txn = await contract.updateGasLimit(gasLimit);
+            const receipt = await txn.wait();
+            
+            console.log("Transaction successful:", {
+                hash: txn.hash,
+                blockNumber: receipt.blockNumber,
+                status: receipt.status === 1 ? 'Success' : 'Failed'
+            });
+        } catch (error) {
+            console.error("Error in updateLimit task:", error.message);
+            throw error;
+        }
+    });
 
 task("printResult")
     .addParam("contractaddr")
@@ -152,8 +170,8 @@ task("upgradeRollup")
 
         const upgradeTx = await RollupProxyWithSigner.upgradeTo(rollupNewImpl.address)
         console.log("upgradeTx hash: ", upgradeTx.hash)
-        const recipt = await upgradeTx.wait()
-        console.log("recipt status: ", recipt.status)
+        const receipt = await upgradeTx.wait()
+        console.log("receipt status: ", receipt.status)
 
         console.log("after upgrade the impl contract is :", await RollupProxy.callStatic.implementation({
             from: ethers.constants.AddressZero,
