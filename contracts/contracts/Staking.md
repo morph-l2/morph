@@ -115,7 +115,7 @@ The exit lock period should be long enough to ensure that stakers and sequencers
 
 **Main functions**
 
-- Update sequencer set, call form l2 staking contract
+- Update sequencer set, call from l2 staking contract
 
 #### Distribute Contract
 
@@ -123,8 +123,8 @@ The exit lock period should be long enough to ensure that stakers and sequencers
 
 - Record delegation info by l2 staking contract
 - Record undelegation info by l2 staking contract
-- Compute delegator's delegation reward, call form l2 staking contract
-- Compute sequencer's commission, call form l2 staking contract
+- Compute delegator's delegation reward, call from l2 staking contract
+- Compute sequencer's commission, call from l2 staking contract
 
 #### Gov Contract
 

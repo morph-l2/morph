@@ -18,7 +18,7 @@ pragma solidity ^0.8.24;
 ///   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
 ///   * parentBatchHash         32          bytes32     217     The parent batch hash
 ///
-/// @dev Below is the feilds for `BatchHeader` V1
+/// @dev Below is the fields for `BatchHeader` V1
 ///   * lastBlockNumber         8           uint64      249     The last block number in this batch
 /// ```
 
