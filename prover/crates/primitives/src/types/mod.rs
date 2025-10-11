@@ -5,14 +5,16 @@ use serde_with::{serde_as, Map};
 use zktrie::ZkTrieNode;
 
 mod tx;
+mod authorization_list;
 pub use tx::{ArchivedTransactionTrace, TransactionTrace, TxL1Msg, TypedTransaction};
+pub use authorization_list::{ArchivedSignedAuthorization, AuthorizationList};
 
 /// Block header
 #[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Serialize, Deserialize, Default, Debug, Clone,
+    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Serialize, Deserialize, Default, Debug, Clone, Hash,
 )]
 #[archive(check_bytes)]
-#[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
+#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
 struct BlockHeader {
     /// block number
     number: U256,
@@ -35,10 +37,10 @@ struct BlockHeader {
 
 /// Coinbase
 #[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Serialize, Deserialize, Default, Debug, Clone,
+    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Serialize, Deserialize, Default, Debug, Clone, Hash,
 )]
 #[archive(check_bytes)]
-#[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
+#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
 struct Coinbase {
     /// address of coinbase
     address: Address,
@@ -46,10 +48,10 @@ struct Coinbase {
 
 /// Bytecode trace
 #[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Serialize, Deserialize, Default, Debug, Clone,
+    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Serialize, Deserialize, Default, Debug, Clone, Hash,
 )]
 #[archive(check_bytes)]
-#[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
+#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
 struct BytecodeTrace {
     /// bytecode
     code: Bytes,
@@ -68,9 +70,10 @@ struct BytecodeTrace {
     Clone,
     Eq,
     PartialEq,
+    Hash,
 )]
 #[archive(check_bytes)]
-#[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
+#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
 pub struct StorageTrace {
     /// root before
     #[serde(rename = "rootBefore")]

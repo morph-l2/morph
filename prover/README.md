@@ -4,18 +4,17 @@ Generate zk proof for the l2 batch.
 ## Requirements
 
 - [Rust](https://rustup.rs/)
-- [SP1](https://succinctlabs.github.io/sp1/getting-started/install.html)
+- [SP1](https://docs.succinct.xyz/docs/sp1/getting-started/install)
 
-
-### Fast Run 
+### Fast Run
 ```sh
 cd bin/host
-RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt cargo run --release
+RUST_LOG=info TRUSTED_SETUP_4844=./configs/4844_trusted_setup.txt cargo run --release
 ```
 or
 
 ```sh
-RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt  cargo run --release -- --block-path ../../testdata/mainnet_batch_traces_l1.json
+RUST_LOG=info TRUSTED_SETUP_4844=./configs/4844_trusted_setup.txt cargo run --release -- --block-path ./testdata/viridian/eip7702_traces.json
 ```
 
 ### Build the Program
