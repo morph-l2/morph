@@ -28,7 +28,11 @@ pub(super) fn init() -> Registry {
     let mut registry = registry::Registry::default();
 
     let block_counter = Counter::default();
-    registry.register("block_counter", "Number of blocks processed", block_counter.clone());
+    registry.register(
+        "block_counter",
+        "Number of blocks processed",
+        block_counter.clone(),
+    );
 
     let fetched_rpc_block_height = Gauge::default();
     registry.register(

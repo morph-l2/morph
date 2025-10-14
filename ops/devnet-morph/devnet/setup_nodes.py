@@ -25,8 +25,7 @@ def setup_devnet_nodes():
             print("Error: Failed to build Tendermint. Exiting.")
             sys.exit(1)
 
-        # back to the root directory
-        os.chdir(root_dir)
+        os.chdir(ops_dir)
         print("Tendermint build process completed.")
 
     # Check if .devnet directory already exists
