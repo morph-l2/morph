@@ -1,42 +1,41 @@
 {
   "l1ChainID": 900,
   "l2ChainID": 53077,
-
   "finalSystemOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "proxyAdminOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-
   "BLOCK_SIGNER_PRIVATE_KEY": "3e4bde571b86929bf08e2aaad9a6a1882664cd5e65b96fff7d03e1c4e6dfa15c",
   "BLOCK_SIGNER_ADDRESS": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
-
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
   "l2BridgeFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
   "fundDevAccounts": true,
-
   "l1StartingBlockTag": "earliest",
   "maxTxPerBlock": 1000,
-
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
   "gasPriceOracleOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 20,
   "govBatchTimeout": 600,
   "govRollupEpoch": 100,
-
   "recordOracleAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "recordNextBatchSubmissionIndex": 1,
-
   "morphTokenName": "Morph Token",
   "morphTokenSymbol": "Morph",
   "morphTokenOwner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "morphTokenInitialSupply": 1000000000,
   "morphTokenDailyInflationRate": 1,
-
+  "morph203Time": 0,
+  "viridianTime": 0,
   "l2StakingSequencerMaxSize": 4,
   "l2StakingUnDelegatedLockEpochs": 2,
   "l2StakingRewardStartTime": 1728000000,
+  "l2StakingPks": [
+    "0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32",
+    "0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10",
+    "0x6fd437eef7a83c486bd2e0a802ae071b3912d125ac31ac08f60841fd891559ae",
+    "0x9ae53aecdaebe4dcbfec96f3123a2a8c53f9596bf4b3d5adc9a388ccb361b4c0"
+  ],
   "l2StakingAddresses": [
     "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",
     "0x310824AA27a29D269d2F9C0a8563C0e3C98dD226",
