@@ -788,37 +788,6 @@ func (_L2Staking *L2StakingCallerSession) Messenger() (common.Address, error) {
 	return _L2Staking.Contract.Messenger(&_L2Staking.CallOpts)
 }
 
-// Nonce is a free data retrieval call binding the contract method 0xaffed0e0.
-//
-// Solidity: function nonce() view returns(uint256)
-func (_L2Staking *L2StakingCaller) Nonce(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _L2Staking.contract.Call(opts, &out, "nonce")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// Nonce is a free data retrieval call binding the contract method 0xaffed0e0.
-//
-// Solidity: function nonce() view returns(uint256)
-func (_L2Staking *L2StakingSession) Nonce() (*big.Int, error) {
-	return _L2Staking.Contract.Nonce(&_L2Staking.CallOpts)
-}
-
-// Nonce is a free data retrieval call binding the contract method 0xaffed0e0.
-//
-// Solidity: function nonce() view returns(uint256)
-func (_L2Staking *L2StakingCallerSession) Nonce() (*big.Int, error) {
-	return _L2Staking.Contract.Nonce(&_L2Staking.CallOpts)
-}
-
 // Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
 //
 // Solidity: function owner() view returns(address)
@@ -1167,25 +1136,25 @@ func (_L2Staking *L2StakingCallerSession) Undelegations(delegator common.Address
 	return _L2Staking.Contract.Undelegations(&_L2Staking.CallOpts, delegator, arg1)
 }
 
-// AddStaker is a paid mutator transaction binding the contract method 0x7046529b.
+// AddStaker is a paid mutator transaction binding the contract method 0x6d454d51.
 //
-// Solidity: function addStaker(uint256 _nonce, (address,bytes32,bytes) add) returns()
-func (_L2Staking *L2StakingTransactor) AddStaker(opts *bind.TransactOpts, _nonce *big.Int, add TypesStakerInfo) (*types.Transaction, error) {
-	return _L2Staking.contract.Transact(opts, "addStaker", _nonce, add)
+// Solidity: function addStaker((address,bytes32,bytes) add) returns()
+func (_L2Staking *L2StakingTransactor) AddStaker(opts *bind.TransactOpts, add TypesStakerInfo) (*types.Transaction, error) {
+	return _L2Staking.contract.Transact(opts, "addStaker", add)
 }
 
-// AddStaker is a paid mutator transaction binding the contract method 0x7046529b.
+// AddStaker is a paid mutator transaction binding the contract method 0x6d454d51.
 //
-// Solidity: function addStaker(uint256 _nonce, (address,bytes32,bytes) add) returns()
-func (_L2Staking *L2StakingSession) AddStaker(_nonce *big.Int, add TypesStakerInfo) (*types.Transaction, error) {
-	return _L2Staking.Contract.AddStaker(&_L2Staking.TransactOpts, _nonce, add)
+// Solidity: function addStaker((address,bytes32,bytes) add) returns()
+func (_L2Staking *L2StakingSession) AddStaker(add TypesStakerInfo) (*types.Transaction, error) {
+	return _L2Staking.Contract.AddStaker(&_L2Staking.TransactOpts, add)
 }
 
-// AddStaker is a paid mutator transaction binding the contract method 0x7046529b.
+// AddStaker is a paid mutator transaction binding the contract method 0x6d454d51.
 //
-// Solidity: function addStaker(uint256 _nonce, (address,bytes32,bytes) add) returns()
-func (_L2Staking *L2StakingTransactorSession) AddStaker(_nonce *big.Int, add TypesStakerInfo) (*types.Transaction, error) {
-	return _L2Staking.Contract.AddStaker(&_L2Staking.TransactOpts, _nonce, add)
+// Solidity: function addStaker((address,bytes32,bytes) add) returns()
+func (_L2Staking *L2StakingTransactorSession) AddStaker(add TypesStakerInfo) (*types.Transaction, error) {
+	return _L2Staking.Contract.AddStaker(&_L2Staking.TransactOpts, add)
 }
 
 // ClaimCommission is a paid mutator transaction binding the contract method 0xfad99f98.
@@ -1272,48 +1241,6 @@ func (_L2Staking *L2StakingTransactorSession) DelegateStake(delegatee common.Add
 	return _L2Staking.Contract.DelegateStake(&_L2Staking.TransactOpts, delegatee, amount)
 }
 
-// EmergencyAddStaker is a paid mutator transaction binding the contract method 0x009c6f0c.
-//
-// Solidity: function emergencyAddStaker(uint256 _nonce, (address,bytes32,bytes) add) returns()
-func (_L2Staking *L2StakingTransactor) EmergencyAddStaker(opts *bind.TransactOpts, _nonce *big.Int, add TypesStakerInfo) (*types.Transaction, error) {
-	return _L2Staking.contract.Transact(opts, "emergencyAddStaker", _nonce, add)
-}
-
-// EmergencyAddStaker is a paid mutator transaction binding the contract method 0x009c6f0c.
-//
-// Solidity: function emergencyAddStaker(uint256 _nonce, (address,bytes32,bytes) add) returns()
-func (_L2Staking *L2StakingSession) EmergencyAddStaker(_nonce *big.Int, add TypesStakerInfo) (*types.Transaction, error) {
-	return _L2Staking.Contract.EmergencyAddStaker(&_L2Staking.TransactOpts, _nonce, add)
-}
-
-// EmergencyAddStaker is a paid mutator transaction binding the contract method 0x009c6f0c.
-//
-// Solidity: function emergencyAddStaker(uint256 _nonce, (address,bytes32,bytes) add) returns()
-func (_L2Staking *L2StakingTransactorSession) EmergencyAddStaker(_nonce *big.Int, add TypesStakerInfo) (*types.Transaction, error) {
-	return _L2Staking.Contract.EmergencyAddStaker(&_L2Staking.TransactOpts, _nonce, add)
-}
-
-// EmergencyRemoveStakers is a paid mutator transaction binding the contract method 0xfc6facc6.
-//
-// Solidity: function emergencyRemoveStakers(uint256 _nonce, address[] remove) returns()
-func (_L2Staking *L2StakingTransactor) EmergencyRemoveStakers(opts *bind.TransactOpts, _nonce *big.Int, remove []common.Address) (*types.Transaction, error) {
-	return _L2Staking.contract.Transact(opts, "emergencyRemoveStakers", _nonce, remove)
-}
-
-// EmergencyRemoveStakers is a paid mutator transaction binding the contract method 0xfc6facc6.
-//
-// Solidity: function emergencyRemoveStakers(uint256 _nonce, address[] remove) returns()
-func (_L2Staking *L2StakingSession) EmergencyRemoveStakers(_nonce *big.Int, remove []common.Address) (*types.Transaction, error) {
-	return _L2Staking.Contract.EmergencyRemoveStakers(&_L2Staking.TransactOpts, _nonce, remove)
-}
-
-// EmergencyRemoveStakers is a paid mutator transaction binding the contract method 0xfc6facc6.
-//
-// Solidity: function emergencyRemoveStakers(uint256 _nonce, address[] remove) returns()
-func (_L2Staking *L2StakingTransactorSession) EmergencyRemoveStakers(_nonce *big.Int, remove []common.Address) (*types.Transaction, error) {
-	return _L2Staking.Contract.EmergencyRemoveStakers(&_L2Staking.TransactOpts, _nonce, remove)
-}
-
 // Initialize is a paid mutator transaction binding the contract method 0x439162b5.
 //
 // Solidity: function initialize(address _owner, uint256 _sequencersMaxSize, uint256 _undelegateLockEpochs, uint256 _rewardStartTime, (address,bytes32,bytes)[] _stakers) returns()
@@ -1335,25 +1262,25 @@ func (_L2Staking *L2StakingTransactorSession) Initialize(_owner common.Address, 
 	return _L2Staking.Contract.Initialize(&_L2Staking.TransactOpts, _owner, _sequencersMaxSize, _undelegateLockEpochs, _rewardStartTime, _stakers)
 }
 
-// RemoveStakers is a paid mutator transaction binding the contract method 0xcce6cf9f.
+// RemoveStakers is a paid mutator transaction binding the contract method 0x0be67fcc.
 //
-// Solidity: function removeStakers(uint256 _nonce, address[] remove) returns()
-func (_L2Staking *L2StakingTransactor) RemoveStakers(opts *bind.TransactOpts, _nonce *big.Int, remove []common.Address) (*types.Transaction, error) {
-	return _L2Staking.contract.Transact(opts, "removeStakers", _nonce, remove)
+// Solidity: function removeStakers(address[] remove) returns()
+func (_L2Staking *L2StakingTransactor) RemoveStakers(opts *bind.TransactOpts, remove []common.Address) (*types.Transaction, error) {
+	return _L2Staking.contract.Transact(opts, "removeStakers", remove)
 }
 
-// RemoveStakers is a paid mutator transaction binding the contract method 0xcce6cf9f.
+// RemoveStakers is a paid mutator transaction binding the contract method 0x0be67fcc.
 //
-// Solidity: function removeStakers(uint256 _nonce, address[] remove) returns()
-func (_L2Staking *L2StakingSession) RemoveStakers(_nonce *big.Int, remove []common.Address) (*types.Transaction, error) {
-	return _L2Staking.Contract.RemoveStakers(&_L2Staking.TransactOpts, _nonce, remove)
+// Solidity: function removeStakers(address[] remove) returns()
+func (_L2Staking *L2StakingSession) RemoveStakers(remove []common.Address) (*types.Transaction, error) {
+	return _L2Staking.Contract.RemoveStakers(&_L2Staking.TransactOpts, remove)
 }
 
-// RemoveStakers is a paid mutator transaction binding the contract method 0xcce6cf9f.
+// RemoveStakers is a paid mutator transaction binding the contract method 0x0be67fcc.
 //
-// Solidity: function removeStakers(uint256 _nonce, address[] remove) returns()
-func (_L2Staking *L2StakingTransactorSession) RemoveStakers(_nonce *big.Int, remove []common.Address) (*types.Transaction, error) {
-	return _L2Staking.Contract.RemoveStakers(&_L2Staking.TransactOpts, _nonce, remove)
+// Solidity: function removeStakers(address[] remove) returns()
+func (_L2Staking *L2StakingTransactorSession) RemoveStakers(remove []common.Address) (*types.Transaction, error) {
+	return _L2Staking.Contract.RemoveStakers(&_L2Staking.TransactOpts, remove)
 }
 
 // RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.

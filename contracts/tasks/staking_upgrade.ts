@@ -222,9 +222,10 @@ task("rollup-import-genesis-batch")
             // import genesis batch
             const batchHeader: string = config.batchHeader
 
-            //challenger
+            // submitter and challenger
+            const submitter: string = config.rollupProposer
             const challenger: string = config.rollupChallenger
-            if (!ethers.utils.isAddress(challenger)) {
+            if (!ethers.utils.isAddress(submitter) || !ethers.utils.isAddress(challenger)) {
                 console.error("please check your address")
                 return ""
             }
@@ -433,7 +434,7 @@ task("l1staking-deploy-init")
             console.log("BLOCK_NUMBER: %s", blockNumber)
             const err = await storage(newPath, ImplStorageName.L1StakingStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
             if (err != '') {
-                console.log(`deploy L1Staking implementation failed ${err}`)
+                console.log(`deploy L1Staking implemention failed ${err}`)
                 return err
             }
         }

@@ -1,4 +1,5 @@
-use revm::primitives::{alloy_primitives::SignatureError, EVMError, B256};
+use revm::primitives::alloy_primitives::SignatureError;
+use revm::primitives::{EVMError, B256};
 use std::convert::Infallible;
 
 /// Error variants encountered during manipulation of a zkTrie.

@@ -26,9 +26,13 @@ pub(crate) fn init_zstd_encoder(target_block_size: u32) -> Encoder<'static, Vec<
         .set_parameter(CParameter::LiteralCompressionMode(ParamSwitch::Disable))
         .expect("infallible");
     // with a hack in zstd we can set window log <= 17 with single segment kept
-    encoder.set_parameter(CParameter::WindowLog(17)).expect("infallible");
+    encoder
+        .set_parameter(CParameter::WindowLog(17))
+        .expect("infallible");
     // set target block size to fit within a single block.
-    encoder.set_parameter(CParameter::TargetCBlockSize(target_block_size)).expect("infallible");
+    encoder
+        .set_parameter(CParameter::TargetCBlockSize(target_block_size))
+        .expect("infallible");
     // do not include the checksum at the end of the encoded data.
     encoder.include_checksum(false).expect("infallible");
     // do not include magic bytes at the start of the frame since we will have a single
