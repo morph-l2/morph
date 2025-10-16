@@ -53,10 +53,7 @@ impl Debug for ExecuteHooks<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExecuteHooks")
             .field("tx_rlp_handlers", &self.tx_rlp_handlers.len())
-            .field(
-                "post_tx_execution_handlers",
-                &self.post_tx_execution_handlers.len(),
-            )
+            .field("post_tx_execution_handlers", &self.post_tx_execution_handlers.len())
             .finish()
     }
 }

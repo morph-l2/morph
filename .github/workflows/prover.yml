@@ -24,8 +24,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
             - uses: dtolnay/rust-toolchain@stable
-              with:
-                  components: rustfmt
+            - run: rustup component add rustfmt --toolchain nightly-2024-07-07
             - run: cargo fmt --all --check
 
     build:

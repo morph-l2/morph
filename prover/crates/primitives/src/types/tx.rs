@@ -1,4 +1,4 @@
-use crate::TxTrace;
+use crate::{types::AuthorizationList, TxTrace};
 use alloy::{
     consensus::{Transaction, TxEnvelope, TxType},
     eips::{
@@ -56,7 +56,14 @@ pub struct TxL1Msg {
 /// Transaction Trace
 #[serde_as]
 #[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, Default, Debug, Clone,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    Clone,
 )]
 #[archive(check_bytes)]
 #[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
@@ -98,6 +105,10 @@ pub struct TransactionTrace {
     #[serde(rename = "accessList")]
     #[serde_as(as = "DefaultOnNull")]
     pub(crate) access_list: AccessList,
+    /// authorization list
+    #[serde(rename = "authorizationList")]
+    #[serde_as(as = "DefaultOnNull")]
+    pub(crate) authorization_list: AuthorizationList,
     /// signature v
     pub(crate) v: U64,
     /// signature r
@@ -164,6 +175,10 @@ impl TxTrace for TransactionTrace {
         self.access_list.clone()
     }
 
+    fn authorization_list(&self) -> Vec<SignedAuthorization> {
+        self.authorization_list.clone().into()
+    }
+
     fn signature(&self) -> Result<Signature, SignatureError> {
         Signature::from_rs_and_parity(self.r, self.s, self.v)
     }
@@ -224,7 +239,17 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn access_list(&self) -> AccessList {
-        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible).unwrap()
+        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible)
+            .unwrap()
+    }
+
+    fn authorization_list(&self) -> Vec<SignedAuthorization> {
+        rkyv::Deserialize::<AuthorizationList, _>::deserialize(
+            &self.authorization_list,
+            &mut rkyv::Infallible,
+        )
+        .unwrap()
+        .into()
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {
@@ -334,7 +359,7 @@ impl Transaction for TypedTransaction {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         match self {
             TypedTransaction::Enveloped(tx) => tx.authorization_list(),
-            TypedTransaction::L1Msg(tx) => tx.authorization_list(),
+            TypedTransaction::L1Msg(_) => None,
         }
     }
 }
@@ -471,6 +496,10 @@ impl TypedTransaction {
                 let priority_fee_per_gas = tx.tx().effective_tip_per_gas(base_fee_per_gas)?;
                 Some(priority_fee_per_gas + base_fee_per_gas as u128)
             }
+            TypedTransaction::Enveloped(TxEnvelope::Eip7702(ref tx)) => {
+                let priority_fee_per_gas = tx.tx().effective_tip_per_gas(base_fee_per_gas)?;
+                Some(priority_fee_per_gas + base_fee_per_gas as u128)
+            }
             _ => self.gas_price(),
         }
     }
@@ -501,6 +530,7 @@ impl TypedTransaction {
                 TxType::Legacy => tx.as_legacy().unwrap().tx().input.clone(),
                 TxType::Eip1559 => tx.as_eip1559().unwrap().tx().input.clone(),
                 TxType::Eip2930 => tx.as_eip2930().unwrap().tx().input.clone(),
+                TxType::Eip7702 => tx.as_eip7702().unwrap().tx().input.clone(),
                 _ => unimplemented!("unsupported tx type {:?}", tx.tx_type()),
             },
             TypedTransaction::L1Msg(tx) => tx.input.clone(),

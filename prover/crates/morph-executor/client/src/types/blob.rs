@@ -75,8 +75,9 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<TypedTransaction> {
         let tx_len_size = if first_byte > 0xf7 {
             (first_byte - 0xf7) as usize
         } else {
-            if first_byte != 0x01 && first_byte != 0x02 {
-                println!("not supported tx type");
+            // Support transaction types: 0x01, 0x02, 0x04
+            if first_byte != 0x01 && first_byte != 0x02 && first_byte != 0x04 {
+                println!("not supported tx type: 0x{:02x}", first_byte);
                 break;
             }
             (*bs.get(offset + 1).unwrap() - 0xf7) as usize
@@ -108,5 +109,6 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<TypedTransaction> {
         offset += rlp_tx_len;
     }
 
+    println!("Successfully decoded {} transactions", txs_decoded.len());
     txs_decoded
 }

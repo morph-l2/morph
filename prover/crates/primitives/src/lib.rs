@@ -2,7 +2,7 @@
 
 use crate::types::{TxL1Msg, TypedTransaction};
 use alloy::{
-    consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEnvelope, TxLegacy},
+    consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy},
     eips::eip2930::AccessList,
     primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
 };
@@ -17,6 +17,7 @@ pub mod types;
 pub use alloy::{
     consensus as alloy_consensus,
     consensus::Transaction,
+    eips::eip7702::SignedAuthorization,
     primitives as alloy_primitives,
     primitives::{Address, B256, U256},
 };
@@ -122,12 +123,8 @@ pub trait Block: Debug {
         let num_txs = (self.num_l1_txs() + self.num_l2_txs()) as u16;
         hasher.update(&self.number().to_be_bytes());
         hasher.update(&self.timestamp().to::<u64>().to_be_bytes());
-        hasher.update(
-            &self
-                .base_fee_per_gas()
-                .unwrap_or_default()
-                .to_be_bytes::<{ U256::BYTES }>(),
-        );
+        hasher
+            .update(&self.base_fee_per_gas().unwrap_or_default().to_be_bytes::<{ U256::BYTES }>());
         hasher.update(&self.gas_limit().to::<u64>().to_be_bytes());
         hasher.update(&num_txs.to_be_bytes());
     }
@@ -135,11 +132,7 @@ pub trait Block: Debug {
     /// Hash the l1 messages of the block
     #[inline]
     fn hash_l1_msg(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        for tx_hash in self
-            .transactions()
-            .filter(|tx| tx.is_l1_tx())
-            .map(|tx| tx.tx_hash())
-        {
+        for tx_hash in self.transactions().filter(|tx| tx.is_l1_tx()).map(|tx| tx.tx_hash()) {
             hasher.update(tx_hash.as_slice())
         }
     }
@@ -189,6 +182,9 @@ pub trait TxTrace {
 
     /// Get `access_list`.
     fn access_list(&self) -> AccessList;
+
+    /// Get `authorization_list`.
+    fn authorization_list(&self) -> Vec<SignedAuthorization>;
 
     /// Get `signature`.
     fn signature(&self) -> Result<Signature, SignatureError>;
@@ -240,6 +236,22 @@ pub trait TxTrace {
                     to: self.to(),
                     value: self.value(),
                     access_list: self.access_list(),
+                    input: self.data(),
+                };
+
+                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+            }
+            0x04 => {
+                let tx = TxEip7702 {
+                    chain_id,
+                    nonce: self.nonce(),
+                    gas_limit: self.gas_limit(),
+                    max_fee_per_gas: self.max_fee_per_gas(),
+                    max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
+                    to: self.to(),
+                    value: self.value(),
+                    access_list: self.access_list(),
+                    authorization_list: self.authorization_list(),
                     input: self.data(),
                 };
 
@@ -380,6 +392,10 @@ impl<T: TxTrace> TxTrace for &T {
 
     fn access_list(&self) -> AccessList {
         (*self).access_list()
+    }
+
+    fn authorization_list(&self) -> Vec<SignedAuthorization> {
+        (*self).authorization_list()
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {
