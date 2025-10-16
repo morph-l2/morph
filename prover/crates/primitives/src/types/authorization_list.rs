@@ -1,10 +1,13 @@
-use alloy::eips::eip7702::SignedAuthorization;
-use alloy::primitives::{Address, Signature, U256, U8};
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use alloy::{
+    eips::eip7702::SignedAuthorization,
+    primitives::{Address, Signature, U256, U8},
+};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A wrapper around SignedAuthorization that implements Archive trait
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
 #[archive(check_bytes)]
 #[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
 pub struct ArchivedSignedAuthorization {
@@ -87,11 +90,8 @@ impl From<SignedAuthorization> for ArchivedSignedAuthorization {
 impl From<ArchivedSignedAuthorization> for SignedAuthorization {
     fn from(auth: ArchivedSignedAuthorization) -> Self {
         use alloy::eips::eip7702::Authorization;
-        let inner = Authorization {
-            chain_id: auth.chain_id,
-            address: auth.address,
-            nonce: auth.nonce,
-        };
+        let inner =
+            Authorization { chain_id: auth.chain_id, address: auth.address, nonce: auth.nonce };
         let v: u8 = auth.v.to();
         let parity = alloy::primitives::Parity::try_from(v as u64).unwrap();
         let signature = Signature::from_rs_and_parity(auth.r, auth.s, parity).unwrap();
@@ -100,9 +100,19 @@ impl From<ArchivedSignedAuthorization> for SignedAuthorization {
 }
 
 /// A wrapper around Vec<SignedAuthorization> that implements Archive trait
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[derive(Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    Serialize,
+    Deserialize,
+)]
 #[archive(check_bytes)]
 #[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
 pub struct AuthorizationList(pub Vec<ArchivedSignedAuthorization>);

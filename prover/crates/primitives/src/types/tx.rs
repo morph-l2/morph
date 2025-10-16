@@ -1,4 +1,4 @@
-use crate::{TxTrace, types::AuthorizationList};
+use crate::{types::AuthorizationList, TxTrace};
 use alloy::{
     consensus::{Transaction, TxEnvelope, TxType},
     eips::{
@@ -56,7 +56,14 @@ pub struct TxL1Msg {
 /// Transaction Trace
 #[serde_as]
 #[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, Default, Debug, Clone,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    Clone,
 )]
 #[archive(check_bytes)]
 #[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
@@ -232,13 +239,17 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn access_list(&self) -> AccessList {
-        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible).unwrap()
+        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible)
+            .unwrap()
     }
 
     fn authorization_list(&self) -> Vec<SignedAuthorization> {
-        rkyv::Deserialize::<AuthorizationList, _>::deserialize(&self.authorization_list, &mut rkyv::Infallible)
-            .unwrap()
-            .into()
+        rkyv::Deserialize::<AuthorizationList, _>::deserialize(
+            &self.authorization_list,
+            &mut rkyv::Infallible,
+        )
+        .unwrap()
+        .into()
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {

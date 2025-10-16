@@ -6,11 +6,14 @@ use crate::{
 use revm::{
     db::{AccountState, CacheDB},
     primitives::{
-        AccountInfo, AuthorizationList as RevmAuthorizationList, BlockEnv, Env, SpecId, TxEnv, B256, KECCAK_EMPTY, POSEIDON_EMPTY, U256,
+        AccountInfo, AuthorizationList as RevmAuthorizationList, BlockEnv, Env, SpecId, TxEnv,
+        B256, KECCAK_EMPTY, POSEIDON_EMPTY, U256,
     },
     Database,
 };
-use sbv_primitives::{zk_trie::ZkMemoryDb, Address, Block, Transaction, TxTrace, SignedAuthorization};
+use sbv_primitives::{
+    zk_trie::ZkMemoryDb, Address, Block, SignedAuthorization, Transaction, TxTrace,
+};
 use std::{fmt::Debug, rc::Rc};
 
 mod builder;
