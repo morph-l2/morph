@@ -6,8 +6,6 @@ const config = {
     // chainID config
     l1ChainID: 900,
     l2ChainID: 53077,
-    l1WETHAddress: "",
-    l1USDCAddress: "",
 
     // L1MessageQueue config
     l1MessageQueueMaxGasLimit: 30000000,
@@ -23,6 +21,7 @@ const config = {
     rollupProofWindow: 86400,
     proofRewardPercent: 70,
     // challenge config
+    rollupProposer: '0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d',
     rollupChallenger: '0x71616250f7CAaa8a5DC295dc5851D6b1E49188a7',
     // genesis config
     batchHeader: '',
@@ -39,10 +38,10 @@ const config = {
     stakingChallengerRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [
-        "0x675cfc328f9f2e79a51e499b2be44462270572fe",
-        "0xb096665645994775eeba8aa114752d569734dcb4",
-        "0x3a587733d38e5487d2a7e81d84625f25c99ab3a1",
-        "0xb6346ded94fc61b637763610d0c59846b7781080"
+        "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
+        "0x4a1f64dec538835c125874e275edca367bf6022a",
+        "0xbb8605961105bb3dcd0e86ef94a1bf9fb2270a29",
+        "0x7d7201ad7da2b9b9ab9a36c454a3c2d55c4fbdd8"
     ],
     l2SequencerTmKeys: [
         "0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb",

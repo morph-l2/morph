@@ -27,7 +27,7 @@ jobs:
               with:
                   components: rustfmt
             - run: cargo fmt --all --check
-    
+
     build:
         name: build
         runs-on: ubuntu-latest
