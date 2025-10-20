@@ -9,8 +9,9 @@ require (
 	github.com/go-kit/kit v0.12.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
+	github.com/holiman/uint256 v1.2.4
 	github.com/klauspost/compress v1.17.9
-	github.com/morph-l2/go-ethereum v1.10.14-0.20250424011308-f42440d1ace1
+	github.com/morph-l2/go-ethereum v1.10.14-0.20251020031512-67087dd3ad49
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
 	github.com/stretchr/testify v1.9.0
@@ -64,7 +65,6 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.13 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
-	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.16 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
