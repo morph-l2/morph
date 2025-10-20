@@ -6,15 +6,28 @@ use crate::{
 use revm::{
     db::{AccountState, CacheDB},
     primitives::{
-        AccountInfo, BlockEnv, Env, SpecId, TxEnv, B256, KECCAK_EMPTY, POSEIDON_EMPTY, U256,
+        AccountInfo, AuthorizationList as RevmAuthorizationList, BlockEnv, Env, SpecId, TxEnv,
+        B256, KECCAK_EMPTY, POSEIDON_EMPTY, U256,
     },
     Database,
 };
-use sbv_primitives::{zk_trie::ZkMemoryDb, Address, Block, Transaction, TxTrace};
+use sbv_primitives::{
+    zk_trie::ZkMemoryDb, Address, Block, SignedAuthorization, Transaction, TxTrace,
+};
 use std::{fmt::Debug, rc::Rc};
 
 mod builder;
 pub use builder::EvmExecutorBuilder;
+
+/// Convert from Option<&[SignedAuthorization]> to Option<RevmAuthorizationList>
+fn convert_authorization_list(
+    auth_list: Option<&[SignedAuthorization]>,
+) -> Option<RevmAuthorizationList> {
+    auth_list.map(|list| {
+        let signed_auths: Vec<SignedAuthorization> = list.to_vec();
+        RevmAuthorizationList::from(signed_auths)
+    })
+}
 
 /// Execute hooks
 pub mod hooks;
@@ -105,6 +118,7 @@ impl EvmExecutor<'_> {
                 nonce: if !tx.is_l1_msg() { Some(tx.nonce()) } else { None },
                 chain_id: tx.chain_id(),
                 access_list: tx.access_list().cloned().unwrap_or_default().0,
+                authorization_list: convert_authorization_list(tx.authorization_list()),
                 gas_priority_fee: tx.max_priority_fee_per_gas().map(U256::from),
                 ..Default::default()
             };

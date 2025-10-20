@@ -1,43 +1,35 @@
 {
   "l1ChainID": 900,
   "l2ChainID": 53077,
-
   "finalSystemOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
   "proxyAdminOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
-
   "BLOCK_SIGNER_PRIVATE_KEY": "3e4bde571b86929bf08e2aaad9a6a1882664cd5e65b96fff7d03e1c4e6dfa15c",
   "BLOCK_SIGNER_ADDRESS": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
-
   "l1FeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "sequencerFeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "l2BridgeFeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "fundDevAccounts": false,
-
   "l1StartingBlockTag": "earliest",
   "maxTxPerBlock": 1000,
   "maxTxPayloadBytesPerBlock": 122880,
-
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
   "gasPriceOracleOwner": "0x71612D2b36859fbad5865085be7c9dEB026bBCbC",
-
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 600,
   "govBatchTimeout": 1200,
   "govRollupEpoch": 100,
-
   "l2GenesisBlockGasLimit": "0xbebc200",
   "useMPT": false,
-
   "recordOracleAddress": "0x7161F66BDf7C980B61b426122BBEfff813c0cdF0",
   "recordNextBatchSubmissionIndex": 1,
-
+  "morph203Time": 0,
+  "viridianTime": 0,
   "morphTokenName": "Morph Token",
   "morphTokenSymbol": "Morph",
   "morphTokenOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
   "morphTokenInitialSupply": 1000000000,
   "morphTokenDailyInflationRate": 1596535874529,
-  
   "l2StakingSequencerMaxSize": 4,
   "l2StakingUnDelegatedLockEpochs": 2,
   "l2StakingRewardStartTime": 1728000000,
