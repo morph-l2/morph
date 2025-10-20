@@ -9,8 +9,7 @@ use sbv_primitives::{
     zk_trie::{SharedMemoryDb, ZkMemoryDb, ZkTrie},
     Block,
 };
-use std::rc::Rc;
-use std::{cell::RefCell, collections::HashMap, convert::Infallible, fmt};
+use std::{cell::RefCell, collections::HashMap, convert::Infallible, fmt, rc::Rc};
 
 type Result<T, E = ZkTrieError> = std::result::Result<T, E>;
 
@@ -92,19 +91,13 @@ impl ReadOnlyDB {
         address: Address,
         storage_root: B256,
     ) -> Option<B256> {
-        self.prev_storage_roots
-            .borrow_mut()
-            .insert(address, storage_root)
+        self.prev_storage_roots.borrow_mut().insert(address, storage_root)
     }
 
     /// Get the previous storage root of an account.
     #[inline]
     pub(crate) fn prev_storage_root(&self, address: &Address) -> B256 {
-        self.prev_storage_roots
-            .borrow()
-            .get(address)
-            .copied()
-            .unwrap_or_default()
+        self.prev_storage_roots.borrow().get(address).copied().unwrap_or_default()
     }
 
     /// Get the zkTrie root.
@@ -162,41 +155,35 @@ impl DatabaseRef for ReadOnlyDB {
 
     /// Get basic account information.
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        Ok(self
-            .zktrie_db_ref
-            .get_account(address.as_slice())
-            .map(|account_data| {
-                let code_size =
-                    u64::from_be_bytes((&account_data[0][16..24]).try_into().unwrap()) as usize;
-                let nonce = u64::from_be_bytes((&account_data[0][24..]).try_into().unwrap());
-                let balance = U256::from_be_bytes(account_data[1]);
-                let code_hash = B256::from(account_data[3]);
-                let poseidon_code_hash = B256::from(account_data[4]);
+        Ok(self.zktrie_db_ref.get_account(address.as_slice()).map(|account_data| {
+            let code_size =
+                u64::from_be_bytes((&account_data[0][16..24]).try_into().unwrap()) as usize;
+            let nonce = u64::from_be_bytes((&account_data[0][24..]).try_into().unwrap());
+            let balance = U256::from_be_bytes(account_data[1]);
+            let code_hash = B256::from(account_data[3]);
+            let poseidon_code_hash = B256::from(account_data[4]);
 
-                let storage_root = B256::from(account_data[2]);
-                self.prev_storage_roots
-                    .borrow_mut()
-                    .entry(address)
-                    .or_insert(storage_root.0.into());
+            let storage_root = B256::from(account_data[2]);
+            self.prev_storage_roots.borrow_mut().entry(address).or_insert(storage_root.0.into());
 
-                let zktrie_db = self.zktrie_db.clone();
-                self.storage_trie_refs.borrow_mut().insert(
-                    address,
-                    Lazy::new(Box::new(move || {
-                        zktrie_db
-                            .new_ref_trie(&storage_root.0)
-                            .expect("storage trie associated with account not found")
-                    })),
-                );
-                AccountInfo {
-                    balance,
-                    nonce,
-                    code_size,
-                    code_hash,
-                    poseidon_code_hash,
-                    code: self.code_db.get(&code_hash).cloned(),
-                }
-            }))
+            let zktrie_db = self.zktrie_db.clone();
+            self.storage_trie_refs.borrow_mut().insert(
+                address,
+                Lazy::new(Box::new(move || {
+                    zktrie_db
+                        .new_ref_trie(&storage_root.0)
+                        .expect("storage trie associated with account not found")
+                })),
+            );
+            AccountInfo {
+                balance,
+                nonce,
+                code_size,
+                code_hash,
+                poseidon_code_hash,
+                code: self.code_db.get(&code_hash).cloned(),
+            }
+        }))
     }
 
     /// Get account code by its code hash.
@@ -217,22 +204,20 @@ impl DatabaseRef for ReadOnlyDB {
     /// Get storage value of address at index.
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let mut storage_trie_refs = self.storage_trie_refs.borrow_mut();
-        let trie = storage_trie_refs
-            .entry(address)
-            .or_insert_with_key(|address| {
-                let storage_root = self
-                    .zktrie_db_ref
-                    .get_account(address.as_slice())
-                    .map(|account_data| B256::from(account_data[2]))
-                    .unwrap_or_default();
-                let zktrie_db = self.zktrie_db.clone();
-                Lazy::new(Box::new(move || {
-                    zktrie_db
-                        .clone()
-                        .new_ref_trie(&storage_root.0)
-                        .expect("storage trie associated with account not found")
-                }))
-            });
+        let trie = storage_trie_refs.entry(address).or_insert_with_key(|address| {
+            let storage_root = self
+                .zktrie_db_ref
+                .get_account(address.as_slice())
+                .map(|account_data| B256::from(account_data[2]))
+                .unwrap_or_default();
+            let zktrie_db = self.zktrie_db.clone();
+            Lazy::new(Box::new(move || {
+                zktrie_db
+                    .clone()
+                    .new_ref_trie(&storage_root.0)
+                    .expect("storage trie associated with account not found")
+            }))
+        });
 
         Ok(trie
             .get_store(&index.to_be_bytes::<32>())
