@@ -1151,11 +1151,12 @@ func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, ti
 }
 
 func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte) (*ethtypes.Transaction, error) {
-	versionedHashes := make([]common.Hash, 0, len(batch.Sidecar.Commitments))
-	for _, commit := range batch.Sidecar.Commitments {
-		versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
+	sidecar := &ethtypes.BlobTxSidecar{
+		Version:     ethtypes.BlobSidecarVersion1,
+		Blobs:       batch.Sidecar.Blobs,
+		Commitments: batch.Sidecar.Commitments,
+		Proofs:      batch.Sidecar.Proofs,
 	}
-
 	return ethtypes.NewTx(&ethtypes.BlobTx{
 		ChainID:    uint256.MustFromBig(r.chainId),
 		Nonce:      nonce,
@@ -1165,12 +1166,8 @@ func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip,
 		To:         r.rollupAddr,
 		Data:       calldata,
 		BlobFeeCap: uint256.MustFromBig(blobFee),
-		BlobHashes: versionedHashes,
-		Sidecar: &ethtypes.BlobTxSidecar{
-			Blobs:       batch.Sidecar.Blobs,
-			Commitments: batch.Sidecar.Commitments,
-			Proofs:      batch.Sidecar.Proofs,
-		},
+		BlobHashes: sidecar.BlobHashes(),
+		Sidecar:    sidecar,
 	}), nil
 }
 
