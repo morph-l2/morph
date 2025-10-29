@@ -1,0 +1,218 @@
+// SPDX-License-Identifier: MIT
+pragma solidity =0.8.24;
+
+/**
+ * @title IERC20PriceOracle
+ * @dev Interface for ERC20PriceOracle contract
+ * @notice Interface defining all external functions for ERC20 price oracle and token registry
+ */
+interface IERC20PriceOracle {
+    /*//////////////////////////////////////////////////////////////
+                               Structs
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Token information structure
+    struct TokenInfo {
+        address tokenAddress; // ERC20 token contract address
+        bytes32 balanceSlot; // Token balance storage slot, bytes32(0) -> nil
+        bool isActive; // Whether the token is active
+        uint8 decimals; // Token decimals
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                               Events
+    //////////////////////////////////////////////////////////////*/
+
+    event TokenRegistered(
+        uint16 indexed tokenID,
+        address indexed tokenAddress,
+        bytes32 balanceSlot,
+        bool isActive,
+        uint8 decimals
+    );
+    
+    event TokensRegistered(uint16[] tokenIDs, address[] tokenAddresses);
+    
+    event TokenInfoUpdated(
+        uint16 indexed tokenID,
+        address indexed tokenAddress,
+        bytes32 balanceSlot,
+        bool isActive,
+        uint8 decimals
+    );
+    
+    event TokenDeactivated(uint16 indexed tokenID);
+    
+    event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
+    
+    event FeeDiscountPercentUpdated(uint16 indexed tokenID, uint256 newPercent);
+    
+    event AllowListSet(address indexed user, bool val);
+    
+    event AllowListEnabledUpdated(bool isEnabled);
+
+    /*//////////////////////////////////////////////////////////////
+                               Errors
+    //////////////////////////////////////////////////////////////*/
+
+    error TokenAlreadyRegistered();
+    error TokenNotFound();
+    error InvalidTokenID();
+    error InvalidTokenAddress();
+    error InvalidDecimals();
+    error InvalidPrice();
+    error InvalidPercent();
+    error CallerNotAllowed();
+    error InvalidArrayLength();
+    error DifferentLength();
+    error AlreadyInitialized();
+
+    /*//////////////////////////////////////////////////////////////
+                            Allow List Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Set Allow List
+     * @param user Array of user addresses
+     * @param val Array of permission values
+     */
+    function setAllowList(address[] memory user, bool[] memory val) external;
+
+    /**
+     * @notice Set whether Allow List is enabled
+     * @param _allowListEnabled Whether to enable
+     */
+    function setAllowListEnabled(bool _allowListEnabled) external;
+
+    /*//////////////////////////////////////////////////////////////
+                            Token Registration Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Batch register tokens
+     * @param _tokenIDs Array of token IDs
+     * @param _tokenAddresses Array of token addresses
+     * @param _balanceSlots Array of balance storage slots
+     */
+    function registerTokens(
+        uint16[] memory _tokenIDs,
+        address[] memory _tokenAddresses,
+        bytes32[] memory _balanceSlots
+    ) external;
+
+    /**
+     * @notice Register a single token
+     * @param _tokenID Token ID
+     * @param _tokenAddress Token contract address
+     * @param _balanceSlot Balance storage slot
+     */
+    function registerToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot) external;
+
+    /**
+     * @notice Update token information
+     * @param _tokenID Token ID
+     * @param _tokenAddress New token contract address
+     * @param _balanceSlot New balance storage slot
+     * @param _isActive Whether to activate
+     */
+    function updateTokenInfo(
+        uint16 _tokenID,
+        address _tokenAddress,
+        bytes32 _balanceSlot,
+        bool _isActive
+    ) external;
+
+    /**
+     * @notice Deactivate token
+     * @param _tokenID Token ID
+     */
+    function deactivateToken(uint16 _tokenID) external;
+
+    /*//////////////////////////////////////////////////////////////
+                            Price Management Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Update price ratio
+     * @param _tokenID Token ID
+     * @param _newPrice New price ratio (relative to ETH)
+     */
+    function updatePriceRatio(uint16 _tokenID, uint256 _newPrice) external;
+
+    /**
+     * @notice Batch update price ratios
+     * @param _tokenIDs Array of token IDs
+     * @param _prices Array of price ratios
+     */
+    function batchUpdatePrices(uint16[] memory _tokenIDs, uint256[] memory _prices) external;
+
+    /**
+     * @notice Get token price
+     * @param _tokenID Token ID
+     * @return price Price ratio
+     */
+    function getTokenPrice(uint16 _tokenID) external view returns (uint256);
+
+    /**
+     * @notice Calculate the gas price for a specified ERC20 token as gas fee
+     * @param _tokenID Token ID of the ERC20 token
+     * @param _ethGasPrice ETH gas price (unit: wei)
+     * @return tokenGasPrice Corresponding ERC20 token gas price (unit: token's smallest unit)
+     */
+    function calculateTokenGasPrice(
+        uint16 _tokenID,
+        uint256 _ethGasPrice
+    ) external view returns (uint256 tokenGasPrice);
+
+    /**
+     * @notice Calculate corresponding ETH gas price from ERC20 token gas price
+     * @param _tokenID ERC20 token ID
+     * @param _tokenGasPrice ERC20 token gas price (token unit)
+     * @return ethGasPrice ETH gas price (wei unit)
+     */
+    function calculateEthGasPrice(uint16 _tokenID, uint256 _tokenGasPrice) external view returns (uint256 ethGasPrice);
+
+    /**
+     * @notice Get token information
+     * @param _tokenID Token ID
+     * @return TokenInfo structure
+     */
+    function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory);
+
+    /**
+     * @notice Get token ID by address
+     * @param tokenAddress Token address
+     * @return tokenID Token ID
+     */
+    function getTokenIdByAddress(address tokenAddress) external view returns (uint16);
+
+    /*//////////////////////////////////////////////////////////////
+                            Fee Discount Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Update fee discount percentage
+     * @param _tokenID Token ID
+     * @param _newPercent New fee discount percentage (basis points, 10000 = 100%)
+     */
+    function updateFeeDiscountPercent(uint16 _tokenID, uint256 _newPercent) external;
+
+    /**
+     * @notice Get fee discount percentage
+     * @param _tokenID Token ID
+     * @return percent Fee discount percentage
+     */
+    function getFeeDiscountPercent(uint16 _tokenID) external view returns (uint256);
+
+    /*//////////////////////////////////////////////////////////////
+                            View Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Check if token is active
+     * @param _tokenID Token ID
+     * @return Whether the token is active
+     */
+    function isTokenActive(uint16 _tokenID) external view returns (bool);
+}
+

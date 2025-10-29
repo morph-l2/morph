@@ -32,14 +32,14 @@ contract ERC20PriceOracleTest is Test {
     bytes32 constant BALANCE_SLOT_DAI = bytes32(uint256(11));
 
     function setUp() public {
-        // 部署代理管理
+        // Deploy proxy admin
         vm.prank(multisig);
         proxyAdmin = new ProxyAdmin();
 
-        // 部署实现合约
+        // Deploy implementation contract
         priceOracleImpl = new ERC20PriceOracle();
 
-        // 部署代理并初始化
+        // Deploy proxy and initialize
         vm.prank(multisig);
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(priceOracleImpl),
@@ -49,7 +49,7 @@ contract ERC20PriceOracleTest is Test {
 
         priceOracle = ERC20PriceOracle(payable(address(proxy)));
 
-        // 部署 Mock ERC20 tokens
+        // Deploy Mock ERC20 tokens
         usdc = new MockERC20("USD Coin", "USDC", 6);
         usdt = new MockERC20("Tether USD", "USDT", 6);
         dai = new MockERC20("Dai Stablecoin", "DAI", 18);
@@ -196,7 +196,7 @@ contract ERC20PriceOracleTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
 
-        // 更新为 DAI 地址
+        // Update to DAI address
         vm.prank(owner);
         priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(dai), BALANCE_SLOT_USDC, true);
 
@@ -228,7 +228,7 @@ contract ERC20PriceOracleTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
 
-        // 设置价格：1 USDC = 0.000001 ETH = 1e12 wei
+        // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
         uint256 priceRatio = 1e12;
 
         vm.prank(owner);
@@ -315,7 +315,7 @@ contract ERC20PriceOracleTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
 
-        // 设置价格：1 USDC = 0.000001 ETH = 1e12 wei
+        // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
         vm.prank(owner);
         priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
 
@@ -331,7 +331,7 @@ contract ERC20PriceOracleTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
 
-        // 设置价格：1 USDC = 0.000001 ETH = 1e12 wei
+        // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
         vm.prank(owner);
         priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
 
@@ -347,7 +347,7 @@ contract ERC20PriceOracleTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI);
 
-        // 设置价格：1 DAI = 0.001 ETH = 1e15 wei
+        // Set price: 1 DAI = 0.001 ETH = 1e15 wei
         vm.prank(owner);
         priceOracle.updatePriceRatio(TOKEN_ID_DAI, 1e15);
 

@@ -9,42 +9,42 @@ interface IERC20Infos {
 
 /**
  * @title ERC20PriceOracle
- * @dev TokenRegistry 合约 - 用于注册 tokenID、管理代币信息和价格
- * @notice 在以 ERC20 作为 gas 费用支付的交易场景中，用于存储价格和 token 注册功能
+ * @dev TokenRegistry contract - Used for registering tokenID and managing token information and prices
+ * @notice In the transaction scenario where ERC20 is used as gas fee payment, used for storing prices and token registration functionality
  */
 contract ERC20PriceOracle is OwnableUpgradeable {
     /*//////////////////////////////////////////////////////////////
                                Structs
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Token 信息结构
+    /// @notice Token information structure
     struct TokenInfo {
-        address tokenAddress; // ERC20 代币合约地址
-        bytes32 balanceSlot; // 代币余额存储槽 bytes32(0) -> nil
-        bool isActive; // 代币是否激活
-        uint8 decimals; // 代币精度
+        address tokenAddress; // ERC20 token contract address
+        bytes32 balanceSlot; // Token balance storage slot, bytes32(0) -> nil
+        bool isActive; // Whether the token is active
+        uint8 decimals; // Token decimals
     }
 
     /*//////////////////////////////////////////////////////////////
                                Storage
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice tokenID 到 TokenInfo 的映射
+    /// @notice Mapping from tokenID to TokenInfo
     mapping(uint16 => TokenInfo) public tokenRegistry;
 
-    /// @notice token 地址到 tokenID 的映射
+    /// @notice Mapping from token address to tokenID
     mapping(address => uint16) public tokenRegistration;
 
-    /// @notice tokenID 到价格比率的映射（相对于 ETH）
+    /// @notice Mapping from tokenID to price ratio (relative to ETH)
     mapping(uint16 => uint256) public priceRatio;
 
-    /// @notice tokenID 到手续费减免百分比的映射
+    /// @notice Mapping from tokenID to fee discount percentage
     mapping(uint16 => uint256) public feeDiscountPercent;
 
-    /// @notice Allow List 白名单
+    /// @notice Allow List whitelist
     mapping(address => bool) public allowList;
 
-    /// @notice 是否启用白名单
+    /// @notice Whether whitelist is enabled
     bool public allowListEnabled = true;
 
     /*//////////////////////////////////////////////////////////////
@@ -98,8 +98,8 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 初始化函数，用于代理部署
-     * @param owner_ 合约所有者地址
+     * @notice Initialize function for proxy deployment
+     * @param owner_ Contract owner address
      */
     function initialize(address owner_) external initializer {
         _transferOwnership(owner_);
@@ -111,9 +111,9 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice 设置 Allow List
-     * @param user 用户地址数组
-     * @param val 权限值数组
+     * @notice Set Allow List
+     * @param user Array of user addresses
+     * @param val Array of permission values
      */
     function setAllowList(address[] memory user, bool[] memory val) external onlyOwner {
         if (user.length != val.length) revert DifferentLength();
@@ -125,8 +125,8 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 设置是否启用 Allow List
-     * @param _allowListEnabled 是否启用
+     * @notice Set whether Allow List is enabled
+     * @param _allowListEnabled Whether to enable
      */
     function setAllowListEnabled(bool _allowListEnabled) external onlyOwner {
         allowListEnabled = _allowListEnabled;
@@ -134,7 +134,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 检查是否在 Allow List 中
+     * @notice Check if caller is in Allow List
      */
     modifier onlyAllowed() {
         if (allowListEnabled && !allowList[msg.sender] && msg.sender != owner()) {
@@ -148,10 +148,10 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice 批量注册 token
-     * @param _tokenIDs token ID 数组
-     * @param _tokenAddresses token 地址数组
-     * @param _balanceSlots 余额存储槽数组
+     * @notice Batch register tokens
+     * @param _tokenIDs Array of token IDs
+     * @param _tokenAddresses Array of token addresses
+     * @param _balanceSlots Array of balance storage slots
      */
     function registerTokens(
         uint16[] memory _tokenIDs,
@@ -170,10 +170,10 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 注册单个 token
-     * @param _tokenID token ID
-     * @param _tokenAddress token 合约地址
-     * @param _balanceSlot 余额存储槽
+     * @notice Register a single token
+     * @param _tokenID Token ID
+     * @param _tokenAddress Token contract address
+     * @param _balanceSlot Balance storage slot
      */
     function registerToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot) external onlyOwner {
         _registerSingleToken(_tokenID, _tokenAddress, _balanceSlot);
@@ -183,27 +183,27 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 内部函数：注册单个 token
+     * @notice Internal function: Register a single token
      */
     function _registerSingleToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot) internal {
-        // 检查 token 地址
+        // Check token address
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
-        // 检查是否已注册
+        // Check if already registered
         if (tokenRegistry[_tokenID].tokenAddress == address(0) && tokenRegistration[_tokenAddress] != 0) {
             revert TokenAlreadyRegistered();
         }
 
-        // 从合约获取 decimals
-        uint8 decimals = 18; // 默认值
+        // Get decimals from contract
+        uint8 decimals = 18; // Default value
         try IERC20Infos(_tokenAddress).decimals() returns (uint8 v) {
             if (v > 18) revert InvalidDecimals();
             decimals = v;
         } catch {
-            // 如果调用失败，使用默认值 18
+            // If call fails, use default value 18
         }
 
-        // 注册 token（isActive 默认为 false）
+        // Register token (isActive defaults to false)
         tokenRegistry[_tokenID] = TokenInfo({
             tokenAddress: _tokenAddress,
             balanceSlot: _balanceSlot,
@@ -214,11 +214,11 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 更新 token 信息
-     * @param _tokenID token ID
-     * @param _tokenAddress 新的 token 合约地址
-     * @param _balanceSlot 新的余额存储槽
-     * @param _isActive 是否激活
+     * @notice Update token information
+     * @param _tokenID Token ID
+     * @param _tokenAddress New token contract address
+     * @param _balanceSlot New balance storage slot
+     * @param _isActive Whether to activate
      */
     function updateTokenInfo(
         uint16 _tokenID,
@@ -226,22 +226,22 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         bytes32 _balanceSlot,
         bool _isActive
     ) external onlyOwner {
-        // 检查 token 是否存在
+        // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
-        // 检查新信息
+        // Check new information
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
-        // 从合约获取 decimals
-        uint8 decimals = 18; // 默认值
+        // Get decimals from contract
+        uint8 decimals = 18; // Default value
         try IERC20Infos(_tokenAddress).decimals() returns (uint8 v) {
             if (v > 18) revert InvalidDecimals();
             decimals = v;
         } catch {
-            // 如果调用失败，使用默认值 18
+            // If call fails, use default value 18
         }
 
-        // 更新注册信息
+        // Update registration information
         address oldAddress = tokenRegistry[_tokenID].tokenAddress;
         tokenRegistry[_tokenID] = TokenInfo({
             tokenAddress: _tokenAddress,
@@ -250,7 +250,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
             decimals: decimals
         });
 
-        // 更新地址映射
+        // Update address mapping
         if (oldAddress != _tokenAddress) {
             delete tokenRegistration[oldAddress];
             tokenRegistration[_tokenAddress] = _tokenID;
@@ -260,14 +260,14 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 停用 token
-     * @param _tokenID token ID
+     * @notice Deactivate token
+     * @param _tokenID Token ID
      */
     function deactivateToken(uint16 _tokenID) external onlyOwner {
-        // 检查 token 是否存在
+        // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
-        // 停用 token
+        // Deactivate token
         tokenRegistry[_tokenID].isActive = false;
 
         emit TokenDeactivated(_tokenID);
@@ -278,12 +278,12 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice 更新价格比率
-     * @param _tokenID token ID
-     * @param _newPrice 新的价格比率（相对于 ETH）
+     * @notice Update price ratio
+     * @param _tokenID Token ID
+     * @param _newPrice New price ratio (relative to ETH)
      */
     function updatePriceRatio(uint16 _tokenID, uint256 _newPrice) external onlyAllowed {
-        // 检查 token 是否存在
+        // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
         if (_newPrice == 0) revert InvalidPrice();
@@ -294,9 +294,9 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 批量更新价格比率
-     * @param _tokenIDs token ID 数组
-     * @param _prices 价格比率数组
+     * @notice Batch update price ratios
+     * @param _tokenIDs Array of token IDs
+     * @param _prices Array of price ratios
      */
     function batchUpdatePrices(uint16[] memory _tokenIDs, uint256[] memory _prices) external onlyAllowed {
         if (_tokenIDs.length != _prices.length) revert InvalidArrayLength();
@@ -311,68 +311,68 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 获取 token 价格
-     * @param _tokenID token ID
-     * @return price 价格比率
+     * @notice Get token price
+     * @param _tokenID Token ID
+     * @return price Price ratio
      */
     function getTokenPrice(uint16 _tokenID) external view returns (uint256) {
-        // 检查 token 是否存在
+        // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
         return priceRatio[_tokenID];
     }
 
     /**
-     * @notice 计算指定 ERC20 Token 作为 gas 费用的价格
-     * @dev 计算公式：tokenGasPrice = (ethGasPrice * 10^decimals) / priceRatio
-     * @param _tokenID ERC20 代币的 token ID
-     * @param _ethGasPrice ETH 的 gas price（单位: wei）
-     * @return tokenGasPrice 对应的 ERC20 token gas price（单位: token 的最小单位）
-     * - 先将 ethGasPrice 扩大 10^decimals 倍以补偿代币精度
-     * - 然后除以该 token 当前设定的 priceRatio
-     * - 若 token 未注册或 priceRatio 未设置，将抛出相应异常
+     * @notice Calculate the gas price for a specified ERC20 token as gas fee
+     * @dev Calculation formula: tokenGasPrice = (ethGasPrice * 10^decimals) / priceRatio
+     * @param _tokenID Token ID of the ERC20 token
+     * @param _ethGasPrice ETH gas price (unit: wei)
+     * @return tokenGasPrice Corresponding ERC20 token gas price (unit: token's smallest unit)
+     * - First scale ethGasPrice by 10^decimals to compensate for token precision
+     * - Then divide by the token's current priceRatio
+     * - Will revert if token is not registered or priceRatio is not set
      */
     function calculateTokenGasPrice(
         uint16 _tokenID,
         uint256 _ethGasPrice
     ) external view returns (uint256 tokenGasPrice) {
-        // 校验：token 必须已注册
+        // Validate: token must be registered
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
-        // 获取代币对应的 ETH 价格比率（priceRatio）及精度（decimals）
+        // Get token's ETH price ratio (priceRatio) and precision (decimals)
         uint256 ratio = priceRatio[_tokenID];
         if (ratio == 0) revert InvalidPrice();
 
         uint8 decimals = tokenRegistry[_tokenID].decimals;
 
-        // 扩大精度：ethGasPrice * 10^decimals
+        // Scale precision: ethGasPrice * 10^decimals
         uint256 scaledPrice = _ethGasPrice * (10 ** decimals);
 
-        // 转换为 token 价格
+        // Convert to token price
         tokenGasPrice = scaledPrice / ratio;
 
         return tokenGasPrice;
     }
 
     /**
-     * @notice 根据 ERC20 token gas 价格计算对应的 ETH gas 价格
+     * @notice Calculate corresponding ETH gas price from ERC20 token gas price
      * @param _tokenID ERC20 token ID
-     * @param _tokenGasPrice ERC20 token gas 价格（token 单位）
-     * @return ethGasPrice ETH gas 价格（wei 单位）
-     * @dev 价格计算公式：
+     * @param _tokenGasPrice ERC20 token gas price (token unit)
+     * @return ethGasPrice ETH gas price (wei unit)
+     * @dev Price calculation formula:
      *      - ethGasPrice = (tokenGasPrice * priceRatio) / 10^decimals
      */
     function calculateEthGasPrice(uint16 _tokenID, uint256 _tokenGasPrice) external view returns (uint256 ethGasPrice) {
-        // 检查 token 是否存在
+        // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
-        // 获取 priceRatio 和 decimals
+        // Get priceRatio and decimals
         uint256 ratio = priceRatio[_tokenID];
         if (ratio == 0) revert InvalidPrice();
 
         uint8 decimals = tokenRegistry[_tokenID].decimals;
 
-        // 计算：eth gas price = (token gas price * priceRatio) / 10^decimals
+        // Calculate: eth gas price = (token gas price * priceRatio) / 10^decimals
         uint256 scaledPrice = _tokenGasPrice * ratio;
         ethGasPrice = scaledPrice / (10 ** decimals);
 
@@ -380,9 +380,9 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 获取 token 信息
-     * @param _tokenID token ID
-     * @return TokenInfo 结构
+     * @notice Get token information
+     * @param _tokenID Token ID
+     * @return TokenInfo structure
      */
     function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
@@ -390,9 +390,9 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 通过地址获取 token ID
-     * @param tokenAddress token 地址
-     * @return tokenID token ID
+     * @notice Get token ID by address
+     * @param tokenAddress Token address
+     * @return tokenID Token ID
      */
     function getTokenIdByAddress(address tokenAddress) external view returns (uint16) {
         uint16 tokenID = tokenRegistration[tokenAddress];
@@ -405,15 +405,15 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice 更新手续费减免百分比
-     * @param _tokenID token ID
-     * @param _newPercent 新的手续费减免百分比（基点，10000 = 100%）
+     * @notice Update fee discount percentage
+     * @param _tokenID Token ID
+     * @param _newPercent New fee discount percentage (basis points, 10000 = 100%)
      */
     function updateFeeDiscountPercent(uint16 _tokenID, uint256 _newPercent) external onlyAllowed {
-        // 检查 token 是否存在
+        // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
-        // 检查百分比范围（0-100%）
+        // Check percentage range (0-100%)
         if (_newPercent > 10000) revert InvalidPercent();
 
         feeDiscountPercent[_tokenID] = _newPercent;
@@ -422,9 +422,9 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice 获取手续费减免百分比
-     * @param _tokenID token ID
-     * @return percent 手续费减免百分比
+     * @notice Get fee discount percentage
+     * @param _tokenID Token ID
+     * @return percent Fee discount percentage
      */
     function getFeeDiscountPercent(uint16 _tokenID) external view returns (uint256) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
@@ -435,9 +435,9 @@ contract ERC20PriceOracle is OwnableUpgradeable {
                             View Functions
     //////////////////////////////////////////////////////////////*/
     /**
-     * @notice 检查 token 是否激活
-     * @param _tokenID token ID
-     * @return 是否激活
+     * @notice Check if token is active
+     * @param _tokenID Token ID
+     * @return Whether the token is active
      */
     function isTokenActive(uint16 _tokenID) external view returns (bool) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) return false;
