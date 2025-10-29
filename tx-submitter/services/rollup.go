@@ -1157,7 +1157,9 @@ func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip,
 		Commitments: batch.Sidecar.Commitments,
 		Proofs:      batch.Sidecar.Proofs,
 	}
-	sidecar.ToV1()
+	if err := sidecar.ToV1(); err != nil {
+		return nil, errors.New(fmt.Sprintf("cannot set sidecatr to v1, %v", err))
+	}
 	return ethtypes.NewTx(&ethtypes.BlobTx{
 		ChainID:    uint256.MustFromBig(r.chainId),
 		Nonce:      nonce,
