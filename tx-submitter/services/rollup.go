@@ -1152,11 +1152,12 @@ func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, ti
 
 func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte) (*ethtypes.Transaction, error) {
 	sidecar := &ethtypes.BlobTxSidecar{
-		Version:     ethtypes.BlobSidecarVersion1,
+		Version:     ethtypes.BlobSidecarVersion0,
 		Blobs:       batch.Sidecar.Blobs,
 		Commitments: batch.Sidecar.Commitments,
 		Proofs:      batch.Sidecar.Proofs,
 	}
+	sidecar.ToV1()
 	return ethtypes.NewTx(&ethtypes.BlobTx{
 		ChainID:    uint256.MustFromBig(r.chainId),
 		Nonce:      nonce,
