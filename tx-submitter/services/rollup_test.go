@@ -8,27 +8,10 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
-	"github.com/morph-l2/go-ethereum/params"
 	"github.com/stretchr/testify/require"
-
-	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 
 	"morph-l2/tx-submitter/utils"
 )
-
-func TestMulF(t *testing.T) {
-	var blobFee *big.Int
-	ExcessBlobGas := 118836562
-	blobFee = eip4844.CalcBlobFee(uint64(ExcessBlobGas))
-	// Set to 3x to handle blob market congestion
-	blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
-	t.Log(blobFee)
-
-	minBlobGasPrice := big.NewInt(params.BlobTxMinBlobGasprice)
-	blobFee = fakeExponential(minBlobGasPrice, new(big.Int).SetUint64(uint64(ExcessBlobGas)), new(big.Int).SetUint64(5007716))
-	t.Log(blobFee)
-
-}
 
 func TestSendTx(t *testing.T) {
 	// Create a new dynamic fee transaction
