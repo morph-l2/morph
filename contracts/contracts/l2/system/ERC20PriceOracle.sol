@@ -23,6 +23,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         bytes32 balanceSlot; // Token balance storage slot, bytes32(0) -> nil
         bool isActive; // Whether the token is active
         uint8 decimals; // Token decimals
+        uint256 scale; // Core convention: rateScaled = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -36,6 +37,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     mapping(address => uint16) public tokenRegistration;
 
     /// @notice Mapping from tokenID to price ratio (relative to ETH)
+    /// @dev priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
     mapping(uint16 => uint256) public priceRatio;
 
     /// @notice Mapping from tokenID to fee discount percentage
@@ -56,7 +58,8 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         address indexed tokenAddress,
         bytes32 balanceSlot,
         bool isActive,
-        uint8 decimals
+        uint8 decimals,
+        uint256 scale
     );
     event TokensRegistered(uint16[] tokenIDs, address[] tokenAddresses);
     event TokenInfoUpdated(
@@ -64,11 +67,13 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         address indexed tokenAddress,
         bytes32 balanceSlot,
         bool isActive,
-        uint8 decimals
+        uint8 decimals,
+        uint256 scale
     );
     event TokenDeactivated(uint16 indexed tokenID);
     event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
     event FeeDiscountPercentUpdated(uint16 indexed tokenID, uint256 newPercent);
+    event TokenScaleUpdated(uint16 indexed tokenID, uint256 newScale);
     event AllowListSet(address indexed user, bool val);
     event AllowListEnabledUpdated(bool isEnabled);
 
@@ -152,18 +157,24 @@ contract ERC20PriceOracle is OwnableUpgradeable {
      * @param _tokenIDs Array of token IDs
      * @param _tokenAddresses Array of token addresses
      * @param _balanceSlots Array of balance storage slots
+     * @param _scales Array of scale values
      */
     function registerTokens(
         uint16[] memory _tokenIDs,
         address[] memory _tokenAddresses,
-        bytes32[] memory _balanceSlots
+        bytes32[] memory _balanceSlots,
+        uint256[] memory _scales
     ) external onlyOwner {
-        if (_tokenIDs.length != _tokenAddresses.length || _tokenIDs.length != _balanceSlots.length) {
+        if (
+            _tokenIDs.length != _tokenAddresses.length ||
+            _tokenIDs.length != _balanceSlots.length ||
+            _tokenIDs.length != _scales.length
+        ) {
             revert InvalidArrayLength();
         }
 
         for (uint256 i = 0; i < _tokenIDs.length; i++) {
-            _registerSingleToken(_tokenIDs[i], _tokenAddresses[i], _balanceSlots[i]);
+            _registerSingleToken(_tokenIDs[i], _tokenAddresses[i], _balanceSlots[i], _scales[i]);
         }
 
         emit TokensRegistered(_tokenIDs, _tokenAddresses);
@@ -174,18 +185,24 @@ contract ERC20PriceOracle is OwnableUpgradeable {
      * @param _tokenID Token ID
      * @param _tokenAddress Token contract address
      * @param _balanceSlot Balance storage slot
+     * @param _scale Scale value
      */
-    function registerToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot) external onlyOwner {
-        _registerSingleToken(_tokenID, _tokenAddress, _balanceSlot);
+    function registerToken(
+        uint16 _tokenID,
+        address _tokenAddress,
+        bytes32 _balanceSlot,
+        uint256 _scale
+    ) external onlyOwner {
+        _registerSingleToken(_tokenID, _tokenAddress, _balanceSlot, _scale);
 
         TokenInfo memory info = tokenRegistry[_tokenID];
-        emit TokenRegistered(_tokenID, _tokenAddress, _balanceSlot, info.isActive, info.decimals);
+        emit TokenRegistered(_tokenID, _tokenAddress, _balanceSlot, info.isActive, info.decimals, _scale);
     }
 
     /**
      * @notice Internal function: Register a single token
      */
-    function _registerSingleToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot) internal {
+    function _registerSingleToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot, uint256 _scale) internal {
         // Check token address
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
@@ -208,7 +225,8 @@ contract ERC20PriceOracle is OwnableUpgradeable {
             tokenAddress: _tokenAddress,
             balanceSlot: _balanceSlot,
             isActive: false,
-            decimals: decimals
+            decimals: decimals,
+            scale: _scale
         });
         tokenRegistration[_tokenAddress] = _tokenID;
     }
@@ -219,12 +237,14 @@ contract ERC20PriceOracle is OwnableUpgradeable {
      * @param _tokenAddress New token contract address
      * @param _balanceSlot New balance storage slot
      * @param _isActive Whether to activate
+     * @param _scale Scale value
      */
     function updateTokenInfo(
         uint16 _tokenID,
         address _tokenAddress,
         bytes32 _balanceSlot,
-        bool _isActive
+        bool _isActive,
+        uint256 _scale
     ) external onlyOwner {
         // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
@@ -247,7 +267,8 @@ contract ERC20PriceOracle is OwnableUpgradeable {
             tokenAddress: _tokenAddress,
             balanceSlot: _balanceSlot,
             isActive: _isActive,
-            decimals: decimals
+            decimals: decimals,
+            scale: _scale
         });
 
         // Update address mapping
@@ -256,7 +277,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
             tokenRegistration[_tokenAddress] = _tokenID;
         }
 
-        emit TokenInfoUpdated(_tokenID, _tokenAddress, _balanceSlot, _isActive, decimals);
+        emit TokenInfoUpdated(_tokenID, _tokenAddress, _balanceSlot, _isActive, decimals, _scale);
     }
 
     /**
@@ -281,6 +302,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
      * @notice Update price ratio
      * @param _tokenID Token ID
      * @param _newPrice New price ratio (relative to ETH)
+     * @dev priceRatio should follow: priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
      */
     function updatePriceRatio(uint16 _tokenID, uint256 _newPrice) external onlyAllowed {
         // Check if token exists
@@ -323,60 +345,37 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice Calculate the gas price for a specified ERC20 token as gas fee
-     * @dev Calculation formula: tokenGasPrice = (ethGasPrice * 10^decimals) / priceRatio
+     * @notice Calculate the corresponding token amount for a given ETH amount
+     * @dev Calculation formula:
+     *      - ratio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
+     *      - tokenAmount = (ethAmount * 10^tokenDecimals) / ratio
+     *      - Substituting ratio: tokenAmount = (ethAmount * 10^tokenDecimals) / (tokenScale * (tokenPrice / ethPrice) * 10^(18 - tokenDecimals))
+     *      - Simplified: tokenAmount = (ethAmount * 10^tokenDecimals * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18 / ethPrice)
+     *      - Final: tokenAmount = (ethAmount * ethPrice * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18)
      * @param _tokenID Token ID of the ERC20 token
-     * @param _ethGasPrice ETH gas price (unit: wei)
-     * @return tokenGasPrice Corresponding ERC20 token gas price (unit: token's smallest unit)
-     * - First scale ethGasPrice by 10^decimals to compensate for token precision
-     * - Then divide by the token's current priceRatio
+     * @param _ethAmount ETH amount (unit: wei)
+     * @return tokenAmount Corresponding token amount (unit: token's smallest unit)
+     * - ratio follows: ratio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
      * - Will revert if token is not registered or priceRatio is not set
      */
-    function calculateTokenGasPrice(
-        uint16 _tokenID,
-        uint256 _ethGasPrice
-    ) external view returns (uint256 tokenGasPrice) {
+    function calculateTokenAmount(uint16 _tokenID, uint256 _ethAmount) external view returns (uint256 tokenAmount) {
         // Validate: token must be registered
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
-        // Get token's ETH price ratio (priceRatio) and precision (decimals)
+        // Get token information
+        TokenInfo memory info = tokenRegistry[_tokenID];
+
+        // Get priceRatio which follows:
+        // ratio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
         uint256 ratio = priceRatio[_tokenID];
         if (ratio == 0) revert InvalidPrice();
 
-        uint8 decimals = tokenRegistry[_tokenID].decimals;
+        // Calculate token amount:
+        // tokenAmount = (ethAmount * tokenScale) / ratio
+        // where ratio already contains tokenScale and decimals adjustment to eth (wei) and token smallest unit.
+        tokenAmount = (_ethAmount * uint256(info.scale)) / ratio;
 
-        // Scale precision: ethGasPrice * 10^decimals
-        uint256 scaledPrice = _ethGasPrice * (10 ** decimals);
-
-        // Convert to token price
-        tokenGasPrice = scaledPrice / ratio;
-
-        return tokenGasPrice;
-    }
-
-    /**
-     * @notice Calculate corresponding ETH gas price from ERC20 token gas price
-     * @param _tokenID ERC20 token ID
-     * @param _tokenGasPrice ERC20 token gas price (token unit)
-     * @return ethGasPrice ETH gas price (wei unit)
-     * @dev Price calculation formula:
-     *      - ethGasPrice = (tokenGasPrice * priceRatio) / 10^decimals
-     */
-    function calculateEthGasPrice(uint16 _tokenID, uint256 _tokenGasPrice) external view returns (uint256 ethGasPrice) {
-        // Check if token exists
-        if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
-
-        // Get priceRatio and decimals
-        uint256 ratio = priceRatio[_tokenID];
-        if (ratio == 0) revert InvalidPrice();
-
-        uint8 decimals = tokenRegistry[_tokenID].decimals;
-
-        // Calculate: eth gas price = (token gas price * priceRatio) / 10^decimals
-        uint256 scaledPrice = _tokenGasPrice * ratio;
-        ethGasPrice = scaledPrice / (10 ** decimals);
-
-        return ethGasPrice;
+        return tokenAmount;
     }
 
     /**
@@ -429,6 +428,35 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     function getFeeDiscountPercent(uint16 _tokenID) external view returns (uint256) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
         return feeDiscountPercent[_tokenID];
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Scale Management
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Update token scale
+     * @param _tokenID Token ID
+     * @param _newScale New scale value
+     * @dev Core convention: rateScaled = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
+     */
+    function updateTokenScale(uint16 _tokenID, uint256 _newScale) external onlyAllowed {
+        // Check if token exists
+        if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
+
+        tokenRegistry[_tokenID].scale = _newScale;
+
+        emit TokenScaleUpdated(_tokenID, _newScale);
+    }
+
+    /**
+     * @notice Get token scale
+     * @param _tokenID Token ID
+     * @return scale Token scale value
+     */
+    function getTokenScale(uint16 _tokenID) external view returns (uint256) {
+        if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
+        return tokenRegistry[_tokenID].scale;
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -31,6 +31,10 @@ contract ERC20PriceOracleTest is Test {
     bytes32 constant BALANCE_SLOT_USDT = bytes32(uint256(10));
     bytes32 constant BALANCE_SLOT_DAI = bytes32(uint256(11));
 
+    uint256 constant SCALE_USDC = 1e6; // 10^6
+    uint256 constant SCALE_USDT = 1e6; // 10^6
+    uint256 constant SCALE_DAI = 1e18; // 10^18
+
     function setUp() public {
         // Deploy proxy admin
         vm.prank(multisig);
@@ -84,7 +88,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_registerToken_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         ERC20PriceOracle.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.tokenAddress, address(usdc));
@@ -95,13 +99,13 @@ contract ERC20PriceOracleTest is Test {
 
     function test_registerToken_autoFetchesDecimals() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         ERC20PriceOracle.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.decimals, 6); // USDC has 6 decimals
 
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, SCALE_DAI);
 
         info = priceOracle.getTokenInfo(TOKEN_ID_DAI);
         assertEq(info.decimals, 18); // DAI has 18 decimals
@@ -109,7 +113,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_registerToken_setsIsActiveToFalse() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         ERC20PriceOracle.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertFalse(info.isActive);
@@ -118,13 +122,13 @@ contract ERC20PriceOracleTest is Test {
     function test_registerToken_reverts_when_not_owner() public {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(alice);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
     }
 
     function test_registerToken_reverts_when_tokenAddress_zero() public {
         vm.expectRevert(bytes4(keccak256("InvalidTokenAddress()")));
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(0), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(0), BALANCE_SLOT_USDC, SCALE_USDC);
     }
 
     function test_registerTokens_succeeds() public {
@@ -144,8 +148,13 @@ contract ERC20PriceOracleTest is Test {
         balanceSlots[1] = BALANCE_SLOT_USDT;
         balanceSlots[2] = BALANCE_SLOT_DAI;
 
+        uint256[] memory scales = new uint256[](3);
+        scales[0] = SCALE_USDC;
+        scales[1] = SCALE_USDT;
+        scales[2] = SCALE_DAI;
+
         vm.prank(owner);
-        priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots);
+        priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots, scales);
 
         assertEq(priceOracle.getTokenInfo(TOKEN_ID_USDC).tokenAddress, address(usdc));
         assertEq(priceOracle.getTokenInfo(TOKEN_ID_USDT).tokenAddress, address(usdt));
@@ -156,15 +165,16 @@ contract ERC20PriceOracleTest is Test {
         uint16[] memory tokenIDs = new uint16[](2);
         address[] memory tokenAddresses = new address[](3);
         bytes32[] memory balanceSlots = new bytes32[](2);
+        uint256[] memory scales = new uint256[](2);
 
         vm.expectRevert(bytes4(keccak256("InvalidArrayLength()")));
         vm.prank(owner);
-        priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots);
+        priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots, scales);
     }
 
     function test_getTokenIdByAddress_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         uint16 tokenID = priceOracle.getTokenIdByAddress(address(usdc));
         assertEq(tokenID, TOKEN_ID_USDC);
@@ -181,11 +191,11 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updateTokenInfo_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         bytes32 newBalanceSlot = bytes32(uint256(99));
         vm.prank(owner);
-        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), newBalanceSlot, true);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), newBalanceSlot, true, SCALE_USDC);
 
         ERC20PriceOracle.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.balanceSlot, newBalanceSlot);
@@ -194,11 +204,11 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updateTokenInfo_autoFetchesDecimals() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         // Update to DAI address
         vm.prank(owner);
-        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(dai), BALANCE_SLOT_USDC, true);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(dai), BALANCE_SLOT_USDC, true, SCALE_DAI);
 
         ERC20PriceOracle.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.tokenAddress, address(dai));
@@ -207,10 +217,10 @@ contract ERC20PriceOracleTest is Test {
 
     function test_deactivateToken_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         vm.prank(owner);
-        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
         assertTrue(priceOracle.getTokenInfo(TOKEN_ID_USDC).isActive);
 
@@ -226,7 +236,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updatePriceRatio_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
         uint256 priceRatio = 1e12;
@@ -239,7 +249,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updatePriceRatio_reverts_when_not_allowed() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
         vm.prank(alice);
@@ -248,7 +258,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updatePriceRatio_succeeds_when_allowListDisabled() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         vm.prank(owner);
         priceOracle.setAllowListEnabled(false);
@@ -261,7 +271,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updatePriceRatio_succeeds_when_in_allowList() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         address[] memory users = new address[](1);
         bool[] memory allowed = new bool[](1);
@@ -279,7 +289,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updatePriceRatio_reverts_when_invalid_price() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         vm.expectRevert(bytes4(keccak256("InvalidPrice()")));
         vm.prank(owner);
@@ -288,9 +298,9 @@ contract ERC20PriceOracleTest is Test {
 
     function test_batchUpdatePrices_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
 
         uint16[] memory tokenIDs = new uint16[](2);
         uint256[] memory prices = new uint256[](2);
@@ -313,7 +323,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_calculateTokenGasPrice_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
         vm.prank(owner);
@@ -321,15 +331,15 @@ contract ERC20PriceOracleTest is Test {
 
         // ETH gas price = 1 gwei = 1e9 wei
         uint256 ethGasPrice = 1 gwei;
-        uint256 expectedTokenGasPrice = (ethGasPrice * 1e6) / 1e12; // (1e9 * 1e6) / 1e12 = 1e3
+        uint256 expectedTokenAmount = (ethGasPrice * SCALE_USDC) / 1e12; // (1e9 * 1e6) / 1e12 = 1e3
 
-        uint256 tokenGasPrice = priceOracle.calculateTokenGasPrice(TOKEN_ID_USDC, ethGasPrice);
-        assertEq(tokenGasPrice, expectedTokenGasPrice);
+        uint256 tokenGasAmount = priceOracle.calculateTokenAmount(TOKEN_ID_USDC, ethGasPrice);
+        assertEq(tokenGasAmount, expectedTokenAmount);
     }
 
     function test_calculateEthGasPrice_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
         vm.prank(owner);
@@ -337,15 +347,18 @@ contract ERC20PriceOracleTest is Test {
 
         // Token gas price = 1000 USDC
         uint256 tokenGasPrice = 1000;
-        uint256 expectedEthGasPrice = (tokenGasPrice * 1e12) / 1e6; // (1000 * 1e12) / 1e6 = 1e9
+        uint256 expectedEthGasPrice = (tokenGasPrice * 1e12) / SCALE_USDC; // (1000 * 1e12) / 1e6 = 1e9
 
-        uint256 ethGasPrice = priceOracle.calculateEthGasPrice(TOKEN_ID_USDC, tokenGasPrice);
+        // Inverse using on-chain values
+        uint256 ratio = priceOracle.getTokenPrice(TOKEN_ID_USDC);
+        uint256 scale = priceOracle.getTokenInfo(TOKEN_ID_USDC).scale;
+        uint256 ethGasPrice = (tokenGasPrice * ratio) / scale;
         assertEq(ethGasPrice, expectedEthGasPrice);
     }
 
     function test_calculateTokenGasPrice_withDAI() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, SCALE_DAI);
 
         // Set price: 1 DAI = 0.001 ETH = 1e15 wei
         vm.prank(owner);
@@ -353,9 +366,9 @@ contract ERC20PriceOracleTest is Test {
 
         // ETH gas price = 1 gwei = 1e9 wei
         uint256 ethGasPrice = 1 gwei;
-        uint256 expectedTokenGasPrice = (ethGasPrice * 1e18) / 1e15; // (1e9 * 1e18) / 1e15 = 1e12
+        uint256 expectedTokenGasPrice = (ethGasPrice * SCALE_DAI) / 1e15; // (1e9 * 1e18) / 1e15 = 1e12
 
-        uint256 tokenGasPrice = priceOracle.calculateTokenGasPrice(TOKEN_ID_DAI, ethGasPrice);
+        uint256 tokenGasPrice = priceOracle.calculateTokenAmount(TOKEN_ID_DAI, ethGasPrice);
         assertEq(tokenGasPrice, expectedTokenGasPrice);
     }
 
@@ -365,7 +378,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updateFeeDiscountPercent_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         uint256 discountPercent = 500; // 5%
 
@@ -377,7 +390,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updateFeeDiscountPercent_reverts_when_exceeds_100_percent() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         vm.expectRevert(bytes4(keccak256("InvalidPercent()")));
         vm.prank(owner);
@@ -386,7 +399,7 @@ contract ERC20PriceOracleTest is Test {
 
     function test_updateFeeDiscountPercent_reverts_when_not_allowed() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
         vm.prank(alice);
@@ -440,12 +453,12 @@ contract ERC20PriceOracleTest is Test {
 
     function test_isTokenActive_succeeds() public {
         vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
 
         assertFalse(priceOracle.isTokenActive(TOKEN_ID_USDC));
 
         vm.prank(owner);
-        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
         assertTrue(priceOracle.isTokenActive(TOKEN_ID_USDC));
     }

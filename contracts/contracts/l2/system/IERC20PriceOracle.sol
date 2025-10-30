@@ -17,6 +17,7 @@ interface IERC20PriceOracle {
         bytes32 balanceSlot; // Token balance storage slot, bytes32(0) -> nil
         bool isActive; // Whether the token is active
         uint8 decimals; // Token decimals
+        uint256 scale; // Core convention: rateScaled = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -46,6 +47,8 @@ interface IERC20PriceOracle {
     event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
     
     event FeeDiscountPercentUpdated(uint16 indexed tokenID, uint256 newPercent);
+    
+    event TokenScaleUpdated(uint16 indexed tokenID, uint256 newScale);
     
     event AllowListSet(address indexed user, bool val);
     
@@ -93,11 +96,13 @@ interface IERC20PriceOracle {
      * @param _tokenIDs Array of token IDs
      * @param _tokenAddresses Array of token addresses
      * @param _balanceSlots Array of balance storage slots
+     * @param _scales Array of scale values
      */
     function registerTokens(
         uint16[] memory _tokenIDs,
         address[] memory _tokenAddresses,
-        bytes32[] memory _balanceSlots
+        bytes32[] memory _balanceSlots,
+        uint256[] memory _scales
     ) external;
 
     /**
@@ -105,8 +110,9 @@ interface IERC20PriceOracle {
      * @param _tokenID Token ID
      * @param _tokenAddress Token contract address
      * @param _balanceSlot Balance storage slot
+     * @param _scale Scale value
      */
-    function registerToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot) external;
+    function registerToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot, uint256 _scale) external;
 
     /**
      * @notice Update token information
@@ -114,12 +120,14 @@ interface IERC20PriceOracle {
      * @param _tokenAddress New token contract address
      * @param _balanceSlot New balance storage slot
      * @param _isActive Whether to activate
+     * @param _scale Scale value
      */
     function updateTokenInfo(
         uint16 _tokenID,
         address _tokenAddress,
         bytes32 _balanceSlot,
-        bool _isActive
+        bool _isActive,
+        uint256 _scale
     ) external;
 
     /**
@@ -136,8 +144,18 @@ interface IERC20PriceOracle {
      * @notice Update price ratio
      * @param _tokenID Token ID
      * @param _newPrice New price ratio (relative to ETH)
+     * @dev priceRatio should follow: priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
      */
     function updatePriceRatio(uint16 _tokenID, uint256 _newPrice) external;
+
+    /**
+     * @notice Update price ratio from token price and ETH price
+     * @param _tokenID Token ID
+     * @param _tokenPrice Token price (in USD or base unit)
+     * @param _ethPrice ETH price (in USD or same unit as tokenPrice)
+     * @dev Calculates priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
+     */
+    function updatePriceRatioFromPrices(uint16 _tokenID, uint256 _tokenPrice, uint256 _ethPrice) external;
 
     /**
      * @notice Batch update price ratios
@@ -154,23 +172,12 @@ interface IERC20PriceOracle {
     function getTokenPrice(uint16 _tokenID) external view returns (uint256);
 
     /**
-     * @notice Calculate the gas price for a specified ERC20 token as gas fee
+     * @notice Calculate the corresponding token amount for a given ETH amount
      * @param _tokenID Token ID of the ERC20 token
-     * @param _ethGasPrice ETH gas price (unit: wei)
-     * @return tokenGasPrice Corresponding ERC20 token gas price (unit: token's smallest unit)
+     * @param _ethAmount ETH amount (unit: wei)
+     * @return tokenAmount Corresponding token amount (unit: token's smallest unit)
      */
-    function calculateTokenGasPrice(
-        uint16 _tokenID,
-        uint256 _ethGasPrice
-    ) external view returns (uint256 tokenGasPrice);
-
-    /**
-     * @notice Calculate corresponding ETH gas price from ERC20 token gas price
-     * @param _tokenID ERC20 token ID
-     * @param _tokenGasPrice ERC20 token gas price (token unit)
-     * @return ethGasPrice ETH gas price (wei unit)
-     */
-    function calculateEthGasPrice(uint16 _tokenID, uint256 _tokenGasPrice) external view returns (uint256 ethGasPrice);
+    function calculateTokenAmount(uint16 _tokenID, uint256 _ethAmount) external view returns (uint256 tokenAmount);
 
     /**
      * @notice Get token information
@@ -203,6 +210,24 @@ interface IERC20PriceOracle {
      * @return percent Fee discount percentage
      */
     function getFeeDiscountPercent(uint16 _tokenID) external view returns (uint256);
+
+    /*//////////////////////////////////////////////////////////////
+                            Scale Management Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Update token scale
+     * @param _tokenID Token ID
+     * @param _newScale New scale value
+     */
+    function updateTokenScale(uint16 _tokenID, uint256 _newScale) external;
+
+    /**
+     * @notice Get token scale
+     * @param _tokenID Token ID
+     * @return scale Token scale value
+     */
+    function getTokenScale(uint16 _tokenID) external view returns (uint256);
 
     /*//////////////////////////////////////////////////////////////
                             View Functions
