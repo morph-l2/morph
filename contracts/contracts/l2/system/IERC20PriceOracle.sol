@@ -21,56 +21,6 @@ interface IERC20PriceOracle {
     }
 
     /*//////////////////////////////////////////////////////////////
-                               Events
-    //////////////////////////////////////////////////////////////*/
-
-    event TokenRegistered(
-        uint16 indexed tokenID,
-        address indexed tokenAddress,
-        bytes32 balanceSlot,
-        bool isActive,
-        uint8 decimals
-    );
-    
-    event TokensRegistered(uint16[] tokenIDs, address[] tokenAddresses);
-    
-    event TokenInfoUpdated(
-        uint16 indexed tokenID,
-        address indexed tokenAddress,
-        bytes32 balanceSlot,
-        bool isActive,
-        uint8 decimals
-    );
-    
-    event TokenDeactivated(uint16 indexed tokenID);
-    
-    event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
-    
-    event FeeDiscountPercentUpdated(uint16 indexed tokenID, uint256 newPercent);
-    
-    event TokenScaleUpdated(uint16 indexed tokenID, uint256 newScale);
-    
-    event AllowListSet(address indexed user, bool val);
-    
-    event AllowListEnabledUpdated(bool isEnabled);
-
-    /*//////////////////////////////////////////////////////////////
-                               Errors
-    //////////////////////////////////////////////////////////////*/
-
-    error TokenAlreadyRegistered();
-    error TokenNotFound();
-    error InvalidTokenID();
-    error InvalidTokenAddress();
-    error InvalidDecimals();
-    error InvalidPrice();
-    error InvalidPercent();
-    error CallerNotAllowed();
-    error InvalidArrayLength();
-    error DifferentLength();
-    error AlreadyInitialized();
-
-    /*//////////////////////////////////////////////////////////////
                             Allow List Functions
     //////////////////////////////////////////////////////////////*/
 
@@ -147,16 +97,7 @@ interface IERC20PriceOracle {
      * @dev priceRatio should follow: priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
      */
     function updatePriceRatio(uint16 _tokenID, uint256 _newPrice) external;
-
-    /**
-     * @notice Update price ratio from token price and ETH price
-     * @param _tokenID Token ID
-     * @param _tokenPrice Token price (in USD or base unit)
-     * @param _ethPrice ETH price (in USD or same unit as tokenPrice)
-     * @dev Calculates priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
-     */
-    function updatePriceRatioFromPrices(uint16 _tokenID, uint256 _tokenPrice, uint256 _ethPrice) external;
-
+    
     /**
      * @notice Batch update price ratios
      * @param _tokenIDs Array of token IDs

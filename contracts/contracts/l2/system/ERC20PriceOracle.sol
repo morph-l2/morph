@@ -85,7 +85,6 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     error TokenNotFound();
     error InvalidTokenID();
     error InvalidTokenAddress();
-    error InvalidDecimals();
     error InvalidPrice();
     error InvalidPercent();
     error CallerNotAllowed();
@@ -206,15 +205,14 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         // Check token address
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
-        // Check if already registered
-        if (tokenRegistry[_tokenID].tokenAddress == address(0) && tokenRegistration[_tokenAddress] != 0) {
-            revert TokenAlreadyRegistered();
-        }
+        // Forbid zero ID and enforce uniqueness for both ID and address
+        if (_tokenID == 0) revert InvalidTokenID();
+        if (tokenRegistry[_tokenID].tokenAddress != address(0)) revert TokenAlreadyRegistered();
+        if (tokenRegistration[_tokenAddress] != 0) revert TokenAlreadyRegistered();
 
         // Get decimals from contract
         uint8 decimals = 18; // Default value
         try IERC20Infos(_tokenAddress).decimals() returns (uint8 v) {
-            if (v > 18) revert InvalidDecimals();
             decimals = v;
         } catch {
             // If call fails, use default value 18
@@ -252,10 +250,13 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         // Check new information
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
+        // Prevent address being shared across different tokenIDs
+              uint16 existing = tokenRegistration[_tokenAddress];
+             if (existing != 0 && existing != _tokenID) revert TokenAlreadyRegistered();
+
         // Get decimals from contract
         uint8 decimals = 18; // Default value
         try IERC20Infos(_tokenAddress).decimals() returns (uint8 v) {
-            if (v > 18) revert InvalidDecimals();
             decimals = v;
         } catch {
             // If call fails, use default value 18
@@ -374,6 +375,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         // tokenAmount = (ethAmount * tokenScale) / ratio
         // where ratio already contains tokenScale and decimals adjustment to eth (wei) and token smallest unit.
         tokenAmount = (_ethAmount * uint256(info.scale)) / ratio;
+        if (tokenAmount == 0) revert InvalidPrice();
 
         return tokenAmount;
     }
@@ -444,6 +446,8 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
+        // Validate scale is non-zero
+        if (_newScale == 0) revert InvalidPrice(); // or create a new error like InvalidScale
         tokenRegistry[_tokenID].scale = _newScale;
 
         emit TokenScaleUpdated(_tokenID, _newScale);
@@ -471,4 +475,7 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) return false;
         return tokenRegistry[_tokenID].isActive;
     }
+
+// Reserve storage space to allow future layout changes
+uint256[50] private __gap;
 }

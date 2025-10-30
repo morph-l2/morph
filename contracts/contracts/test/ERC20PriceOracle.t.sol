@@ -97,6 +97,30 @@ contract ERC20PriceOracleTest is Test {
         assertEq(info.decimals, 6);
     }
 
+    function test_registerToken_reverts_when_tokenID_is_zero() public {
+        vm.expectRevert(bytes4(keccak256("InvalidTokenID()")));
+        vm.prank(owner);
+        priceOracle.registerToken(0, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+    }
+
+    function test_registerToken_reverts_when_tokenID_already_registered() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+    }
+
+    function test_registerToken_reverts_when_address_already_registered() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdc), BALANCE_SLOT_USDT, SCALE_USDT);
+    }
+
     function test_registerToken_autoFetchesDecimals() public {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
@@ -202,6 +226,19 @@ contract ERC20PriceOracleTest is Test {
         assertTrue(info.isActive);
     }
 
+    function test_updateTokenInfo_reverts_when_address_collision() public {
+        // Register two tokens
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+
+        // Try to update USDT to use USDC's address - should revert
+        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDT, address(usdc), BALANCE_SLOT_USDT, true, SCALE_USDT);
+    }
+    
     function test_updateTokenInfo_autoFetchesDecimals() public {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
