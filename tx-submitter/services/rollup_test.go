@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/morph-l2/go-ethereum/params"
 	"math/big"
 	"testing"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
+	"github.com/morph-l2/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
