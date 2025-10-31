@@ -1,6 +1,6 @@
 module morph-l2/morph-deployer
 
-go 1.22
+go 1.24.0
 
 replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.2
 

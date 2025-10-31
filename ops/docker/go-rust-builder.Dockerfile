@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.19
+ARG GO_VERSION=1.24.0
 ARG RUST_VERSION=nightly-2022-12-10
 ARG CARGO_CHEF_TAG=0.1.41
 
@@ -12,8 +12,8 @@ RUN apt-get install build-essential curl wget git pkg-config -y
 RUN apt-get install libclang-dev libssl-dev llvm software-properties-common -y
 # Install golang
 RUN add-apt-repository ppa:longsleep/golang-backports
-RUN apt install golang-1.19-go -y
-ENV PATH="/usr/lib/go-1.19/bin:${PATH}"
+RUN apt install golang-1.24.0-go -y
+ENV PATH="/usr/lib/go-1.24.0/bin:${PATH}"
 
 # Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
