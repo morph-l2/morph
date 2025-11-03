@@ -1,5 +1,5 @@
 # Build Geth in a stock Go builder container
-FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.22-ubuntu as builder
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu as builder
 RUN apt-get -qq update \
     && apt-get -qq install -y --no-install-recommends ca-certificates
 COPY . /morph
