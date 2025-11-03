@@ -53,7 +53,7 @@ func (l *L2ClientWrapper) CallContract(ctx context.Context, msg ethereum.CallMsg
 	}
 
 	// If calling the sequencer set method, return the mock sequencer set
-	if msg.Data != nil && len(msg.Data) >= 4 {
+	if len(msg.Data) >= 4 {
 		methodID := msg.Data[:4]
 		// Method ID for GetSequencerSet2()
 		if string(methodID) == "\x77\xd7\xdf\xfb" {

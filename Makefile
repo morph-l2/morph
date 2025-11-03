@@ -58,6 +58,7 @@ lint-sol:
 .PHONY: lint-sol
 
 lint-go:
+	go work sync
 	make -C bindings lint
 	make -C contracts lint-go
 	make -C node lint
