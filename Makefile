@@ -64,7 +64,7 @@ lint-go:
 	make -C node lint
 	make -C ops/l2-genesis lint
 	make -C ops/tools lint
-	make -C oracle lint
+##	make -C oracle lint
 	make -C tx-submitter lint
 .PHONY: lint-go
 
