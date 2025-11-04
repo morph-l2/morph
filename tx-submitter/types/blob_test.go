@@ -136,3 +136,138 @@ func TestMakeBlobProof_EmptySlice(t *testing.T) {
 	require.NoError(t, err, "should handle empty slices")
 	require.Len(t, proofs, 0, "should return empty proofs slice")
 }
+
+func TestMakeCellProof_SingleBlob(t *testing.T) {
+	// Create a single blob
+	blob := randBlob()
+
+	// Generate commitment from blob
+	commitment, err := kzg4844.BlobToCommitment(blob)
+	require.NoError(t, err, "should create commitment from blob")
+
+	// Generate cell proofs using MakeCellProof
+	blobs := []kzg4844.Blob{*blob}
+	proofs, err := MakeCellProof(blobs)
+	require.NoError(t, err, "should generate cell proofs")
+	require.Len(t, proofs, kzg4844.CellProofsPerBlob, "should generate %d proofs for one blob", kzg4844.CellProofsPerBlob)
+
+	// Verify the cell proofs
+	err = kzg4844.VerifyCellProofs(blobs, []kzg4844.Commitment{commitment}, proofs)
+	assert.NoError(t, err, "cell proofs should verify successfully")
+}
+
+func TestMakeCellProof_MultipleBlobs(t *testing.T) {
+	// Create multiple blobs
+	numBlobs := 3
+	blobs := make([]kzg4844.Blob, numBlobs)
+	commitments := make([]kzg4844.Commitment, numBlobs)
+
+	// Generate commitments for each blob
+	for i := 0; i < numBlobs; i++ {
+		blob := randBlob()
+		blobs[i] = *blob
+
+		commitment, err := kzg4844.BlobToCommitment(blob)
+		require.NoError(t, err, "should create commitment from blob")
+		commitments[i] = commitment
+	}
+
+	// Generate cell proofs using MakeCellProof
+	proofs, err := MakeCellProof(blobs)
+	require.NoError(t, err, "should generate cell proofs")
+	expectedProofCount := numBlobs * kzg4844.CellProofsPerBlob
+	require.Len(t, proofs, expectedProofCount, "should generate %d proofs for %d blobs", expectedProofCount, numBlobs)
+
+	// Verify all cell proofs
+	err = kzg4844.VerifyCellProofs(blobs, commitments, proofs)
+	assert.NoError(t, err, "cell proofs should verify successfully")
+}
+
+func TestMakeCellProof_EmptyBlob(t *testing.T) {
+	// Test with empty (zero) blob
+	blob := emptyBlob()
+
+	commitment, err := kzg4844.BlobToCommitment(blob)
+	require.NoError(t, err, "should create commitment from empty blob")
+
+	blobs := []kzg4844.Blob{*blob}
+	proofs, err := MakeCellProof(blobs)
+	require.NoError(t, err, "should generate cell proofs for empty blob")
+	require.Len(t, proofs, kzg4844.CellProofsPerBlob, "should generate %d proofs", kzg4844.CellProofsPerBlob)
+
+	// Verify the cell proofs
+	err = kzg4844.VerifyCellProofs(blobs, []kzg4844.Commitment{commitment}, proofs)
+	assert.NoError(t, err, "cell proofs for empty blob should verify successfully")
+}
+
+func TestMakeCellProof_EmptySlice(t *testing.T) {
+	// Test with empty slice
+	blobs := []kzg4844.Blob{}
+
+	proofs, err := MakeCellProof(blobs)
+	require.NoError(t, err, "should handle empty slice")
+	require.Len(t, proofs, 0, "should return empty proofs slice")
+}
+
+func TestMakeCellProof_ProofCount(t *testing.T) {
+	// Test that each blob generates exactly CellProofsPerBlob proofs
+	testCases := []struct {
+		name     string
+		numBlobs int
+	}{
+		{"single blob", 1},
+		{"two blobs", 2},
+		{"five blobs", 5},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			blobs := make([]kzg4844.Blob, tc.numBlobs)
+			for i := 0; i < tc.numBlobs; i++ {
+				blob := randBlob()
+				blobs[i] = *blob
+			}
+
+			proofs, err := MakeCellProof(blobs)
+			require.NoError(t, err)
+			expectedCount := tc.numBlobs * kzg4844.CellProofsPerBlob
+			assert.Equal(t, expectedCount, len(proofs), "should generate %d proofs for %d blobs", expectedCount, tc.numBlobs)
+		})
+	}
+}
+
+func TestMakeCellProof_ProofGrouping(t *testing.T) {
+	// Test that proofs are correctly grouped by blob
+	// Each blob's proofs should be consecutive in the proofs slice
+	numBlobs := 2
+	blobs := make([]kzg4844.Blob, numBlobs)
+	commitments := make([]kzg4844.Commitment, numBlobs)
+
+	for i := 0; i < numBlobs; i++ {
+		blob := randBlob()
+		blobs[i] = *blob
+
+		commitment, err := kzg4844.BlobToCommitment(blob)
+		require.NoError(t, err)
+		commitments[i] = commitment
+	}
+
+	// Generate all proofs
+	allProofs, err := MakeCellProof(blobs)
+	require.NoError(t, err)
+
+	// Verify each blob's proofs individually
+	for i := 0; i < numBlobs; i++ {
+		startIdx := i * kzg4844.CellProofsPerBlob
+		endIdx := startIdx + kzg4844.CellProofsPerBlob
+		blobProofs := allProofs[startIdx:endIdx]
+
+		// Verify this blob's proofs
+		err = kzg4844.VerifyCellProofs(
+			[]kzg4844.Blob{blobs[i]},
+			[]kzg4844.Commitment{commitments[i]},
+			blobProofs,
+		)
+		assert.NoError(t, err, "blob %d proofs should verify successfully", i)
+	}
+}
