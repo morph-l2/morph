@@ -18,15 +18,16 @@ func BlobHashes(blobs []kzg4844.Blob, commitments []kzg4844.Commitment) []common
 	return h
 }
 
-func MakeBlobProof(blobs []kzg4844.Blob, commitment []kzg4844.Commitment) (p []kzg4844.Proof, err error) {
-	p = make([]kzg4844.Proof, len(blobs))
+func MakeBlobProof(blobs []kzg4844.Blob, commitment []kzg4844.Commitment) ([]kzg4844.Proof, error) {
+	proofs := make([]kzg4844.Proof, len(blobs))
 	for i, _ := range blobs {
-		p[i], err = kzg4844.ComputeBlobProof(&blobs[i], commitment[i])
+		proof, err := kzg4844.ComputeBlobProof(&blobs[i], commitment[i])
 		if err != nil {
 			return nil, err
 		}
+		proofs[i] = proof
 	}
-	return
+	return proofs, nil
 }
 
 func MakeCellProof(blobs []kzg4844.Blob) ([]kzg4844.Proof, error) {
