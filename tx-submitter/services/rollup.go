@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"math/big"
 	"strconv"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"github.com/morph-l2/go-ethereum/core"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
@@ -82,6 +82,8 @@ type Rollup struct {
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
+
+	ChainConfigMap types.ChainBlobConfigs
 }
 
 func NewRollup(
@@ -126,6 +128,7 @@ func NewRollup(
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
 		reorgDetector:    reorgDetector,
+		ChainConfigMap:   types.ChainConfigMap,
 	}
 	return r
 }
@@ -298,7 +301,7 @@ func (r *Rollup) ProcessTx() error {
 // Helper function to detect reorgs with retry
 func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 	var lastErr error
-	for i := range 3 { // Try up to 3 times
+	for i := 0; i < 3; i++ { // Try up to 3 times
 		hasReorg, depth, err := r.reorgDetector.DetectReorg(r.ctx)
 		if err == nil {
 			return hasReorg, depth, nil
@@ -1240,7 +1243,6 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 }
 
 func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
-
 	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return nil, nil, nil, err
@@ -1279,7 +1281,13 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	// calc blob fee cap
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
-		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas, params.BlobTxBlobGaspriceUpdateFraction)
+		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
+		blobConfig, exist := r.ChainConfigMap[r.chainId]
+		if !exist {
+			blobConfig = types.DefaultBlobConfig
+		}
+		blobFeeDenominator := types.GetBlobFeeDenominator(blobConfig, head.Time)
+		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas, blobFeeDenominator.Uint64())
 		// Set to 3x to handle blob market congestion
 		blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
 	}
@@ -1901,4 +1909,21 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 	}
 
 	return newTx, nil
+}
+
+// fakeExponential approximates factor * e ** (numerator / denominator) using
+// Taylor expansion.
+func fakeExponential(factor, numerator, denominator *big.Int) *big.Int {
+	var (
+		output = new(big.Int)
+		accum  = new(big.Int).Mul(factor, denominator)
+	)
+	for i := 1; accum.Sign() > 0; i++ {
+		output.Add(output, accum)
+
+		accum.Mul(accum, numerator)
+		accum.Div(accum, denominator)
+		accum.Div(accum, big.NewInt(int64(i)))
+	}
+	return output.Div(output, denominator)
 }
