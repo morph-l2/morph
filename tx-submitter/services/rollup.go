@@ -1910,20 +1910,3 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 
 	return newTx, nil
 }
-
-// fakeExponential approximates factor * e ** (numerator / denominator) using
-// Taylor expansion.
-func fakeExponential(factor, numerator, denominator *big.Int) *big.Int {
-	var (
-		output = new(big.Int)
-		accum  = new(big.Int).Mul(factor, denominator)
-	)
-	for i := 1; accum.Sign() > 0; i++ {
-		output.Add(output, accum)
-
-		accum.Mul(accum, numerator)
-		accum.Div(accum, denominator)
-		accum.Div(accum, big.NewInt(int64(i)))
-	}
-	return output.Div(output, denominator)
-}
