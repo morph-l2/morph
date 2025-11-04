@@ -1,51 +1,43 @@
 {
   "l1ChainID": 900,
   "l2ChainID": 53077,
-
   "finalSystemOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
   "proxyAdminOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
-
   "BLOCK_SIGNER_PRIVATE_KEY": "3e4bde571b86929bf08e2aaad9a6a1882664cd5e65b96fff7d03e1c4e6dfa15c",
   "BLOCK_SIGNER_ADDRESS": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
-
   "l1FeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "sequencerFeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "l2BridgeFeeVaultRecipient": "0x716170D0687c3d31CC10DebE0dAa1DDD3FE3D792",
   "fundDevAccounts": false,
-
   "l1StartingBlockTag": "earliest",
   "maxTxPerBlock": 1000,
   "maxTxPayloadBytesPerBlock": 122880,
-
   "gasPriceOracleOverhead": 2500,
   "gasPriceOracleScalar": 1000000000,
   "gasPriceOracleOwner": "0x71612D2b36859fbad5865085be7c9dEB026bBCbC",
-
   "govVotingDuration": 1000,
   "govBatchBlockInterval": 600,
   "govBatchTimeout": 1200,
   "govRollupEpoch": 100,
-
   "l2GenesisBlockGasLimit": "0xbebc200",
   "useMPT": false,
-
   "recordOracleAddress": "0x7161F66BDf7C980B61b426122BBEfff813c0cdF0",
   "recordNextBatchSubmissionIndex": 1,
-
+  "morph203Time": 0,
+  "viridianTime": 0,
   "morphTokenName": "Morph Token",
   "morphTokenSymbol": "Morph",
   "morphTokenOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",
   "morphTokenInitialSupply": 1000000000,
   "morphTokenDailyInflationRate": 1596535874529,
-
   "l2StakingSequencerMaxSize": 4,
   "l2StakingUnDelegatedLockEpochs": 2,
   "l2StakingRewardStartTime": 1728000000,
   "l2StakingAddresses": [
-    "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
-    "0x4a1f64dec538835c125874e275edca367bf6022a",
-    "0xbb8605961105bb3dcd0e86ef94a1bf9fb2270a29",
-    "0x7d7201ad7da2b9b9ab9a36c454a3c2d55c4fbdd8"
+    "0x675cfc328f9f2e79a51e499b2be44462270572fe",
+    "0xb096665645994775eeba8aa114752d569734dcb4",
+    "0x3a587733d38e5487d2a7e81d84625f25c99ab3a1",
+    "0xb6346ded94fc61b637763610d0c59846b7781080"
   ],
   "l2StakingTmKeys": [
     "0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb",

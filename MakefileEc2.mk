@@ -22,22 +22,6 @@ build-bk-prod-morph-prod-mainnet-to-morph-tx-submitter:
 	tar -czvf tx-submitter.tar.gz dist
 	aws s3 cp tx-submitter.tar.gz s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/tx-submitter.tar.gz
 
-# build for holesky
-build-bk-prod-morph-prod-testnet-to-morph-node-holesky:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/node && make build
-	cp node/build/bin/morphnode dist/
-	cp node/build/bin/tendermint dist/
-	tar -czvf morph-node.tar.gz dist
-	aws s3 cp morph-node.tar.gz s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/morph-node.tar.gz
-
-build-bk-prod-morph-prod-testnet-to-morph-tx-submitter-holesky:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o tx-submitter/tx-submitter ./tx-submitter/cmd
-	cp tx-submitter/tx-submitter dist/
-	tar -czvf tx-submitter.tar.gz dist
-	aws s3 cp tx-submitter.tar.gz s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/tx-submitter.tar.gz
-
 
 build-bk-test-morph-test-qanet-to-morph-node-qanet:
 	if [ ! -d dist ]; then mkdir -p dist; fi
@@ -53,3 +37,21 @@ build-bk-test-morph-test-qanet-to-morph-tx-submitter-qanet:
 	cp tx-submitter/tx-submitter dist/
 	tar -czvf tx-submitter.tar.gz dist
 	aws s3 cp tx-submitter.tar.gz s3://morph-7637-morph-technical-department-qanet-data/morph-setup/tx-submitter.tar.gz
+  
+  
+ # build for hoodi
+build-bk-prod-morph-prod-testnet-to-morph-node-hoodi:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/node && make build
+	cp node/build/bin/morphnode dist/
+	cp node/build/bin/tendermint dist/
+	tar -czvf morph-node.tar.gz dist
+	aws s3 cp morph-node.tar.gz s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/morph-node.tar.gz
+
+build-bk-prod-morph-prod-testnet-to-morph-tx-submitter-hoodi:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o tx-submitter/tx-submitter ./tx-submitter/cmd
+	cp tx-submitter/tx-submitter dist/
+	tar -czvf tx-submitter.tar.gz dist
+	aws s3 cp tx-submitter.tar.gz s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/tx-submitter.tar.gz
+

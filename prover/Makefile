@@ -19,9 +19,7 @@ stop-server:
 
 
 build-shadow-prove:
-	cd bin/shadow-prove
-	cargo build --release
+	cd bin/shadow-prove && cargo build --release
 
 build-challenge:
-	cd bin/challenge
-	cargo build --release
+	cd bin/challenge && cargo build --release
