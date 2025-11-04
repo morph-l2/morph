@@ -1,6 +1,6 @@
 ################## update dependencies ####################
 
-ETHEREUM_TARGET_VERSION := morph-v2.0.7
+ETHEREUM_TARGET_VERSION := morph-v2.0.8
 TENDERMINT_TARGET_VERSION := v0.3.2
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -58,12 +58,13 @@ lint-sol:
 .PHONY: lint-sol
 
 lint-go:
+	go work sync
 	make -C bindings lint
 	make -C contracts lint-go
 	make -C node lint
 	make -C ops/l2-genesis lint
 	make -C ops/tools lint
-	make -C oracle lint
+##	make -C oracle lint
 	make -C tx-submitter lint
 .PHONY: lint-go
 
@@ -120,7 +121,7 @@ go-rust-alpine-builder:
 go-ubuntu-builder:
 	@if [ -z "$(shell docker images -q morph/go-ubuntu-builder 2> /dev/null)" ]; then \
 		echo "Docker image morph/go-ubuntu-builder does not exist. Building..."; \
-		cd ops/docker/intermediate && docker build -t morph/go-ubuntu-builder:go-1.22-ubuntu . -f go-ubuntu-builder.Dockerfile; \
+		cd ops/docker/intermediate && docker build -t morph/go-ubuntu-builder:go-1.24-ubuntu . -f go-ubuntu-builder.Dockerfile; \
 	else \
 		echo "Docker image morph/go-ubuntu-builder already exists."; \
 	fi

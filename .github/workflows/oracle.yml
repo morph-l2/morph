@@ -28,7 +28,7 @@ jobs:
             - name: Install Go
               uses: actions/setup-go@v5
               with:
-                  go-version: 1.22.x
+                  go-version: 1.24.x
             - name: Lint
               run: |
                   rm -rf $HOME/.cache/golangci-lint
@@ -40,7 +40,7 @@ jobs:
             - name: Install Go
               uses: actions/setup-go@v5
               with:
-                  go-version: 1.22.x
+                  go-version: 1.24.x
             - name: Run build
               run: make build
             - name: Run tests

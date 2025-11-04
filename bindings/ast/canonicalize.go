@@ -49,7 +49,7 @@ func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
 		}
 
 		replaceAstID := matches[0][2]
-		newType := strings.Replace(oldType, replaceAstID, strconv.Itoa(int(lastId)), 1)
+		newType := strings.Replace(oldType, replaceAstID, strconv.FormatUint(uint64(lastId), 10), 1)
 		typeRemappings[oldType] = newType
 		lastId++
 	}
