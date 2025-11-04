@@ -1,7 +1,7 @@
 package types
 
 import (
-	"math/big"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -152,9 +152,9 @@ func TestGetBlobFeeDenominator_NilConfig(t *testing.T) {
 func TestGetBlobFeeDenominator_AllChainConfigs(t *testing.T) {
 	// Test that all chain configs in ChainConfigMap work correctly
 	for chainID, config := range ChainConfigMap {
-		t.Run("ChainID_"+string(chainID), func(t *testing.T) {
-			assert.NotNil(t, config, "Config should not be nil for chainID %s", chainID.String())
-			assert.NotNil(t, config.LondonBlock, "LondonBlock should not be nil for chainID %s", chainID.String())
+		t.Run("ChainID_"+strconv.FormatUint(chainID, 10), func(t *testing.T) {
+			assert.NotNil(t, config, "Config should not be nil for chainID %s", chainID)
+			assert.NotNil(t, config.LondonBlock, "LondonBlock should not be nil for chainID %s", chainID)
 
 			// Test with a very large timestamp to ensure it works
 			result := GetBlobFeeDenominator(config, 9999999999)
@@ -170,7 +170,7 @@ func TestGetBlobFeeDenominator_ChainConfigMap(t *testing.T) {
 		// Find Mainnet config by ChainID
 		var mainnetConfig *BlobFeeConfig
 		for chainID, config := range ChainConfigMap {
-			if chainID.Cmp(big.NewInt(1)) == 0 {
+			if chainID == 1 {
 				mainnetConfig = config
 				break
 			}
@@ -189,7 +189,7 @@ func TestGetBlobFeeDenominator_ChainConfigMap(t *testing.T) {
 		// Find Hoodi config by ChainID
 		var hoodiConfig *BlobFeeConfig
 		for chainID, config := range ChainConfigMap {
-			if chainID.Cmp(big.NewInt(560048)) == 0 {
+			if chainID == 560048 {
 				hoodiConfig = config
 				break
 			}
@@ -207,6 +207,31 @@ func TestGetBlobFeeDenominator_ChainConfigMap(t *testing.T) {
 		assert.Equal(t, DefaultBPO1BlobConfig.UpdateFraction, result.Uint64())
 
 		result = GetBlobFeeDenominator(hoodiConfig, 1762955544) // At BPO2
+		assert.Equal(t, DefaultBPO2BlobConfig.UpdateFraction, result.Uint64())
+	})
+
+	t.Run("Devnet from ChainConfigMap", func(t *testing.T) {
+		// Find Devnet config by ChainID
+		var devnetConfig *BlobFeeConfig
+		for chainID, config := range ChainConfigMap {
+			if chainID == 900 {
+				devnetConfig = config
+				break
+			}
+		}
+		assert.NotNil(t, devnetConfig, "Devnet config should be found in ChainConfigMap")
+
+		// Test various timestamps
+		result := GetBlobFeeDenominator(devnetConfig, 0) // At Cancun (0)
+		assert.Equal(t, DefaultCancunBlobConfig.UpdateFraction, result.Uint64())
+
+		result = GetBlobFeeDenominator(devnetConfig, 1761677592) // At Osaka
+		assert.Equal(t, DefaultOsakaBlobConfig.UpdateFraction, result.Uint64())
+
+		result = GetBlobFeeDenominator(devnetConfig, 1762365720) // At BPO1
+		assert.Equal(t, DefaultBPO1BlobConfig.UpdateFraction, result.Uint64())
+
+		result = GetBlobFeeDenominator(devnetConfig, 1762955544) // At BPO2
 		assert.Equal(t, DefaultBPO2BlobConfig.UpdateFraction, result.Uint64())
 	})
 }
