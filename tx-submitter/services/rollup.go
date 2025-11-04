@@ -1154,20 +1154,30 @@ func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, ti
 }
 
 func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
+	versionedHashes := types.BlobHashes(batch.Sidecar.Blobs, batch.Sidecar.Commitments)
 	sidecar := &ethtypes.BlobTxSidecar{
-		Version:     batch.Sidecar.Version,
 		Blobs:       batch.Sidecar.Blobs,
 		Commitments: batch.Sidecar.Commitments,
-		Proofs:      batch.Sidecar.Proofs,
 	}
-	versionedHashes := sidecar.BlobHashes()
-	version := r.DetermineBlobVersion(head)
-	if sidecar.Version == ethtypes.BlobSidecarVersion0 && version == ethtypes.BlobSidecarVersion1 {
-		err := sidecar.ToV1()
+	switch types.DetermineBlobVersion(head, r.chainId.Uint64()) {
+	case ethtypes.BlobSidecarVersion0:
+		sidecar.Version = ethtypes.BlobSidecarVersion1
+		proof, err := types.MakeBlobProof(sidecar.Blobs, sidecar.Commitments)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("gen blob proof failed %v", err)
 		}
+		sidecar.Proofs = proof
+	case ethtypes.BlobSidecarVersion1:
+		sidecar.Version = ethtypes.BlobSidecarVersion1
+		proof, err := types.MakeCellProof(sidecar.Blobs)
+		if err != nil {
+			return nil, fmt.Errorf("gen cell proof failed %v", err)
+		}
+		sidecar.Proofs = proof
+	default:
+		return nil, fmt.Errorf("unsupported blob version")
 	}
+
 	return ethtypes.NewTx(&ethtypes.BlobTx{
 		ChainID:    uint256.MustFromBig(r.chainId),
 		Nonce:      nonce,
@@ -1287,7 +1297,7 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, *ethtypes.Head
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
-		blobConfig, exist := r.ChainConfigMap[r.chainId.Uint64()]
+		blobConfig, exist := types.ChainConfigMap[r.chainId.Uint64()]
 		if !exist {
 			blobConfig = types.DefaultBlobConfig
 		}
@@ -1641,9 +1651,9 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 		})
 	case ethtypes.BlobTxType:
 		sidecar := tx.BlobTxSidecar()
-		version := r.DetermineBlobVersion(head)
+		version := types.DetermineBlobVersion(head, r.chainId.Uint64())
 		if sidecar.Version == ethtypes.BlobSidecarVersion0 && version == ethtypes.BlobSidecarVersion1 {
-			err = sidecar.ToV1()
+			err = types.BlobSidecarVersionToV1(sidecar)
 			if err != nil {
 				return nil, err
 			}
@@ -1916,18 +1926,4 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 	}
 
 	return newTx, nil
-}
-
-func (r *Rollup) DetermineBlobVersion(head *ethtypes.Header) byte {
-	if head == nil {
-		return ethtypes.BlobSidecarVersion0
-	}
-	blobConfig, exist := r.ChainConfigMap[r.chainId.Uint64()]
-	if !exist {
-		blobConfig = types.DefaultBlobConfig
-	}
-	if blobConfig.OsakaTime != nil && blobConfig.IsOsaka(head.Number, head.Time) {
-		return ethtypes.BlobSidecarVersion1
-	}
-	return ethtypes.BlobSidecarVersion0
 }
