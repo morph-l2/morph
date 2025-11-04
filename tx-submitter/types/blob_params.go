@@ -49,7 +49,7 @@ var (
 
 	// DevnetChainConfig contains the chain parameters to run a node on the devnet test network.
 	DevnetChainConfig = &BlobFeeConfig{
-		ChainID:     big.NewInt(560048),
+		ChainID:     big.NewInt(900),
 		LondonBlock: big.NewInt(0),
 		CancunTime:  newUint64(0),
 		PragueTime:  newUint64(1742999832),
