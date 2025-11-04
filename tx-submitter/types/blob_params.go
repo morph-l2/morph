@@ -8,14 +8,15 @@ var (
 	DefaultBlobConfig = HoodiChainConfig
 
 	ChainConfigMap = ChainBlobConfigs{
-		big.NewInt(1):      MainnetChainConfig,
-		big.NewInt(560048): HoodiChainConfig,
+		1:      MainnetChainConfig,
+		560048: HoodiChainConfig,
+		900:    DevnetChainConfig,
 	}
 )
 
 func newUint64(val uint64) *uint64 { return &val }
 
-type ChainBlobConfigs map[*big.Int]*BlobFeeConfig
+type ChainBlobConfigs map[uint64]*BlobFeeConfig
 
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
@@ -31,6 +32,23 @@ var (
 
 	// HoodiChainConfig contains the chain parameters to run a node on the Hoodi test network.
 	HoodiChainConfig = &BlobFeeConfig{
+		ChainID:     big.NewInt(560048),
+		LondonBlock: big.NewInt(0),
+		CancunTime:  newUint64(0),
+		PragueTime:  newUint64(1742999832),
+		OsakaTime:   newUint64(1761677592),
+		BPO1Time:    newUint64(1762365720),
+		BPO2Time:    newUint64(1762955544),
+		Cancun:      DefaultCancunBlobConfig,
+		Prague:      DefaultPragueBlobConfig,
+		Osaka:       DefaultOsakaBlobConfig,
+		BPO1:        DefaultBPO1BlobConfig,
+		BPO2:        DefaultBPO2BlobConfig,
+		Default:     DefaultOsakaBlobConfig,
+	}
+
+	// DevnetChainConfig contains the chain parameters to run a node on the devnet test network.
+	DevnetChainConfig = &BlobFeeConfig{
 		ChainID:     big.NewInt(560048),
 		LondonBlock: big.NewInt(0),
 		CancunTime:  newUint64(0),

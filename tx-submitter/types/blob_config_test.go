@@ -152,7 +152,7 @@ func TestGetBlobFeeDenominator_NilConfig(t *testing.T) {
 func TestGetBlobFeeDenominator_AllChainConfigs(t *testing.T) {
 	// Test that all chain configs in ChainConfigMap work correctly
 	for chainID, config := range ChainConfigMap {
-		t.Run("ChainID_"+chainID.String(), func(t *testing.T) {
+		t.Run("ChainID_"+string(chainID), func(t *testing.T) {
 			assert.NotNil(t, config, "Config should not be nil for chainID %s", chainID.String())
 			assert.NotNil(t, config.LondonBlock, "LondonBlock should not be nil for chainID %s", chainID.String())
 

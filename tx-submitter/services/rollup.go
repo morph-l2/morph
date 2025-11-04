@@ -1282,7 +1282,7 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
-		blobConfig, exist := r.ChainConfigMap[r.chainId]
+		blobConfig, exist := r.ChainConfigMap[r.chainId.Uint64()]
 		if !exist {
 			blobConfig = types.DefaultBlobConfig
 		}
