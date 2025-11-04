@@ -40,9 +40,6 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     /// @dev priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
     mapping(uint16 => uint256) public priceRatio;
 
-    /// @notice Mapping from tokenID to fee discount percentage
-    mapping(uint16 => uint256) public feeDiscountPercent;
-
     /// @notice Allow List whitelist
     mapping(address => bool) public allowList;
 
@@ -72,7 +69,6 @@ contract ERC20PriceOracle is OwnableUpgradeable {
     );
     event TokenDeactivated(uint16 indexed tokenID);
     event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
-    event FeeDiscountPercentUpdated(uint16 indexed tokenID, uint256 newPercent);
     event TokenScaleUpdated(uint16 indexed tokenID, uint256 newScale);
     event AllowListSet(address indexed user, bool val);
     event AllowListEnabledUpdated(bool isEnabled);
@@ -399,37 +395,6 @@ contract ERC20PriceOracle is OwnableUpgradeable {
         uint16 tokenID = tokenRegistration[tokenAddress];
         if (tokenID == 0 && tokenAddress != address(0)) revert TokenNotFound();
         return tokenID;
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            Fee Discount Management
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Update fee discount percentage
-     * @param _tokenID Token ID
-     * @param _newPercent New fee discount percentage (basis points, 10000 = 100%)
-     */
-    function updateFeeDiscountPercent(uint16 _tokenID, uint256 _newPercent) external onlyAllowed {
-        // Check if token exists
-        if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
-
-        // Check percentage range (0-100%)
-        if (_newPercent > 10000) revert InvalidPercent();
-
-        feeDiscountPercent[_tokenID] = _newPercent;
-
-        emit FeeDiscountPercentUpdated(_tokenID, _newPercent);
-    }
-
-    /**
-     * @notice Get fee discount percentage
-     * @param _tokenID Token ID
-     * @return percent Fee discount percentage
-     */
-    function getFeeDiscountPercent(uint16 _tokenID) external view returns (uint256) {
-        if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
-        return feeDiscountPercent[_tokenID];
     }
 
     /*//////////////////////////////////////////////////////////////
