@@ -62,13 +62,9 @@ func BlobSidecarVersionToV1(sc *ethtypes.BlobTxSidecar) error {
 		return nil
 	}
 	if sc.Version == ethtypes.BlobSidecarVersion0 {
-		proofs := make([]kzg4844.Proof, 0, len(sc.Blobs)*kzg4844.CellProofsPerBlob)
-		for _, blob := range sc.Blobs {
-			cellProofs, err := kzg4844.ComputeCellProofs(&blob)
-			if err != nil {
-				return err
-			}
-			proofs = append(proofs, cellProofs...)
+		proofs, err := MakeCellProof(sc.Blobs)
+		if err != nil {
+			return err
 		}
 		sc.Version = ethtypes.BlobSidecarVersion1
 		sc.Proofs = proofs
