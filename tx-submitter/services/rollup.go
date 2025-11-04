@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math/big"
@@ -1155,17 +1154,13 @@ func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, ti
 }
 
 func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
-	versionedHashes := make([]common.Hash, 0, len(batch.Sidecar.Commitments))
-	hasher := sha256.New()
-	for _, commit := range batch.Sidecar.Commitments {
-		versionedHashes = append(versionedHashes, kzg4844.CalcBlobHashV1(hasher, &commit))
-	}
 	sidecar := &ethtypes.BlobTxSidecar{
 		Version:     batch.Sidecar.Version,
 		Blobs:       batch.Sidecar.Blobs,
 		Commitments: batch.Sidecar.Commitments,
 		Proofs:      batch.Sidecar.Proofs,
 	}
+	versionedHashes := sidecar.BlobHashes()
 	version := r.DetermineBlobVersion(head)
 	if sidecar.Version == ethtypes.BlobSidecarVersion0 && version == ethtypes.BlobSidecarVersion1 {
 		err := sidecar.ToV1()
@@ -1173,7 +1168,6 @@ func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip,
 			return nil, err
 		}
 	}
-
 	return ethtypes.NewTx(&ethtypes.BlobTx{
 		ChainID:    uint256.MustFromBig(r.chainId),
 		Nonce:      nonce,
