@@ -19,7 +19,7 @@ func BlobHashes(blobs []kzg4844.Blob, commitments []kzg4844.Commitment) []common
 }
 
 func MakeBlobProof(blobs []kzg4844.Blob, commitment []kzg4844.Commitment) (p []kzg4844.Proof, err error) {
-	p = make([]kzg4844.Proof, 0, len(blobs))
+	p = make([]kzg4844.Proof, len(blobs))
 	for i, _ := range blobs {
 		p[i], err = kzg4844.ComputeBlobProof(&blobs[i], commitment[i])
 		if err != nil {
