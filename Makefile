@@ -1,5 +1,5 @@
 ################## update dependencies ####################
-
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.0.8
 ETHEREUM_TARGET_VERSION := morph-v2.0.8
 TENDERMINT_TARGET_VERSION := v0.3.2
 
@@ -39,7 +39,13 @@ update:
 
 submodules:
 	git submodule update --init
-	git submodule update --remote 
+	@if [ -d "go-ethereum" ]; then \
+		echo "Updating go-ethereum submodule to tag $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG)..."; \
+		cd go-ethereum && \
+		git fetch --tags && \
+		git checkout $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG) && \
+		cd ..; \
+	fi
 .PHONY: submodules
 
 ################## bindings ####################
