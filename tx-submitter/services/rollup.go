@@ -1161,7 +1161,7 @@ func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip,
 	}
 	switch types.DetermineBlobVersion(head, r.chainId.Uint64()) {
 	case ethtypes.BlobSidecarVersion0:
-		sidecar.Version = ethtypes.BlobSidecarVersion1
+		sidecar.Version = ethtypes.BlobSidecarVersion0
 		proof, err := types.MakeBlobProof(sidecar.Blobs, sidecar.Commitments)
 		if err != nil {
 			return nil, fmt.Errorf("gen blob proof failed %v", err)
