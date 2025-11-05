@@ -4,6 +4,8 @@ import "@nomiclabs/hardhat-waffle";
 
 import { task } from "hardhat/config";
 import { ethers } from "ethers";
+import * as fs from "fs";
+import * as path from "path";
 
 const V2_1ABI = `[
     {
@@ -610,4 +612,360 @@ task("deploy-l2-MigrationUSDC")
         const oldtoken = await migrationProxy.OLD_USDC()
         const newtoken = await migrationProxy.NEW_USDC()
         console.log(`owner ${owner}, oldtoken ${oldtoken}, newtoken ${newtoken}`)
+    })
+
+task("deploy-l2-token-registry")
+    .addParam("proxyadmin")
+    .addParam("owner")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.proxyadmin) ||
+            !ethers.utils.isAddress(taskArgs.owner)
+        ) {
+            console.error(`address params check failed, proxyadmin: ${taskArgs.proxyadmin}, owner: ${taskArgs.owner}`)
+            return
+        }
+
+        // deploy L2TokenRegistry impl
+        const TokenRegistryFactory = await hre.ethers.getContractFactory("L2TokenRegistry")
+        const tokenRegistry = await TokenRegistryFactory.deploy()
+        await tokenRegistry.deployed()
+        console.log(`L2TokenRegistry impl deployed at ${tokenRegistry.address}`)
+
+        // deploy proxy with initialize
+        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+        const proxy = await TransparentProxyFactory.deploy(
+            tokenRegistry.address, //logic
+            taskArgs.proxyadmin, //admin
+            TokenRegistryFactory.interface.encodeFunctionData('initialize', [
+                taskArgs.owner // owner
+            ]) // data
+        )
+        await proxy.deployed()
+        console.log(`L2TokenRegistry proxy deployed at ${proxy.address}`)
+
+        // Verify deployment
+        const tokenRegistryProxy = TokenRegistryFactory.attach(proxy.address)
+        const registryOwner = await tokenRegistryProxy.owner()
+        const allowListEnabled = await tokenRegistryProxy.allowListEnabled()
+        console.log(`L2TokenRegistry proxy owner: ${registryOwner}`)
+        console.log(`L2TokenRegistry allowListEnabled: ${allowListEnabled}`)
+    })
+
+task("deploy-test-tokens-and-register")
+    .addParam("tokenregistry")
+    .addOptionalParam("count", "Number of test tokens to deploy", "10")
+    .setAction(async (taskArgs, hre) => {
+        // params check
+        if (!ethers.utils.isAddress(taskArgs.tokenregistry)) {
+            console.error(`tokenregistry address check failed: ${taskArgs.tokenregistry}`)
+            return
+        }
+
+        const tokenCount = parseInt(taskArgs.count || "10")
+        if (tokenCount < 1) {
+            console.error(`token count should be at least 1, got: ${tokenCount}`)
+            return
+        }
+
+        // Load token configurations from JSON file
+        const tokensFilePath = path.join(__dirname, "../src/tokens/tokens.json")
+        if (!fs.existsSync(tokensFilePath)) {
+            console.error(`Tokens file not found: ${tokensFilePath}`)
+            return
+        }
+
+        const allTokensData = JSON.parse(fs.readFileSync(tokensFilePath, "utf8"))
+        if (!Array.isArray(allTokensData) || allTokensData.length === 0) {
+            console.error(`Invalid tokens file format or empty tokens array`)
+            return
+        }
+
+        console.log(`\n========================================`)
+        console.log(`Connecting to L2TokenRegistry...`)
+        console.log(`========================================\n`)
+
+        // Connect to L2TokenRegistry
+        const TokenRegistryFactory = await hre.ethers.getContractFactory("L2TokenRegistry")
+        const tokenRegistry = TokenRegistryFactory.attach(taskArgs.tokenregistry)
+        
+        // Verify registry
+        try {
+            const registryOwner = await tokenRegistry.owner()
+            console.log(`L2TokenRegistry address: ${taskArgs.tokenregistry}`)
+            console.log(`L2TokenRegistry owner: ${registryOwner}`)
+        } catch (error) {
+            console.error(`Failed to connect to L2TokenRegistry: ${error}`)
+            return
+        }
+
+        // Check which tokenIDs are already registered
+        console.log(`\n========================================`)
+        console.log(`Checking registered tokenIDs...`)
+        console.log(`========================================\n`)
+
+        const registeredTokenIDs = new Set<number>()
+        const maxTokenID = Math.min(100, allTokensData.length)
+
+        for (let tokenID = 1; tokenID <= maxTokenID; tokenID++) {
+            try {
+                const tokenInfo = await tokenRegistry.tokenRegistry(tokenID)
+                if (tokenInfo.tokenAddress !== ethers.constants.AddressZero) {
+                    registeredTokenIDs.add(tokenID)
+                }
+            } catch (error) {
+                // If tokenID is not registered, tokenAddress will be zero address
+            }
+        }
+
+        console.log(`Found ${registeredTokenIDs.size} already registered tokenIDs: ${Array.from(registeredTokenIDs).sort((a, b) => a - b).join(", ")}`)
+
+        // Find the next available tokenID to start from
+        let startTokenID = 1
+        for (let i = 1; i <= maxTokenID; i++) {
+            if (!registeredTokenIDs.has(i)) {
+                startTokenID = i
+                break
+            }
+        }
+
+        if (registeredTokenIDs.size >= maxTokenID) {
+            console.log(`\nAll ${maxTokenID} token slots are already registered. Nothing to deploy.`)
+            return
+        }
+
+        // Check if total registered tokens would exceed 100
+        if (registeredTokenIDs.size >= 100) {
+            console.log(`\n⚠ Warning: Already have ${registeredTokenIDs.size} registered tokens. Cannot register more than 100 tokens.`)
+            return
+        }
+
+        // Calculate how many tokens we can deploy (max 100 total)
+        const availableSlots = Math.min(100 - registeredTokenIDs.size, maxTokenID - registeredTokenIDs.size)
+        const tokensToDeployCount = Math.min(tokenCount, availableSlots)
+
+        if (tokensToDeployCount === 0) {
+            console.log(`No available token slots to deploy.`)
+            return
+        }
+
+        console.log(`\nWill deploy ${tokensToDeployCount} tokens starting from tokenID ${startTokenID}`)
+        console.log(`Total registered after deployment: ${registeredTokenIDs.size + tokensToDeployCount}/100`)
+
+        // Get tokens to deploy
+        const tokensToDeploy = []
+        let currentTokenID = startTokenID
+        let deployedCount = 0
+
+        while (deployedCount < tokensToDeployCount && currentTokenID <= maxTokenID && registeredTokenIDs.size + deployedCount < 100) {
+            if (!registeredTokenIDs.has(currentTokenID)) {
+                const tokenData = allTokensData.find((t: any) => t.tokenID === currentTokenID)
+                if (tokenData) {
+                    tokensToDeploy.push({
+                        ...tokenData,
+                        tokenID: currentTokenID,
+                        scale: ethers.BigNumber.from(tokenData.scale),
+                        priceRatio: ethers.BigNumber.from(tokenData.priceRatio)
+                    })
+                    deployedCount++
+                }
+            }
+            currentTokenID++
+        }
+
+        if (tokensToDeploy.length === 0) {
+            console.log(`No tokens available to deploy.`)
+            return
+        }
+
+        // Final check: ensure we don't exceed 100 tokens
+        if (registeredTokenIDs.size + tokensToDeploy.length > 100) {
+            const maxCanDeploy = 100 - registeredTokenIDs.size
+            console.log(`\n⚠ Warning: Can only deploy ${maxCanDeploy} tokens to stay within 100 token limit.`)
+            console.log(`Requested: ${tokensToDeploy.length}, Will deploy: ${maxCanDeploy}`)
+            tokensToDeploy.splice(maxCanDeploy)
+        }
+
+        console.log(`\n========================================`)
+        console.log(`Deploying ${tokensToDeploy.length} test tokens...`)
+        console.log(`========================================\n`)
+
+        const deployedTokens = []
+        const TokenFactory = await hre.ethers.getContractFactory("MockERC20")
+
+        // Deploy tokens
+        for (let i = 0; i < tokensToDeploy.length; i++) {
+            const config = tokensToDeploy[i]
+            console.log(`[${i + 1}/${tokensToDeploy.length}] Deploying ${config.name} (${config.symbol}) - TokenID: ${config.tokenID}...`)
+            
+            const token = await TokenFactory.deploy(
+                config.name,
+                config.symbol,
+                config.decimals
+            )
+            await token.deployed()
+            
+            console.log(`  ✓ Token deployed at: ${token.address}`)
+            console.log(`  - Name: ${config.name}`)
+            console.log(`  - Symbol: ${config.symbol}`)
+            console.log(`  - Decimals: ${config.decimals}`)
+            
+            deployedTokens.push({
+                ...config,
+                address: token.address,
+                contract: token
+            })
+        }
+
+        console.log(`\n========================================`)
+        console.log(`Registering tokens to L2TokenRegistry...`)
+        console.log(`========================================\n`)
+
+        // Prepare arrays for batch registration
+        const tokenIDs: number[] = []
+        const tokenAddresses: string[] = []
+        const balanceSlots: string[] = []
+        const scales: string[] = []
+
+        for (const token of deployedTokens) {
+            tokenIDs.push(token.tokenID)
+            tokenAddresses.push(token.address)
+            // Calculate balance slot for mapping(address => uint256) at slot 0
+            // For MockERC20, balance mapping is typically at slot 0
+            // The actual slot for a user's balance is keccak256(abi.encode(userAddress, slot))
+            // Here we use slot 0 as the base slot
+            balanceSlots.push(ethers.utils.hexZeroPad(ethers.BigNumber.from(token.balanceSlot).toHexString(), 32))
+            scales.push(token.scale.toString())
+        }
+
+        console.log(`Registering ${tokenIDs.length} tokens in batch...`)
+        console.log(`Token IDs: ${tokenIDs.join(", ")}`)
+        console.log(`Token Addresses: ${tokenAddresses.join(", ")}`)
+
+        try {
+            // Batch register tokens
+            const tx = await tokenRegistry.registerTokens(
+                tokenIDs,
+                tokenAddresses,
+                balanceSlots,
+                scales
+            )
+            console.log(`\n  ✓ Registration transaction sent: ${tx.hash}`)
+            
+            const receipt = await tx.wait()
+            console.log(`  ✓ Transaction confirmed in block: ${receipt.blockNumber}`)
+            console.log(`  ✓ Gas used: ${receipt.gasUsed.toString()}`)
+
+            // Set prices for registered tokens
+            console.log(`\n========================================`)
+            console.log(`Setting prices for registered tokens...`)
+            console.log(`========================================\n`)
+
+            try {
+                const priceTokenIDs: number[] = []
+                const prices: string[] = []
+
+                for (const token of deployedTokens) {
+                    priceTokenIDs.push(token.tokenID)
+                    prices.push(token.priceRatio.toString())
+                }
+
+                console.log(`Setting prices for ${priceTokenIDs.length} tokens...`)
+                const priceTx = await tokenRegistry.batchUpdatePrices(priceTokenIDs, prices)
+                console.log(`  ✓ Price update transaction sent: ${priceTx.hash}`)
+                
+                const priceReceipt = await priceTx.wait()
+                console.log(`  ✓ Prices confirmed in block: ${priceReceipt.blockNumber}`)
+                console.log(`  ✓ Gas used: ${priceReceipt.gasUsed.toString()}`)
+
+                // Display price information
+                console.log(`\nPrice information:`)
+                for (const token of deployedTokens) {
+                    const price = await tokenRegistry.priceRatio(token.tokenID)
+                    console.log(`  ${token.symbol} (ID: ${token.tokenID}): ${price.toString()}`)
+                }
+            } catch (priceError) {
+                console.error(`\n⚠ Failed to set prices: ${priceError}`)
+                console.log(`Attempting individual price updates...\n`)
+                
+                // Fallback to individual price updates
+                for (const token of deployedTokens) {
+                    try {
+                        const priceTx = await tokenRegistry.updatePriceRatio(token.tokenID, token.priceRatio)
+                        const priceReceipt = await priceTx.wait()
+                        console.log(`  ✓ ${token.symbol} price set in block: ${priceReceipt.blockNumber}`)
+                    } catch (err) {
+                        console.error(`  ✗ Failed to set price for ${token.symbol}: ${err}`)
+                    }
+                }
+            }
+
+            // Verify registration
+            console.log(`\n========================================`)
+            console.log(`Verifying token registrations...`)
+            console.log(`========================================\n`)
+
+            for (const token of deployedTokens) {
+                try {
+                    const tokenInfo = await tokenRegistry.tokenRegistry(token.tokenID)
+                    const registeredTokenID = await tokenRegistry.tokenRegistration(token.address)
+                    const priceRatio = await tokenRegistry.priceRatio(token.tokenID)
+                    
+                    console.log(`Token ID ${token.tokenID} (${token.symbol}):`)
+                    console.log(`  - Address: ${tokenInfo.tokenAddress}`)
+                    console.log(`  - Balance Slot: ${tokenInfo.balanceSlot}`)
+                    console.log(`  - Is Active: ${tokenInfo.isActive}`)
+                    console.log(`  - Decimals: ${tokenInfo.decimals}`)
+                    console.log(`  - Scale: ${tokenInfo.scale.toString()}`)
+                    console.log(`  - Price Ratio: ${priceRatio.toString()}`)
+                    console.log(`  - Registered TokenID: ${registeredTokenID}`)
+                    console.log(`  ✓ Registration verified\n`)
+                } catch (error) {
+                    console.error(`  ✗ Failed to verify token ${token.tokenID}: ${error}\n`)
+                }
+            }
+
+            console.log(`\n========================================`)
+            console.log(`Summary:`)
+            console.log(`========================================`)
+            console.log(`Total tokens deployed: ${deployedTokens.length}`)
+            console.log(`Total tokens registered: ${tokenIDs.length}`)
+            console.log(`\nToken addresses:`)
+            for (const token of deployedTokens) {
+                console.log(`  ${token.symbol} (ID: ${token.tokenID}): ${token.address}`)
+            }
+            console.log(`\nL2TokenRegistry: ${taskArgs.tokenregistry}`)
+            console.log(`========================================\n`)
+
+        } catch (error) {
+            console.error(`\n✗ Failed to register tokens: ${error}`)
+            console.log(`\nTrying individual registration instead...\n`)
+            
+            // Fallback to individual registration
+            for (const token of deployedTokens) {
+                try {
+                    console.log(`Registering ${token.symbol} (ID: ${token.tokenID}) individually...`)
+                    const balanceSlot = ethers.utils.hexZeroPad(ethers.BigNumber.from(token.balanceSlot).toHexString(), 32)
+                    const tx = await tokenRegistry.registerToken(
+                        token.tokenID,
+                        token.address,
+                        balanceSlot,
+                        token.scale
+                    )
+                    const receipt = await tx.wait()
+                    console.log(`  ✓ ${token.symbol} registered in block: ${receipt.blockNumber}`)
+                    
+                    // Set price after registration
+                    try {
+                        const priceTx = await tokenRegistry.updatePriceRatio(token.tokenID, token.priceRatio)
+                        const priceReceipt = await priceTx.wait()
+                        console.log(`  ✓ ${token.symbol} price set in block: ${priceReceipt.blockNumber}\n`)
+                    } catch (priceErr) {
+                        console.error(`  ⚠ Failed to set price for ${token.symbol}: ${priceErr}\n`)
+                    }
+                } catch (err) {
+                    console.error(`  ✗ Failed to register ${token.symbol}: ${err}\n`)
+                }
+            }
+        }
     })

@@ -2,6 +2,8 @@
 pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {IL2TokenRegistry} from "./IL2TokenRegistry.sol";
 
 interface IERC20Infos {
     function decimals() external view returns (uint8);
@@ -12,23 +14,7 @@ interface IERC20Infos {
  * @dev TokenRegistry contract - Used for registering tokenID and managing token information and prices
  * @notice In the transaction scenario where ERC20 is used as gas fee payment, used for storing prices and token registration functionality
  */
-contract L2TokenRegistry is OwnableUpgradeable {
-    /*//////////////////////////////////////////////////////////////
-                               Structs
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Token information structure
-    struct TokenInfo {
-        address tokenAddress; // ERC20 token contract address
-        bytes32 balanceSlot; // Token balance storage slot, bytes32(0) -> nil
-        bool isActive; // Whether the token is active
-        uint8 decimals; // Token decimals
-        uint256 scale; // Core convention: rateScaled = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                               Storage
-    //////////////////////////////////////////////////////////////*/
+contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     /// @notice Mapping from tokenID to TokenInfo
     mapping(uint16 => TokenInfo) public tokenRegistry;
@@ -47,50 +33,22 @@ contract L2TokenRegistry is OwnableUpgradeable {
     bool public allowListEnabled = true;
 
     /*//////////////////////////////////////////////////////////////
-                               Events
+                           Modifier
     //////////////////////////////////////////////////////////////*/
 
-    event TokenRegistered(
-        uint16 indexed tokenID,
-        address indexed tokenAddress,
-        bytes32 balanceSlot,
-        bool isActive,
-        uint8 decimals,
-        uint256 scale
-    );
-    event TokensRegistered(uint16[] tokenIDs, address[] tokenAddresses);
-    event TokenInfoUpdated(
-        uint16 indexed tokenID,
-        address indexed tokenAddress,
-        bytes32 balanceSlot,
-        bool isActive,
-        uint8 decimals,
-        uint256 scale
-    );
-    event TokenDeactivated(uint16 indexed tokenID);
-    event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
-    event TokenScaleUpdated(uint16 indexed tokenID, uint256 newScale);
-    event AllowListSet(address indexed user, bool val);
-    event AllowListEnabledUpdated(bool isEnabled);
+    /**
+     * @notice Check if caller is in Allow List
+     */
+    modifier onlyAllowed() {
+        if (allowListEnabled && !allowList[msg.sender] && msg.sender != owner()) {
+            revert CallerNotAllowed();
+        }
+        _;
+    }
 
     /*//////////////////////////////////////////////////////////////
-                               Errors
-    //////////////////////////////////////////////////////////////*/
-
-    error TokenAlreadyRegistered();
-    error TokenNotFound();
-    error InvalidTokenID();
-    error InvalidTokenAddress();
-    error InvalidPrice();
-    error InvalidPercent();
-    error CallerNotAllowed();
-    error InvalidArrayLength();
-    error DifferentLength();
-    error AlreadyInitialized();
-
-    /*//////////////////////////////////////////////////////////////
-                             Initializer
-    //////////////////////////////////////////////////////////////*/
+                            Initializer
+   //////////////////////////////////////////////////////////////*/
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -131,16 +89,6 @@ contract L2TokenRegistry is OwnableUpgradeable {
     function setAllowListEnabled(bool _allowListEnabled) external onlyOwner {
         allowListEnabled = _allowListEnabled;
         emit AllowListEnabledUpdated(_allowListEnabled);
-    }
-
-    /**
-     * @notice Check if caller is in Allow List
-     */
-    modifier onlyAllowed() {
-        if (allowListEnabled && !allowList[msg.sender] && msg.sender != owner()) {
-            revert CallerNotAllowed();
-        }
-        _;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -187,7 +135,7 @@ contract L2TokenRegistry is OwnableUpgradeable {
         address _tokenAddress,
         bytes32 _balanceSlot,
         uint256 _scale
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         _registerSingleToken(_tokenID, _tokenAddress, _balanceSlot, _scale);
 
         TokenInfo memory info = tokenRegistry[_tokenID];
@@ -197,7 +145,12 @@ contract L2TokenRegistry is OwnableUpgradeable {
     /**
      * @notice Internal function: Register a single token
      */
-    function _registerSingleToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot, uint256 _scale) internal {
+    function _registerSingleToken(
+        uint16 _tokenID,
+        address _tokenAddress,
+        bytes32 _balanceSlot,
+        uint256 _scale
+    ) internal {
         // Check token address
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
@@ -213,7 +166,6 @@ contract L2TokenRegistry is OwnableUpgradeable {
         } catch {
             // If call fails, use default value 18
         }
-
         // Register token (isActive defaults to false)
         tokenRegistry[_tokenID] = TokenInfo({
             tokenAddress: _tokenAddress,
@@ -239,7 +191,7 @@ contract L2TokenRegistry is OwnableUpgradeable {
         bytes32 _balanceSlot,
         bool _isActive,
         uint256 _scale
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         // Check if token exists
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
@@ -247,8 +199,8 @@ contract L2TokenRegistry is OwnableUpgradeable {
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
         // Prevent address being shared across different tokenIDs
-              uint16 existing = tokenRegistration[_tokenAddress];
-             if (existing != 0 && existing != _tokenID) revert TokenAlreadyRegistered();
+        uint16 existing = tokenRegistration[_tokenAddress];
+        if (existing != 0 && existing != _tokenID) revert TokenAlreadyRegistered();
 
         // Get decimals from contract
         uint8 decimals = 18; // Default value
@@ -257,7 +209,6 @@ contract L2TokenRegistry is OwnableUpgradeable {
         } catch {
             // If call fails, use default value 18
         }
-
         // Update registration information
         address oldAddress = tokenRegistry[_tokenID].tokenAddress;
         tokenRegistry[_tokenID] = TokenInfo({
@@ -278,17 +229,29 @@ contract L2TokenRegistry is OwnableUpgradeable {
     }
 
     /**
-     * @notice Deactivate token
-     * @param _tokenID Token ID
+     * @notice Batch update token activation status
+     * @param _tokenIDs Array of token IDs
+     * @param _isActives Array of activation statuses
      */
-    function deactivateToken(uint16 _tokenID) external onlyOwner {
-        // Check if token exists
-        if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
+    function batchUpdateTokenStatus(uint16[] calldata _tokenIDs, bool[] calldata _isActives) external onlyOwner {
+        if (_tokenIDs.length != _isActives.length) revert InvalidArrayLength();
 
-        // Deactivate token
-        tokenRegistry[_tokenID].isActive = false;
+        for (uint256 i = 0; i < _tokenIDs.length; i++) {
+            uint16 tokenId = _tokenIDs[i];
+            bool newStatus = _isActives[i];
 
-        emit TokenDeactivated(_tokenID);
+            if (tokenRegistry[tokenId].tokenAddress == address(0)) continue;
+            bool oldStatus = tokenRegistry[tokenId].isActive;
+
+            if (oldStatus != newStatus) {
+                tokenRegistry[tokenId].isActive = newStatus;
+                if (newStatus) {
+                    emit TokenActivated(tokenId);
+                } else {
+                    emit TokenDeactivated(tokenId);
+                }
+            }
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -441,7 +404,6 @@ contract L2TokenRegistry is OwnableUpgradeable {
         return tokenRegistry[_tokenID].isActive;
     }
 
-// Reserve storage space to allow future layout changes
-uint256[50] private __gap;
+    // Reserve storage space to allow future layout changes
+    uint256[50] private __gap;
 }
-

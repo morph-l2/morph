@@ -21,6 +21,49 @@ interface IL2TokenRegistry {
     }
 
     /*//////////////////////////////////////////////////////////////
+                            Events
+    //////////////////////////////////////////////////////////////*/
+
+    event TokenRegistered(
+        uint16 indexed tokenID,
+        address indexed tokenAddress,
+        bytes32 balanceSlot,
+        bool isActive,
+        uint8 decimals,
+        uint256 scale
+    );
+    event TokensRegistered(uint16[] tokenIDs, address[] tokenAddresses);
+    event TokenInfoUpdated(
+        uint16 indexed tokenID,
+        address indexed tokenAddress,
+        bytes32 balanceSlot,
+        bool isActive,
+        uint8 decimals,
+        uint256 scale
+    );
+    event TokenActivated(uint16 indexed tokenID);
+    event TokenDeactivated(uint16 indexed tokenID);
+    event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
+    event TokenScaleUpdated(uint16 indexed tokenID, uint256 newScale);
+    event AllowListSet(address indexed user, bool val);
+    event AllowListEnabledUpdated(bool isEnabled);
+
+    /*//////////////////////////////////////////////////////////////
+                            Errors
+    //////////////////////////////////////////////////////////////*/
+
+    error TokenAlreadyRegistered();
+    error TokenNotFound();
+    error InvalidTokenID();
+    error InvalidTokenAddress();
+    error InvalidPrice();
+    error InvalidPercent();
+    error CallerNotAllowed();
+    error InvalidArrayLength();
+    error DifferentLength();
+    error AlreadyInitialized();
+
+    /*//////////////////////////////////////////////////////////////
                             Allow List Functions
     //////////////////////////////////////////////////////////////*/
 
@@ -81,10 +124,11 @@ interface IL2TokenRegistry {
     ) external;
 
     /**
-     * @notice Deactivate token
-     * @param _tokenID Token ID
+     * @notice Batch update token activation status
+     * @param _tokenIDs Array of token IDs
+     * @param _isActives Array of activation statuses
      */
-    function deactivateToken(uint16 _tokenID) external;
+    function batchUpdateTokenStatus(uint16[] memory _tokenIDs, bool[] memory _isActives) external;
 
     /*//////////////////////////////////////////////////////////////
                             Price Management Functions
@@ -133,24 +177,6 @@ interface IL2TokenRegistry {
      * @return tokenID Token ID
      */
     function getTokenIdByAddress(address tokenAddress) external view returns (uint16);
-
-    /*//////////////////////////////////////////////////////////////
-                            Fee Discount Functions
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Update fee discount percentage
-     * @param _tokenID Token ID
-     * @param _newPercent New fee discount percentage (basis points, 10000 = 100%)
-     */
-    function updateFeeDiscountPercent(uint16 _tokenID, uint256 _newPercent) external;
-
-    /**
-     * @notice Get fee discount percentage
-     * @param _tokenID Token ID
-     * @return percent Fee discount percentage
-     */
-    function getFeeDiscountPercent(uint16 _tokenID) external view returns (uint256);
 
     /*//////////////////////////////////////////////////////////////
                             Scale Management Functions

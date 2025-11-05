@@ -1,0 +1,116 @@
+[
+  {
+    "name": "Impl__ProxyAdmin",
+    "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+    "time": "2025-11-05T08:15:54.947Z",
+    "number": 1
+  },
+  {
+    "name": "Impl__EmptyContract",
+    "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+    "time": "2025-11-05T08:15:54.982Z",
+    "number": 2
+  },
+  {
+    "name": "Impl__WETH",
+    "address": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+    "time": "2025-11-05T08:15:55.033Z",
+    "number": 3
+  },
+  {
+    "name": "Proxy__L1CrossDomainMessenger",
+    "address": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+    "time": "2025-11-05T08:15:55.089Z",
+    "number": 4
+  },
+  {
+    "name": "Proxy__L1MessageQueueWithGasPriceOracle",
+    "address": "0xdc64a140aa3e981100a9beca4e685f962f0cf6c9",
+    "time": "2025-11-05T08:15:55.130Z",
+    "number": 5
+  },
+  {
+    "name": "Proxy__L1Staking",
+    "address": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
+    "time": "2025-11-05T08:15:55.173Z",
+    "number": 6
+  },
+  {
+    "name": "Proxy__Rollup",
+    "address": "0x0165878a594ca255338adfa4d48449f69242eb8f",
+    "time": "2025-11-05T08:15:55.214Z",
+    "number": 7
+  },
+  {
+    "name": "Proxy__L1GatewayRouter",
+    "address": "0xa513e6e4b8f2a923d98304ec87f64353c4d5c853",
+    "time": "2025-11-05T08:15:55.254Z",
+    "number": 8
+  },
+  {
+    "name": "Proxy__L1ETHGateway",
+    "address": "0x2279b7a0a67db372996a5fab50d91eaa73d2ebe6",
+    "time": "2025-11-05T08:15:55.291Z",
+    "number": 9
+  },
+  {
+    "name": "Proxy__L1StandardERC20Gateway",
+    "address": "0x8a791620dd6260079bf849dc5567adc3f2fdc318",
+    "time": "2025-11-05T08:15:55.337Z",
+    "number": 10
+  },
+  {
+    "name": "Proxy__L1CustomERC20Gateway",
+    "address": "0x610178da211fef7d417bc0e6fed39f05609ad788",
+    "time": "2025-11-05T08:15:55.379Z",
+    "number": 11
+  },
+  {
+    "name": "Proxy__L1WithdrawLockERC20Gateway",
+    "address": "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e",
+    "time": "2025-11-05T08:15:55.416Z",
+    "number": 12
+  },
+  {
+    "name": "Proxy__L1ReverseCustomGateway",
+    "address": "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0",
+    "time": "2025-11-05T08:15:55.452Z",
+    "number": 13
+  },
+  {
+    "name": "Proxy__L1ERC721Gateway",
+    "address": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+    "time": "2025-11-05T08:15:55.498Z",
+    "number": 14
+  },
+  {
+    "name": "Proxy__L1ERC1155Gateway",
+    "address": "0x9a676e781a523b5d0c0e43731313a708cb607508",
+    "time": "2025-11-05T08:15:55.544Z",
+    "number": 15
+  },
+  {
+    "name": "Proxy__EnforcedTxGateway",
+    "address": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
+    "time": "2025-11-05T08:15:55.583Z",
+    "number": 16
+  },
+  {
+    "name": "Proxy__L1WETHGateway",
+    "address": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1",
+    "time": "2025-11-05T08:15:55.620Z",
+    "number": 17
+  },
+  {
+    "name": "Proxy__L1USDCGateway",
+    "address": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+    "time": "2025-11-05T08:15:55.657Z",
+    "number": 18
+  },
+  {
+    "name": "Impl__ZkEvmVerifierV1",
+    "address": "0x68b1d87f95878fe05b998f19b66f4baba5de1aed",
+    "time": "2025-11-05T08:15:55.689Z",
+    "number": 19
+  }
+]
