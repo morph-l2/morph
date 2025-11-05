@@ -86,7 +86,7 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 			if name == "MorphToken" || name == "L2USDCGateway" {
 				continue
 			}
-			if name == "ERC20PriceOracle" {
+			if name == "L2TokenRegistry" {
 				_ = name
 			}
 			err = SetTouchable(db, name, *address, storage, deployResults, slotResults)

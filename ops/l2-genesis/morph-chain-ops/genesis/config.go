@@ -455,7 +455,7 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	//	"_initialized":  1,
 	//	"_initializing": false,
 	//}
-	storage["ERC20PriceOracle"] = state.StorageValues{
+	storage["L2TokenRegistry"] = state.StorageValues{
 		"_initialized":     1,
 		"_initializing":    false,
 		"_owner":           config.FinalSystemOwner,

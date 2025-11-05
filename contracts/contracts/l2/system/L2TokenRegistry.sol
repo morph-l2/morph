@@ -8,11 +8,11 @@ interface IERC20Infos {
 }
 
 /**
- * @title ERC20PriceOracle
+ * @title L2TokenRegistry
  * @dev TokenRegistry contract - Used for registering tokenID and managing token information and prices
  * @notice In the transaction scenario where ERC20 is used as gas fee payment, used for storing prices and token registration functionality
  */
-contract ERC20PriceOracle is OwnableUpgradeable {
+contract L2TokenRegistry is OwnableUpgradeable {
     /*//////////////////////////////////////////////////////////////
                                Structs
     //////////////////////////////////////////////////////////////*/
@@ -444,3 +444,4 @@ contract ERC20PriceOracle is OwnableUpgradeable {
 // Reserve storage space to allow future layout changes
 uint256[50] private __gap;
 }
+

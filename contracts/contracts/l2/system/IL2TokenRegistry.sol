@@ -2,11 +2,11 @@
 pragma solidity =0.8.24;
 
 /**
- * @title IERC20PriceOracle
- * @dev Interface for ERC20PriceOracle contract
+ * @title IL2TokenRegistry
+ * @dev Interface for L2TokenRegistry contract
  * @notice Interface defining all external functions for ERC20 price oracle and token registry
  */
-interface IERC20PriceOracle {
+interface IL2TokenRegistry {
     /*//////////////////////////////////////////////////////////////
                                Structs
     //////////////////////////////////////////////////////////////*/
