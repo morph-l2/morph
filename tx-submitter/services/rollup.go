@@ -82,6 +82,8 @@ type Rollup struct {
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
+
+	ChainConfigMap types.ChainBlobConfigs
 }
 
 func NewRollup(
@@ -126,6 +128,7 @@ func NewRollup(
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
 		reorgDetector:    reorgDetector,
+		ChainConfigMap:   types.ChainConfigMap,
 	}
 	return r
 }
@@ -298,7 +301,7 @@ func (r *Rollup) ProcessTx() error {
 // Helper function to detect reorgs with retry
 func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 	var lastErr error
-	for i := range 3 { // Try up to 3 times
+	for i := 0; i < 3; i++ { // Try up to 3 times
 		hasReorg, depth, err := r.reorgDetector.DetectReorg(r.ctx)
 		if err == nil {
 			return hasReorg, depth, nil
@@ -1240,7 +1243,6 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 }
 
 func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
-
 	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return nil, nil, nil, err
@@ -1279,7 +1281,13 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	// calc blob fee cap
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
-		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
+		blobConfig, exist := r.ChainConfigMap[r.chainId.Uint64()]
+		if !exist {
+			blobConfig = types.DefaultBlobConfig
+		}
+		blobFeeDenominator := types.GetBlobFeeDenominator(blobConfig, head.Time)
+		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas, blobFeeDenominator.Uint64())
 		// Set to 3x to handle blob market congestion
 		blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
 	}
