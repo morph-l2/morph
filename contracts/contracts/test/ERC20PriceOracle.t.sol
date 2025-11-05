@@ -410,40 +410,6 @@ contract ERC20PriceOracleTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                            Fee Discount Tests
-    //////////////////////////////////////////////////////////////*/
-
-    function test_updateFeeDiscountPercent_succeeds() public {
-        vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
-
-        uint256 discountPercent = 500; // 5%
-
-        vm.prank(owner);
-        priceOracle.updateFeeDiscountPercent(TOKEN_ID_USDC, discountPercent);
-
-        assertEq(priceOracle.getFeeDiscountPercent(TOKEN_ID_USDC), discountPercent);
-    }
-
-    function test_updateFeeDiscountPercent_reverts_when_exceeds_100_percent() public {
-        vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
-
-        vm.expectRevert(bytes4(keccak256("InvalidPercent()")));
-        vm.prank(owner);
-        priceOracle.updateFeeDiscountPercent(TOKEN_ID_USDC, 10001); // > 100%
-    }
-
-    function test_updateFeeDiscountPercent_reverts_when_not_allowed() public {
-        vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
-
-        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
-        vm.prank(alice);
-        priceOracle.updateFeeDiscountPercent(TOKEN_ID_USDC, 500);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                             Allow List Tests
     //////////////////////////////////////////////////////////////*/
 
