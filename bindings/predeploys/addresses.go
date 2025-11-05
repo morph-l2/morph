@@ -29,7 +29,7 @@ const (
 	L2ReverseCustomGateway     = "0x5300000000000000000000000000000000000018"
 	L2WithdrawLockERC20Gateway = "0x5300000000000000000000000000000000000019"
 	L2USDCGateway              = "0x5300000000000000000000000000000000000020"
-	L2ERC20Registry            = "0x5300000000000000000000000000000000000021"
+	ERC20PriceOracle           = "0x5300000000000000000000000000000000000021"
 )
 
 var (
@@ -57,6 +57,7 @@ var (
 	L2ReverseCustomGatewayAddr     = common.HexToAddress(L2ReverseCustomGateway)
 	L2WithdrawLockERC20GatewayAddr = common.HexToAddress(L2WithdrawLockERC20Gateway)
 	L2USDCGatewayAddr              = common.HexToAddress(L2USDCGateway)
+	ERC20PriceOracleAddr           = common.HexToAddress(ERC20PriceOracle)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -86,4 +87,5 @@ func init() {
 	Predeploys["L2ReverseCustomGateway"] = &L2ReverseCustomGatewayAddr
 	Predeploys["L2WithdrawLockERC20Gateway"] = &L2WithdrawLockERC20GatewayAddr
 	Predeploys["L2USDCGateway"] = &L2USDCGatewayAddr
+	Predeploys["ERC20PriceOracle"] = &ERC20PriceOracleAddr
 }
