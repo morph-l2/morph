@@ -1,10 +1,10 @@
 package types
 
 import (
-	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"strconv"
 	"testing"
 
+	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"github.com/stretchr/testify/assert"
 )
 
