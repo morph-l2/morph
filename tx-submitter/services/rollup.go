@@ -1279,8 +1279,7 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
-		minBlobGasPrice := big.NewInt(params.BlobTxMinBlobGasprice)
-		blobFee = fakeExponential(minBlobGasPrice, new(big.Int).SetUint64(uint64(*head.ExcessBlobGas)), new(big.Int).SetUint64(5007716))
+		blobFee = r.getBlobFee(head)
 		// Set to 3x to handle blob market congestion
 		blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
 	}
@@ -1292,6 +1291,32 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	)
 
 	return tip, gasFeeCap, blobFee, nil
+}
+
+func newUint64(val uint64) *uint64 { return &val }
+
+func (r *Rollup) getBlobFee(head *ethtypes.Header) *big.Int {
+	HoodiBPO1Time := newUint64(1762365720)
+	HoodiBPO2Time := newUint64(1762955544)
+	denominator := big.NewInt(5007716)
+	if isTimestampForked(HoodiBPO1Time, head.Time) {
+		denominator = big.NewInt(8346193)
+	}
+	if isTimestampForked(HoodiBPO2Time, head.Time) {
+		denominator = big.NewInt(11684671)
+	}
+	blobFee := fakeExponential(big.NewInt(params.BlobTxMinBlobGasprice), new(big.Int).SetUint64(uint64(*head.ExcessBlobGas)), denominator)
+	return blobFee
+}
+
+// isTimestampForked returns whether a fork scheduled at timestamp s is active
+// at the given head timestamp. Whilst this method is the same as isBlockForked,
+// they are explicitly separate for clearer reading.
+func isTimestampForked(s *uint64, head uint64) bool {
+	if s == nil {
+		return false
+	}
+	return *s <= head
 }
 
 // PreCheck is run before the submitter to check whether the submitter can be started
