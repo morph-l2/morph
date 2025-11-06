@@ -7,9 +7,8 @@ import {L2TokenRegistry} from "../l2/system/L2TokenRegistry.sol";
 import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract ERC20PriceOracleTest is Test {
+contract L2TokenRegistryTest is Test {
     L2TokenRegistry internal priceOracle;
     L2TokenRegistry internal priceOracleImpl;
     ProxyAdmin internal proxyAdmin;
@@ -261,8 +260,14 @@ contract ERC20PriceOracleTest is Test {
 
         assertTrue(priceOracle.getTokenInfo(TOKEN_ID_USDC).isActive);
 
+        // Use batchUpdateTokenStatus to deactivate token
+        uint16[] memory tokenIDs = new uint16[](1);
+        bool[] memory isActives = new bool[](1);
+        tokenIDs[0] = TOKEN_ID_USDC;
+        isActives[0] = false;
+
         vm.prank(owner);
-        priceOracle.deactivateToken(TOKEN_ID_USDC);
+        priceOracle.batchUpdateTokenStatus(tokenIDs, isActives);
 
         assertFalse(priceOracle.getTokenInfo(TOKEN_ID_USDC).isActive);
     }
