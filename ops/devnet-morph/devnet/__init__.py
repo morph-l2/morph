@@ -73,21 +73,51 @@ def main():
 
 def devnet_l1(paths, result=None):
     log.info('Starting L1.')
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build', '--no-cache', 'l1'], check=False,
-                cwd=paths.ops_dir, env={
+    
+    layer1_dir = pjoin(paths.ops_dir, 'layer1')
+    genesis_dir = pjoin(layer1_dir, 'genesis')
+    jwt_dir = pjoin(layer1_dir, 'jwt')
+    
+    # Check if genesis files exist, if not generate them
+    genesis_json = pjoin(genesis_dir, 'genesis.json')
+    genesis_ssz = pjoin(genesis_dir, 'genesis.ssz')
+    jwt_secret = pjoin(jwt_dir, 'jwtsecret')
+    
+    if not os.path.exists(genesis_json) or not os.path.exists(genesis_ssz) or not os.path.exists(jwt_secret):
+        log.info('Genesis files not found, generating...')
+        generate_script = pjoin(layer1_dir, 'scripts', 'generate-genesis.sh')
+        if os.path.exists(generate_script):
+            run_command(['bash', generate_script], check=True, cwd=layer1_dir)
+        else:
+            log.error(f'Genesis generation script not found at {generate_script}')
+            raise FileNotFoundError(f'Genesis generation script not found')
+    
+    # Start layer1 services
+    log.info('Starting layer1 services (layer1-el, layer1-cl, layer1-vc)...')
+    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 
+                 'layer1-el', 'layer1-cl', 'layer1-vc'], check=False, cwd=paths.ops_dir, env={
             'PWD': paths.ops_dir
         })
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 'l1'], check=False,
-                cwd=paths.ops_dir, env={
-            'PWD': paths.ops_dir
-        })
-    wait_up(9545)
+    
+    # Wait for EL node to be ready
+    log.info('Waiting for layer1-el to be ready...')
+    wait_up(9545, retries=60, wait_secs=2)
     wait_for_rpc_server('127.0.0.1:9545')
-    log.info('Sleep another 10s...')
-    time.sleep(10)
-    res = eth_accounts('127.0.0.1:9545')
-    response = json.loads(res)
-    account = response['result'][0]
+    
+    # Wait for first block to be mined
+    log.info('Waiting for first block to be mined...')
+    max_retries = 60
+    retry_count = 0
+    while retry_count < max_retries:
+        block_number = eth_blockNumber('127.0.0.1:9545')
+        if block_number is not None and block_number >= 1:
+            log.info(f'First block mined! Current block number: {block_number}')
+            break
+        retry_count += 1
+        log.info(f'Waiting for first block (current: {block_number if block_number is not None else "N/A"})...')
+        time.sleep(3)
+    else:
+        log.warning('Timeout waiting for first block to be mined')
 
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
     deploy_config = read_json(devnet_cfg_orig)
@@ -97,7 +127,7 @@ def devnet_l1(paths, result=None):
         log.info(f"Account {sequencer}, Balance: {result.stdout}", )
 
         if int(result.stdout) < 5 * ETH:
-            log.info(f'Insufficient Sequencer: {sequencer}, Founding with account: {account}')
+            log.info(f'Insufficient Sequencer: {sequencer}, Founding')
             run_command([
                 'cast', 'send', '--private-key', deploy_config['BLOCK_SIGNER_PRIVATE_KEY'],
                 '--rpc-url', 'http://127.0.0.1:9545',
@@ -238,8 +268,8 @@ def devnet_deploy(paths, args):
                     'NODE_DATA_DIR': '/data',
                     'GETH_DATA_DIR': '/db',
                     'GENESIS_FILE_PATH': '/genesis.json',
-                    'L1_ETH_RPC': 'http://l1:8545',
-                    'L1_BEACON_CHAIN_RPC': 'http://beacon-chain:3500',
+                    'L1_ETH_RPC': 'http://layer1-el:8545',
+                    'L1_BEACON_CHAIN_RPC': 'http://layer1-cl:4000',
                 })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
@@ -345,3 +375,27 @@ def eth_accounts(url):
     data = response.read().decode()
     conn.close()
     return data
+
+
+def eth_blockNumber(url):
+    """
+    Call eth_blockNumber JSON-RPC method to get the current block number.
+    Returns the block number as an integer, or None on error.
+    """
+    try:
+        conn = http.client.HTTPConnection(url)
+        headers = {'Content-type': 'application/json'}
+        body = '{"id":1, "jsonrpc":"2.0", "method": "eth_blockNumber", "params":[]}'
+        conn.request('POST', '/', body, headers)
+        response = conn.getresponse()
+        data = response.read().decode()
+        conn.close()
+        result = json.loads(data)
+        if 'result' in result:
+            # Convert hex string (e.g., "0x1") to integer
+            block_number_hex = result['result']
+            return int(block_number_hex, 16)
+        return None
+    except Exception as e:
+        log.debug(f'Error calling eth_blockNumber: {e}')
+        return None

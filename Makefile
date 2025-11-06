@@ -163,6 +163,10 @@ devnet-clean: devnet-clean-build
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
 
+devnet-l1-clean:
+	@cd ops/docker && ./layer1/scripts/clean.sh
+.PHONY: devnet-l1-clean
+
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
 .PHONY: devnet-logs
