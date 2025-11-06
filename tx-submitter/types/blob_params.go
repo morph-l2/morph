@@ -25,8 +25,14 @@ var (
 		LondonBlock: big.NewInt(12_965_000),
 		CancunTime:  newUint64(1710338135),
 		PragueTime:  newUint64(1746612311),
+		OsakaTime:   newUint64(1764798551),
+		BPO1Time:    newUint64(1765290071),
+		BPO2Time:    newUint64(1767747671),
 		Cancun:      DefaultCancunBlobConfig,
 		Prague:      DefaultPragueBlobConfig,
+		Osaka:       DefaultOsakaBlobConfig,
+		BPO1:        DefaultBPO1BlobConfig,
+		BPO2:        DefaultBPO2BlobConfig,
 		Default:     DefaultOsakaBlobConfig,
 	}
 
