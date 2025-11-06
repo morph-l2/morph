@@ -147,7 +147,7 @@ devnet-down:
 	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
 .PHONY: devnet-down
 
-devnet-clean-build: devnet-down
+devnet-clean-build: devnet-down devnet-l1-clean
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
