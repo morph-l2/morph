@@ -208,7 +208,7 @@ where
             None => return Err(String::from("batch_blocks_inspect none")),
         };
 
-    if blocks.0 <= blocks.1 {
+    if blocks.0 >= blocks.1 {
         return Err(String::from("blocks is empty"));
     }
 
