@@ -1,6 +1,7 @@
 package types
 
 import (
+	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"strconv"
 	"testing"
 
@@ -255,4 +256,16 @@ func TestGetBlobFeeDenominator_ForkPriority(t *testing.T) {
 	osakaTime := uint64(1761677592)
 	result = GetBlobFeeDenominator(config, osakaTime)
 	assert.Equal(t, DefaultOsakaBlobConfig.UpdateFraction, result.Uint64())
+}
+
+func TestCal(t *testing.T) {
+	// Test that higher priority forks are checked first
+	config := HoodiChainConfig
+	assert.NotNil(t, config)
+
+	timeNow := uint64(1762395060)
+	result := GetBlobFeeDenominator(config, timeNow)
+	t.Log(result)
+	fee := eip4844.CalcBlobFee(170172092, result.Uint64())
+	t.Log(fee.Uint64())
 }
