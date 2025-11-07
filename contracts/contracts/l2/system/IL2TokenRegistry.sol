@@ -32,7 +32,6 @@ interface IL2TokenRegistry {
         uint8 decimals,
         uint256 scale
     );
-    event TokensRegistered(uint16[] tokenIDs, address[] tokenAddresses);
     event TokenInfoUpdated(
         uint16 indexed tokenID,
         address indexed tokenAddress,

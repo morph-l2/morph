@@ -119,8 +119,6 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         for (uint256 i = 0; i < _tokenIDs.length; i++) {
             _registerSingleToken(_tokenIDs[i], _tokenAddresses[i], _balanceSlots[i], _scales[i]);
         }
-
-        emit TokensRegistered(_tokenIDs, _tokenAddresses);
     }
 
     /**
@@ -137,9 +135,6 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         uint256 _scale
     ) external onlyOwner nonReentrant {
         _registerSingleToken(_tokenID, _tokenAddress, _balanceSlot, _scale);
-
-        TokenInfo memory info = tokenRegistry[_tokenID];
-        emit TokenRegistered(_tokenID, _tokenAddress, _balanceSlot, info.isActive, info.decimals, _scale);
     }
 
     /**
@@ -175,6 +170,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
             scale: _scale
         });
         tokenRegistration[_tokenAddress] = _tokenID;
+        emit TokenRegistered(_tokenID, _tokenAddress, _balanceSlot, false, decimals, _scale);
     }
 
     /**
