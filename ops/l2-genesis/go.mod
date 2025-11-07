@@ -2,13 +2,11 @@ module morph-l2/morph-deployer
 
 go 1.24.0
 
-toolchain go1.24.10
-
 replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.2
 
 require (
 	github.com/holiman/uint256 v1.2.4
-	github.com/morph-l2/go-ethereum v1.10.14-0.20251107043234-890732196450
+	github.com/morph-l2/go-ethereum v1.10.14-0.20251031091135-78b17f183b84
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli v1.22.14
 )
@@ -20,7 +18,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/consensys/bavard v0.1.27 // indirect
 	github.com/consensys/gnark-crypto v0.16.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/crate-crypto/go-eth-kzg v1.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect

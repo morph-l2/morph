@@ -456,6 +456,12 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	//	"_initialized":  1,
 	//	"_initializing": false,
 	//}
+	storage["L2TokenRegistry"] = state.StorageValues{
+		"_initialized":     1,
+		"_initializing":    false,
+		"_owner":           config.FinalSystemOwner,
+		"allowListEnabled": true,
+	}
 	storage["Record"] = state.StorageValues{
 		"_initialized":             1,
 		"_initializing":            false,
