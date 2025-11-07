@@ -16,114 +16,110 @@ volumes:
   sentry_node_data:
   validator_geth_data:
   validator_node_data:
+  layer1-el-data:
+  layer1-cl-data:
+  layer1-vc-data:
 
 services:
-    # Runs a Prysm beacon chain from a specified genesis state created in the previous step
-    # and connects to go-ethereum in the same network as the execution client.
-    # The account used in go-ethereum is set as the suggested fee recipient for transactions
-    # proposed via the validators attached to the beacon node.
-  beacon-chain:
-      container_name: l1-beacon-chain
-#      image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.2.1
-      image: morph-beacon-chain
-      build:
-        context: ../..
-        dockerfile: ops/docker/Dockerfile.l1-beacon
-        target: beacon-chain
-      command:
-        - --datadir=/consensus/beacondata
-        - --min-sync-peers=0
-        - --genesis-state=/consensus/genesis.ssz
-        - --bootstrap-node=
-        - --interop-eth1data-votes
-        - --chain-config-file=/consensus/config.yml
-        - --contract-deployment-block=0
-        - --chain-id=${CHAIN_ID:-900}
-        - --rpc-host=0.0.0.0
-        - --grpc-gateway-host=0.0.0.0
-        - --execution-endpoint=http://l1:8551
-        - --accept-terms-of-use
-        - --jwt-secret=/execution/jwtsecret
-        - --suggested-fee-recipient=0xca062b0fd91172d89bcd4bb084ac4e21972cc467
-        - --minimum-peers-per-subnet=0
-        - --enable-debug-rpc-endpoints
-        - --force-clear-db
-#      depends_on:
-#        chain-genesis:
-#          condition: service_completed_successfully
-      ports:
-        - 4000
-        - 3500
-        - 8080
-        - 6060
-      volumes:
-        - l1_consensus:/consensus
-        - l1_execution:/execution
-
-    # We run a validator client with 64, deterministically-generated keys that match
-    # The validator keys present in the beacon chain genesis state generated a few steps above.
-  validator:
-    container_name: l1-validator
-    image: gcr.io/prysmaticlabs/prysm/validator:v4.2.1
-    command:
-      - --beacon-rpc-provider=beacon-chain:4000
-      - --datadir=/consensus/validatordata
-      - --accept-terms-of-use
-      - --interop-num-validators=64
-      - --interop-start-index=0
-      - --chain-config-file=/consensus/config.yml
-      - --force-clear-db
-    depends_on:
-      beacon-chain:
-        condition: service_started
-    volumes:
-      - l1_consensus:/consensus
-      - l1_execution:/execution
-
-    # Runs the go-ethereum execution client with the specified, unlocked account and necessary
-    # APIs to allow for proof-of-stake consensus via Prysm.
-  l1:
-    container_name: l1-geth
-    image: ethereum/client-go:v1.14.11
-    command:
-      - --http
-      - --http.api=web3,debug,eth,txpool,net,engine
-      - --http.addr=0.0.0.0
-      - --http.corsdomain=*
-      - --http.vhosts=*
-      - --ws
-      - --ws.api=web3,debug,eth,txpool,net,engine
-      - --ws.addr=0.0.0.0
-      - --ws.origins=*
-      - --authrpc.vhosts=*
-      - --authrpc.addr=0.0.0.0
-      - --authrpc.jwtsecret=/execution/jwtsecret
-      - --datadir=/execution
-      - --allow-insecure-unlock
-      - --unlock=0xca062b0fd91172d89bcd4bb084ac4e21972cc467
-      - --password=/execution/password
-      - --nodiscover
-      - --syncmode=full
-      - --gcmode=archive
+  # ========== Layer1 Ethereum Node ==========
+  layer1-el:
+    image: ethereum/client-go:latest
+    container_name: layer1-el
     ports:
-      - 8551
-      - 9545:8545
-      - 9546:8546
-    depends_on:
-#      geth-genesis:
-#        condition: service_completed_successfully
-      beacon-chain:
-        condition: service_started
-      validator:
-        condition: service_started
+      - "9545:8545"   # RPC
+      - "9546:8546"   # WebSocket
+      - "8551:8551"   # Engine API
     volumes:
-      - l1_execution:/execution
-      - l1_consensus:/consensus
+      - ./layer1/genesis:/network-configs:ro
+      - ./layer1/jwt:/jwt:ro
+      - layer1-el-data:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /data/geth/execution-data
+        if [ ! -f /data/geth/execution-data/geth/chaindata/CURRENT ]; then
+          echo "Initializing genesis..."
+          geth init --datadir=/data/geth/execution-data /network-configs/genesis.json || exit 1
+        else
+          echo "Genesis already initialized, skipping init"
+        fi
+        exec geth --networkid=900 --datadir=/data/geth/execution-data --http --http.addr=0.0.0.0 --http.port=8545 --http.api=admin,engine,net,eth,web3,debug,txpool --http.vhosts=* --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.port=8546 --ws.api=admin,engine,net,eth,web3,debug,txpool --ws.origins=* --allow-insecure-unlock --authrpc.port=8551 --authrpc.addr=0.0.0.0 --authrpc.vhosts=* --authrpc.jwtsecret=/jwt/jwtsecret --syncmode=full --miner.gasprice=1 --rpc.allow-unprotected-txs --metrics --metrics.addr=0.0.0.0 --metrics.port=9001 --discovery.port=30303 --port=30303
+    restart: unless-stopped
 
+  layer1-cl:
+    image: sigp/lighthouse:latest
+    container_name: layer1-cl
+    depends_on:
+      - layer1-el
+    ports:
+      - "4000:4000"   # HTTP API
+      - "9000:9000"   # P2P TCP/UDP
+      - "9000:9000/udp" # P2P UDP
+      - "9001:9001"   # P2P QUIC
+      - "5054:5054"   # Metrics
+    volumes:
+      - ./layer1/genesis:/network-configs:ro
+      - ./layer1/jwt:/jwt:ro
+      - layer1-cl-data:/data
+    command:
+      - lighthouse
+      - beacon_node
+      - --supernode
+      - --debug-level=info
+      - --datadir=/data/lighthouse/beacon-data
+      - --listen-address=0.0.0.0
+      - --port=9000
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=4000
+      - --disable-packet-filter
+      - --execution-endpoints=http://layer1-el:8551
+      - --jwt-secrets=/jwt/jwtsecret
+      - --suggested-fee-recipient=0x8943545177806ED17B9F23F0a21ee5948eCaa776
+      - --testnet-dir=/network-configs
+      - --allow-insecure-genesis-sync
+      - --disable-enr-auto-update
+      - --enr-tcp-port=9000
+      - --enr-udp-port=9000
+      - --enr-quic-port=9001
+      - --quic-port=9001
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5054
+      - --enable-private-discovery
+    restart: unless-stopped
+
+  layer1-vc:
+    image: sigp/lighthouse:latest
+    container_name: layer1-vc
+    depends_on:
+      - layer1-cl
+    volumes:
+      - ./layer1/genesis:/network-configs:ro
+      - ./layer1/keystores/layer1:/validator-keys
+      - layer1-vc-data:/data
+    command:
+      - lighthouse
+      - vc
+      - --debug-level=info
+      - --testnet-dir=/network-configs
+      - --validators-dir=/validator-keys/keys
+      - --secrets-dir=/validator-keys/secrets
+      - --init-slashing-protection
+      - --beacon-nodes=http://layer1-cl:4000
+      - --suggested-fee-recipient=0x8943545177806ED17B9F23F0a21ee5948eCaa776
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5064
+    restart: unless-stopped
+
+  # ========== L2 Services ==========
   morph-geth-0:
     container_name: morph-geth-0
     depends_on:
-      l1:
+      layer1-el:
         condition: service_started
     image: morph-geth:latest
     build:
@@ -388,7 +384,7 @@ services:
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
-      --home $NODE_DATA_DIR    
+      --home $NODE_DATA_DIR
     
 
   validator_geth:
@@ -493,7 +489,6 @@ services:
      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
      - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
 
-
   tx-submitter-1:
    container_name: tx-submitter-1
    depends_on:
@@ -536,7 +531,6 @@ services:
      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
      - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
 
-
   tx-submitter-2:
     container_name: tx-submitter-2
     depends_on:
@@ -578,7 +572,6 @@ services:
       - TX_SUBMITTER_LOG_COMPRESS=true
       - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
       - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
-
 
   tx-submitter-3:
     container_name: tx-submitter-3
@@ -651,31 +644,3 @@ services:
       - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - OVERHEAD_SWITCH=${OVERHEAD_SWITCH}
       - MAX_OVERHEAD=${MAX_OVERHEAD}
-      
-  staking-oracle:
-    container_name: staking-oracle
-    depends_on:
-      node-0:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.staking-oracle
-    image: morph-staking-oracle:latest
-    restart: unless-stopped
-    command: staking-oracle
-    ports:
-      - "9060:6060"
-    environment:
-      # change the env variables to your own
-      - STAKING_ORACLE_BUILD_ENV=dev
-      - STAKING_ORACLE_L1_ETH_RPC=${L1_ETH_RPC}
-      - STAKING_ORACLE_RECORD_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-      - STAKING_ORACLE_L2_ETH_RPC=http://morph-geth-0:8545
-      - STAKING_ORACLE_L2_TENDERMINT_RPC=http://node-0:26657
-      - STAKING_ORACLE_L2_WS_ENDPOINT=http://node-0:26656
-      - STAKING_ORACLE_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - STAKING_ORACLE_LOG_FILENAME=staking-oracle.log
-      - STAKING_ORACLE_LOG_FILE_MAX_SIZE=100 #MB
-      - STAKING_ORACLE_LOG_FILE_MAX_AGE=7 #day
-      - STAKING_ORACLE_LOG_COMPRESS=true
-      - STAKING_ORACLE_METRICS_SERVER_ENABLE=true
