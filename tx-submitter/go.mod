@@ -5,6 +5,8 @@ go 1.24.0
 replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.2
 
 require (
+	github.com/consensys/gnark-crypto v0.16.0
+	github.com/crate-crypto/go-eth-kzg v1.4.0
 	github.com/holiman/uint256 v1.2.4
 	github.com/morph-l2/externalsign v0.3.1
 	github.com/morph-l2/go-ethereum v1.10.14-0.20251031091135-78b17f183b84
@@ -24,9 +26,7 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/consensys/bavard v0.1.27 // indirect
-	github.com/consensys/gnark-crypto v0.16.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
-	github.com/crate-crypto/go-eth-kzg v1.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
