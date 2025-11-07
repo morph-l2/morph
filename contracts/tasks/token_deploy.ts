@@ -653,7 +653,7 @@ task("deploy-l2-token-registry")
     })
 
 task("deploy-test-tokens-and-register")
-    .addParam("tokenregistry")
+    .addParam("tokenregistry","Contract address","0x5300000000000000000000000000000000000021")
     .addOptionalParam("count", "Number of test tokens to deploy", "10")
     .setAction(async (taskArgs, hre) => {
         // params check

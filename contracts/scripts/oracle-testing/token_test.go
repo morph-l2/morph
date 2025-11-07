@@ -14,9 +14,9 @@ import (
 )
 
 func TestGetStorageAtL2TokenRegistry(t *testing.T) {
-	TokenRegistryAddress = common.HexToAddress("0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512")
+	TokenRegistryAddress = common.HexToAddress("0x5300000000000000000000000000000000000021")
 	// Connect to Ethereum node
-	rpcURL := "http://localhost:9545"
+	rpcURL := "http://localhost:8545"
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		t.Fatalf("Failed to connect to Ethereum node: %v", err)
@@ -128,9 +128,9 @@ func TestCalculateStorageSlots(t *testing.T) {
 
 // TestCompareTokensFromJSON compares token configurations from JSON file with contract data
 func TestCompareTokensFromJSON(t *testing.T) {
-	TokenRegistryAddress = common.HexToAddress("0x34B40BA116d5Dec75548a9e9A8f15411461E8c70")
+	TokenRegistryAddress = common.HexToAddress("0x5300000000000000000000000000000000000021")
 	// Connect to Ethereum node
-	rpcURL := "http://localhost:9545"
+	rpcURL := "http://localhost:8545"
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		t.Fatalf("Failed to connect to Ethereum node: %v", err)
