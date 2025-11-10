@@ -82,6 +82,8 @@ type Rollup struct {
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
+
+	ChainConfigMap types.ChainBlobConfigs
 }
 
 func NewRollup(
@@ -126,6 +128,7 @@ func NewRollup(
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
 		reorgDetector:    reorgDetector,
+		ChainConfigMap:   types.ChainConfigMap,
 	}
 	return r
 }
@@ -298,7 +301,7 @@ func (r *Rollup) ProcessTx() error {
 // Helper function to detect reorgs with retry
 func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 	var lastErr error
-	for i := range 3 { // Try up to 3 times
+	for i := 0; i < 3; i++ { // Try up to 3 times
 		hasReorg, depth, err := r.reorgDetector.DetectReorg(r.ctx)
 		if err == nil {
 			return hasReorg, depth, nil
@@ -839,7 +842,7 @@ func (r *Rollup) finalize() error {
 	if err != nil {
 		return fmt.Errorf("pack finalizeBatch error:%v", err)
 	}
-	tip, feecap, _, err := r.GetGasTipAndCap()
+	tip, feecap, _, _, err := r.GetGasTipAndCap()
 	if err != nil {
 		log.Error("get gas tip and cap error", "business", "finalize")
 		return fmt.Errorf("get gas tip and cap error:%v", err)
@@ -1065,7 +1068,7 @@ func (r *Rollup) rollup() error {
 	}
 
 	// tip and cap
-	tip, gasFeeCap, blobFee, err := r.GetGasTipAndCap()
+	tip, gasFeeCap, blobFee, head, err := r.GetGasTipAndCap()
 	if err != nil {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
@@ -1102,7 +1105,7 @@ func (r *Rollup) rollup() error {
 	}
 
 	// Create and sign transaction
-	tx, err := r.createRollupTx(batch, nonce, gas, tip, gasFeeCap, blobFee, calldata)
+	tx, err := r.createRollupTx(batch, nonce, gas, tip, gasFeeCap, blobFee, calldata, head)
 	if err != nil {
 		return fmt.Errorf("failed to create rollup tx: %w", err)
 	}
@@ -1116,14 +1119,14 @@ func (r *Rollup) rollup() error {
 	r.logTxInfo(signedTx, batchIndex)
 
 	// Send transaction
-	if err := r.SendTx(signedTx); err != nil {
+	if err = r.SendTx(signedTx); err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
 	// Update pending state
 	r.pendingTxs.SetPindex(batchIndex)
 	r.pendingTxs.SetNonce(tx.Nonce())
-	if err := r.pendingTxs.Add(signedTx); err != nil {
+	if err = r.pendingTxs.Add(signedTx); err != nil {
 		log.Error("Failed to track transaction", "error", err)
 	}
 
@@ -1143,17 +1146,36 @@ func (r *Rollup) getNextNonce() uint64 {
 	return nonce
 }
 
-func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte) (*ethtypes.Transaction, error) {
+func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
 	if len(batch.Sidecar.Blobs) > 0 {
-		return r.createBlobTx(batch, nonce, gas, tip, gasFeeCap, blobFee, calldata)
+		return r.createBlobTx(batch, nonce, gas, tip, gasFeeCap, blobFee, calldata, head)
 	}
 	return r.createDynamicFeeTx(nonce, gas, tip, gasFeeCap, calldata)
 }
 
-func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte) (*ethtypes.Transaction, error) {
-	versionedHashes := make([]common.Hash, 0, len(batch.Sidecar.Commitments))
-	for _, commit := range batch.Sidecar.Commitments {
-		versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
+func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
+	versionedHashes := types.BlobHashes(batch.Sidecar.Blobs, batch.Sidecar.Commitments)
+	sidecar := &ethtypes.BlobTxSidecar{
+		Blobs:       batch.Sidecar.Blobs,
+		Commitments: batch.Sidecar.Commitments,
+	}
+	switch types.DetermineBlobVersion(head, r.chainId.Uint64()) {
+	case ethtypes.BlobSidecarVersion0:
+		sidecar.Version = ethtypes.BlobSidecarVersion0
+		proof, err := types.MakeBlobProof(sidecar.Blobs, sidecar.Commitments)
+		if err != nil {
+			return nil, fmt.Errorf("gen blob proof failed %v", err)
+		}
+		sidecar.Proofs = proof
+	case ethtypes.BlobSidecarVersion1:
+		sidecar.Version = ethtypes.BlobSidecarVersion1
+		proof, err := types.MakeCellProof(sidecar.Blobs)
+		if err != nil {
+			return nil, fmt.Errorf("gen cell proof failed %v", err)
+		}
+		sidecar.Proofs = proof
+	default:
+		return nil, fmt.Errorf("unsupported blob version")
 	}
 
 	return ethtypes.NewTx(&ethtypes.BlobTx{
@@ -1166,11 +1188,7 @@ func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip,
 		Data:       calldata,
 		BlobFeeCap: uint256.MustFromBig(blobFee),
 		BlobHashes: versionedHashes,
-		Sidecar: &ethtypes.BlobTxSidecar{
-			Blobs:       batch.Sidecar.Blobs,
-			Commitments: batch.Sidecar.Commitments,
-			Proofs:      batch.Sidecar.Proofs,
-		},
+		Sidecar:    sidecar,
 	}), nil
 }
 
@@ -1239,22 +1257,21 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 	return &sigData, nil
 }
 
-func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
-
+func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, *ethtypes.Header, error) {
 	head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if head.BaseFee != nil {
 		log.Info("market fee info", "feecap", head.BaseFee)
 		if r.cfg.MaxBaseFee > 0 && head.BaseFee.Cmp(big.NewInt(int64(r.cfg.MaxBaseFee))) > 0 {
-			return nil, nil, nil, fmt.Errorf("base fee is too high, base fee %v exceeds max %v", head.BaseFee, r.cfg.MaxBaseFee)
+			return nil, nil, nil, nil, fmt.Errorf("base fee is too high, base fee %v exceeds max %v", head.BaseFee, r.cfg.MaxBaseFee)
 		}
 	}
 
 	tip, err := r.L1Client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	log.Info("market fee info", "tip", tip)
 
@@ -1263,7 +1280,7 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 		tip = new(big.Int).Div(tip, big.NewInt(100))
 	}
 	if r.cfg.MaxTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MaxTip))) > 0 {
-		return nil, nil, nil, fmt.Errorf("tip is too high, tip %v exceeds max %v", tip, r.cfg.MaxTip)
+		return nil, nil, nil, nil, fmt.Errorf("tip is too high, tip %v exceeds max %v", tip, r.cfg.MaxTip)
 	}
 
 	var gasFeeCap *big.Int
@@ -1279,7 +1296,13 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	// calc blob fee cap
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
-		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
+		blobConfig, exist := types.ChainConfigMap[r.chainId.Uint64()]
+		if !exist {
+			blobConfig = types.DefaultBlobConfig
+		}
+		blobFeeDenominator := types.GetBlobFeeDenominator(blobConfig, head.Time)
+		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas, blobFeeDenominator.Uint64())
 		// Set to 3x to handle blob market congestion
 		blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
 	}
@@ -1290,7 +1313,7 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 		"blobfee", blobFee,
 	)
 
-	return tip, gasFeeCap, blobFee, nil
+	return tip, gasFeeCap, blobFee, head, nil
 }
 
 // PreCheck is run before the submitter to check whether the submitter can be started
@@ -1570,7 +1593,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 		"nonce", tx.Nonce(),
 	)
 
-	tip, gasFeeCap, blobFeeCap, err := r.GetGasTipAndCap()
+	tip, gasFeeCap, blobFeeCap, head, err := r.GetGasTipAndCap()
 	if err != nil {
 		return nil, fmt.Errorf("get gas tip and cap error:%w", err)
 	}
@@ -1598,11 +1621,6 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 		if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
 			log.Info("replace tip is too low, update tip to min tip ", "tip", tip, "min_tip", r.cfg.MinTip)
 			tip = big.NewInt(int64(r.cfg.MinTip))
-			// recalc feecap
-			head, err := r.L1Client.HeaderByNumber(context.Background(), nil)
-			if err != nil {
-				return nil, fmt.Errorf("get l1 head error:%w", err)
-			}
 			var recalculatedFeecap *big.Int
 			if head.BaseFee != nil {
 				recalculatedFeecap = new(big.Int).Add(
@@ -1632,7 +1650,14 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 			Data:      tx.Data(),
 		})
 	case ethtypes.BlobTxType:
-
+		sidecar := tx.BlobTxSidecar()
+		version := types.DetermineBlobVersion(head, r.chainId.Uint64())
+		if sidecar.Version == ethtypes.BlobSidecarVersion0 && version == ethtypes.BlobSidecarVersion1 {
+			err = types.BlobSidecarVersionToV1(sidecar)
+			if err != nil {
+				return nil, err
+			}
+		}
 		newTx = ethtypes.NewTx(&ethtypes.BlobTx{
 			ChainID:    uint256.MustFromBig(tx.ChainId()),
 			Nonce:      tx.Nonce(),
@@ -1644,7 +1669,7 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 			Data:       tx.Data(),
 			BlobFeeCap: uint256.MustFromBig(blobFeeCap),
 			BlobHashes: tx.BlobHashes(),
-			Sidecar:    tx.BlobTxSidecar(),
+			Sidecar:    sidecar,
 		})
 
 	default:
@@ -1810,7 +1835,7 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 		"nonce", tx.Nonce(),
 	)
 
-	tip, gasFeeCap, blobFeeCap, err := r.GetGasTipAndCap()
+	tip, gasFeeCap, blobFeeCap, _, err := r.GetGasTipAndCap()
 	if err != nil {
 		return nil, fmt.Errorf("get gas tip and cap error:%w", err)
 	}

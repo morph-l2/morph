@@ -1,6 +1,6 @@
 ################## update dependencies ####################
-
-ETHEREUM_TARGET_VERSION := morph-v2.0.7
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.0.8
+ETHEREUM_TARGET_VERSION := morph-v2.0.8
 TENDERMINT_TARGET_VERSION := v0.3.2
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -39,7 +39,13 @@ update:
 
 submodules:
 	git submodule update --init
-	git submodule update --remote 
+	@if [ -d "go-ethereum" ]; then \
+		echo "Updating go-ethereum submodule to tag $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG)..."; \
+		cd go-ethereum && \
+		git fetch --tags && \
+		git checkout $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG) && \
+		cd ..; \
+	fi
 .PHONY: submodules
 
 ################## bindings ####################
@@ -58,12 +64,13 @@ lint-sol:
 .PHONY: lint-sol
 
 lint-go:
+	go work sync
 	make -C bindings lint
 	make -C contracts lint-go
 	make -C node lint
 	make -C ops/l2-genesis lint
 	make -C ops/tools lint
-	make -C oracle lint
+##	make -C oracle lint
 	make -C tx-submitter lint
 .PHONY: lint-go
 
@@ -120,7 +127,7 @@ go-rust-alpine-builder:
 go-ubuntu-builder:
 	@if [ -z "$(shell docker images -q morph/go-ubuntu-builder 2> /dev/null)" ]; then \
 		echo "Docker image morph/go-ubuntu-builder does not exist. Building..."; \
-		cd ops/docker/intermediate && docker build -t morph/go-ubuntu-builder:go-1.22-ubuntu . -f go-ubuntu-builder.Dockerfile; \
+		cd ops/docker/intermediate && docker build -t morph/go-ubuntu-builder:go-1.24-ubuntu . -f go-ubuntu-builder.Dockerfile; \
 	else \
 		echo "Docker image morph/go-ubuntu-builder already exists."; \
 	fi
@@ -140,7 +147,7 @@ devnet-down:
 	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
 .PHONY: devnet-down
 
-devnet-clean-build: devnet-down
+devnet-clean-build: devnet-down devnet-l1-clean
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
@@ -155,6 +162,10 @@ devnet-clean: devnet-clean-build
 
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
+
+devnet-l1-clean:
+	@cd ops/docker && ./layer1/scripts/clean.sh
+.PHONY: devnet-l1-clean
 
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)

@@ -1,0 +1,27 @@
+.PHONY: help generate start stop restart logs clean
+
+help:
+	@echo "Available commands:"
+	@echo "  make generate  - Generate genesis data and keystores"
+	@echo "  make start     - Start network"
+	@echo "  make stop      - Stop network"
+	@echo "  make restart   - Restart network"
+	@echo "  make logs      - View logs"
+	@echo "  make clean     - Clean all generated data and reset to initial state"
+
+generate:
+	@./layer1/scripts/generate-genesis.sh
+
+start:
+	@./layer1/scripts/start.sh
+
+stop:
+	@docker compose -f docker-compose-4nodes.yml down
+
+restart: stop start
+
+logs:
+	@docker compose -f docker-compose-4nodes.yml logs -f layer1-el layer1-cl layer1-vc
+
+clean:
+	@./layer1/scripts/clean.sh
