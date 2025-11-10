@@ -3,6 +3,7 @@ pragma solidity =0.8.24;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 import {IL2TokenRegistry} from "./IL2TokenRegistry.sol";
 
 interface IERC20Infos {
@@ -15,6 +16,7 @@ interface IERC20Infos {
  * @notice In the transaction scenario where ERC20 is used as gas fee payment, used for storing prices and token registration functionality
  */
 contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
 
     /// @notice Mapping from tokenID to TokenInfo
     mapping(uint16 => TokenInfo) public tokenRegistry;
@@ -31,6 +33,9 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
 
     /// @notice Whether whitelist is enabled
     bool public allowListEnabled = true;
+
+    /// @notice Set of supported token IDs
+    EnumerableSetUpgradeable.UintSet private supportedTokenSet;
 
     /*//////////////////////////////////////////////////////////////
                            Modifier
@@ -138,6 +143,22 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     }
 
     /**
+     * @notice Internal function: Add token ID to supported list
+     * @param _tokenID Token ID to add
+     */
+    function _addTokenToList(uint16 _tokenID) internal {
+        supportedTokenSet.add(uint256(_tokenID));
+    }
+
+    /**
+     * @notice Internal function: Remove token ID from supported list
+     * @param _tokenID Token ID to remove
+     */
+    function _removeTokenFromList(uint16 _tokenID) internal {
+        supportedTokenSet.remove(uint256(_tokenID));
+    }
+
+    /**
      * @notice Internal function: Register a single token
      */
     function _registerSingleToken(
@@ -170,6 +191,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
             scale: _scale
         });
         tokenRegistration[_tokenAddress] = _tokenID;
+        _addTokenToList(_tokenID);
         emit TokenRegistered(_tokenID, _tokenAddress, _balanceSlot, false, decimals, _scale);
     }
 
@@ -221,7 +243,30 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
             tokenRegistration[_tokenAddress] = _tokenID;
         }
 
+        // Note: tokenID should already be in supportedTokenSet from registration
+        // No need to add again as EnumerableSet.add() is idempotent but wastes gas
+
         emit TokenInfoUpdated(_tokenID, _tokenAddress, _balanceSlot, _isActive, decimals, _scale);
+    }
+
+    /**
+     * @notice Remove a token from registry
+     * @param _tokenID Token ID to remove
+     */
+    function removeToken(uint16 _tokenID) external onlyOwner nonReentrant {
+        // Check if token exists
+        address tokenAddress = tokenRegistry[_tokenID].tokenAddress;
+        if (tokenAddress == address(0)) revert TokenNotFound();
+
+        // Remove from mappings
+        delete tokenRegistry[_tokenID];
+        delete tokenRegistration[tokenAddress];
+        delete priceRatio[_tokenID];
+
+        // Remove from supported list
+        _removeTokenFromList(_tokenID);
+
+        emit TokenRemoved(_tokenID, tokenAddress);
     }
 
     /**
@@ -398,6 +443,58 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     function isTokenActive(uint16 _tokenID) external view returns (bool) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) return false;
         return tokenRegistry[_tokenID].isActive;
+    }
+
+    /**
+     * @notice Check if a token ID is in the supported list
+     * @param _tokenID Token ID to check
+     * @return Whether the token ID is registered
+     */
+    function isTokenSupported(uint16 _tokenID) external view returns (bool) {
+        return supportedTokenSet.contains(uint256(_tokenID));
+    }
+
+    /**
+     * @notice Get all supported token IDs and their addresses
+     * @return Array of TokenEntry containing token ID and address pairs
+     */
+    function getSupportedTokenList() external view returns (TokenEntry[] memory) {
+        uint256[] memory values = supportedTokenSet.values();
+        TokenEntry[] memory tokenList = new TokenEntry[](values.length);
+        
+        for (uint256 i = 0; i < values.length; ++i) {
+            uint16 tokenID = uint16(values[i]);
+            address tokenAddress = tokenRegistry[tokenID].tokenAddress;
+            tokenList[i] = TokenEntry({
+                tokenID: tokenID,
+                tokenAddress: tokenAddress
+            });
+        }
+        
+        return tokenList;
+    }
+
+    /**
+     * @notice Get all supported token IDs
+     * @return Array of all registered token IDs
+     */
+    function getSupportedIDList() external view returns (uint16[] memory) {
+        uint256[] memory values = supportedTokenSet.values();
+        uint16[] memory tokenIDs = new uint16[](values.length);
+        
+        for (uint256 i = 0; i < values.length; ++i) {
+            tokenIDs[i] = uint16(values[i]);
+        }
+        
+        return tokenIDs;
+    }
+
+    /**
+     * @notice Get the count of supported tokens
+     * @return The number of registered tokens
+     */
+    function getSupportedTokenCount() external view returns (uint256) {
+        return supportedTokenSet.length();
     }
 
     // Reserve storage space to allow future layout changes

@@ -20,6 +20,12 @@ interface IL2TokenRegistry {
         uint256 scale; // Core convention: rateScaled = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
     }
 
+    /// @notice Token entry structure containing ID and address
+    struct TokenEntry {
+        uint16 tokenID; // Token ID
+        address tokenAddress; // ERC20 token contract address
+    }
+
     /*//////////////////////////////////////////////////////////////
                             Events
     //////////////////////////////////////////////////////////////*/
@@ -42,6 +48,7 @@ interface IL2TokenRegistry {
     );
     event TokenActivated(uint16 indexed tokenID);
     event TokenDeactivated(uint16 indexed tokenID);
+    event TokenRemoved(uint16 indexed tokenID, address indexed tokenAddress);
     event PriceRatioUpdated(uint16 indexed tokenID, uint256 newPrice);
     event TokenScaleUpdated(uint16 indexed tokenID, uint256 newScale);
     event AllowListSet(address indexed user, bool val);
@@ -121,6 +128,12 @@ interface IL2TokenRegistry {
         bool _isActive,
         uint256 _scale
     ) external;
+
+    /**
+     * @notice Remove a token from registry
+     * @param _tokenID Token ID to remove
+     */
+    function removeToken(uint16 _tokenID) external;
 
     /**
      * @notice Batch update token activation status
@@ -205,5 +218,30 @@ interface IL2TokenRegistry {
      * @return Whether the token is active
      */
     function isTokenActive(uint16 _tokenID) external view returns (bool);
+
+    /**
+     * @notice Check if a token ID is in the supported list
+     * @param _tokenID Token ID to check
+     * @return Whether the token ID is registered
+     */
+    function isTokenSupported(uint16 _tokenID) external view returns (bool);
+
+    /**
+     * @notice Get all supported token IDs and their addresses
+     * @return Array of TokenEntry containing token ID and address pairs
+     */
+    function getSupportedTokenList() external view returns (TokenEntry[] memory);
+
+    /**
+     * @notice Get all supported token IDs
+     * @return Array of all registered token IDs
+     */
+    function getSupportedIDList() external view returns (uint16[] memory);
+
+    /**
+     * @notice Get the count of supported tokens
+     * @return The number of registered tokens
+     */
+    function getSupportedTokenCount() external view returns (uint256);
 }
 
