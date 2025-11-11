@@ -65,6 +65,20 @@ module.exports = {
             allowUnlimitedContractSize: true,
             chainId: 900,
         },
+        qal1: {
+            url: "https://old-empty-sound.ethereum-hoodi.quiknode.pro/0f479a6bd068da530e0afdb36755f94c9facef17/",
+            chainId: 560048,
+            gas: 'auto',
+            gasPrice: 'auto',
+            accounts: ["2035516063ca7724d93e1bfaa01137457355f8e9e1d6cf28cff84def7a478c18"]
+        },
+        qal2: {
+            url: "http://l2-qa-morph-senquencer-0.bitkeep.tools",
+            chainId: 53077,
+            gas: 'auto',
+            gasPrice: 'auto',
+            accounts: ["2035516063ca7724d93e1bfaa01137457355f8e9e1d6cf28cff84def7a478c18"]
+        },
         l1: {
             url: "http://localhost:9545",
             chainId: 900,

@@ -615,7 +615,8 @@ task("deploy-l2-MigrationUSDC")
     })
 
 task("deploy-l2-token-registry")
-    .addParam("proxyadmin")
+    .addParam("proxyadmin","Proxy admin address","0x530000000000000000000000000000000000000B")
+    .addOptionalParam("proxy", "Existing proxy address (if upgrading)","0x5300000000000000000000000000000000000021")
     .addParam("owner")
     .setAction(async (taskArgs, hre) => {
         // params check
@@ -632,22 +633,51 @@ task("deploy-l2-token-registry")
         await tokenRegistry.deployed()
         console.log(`L2TokenRegistry impl deployed at ${tokenRegistry.address}`)
 
-        // deploy proxy with initialize
-        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
-        const proxy = await TransparentProxyFactory.deploy(
-            tokenRegistry.address, //logic
-            taskArgs.proxyadmin, //admin
-            TokenRegistryFactory.interface.encodeFunctionData('initialize', [
-                taskArgs.owner // owner
-            ]) // data
-        )
-        await proxy.deployed()
-        console.log(`L2TokenRegistry proxy deployed at ${proxy.address}`)
+        let proxyAddress;
+
+        // Check if proxy parameter exists for upgrade
+        if (taskArgs.proxy && ethers.utils.isAddress(taskArgs.proxy)) {
+            console.log(`\nUpgrading existing proxy at ${taskArgs.proxy}`)
+            
+            // Get ProxyAdmin contract
+            const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+            const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadmin)
+            
+            // Upgrade the proxy to new implementation
+            const upgradeTx = await proxyAdmin.upgradeAndCall(
+                taskArgs.proxy,
+                tokenRegistry.address,
+                TokenRegistryFactory.interface.encodeFunctionData('initialize', [
+                    taskArgs.owner // owner
+                ]) // data
+            )
+            await upgradeTx.wait()
+            console.log(`Proxy upgraded to new implementation: ${tokenRegistry.address}`)
+            
+            proxyAddress = taskArgs.proxy
+        } else {
+            console.log(`\nDeploying new proxy`)
+            
+            // deploy proxy with initialize
+            const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+            const proxy = await TransparentProxyFactory.deploy(
+                tokenRegistry.address, //logic
+                taskArgs.proxyadmin, //admin
+                TokenRegistryFactory.interface.encodeFunctionData('initialize', [
+                    taskArgs.owner // owner
+                ]) // data
+            )
+            await proxy.deployed()
+            console.log(`L2TokenRegistry proxy deployed at ${proxy.address}`)
+            
+            proxyAddress = proxy.address
+        }
 
         // Verify deployment
-        const tokenRegistryProxy = TokenRegistryFactory.attach(proxy.address)
+        const tokenRegistryProxy = TokenRegistryFactory.attach(proxyAddress)
         const registryOwner = await tokenRegistryProxy.owner()
         const allowListEnabled = await tokenRegistryProxy.allowListEnabled()
+        console.log(`\nL2TokenRegistry proxy address: ${proxyAddress}`)
         console.log(`L2TokenRegistry proxy owner: ${registryOwner}`)
         console.log(`L2TokenRegistry allowListEnabled: ${allowListEnabled}`)
     })
