@@ -1,15 +1,8 @@
 use crate::{metrics::METRICS, util::read_env_var, BatchInfo};
 use alloy::{
-    consensus::Transaction,
-    network::{Network, ReceiptResponse},
-    primitives::{Address, Bytes, TxHash, U256, U64},
-    providers::{Provider, RootProvider},
-    rpc::types::Log,
-    sol_types::SolCall,
-    transports::{
-        http::{Client, Http},
-        Transport,
-    },
+    consensus::Transaction, hex::FromHex, network::{Network, ReceiptResponse}, primitives::{Address, Bytes, TxHash, U64, U256}, providers::{Provider, RootProvider}, rpc::types::Log, sol_types::SolCall, transports::{
+        Transport, http::{Client, Http}
+    }
 };
 
 use crate::{
@@ -169,35 +162,36 @@ where
     N: Network,
 {
     log::info!("latest l1 blocknum = {:#?}", latest);
-    let start = if latest > U64::from(600) { latest - U64::from(600) } else { U64::from(1) };
-    let filter =
-        l1_rollup.CommitBatch_filter().filter.from_block(start).address(*l1_rollup.address());
-    let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
-        Ok(logs) => logs,
-        Err(e) => {
-            log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
-            return Err("l1_rollup.commit_batch.get_logs provider error".to_string());
-        }
-    };
-    if logs.is_empty() {
-        log::warn!("There have been no commit_batch logs for the last 600 blocks");
-        return Ok(None);
-    }
-    if logs.len() < 3 {
-        log::warn!("No enough commit_batch logs for the last 600 blocks");
-        return Ok(None);
-    }
-    logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
+    // let start = if latest > U64::from(600) { latest - U64::from(600) } else { U64::from(1) };
+    // let filter =
+    //     l1_rollup.CommitBatch_filter().filter.from_block(start).address(*l1_rollup.address());
+    // let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
+    //     Ok(logs) => logs,
+    //     Err(e) => {
+    //         log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
+    //         return Err("l1_rollup.commit_batch.get_logs provider error".to_string());
+    //     }
+    // };
+    // if logs.is_empty() {
+    //     log::warn!("There have been no commit_batch logs for the last 600 blocks");
+    //     return Ok(None);
+    // }
+    // if logs.len() < 3 {
+    //     log::warn!("No enough commit_batch logs for the last 600 blocks");
+    //     return Ok(None);
+    // }
+    // logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
 
-    let batch_index = match logs.get(logs.len() - 2) {
-        Some(log) => {
-            let _index = U256::from_be_slice(log.topics()[1].as_slice());
-            _index.to::<u64>()
-        }
-        None => {
-            return Err("find commit_batch log error".to_string());
-        }
-    };
+    // let batch_index = match logs.get(logs.len() - 2) {
+    //     Some(log) => {
+    //         let _index = U256::from_be_slice(log.topics()[1].as_slice());
+    //         _index.to::<u64>()
+    //     }
+    //     None => {
+    //         return Err("find commit_batch log error".to_string());
+    //     }
+    // };
+    let batch_index = 45468;
 
     if batch_index == 0 {
         return Err(String::from("batch_index is 0"));
@@ -226,13 +220,15 @@ where
         BatchInfo { batch_index, start_block: blocks.0, end_block: blocks.1 };
 
     // A rollup commit_batch_input contains prev batch_header.
-    let next_tx_hash = match logs.last() {
-        Some(log) => log.transaction_hash.unwrap_or_default(),
+    // let next_tx_hash = match logs.last() {
+    //     Some(log) => log.transaction_hash.unwrap_or_default(),
 
-        None => {
-            return Err("find commit_batch log error".to_string());
-        }
-    };
+    //     None => {
+    //         return Err("find commit_batch log error".to_string());
+    //     }
+    // };
+    // let tx_hash = "0xd360ae1ef3ab56857c2c3ee24655306518ee077c7dfea20bea2f8bceea86fd93";
+    let next_tx_hash = TxHash::from_hex("0xfa73e6514566bc7d92ae53f9892580cf64ff30480ce0d781f1e78e5a4da6efea").unwrap_or_default();
     let batch_header = batch_header_inspect(l1_provider, next_tx_hash)
         .await
         .ok_or_else(|| "Failed to inspect batch header".to_string())?;
