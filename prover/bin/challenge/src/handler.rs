@@ -107,7 +107,7 @@ impl ChallengeHandler {
         Ok(())
     }
     async fn handle_with_prover(&self, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
-        loop {
+        for _ in 0..3 {
             sleep(Duration::from_secs(12)).await;
 
             // Step1. fetch latest blocknum.
@@ -295,9 +295,9 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 }
 
 async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(H256, H256)> {
-    let start = if latest > U64::from(7200 * 3) {
+    let start = if latest > U64::from(7200 * 7) {
         // Depends on challenge period
-        latest - U64::from(7200 * 3)
+        latest - U64::from(7200 * 7)
     } else {
         U64::from(1)
     };
@@ -536,24 +536,30 @@ async fn send_transaction(
     let signed_tx = sign_tx(tx, local_signer, ext_signer)
         .await
         .map_err(|e| anyhow!("prove_state sign_tx error: {}", e))?;
+    log::error!("=====>signed_tx: {:#?}", signed_tx);
 
-    let pending_tx = l2_provider.send_raw_transaction(signed_tx).await.map_err(|e| {
-        let msg = contract_error(ContractError::<Provider<Http>>::from(e));
-        anyhow!("prove_state call contract error: {}", msg)
-    })?;
 
-    let tx_hash = pending_tx.tx_hash();
 
-    let receipt = pending_tx
-        .await
-        .map_err(|e| anyhow!(format!("prove_state check_receipt of {:#?} is error: {:#?}", tx_hash, e)))?
-        .ok_or(anyhow!(format!("prove_state check_receipt is none, tx_hash: {:#?}", tx_hash)))?;
 
-    if receipt.status == Some(1.into()) {
-        Ok(tx_hash)
-    } else {
-        Err(anyhow!(format!("tx of prove_state failed, transaction_hash: {:#?}", receipt.transaction_hash)).into())
-    }
+    Ok(H256::default())
+
+    // let pending_tx = l2_provider.send_raw_transaction(signed_tx).await.map_err(|e| {
+    //     let msg = contract_error(ContractError::<Provider<Http>>::from(e));
+    //     anyhow!("prove_state call contract error: {}", msg)
+    // })?;
+
+    // let tx_hash = pending_tx.tx_hash();
+
+    // let receipt = pending_tx
+    //     .await
+    //     .map_err(|e| anyhow!(format!("prove_state check_receipt of {:#?} is error: {:#?}", tx_hash, e)))?
+    //     .ok_or(anyhow!(format!("prove_state check_receipt is none, tx_hash: {:#?}", tx_hash)))?;
+
+    // if receipt.status == Some(1.into()) {
+    //     Ok(tx_hash)
+    // } else {
+    //     Err(anyhow!(format!("tx of prove_state failed, transaction_hash: {:#?}", receipt.transaction_hash)).into())
+    // }
 }
 
 async fn sign_tx(
@@ -562,6 +568,7 @@ async fn sign_tx(
     ext_signer: &Option<ExternalSign>,
 ) -> Result<Bytes, Box<dyn Error>> {
     if let Some(signer) = ext_signer {
+        log::error!("=====>use ext_signer");
         Ok(signer.request_sign(&tx).await?)
     } else {
         let signature = local_signer.signer().sign_transaction(&tx).await?;
