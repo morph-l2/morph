@@ -133,18 +133,20 @@ impl ChallengeHandler {
                     return;
                 }
             };
-            METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+            // METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
 
-            // Step2. detect challenge events from the past 3 days.
-            let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
-                Some(value) => value,
-                None => {
-                    METRICS.detected_batch_index.set(0i64);
-                    continue;
-                }
-            };
-            log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
-            METRICS.detected_batch_index.set(batch_index as i64);
+            // // Step2. detect challenge events from the past 3 days.
+            // let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
+            //     Some(value) => value,
+            //     None => {
+            //         METRICS.detected_batch_index.set(0i64);
+            //         continue;
+            //     }
+            // };
+            // log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
+            // METRICS.detected_batch_index.set(batch_index as i64);
+
+            let batch_index = 45468u64;
 
             // Step3. query challenged batch info.
             let (challenged_rollup_hash, batch_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
@@ -250,13 +252,13 @@ impl ChallengeHandler {
             let calldata = l1_rollup.prove_state(batch_header.clone(), proof).calldata();
             let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
             if let Ok(tx_hash) = result {
-                METRICS.verify_result.set(1);
+                // METRICS.verify_result.set(1);
                 log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
                 return true;
             }
 
             if let Err(e) = result {
-                METRICS.verify_result.set(2);
+                // METRICS.verify_result.set(2);
                 log::error!("send tx of prove_state error, batch_index: {:?}, err_msg: {:#?}", batch_index, e);
                 continue;
             }
