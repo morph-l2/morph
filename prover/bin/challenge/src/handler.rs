@@ -527,9 +527,12 @@ async fn send_transaction(
     ext_signer: &Option<ExternalSign>,
     l2_provider: &Provider<Http>,
 ) -> Result<H256, Box<dyn Error>> {
-    let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
+    let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default()).max_fee_per_gas(10u64.pow(9)).max_priority_fee_per_gas(10u64.pow(8));
     let mut tx = TypedTransaction::Eip1559(req);
-    
+    tx.set_chain_id(1);
+    tx.set_gas(53000);
+    tx.set_nonce(1);
+
     tx.set_to(contract);
     if let Some(signer) = ext_signer {
         tx.set_from(Address::from_str("0xb6c04D6FA027F2A73F6E2738386436BdC47865E1").unwrap_or_default());

@@ -140,8 +140,13 @@ impl ExternalSign {
     async fn do_request(&self, url: &str, payload: &ReqData) -> Result<String, Box<dyn Error>> {
         log::debug!("===payload: {:?}", serde_json::to_string(payload).unwrap());
         let response: reqwest::Response = self.client.post(url).json(&payload).send().await?;
-        if !response.status().is_success() {
-            return Err(format!("ext_sign response status not ok: {:?}", response.status()).into());
+        log::info!("===do_request response: {:?}", response);
+        
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await?;
+            log::info!("===do_request response text: {:?}", &text);
+            return Err(format!("ext_sign response status not ok: {:?}", status).into());
         }
         Ok(response.text().await?)
     }
