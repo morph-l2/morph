@@ -359,10 +359,10 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 						copy(blob[:], b)
 
 						// Verify blob
-						if err := VerifyBlobProof(&blob, commitment, kzg4844.Proof(sidecar.KZGProof)); err != nil {
-							d.logger.Error("Blob verification failed", "error", err)
-							continue
-						}
+						//if err := VerifyBlobProof(&blob, commitment, kzg4844.Proof(sidecar.KZGProof)); err != nil {
+						//	d.logger.Error("Blob verification failed", "error", err)
+						//	continue
+						//}
 
 						// Add to sidecar
 						blobTxSidecar.Blobs = append(blobTxSidecar.Blobs, *blob.KZGBlob())

@@ -1,5 +1,5 @@
 ################## update dependencies ####################
-
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.0.8
 ETHEREUM_TARGET_VERSION := morph-v2.0.8
 TENDERMINT_TARGET_VERSION := v0.3.2
 
@@ -39,7 +39,13 @@ update:
 
 submodules:
 	git submodule update --init
-	git submodule update --remote 
+	@if [ -d "go-ethereum" ]; then \
+		echo "Updating go-ethereum submodule to tag $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG)..."; \
+		cd go-ethereum && \
+		git fetch --tags && \
+		git checkout $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG) && \
+		cd ..; \
+	fi
 .PHONY: submodules
 
 ################## bindings ####################
@@ -141,7 +147,7 @@ devnet-down:
 	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
 .PHONY: devnet-down
 
-devnet-clean-build: devnet-down
+devnet-clean-build: devnet-down devnet-l1-clean
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
@@ -156,6 +162,10 @@ devnet-clean: devnet-clean-build
 
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
+
+devnet-l1-clean:
+	@cd ops/docker && ./layer1/scripts/clean.sh
+.PHONY: devnet-l1-clean
 
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
