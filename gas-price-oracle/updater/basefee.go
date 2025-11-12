@@ -29,6 +29,7 @@ type BaseFeeUpdater struct {
 	gasThreshold   uint64
 	interval       time.Duration
 	log            *logrus.Entry
+	stopChan       chan struct{}
 }
 
 // NewBaseFeeUpdater creates Base Fee updater
@@ -48,28 +49,47 @@ func NewBaseFeeUpdater(
 		gasThreshold:   gasThreshold,
 		interval:       interval,
 		log:            logrus.WithField("component", "basefee_updater"),
+		stopChan:       make(chan struct{}),
 	}
 }
 
+// Name returns the updater name
+func (u *BaseFeeUpdater) Name() string {
+	return "basefee"
+}
+
 // Start starts the updater
-func (u *BaseFeeUpdater) Start(ctx context.Context) {
-	ticker := time.NewTicker(u.interval)
-	defer ticker.Stop()
+func (u *BaseFeeUpdater) Start(ctx context.Context) error {
+	go func() {
+		ticker := time.NewTicker(u.interval)
+		defer ticker.Stop()
 
-	u.log.Info("Base fee updater started")
+		u.log.Info("Base fee updater started")
 
-	for {
-		select {
-		case <-ctx.Done():
-			u.log.Info("Base fee updater stopped")
-			return
-		case <-ticker.C:
-			if err := u.update(ctx); err != nil {
-				u.log.WithError(err).Error("Failed to update base fee")
-				metrics.UpdateErrors.WithLabelValues("basefee").Inc()
+		for {
+			select {
+			case <-ctx.Done():
+				u.log.Info("Base fee updater stopped by context")
+				return
+			case <-u.stopChan:
+				u.log.Info("Base fee updater stopped")
+				return
+			case <-ticker.C:
+				if err := u.update(ctx); err != nil {
+					u.log.WithError(err).Error("Failed to update base fee")
+					metrics.UpdateErrors.WithLabelValues("basefee").Inc()
+				}
 			}
 		}
-	}
+	}()
+	return nil
+}
+
+// Stop gracefully stops the updater
+func (u *BaseFeeUpdater) Stop() error {
+	close(u.stopChan)
+	u.log.Info("Base fee updater stop requested")
+	return nil
 }
 
 // update performs one update

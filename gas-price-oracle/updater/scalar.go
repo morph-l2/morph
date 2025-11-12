@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
@@ -31,6 +32,7 @@ type ScalarUpdater struct {
 	updateCounter  uint64
 	updateInterval uint64
 	log            *logrus.Entry
+	stopChan       chan struct{}
 }
 
 // NewScalarUpdater creates Scalar updater
@@ -58,7 +60,48 @@ func NewScalarUpdater(
 		updateCounter:  0,
 		updateInterval: updateInterval,
 		log:            logrus.WithField("component", "scalar_updater"),
+		stopChan:       make(chan struct{}),
 	}
+}
+
+// Name returns the updater name
+func (u *ScalarUpdater) Name() string {
+	return "scalar"
+}
+
+// Start starts the updater
+func (u *ScalarUpdater) Start(ctx context.Context) error {
+	go func() {
+		ticker := time.NewTicker(time.Second * time.Duration(u.updateInterval))
+		defer ticker.Stop()
+
+		u.log.Info("Scalar updater started")
+
+		for {
+			select {
+			case <-ctx.Done():
+				u.log.Info("Scalar updater stopped by context")
+				return
+			case <-u.stopChan:
+				u.log.Info("Scalar updater stopped")
+				return
+			case <-ticker.C:
+				if u.ShouldUpdate() {
+					if err := u.Update(ctx); err != nil {
+						u.log.WithError(err).Error("Scalar update failed")
+					}
+				}
+			}
+		}
+	}()
+	return nil
+}
+
+// Stop gracefully stops the updater
+func (u *ScalarUpdater) Stop() error {
+	close(u.stopChan)
+	u.log.Info("Scalar updater stop requested")
+	return nil
 }
 
 // ShouldUpdate checks whether an update should be performed

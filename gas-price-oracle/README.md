@@ -82,6 +82,9 @@ make run
 # Test
 make test
 
+# Test Bitget price feed (requires network)
+go test ./client -run TestBitgetPriceFeed -v
+
 # Docker
 make docker-build
 docker run -d \
@@ -154,3 +157,21 @@ All contract updates are serialized through `TxManager` to prevent nonce conflic
 ### Blob Processing
 
 Blob data processing is partially implemented (interface defined in `calc/blob.go`). The actual blob parsing and L2 transaction extraction is deferred for future implementation.
+
+## Testing
+
+```bash
+# Run all tests
+go test ./...
+
+# Test Bitget price feed (requires network)
+go test ./client -run TestBitgetPriceFeed -v
+
+# Skip integration tests
+go test ./... -short
+```
+
+## Documentation
+
+-   [PRICE_UPDATE.md](./PRICE_UPDATE.md) - Token price update 功能
+-   [BITGET_PRICE_FEED.md](./BITGET_PRICE_FEED.md) - Bitget 价格源使用指南

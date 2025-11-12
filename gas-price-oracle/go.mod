@@ -5,6 +5,7 @@ go 1.22
 toolchain go1.22.12
 
 require (
+	bitget v0.0.0
 	github.com/morph-l2/go-ethereum v1.10.14-0.20251020031512-67087dd3ad49
 	github.com/morph-l2/morph/bindings v0.0.0
 	github.com/prometheus/client_golang v1.17.0
@@ -14,6 +15,7 @@ require (
 )
 
 replace (
+	bitget => github.com/BitgetLimited/v3-bitget-api-sdk/bitget-golang-sdk-api v0.0.0-20240222062759-9bdab50a0145
 	github.com/morph-l2/morph/bindings => ../bindings
 	github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.2
 )

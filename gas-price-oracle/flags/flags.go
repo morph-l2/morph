@@ -57,6 +57,13 @@ var (
 		EnvVar: prefixEnvVar("L2_GAS_PRICE_ORACLE"),
 	}
 
+	L2TokenRegistryAddressFlag = cli.StringFlag{
+		Name:   "l2-token-registry-address",
+		Usage:  "Address of the L2 TokenRegistry contract",
+		Value:  "",
+		EnvVar: prefixEnvVar("L2_TOKEN_REGISTRY"),
+	}
+
 	GasThresholdFlag = cli.Uint64Flag{
 		Name:   "gas-threshold",
 		Usage:  "Percentage threshold to trigger updates",
@@ -83,6 +90,74 @@ var (
 		Usage:  "Expected transactions per batch",
 		Value:  50,
 		EnvVar: prefixEnvVar("TXN_PER_BATCH"),
+	}
+
+	// Updater enable/disable flags
+	BaseFeeUpdateEnabledFlag = cli.BoolFlag{
+		Name:   "basefee-update-enabled",
+		Usage:  "Whether to enable base fee updates",
+		EnvVar: prefixEnvVar("BASEFEE_UPDATE_ENABLED"),
+	}
+
+	ScalarUpdateEnabledFlag = cli.BoolFlag{
+		Name:   "scalar-update-enabled",
+		Usage:  "Whether to enable scalar updates",
+		EnvVar: prefixEnvVar("SCALAR_UPDATE_ENABLED"),
+	}
+
+	PriceUpdateEnabledFlag = cli.BoolFlag{
+		Name:   "price-update-enabled",
+		Usage:  "Whether to enable token price updates",
+		EnvVar: prefixEnvVar("PRICE_UPDATE_ENABLED"),
+	}
+
+	PriceUpdateIntervalFlag = cli.DurationFlag{
+		Name:   "price-update-interval",
+		Usage:  "Token price update interval",
+		Value:  60 * time.Second,
+		EnvVar: prefixEnvVar("PRICE_UPDATE_INTERVAL"),
+	}
+
+	TokenIDsFlag = cli.StringFlag{
+		Name:   "token-ids",
+		Usage:  "Comma-separated token IDs to update prices for (e.g. \"1,2,3\")",
+		Value:  "",
+		EnvVar: prefixEnvVar("TOKEN_IDS"),
+	}
+
+	BasePriceFlag = cli.StringFlag{
+		Name:   "base-price",
+		Usage:  "Base price ratio for mock price feed (wei, e.g. 1000000000000000000 for 1:1 ratio)",
+		Value:  "1000000000000000000",
+		EnvVar: prefixEnvVar("BASE_PRICE"),
+	}
+
+	PriceVariationFlag = cli.Float64Flag{
+		Name:   "price-variation",
+		Usage:  "Price variation percentage for mock feed (e.g. 0.05 for ±5%)",
+		Value:  0.05,
+		EnvVar: prefixEnvVar("PRICE_VARIATION"),
+	}
+
+	PriceThresholdFlag = cli.Uint64Flag{
+		Name:   "price-threshold",
+		Usage:  "Price change threshold percentage to trigger update (e.g. 5 for 5%)",
+		Value:  5,
+		EnvVar: prefixEnvVar("PRICE_THRESHOLD"),
+	}
+
+	PriceFeedTypeFlag = cli.StringFlag{
+		Name:   "price-feed-type",
+		Usage:  "Price feed type: mock, bitget",
+		Value:  "mock",
+		EnvVar: prefixEnvVar("PRICE_FEED_TYPE"),
+	}
+
+	TokenMappingFlag = cli.StringFlag{
+		Name:   "token-mapping",
+		Usage:  "Token ID to trading pair mapping (e.g. \"1:BTCUSDT,2:ETHUSDT,3:BNBUSDT\")",
+		Value:  "",
+		EnvVar: prefixEnvVar("TOKEN_MAPPING"),
 	}
 
 	// Logging flags
@@ -151,10 +226,22 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	L2GasPriceOracleAddressFlag,
+	L2TokenRegistryAddressFlag,
 	GasThresholdFlag,
 	IntervalFlag,
 	OverheadIntervalFlag,
 	TxnPerBatchFlag,
+
+	BaseFeeUpdateEnabledFlag,
+	ScalarUpdateEnabledFlag,
+	PriceUpdateEnabledFlag,
+	PriceUpdateIntervalFlag,
+	TokenIDsFlag,
+	BasePriceFlag,
+	PriceVariationFlag,
+	PriceThresholdFlag,
+	PriceFeedTypeFlag,
+	TokenMappingFlag,
 
 	LogLevelFlag,
 	LogFilenameFlag,

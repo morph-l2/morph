@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/morph-l2/morph/bindings/bindings"
 	"github.com/morph-l2/morph/gas-price-oracle/client"
 	"github.com/morph-l2/morph/gas-price-oracle/config"
 	"github.com/morph-l2/morph/gas-price-oracle/flags"
@@ -61,10 +60,14 @@ func Main(cliCtx *cli.Context) error {
 		"l1_beacon_rpc":     cfg.L1BeaconRPC,
 		"l1_rollup":         cfg.L1RollupAddress.Hex(),
 		"l2_oracle":         cfg.L2GasPriceOracleAddr.Hex(),
+		"l2_token_registry": cfg.L2TokenRegistryAddr.Hex(),
 		"gas_threshold":     cfg.GasThreshold,
 		"interval":          cfg.Interval,
 		"overhead_interval": cfg.OverheadInterval,
 		"txn_per_batch":     cfg.TxnPerBatch,
+		"basefee_enabled":   cfg.BaseFeeUpdateEnabled,
+		"scalar_enabled":    cfg.ScalarUpdateEnabled,
+		"price_enabled":     cfg.PriceUpdateEnabled,
 	}).Info("Starting Gas Price Oracle")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,91 +83,47 @@ func Main(cliCtx *cli.Context) error {
 		logrus.WithField("address", cfg.MetricAddress()).Info("Metrics server started")
 	}
 
-	// Create L1 client
-	l1Client, err := client.NewL1Client(cfg.L1RPC)
+	// Initialize clients
+	l1Client, l2Client, beaconClient, err := initializeClients(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to connect to L1: %w", err)
+		return err
 	}
 	defer l1Client.Close()
-	logrus.Info("L1 client connected")
-
-	// Create L2 client
-	l2Client, err := client.NewL2Client(cfg.L2RPC, cfg.PrivateKey)
-	if err != nil {
-		return fmt.Errorf("failed to create L2 client: %w", err)
-	}
 	defer l2Client.Close()
-	logrus.WithField("address", l2Client.GetAuth().From.Hex()).Info("L2 client initialized")
 
-	// Create beacon client
-	beaconClient := client.NewBeaconClient(cfg.L1BeaconRPC)
-	logrus.Info("Beacon client initialized")
-
-	// Create contract instances
-	oracleContract, err := bindings.NewGasPriceOracle(cfg.L2GasPriceOracleAddr, l2Client.GetClient())
+	// Bind contracts
+	oracleContract, rollupContract, err := updater.BindContracts(cfg, l1Client, l2Client)
 	if err != nil {
-		return fmt.Errorf("failed to create GasPriceOracle contract: %w", err)
+		return err
 	}
-	logrus.WithField("address", cfg.L2GasPriceOracleAddr.Hex()).Info("GasPriceOracle contract bound")
 
-	rollupContract, err := bindings.NewRollup(cfg.L1RollupAddress, l1Client.GetClient())
-	if err != nil {
-		return fmt.Errorf("failed to create Rollup contract: %w", err)
-	}
-	logrus.WithField("address", cfg.L1RollupAddress.Hex()).Info("Rollup contract bound")
-
-	// Create transaction manager to serialize contract updates and avoid nonce conflicts
-	txManager := updater.NewTxManager(l2Client)
+	// Create transaction manager
+	txManager := updater.CreateTxManager(l2Client)
 	logrus.Info("Transaction manager initialized")
 
-	// Create updaters
-	baseFeeUpdater := updater.NewBaseFeeUpdater(
-		l1Client,
-		l2Client,
-		oracleContract,
-		txManager,
-		cfg.GasThreshold,
-		cfg.Interval,
-	)
-
-	scalarUpdater := updater.NewScalarUpdater(
+	// Create all updaters (basefee, scalar, price)
+	updaters, err := updater.CreateUpdaters(
+		cfg,
 		l1Client,
 		l2Client,
 		beaconClient,
 		oracleContract,
 		rollupContract,
 		txManager,
-		cfg.GasThreshold,
-		cfg.OverheadInterval,
-		cfg.TxnPerBatch,
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create updaters: %w", err)
+	}
 
-	logrus.Info("Updaters initialized")
-
-	// Start base fee updater
-	go baseFeeUpdater.Start(ctx)
-
-	// Start scalar updater (manually triggered on each base fee update cycle)
-	go func() {
-		ticker := time.NewTicker(cfg.Interval * time.Duration(cfg.OverheadInterval))
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if scalarUpdater.ShouldUpdate() {
-					if err := scalarUpdater.Update(ctx); err != nil {
-						logrus.WithError(err).Error("Scalar update failed")
-						metrics.UpdateErrors.WithLabelValues("scalar").Inc()
-					}
-				}
-			}
+	// Start all updaters
+	for _, upd := range updaters {
+		if err := upd.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start %s updater: %w", upd.Name(), err)
 		}
-	}()
+		logrus.WithField("updater", upd.Name()).Info("Updater started")
+	}
 
-	logrus.Info("All updaters started successfully")
+	logrus.WithField("count", len(updaters)).Info("All updaters started successfully")
 
 	// Wait for interrupt signal
 	sigCh := make(chan os.Signal, 1)
@@ -179,10 +138,47 @@ func Main(cliCtx *cli.Context) error {
 
 	// Graceful shutdown
 	cancel()
+
+	// Stop all updaters
+	for _, upd := range updaters {
+		if err := upd.Stop(); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"updater": upd.Name(),
+				"error":   err,
+			}).Warn("Failed to stop updater")
+		} else {
+			logrus.WithField("updater", upd.Name()).Info("Updater stopped")
+		}
+	}
+
 	time.Sleep(2 * time.Second)
 
 	logrus.Info("Gas Price Oracle stopped")
 	return nil
+}
+
+// initializeClients creates and connects all RPC clients
+func initializeClients(cfg *config.Config) (*client.L1Client, *client.L2Client, *client.BeaconClient, error) {
+	// Create L1 client
+	l1Client, err := client.NewL1Client(cfg.L1RPC)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to connect to L1: %w", err)
+	}
+	logrus.Info("L1 client connected")
+
+	// Create L2 client
+	l2Client, err := client.NewL2Client(cfg.L2RPC, cfg.PrivateKey)
+	if err != nil {
+		l1Client.Close()
+		return nil, nil, nil, fmt.Errorf("failed to create L2 client: %w", err)
+	}
+	logrus.WithField("address", l2Client.GetAuth().From.Hex()).Info("L2 client initialized")
+
+	// Create beacon client
+	beaconClient := client.NewBeaconClient(cfg.L1BeaconRPC)
+	logrus.Info("Beacon client initialized")
+
+	return l1Client, l2Client, beaconClient, nil
 }
 
 func setupLogging(cfg *config.Config) error {
