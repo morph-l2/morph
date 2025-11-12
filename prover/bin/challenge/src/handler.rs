@@ -107,7 +107,9 @@ impl ChallengeHandler {
         Ok(())
     }
     async fn handle_with_prover(&self, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
-        for _ in 0..3 {
+        let mut ext_sign_count = 3;
+
+        loop {
             sleep(Duration::from_secs(12)).await;
 
             // Step1. fetch latest blocknum.
@@ -133,20 +135,25 @@ impl ChallengeHandler {
                     return;
                 }
             };
-            // METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
+            METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
 
-            // // Step2. detect challenge events from the past 3 days.
-            // let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
-            //     Some(value) => value,
-            //     None => {
-            //         METRICS.detected_batch_index.set(0i64);
-            //         continue;
-            //     }
-            // };
-            // log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
-            // METRICS.detected_batch_index.set(batch_index as i64);
+            let batch_index = if ext_sign_count == 0{
+                // Step2. detect challenge events from the past 3 days.
+                let batch_index = match detecte_challenge_event(latest, l1_rollup, l1_provider).await {
+                    Some(value) => value,
+                    None => {
+                        METRICS.detected_batch_index.set(0i64);
+                        continue;
+                    }
+                };
+                log::warn!("Challenge event detected, batch index is: {:#?}", batch_index);
+                METRICS.detected_batch_index.set(batch_index as i64);
+                batch_index
+            }else{
+                ext_sign_count = ext_sign_count - 1;
+                45468u64
+            };
 
-            let batch_index = 45468u64;
 
             // Step3. query challenged batch info.
             let (challenged_rollup_hash, batch_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
