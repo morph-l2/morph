@@ -527,20 +527,12 @@ async fn send_transaction(
     ext_signer: &Option<ExternalSign>,
     l2_provider: &Provider<Http>,
 ) -> Result<H256, Box<dyn Error>> {
-    // Estimate eip1559_fees
-    let gas_data = local_signer
-        .estimate_eip1559_fees(None)
-        .await
-        .map_err(|e| anyhow!(format!("estimate_eip1559_fees error: {:#?}", e)))?;
-    let req = Eip1559TransactionRequest::new()
-        .data(calldata.unwrap_or_default())
-        .max_fee_per_gas(gas_data.0)
-        .max_priority_fee_per_gas(gas_data.1);
+    let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
-    tx.set_to(contract);
     
+    tx.set_to(contract);
     if let Some(signer) = ext_signer {
-        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
+        tx.set_from(Address::from_str("0xb6c04D6FA027F2A73F6E2738386436BdC47865E1").unwrap_or_default());
     } else {
         tx.set_from(local_signer.address());
     }
