@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  gas-price-oracle:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: morph-gas-price-oracle
+    restart: unless-stopped
+    environment:
+      # L1/L2 RPC endpoints
+      GAS_ORACLE_L1_RPC: ${GAS_ORACLE_L1_RPC}
+      GAS_ORACLE_L2_RPC: ${GAS_ORACLE_L2_RPC}
+      GAS_ORACLE_L1_BEACON_RPC: ${GAS_ORACLE_L1_BEACON_RPC}
+      
+      # Contract addresses
+      L1_ROLLUP: ${L1_ROLLUP}
+      L2_GAS_PRICE_ORACLE: ${L2_GAS_PRICE_ORACLE:-0x5300000000000000000000000000000000000002}
+      
+      # Private key
+      L2_GAS_ORACLE_PRIVATE_KEY: ${L2_GAS_ORACLE_PRIVATE_KEY}
+      
+      # Update parameters
+      GAS_THRESHOLD: ${GAS_THRESHOLD:-10}
+      INTERVAL: ${INTERVAL:-6000}
+      OVERHEAD_INTERVAL: ${OVERHEAD_INTERVAL:-10}
+      TXN_PER_BATCH: ${TXN_PER_BATCH:-50}
+      
+      # Metrics
+      GAS_ORACLE_METRIC_ADDRESS: 0.0.0.0:6060
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_DIR: /data/logs/morph-gas-oracle
+    ports:
+      - "6060:6060"  # Metrics endpoint
+    volumes:
+      - oracle-logs:/data/logs/morph-gas-oracle
+    networks:
+      - morph-network
+
+volumes:
+  oracle-logs:
+    driver: local
+
+networks:
+  morph-network:
+    driver: bridge
+

@@ -3,6 +3,7 @@ go 1.24.0
 use (
 	./bindings
 	./contracts
+	./gas-price-oracle
 	./node
 	./ops/l2-genesis
 	./ops/tools
