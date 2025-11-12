@@ -536,10 +536,10 @@ async fn send_transaction(
     } else {
         tx.set_from(local_signer.address());
     }
-    local_signer.fill_transaction(&mut tx, None).await.map_err(|e| {
-        let msg = contract_error(ContractError::<SignerMiddleware<Provider<Http>, LocalWallet>>::from_middleware_error(e));
-        anyhow!("prove_state fill_transaction error: {:#?}", msg)
-    })?;
+    // local_signer.fill_transaction(&mut tx, None).await.map_err(|e| {
+    //     let msg = contract_error(ContractError::<SignerMiddleware<Provider<Http>, LocalWallet>>::from_middleware_error(e));
+    //     anyhow!("prove_state fill_transaction error: {:#?}", msg)
+    // })?;
 
     let signed_tx = sign_tx(tx, local_signer, ext_signer)
         .await
