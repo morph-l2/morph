@@ -15,7 +15,6 @@ import (
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"github.com/morph-l2/go-ethereum/core"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
@@ -1278,8 +1277,21 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 
 	// calc blob fee cap
 	var blobFee *big.Int
+
+	// denominator for hoodi
+	denominator := big.NewInt(5007716)
+	if head.Time >= 1762365720 {
+		denominator = big.NewInt(8346193)
+	}
+	if head.Time >= 1762955544 {
+		denominator = big.NewInt(11684671)
+	}
 	if head.ExcessBlobGas != nil {
-		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+		blobFee = fakeExponential(
+			new(big.Int).SetUint64(params.BlobTxMinBlobGasprice),
+			new(big.Int).SetUint64(*head.ExcessBlobGas),
+			denominator,
+		)
 		// Set to 3x to handle blob market congestion
 		blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
 	}
@@ -1291,6 +1303,23 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, error) {
 	)
 
 	return tip, gasFeeCap, blobFee, nil
+}
+
+// fakeExponential approximates factor * e ** (numerator / denominator) using
+// Taylor expansion.
+func fakeExponential(factor, numerator, denominator *big.Int) *big.Int {
+	var (
+		output = new(big.Int)
+		accum  = new(big.Int).Mul(factor, denominator)
+	)
+	for i := 1; accum.Sign() > 0; i++ {
+		output.Add(output, accum)
+
+		accum.Mul(accum, numerator)
+		accum.Div(accum, denominator)
+		accum.Div(accum, big.NewInt(int64(i)))
+	}
+	return output.Div(output, denominator)
 }
 
 // PreCheck is run before the submitter to check whether the submitter can be started
