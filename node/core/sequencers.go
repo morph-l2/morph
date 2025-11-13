@@ -98,7 +98,7 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 		blsPK, err := decodeBlsPubKey(stakesInfo[i].BlsKey)
 		if err != nil {
 			e.logger.Error("failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
-			return nil, err
+			//return nil, err
 		}
 		// sequencerSet2 is the latest updated sequencer set which is considered as the next validator set for tendermint
 		if slices.Contains(sequencerSet2, stakesInfo[i].Addr) {
