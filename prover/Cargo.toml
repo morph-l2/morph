@@ -43,7 +43,7 @@ kzg-rs = { git = "https://github.com/morph-l2/kzg-rs.git", branch = "sp1-bls-dev
 sha2 = "0.10.8"
 
 sp1-zkvm =  { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}
-sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0", features = ["native-gnark"]}
+sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}
 sp1-helper = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0"}
 
 # dependencies from scroll-tech
@@ -97,7 +97,7 @@ morph-prove = { path = "bin/host" }
 
 [workspace.dependencies.revm]
 git = "https://github.com/morph-l2/revm"
-branch = "release/v42"
+branch = "erc20-fee"
 default-features = false
 features = [
     "morph-default-handler",
@@ -108,7 +108,7 @@ features = [
 
 [workspace.dependencies.revm-primitives]
 git = "https://github.com/morph-l2/revm"
-branch = "release/v42"
+branch = "erc20-fee"
 default-features = false
 features = [
     "morph-default-handler",

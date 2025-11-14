@@ -270,6 +270,22 @@ pub trait TxTrace {
 
                 TypedTransaction::L1Msg(tx)
             }
+            0x7f => {
+                let tx = TxEip7702 {
+                    chain_id,
+                    nonce: self.nonce(),
+                    gas_limit: self.gas_limit(),
+                    max_fee_per_gas: self.max_fee_per_gas(),
+                    max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
+                    to: self.to(),
+                    value: self.value(),
+                    access_list: self.access_list(),
+                    authorization_list: self.authorization_list(),
+                    input: self.data(),
+                };
+
+                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+            }
             _ => unimplemented!("unsupported tx type: {}", self.ty()),
         };
 

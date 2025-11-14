@@ -6,6 +6,7 @@ use zktrie::ZkTrieNode;
 
 mod authorization_list;
 mod tx;
+mod tx_alt_fee;
 pub use authorization_list::{ArchivedSignedAuthorization, AuthorizationList};
 pub use tx::{ArchivedTransactionTrace, TransactionTrace, TxL1Msg, TypedTransaction};
 
