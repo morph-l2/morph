@@ -1,0 +1,726 @@
+// SPDX-License-Identifier: MIT
+pragma solidity =0.8.24;
+
+import "forge-std/Test.sol";
+
+import {L2TokenRegistry} from "../l2/system/L2TokenRegistry.sol";
+import {IL2TokenRegistry} from "../l2/system/IL2TokenRegistry.sol";
+import {MockERC20} from "@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+
+contract L2TokenRegistryTest is Test {
+    L2TokenRegistry internal priceOracle;
+    L2TokenRegistry internal priceOracleImpl;
+    ProxyAdmin internal proxyAdmin;
+
+    address internal multisig = address(512);
+    address internal owner = address(64);
+    address internal alice = address(128);
+    address internal bob = address(256);
+
+    MockERC20 internal usdc;
+    MockERC20 internal usdt;
+    MockERC20 internal dai;
+
+    uint16 constant TOKEN_ID_USDC = 1;
+    uint16 constant TOKEN_ID_USDT = 2;
+    uint16 constant TOKEN_ID_DAI = 3;
+
+    bytes32 constant BALANCE_SLOT_USDC = bytes32(uint256(9));
+    bytes32 constant BALANCE_SLOT_USDT = bytes32(uint256(10));
+    bytes32 constant BALANCE_SLOT_DAI = bytes32(uint256(11));
+
+    uint256 constant SCALE_USDC = 1e6; // 10^6
+    uint256 constant SCALE_USDT = 1e6; // 10^6
+    uint256 constant SCALE_DAI = 1e18; // 10^18
+
+    function setUp() public {
+        // Deploy proxy admin
+        vm.prank(multisig);
+        proxyAdmin = new ProxyAdmin();
+
+        // Deploy implementation contract
+        priceOracleImpl = new L2TokenRegistry();
+
+        // Deploy proxy and initialize
+        vm.prank(multisig);
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(priceOracleImpl),
+            address(proxyAdmin),
+            abi.encodeWithSelector(L2TokenRegistry.initialize.selector, owner)
+        );
+
+        priceOracle = L2TokenRegistry(payable(address(proxy)));
+
+        // Deploy Mock ERC20 tokens
+        usdc = new MockERC20("USD Coin", "USDC", 6);
+        usdt = new MockERC20("Tether USD", "USDT", 6);
+        dai = new MockERC20("Dai Stablecoin", "DAI", 18);
+
+        vm.label(address(usdc), "USDC");
+        vm.label(address(usdt), "USDT");
+        vm.label(address(dai), "DAI");
+        vm.label(address(priceOracle), "L2TokenRegistry");
+        vm.label(multisig, "multisig");
+        vm.label(alice, "alice");
+        vm.label(bob, "bob");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Initialization Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_initialize_succeeds() public {
+        assertEq(priceOracle.owner(), owner);
+        assertTrue(priceOracle.allowListEnabled());
+    }
+
+    function test_initialize_reverts_when_not_called_via_proxy() public {
+        L2TokenRegistry impl = new L2TokenRegistry();
+        vm.expectRevert();
+        impl.initialize(owner);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Token Registration Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_registerToken_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertEq(info.tokenAddress, address(usdc));
+        assertEq(info.balanceSlot, BALANCE_SLOT_USDC);
+        assertEq(info.isActive, false);
+        assertEq(info.decimals, 6);
+    }
+
+    function test_registerToken_reverts_when_tokenID_is_zero() public {
+        vm.expectRevert(bytes4(keccak256("InvalidTokenID()")));
+        vm.prank(owner);
+        priceOracle.registerToken(0, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+    }
+
+    function test_registerToken_reverts_when_tokenID_already_registered() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+    }
+
+    function test_registerToken_reverts_when_address_already_registered() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdc), BALANCE_SLOT_USDT, SCALE_USDT);
+    }
+
+    function test_registerToken_autoFetchesDecimals() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertEq(info.decimals, 6); // USDC has 6 decimals
+
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, SCALE_DAI);
+
+        info = priceOracle.getTokenInfo(TOKEN_ID_DAI);
+        assertEq(info.decimals, 18); // DAI has 18 decimals
+    }
+
+    function test_registerToken_setsIsActiveToFalse() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertFalse(info.isActive);
+    }
+
+    function test_registerToken_reverts_when_not_owner() public {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(alice);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+    }
+
+    function test_registerToken_reverts_when_tokenAddress_zero() public {
+        vm.expectRevert(bytes4(keccak256("InvalidTokenAddress()")));
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(0), BALANCE_SLOT_USDC, SCALE_USDC);
+    }
+
+    function test_registerTokens_succeeds() public {
+        uint16[] memory tokenIDs = new uint16[](3);
+        address[] memory tokenAddresses = new address[](3);
+        bytes32[] memory balanceSlots = new bytes32[](3);
+
+        tokenIDs[0] = TOKEN_ID_USDC;
+        tokenIDs[1] = TOKEN_ID_USDT;
+        tokenIDs[2] = TOKEN_ID_DAI;
+
+        tokenAddresses[0] = address(usdc);
+        tokenAddresses[1] = address(usdt);
+        tokenAddresses[2] = address(dai);
+
+        balanceSlots[0] = BALANCE_SLOT_USDC;
+        balanceSlots[1] = BALANCE_SLOT_USDT;
+        balanceSlots[2] = BALANCE_SLOT_DAI;
+
+        uint256[] memory scales = new uint256[](3);
+        scales[0] = SCALE_USDC;
+        scales[1] = SCALE_USDT;
+        scales[2] = SCALE_DAI;
+
+        vm.prank(owner);
+        priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots, scales);
+
+        assertEq(priceOracle.getTokenInfo(TOKEN_ID_USDC).tokenAddress, address(usdc));
+        assertEq(priceOracle.getTokenInfo(TOKEN_ID_USDT).tokenAddress, address(usdt));
+        assertEq(priceOracle.getTokenInfo(TOKEN_ID_DAI).tokenAddress, address(dai));
+    }
+
+    function test_registerTokens_reverts_when_arrayLength_mismatch() public {
+        uint16[] memory tokenIDs = new uint16[](2);
+        address[] memory tokenAddresses = new address[](3);
+        bytes32[] memory balanceSlots = new bytes32[](2);
+        uint256[] memory scales = new uint256[](2);
+
+        vm.expectRevert(bytes4(keccak256("InvalidArrayLength()")));
+        vm.prank(owner);
+        priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots, scales);
+    }
+
+    function test_getTokenIdByAddress_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        uint16 tokenID = priceOracle.getTokenIdByAddress(address(usdc));
+        assertEq(tokenID, TOKEN_ID_USDC);
+    }
+
+    function test_getTokenIdByAddress_reverts_when_not_registered() public {
+        vm.expectRevert(bytes4(keccak256("TokenNotFound()")));
+        priceOracle.getTokenIdByAddress(address(usdc));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Token Update Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_updateTokenInfo_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        bytes32 newBalanceSlot = bytes32(uint256(99));
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), newBalanceSlot, true, SCALE_USDC);
+
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertEq(info.balanceSlot, newBalanceSlot);
+        assertTrue(info.isActive);
+    }
+
+    function test_updateTokenInfo_reverts_when_address_collision() public {
+        // Register two tokens
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+
+        // Try to update USDT to use USDC's address - should revert
+        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDT, address(usdc), BALANCE_SLOT_USDT, true, SCALE_USDT);
+    }
+    
+    function test_updateTokenInfo_autoFetchesDecimals() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        // Update to DAI address
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(dai), BALANCE_SLOT_USDC, true, SCALE_DAI);
+
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertEq(info.tokenAddress, address(dai));
+        assertEq(info.decimals, 18); // Should fetch DAI's decimals
+    }
+
+    function test_deactivateToken_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        assertTrue(priceOracle.getTokenInfo(TOKEN_ID_USDC).isActive);
+
+        // Use batchUpdateTokenStatus to deactivate token
+        uint16[] memory tokenIDs = new uint16[](1);
+        bool[] memory isActives = new bool[](1);
+        tokenIDs[0] = TOKEN_ID_USDC;
+        isActives[0] = false;
+
+        vm.prank(owner);
+        priceOracle.batchUpdateTokenStatus(tokenIDs, isActives);
+
+        assertFalse(priceOracle.getTokenInfo(TOKEN_ID_USDC).isActive);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Price Management Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_updatePriceRatio_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
+        uint256 priceRatio = 1e12;
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, priceRatio);
+
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), priceRatio);
+    }
+
+    function test_updatePriceRatio_reverts_when_not_allowed() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+    }
+
+    function test_updatePriceRatio_succeeds_when_allowListDisabled() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.setAllowListEnabled(false);
+
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+    }
+
+    function test_updatePriceRatio_succeeds_when_in_allowList() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        address[] memory users = new address[](1);
+        bool[] memory allowed = new bool[](1);
+        users[0] = alice;
+        allowed[0] = true;
+
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+    }
+
+    function test_updatePriceRatio_reverts_when_invalid_price() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectRevert(bytes4(keccak256("InvalidPrice()")));
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 0);
+    }
+
+    function test_batchUpdatePrices_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+
+        uint16[] memory tokenIDs = new uint16[](2);
+        uint256[] memory prices = new uint256[](2);
+
+        tokenIDs[0] = TOKEN_ID_USDC;
+        tokenIDs[1] = TOKEN_ID_USDT;
+        prices[0] = 1e12;
+        prices[1] = 1e12;
+
+        vm.prank(owner);
+        priceOracle.batchUpdatePrices(tokenIDs, prices);
+
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDT), 1e12);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Gas Price Calculation Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_calculateTokenGasPrice_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // ETH gas price = 1 gwei = 1e9 wei
+        uint256 ethGasPrice = 1 gwei;
+        uint256 expectedTokenAmount = (ethGasPrice * SCALE_USDC) / 1e12; // (1e9 * 1e6) / 1e12 = 1e3
+
+        uint256 tokenGasAmount = priceOracle.calculateTokenAmount(TOKEN_ID_USDC, ethGasPrice);
+        assertEq(tokenGasAmount, expectedTokenAmount);
+    }
+
+    function test_calculateEthGasPrice_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        // Set price: 1 USDC = 0.000001 ETH = 1e12 wei
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Token gas price = 1000 USDC
+        uint256 tokenGasPrice = 1000;
+        uint256 expectedEthGasPrice = (tokenGasPrice * 1e12) / SCALE_USDC; // (1000 * 1e12) / 1e6 = 1e9
+
+        // Inverse using on-chain values
+        uint256 ratio = priceOracle.getTokenPrice(TOKEN_ID_USDC);
+        uint256 scale = priceOracle.getTokenInfo(TOKEN_ID_USDC).scale;
+        uint256 ethGasPrice = (tokenGasPrice * ratio) / scale;
+        assertEq(ethGasPrice, expectedEthGasPrice);
+    }
+
+    function test_calculateTokenGasPrice_withDAI() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, SCALE_DAI);
+
+        // Set price: 1 DAI = 0.001 ETH = 1e15 wei
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_DAI, 1e15);
+
+        // ETH gas price = 1 gwei = 1e9 wei
+        uint256 ethGasPrice = 1 gwei;
+        uint256 expectedTokenGasPrice = (ethGasPrice * SCALE_DAI) / 1e15; // (1e9 * 1e18) / 1e15 = 1e12
+
+        uint256 tokenGasPrice = priceOracle.calculateTokenAmount(TOKEN_ID_DAI, ethGasPrice);
+        assertEq(tokenGasPrice, expectedTokenGasPrice);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Allow List Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_setAllowList_succeeds() public {
+        address[] memory users = new address[](2);
+        bool[] memory allowed = new bool[](2);
+
+        users[0] = alice;
+        users[1] = bob;
+        allowed[0] = true;
+        allowed[1] = false;
+
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        assertTrue(priceOracle.allowList(alice));
+        assertFalse(priceOracle.allowList(bob));
+    }
+
+    function test_setAllowList_reverts_when_different_length() public {
+        address[] memory users = new address[](2);
+        bool[] memory allowed = new bool[](1);
+
+        vm.expectRevert(bytes4(keccak256("DifferentLength()")));
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+    }
+
+    function test_setAllowListEnabled_succeeds() public {
+        vm.prank(owner);
+        priceOracle.setAllowListEnabled(false);
+
+        assertFalse(priceOracle.allowListEnabled());
+
+        vm.prank(owner);
+        priceOracle.setAllowListEnabled(true);
+
+        assertTrue(priceOracle.allowListEnabled());
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            View Functions Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_isTokenActive_succeeds() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        assertFalse(priceOracle.isTokenActive(TOKEN_ID_USDC));
+
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        assertTrue(priceOracle.isTokenActive(TOKEN_ID_USDC));
+    }
+
+    function test_isTokenActive_returns_false_for_nonexistent_token() public {
+        assertFalse(priceOracle.isTokenActive(TOKEN_ID_USDC));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            Supported Token List Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_isTokenSupported_returns_false_when_not_registered() public {
+        assertFalse(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+    }
+
+    function test_isTokenSupported_returns_true_when_registered() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+    }
+
+    function test_getSupportedTokenCount_returns_zero_initially() public {
+        assertEq(priceOracle.getSupportedTokenCount(), 0);
+    }
+
+    function test_getSupportedTokenCount_increments_on_register() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        assertEq(priceOracle.getSupportedTokenCount(), 1);
+
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+        assertEq(priceOracle.getSupportedTokenCount(), 2);
+
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, SCALE_DAI);
+        assertEq(priceOracle.getSupportedTokenCount(), 3);
+    }
+
+    function test_getSupportedIDList_returns_empty_when_no_tokens() public {
+        uint16[] memory tokenIDs = priceOracle.getSupportedIDList();
+        assertEq(tokenIDs.length, 0);
+    }
+
+    function test_getSupportedIDList_returns_all_registered_tokenIDs() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, SCALE_DAI);
+
+        uint16[] memory tokenIDs = priceOracle.getSupportedIDList();
+        assertEq(tokenIDs.length, 3);
+        
+        // Check that all token IDs are present (order may vary)
+        bool foundUSDC = false;
+        bool foundUSDT = false;
+        bool foundDAI = false;
+        
+        for (uint256 i = 0; i < tokenIDs.length; ++i) {
+            if (tokenIDs[i] == TOKEN_ID_USDC) foundUSDC = true;
+            if (tokenIDs[i] == TOKEN_ID_USDT) foundUSDT = true;
+            if (tokenIDs[i] == TOKEN_ID_DAI) foundDAI = true;
+        }
+        
+        assertTrue(foundUSDC);
+        assertTrue(foundUSDT);
+        assertTrue(foundDAI);
+    }
+
+    function test_getSupportedTokenList_returns_empty_when_no_tokens() public {
+        L2TokenRegistry.TokenEntry[] memory tokenList = priceOracle.getSupportedTokenList();
+        assertEq(tokenList.length, 0);
+    }
+
+    function test_getSupportedTokenList_returns_all_registered_tokens() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+
+        L2TokenRegistry.TokenEntry[] memory tokenList = priceOracle.getSupportedTokenList();
+        assertEq(tokenList.length, 2);
+
+        // Check that all tokens are present with correct addresses
+        bool foundUSDC = false;
+        bool foundUSDT = false;
+
+        for (uint256 i = 0; i < tokenList.length; ++i) {
+            if (tokenList[i].tokenID == TOKEN_ID_USDC) {
+                assertEq(tokenList[i].tokenAddress, address(usdc));
+                foundUSDC = true;
+            }
+            if (tokenList[i].tokenID == TOKEN_ID_USDT) {
+                assertEq(tokenList[i].tokenAddress, address(usdt));
+                foundUSDT = true;
+            }
+        }
+
+        assertTrue(foundUSDC);
+        assertTrue(foundUSDT);
+    }
+
+    function test_getSupportedTokenList_includes_correct_tokenAddress() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        L2TokenRegistry.TokenEntry[] memory tokenList = priceOracle.getSupportedTokenList();
+        assertEq(tokenList.length, 1);
+        assertEq(tokenList[0].tokenID, TOKEN_ID_USDC);
+        assertEq(tokenList[0].tokenAddress, address(usdc));
+    }
+
+    function test_registerToken_adds_to_supported_list() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+        assertEq(priceOracle.getSupportedTokenCount(), 1);
+    }
+
+    function test_registerTokens_adds_all_to_supported_list() public {
+        uint16[] memory tokenIDs = new uint16[](3);
+        address[] memory tokenAddresses = new address[](3);
+        bytes32[] memory balanceSlots = new bytes32[](3);
+        uint256[] memory scales = new uint256[](3);
+
+        tokenIDs[0] = TOKEN_ID_USDC;
+        tokenIDs[1] = TOKEN_ID_USDT;
+        tokenIDs[2] = TOKEN_ID_DAI;
+
+        tokenAddresses[0] = address(usdc);
+        tokenAddresses[1] = address(usdt);
+        tokenAddresses[2] = address(dai);
+
+        balanceSlots[0] = BALANCE_SLOT_USDC;
+        balanceSlots[1] = BALANCE_SLOT_USDT;
+        balanceSlots[2] = BALANCE_SLOT_DAI;
+
+        scales[0] = SCALE_USDC;
+        scales[1] = SCALE_USDT;
+        scales[2] = SCALE_DAI;
+
+        vm.prank(owner);
+        priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots, scales);
+
+        assertEq(priceOracle.getSupportedTokenCount(), 3);
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDT));
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_DAI));
+    }
+
+    function test_removeToken_removes_from_supported_list() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+
+        assertEq(priceOracle.getSupportedTokenCount(), 2);
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+
+        vm.prank(owner);
+        priceOracle.removeToken(TOKEN_ID_USDC);
+
+        assertEq(priceOracle.getSupportedTokenCount(), 1);
+        assertFalse(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDT));
+    }
+
+    function test_removeToken_removes_from_tokenList() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, SCALE_USDT);
+
+        vm.prank(owner);
+        priceOracle.removeToken(TOKEN_ID_USDC);
+
+        uint16[] memory tokenIDs = priceOracle.getSupportedIDList();
+        assertEq(tokenIDs.length, 1);
+        assertEq(tokenIDs[0], TOKEN_ID_USDT);
+
+        L2TokenRegistry.TokenEntry[] memory tokenList = priceOracle.getSupportedTokenList();
+        assertEq(tokenList.length, 1);
+        assertEq(tokenList[0].tokenID, TOKEN_ID_USDT);
+        assertEq(tokenList[0].tokenAddress, address(usdt));
+    }
+
+    function test_removeToken_cleans_up_all_mappings() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        vm.prank(owner);
+        priceOracle.removeToken(TOKEN_ID_USDC);
+
+        // Token should be removed from registry
+        vm.expectRevert(bytes4(keccak256("TokenNotFound()")));
+        priceOracle.getTokenInfo(TOKEN_ID_USDC);
+
+        // Token address mapping should be cleared
+        vm.expectRevert(bytes4(keccak256("TokenNotFound()")));
+        priceOracle.getTokenIdByAddress(address(usdc));
+
+        // Price should be cleared
+        vm.expectRevert(bytes4(keccak256("TokenNotFound()")));
+        priceOracle.getTokenPrice(TOKEN_ID_USDC);
+    }
+
+    function test_removeToken_reverts_when_not_owner() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(alice);
+        priceOracle.removeToken(TOKEN_ID_USDC);
+    }
+
+    function test_removeToken_reverts_when_token_not_found() public {
+        vm.expectRevert(bytes4(keccak256("TokenNotFound()")));
+        vm.prank(owner);
+        priceOracle.removeToken(TOKEN_ID_USDC);
+    }
+
+    function test_removeToken_emits_TokenRemoved_event() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        vm.expectEmit(true, true, false, false);
+        emit IL2TokenRegistry.TokenRemoved(TOKEN_ID_USDC, address(usdc));
+
+        vm.prank(owner);
+        priceOracle.removeToken(TOKEN_ID_USDC);
+    }
+
+    function test_updateTokenInfo_keeps_token_in_supported_list() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+        assertEq(priceOracle.getSupportedTokenCount(), 1);
+
+        // Update token info
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Token should still be in supported list
+        assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
+        assertEq(priceOracle.getSupportedTokenCount(), 1);
+    }
+}
