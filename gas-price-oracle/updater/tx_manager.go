@@ -2,26 +2,24 @@ package updater
 
 import (
 	"context"
+	"github.com/morph-l2/go-ethereum/log"
 	"sync"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/morph/gas-price-oracle/client"
-	"github.com/sirupsen/logrus"
 )
 
 // TxManager manages transaction sending to avoid nonce conflicts
 type TxManager struct {
 	l2Client *client.L2Client
 	mu       sync.Mutex
-	log      *logrus.Entry
 }
 
 // NewTxManager creates a new transaction manager
 func NewTxManager(l2Client *client.L2Client) *TxManager {
 	return &TxManager{
 		l2Client: l2Client,
-		log:      logrus.WithField("component", "tx_manager"),
 	}
 }
 
@@ -42,7 +40,7 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 		return nil, err
 	}
 
-	m.log.WithField("tx_hash", tx.Hash().Hex()).Debug("Transaction sent")
+	log.Info("Transaction sent", "tx_hash", tx.Hash().Hex())
 
 	// Wait for transaction to be mined
 	receipt, err := bind.WaitMined(ctx, m.l2Client.GetClient(), tx)
@@ -51,12 +49,9 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	}
 
 	if receipt.Status == 0 {
-		m.log.WithField("tx_hash", tx.Hash().Hex()).Error("Transaction failed")
+		log.Error("Transaction failed", "tx_hash", tx.Hash().Hex())
 	} else {
-		m.log.WithFields(logrus.Fields{
-			"tx_hash":  tx.Hash().Hex(),
-			"gas_used": receipt.GasUsed,
-		}).Debug("Transaction confirmed")
+		log.Debug("Transaction confirmed", "tx_hash", tx.Hash().Hex(), "gas_used", receipt.GasUsed)
 	}
 
 	return receipt, nil

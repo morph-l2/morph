@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
@@ -30,10 +31,14 @@ func NewL2Client(rpcURL string, privateKey string) (*L2Client, error) {
 		return nil, err
 	}
 
-	// Parse private key
-	key, err := crypto.HexToECDSA(privateKey)
+	// Parse private key (remove 0x prefix if present)
+	privateKeyHex := privateKey
+	if len(privateKey) > 2 && privateKey[:2] == "0x" {
+		privateKeyHex = privateKey[2:]
+	}
+	key, err := crypto.HexToECDSA(privateKeyHex)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("invalid hex character 'x' in private key")
 	}
 
 	// Create transaction options

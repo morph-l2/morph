@@ -6,15 +6,16 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/morph-l2/go-ethereum/log"
 	"github.com/morph-l2/morph/gas-price-oracle/client"
 	"github.com/morph-l2/morph/gas-price-oracle/config"
 	"github.com/morph-l2/morph/gas-price-oracle/flags"
 	"github.com/morph-l2/morph/gas-price-oracle/metrics"
 	"github.com/morph-l2/morph/gas-price-oracle/updater"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -35,7 +36,7 @@ func main() {
 	app.Action = Main
 
 	if err := app.Run(os.Args); err != nil {
-		logrus.WithError(err).Fatal("Application failed")
+		log.Crit("Application failed", "err", err)
 	}
 }
 
@@ -47,28 +48,47 @@ func Main(cliCtx *cli.Context) error {
 	}
 
 	// Setup logging
-	if err := setupLogging(cfg); err != nil {
-		return fmt.Errorf("failed to setup logging: %w", err)
-	}
+	var logHandler log.Handler
 
-	logrus.WithFields(logrus.Fields{
-		"version":           GitVersion,
-		"commit":            GitCommit,
-		"date":              GitDate,
-		"l1_rpc":            cfg.L1RPC,
-		"l2_rpc":            cfg.L2RPC,
-		"l1_beacon_rpc":     cfg.L1BeaconRPC,
-		"l1_rollup":         cfg.L1RollupAddress.Hex(),
-		"l2_oracle":         cfg.L2GasPriceOracleAddr.Hex(),
-		"l2_token_registry": cfg.L2TokenRegistryAddr.Hex(),
-		"gas_threshold":     cfg.GasThreshold,
-		"interval":          cfg.Interval,
-		"overhead_interval": cfg.OverheadInterval,
-		"txn_per_batch":     cfg.TxnPerBatch,
-		"basefee_enabled":   cfg.BaseFeeUpdateEnabled,
-		"scalar_enabled":    cfg.ScalarUpdateEnabled,
-		"price_enabled":     cfg.PriceUpdateEnabled,
-	}).Info("Starting Gas Price Oracle")
+	output := io.Writer(os.Stderr)
+	if cfg.LogFilename != "" {
+		dir := filepath.Dir(cfg.LogFilename) // handles "dir/filename" correctly
+		if dir != "" && dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return fmt.Errorf("create log directory %q failed: %v", dir, err)
+			}
+		}
+		f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
+		if err != nil {
+			return fmt.Errorf("wrong log.filename set: %d", err)
+		}
+		f.Close()
+
+		if cfg.LogFileMaxSize < 1 {
+			return fmt.Errorf("wrong log.maxsize set: %d", cfg.LogFileMaxSize)
+		}
+
+		if cfg.LogFileMaxAge < 1 {
+			return fmt.Errorf("wrong log.maxage set: %d", cfg.LogFileMaxAge)
+		}
+		logFile := &lumberjack.Logger{
+			Filename: cfg.LogFilename,
+			MaxSize:  cfg.LogFileMaxSize, // megabytes
+			MaxAge:   cfg.LogFileMaxAge,  // days
+			Compress: cfg.LogCompress,
+		}
+		output = io.MultiWriter(output, logFile)
+	}
+	if cfg.LogTerminal {
+		logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+	} else {
+		logHandler = log.StreamHandler(output, log.JSONFormat())
+	}
+	logLevel, err := log.LvlFromString(cfg.LogLevel)
+	if err != nil {
+		return err
+	}
+	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -77,53 +97,36 @@ func Main(cliCtx *cli.Context) error {
 	if cfg.MetricsServerEnable {
 		go func() {
 			if err := metrics.StartMetricsServer(cfg.MetricAddress()); err != nil {
-				logrus.WithError(err).Error("Metrics server failed")
+				log.Error("Metrics server failed", "err", err)
 			}
 		}()
-		logrus.WithField("address", cfg.MetricAddress()).Info("Metrics server started")
+		log.Info("Metrics server started", "address", cfg.MetricAddress())
 	}
 
-	// Initialize clients
-	l1Client, l2Client, beaconClient, err := initializeClients(cfg)
+	// Create L2 client
+	l2Client, err := client.NewL2Client(cfg.L2RPC, cfg.PrivateKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create L2 client: %w", err)
 	}
-	defer l1Client.Close()
 	defer l2Client.Close()
-
-	// Bind contracts
-	oracleContract, rollupContract, err := updater.BindContracts(cfg, l1Client, l2Client)
-	if err != nil {
-		return err
-	}
 
 	// Create transaction manager
 	txManager := updater.CreateTxManager(l2Client)
-	logrus.Info("Transaction manager initialized")
+	log.Info("Transaction manager initialized")
 
-	// Create all updaters (basefee, scalar, price)
-	updaters, err := updater.CreateUpdaters(
-		cfg,
-		l1Client,
-		l2Client,
-		beaconClient,
-		oracleContract,
-		rollupContract,
-		txManager,
-	)
+	priceUpdater, err := updater.CreatePriceUpdater(cfg, l2Client, txManager)
 	if err != nil {
-		return fmt.Errorf("failed to create updaters: %w", err)
+		return fmt.Errorf("failed to create price updater: %w", err)
 	}
 
-	// Start all updaters
-	for _, upd := range updaters {
-		if err := upd.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start %s updater: %w", upd.Name(), err)
+	if priceUpdater == nil {
+		log.Warn("Price updater not created (no token IDs configured)")
+	} else {
+		log.Info("Price updater created", "updater", "price")
+		if err := priceUpdater.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start updater: %w", err)
 		}
-		logrus.WithField("updater", upd.Name()).Info("Updater started")
 	}
-
-	logrus.WithField("count", len(updaters)).Info("All updaters started successfully")
 
 	// Wait for interrupt signal
 	sigCh := make(chan os.Signal, 1)
@@ -131,85 +134,22 @@ func Main(cliCtx *cli.Context) error {
 
 	select {
 	case <-sigCh:
-		logrus.Info("Received interrupt signal, shutting down...")
+		log.Info("Received interrupt signal, shutting down...")
 	case <-ctx.Done():
-		logrus.Info("Context cancelled, shutting down...")
+		log.Info("Context cancelled, shutting down...")
 	}
 
 	// Graceful shutdown
 	cancel()
 
-	// Stop all updaters
-	for _, upd := range updaters {
-		if err := upd.Stop(); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"updater": upd.Name(),
-				"error":   err,
-			}).Warn("Failed to stop updater")
-		} else {
-			logrus.WithField("updater", upd.Name()).Info("Updater stopped")
+	if priceUpdater != nil {
+		if err := priceUpdater.Stop(); err != nil {
+			log.Warn("Failed to stop updater", "error", err)
 		}
 	}
 
 	time.Sleep(2 * time.Second)
 
-	logrus.Info("Gas Price Oracle stopped")
-	return nil
-}
-
-// initializeClients creates and connects all RPC clients
-func initializeClients(cfg *config.Config) (*client.L1Client, *client.L2Client, *client.BeaconClient, error) {
-	// Create L1 client
-	l1Client, err := client.NewL1Client(cfg.L1RPC)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to connect to L1: %w", err)
-	}
-	logrus.Info("L1 client connected")
-
-	// Create L2 client
-	l2Client, err := client.NewL2Client(cfg.L2RPC, cfg.PrivateKey)
-	if err != nil {
-		l1Client.Close()
-		return nil, nil, nil, fmt.Errorf("failed to create L2 client: %w", err)
-	}
-	logrus.WithField("address", l2Client.GetAuth().From.Hex()).Info("L2 client initialized")
-
-	// Create beacon client
-	beaconClient := client.NewBeaconClient(cfg.L1BeaconRPC)
-	logrus.Info("Beacon client initialized")
-
-	return l1Client, l2Client, beaconClient, nil
-}
-
-func setupLogging(cfg *config.Config) error {
-	// Parse log level
-	level, err := logrus.ParseLevel(cfg.LogLevel)
-	if err != nil {
-		return fmt.Errorf("invalid log level: %w", err)
-	}
-	logrus.SetLevel(level)
-
-	// Set formatter
-	logrus.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
-
-	// Setup file logging if configured
-	if cfg.LogFilename != "" {
-		logFile := &lumberjack.Logger{
-			Filename:   cfg.LogFilename,
-			MaxSize:    cfg.LogFileMaxSize,
-			MaxAge:     cfg.LogFileMaxAge,
-			MaxBackups: 10,
-			Compress:   cfg.LogCompress,
-		}
-
-		// Use multi-writer to write to both stdout and file
-		multiWriter := io.MultiWriter(os.Stdout, logFile)
-		logrus.SetOutput(multiWriter)
-
-		logrus.WithField("filename", cfg.LogFilename).Info("File logging enabled")
-	}
-
+	log.Info("Token price Oracle stopped")
 	return nil
 }
