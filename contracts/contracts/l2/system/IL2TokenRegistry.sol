@@ -62,6 +62,8 @@ interface IL2TokenRegistry {
     error TokenNotFound();
     error InvalidTokenID();
     error InvalidTokenAddress();
+    error InvalidBalanceSlot();
+    error InvalidScale();
     error InvalidPrice();
     error InvalidPercent();
     error CallerNotAllowed();
@@ -95,12 +97,14 @@ interface IL2TokenRegistry {
      * @param _tokenIDs Array of token IDs
      * @param _tokenAddresses Array of token addresses
      * @param _balanceSlots Array of balance storage slots
+     * @param _needBalanceSlots Array of boolean flags indicating whether balanceSlot is needed
      * @param _scales Array of scale values
      */
     function registerTokens(
         uint16[] memory _tokenIDs,
         address[] memory _tokenAddresses,
         bytes32[] memory _balanceSlots,
+        bool[] memory _needBalanceSlots,
         uint256[] memory _scales
     ) external;
 
@@ -109,15 +113,23 @@ interface IL2TokenRegistry {
      * @param _tokenID Token ID
      * @param _tokenAddress Token contract address
      * @param _balanceSlot Balance storage slot
+     * @param _needBalanceSlot Whether balanceSlot is needed (if false, stores 0; if true, stores balanceSlot+1)
      * @param _scale Scale value
      */
-    function registerToken(uint16 _tokenID, address _tokenAddress, bytes32 _balanceSlot, uint256 _scale) external;
+    function registerToken(
+        uint16 _tokenID,
+        address _tokenAddress,
+        bytes32 _balanceSlot,
+        bool _needBalanceSlot,
+        uint256 _scale
+    ) external;
 
     /**
      * @notice Update token information
      * @param _tokenID Token ID
      * @param _tokenAddress New token contract address
      * @param _balanceSlot New balance storage slot
+     * @param _needBalanceSlot Whether balanceSlot is needed (if false, stores 0; if true, stores balanceSlot+1)
      * @param _isActive Whether to activate
      * @param _scale Scale value
      */
@@ -125,6 +137,7 @@ interface IL2TokenRegistry {
         uint16 _tokenID,
         address _tokenAddress,
         bytes32 _balanceSlot,
+        bool _needBalanceSlot,
         bool _isActive,
         uint256 _scale
     ) external;

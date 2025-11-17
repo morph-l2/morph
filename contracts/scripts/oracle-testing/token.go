@@ -126,8 +126,6 @@ func ParseTokenInfoFromStorage(
 	if err != nil {
 		return nil, err
 	}
-	balanceSlot := common.BytesToHash(balanceSlotData)
-
 	// Read isActive and decimals (offset 2, packed together)
 	isActiveSlot := CalculateStructFieldSlot(baseSlot, 2)
 	isActiveData, err := storageAt(isActiveSlot)
@@ -147,7 +145,7 @@ func ParseTokenInfoFromStorage(
 
 	return &TokenInfo{
 		TokenAddress: tokenAddress,
-		BalanceSlot:  balanceSlot,
+		BalanceSlot:  common.BytesToHash(balanceSlotData),
 		IsActive:     isActive,
 		Decimals:     decimals,
 		Scale:        scale,
