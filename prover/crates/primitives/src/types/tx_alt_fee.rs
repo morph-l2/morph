@@ -1,3 +1,4 @@
+/// Use alt token for tx fee.
 use alloy::{
     consensus::{EncodableSignature, SignableTransaction, Signed, Transaction, TxType},
     eips::{eip2930::AccessList, eip7702::SignedAuthorization},
@@ -10,6 +11,7 @@ use serde_with::serde_as;
 // #[cfg(not(feature = "std"))]
 // use alloc::vec::Vec;
 
+/// TxAltFee
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, Hash)]
 #[serde_as]
 pub struct TxAltFee {
@@ -198,6 +200,14 @@ impl TxAltFee {
         }
         out.put_u8(self.tx_type() as u8);
         self.encode_with_signature_fields(signature, out);
+    }
+
+    /// Encodes the transaction according to EIP-2718, without a header.
+    pub fn encode_2718<S>(&self, signature: &S, out: &mut dyn BufMut)
+    where
+        S: EncodableSignature,
+    {
+        self.encode_with_signature(signature, out, false);
     }
 
     /// Decodes the transaction from RLP bytes, including the signature.

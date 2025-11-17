@@ -120,6 +120,8 @@ impl EvmExecutor<'_> {
                 access_list: tx.access_list().cloned().unwrap_or_default().0,
                 authorization_list: convert_authorization_list(tx.authorization_list()),
                 gas_priority_fee: tx.max_priority_fee_per_gas().map(U256::from),
+                fee_token_id: tx.fee_token_id(),
+                fee_limit: tx.fee_limit(),
                 ..Default::default()
             };
 

@@ -1,6 +1,6 @@
 //! Stateless Block Verifier primitives library.
 
-use crate::types::{TxL1Msg, TypedTransaction};
+use crate::types::{tx_alt_fee::TxAltFee, TxL1Msg, TypedTransaction};
 use alloy::{
     consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy},
     eips::eip2930::AccessList,
@@ -194,6 +194,12 @@ pub trait TxTrace {
         self.ty() == 0x7e
     }
 
+    /// Get `fee_token_id`.
+    fn fee_token_id(&self) -> u16;
+
+    /// Get `fee_limit`.
+    fn fee_limit(&self) -> u64;
+
     /// Try to build a typed transaction
     fn try_build_typed_tx(&self) -> Result<TypedTransaction, SignatureError> {
         let chain_id = self.chain_id();
@@ -271,7 +277,7 @@ pub trait TxTrace {
                 TypedTransaction::L1Msg(tx)
             }
             0x7f => {
-                let tx = TxEip7702 {
+                let tx = TxAltFee {
                     chain_id,
                     nonce: self.nonce(),
                     gas_limit: self.gas_limit(),
@@ -280,11 +286,12 @@ pub trait TxTrace {
                     to: self.to(),
                     value: self.value(),
                     access_list: self.access_list(),
-                    authorization_list: self.authorization_list(),
                     input: self.data(),
+                    fee_token_id: self.fee_token_id(),
+                    fee_limit: self.fee_limit(),
                 };
 
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                TypedTransaction::AltFee(tx.into_signed(self.signature()?))
             }
             _ => unimplemented!("unsupported tx type: {}", self.ty()),
         };
@@ -416,5 +423,13 @@ impl<T: TxTrace> TxTrace for &T {
 
     fn signature(&self) -> Result<Signature, SignatureError> {
         (*self).signature()
+    }
+
+    fn fee_token_id(&self) -> u16 {
+        (*self).fee_token_id()
+    }
+
+    fn fee_limit(&self) -> u64 {
+        (*self).fee_limit()
     }
 }

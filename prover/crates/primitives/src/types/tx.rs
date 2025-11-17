@@ -3,7 +3,7 @@ use crate::{
     TxTrace,
 };
 use alloy::{
-    consensus::{Transaction, TxEnvelope, TxType},
+    consensus::{Signed, Transaction, TxEnvelope, TxType},
     eips::{
         eip2718::{Decodable2718, Encodable2718},
         eip2930::AccessList,
@@ -24,7 +24,7 @@ pub enum TypedTransaction {
     /// Layer1 Message Transaction
     L1Msg(TxL1Msg),
     /// Alt Fee Transaction
-    AltFee(TxAltFee),
+    AltFee(Signed<TxAltFee>),
 }
 
 /// Layer1 Message Transaction
@@ -193,6 +193,14 @@ impl TxTrace for TransactionTrace {
     fn signature(&self) -> Result<Signature, SignatureError> {
         Signature::from_rs_and_parity(self.r, self.s, self.v)
     }
+
+    fn fee_token_id(&self) -> u16 {
+        self.fee_token_id.unwrap_or_default()
+    }
+
+    fn fee_limit(&self) -> u64 {
+        self.fee_limit.unwrap_or_default()
+    }
 }
 
 impl TxTrace for ArchivedTransactionTrace {
@@ -266,6 +274,14 @@ impl TxTrace for ArchivedTransactionTrace {
     fn signature(&self) -> Result<Signature, SignatureError> {
         Signature::from_rs_and_parity(self.r, self.s, self.v)
     }
+
+    fn fee_token_id(&self) -> u16 {
+        self.fee_token_id.unwrap_or(0)
+    }
+
+    fn fee_limit(&self) -> u64 {
+        self.fee_limit.unwrap_or(0)
+    }
 }
 
 impl Transaction for TypedTransaction {
@@ -273,7 +289,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.chain_id(),
             TypedTransaction::L1Msg(tx) => tx.chain_id(),
-            TypedTransaction::AltFee(tx) => tx.chain_id(),
+            TypedTransaction::AltFee(tx) => Some(tx.tx().chain_id),
         }
     }
 
@@ -281,7 +297,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.nonce(),
             TypedTransaction::L1Msg(tx) => tx.nonce(),
-            TypedTransaction::AltFee(tx) => tx.nonce(),
+            TypedTransaction::AltFee(tx) => tx.tx().nonce(),
         }
     }
 
@@ -289,7 +305,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.gas_limit(),
             TypedTransaction::L1Msg(tx) => tx.gas_limit(),
-            TypedTransaction::AltFee(tx) => tx.gas_limit(),
+            TypedTransaction::AltFee(tx) => tx.tx().gas_limit(),
         }
     }
 
@@ -297,7 +313,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.gas_price(),
             TypedTransaction::L1Msg(tx) => tx.gas_price(),
-            TypedTransaction::AltFee(tx) => tx.gas_price(),
+            TypedTransaction::AltFee(tx) => tx.tx().gas_price(),
         }
     }
 
@@ -305,7 +321,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.max_fee_per_gas(),
             TypedTransaction::L1Msg(tx) => tx.max_fee_per_gas(),
-            TypedTransaction::AltFee(tx) => tx.max_fee_per_gas(),
+            TypedTransaction::AltFee(tx) => tx.tx().max_fee_per_gas(),
         }
     }
 
@@ -313,7 +329,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.max_priority_fee_per_gas(),
             TypedTransaction::L1Msg(tx) => tx.max_priority_fee_per_gas(),
-            TypedTransaction::AltFee(tx) => tx.max_priority_fee_per_gas(),
+            TypedTransaction::AltFee(tx) => tx.tx().max_priority_fee_per_gas(),
         }
     }
 
@@ -321,7 +337,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.max_fee_per_blob_gas(),
             TypedTransaction::L1Msg(tx) => tx.max_fee_per_blob_gas(),
-            TypedTransaction::AltFee(tx) => tx.max_fee_per_blob_gas(),
+            TypedTransaction::AltFee(tx) => tx.tx().max_fee_per_blob_gas(),
         }
     }
 
@@ -329,7 +345,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.priority_fee_or_price(),
             TypedTransaction::L1Msg(tx) => tx.priority_fee_or_price(),
-            TypedTransaction::AltFee(tx) => tx.priority_fee_or_price(),
+            TypedTransaction::AltFee(tx) => tx.tx().priority_fee_or_price(),
         }
     }
 
@@ -337,7 +353,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.to(),
             TypedTransaction::L1Msg(tx) => tx.to(),
-            TypedTransaction::AltFee(tx) => tx.to(),
+            TypedTransaction::AltFee(tx) => tx.tx().to(),
         }
     }
 
@@ -345,7 +361,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.value(),
             TypedTransaction::L1Msg(tx) => tx.value(),
-            TypedTransaction::AltFee(tx) => tx.value(),
+            TypedTransaction::AltFee(tx) => tx.tx().value(),
         }
     }
 
@@ -353,7 +369,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.input(),
             TypedTransaction::L1Msg(tx) => tx.input(),
-            TypedTransaction::AltFee(tx) => tx.input(),
+            TypedTransaction::AltFee(tx) => tx.tx().input(),
         }
     }
 
@@ -361,7 +377,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.ty(),
             TypedTransaction::L1Msg(tx) => tx.ty(),
-            TypedTransaction::AltFee(tx) => tx.ty(),
+            TypedTransaction::AltFee(tx) => tx.tx().ty(),
         }
     }
 
@@ -369,7 +385,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.access_list(),
             TypedTransaction::L1Msg(tx) => tx.access_list(),
-            TypedTransaction::AltFee(tx) => tx.access_list(),
+            TypedTransaction::AltFee(tx) => tx.tx().access_list(),
         }
     }
 
@@ -377,7 +393,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.blob_versioned_hashes(),
             TypedTransaction::L1Msg(tx) => tx.blob_versioned_hashes(),
-            TypedTransaction::AltFee(tx) => tx.blob_versioned_hashes(),
+            TypedTransaction::AltFee(tx) => tx.tx().blob_versioned_hashes(),
         }
     }
 
@@ -385,7 +401,7 @@ impl Transaction for TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.authorization_list(),
             TypedTransaction::L1Msg(_) => None,
-            TypedTransaction::AltFee(tx) => None,
+            TypedTransaction::AltFee(_) => None,
         }
     }
 }
@@ -502,7 +518,7 @@ impl TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.tx_hash(),
             TypedTransaction::L1Msg(tx) => &tx.tx_hash,
-            TypedTransaction::AltFee(tx) => todo!(),
+            TypedTransaction::AltFee(tx) => tx.hash(),
         }
     }
 
@@ -513,7 +529,7 @@ impl TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.recover_signer(),
             TypedTransaction::L1Msg(tx) => Ok(tx.from),
-            TypedTransaction::AltFee(tx) => todo!(),
+            TypedTransaction::AltFee(tx) => tx.recover_signer(),
         }
     }
 
@@ -529,7 +545,7 @@ impl TypedTransaction {
                 Some(priority_fee_per_gas + base_fee_per_gas as u128)
             }
             TypedTransaction::AltFee(tx) => {
-                let priority_fee_per_gas = tx.effective_tip_per_gas(base_fee_per_gas)?;
+                let priority_fee_per_gas = tx.tx().effective_tip_per_gas(base_fee_per_gas)?;
                 Some(priority_fee_per_gas + base_fee_per_gas as u128)
             }
             _ => self.gas_price(),
@@ -543,7 +559,7 @@ impl TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.encode_2718(&mut bytes),
             TypedTransaction::L1Msg(tx) => tx.encode_2718(&mut bytes),
-            TypedTransaction::AltFee(tx) => todo!(),
+            TypedTransaction::AltFee(tx) => tx.tx().encode_2718(tx.signature(), &mut bytes),
         }
         Bytes(bytes.freeze())
     }
@@ -553,7 +569,7 @@ impl TypedTransaction {
         match self {
             TypedTransaction::Enveloped(tx) => tx.signature_hash(),
             TypedTransaction::L1Msg(_) => keccak256(self.rlp()),
-            TypedTransaction::AltFee(tx) => todo!(),
+            TypedTransaction::AltFee(tx) => tx.signature_hash(),
         }
     }
 
@@ -568,13 +584,31 @@ impl TypedTransaction {
                 _ => unimplemented!("unsupported tx type {:?}", tx.tx_type()),
             },
             TypedTransaction::L1Msg(tx) => tx.input.clone(),
-            TypedTransaction::AltFee(tx) => tx.input.clone(),
+            TypedTransaction::AltFee(tx) => tx.tx().input.clone(),
         }
     }
 
     /// Check if the transaction is an L1 transaction
     pub fn is_l1_msg(&self) -> bool {
         matches!(self, TypedTransaction::L1Msg(_))
+    }
+
+    /// Returns the fee token ID if this is an AltFee transaction, otherwise None.
+    pub fn fee_token_id(&self) -> Option<u16> {
+        match self {
+            TypedTransaction::Enveloped(_) => None,
+            TypedTransaction::L1Msg(_) => None,
+            TypedTransaction::AltFee(tx) => Some(tx.tx().fee_token_id),
+        }
+    }
+
+    /// Returns the fee limit if this is an AltFee transaction, otherwise None.
+    pub fn fee_limit(&self) -> Option<u64> {
+        match self {
+            TypedTransaction::Enveloped(_) => None,
+            TypedTransaction::L1Msg(_) => None,
+            TypedTransaction::AltFee(tx) => Some(tx.tx().fee_limit),
+        }
     }
 }
 
