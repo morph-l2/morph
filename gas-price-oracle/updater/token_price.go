@@ -83,7 +83,6 @@ func (u *PriceUpdater) Start(ctx context.Context) error {
 			"interval", u.interval,
 			"price_threshold", u.priceThreshold)
 
-		// Perform first update immediately (will fetch current prices from contract)
 		if err := u.update(ctx); err != nil {
 			log.Error("Initial price update failed")
 		}
@@ -116,6 +115,11 @@ func (u *PriceUpdater) Stop() error {
 
 // update performs one price update
 func (u *PriceUpdater) update(ctx context.Context) error {
+	defer func() {
+		if err := u.updateBalanceMetrics(ctx); err != nil {
+			log.Warn("Failed to update balance metrics", "error", err)
+		}
+	}()
 	if len(u.tokenIDs) == 0 {
 		log.Crit("No tokens to update")
 		return nil
@@ -231,8 +235,6 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 			"price_ratio", pricesToUpdate[i].String())
 	}
 
-	metrics.ScalarUpdateCount.Inc()
-
 	return nil
 }
 
@@ -298,6 +300,32 @@ func (u *PriceUpdater) calculatePriceRatio(ctx context.Context, tokenID uint16, 
 		"price_ratio", priceRatioInt.String())
 
 	return priceRatioInt, nil
+}
+
+// updateBalanceMetrics queries and updates balance metrics
+func (u *PriceUpdater) updateBalanceMetrics(ctx context.Context) error {
+	// Get account address
+	account := u.l2Client.WalletAddress()
+
+	// Query ETH balance
+	ethBalance, err := u.l2Client.GetClient().BalanceAt(ctx, account, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get ETH balance: %w", err)
+	}
+
+	// Convert to ETH (wei to ETH)
+	ethBalanceFloat := new(big.Float).SetInt(ethBalance)
+	ethBalanceFloat.Quo(ethBalanceFloat, big.NewFloat(1e18))
+	ethBalanceEth, _ := ethBalanceFloat.Float64()
+
+	// Update ETH balance metric
+	metrics.AccountBalance.Set(ethBalanceEth)
+
+	log.Info("Updated balance metrics",
+		"account", account.Hex(),
+		"eth_balance", ethBalanceEth)
+
+	return nil
 }
 
 // shouldUpdatePrice checks if the price change exceeds the threshold

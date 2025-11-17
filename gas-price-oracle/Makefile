@@ -10,10 +10,11 @@ LDFLAGSSTRING +=-X main.Version=$(VERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 build:
-	go build $(LDFLAGS) -o bin/gas-price-oracle ./cmd
-
+	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
+	go mod download
+	env GO111MODULE=on CGO_ENABLED=1 CGO_LDFLAGS="-ldl" go build -o build/bin/token-price-oracle -v $(LDFLAGS) ./cmd
 run: build
-	./bin/gas-price-oracle
+	.build/bin/token-price-oracle
 
 test:
 	go test -v ./...

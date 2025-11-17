@@ -30,7 +30,7 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	defer m.mu.Unlock()
 
 	// Get transaction options
-	auth := m.l2Client.GetAuth()
+	auth := m.l2Client.GetOpts()
 	auth.Context = ctx
 	auth.GasLimit = 100000 // Default gas limit
 

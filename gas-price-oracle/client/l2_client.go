@@ -15,7 +15,7 @@ import (
 type L2Client struct {
 	client  *ethclient.Client
 	chainID *big.Int
-	auth    *bind.TransactOpts
+	opts    *bind.TransactOpts
 }
 
 // NewL2Client creates new L2 client
@@ -42,7 +42,7 @@ func NewL2Client(rpcURL string, privateKey string) (*L2Client, error) {
 	}
 
 	// Create transaction options
-	auth, err := bind.NewKeyedTransactorWithChainID(key, chainID)
+	opts, err := bind.NewKeyedTransactorWithChainID(key, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func NewL2Client(rpcURL string, privateKey string) (*L2Client, error) {
 	return &L2Client{
 		client:  client,
 		chainID: chainID,
-		auth:    auth,
+		opts:    opts,
 	}, nil
 }
 
@@ -64,9 +64,9 @@ func (c *L2Client) GetClient() *ethclient.Client {
 	return c.client
 }
 
-// GetAuth returns transaction options
-func (c *L2Client) GetAuth() *bind.TransactOpts {
-	return c.auth
+// GetOpts returns transaction options
+func (c *L2Client) GetOpts() *bind.TransactOpts {
+	return c.opts
 }
 
 // GetBalance returns account balance
@@ -76,5 +76,5 @@ func (c *L2Client) GetBalance(ctx context.Context, address common.Address) (*big
 
 // WalletAddress returns wallet address
 func (c *L2Client) WalletAddress() common.Address {
-	return c.auth.From
+	return c.opts.From
 }
