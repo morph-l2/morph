@@ -644,16 +644,28 @@ task("deploy-l2-token-registry")
             const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadmin)
             
             // Upgrade the proxy to new implementation
-            const upgradeTx = await proxyAdmin.upgradeAndCall(
+            const upgradeTx = await proxyAdmin.upgrade(
                 taskArgs.proxy,
-                tokenRegistry.address,
-                TokenRegistryFactory.interface.encodeFunctionData('initialize', [
-                    taskArgs.owner // owner
-                ]) // data
+                tokenRegistry.address
             )
             await upgradeTx.wait()
             console.log(`Proxy upgraded to new implementation: ${tokenRegistry.address}`)
-            
+            // Check if a call to initialize is needed after upgrading the implementation.
+            // Read the proxy contract's storage slot to see if already initialized.
+            const tokenRegistryProxyInstance = TokenRegistryFactory.attach(taskArgs.proxy)
+            const isInitialized = await tokenRegistryProxyInstance.owner().then(owner => {
+                // Owner should not be address(0) if initialized.
+                return owner && owner !== ethers.constants.AddressZero
+            }).catch(() => false)
+
+            if (!isInitialized) {
+                console.log(`Proxy not initialized. Calling initialize...`)
+                const tx = await tokenRegistryProxyInstance.initialize(taskArgs.owner)
+                await tx.wait()
+                console.log(`Initialization completed.`)
+            } else {
+                console.log(`Proxy already initialized, skipping initialize() call.`)
+            }
             proxyAddress = taskArgs.proxy
         } else {
             console.log(`\nDeploying new proxy`)
