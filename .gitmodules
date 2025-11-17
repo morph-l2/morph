@@ -1,3 +1,6 @@
 [submodule "go-ethereum"]
 path = go-ethereum
 url = https://github.com/morph-l2/go-ethereum.git
+[submodule "contracts/lib/openzeppelin-contracts-upgradeable"]
+	path = contracts/lib/openzeppelin-contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable

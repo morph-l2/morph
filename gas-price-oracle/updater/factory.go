@@ -4,82 +4,14 @@ import (
 	"fmt"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/morph/bindings/bindings"
-	"github.com/morph-l2/morph/gas-price-oracle/client"
-	"github.com/morph-l2/morph/gas-price-oracle/config"
-	"github.com/sirupsen/logrus"
+	"github.com/morph-l2/go-ethereum/log"
+	"morph-l2/bindings/bindings"
+	"morph-l2/gas-price-oracle/client"
+	"morph-l2/gas-price-oracle/config"
 )
 
-// CreateUpdaters creates all enabled updaters based on config
-func CreateUpdaters(
-	cfg *config.Config,
-	l1Client *client.L1Client,
-	l2Client *client.L2Client,
-	beaconClient *client.BeaconClient,
-	oracleContract *bindings.GasPriceOracle,
-	rollupContract *bindings.Rollup,
-	txManager *TxManager,
-) ([]Updater, error) {
-	var updaters []Updater
-
-	// Base fee updater (optional)
-	if cfg.BaseFeeUpdateEnabled {
-		baseFeeUpdater := NewBaseFeeUpdater(
-			l1Client,
-			l2Client,
-			oracleContract,
-			txManager,
-			cfg.GasThreshold,
-			cfg.Interval,
-		)
-		updaters = append(updaters, baseFeeUpdater)
-		logrus.WithField("updater", "basefee").Info("Base fee updater created")
-	} else {
-		logrus.Warn("Base fee updater disabled")
-	}
-
-	// Scalar updater (optional)
-	if cfg.ScalarUpdateEnabled {
-		scalarUpdater := NewScalarUpdater(
-			l1Client,
-			l2Client,
-			beaconClient,
-			oracleContract,
-			rollupContract,
-			txManager,
-			cfg.GasThreshold,
-			cfg.OverheadInterval,
-			cfg.TxnPerBatch,
-		)
-		updaters = append(updaters, scalarUpdater)
-		logrus.WithField("updater", "scalar").Info("Scalar updater created")
-	} else {
-		logrus.Warn("Scalar updater disabled")
-	}
-
-	// Price updater (optional)
-	if cfg.PriceUpdateEnabled {
-		priceUpdater, err := createPriceUpdater(cfg, l2Client, txManager)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create price updater: %w", err)
-		}
-		if priceUpdater != nil {
-			updaters = append(updaters, priceUpdater)
-			logrus.WithField("updater", "price").Info("Price updater created")
-		}
-	} else {
-		logrus.Info("Price updater disabled")
-	}
-
-	if len(updaters) == 0 {
-		logrus.Warn("No updaters enabled!")
-	}
-
-	return updaters, nil
-}
-
-// createPriceUpdater creates price updater if conditions are met
-func createPriceUpdater(
+// CreatePriceUpdater creates price updater if conditions are met
+func CreatePriceUpdater(
 	cfg *config.Config,
 	l2Client *client.L2Client,
 	txManager *TxManager,
@@ -88,22 +20,30 @@ func createPriceUpdater(
 		return nil, fmt.Errorf("price update enabled but token registry address not set")
 	}
 
-	if len(cfg.TokenIDs) == 0 {
-		logrus.Warn("Price update enabled but no token IDs specified, skipping")
-		return nil, nil
-	}
-
 	// Create registry contract
 	registryContract, err := bindings.NewL2TokenRegistry(cfg.L2TokenRegistryAddr, l2Client.GetClient())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TokenRegistry contract: %w", err)
 	}
-	logrus.WithField("address", cfg.L2TokenRegistryAddr.Hex()).Info("TokenRegistry contract bound")
+	log.Info("TokenRegistry contract bound", "address", cfg.L2TokenRegistryAddr.Hex())
 
-	// Create price feed
-	priceFeed, err := createPriceFeed(cfg)
+	// Create price feeds with fallback support
+	priceFeed, err := createFallbackPriceFeed(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create price feed: %w", err)
+	}
+
+	// Collect all token mappings from configured feeds
+	allTokenMappings := make(map[uint16]string)
+	for _, feedType := range cfg.PriceFeedPriority {
+		if mapping, exists := cfg.TokenMappings[feedType]; exists {
+			for tokenID, symbol := range mapping {
+				// Use first mapping found (highest priority)
+				if _, alreadyMapped := allTokenMappings[tokenID]; !alreadyMapped {
+					allTokenMappings[tokenID] = symbol
+				}
+			}
+		}
 	}
 
 	// Create price updater
@@ -113,71 +53,86 @@ func createPriceUpdater(
 		priceFeed,
 		txManager,
 		cfg.TokenIDs,
+		allTokenMappings,
 		cfg.PriceUpdateInterval,
 		cfg.PriceThreshold,
 	)
 
-	logrus.WithFields(logrus.Fields{
-		"token_ids": cfg.TokenIDs,
-		"interval":  cfg.PriceUpdateInterval,
-		"threshold": cfg.PriceThreshold,
-	}).Info("Price updater configured")
+	log.Info("Price updater configured",
+		"price_feed_priority", cfg.PriceFeedPriority,
+		"token_ids", cfg.TokenIDs,
+		"token_mappings", allTokenMappings,
+		"interval", cfg.PriceUpdateInterval,
+		"threshold", cfg.PriceThreshold)
 
 	return priceUpdater, nil
 }
 
-// createPriceFeed creates appropriate price feed based on config
-func createPriceFeed(cfg *config.Config) (client.PriceFeed, error) {
-	switch cfg.PriceFeedType {
-	case "mock":
-		feed := client.NewMockPriceFeed(cfg.BasePrice, cfg.PriceVariation)
-		logrus.WithFields(logrus.Fields{
-			"type":       "mock",
-			"base_price": cfg.BasePrice.String(),
-			"variation":  cfg.PriceVariation,
-		}).Info("Mock price feed created")
-		return feed, nil
+// createFallbackPriceFeed creates price feed with fallback support
+func createFallbackPriceFeed(cfg *config.Config) (client.PriceFeed, error) {
+	if len(cfg.PriceFeedPriority) == 0 {
+		return nil, fmt.Errorf("no price feeds configured in priority list")
+	}
 
-	case "bitget":
-		if len(cfg.TokenMapping) == 0 {
-			return nil, fmt.Errorf("bitget price feed requires token mapping")
+	var feeds []client.PriceFeed
+	var feedNames []string
+
+	for _, feedType := range cfg.PriceFeedPriority {
+		feed, name, err := createSinglePriceFeed(feedType, cfg)
+		if err != nil {
+			log.Warn("Failed to create price feed, skipping",
+				"feed_type", feedType,
+				"error", err.Error())
+			continue
 		}
-		feed := client.NewBitgetSDKPriceFeed(cfg.TokenMapping)
-		logrus.WithFields(logrus.Fields{
-			"type":    "bitget-sdk",
-			"mapping": cfg.TokenMapping,
-		}).Info("Bitget SDK price feed created")
-		return feed, nil
+		feeds = append(feeds, feed)
+		feedNames = append(feedNames, name)
+	}
+
+	if len(feeds) == 0 {
+		return nil, fmt.Errorf("no valid price feeds could be created")
+	}
+
+	if len(feeds) == 1 {
+		log.Info("Single price feed configured (no fallback)", "feed", feedNames[0])
+		return feeds[0], nil
+	}
+
+	log.Info("Fallback price feed configured with multiple sources",
+		"feeds", feedNames,
+		"priority", "first to last")
+
+	return client.NewFallbackPriceFeed(feeds, feedNames), nil
+}
+
+// createSinglePriceFeed creates a single price feed instance
+func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (client.PriceFeed, string, error) {
+	switch feedType {
+	case config.PriceFeedTypeBitget:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBitget]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("bitget price feed requires token mapping, please configure --token-mapping-bitget")
+		}
+		feed := client.NewBitgetSDKPriceFeed(mapping)
+		log.Info("Bitget price feed created",
+			"type", "bitget",
+			"mapping", mapping)
+		return feed, "bitget", nil
+
+	case config.PriceFeedTypeBinance:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBinance]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("binance price feed requires token mapping, please configure --token-mapping-binance")
+		}
+		// TODO: Implement Binance price feed when ready
+		return nil, "", fmt.Errorf("binance price feed not yet implemented")
 
 	default:
-		return nil, fmt.Errorf("unsupported price feed type: %s", cfg.PriceFeedType)
+		return nil, "", fmt.Errorf("unsupported price feed type: %s", feedType)
 	}
 }
 
 // CreateTxManager creates transaction manager
 func CreateTxManager(l2Client *client.L2Client) *TxManager {
 	return NewTxManager(l2Client)
-}
-
-// BindContracts binds all required contracts
-func BindContracts(
-	cfg *config.Config,
-	l1Client *client.L1Client,
-	l2Client *client.L2Client,
-) (*bindings.GasPriceOracle, *bindings.Rollup, error) {
-	// Bind GasPriceOracle contract
-	oracleContract, err := bindings.NewGasPriceOracle(cfg.L2GasPriceOracleAddr, l2Client.GetClient())
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to bind GasPriceOracle contract: %w", err)
-	}
-	logrus.WithField("address", cfg.L2GasPriceOracleAddr.Hex()).Info("GasPriceOracle contract bound")
-
-	// Bind Rollup contract
-	rollupContract, err := bindings.NewRollup(cfg.L1RollupAddress, l1Client.GetClient())
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to bind Rollup contract: %w", err)
-	}
-	logrus.WithField("address", cfg.L1RollupAddress.Hex()).Info("Rollup contract bound")
-
-	return oracleContract, rollupContract, nil
 }
