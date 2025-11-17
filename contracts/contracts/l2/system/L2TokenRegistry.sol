@@ -159,6 +159,32 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     }
 
     /**
+     * @notice Internal function: Convert actual balanceSlot to stored value (adds 1)
+     * @param _actualSlot The actual balance slot value
+     * @return The stored balance slot value (actualSlot + 1)
+     */
+    function _toStoredBalanceSlot(bytes32 _actualSlot) internal pure returns (bytes32) {
+        bytes32 storedSlot;
+        assembly {
+            storedSlot := add(_actualSlot, 1)
+        }
+        return storedSlot;
+    }
+
+    /**
+     * @notice Internal function: Convert stored balanceSlot to actual value (subtracts 1)
+     * @param _storedSlot The stored balance slot value
+     * @return The actual balance slot value (storedSlot - 1)
+     */
+    function _toActualBalanceSlot(bytes32 _storedSlot) internal pure returns (bytes32) {
+        bytes32 actualSlot;
+        assembly {
+            actualSlot := sub(_storedSlot, 1)
+        }
+        return actualSlot;
+    }
+
+    /**
      * @notice Internal function: Register a single token
      */
     function _registerSingleToken(
@@ -182,10 +208,12 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         } catch {
             // If call fails, use default value 18
         }
+        
         // Register token (isActive defaults to false)
+        // Note: balanceSlot is stored as actualSlot + 1
         tokenRegistry[_tokenID] = TokenInfo({
             tokenAddress: _tokenAddress,
-            balanceSlot: _balanceSlot,
+            balanceSlot: _toStoredBalanceSlot(_balanceSlot),
             isActive: false,
             decimals: decimals,
             scale: _scale
@@ -227,11 +255,13 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         } catch {
             // If call fails, use default value 18
         }
+        
         // Update registration information
+        // Note: balanceSlot is stored as actualSlot + 1
         address oldAddress = tokenRegistry[_tokenID].tokenAddress;
         tokenRegistry[_tokenID] = TokenInfo({
             tokenAddress: _tokenAddress,
-            balanceSlot: _balanceSlot,
+            balanceSlot: _toStoredBalanceSlot(_balanceSlot),
             isActive: _isActive,
             decimals: decimals,
             scale: _scale
@@ -383,11 +413,16 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     /**
      * @notice Get token information
      * @param _tokenID Token ID
-     * @return TokenInfo structure
+     * @return TokenInfo structure with actual balanceSlot (automatically -1 from stored value)
      */
     function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
-        return tokenRegistry[_tokenID];
+        
+        TokenInfo memory info = tokenRegistry[_tokenID];
+        // Convert stored balanceSlot to actual value
+        info.balanceSlot = _toActualBalanceSlot(info.balanceSlot);
+        
+        return info;
     }
 
     /**

@@ -210,6 +210,106 @@ contract L2TokenRegistryTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                            BalanceSlot Storage Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function test_balanceSlot_storage_query_with_minus_one() public {
+        // Register token with balanceSlot = 9
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, SCALE_USDC);
+
+        // Get balanceSlot through getTokenInfo (should return actual value = 9)
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertEq(info.balanceSlot, BALANCE_SLOT_USDC);
+
+        // Read balanceSlot directly from storage
+        // tokenRegistry is at slot 151
+        // TokenInfo struct layout:
+        // - slot 0: tokenAddress (20 bytes)
+        // - slot 1: balanceSlot (32 bytes)
+        // - slot 2: isActive (1 byte) + decimals (1 byte) + scale (32 bytes packed)
+        uint256 mappingSlot = 151;
+        
+        // Calculate storage location: keccak256(tokenID || mappingSlot)
+        bytes32 key = keccak256(abi.encode(TOKEN_ID_USDC, mappingSlot));
+        
+        // balanceSlot is stored in key + 1
+        bytes32 balanceSlotStorageLocation = bytes32(uint256(key) + 1);
+        
+        // Read stored value from storage
+        bytes32 storedBalanceSlot = vm.load(address(priceOracle), balanceSlotStorageLocation);
+        
+        // Stored value should be actualSlot + 1 = 9 + 1 = 10
+        assertEq(uint256(storedBalanceSlot), uint256(BALANCE_SLOT_USDC) + 1);
+        
+        // Apply -1 to get actual value
+        bytes32 actualBalanceSlot = bytes32(uint256(storedBalanceSlot) - 1);
+        
+        // Verify that manual -1 gives us the same value as getTokenInfo
+        assertEq(actualBalanceSlot, BALANCE_SLOT_USDC);
+        assertEq(actualBalanceSlot, info.balanceSlot);
+    }
+
+    function test_balanceSlot_storage_query_with_slot_zero() public {
+        // Test with balanceSlot = 0 (edge case)
+        bytes32 balanceSlot0 = bytes32(uint256(0));
+        
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), balanceSlot0, SCALE_USDT);
+
+        // Get balanceSlot through getTokenInfo (should return actual value = 0)
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDT);
+        assertEq(info.balanceSlot, balanceSlot0);
+
+        // Read balanceSlot directly from storage
+        uint256 mappingSlot = 151;
+        bytes32 key = keccak256(abi.encode(TOKEN_ID_USDT, mappingSlot));
+        bytes32 balanceSlotStorageLocation = bytes32(uint256(key) + 1);
+        bytes32 storedBalanceSlot = vm.load(address(priceOracle), balanceSlotStorageLocation);
+        
+        // Stored value should be actualSlot + 1 = 0 + 1 = 1
+        assertEq(uint256(storedBalanceSlot), 1);
+        
+        // Apply -1 to get actual value
+        bytes32 actualBalanceSlot = bytes32(uint256(storedBalanceSlot) - 1);
+        
+        // Verify that manual -1 gives us 0
+        assertEq(actualBalanceSlot, balanceSlot0);
+        assertEq(uint256(actualBalanceSlot), 0);
+        assertEq(actualBalanceSlot, info.balanceSlot);
+    }
+
+    function test_balanceSlot_storage_query_multiple_tokens() public {
+        // Register multiple tokens with different balanceSlots
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), bytes32(uint256(9)), SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), bytes32(uint256(10)), SCALE_USDT);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), bytes32(uint256(11)), SCALE_DAI);
+
+        uint256 mappingSlot = 151;
+
+        // Verify USDC: stored=10, actual=9
+        bytes32 key = keccak256(abi.encode(TOKEN_ID_USDC, mappingSlot));
+        bytes32 storedValue = vm.load(address(priceOracle), bytes32(uint256(key) + 1));
+        assertEq(uint256(storedValue), 10);
+        assertEq(bytes32(uint256(storedValue) - 1), priceOracle.getTokenInfo(TOKEN_ID_USDC).balanceSlot);
+
+        // Verify USDT: stored=11, actual=10
+        key = keccak256(abi.encode(TOKEN_ID_USDT, mappingSlot));
+        storedValue = vm.load(address(priceOracle), bytes32(uint256(key) + 1));
+        assertEq(uint256(storedValue), 11);
+        assertEq(bytes32(uint256(storedValue) - 1), priceOracle.getTokenInfo(TOKEN_ID_USDT).balanceSlot);
+
+        // Verify DAI: stored=12, actual=11
+        key = keccak256(abi.encode(TOKEN_ID_DAI, mappingSlot));
+        storedValue = vm.load(address(priceOracle), bytes32(uint256(key) + 1));
+        assertEq(uint256(storedValue), 12);
+        assertEq(bytes32(uint256(storedValue) - 1), priceOracle.getTokenInfo(TOKEN_ID_DAI).balanceSlot);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                             Token Update Tests
     //////////////////////////////////////////////////////////////*/
 

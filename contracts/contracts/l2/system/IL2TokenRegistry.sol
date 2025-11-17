@@ -14,7 +14,7 @@ interface IL2TokenRegistry {
     /// @notice Token information structure
     struct TokenInfo {
         address tokenAddress; // ERC20 token contract address
-        bytes32 balanceSlot; // Token balance storage slot, bytes32(0) -> nil
+        bytes32 balanceSlot; // Token balance storage slot (Note: stored as actualSlot+1 internally, but returned as actual value in queries)
         bool isActive; // Whether the token is active
         uint8 decimals; // Token decimals
         uint256 scale; // Core convention: rateScaled = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
