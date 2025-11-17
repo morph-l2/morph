@@ -19,17 +19,17 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
 
     /// @notice Mapping from tokenID to TokenInfo
-    mapping(uint16 => TokenInfo) public tokenRegistry;
+    mapping(uint16 tokenID => TokenInfo tokenInfo) public tokenRegistry;
 
     /// @notice Mapping from token address to tokenID
-    mapping(address => uint16) public tokenRegistration;
+    mapping(address tokenAddress => uint16 tokenID) public tokenRegistration;
 
     /// @notice Mapping from tokenID to price ratio (relative to ETH)
     /// @dev priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
-    mapping(uint16 => uint256) public priceRatio;
+    mapping(uint16 tokenID => uint256 priceRatio) public priceRatio;
 
     /// @notice Allow List whitelist
-    mapping(address => bool) public allowList;
+    mapping(address user => bool allowed) public allowList;
 
     /// @notice Whether whitelist is enabled
     bool public allowListEnabled = true;
@@ -65,6 +65,9 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @param owner_ Contract owner address
      */
     function initialize(address owner_) external initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+
         _transferOwnership(owner_);
         allowListEnabled = true;
     }
@@ -105,24 +108,27 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @param _tokenIDs Array of token IDs
      * @param _tokenAddresses Array of token addresses
      * @param _balanceSlots Array of balance storage slots
+     * @param _needBalanceSlots Array of boolean flags indicating whether balanceSlot is needed
      * @param _scales Array of scale values
      */
     function registerTokens(
         uint16[] memory _tokenIDs,
         address[] memory _tokenAddresses,
         bytes32[] memory _balanceSlots,
+        bool[] memory _needBalanceSlots,
         uint256[] memory _scales
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         if (
             _tokenIDs.length != _tokenAddresses.length ||
             _tokenIDs.length != _balanceSlots.length ||
+            _tokenIDs.length != _needBalanceSlots.length ||
             _tokenIDs.length != _scales.length
         ) {
             revert InvalidArrayLength();
         }
 
         for (uint256 i = 0; i < _tokenIDs.length; i++) {
-            _registerSingleToken(_tokenIDs[i], _tokenAddresses[i], _balanceSlots[i], _scales[i]);
+            _registerSingleToken(_tokenIDs[i], _tokenAddresses[i], _balanceSlots[i], _needBalanceSlots[i], _scales[i]);
         }
     }
 
@@ -131,15 +137,17 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @param _tokenID Token ID
      * @param _tokenAddress Token contract address
      * @param _balanceSlot Balance storage slot
+     * @param _needBalanceSlot Whether balanceSlot is needed (if false, stores 0; if true, stores balanceSlot+1)
      * @param _scale Scale value
      */
     function registerToken(
         uint16 _tokenID,
         address _tokenAddress,
         bytes32 _balanceSlot,
+        bool _needBalanceSlot,
         uint256 _scale
     ) external onlyOwner nonReentrant {
-        _registerSingleToken(_tokenID, _tokenAddress, _balanceSlot, _scale);
+        _registerSingleToken(_tokenID, _tokenAddress, _balanceSlot, _needBalanceSlot, _scale);
     }
 
     /**
@@ -159,12 +167,47 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     }
 
     /**
+     * @notice Internal function: Convert actual balanceSlot to stored value (adds 1 if needed)
+     * @param _actualSlot The actual balance slot value
+     * @param _needBalanceSlot Whether balanceSlot is needed
+     * @return The stored balance slot value (actualSlot + 1 if needed, otherwise 0)
+     */
+    function _toStoredBalanceSlot(bytes32 _actualSlot, bool _needBalanceSlot) internal pure returns (bytes32) {
+        if (!_needBalanceSlot) {
+            return bytes32(0); // Don't store balanceSlot
+        }
+        if (_actualSlot == bytes32(type(uint256).max)) revert InvalidBalanceSlot();
+        bytes32 storedSlot;
+        assembly {
+            storedSlot := add(_actualSlot, 1)
+        }
+        return storedSlot;
+    }
+
+    /**
+     * @notice Internal function: Convert stored balanceSlot to actual value (subtracts 1 if non-zero)
+     * @param _storedSlot The stored balance slot value
+     * @return The actual balance slot value (storedSlot - 1 if non-zero, otherwise 0)
+     */
+    function _toActualBalanceSlot(bytes32 _storedSlot) internal pure returns (bytes32) {
+        if (_storedSlot == bytes32(0)) {
+            return bytes32(0); // No balanceSlot stored
+        }
+        bytes32 actualSlot;
+        assembly {
+            actualSlot := sub(_storedSlot, 1)
+        }
+        return actualSlot;
+    }
+
+    /**
      * @notice Internal function: Register a single token
      */
     function _registerSingleToken(
         uint16 _tokenID,
         address _tokenAddress,
         bytes32 _balanceSlot,
+        bool _needBalanceSlot,
         uint256 _scale
     ) internal {
         // Check token address
@@ -175,6 +218,9 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         if (tokenRegistry[_tokenID].tokenAddress != address(0)) revert TokenAlreadyRegistered();
         if (tokenRegistration[_tokenAddress] != 0) revert TokenAlreadyRegistered();
 
+        // Validate scale is non-zero
+        if (_scale == 0) revert InvalidScale();
+
         // Get decimals from contract
         uint8 decimals = 18; // Default value
         try IERC20Infos(_tokenAddress).decimals() returns (uint8 v) {
@@ -182,10 +228,12 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         } catch {
             // If call fails, use default value 18
         }
+        
         // Register token (isActive defaults to false)
+        // Note: balanceSlot is stored as actualSlot + 1 if needBalanceSlot is true, otherwise 0
         tokenRegistry[_tokenID] = TokenInfo({
             tokenAddress: _tokenAddress,
-            balanceSlot: _balanceSlot,
+            balanceSlot: _toStoredBalanceSlot(_balanceSlot, _needBalanceSlot),
             isActive: false,
             decimals: decimals,
             scale: _scale
@@ -200,6 +248,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @param _tokenID Token ID
      * @param _tokenAddress New token contract address
      * @param _balanceSlot New balance storage slot
+     * @param _needBalanceSlot Whether balanceSlot is needed (if false, stores 0; if true, stores balanceSlot+1)
      * @param _isActive Whether to activate
      * @param _scale Scale value
      */
@@ -207,6 +256,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         uint16 _tokenID,
         address _tokenAddress,
         bytes32 _balanceSlot,
+        bool _needBalanceSlot,
         bool _isActive,
         uint256 _scale
     ) external onlyOwner nonReentrant {
@@ -228,10 +278,11 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
             // If call fails, use default value 18
         }
         // Update registration information
+        // Note: balanceSlot is stored as actualSlot + 1 if needBalanceSlot is true, otherwise 0
         address oldAddress = tokenRegistry[_tokenID].tokenAddress;
         tokenRegistry[_tokenID] = TokenInfo({
             tokenAddress: _tokenAddress,
-            balanceSlot: _balanceSlot,
+            balanceSlot: _toStoredBalanceSlot(_balanceSlot, _needBalanceSlot),
             isActive: _isActive,
             decimals: decimals,
             scale: _scale
@@ -253,10 +304,13 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @notice Remove a token from registry
      * @param _tokenID Token ID to remove
      */
-    function removeToken(uint16 _tokenID) external onlyOwner nonReentrant {
+    function removeToken(uint16 _tokenID) external onlyOwner {
         // Check if token exists
         address tokenAddress = tokenRegistry[_tokenID].tokenAddress;
         if (tokenAddress == address(0)) revert TokenNotFound();
+
+        // Check if token is in supported list
+        if (!supportedTokenSet.contains(uint256(_tokenID))) revert TokenNotFound();
 
         // Remove from mappings
         delete tokenRegistry[_tokenID];
@@ -353,6 +407,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      *      - Substituting ratio: tokenAmount = (ethAmount * 10^tokenDecimals) / (tokenScale * (tokenPrice / ethPrice) * 10^(18 - tokenDecimals))
      *      - Simplified: tokenAmount = (ethAmount * 10^tokenDecimals * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18 / ethPrice)
      *      - Final: tokenAmount = (ethAmount * ethPrice * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18)
+     *      - Note: Uses ceiling division to ensure users receive fair token amounts
      * @param _tokenID Token ID of the ERC20 token
      * @param _ethAmount ETH amount (unit: wei)
      * @return tokenAmount Corresponding token amount (unit: token's smallest unit)
@@ -371,10 +426,12 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         uint256 ratio = priceRatio[_tokenID];
         if (ratio == 0) revert InvalidPrice();
 
-        // Calculate token amount:
-        // tokenAmount = (ethAmount * tokenScale) / ratio
-        // where ratio already contains tokenScale and decimals adjustment to eth (wei) and token smallest unit.
-        tokenAmount = (_ethAmount * uint256(info.scale)) / ratio;
+        // Calculate token amount with ceiling division:
+        // tokenAmount = ceil((ethAmount * tokenScale) / ratio)
+        // Using formula: ceil(a/b) = (a + b - 1) / b
+        uint256 numerator = _ethAmount * uint256(info.scale);
+        tokenAmount = (numerator + ratio - 1) / ratio;
+        
         if (tokenAmount == 0) revert InvalidPrice();
 
         return tokenAmount;
@@ -383,11 +440,16 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     /**
      * @notice Get token information
      * @param _tokenID Token ID
-     * @return TokenInfo structure
+     * @return TokenInfo structure with actual balanceSlot (automatically -1 from stored value)
      */
     function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
-        return tokenRegistry[_tokenID];
+
+        TokenInfo memory info = tokenRegistry[_tokenID];
+        // Convert stored balanceSlot to actual value
+        info.balanceSlot = _toActualBalanceSlot(info.balanceSlot);
+
+        return info;
     }
 
     /**
@@ -416,7 +478,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
         // Validate scale is non-zero
-        if (_newScale == 0) revert InvalidPrice(); // or create a new error like InvalidScale
+        if (_newScale == 0) revert InvalidScale();
         tokenRegistry[_tokenID].scale = _newScale;
 
         emit TokenScaleUpdated(_tokenID, _newScale);
@@ -461,16 +523,13 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     function getSupportedTokenList() external view returns (TokenEntry[] memory) {
         uint256[] memory values = supportedTokenSet.values();
         TokenEntry[] memory tokenList = new TokenEntry[](values.length);
-        
+
         for (uint256 i = 0; i < values.length; ++i) {
             uint16 tokenID = uint16(values[i]);
             address tokenAddress = tokenRegistry[tokenID].tokenAddress;
-            tokenList[i] = TokenEntry({
-                tokenID: tokenID,
-                tokenAddress: tokenAddress
-            });
+            tokenList[i] = TokenEntry({tokenID: tokenID, tokenAddress: tokenAddress});
         }
-        
+
         return tokenList;
     }
 
@@ -481,11 +540,11 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     function getSupportedIDList() external view returns (uint16[] memory) {
         uint256[] memory values = supportedTokenSet.values();
         uint16[] memory tokenIDs = new uint16[](values.length);
-        
+
         for (uint256 i = 0; i < values.length; ++i) {
             tokenIDs[i] = uint16(values[i]);
         }
-        
+
         return tokenIDs;
     }
 
