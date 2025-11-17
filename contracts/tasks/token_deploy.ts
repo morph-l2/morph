@@ -615,7 +615,8 @@ task("deploy-l2-MigrationUSDC")
     })
 
 task("deploy-l2-token-registry")
-    .addParam("proxyadmin")
+    .addParam("proxyadmin","Proxy admin address","0x530000000000000000000000000000000000000B")
+    .addOptionalParam("proxy", "Existing proxy address (if upgrading)","0x5300000000000000000000000000000000000021")
     .addParam("owner")
     .setAction(async (taskArgs, hre) => {
         // params check
@@ -632,22 +633,63 @@ task("deploy-l2-token-registry")
         await tokenRegistry.deployed()
         console.log(`L2TokenRegistry impl deployed at ${tokenRegistry.address}`)
 
-        // deploy proxy with initialize
-        const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
-        const proxy = await TransparentProxyFactory.deploy(
-            tokenRegistry.address, //logic
-            taskArgs.proxyadmin, //admin
-            TokenRegistryFactory.interface.encodeFunctionData('initialize', [
-                taskArgs.owner // owner
-            ]) // data
-        )
-        await proxy.deployed()
-        console.log(`L2TokenRegistry proxy deployed at ${proxy.address}`)
+        let proxyAddress;
+
+        // Check if proxy parameter exists for upgrade
+        if (taskArgs.proxy && ethers.utils.isAddress(taskArgs.proxy)) {
+            console.log(`\nUpgrading existing proxy at ${taskArgs.proxy}`)
+            
+            // Get ProxyAdmin contract
+            const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
+            const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadmin)
+            
+            // Upgrade the proxy to new implementation
+            const upgradeTx = await proxyAdmin.upgrade(
+                taskArgs.proxy,
+                tokenRegistry.address
+            )
+            await upgradeTx.wait()
+            console.log(`Proxy upgraded to new implementation: ${tokenRegistry.address}`)
+            // Check if a call to initialize is needed after upgrading the implementation.
+            // Read the proxy contract's storage slot to see if already initialized.
+            const tokenRegistryProxyInstance = TokenRegistryFactory.attach(taskArgs.proxy)
+            const isInitialized = await tokenRegistryProxyInstance.owner().then(owner => {
+                // Owner should not be address(0) if initialized.
+                return owner && owner !== ethers.constants.AddressZero
+            }).catch(() => false)
+
+            if (!isInitialized) {
+                console.log(`Proxy not initialized. Calling initialize...`)
+                const tx = await tokenRegistryProxyInstance.initialize(taskArgs.owner)
+                await tx.wait()
+                console.log(`Initialization completed.`)
+            } else {
+                console.log(`Proxy already initialized, skipping initialize() call.`)
+            }
+            proxyAddress = taskArgs.proxy
+        } else {
+            console.log(`\nDeploying new proxy`)
+            
+            // deploy proxy with initialize
+            const TransparentProxyFactory = await hre.ethers.getContractFactory("TransparentUpgradeableProxy")
+            const proxy = await TransparentProxyFactory.deploy(
+                tokenRegistry.address, //logic
+                taskArgs.proxyadmin, //admin
+                TokenRegistryFactory.interface.encodeFunctionData('initialize', [
+                    taskArgs.owner // owner
+                ]) // data
+            )
+            await proxy.deployed()
+            console.log(`L2TokenRegistry proxy deployed at ${proxy.address}`)
+            
+            proxyAddress = proxy.address
+        }
 
         // Verify deployment
-        const tokenRegistryProxy = TokenRegistryFactory.attach(proxy.address)
+        const tokenRegistryProxy = TokenRegistryFactory.attach(proxyAddress)
         const registryOwner = await tokenRegistryProxy.owner()
         const allowListEnabled = await tokenRegistryProxy.allowListEnabled()
+        console.log(`\nL2TokenRegistry proxy address: ${proxyAddress}`)
         console.log(`L2TokenRegistry proxy owner: ${registryOwner}`)
         console.log(`L2TokenRegistry allowListEnabled: ${allowListEnabled}`)
     })
@@ -825,6 +867,7 @@ task("deploy-test-tokens-and-register")
         const tokenIDs: number[] = []
         const tokenAddresses: string[] = []
         const balanceSlots: string[] = []
+        const needBalanceSlots: boolean[] = []
         const scales: string[] = []
 
         for (const token of deployedTokens) {
@@ -834,7 +877,10 @@ task("deploy-test-tokens-and-register")
             // For MockERC20, balance mapping is typically at slot 0
             // The actual slot for a user's balance is keccak256(abi.encode(userAddress, slot))
             // Here we use slot 0 as the base slot
-            balanceSlots.push(ethers.utils.hexZeroPad(ethers.BigNumber.from(token.balanceSlot).toHexString(), 32))
+            const balanceSlotValue = ethers.BigNumber.from(token.balanceSlot)
+            balanceSlots.push(ethers.utils.hexZeroPad(balanceSlotValue.toHexString(), 32))
+            // Only set needBalanceSlot to true if balanceSlot is not 0
+            needBalanceSlots.push(!balanceSlotValue.isZero())
             scales.push(token.scale.toString())
         }
 
@@ -848,6 +894,7 @@ task("deploy-test-tokens-and-register")
                 tokenIDs,
                 tokenAddresses,
                 balanceSlots,
+                needBalanceSlots,
                 scales
             )
             console.log(`\n  ✓ Registration transaction sent: ${tx.hash}`)
@@ -945,11 +992,14 @@ task("deploy-test-tokens-and-register")
             for (const token of deployedTokens) {
                 try {
                     console.log(`Registering ${token.symbol} (ID: ${token.tokenID}) individually...`)
-                    const balanceSlot = ethers.utils.hexZeroPad(ethers.BigNumber.from(token.balanceSlot).toHexString(), 32)
+                    const balanceSlotValue = ethers.BigNumber.from(token.balanceSlot)
+                    const balanceSlot = ethers.utils.hexZeroPad(balanceSlotValue.toHexString(), 32)
+                    const needBalanceSlot = !balanceSlotValue.isZero() // Only set to true if balanceSlot is not 0
                     const tx = await tokenRegistry.registerToken(
                         token.tokenID,
                         token.address,
                         balanceSlot,
+                        needBalanceSlot,
                         token.scale
                     )
                     const receipt = await tx.wait()
