@@ -8,7 +8,7 @@ require (
 	github.com/holiman/uint256 v1.2.4
 	github.com/morph-l2/go-ethereum v1.10.14-0.20251031091135-78b17f183b84
 	github.com/stretchr/testify v1.10.0
-	github.com/urfave/cli v1.22.14
+	github.com/urfave/cli v1.22.17
 )
 
 require (
@@ -18,7 +18,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/consensys/bavard v0.1.27 // indirect
 	github.com/consensys/gnark-crypto v0.16.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/crate-crypto/go-eth-kzg v1.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect

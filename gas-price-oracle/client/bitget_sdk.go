@@ -58,21 +58,22 @@ func NewBitgetSDKPriceFeed(tokenMap map[uint16]string) *BitgetSDKPriceFeed {
 }
 
 // GetTokenPrice returns token price in USD
+// Note: Caller should ensure ETH price is updated via GetBatchTokenPrices for batch operations
 func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) (*TokenPrice, error) {
 	symbol, exists := b.tokenMap[tokenID]
 	if !exists {
 		return nil, fmt.Errorf("token ID %d not mapped to trading pair", tokenID)
 	}
 
-	if b.ethPrice.Cmp(big.NewFloat(0)) == 0 {
-		if err := b.updateETHPrice(ctx); err != nil {
-			return nil, fmt.Errorf("failed to update ETH price: %w", err)
-		}
-	}
-
+	// Fetch token price
 	tokenPrice, err := b.fetchPrice(ctx, symbol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch price for %s: %w", symbol, err)
+	}
+
+	// Use cached ETH price (should be updated by GetBatchTokenPrices)
+	if b.ethPrice.Cmp(big.NewFloat(0)) == 0 {
+		return nil, fmt.Errorf("ETH price not initialized, please call GetBatchTokenPrices first")
 	}
 
 	b.log.Info("Fetched price from Bitget",

@@ -11,7 +11,6 @@ import (
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
 	"morph-l2/bindings/bindings"
-	"morph-l2/gas-price-oracle/calc"
 	"morph-l2/gas-price-oracle/client"
 	"morph-l2/gas-price-oracle/metrics"
 )
@@ -84,12 +83,7 @@ func (u *PriceUpdater) Start(ctx context.Context) error {
 			"interval", u.interval,
 			"price_threshold", u.priceThreshold)
 
-		// Perform initial update (fetch current prices from contract)
-		if err := u.initializePriceCache(ctx); err != nil {
-			log.Warn("Failed to initialize price cache, will start fresh")
-		}
-
-		// Perform first actual update
+		// Perform first update immediately (will fetch current prices from contract)
 		if err := u.update(ctx); err != nil {
 			log.Error("Initial price update failed")
 		}
@@ -120,34 +114,6 @@ func (u *PriceUpdater) Stop() error {
 	return nil
 }
 
-// initializePriceCache fetches current prices from contract and caches them
-func (u *PriceUpdater) initializePriceCache(ctx context.Context) error {
-	callOpts := &bind.CallOpts{Context: ctx}
-
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	for _, tokenID := range u.tokenIDs {
-		price, err := u.registryContract.GetTokenPrice(callOpts, tokenID)
-		if err != nil {
-			log.Debug("Failed to get current price for token",
-				"token_id", tokenID,
-				"error", err)
-			continue
-		}
-
-		if price.Sign() > 0 {
-			u.lastPrices[tokenID] = price
-			log.Debug("Cached current price",
-				"token_id", tokenID,
-				"price", price.String())
-		}
-	}
-
-	log.Info("Initialized price cache")
-	return nil
-}
-
 // update performs one price update
 func (u *PriceUpdater) update(ctx context.Context) error {
 	if len(u.tokenIDs) == 0 {
@@ -174,11 +140,11 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		newPriceRatios[tokenID] = priceRatio
 	}
 
-	// Step 3: Filter prices that need updating based on threshold
+	// Step 3: Fetch current prices from contract and filter prices that need updating
 	var tokenIDsToUpdate []uint16
 	var pricesToUpdate []*big.Int
 
-	u.mu.RLock()
+	callOpts := &bind.CallOpts{Context: ctx}
 	for tokenID, newPrice := range newPriceRatios {
 		if newPrice == nil || newPrice.Sign() == 0 {
 			log.Warn("Skipping zero price",
@@ -186,9 +152,19 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 			continue
 		}
 
+		// Fetch current price from contract (not from cache)
+		lastPrice, err := u.registryContract.GetTokenPrice(callOpts, tokenID)
+		if err != nil {
+			log.Warn("Failed to get current price from contract, will update anyway",
+				"token_id", tokenID,
+				"error", err)
+			tokenIDsToUpdate = append(tokenIDsToUpdate, tokenID)
+			pricesToUpdate = append(pricesToUpdate, newPrice)
+			continue
+		}
+
 		// Check if price changed significantly
-		lastPrice, exists := u.lastPrices[tokenID]
-		if exists && lastPrice.Sign() > 0 {
+		if lastPrice.Sign() > 0 {
 			// Calculate if price change exceeds threshold
 			if !u.shouldUpdatePrice(lastPrice, newPrice) {
 				log.Debug("Price change below threshold, skipping update",
@@ -204,7 +180,7 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 				"last_price", lastPrice.String(),
 				"new_price", newPrice.String())
 		} else {
-			log.Info("First time update for token",
+			log.Info("First time update for token (no price in contract)",
 				"token_id", tokenID,
 				"new_price", newPrice.String())
 		}
@@ -212,7 +188,6 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		tokenIDsToUpdate = append(tokenIDsToUpdate, tokenID)
 		pricesToUpdate = append(pricesToUpdate, newPrice)
 	}
-	u.mu.RUnlock()
 
 	if len(tokenIDsToUpdate) == 0 {
 		log.Debug("No prices need updating (all changes below threshold)")
@@ -326,9 +301,23 @@ func (u *PriceUpdater) calculatePriceRatio(ctx context.Context, tokenID uint16, 
 }
 
 // shouldUpdatePrice checks if the price change exceeds the threshold
-// Uses the same logic as calc.ShouldUpdateBigInt
+// Formula: |newPrice - lastPrice| / lastPrice * 100 >= threshold
 func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
-	return calc.ShouldUpdateBigInt(newPrice, lastPrice, u.priceThreshold)
+	if lastPrice.Sign() == 0 {
+		return true // Always update if no previous price
+	}
+
+	// Calculate absolute difference: |newPrice - lastPrice|
+	diff := new(big.Int).Sub(newPrice, lastPrice)
+	diff.Abs(diff)
+
+	// Calculate percentage change: diff * 100 / lastPrice
+	percentage := new(big.Int).Mul(diff, big.NewInt(100))
+	percentage.Div(percentage, lastPrice)
+
+	// Compare with threshold
+	threshold := big.NewInt(int64(u.priceThreshold))
+	return percentage.Cmp(threshold) >= 0
 }
 
 // UpdateTokenList updates the list of tokens to monitor
