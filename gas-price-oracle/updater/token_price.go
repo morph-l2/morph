@@ -10,10 +10,10 @@ import (
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
-	"github.com/morph-l2/morph/bindings/bindings"
-	"github.com/morph-l2/morph/gas-price-oracle/calc"
-	"github.com/morph-l2/morph/gas-price-oracle/client"
-	"github.com/morph-l2/morph/gas-price-oracle/metrics"
+	"morph-l2/bindings/bindings"
+	"morph-l2/gas-price-oracle/calc"
+	"morph-l2/gas-price-oracle/client"
+	"morph-l2/gas-price-oracle/metrics"
 )
 
 // PriceUpdater handles token price updates
@@ -266,25 +266,28 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 // We do multiplications first, then division at the end to avoid precision loss
 func (u *PriceUpdater) calculatePriceRatio(ctx context.Context, tokenID uint16, tokenPrice *client.TokenPrice) (*big.Int, error) {
 	// Fetch token info from contract
-	tokenInfo, err := u.l2Client.GetTokenRegistry().TokenRegistry(nil, tokenID)
+
+	tokenInfo, err := u.registryContract.GetTokenInfo(&bind.CallOpts{
+		Context: ctx,
+	}, tokenID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token info from contract: %w", err)
 	}
 
 	// Check if token is active
-	if !tokenInfo.Active {
+	if !tokenInfo.IsActive {
 		return nil, fmt.Errorf("token %d is not active", tokenID)
 	}
 
-	tokenScale := tokenInfo.TokenScale
+	tokenScale := tokenInfo.Scale
 	tokenDecimals := tokenInfo.Decimals
 
 	log.Debug("Token info from contract",
 		"token_id", tokenID,
-		"address", tokenInfo.Addr.Hex(),
+		"address", tokenInfo.TokenAddress.Hex(),
 		"decimals", tokenDecimals,
 		"token_scale", tokenScale.String(),
-		"active", tokenInfo.Active)
+		"active", tokenInfo.IsActive)
 
 	// Check ETH price is not zero
 	if tokenPrice.EthPriceUSD.Cmp(big.NewFloat(0)) == 0 {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/morph/gas-price-oracle/client"
+	"morph-l2/gas-price-oracle/client"
 )
 
 const (

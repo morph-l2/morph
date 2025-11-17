@@ -5,9 +5,9 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/log"
-	"github.com/morph-l2/morph/bindings/bindings"
-	"github.com/morph-l2/morph/gas-price-oracle/client"
-	"github.com/morph-l2/morph/gas-price-oracle/config"
+	"morph-l2/bindings/bindings"
+	"morph-l2/gas-price-oracle/client"
+	"morph-l2/gas-price-oracle/config"
 )
 
 // CreatePriceUpdater creates price updater if conditions are met

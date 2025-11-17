@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/morph/gas-price-oracle/flags"
 	"github.com/urfave/cli"
+	"morph-l2/gas-price-oracle/flags"
 )
 
 // PriceFeedType represents the type of price feed source

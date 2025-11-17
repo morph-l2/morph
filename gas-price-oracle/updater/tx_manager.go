@@ -7,7 +7,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/morph/gas-price-oracle/client"
+	"morph-l2/gas-price-oracle/client"
 )
 
 // TxManager manages transaction sending to avoid nonce conflicts

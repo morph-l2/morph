@@ -10,7 +10,7 @@ LDFLAGSSTRING +=-X main.Version=$(VERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 build:
-	GOWORK=off GOSUMDB=off go build $(LDFLAGS) -o bin/gas-price-oracle ./cmd
+	go build $(LDFLAGS) -o bin/gas-price-oracle ./cmd
 
 run: build
 	./bin/gas-price-oracle

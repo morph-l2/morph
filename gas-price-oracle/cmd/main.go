@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/morph-l2/go-ethereum/log"
-	"github.com/morph-l2/morph/gas-price-oracle/client"
-	"github.com/morph-l2/morph/gas-price-oracle/config"
-	"github.com/morph-l2/morph/gas-price-oracle/flags"
-	"github.com/morph-l2/morph/gas-price-oracle/metrics"
-	"github.com/morph-l2/morph/gas-price-oracle/updater"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"morph-l2/gas-price-oracle/client"
+	"morph-l2/gas-price-oracle/config"
+	"morph-l2/gas-price-oracle/flags"
+	"morph-l2/gas-price-oracle/metrics"
+	"morph-l2/gas-price-oracle/updater"
 )
 
 var (
