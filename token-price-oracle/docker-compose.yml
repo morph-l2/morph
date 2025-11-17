@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: morph-gas-price-oracle
+    container_name: morph-token-price-oracle
     restart: unless-stopped
     environment:
       # L1/L2 RPC endpoints

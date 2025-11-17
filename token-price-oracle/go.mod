@@ -1,4 +1,4 @@
-module morph-l2/gas-price-oracle
+module morph-l2/token-price-oracle
 
 go 1.24.0
 

@@ -11,8 +11,8 @@ import (
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
 	"morph-l2/bindings/bindings"
-	"morph-l2/gas-price-oracle/client"
-	"morph-l2/gas-price-oracle/metrics"
+	"morph-l2/token-price-oracle/client"
+	"morph-l2/token-price-oracle/metrics"
 )
 
 // PriceUpdater handles token price updates

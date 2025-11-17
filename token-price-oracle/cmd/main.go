@@ -13,11 +13,11 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"morph-l2/gas-price-oracle/client"
-	"morph-l2/gas-price-oracle/config"
-	"morph-l2/gas-price-oracle/flags"
-	"morph-l2/gas-price-oracle/metrics"
-	"morph-l2/gas-price-oracle/updater"
+	"morph-l2/token-price-oracle/client"
+	"morph-l2/token-price-oracle/config"
+	"morph-l2/token-price-oracle/flags"
+	"morph-l2/token-price-oracle/metrics"
+	"morph-l2/token-price-oracle/updater"
 )
 
 var (
@@ -30,7 +30,7 @@ func main() {
 	app := cli.NewApp()
 	app.Flags = flags.Flags
 	app.Version = fmt.Sprintf("%s-%s-%s", GitVersion, GitCommit, GitDate)
-	app.Name = "gas-price-oracle"
+	app.Name = "token-price-oracle"
 	app.Usage = "Gas Price Oracle Service"
 	app.Description = "Service for monitoring L1 gas prices and updating L2 GasPriceOracle contract"
 	app.Action = Main

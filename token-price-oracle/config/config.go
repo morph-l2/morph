@@ -8,7 +8,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/urfave/cli"
-	"morph-l2/gas-price-oracle/flags"
+	"morph-l2/token-price-oracle/flags"
 )
 
 // PriceFeedType represents the type of price feed source

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Local development startup script for gas-price-oracle
+# Local development startup script for token-price-oracle
 
 ./build/bin/token-price-oracle \
   --l2-eth-rpc http://localhost:8545 \

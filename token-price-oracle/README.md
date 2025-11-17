@@ -44,7 +44,7 @@ The service uses flags that can be set either via command line or environment va
 ### Command Line
 
 ```bash
-./bin/gas-price-oracle \
+./bin/token-price-oracle \
   --l1-eth-rpc https://ethereum-rpc.com \
   --l2-eth-rpc https://morph-l2-rpc.com \
   --l1-beacon-rpc https://beacon-api.com \
@@ -65,7 +65,7 @@ export GAS_ORACLE_L2_PRIVATE_KEY="0x..."
 export GAS_ORACLE_METRICS_SERVER_ENABLE=true
 export GAS_ORACLE_LOG_LEVEL=info
 
-./bin/gas-price-oracle
+./bin/token-price-oracle
 ```
 
 ## Build and Run
@@ -93,7 +93,7 @@ docker run -d \
   -e GAS_ORACLE_L1_BEACON_RPC="..." \
   -e GAS_ORACLE_L1_ROLLUP="0x..." \
   -e GAS_ORACLE_L2_PRIVATE_KEY="0x..." \
-  morph/gas-price-oracle:latest
+  morph/token-price-oracle:latest
 ```
 
 ## Monitoring
