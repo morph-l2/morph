@@ -10,7 +10,7 @@ use sbv_primitives::types::BlockTrace;
 struct Args {
     #[clap(long)]
     prove: bool,
-    #[clap(long, default_value = "./testdata/viridian/eip7702_traces.json")]
+    #[clap(long, default_value = "./testdata/altfeetx/trace.json")]
     block_path: String,
 }
 

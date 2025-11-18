@@ -40,7 +40,7 @@
             "transactions": [
                 {
                     "type": 127,
-                    "nonce": 9,
+                    "nonce": 0,
                     "txHash": "0x115ff7cf05345b61c55edd2201e9ec0b7d242aff06fcda2082a33e83572bb0bb",
                     "gas": 21000,
                     "gasPrice": "0x3d0900",
@@ -53,6 +53,8 @@
                     "data": "0x",
                     "isCreate": false,
                     "accessList": [],
+                    "authorizationList":[],
+                    "feeTokenId":1,
                     "v": "0x1",
                     "r": "0x48cbe9cdb8cbeb8eb15b14bb55687cc9a8631927897bd9c2de53efbd8aa4d9ea",
                     "s": "0x258bafe67a1a41596adbd6d5169e40c759e5e1f9a6299a79e83d132d95bd1748"
