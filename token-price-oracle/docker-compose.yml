@@ -1,43 +1,49 @@
 version: '3.8'
 
 services:
-  gas-price-oracle:
+  token-price-oracle:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: morph-token-price-oracle
     restart: unless-stopped
     environment:
-      # L1/L2 RPC endpoints
-      GAS_ORACLE_L1_RPC: ${GAS_ORACLE_L1_RPC}
-      GAS_ORACLE_L2_RPC: ${GAS_ORACLE_L2_RPC}
-      GAS_ORACLE_L1_BEACON_RPC: ${GAS_ORACLE_L1_BEACON_RPC}
+      # L2 RPC endpoint
+      TOKEN_PRICE_ORACLE_L2_ETH_RPC: ${TOKEN_PRICE_ORACLE_L2_ETH_RPC:-http://host.docker.internal:8545}
       
-      # Contract addresses
-      L1_ROLLUP: ${L1_ROLLUP}
-      L2_GAS_PRICE_ORACLE: ${L2_GAS_PRICE_ORACLE:-0x5300000000000000000000000000000000000002}
+      # L2 Token Registry contract address
+      TOKEN_PRICE_ORACLE_L2_TOKEN_REGISTRY_ADDRESS: ${TOKEN_PRICE_ORACLE_L2_TOKEN_REGISTRY_ADDRESS:-0x5300000000000000000000000000000000000021}
       
-      # Private key
-      L2_GAS_ORACLE_PRIVATE_KEY: ${L2_GAS_ORACLE_PRIVATE_KEY}
+      # Private key for signing transactions
+      TOKEN_PRICE_ORACLE_PRIVATE_KEY: ${TOKEN_PRICE_ORACLE_PRIVATE_KEY}
       
-      # Update parameters
-      GAS_THRESHOLD: ${GAS_THRESHOLD:-10}
-      INTERVAL: ${INTERVAL:-6000}
-      OVERHEAD_INTERVAL: ${OVERHEAD_INTERVAL:-10}
-      TXN_PER_BATCH: ${TXN_PER_BATCH:-50}
+      # Price update configuration
+      TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL: ${TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL:-30s}
+      TOKEN_PRICE_ORACLE_PRICE_THRESHOLD: ${TOKEN_PRICE_ORACLE_PRICE_THRESHOLD:-5}
       
-      # Metrics
-      GAS_ORACLE_METRIC_ADDRESS: 0.0.0.0:6060
+      # Price feed configuration
+      TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY: ${TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY:-bitget}
+      TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET: ${TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET}
+      TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BINANCE: ${TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BINANCE}
+      
+      # Token IDs to monitor (optional, will fetch from contract if not set)
+      TOKEN_PRICE_ORACLE_TOKEN_IDS: ${TOKEN_PRICE_ORACLE_TOKEN_IDS}
+      
+      # Metrics server
+      TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE: ${TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE:-true}
+      TOKEN_PRICE_ORACLE_METRICS_HOSTNAME: ${TOKEN_PRICE_ORACLE_METRICS_HOSTNAME:-0.0.0.0}
+      TOKEN_PRICE_ORACLE_METRICS_PORT: ${TOKEN_PRICE_ORACLE_METRICS_PORT:-6060}
       
       # Logging
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      LOG_DIR: /data/logs/morph-gas-oracle
+      TOKEN_PRICE_ORACLE_LOG_LEVEL: ${TOKEN_PRICE_ORACLE_LOG_LEVEL:-info}
     ports:
-      - "6060:6060"  # Metrics endpoint
+      - "${METRICS_PORT:-6060}:6060"  # Metrics endpoint
     volumes:
       - oracle-logs:/data/logs/morph-gas-oracle
     networks:
       - morph-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   oracle-logs:
@@ -46,4 +52,3 @@ volumes:
 networks:
   morph-network:
     driver: bridge
-
