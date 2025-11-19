@@ -616,7 +616,7 @@ services:
       - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
 
   gas-price-oracle:
-    container_name: token-price-oracle
+    container_name: gas-price-oracle
     depends_on:
       node-3:
         condition: service_started

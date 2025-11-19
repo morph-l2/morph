@@ -3,13 +3,14 @@ package derivation
 import (
 	"context"
 	"fmt"
+	"math/big"
+	"testing"
+
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"testing"
 )
 
 func TestGetBlob(t *testing.T) {
@@ -48,8 +49,7 @@ func TestGetBlob(t *testing.T) {
 				}, indexedBlobHashes)
 				require.NoError(t, err)
 			}
-			fmt.Println(indexedBlobHashes)
-			fmt.Println(len(bts.Blobs))
+			t.Log(len(bts.Blobs))
 		}
 
 	}
