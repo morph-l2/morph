@@ -26,7 +26,7 @@ var (
 		Name:     "private-key",
 		Usage:    "The private key to use for sending transactions to L2",
 		Required: true,
-		EnvVar:   prefixEnvVar("L2_PRIVATE_KEY"),
+		EnvVar:   prefixEnvVar("PRIVATE_KEY"),
 	}
 
 	/* Optional Flags */
