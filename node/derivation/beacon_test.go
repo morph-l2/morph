@@ -23,7 +23,6 @@ func TestGetBlob(t *testing.T) {
 		start uint64 = 1590159
 		end   uint64 = 1590159
 	)
-	txHash := common.HexToHash("0xf742e20b788e02baab643413ec61e075bb03f3f69c5b12d69f6f90bd7312aa28")
 	baseHttp := NewBasicHTTPClient(url, nil)
 	// query blob
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
@@ -33,7 +32,7 @@ func TestGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	if len(logs) > 0 {
 		for _, lg := range logs {
-			txHash = lg.TxHash
+			txHash := lg.TxHash
 			require.NoError(t, err)
 			block, err := l1Client.BlockByNumber(context.Background(), big.NewInt(int64(lg.BlockNumber)))
 			require.NoError(t, err)

@@ -61,7 +61,7 @@ func NewPriceUpdater(
 // Start starts the price updater
 func (u *PriceUpdater) Start(ctx context.Context) error {
 	go func() {
-		log.Debug("Price updater starting", "interval", u.interval)
+		log.Info("Price updater starting", "interval", u.interval)
 		ticker := time.NewTicker(u.interval)
 		defer ticker.Stop()
 
