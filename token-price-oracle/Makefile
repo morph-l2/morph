@@ -23,7 +23,7 @@ lint:
 	golangci-lint run ./...
 
 clean:
-	rm -rf bin/
+	rm -rf build/
 
 docker-build:
 	docker build -t morph/gas-price-oracle:latest .

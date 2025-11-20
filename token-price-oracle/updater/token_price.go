@@ -30,6 +30,7 @@ type PriceUpdater struct {
 	lastPrices map[uint16]*big.Int
 	mu         sync.RWMutex
 	stopChan   chan struct{}
+	stopOnce   sync.Once // ensures stopChan is closed only once
 }
 
 // NewPriceUpdater creates a new price updater
@@ -60,7 +61,7 @@ func NewPriceUpdater(
 // Start starts the price updater
 func (u *PriceUpdater) Start(ctx context.Context) error {
 	go func() {
-		fmt.Println("u.interval", u.interval)
+		log.Debug("Price updater starting", "interval", u.interval)
 		ticker := time.NewTicker(u.interval)
 		defer ticker.Stop()
 
@@ -107,9 +108,12 @@ func (u *PriceUpdater) Start(ctx context.Context) error {
 }
 
 // Stop gracefully stops the updater
+// This method is safe to call multiple times
 func (u *PriceUpdater) Stop() error {
-	close(u.stopChan)
-	log.Info("Price updater stop requested")
+	u.stopOnce.Do(func() {
+		close(u.stopChan)
+		log.Info("Price updater stop requested")
+	})
 	return nil
 }
 

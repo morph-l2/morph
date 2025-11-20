@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
 	"testing"
 
 	"github.com/morph-l2/go-ethereum"
@@ -14,7 +15,10 @@ import (
 )
 
 func TestGetBlob(t *testing.T) {
-	url := ""
+	url := os.Getenv("BLOB_URL")
+	if url == "" {
+		return
+	}
 	var (
 		start uint64 = 1590159
 		end   uint64 = 1590159
@@ -23,11 +27,8 @@ func TestGetBlob(t *testing.T) {
 	baseHttp := NewBasicHTTPClient(url, nil)
 	// query blob
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
-
 	l1Client, err := ethclient.Dial(url)
-	if url == "" {
-		return
-	}
+	require.NoError(t, err)
 	logs, err := testTchRollupLog(l1Client, context.Background(), start, end)
 	require.NoError(t, err)
 	if len(logs) > 0 {
