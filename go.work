@@ -3,10 +3,10 @@ go 1.24.0
 use (
 	./bindings
 	./contracts
-	./token-price-oracle
 	./node
 	./ops/l2-genesis
 	./ops/tools
 	./oracle
+	./token-price-oracle
 	./tx-submitter
 )
