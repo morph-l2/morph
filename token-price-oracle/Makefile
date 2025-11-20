@@ -26,11 +26,11 @@ clean:
 	rm -rf build/
 
 docker-build:
-	docker build -t morph/gas-price-oracle:latest .
+	docker build -t morph/token-price-oracle:latest .
 
 help:
 	@echo "Available targets:"
-	@echo "  build              - Build the gas-price-oracle binary"
+	@echo "  build              - Build the token-price-oracle binary"
 	@echo "  run                - Build and run the service"
 	@echo "  test               - Run tests"
 	@echo "  lint               - Run linter"

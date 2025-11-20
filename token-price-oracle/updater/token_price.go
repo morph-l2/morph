@@ -21,16 +21,11 @@ type PriceUpdater struct {
 	registryContract *bindings.L2TokenRegistry
 	priceFeed        client.PriceFeed
 	txManager        *TxManager
-	tokenIDs         []uint16
 	tokenMapping     map[uint16]string // tokenID -> trading pair (e.g. 1 -> "BTCUSDT")
 	interval         time.Duration
 	priceThreshold   uint64
-
-	// Cache of last updated prices
-	lastPrices map[uint16]*big.Int
-	mu         sync.RWMutex
-	stopChan   chan struct{}
-	stopOnce   sync.Once // ensures stopChan is closed only once
+	stopChan         chan struct{}
+	stopOnce         sync.Once // ensures stopChan is closed only once
 }
 
 // NewPriceUpdater creates a new price updater
@@ -39,7 +34,6 @@ func NewPriceUpdater(
 	registryContract *bindings.L2TokenRegistry,
 	priceFeed client.PriceFeed,
 	txManager *TxManager,
-	tokenIDs []uint16,
 	tokenMapping map[uint16]string,
 	interval time.Duration,
 	priceThreshold uint64,
@@ -49,11 +43,9 @@ func NewPriceUpdater(
 		registryContract: registryContract,
 		priceFeed:        priceFeed,
 		txManager:        txManager,
-		tokenIDs:         tokenIDs,
 		tokenMapping:     tokenMapping,
 		interval:         interval,
 		priceThreshold:   priceThreshold,
-		lastPrices:       make(map[uint16]*big.Int),
 		stopChan:         make(chan struct{}),
 	}
 }
@@ -64,25 +56,6 @@ func (u *PriceUpdater) Start(ctx context.Context) error {
 		log.Info("Price updater starting", "interval", u.interval)
 		ticker := time.NewTicker(u.interval)
 		defer ticker.Stop()
-
-		// Fetch token IDs from contract if not configured
-		// TODO: Uncomment when contract has getSupportedIDList method
-		// if len(u.tokenIDs) == 0 {
-		// 	log.Info("No tokenIDs configured, fetching from contract...")
-		// 	if err := u.fetchTokenIDsFromContract(ctx); err != nil {
-		// 		log.Error("Failed to fetch tokenIDs from contract, price updater will not start")
-		// 		return
-		// 	}
-		// }
-
-		// Filter tokenIDs to only those in tokenMapping
-		u.filterTokenIDsByMapping()
-
-		log.Info("Price updater started",
-			"token_ids", u.tokenIDs,
-			"token_mapping", u.tokenMapping,
-			"interval", u.interval,
-			"price_threshold", u.priceThreshold)
 
 		if err := u.update(ctx); err != nil {
 			log.Error("Initial price update failed")
@@ -125,10 +98,12 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		}
 	}()
 
-	// Snapshot tokenIDs under lock to avoid race conditions
-	u.mu.RLock()
-	tokenIDs := append([]uint16(nil), u.tokenIDs...)
-	u.mu.RUnlock()
+	// Fetch token IDs from contract if not configured
+	tokenIDs, err := u.fetchTokenIDsFromContract(ctx)
+	if err != nil {
+		log.Error("Failed to fetch tokenIDs from contract, price updater will not start")
+		return err
+	}
 
 	if len(tokenIDs) == 0 {
 		log.Warn("No tokens to update, skipping price update cycle")
@@ -211,27 +186,30 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 	log.Info("Updating token prices",
 		"token_count", len(tokenIDsToUpdate),
 		"token_ids", tokenIDsToUpdate,
-		"total_tokens", len(u.tokenIDs))
+		"total_tokens", len(tokenIDs))
 
 	// Step 3: Update prices on L2
 	receipt, err := u.txManager.SendTransaction(ctx, func(auth *bind.TransactOpts) (*types.Transaction, error) {
 		return u.registryContract.BatchUpdatePrices(auth, tokenIDsToUpdate, pricesToUpdate)
 	})
+
 	if err != nil {
+		log.Error("Failed to send transaction", "error", err)
 		return fmt.Errorf("failed to send batch update prices transaction: %w", err)
 	}
 
-	if receipt.Status == 0 {
-		log.Error("Transaction failed", "tx_hash", receipt.TxHash.Hex())
-		return fmt.Errorf("transaction failed on-chain: %s", receipt.TxHash.Hex())
+	if receipt == nil {
+		log.Error("Received nil receipt")
+		return fmt.Errorf("received nil receipt")
 	}
 
-	// Step 4: Update cache with new prices
-	u.mu.Lock()
-	for i, tokenID := range tokenIDsToUpdate {
-		u.lastPrices[tokenID] = pricesToUpdate[i]
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		log.Error("Transaction failed on-chain",
+			"tx_hash", receipt.TxHash.Hex(),
+			"status", receipt.Status,
+			"gas_used", receipt.GasUsed)
+		return fmt.Errorf("transaction failed on-chain: %s", receipt.TxHash.Hex())
 	}
-	u.mu.Unlock()
 
 	log.Info("Successfully updated token prices",
 		"tx_hash", receipt.TxHash.Hex(),
@@ -397,111 +375,10 @@ func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
 	return percentage.Cmp(thresholdBig) >= 0
 }
 
-// UpdateTokenList updates the list of tokens to monitor
-// The input slice is copied to prevent external modifications
-func (u *PriceUpdater) UpdateTokenList(tokenIDs []uint16) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	// Create a defensive copy to prevent external modifications
-	u.tokenIDs = append([]uint16(nil), tokenIDs...)
-	log.Info("Updated token list", "token_ids", u.tokenIDs)
-}
-
-// GetTokenList returns a copy of the current token list
-func (u *PriceUpdater) GetTokenList() []uint16 {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-
-	// Return a copy to prevent external modifications
-	out := make([]uint16, len(u.tokenIDs))
-	copy(out, u.tokenIDs)
-	return out
-}
-
-// GetLastPrice returns the last updated price for a token
-func (u *PriceUpdater) GetLastPrice(tokenID uint16) *big.Int {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-
-	if price, exists := u.lastPrices[tokenID]; exists {
-		return new(big.Int).Set(price)
-	}
-	return nil
-}
-
-// GetAllLastPrices returns a copy of all cached prices
-func (u *PriceUpdater) GetAllLastPrices() map[uint16]*big.Int {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-
-	result := make(map[uint16]*big.Int)
-	for tokenID, price := range u.lastPrices {
-		result[tokenID] = new(big.Int).Set(price)
-	}
-	return result
-}
-
 // fetchTokenIDsFromContract fetches supported token IDs from L2TokenRegistry contract
-func (u *PriceUpdater) fetchTokenIDsFromContract(ctx context.Context) error {
+func (u *PriceUpdater) fetchTokenIDsFromContract(ctx context.Context) ([]uint16, error) {
 	callOpts := &bind.CallOpts{Context: ctx}
 
 	// Call getSupportedIDList() on the contract
-	tokenIDs, err := u.registryContract.GetSupportedIDList(callOpts)
-	if err != nil {
-		return fmt.Errorf("failed to call getSupportedIDList: %w", err)
-	}
-
-	if len(tokenIDs) == 0 {
-		log.Warn("Contract returned empty token ID list")
-		return nil
-	}
-
-	u.mu.Lock()
-	u.tokenIDs = tokenIDs
-	u.mu.Unlock()
-
-	log.Info("Fetched token IDs from contract",
-		"token_ids", tokenIDs,
-		"count", len(tokenIDs))
-
-	return nil
-}
-
-// filterTokenIDsByMapping filters tokenIDs to only include those that have a mapping configured
-func (u *PriceUpdater) filterTokenIDsByMapping() {
-	// Always acquire lock before modifying u.tokenIDs to prevent race conditions
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	// Check if token mapping is configured
-	if len(u.tokenMapping) == 0 {
-		log.Error("No token mapping configured for current price feed type, price updater will not work. Please configure the appropriate token-mapping flag (e.g., --token-mapping-bitget, --token-mapping-binance)")
-		u.tokenIDs = []uint16{}
-		return
-	}
-
-	var filtered []uint16
-	var unmapped []uint16
-	for _, tokenID := range u.tokenIDs {
-		if _, exists := u.tokenMapping[tokenID]; exists {
-			filtered = append(filtered, tokenID)
-		} else {
-			unmapped = append(unmapped, tokenID)
-			log.Warn("Token ID not in mapping, skipping price update for this token",
-				"token_id", tokenID)
-		}
-	}
-
-	u.tokenIDs = filtered
-
-	if len(unmapped) > 0 {
-		log.Warn("Some token IDs from contract are not mapped to trading pairs. Please update token mapping configuration if needed.",
-			"unmapped_token_ids", unmapped,
-			"mapped_token_ids", filtered)
-	}
-
-	log.Info("Filtered token IDs by mapping",
-		"filtered_count", len(filtered),
-		"token_ids", filtered)
+	return u.registryContract.GetSupportedIDList(callOpts)
 }

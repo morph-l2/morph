@@ -54,7 +54,6 @@ type Config struct {
 	PrivateKey string
 	// Price update parameters
 	PriceUpdateInterval time.Duration                       // Price update interval
-	TokenIDs            []uint16                            // Token IDs to update
 	PriceThreshold      uint64                              // Price change threshold percentage to trigger update
 	PriceFeedPriority   []PriceFeedType                     // Price feed types in priority order (fallback mechanism)
 	TokenMappings       map[PriceFeedType]map[uint16]string // Token ID to trading pair mappings for each price feed type
@@ -98,25 +97,8 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 	// Parse price update interval
 	cfg.PriceUpdateInterval = ctx.Duration(flags.PriceUpdateIntervalFlag.Name)
 
-	// Parse token IDs
-	tokenIDsStr := ctx.String(flags.TokenIDsFlag.Name)
-	if tokenIDsStr != "" {
-		parts := strings.Split(tokenIDsStr, ",")
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
-			}
-			id, err := strconv.ParseUint(part, 10, 16)
-			if err != nil {
-				return nil, fmt.Errorf("invalid token ID '%s': %w", part, err)
-			}
-			cfg.TokenIDs = append(cfg.TokenIDs, uint16(id))
-		}
-	}
-
 	cfg.PriceThreshold = ctx.Uint64(flags.PriceThresholdFlag.Name)
-	
+
 	// Validate price threshold is reasonable (percentage should be 0-100)
 	if cfg.PriceThreshold > 100 {
 		return nil, fmt.Errorf("price threshold %d is too large (should be 0-100 for percentage)", cfg.PriceThreshold)

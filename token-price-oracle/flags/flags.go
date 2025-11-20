@@ -44,13 +44,6 @@ var (
 		EnvVar: prefixEnvVar("PRICE_UPDATE_INTERVAL"),
 	}
 
-	TokenIDsFlag = cli.StringFlag{
-		Name:   "token-ids",
-		Usage:  "Comma-separated token IDs to update prices for (e.g. \"1,2,3\")",
-		Value:  "",
-		EnvVar: prefixEnvVar("TOKEN_IDS"),
-	}
-
 	PriceThresholdFlag = cli.Uint64Flag{
 		Name:   "price-threshold",
 		Usage:  "Price change threshold percentage to trigger update (e.g. 5 for 5%)",
@@ -157,7 +150,6 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	TxnPerBatchFlag,
 	PriceUpdateIntervalFlag,
-	TokenIDsFlag,
 	PriceThresholdFlag,
 	PriceFeedPriorityFlag,
 	TokenMappingBitgetFlag,

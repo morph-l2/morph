@@ -52,7 +52,6 @@ func CreatePriceUpdater(
 		registryContract,
 		priceFeed,
 		txManager,
-		cfg.TokenIDs,
 		allTokenMappings,
 		cfg.PriceUpdateInterval,
 		cfg.PriceThreshold,
@@ -60,7 +59,6 @@ func CreatePriceUpdater(
 
 	log.Info("Price updater configured",
 		"price_feed_priority", cfg.PriceFeedPriority,
-		"token_ids", cfg.TokenIDs,
 		"token_mappings", allTokenMappings,
 		"interval", cfg.PriceUpdateInterval,
 		"threshold", cfg.PriceThreshold)
