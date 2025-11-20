@@ -10,6 +10,7 @@
   --price-feed-priority bitget \
   --token-ids "1,2" \
   --token-mapping-bitget "1:BGBUSDT,2:BTCUSDT" \
+  --bitget-api-base-url https://api.bitget.com \
   --log-level info \
   --metrics-server-enable
 

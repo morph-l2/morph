@@ -113,9 +113,10 @@ func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (c
 		if !exists || len(mapping) == 0 {
 			return nil, "", fmt.Errorf("bitget price feed requires token mapping, please configure --token-mapping-bitget")
 		}
-		feed := client.NewBitgetSDKPriceFeed(mapping)
+		feed := client.NewBitgetSDKPriceFeed(mapping, cfg.BitgetAPIBaseURL)
 		log.Info("Bitget price feed created",
 			"type", "bitget",
+			"base_url", cfg.BitgetAPIBaseURL,
 			"mapping", mapping)
 		return feed, "bitget", nil
 

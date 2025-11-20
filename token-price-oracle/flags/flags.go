@@ -80,6 +80,20 @@ var (
 		EnvVar: prefixEnvVar("TOKEN_MAPPING_BINANCE"),
 	}
 
+	BitgetAPIBaseURLFlag = cli.StringFlag{
+		Name:   "bitget-api-base-url",
+		Usage:  "Bitget API base URL (required if bitget feed is enabled)",
+		Value:  "",
+		EnvVar: prefixEnvVar("BITGET_API_BASE_URL"),
+	}
+
+	BinanceAPIBaseURLFlag = cli.StringFlag{
+		Name:   "binance-api-base-url",
+		Usage:  "Binance API base URL (required if binance feed is enabled)",
+		Value:  "",
+		EnvVar: prefixEnvVar("BINANCE_API_BASE_URL"),
+	}
+
 	// Logging flags
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log-level",
@@ -149,6 +163,8 @@ var optionalFlags = []cli.Flag{
 	PriceFeedPriorityFlag,
 	TokenMappingBitgetFlag,
 	TokenMappingBinanceFlag,
+	BitgetAPIBaseURLFlag,
+	BinanceAPIBaseURLFlag,
 
 	LogLevelFlag,
 	LogFilenameFlag,

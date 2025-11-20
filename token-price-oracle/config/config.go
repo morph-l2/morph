@@ -58,6 +58,8 @@ type Config struct {
 	PriceThreshold      uint64                              // Price change threshold percentage to trigger update
 	PriceFeedPriority   []PriceFeedType                     // Price feed types in priority order (fallback mechanism)
 	TokenMappings       map[PriceFeedType]map[uint16]string // Token ID to trading pair mappings for each price feed type
+	BitgetAPIBaseURL    string                              // Bitget API base URL
+	BinanceAPIBaseURL   string                              // Binance API base URL
 
 	// Metrics
 	MetricsServerEnable bool
@@ -192,6 +194,25 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 	}
 	if len(binanceMapping) > 0 {
 		cfg.TokenMappings[PriceFeedTypeBinance] = binanceMapping
+	}
+
+	// Parse API base URLs
+	cfg.BitgetAPIBaseURL = ctx.String(flags.BitgetAPIBaseURLFlag.Name)
+	cfg.BinanceAPIBaseURL = ctx.String(flags.BinanceAPIBaseURLFlag.Name)
+
+	// Validate API URLs for configured feeds (non-empty check only)
+	for _, feedType := range cfg.PriceFeedPriority {
+		switch feedType {
+		case PriceFeedTypeBitget:
+			if cfg.BitgetAPIBaseURL == "" {
+				return nil, fmt.Errorf("bitget feed is configured but --bitget-api-base-url is not set")
+			}
+
+		case PriceFeedTypeBinance:
+			if cfg.BinanceAPIBaseURL == "" {
+				return nil, fmt.Errorf("binance feed is configured but --binance-api-base-url is not set")
+			}
+		}
 	}
 
 	return cfg, nil

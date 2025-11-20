@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	bitgetAPIBaseURL = "https://api.bitget.com"
 	bitgetTickerPath = "/api/v2/spot/market/tickers"
 )
 
@@ -24,6 +23,7 @@ type BitgetSDKPriceFeed struct {
 	tokenMap   map[uint16]string
 	ethPrice   *big.Float
 	log        log.Logger
+	baseURL    string
 }
 
 // BitgetV2Response represents Bitget V2 API response
@@ -46,7 +46,7 @@ type BitgetV2Ticker struct {
 }
 
 // NewBitgetSDKPriceFeed creates a new Bitget price feed using REST API
-func NewBitgetSDKPriceFeed(tokenMap map[uint16]string) *BitgetSDKPriceFeed {
+func NewBitgetSDKPriceFeed(tokenMap map[uint16]string, baseURL string) *BitgetSDKPriceFeed {
 	return &BitgetSDKPriceFeed{
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -54,6 +54,7 @@ func NewBitgetSDKPriceFeed(tokenMap map[uint16]string) *BitgetSDKPriceFeed {
 		tokenMap: tokenMap,
 		ethPrice: big.NewFloat(0),
 		log:      log.New("component", "bitget_price_feed"),
+		baseURL:  baseURL,
 	}
 }
 
@@ -167,7 +168,7 @@ func (b *BitgetSDKPriceFeed) fetchPrice(ctx context.Context, symbol string) (*bi
 // fetchPriceOnce fetches price once using Bitget REST API
 func (b *BitgetSDKPriceFeed) fetchPriceOnce(ctx context.Context, symbol string) (*big.Float, error) {
 	// Build request URL
-	url := fmt.Sprintf("%s%s?symbol=%s", bitgetAPIBaseURL, bitgetTickerPath, symbol)
+	url := fmt.Sprintf("%s%s?symbol=%s", b.baseURL, bitgetTickerPath, symbol)
 
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
