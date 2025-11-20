@@ -6,7 +6,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const envVarPrefix = "GAS_ORACLE_"
+const envVarPrefix = "TOKEN_PRICE_ORACLE_"
 
 func prefixEnvVar(name string) string {
 	return envVarPrefix + name
@@ -19,7 +19,6 @@ var (
 		Usage:    "HTTP provider URL for L2",
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
-		Value:    "http://127.0.0.1:8545",
 	}
 
 	PrivateKeyFlag = cli.StringFlag{

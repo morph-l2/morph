@@ -120,13 +120,19 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 			log.Warn("Failed to update balance metrics", "error", err)
 		}
 	}()
-	if len(u.tokenIDs) == 0 {
-		log.Crit("No tokens to update")
+
+	// Snapshot tokenIDs under lock to avoid race conditions
+	u.mu.RLock()
+	tokenIDs := append([]uint16(nil), u.tokenIDs...)
+	u.mu.RUnlock()
+
+	if len(tokenIDs) == 0 {
+		log.Warn("No tokens to update, skipping price update cycle")
 		return nil
 	}
 
 	// Step 1: Fetch new prices from feed (USD prices)
-	tokenPrices, err := u.priceFeed.GetBatchTokenPrices(ctx, u.tokenIDs)
+	tokenPrices, err := u.priceFeed.GetBatchTokenPrices(ctx, tokenIDs)
 	if err != nil {
 		return fmt.Errorf("failed to fetch token prices: %w", err)
 	}
@@ -242,8 +248,12 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 // Formula: priceRatio = tokenScale * tokenPriceUSD * 10^(18 - tokenDecimals) / ethPriceUSD
 // We do multiplications first, then division at the end to avoid precision loss
 func (u *PriceUpdater) calculatePriceRatio(ctx context.Context, tokenID uint16, tokenPrice *client.TokenPrice) (*big.Int, error) {
-	// Fetch token info from contract
+	// Validate input price data to prevent nil pointer panics
+	if tokenPrice == nil || tokenPrice.TokenPriceUSD == nil || tokenPrice.EthPriceUSD == nil {
+		return nil, fmt.Errorf("token price data missing for token %d", tokenID)
+	}
 
+	// Fetch token info from contract
 	tokenInfo, err := u.registryContract.GetTokenInfo(&bind.CallOpts{
 		Context: ctx,
 	}, tokenID)
@@ -266,9 +276,19 @@ func (u *PriceUpdater) calculatePriceRatio(ctx context.Context, tokenID uint16, 
 		"token_scale", tokenScale.String(),
 		"active", tokenInfo.IsActive)
 
+	// Validate token decimals (must be <= 18 for our formula to work)
+	if tokenDecimals > 18 {
+		return nil, fmt.Errorf("unsupported token decimals %d (>18) for token %d", tokenDecimals, tokenID)
+	}
+
 	// Check ETH price is not zero
 	if tokenPrice.EthPriceUSD.Cmp(big.NewFloat(0)) == 0 {
 		return nil, fmt.Errorf("ETH price is zero")
+	}
+
+	// Check token price is not zero or negative
+	if tokenPrice.TokenPriceUSD.Cmp(big.NewFloat(0)) <= 0 {
+		return nil, fmt.Errorf("invalid token price %s for token %d", tokenPrice.TokenPriceUSD.String(), tokenID)
 	}
 
 	// Step 1: Start with tokenPriceUSD
@@ -287,8 +307,16 @@ func (u *PriceUpdater) calculatePriceRatio(ctx context.Context, tokenID uint16, 
 	// Step 4: Finally divide by ethPriceUSD
 	priceRatio.Quo(priceRatio, tokenPrice.EthPriceUSD)
 
-	// Convert to big.Int
-	priceRatioInt, _ := priceRatio.Int(nil)
+	// Convert to big.Int with precision check
+	priceRatioInt, accuracy := priceRatio.Int(nil)
+	if accuracy != big.Exact {
+		log.Warn("Price ratio conversion lost precision",
+			"token_id", tokenID,
+			"symbol", tokenPrice.Symbol,
+			"accuracy", accuracy.String(),
+			"float_value", priceRatio.String(),
+			"int_value", priceRatioInt.String())
+	}
 
 	log.Info("Calculated price ratio",
 		"token_id", tokenID,
@@ -330,9 +358,25 @@ func (u *PriceUpdater) updateBalanceMetrics(ctx context.Context) error {
 
 // shouldUpdatePrice checks if the price change exceeds the threshold
 // Formula: |newPrice - lastPrice| / lastPrice * 100 >= threshold
+// Example: if threshold is 5, price must change by at least 5% to trigger update
 func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
+	// Validate inputs
+	if lastPrice == nil || newPrice == nil {
+		log.Warn("shouldUpdatePrice called with nil price")
+		return false
+	}
+
 	if lastPrice.Sign() == 0 {
 		return true // Always update if no previous price
+	}
+
+	// Validate threshold is reasonable (should be < 100 for percentage)
+	// If threshold is unreasonably large, log warning and use default
+	threshold := u.priceThreshold
+	if threshold > 100 {
+		log.Warn("Price threshold is unusually large, capping at 100%",
+			"configured_threshold", threshold)
+		threshold = 100
 	}
 
 	// Calculate absolute difference: |newPrice - lastPrice|
@@ -340,29 +384,35 @@ func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
 	diff.Abs(diff)
 
 	// Calculate percentage change: diff * 100 / lastPrice
+	// This gives us the percentage as an integer (e.g., 5 for 5%)
 	percentage := new(big.Int).Mul(diff, big.NewInt(100))
 	percentage.Div(percentage, lastPrice)
 
-	// Compare with threshold
-	threshold := big.NewInt(int64(u.priceThreshold))
-	return percentage.Cmp(threshold) >= 0
+	// Compare with threshold (both are percentages)
+	thresholdBig := big.NewInt(int64(threshold))
+	return percentage.Cmp(thresholdBig) >= 0
 }
 
 // UpdateTokenList updates the list of tokens to monitor
+// The input slice is copied to prevent external modifications
 func (u *PriceUpdater) UpdateTokenList(tokenIDs []uint16) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	u.tokenIDs = tokenIDs
-	log.Info("Updated token list", "token_ids", tokenIDs)
+	// Create a defensive copy to prevent external modifications
+	u.tokenIDs = append([]uint16(nil), tokenIDs...)
+	log.Info("Updated token list", "token_ids", u.tokenIDs)
 }
 
-// GetTokenList returns current token list
+// GetTokenList returns a copy of the current token list
 func (u *PriceUpdater) GetTokenList() []uint16 {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
 
-	return u.tokenIDs
+	// Return a copy to prevent external modifications
+	out := make([]uint16, len(u.tokenIDs))
+	copy(out, u.tokenIDs)
+	return out
 }
 
 // GetLastPrice returns the last updated price for a token
@@ -416,14 +466,16 @@ func (u *PriceUpdater) fetchTokenIDsFromContract(ctx context.Context) error {
 
 // filterTokenIDsByMapping filters tokenIDs to only include those that have a mapping configured
 func (u *PriceUpdater) filterTokenIDsByMapping() {
+	// Always acquire lock before modifying u.tokenIDs to prevent race conditions
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	// Check if token mapping is configured
 	if len(u.tokenMapping) == 0 {
-		log.Error("No token mapping configured for current price feed type, price updater will not work. Please configure the appropriate token-mapping flag (e.g., --token-mapping-bitget, --token-mapping-binance, --token-mapping-mock)")
+		log.Error("No token mapping configured for current price feed type, price updater will not work. Please configure the appropriate token-mapping flag (e.g., --token-mapping-bitget, --token-mapping-binance)")
 		u.tokenIDs = []uint16{}
 		return
 	}
-
-	u.mu.Lock()
-	defer u.mu.Unlock()
 
 	var filtered []uint16
 	var unmapped []uint16

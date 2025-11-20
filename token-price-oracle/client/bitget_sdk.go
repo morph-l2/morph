@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/morph-l2/go-ethereum/log"
@@ -18,10 +19,12 @@ const (
 )
 
 // BitgetSDKPriceFeed uses Bitget REST API to fetch prices
+// This type is safe for concurrent use by multiple goroutines
 type BitgetSDKPriceFeed struct {
 	httpClient *http.Client
-	tokenMap   map[uint16]string
-	ethPrice   *big.Float
+	mu         sync.RWMutex          // protects tokenMap and ethPrice
+	tokenMap   map[uint16]string     // guarded by mu
+	ethPrice   *big.Float            // guarded by mu
 	log        log.Logger
 	baseURL    string
 }
@@ -61,7 +64,11 @@ func NewBitgetSDKPriceFeed(tokenMap map[uint16]string, baseURL string) *BitgetSD
 // GetTokenPrice returns token price in USD
 // Note: Caller should ensure ETH price is updated via GetBatchTokenPrices for batch operations
 func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) (*TokenPrice, error) {
+	b.mu.RLock()
 	symbol, exists := b.tokenMap[tokenID]
+	ethPrice := new(big.Float).Copy(b.ethPrice)
+	b.mu.RUnlock()
+
 	if !exists {
 		return nil, fmt.Errorf("token ID %d not mapped to trading pair", tokenID)
 	}
@@ -73,7 +80,7 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 	}
 
 	// Use cached ETH price (should be updated by GetBatchTokenPrices)
-	if b.ethPrice.Cmp(big.NewFloat(0)) == 0 {
+	if ethPrice.Cmp(big.NewFloat(0)) == 0 {
 		return nil, fmt.Errorf("ETH price not initialized, please call GetBatchTokenPrices first")
 	}
 
@@ -82,18 +89,19 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 		"token_id", tokenID,
 		"symbol", symbol,
 		"token_price_usd", tokenPrice.String(),
-		"eth_price_usd", b.ethPrice.String())
+		"eth_price_usd", ethPrice.String())
 
 	return &TokenPrice{
 		TokenID:       tokenID,
 		Symbol:        symbol,
 		TokenPriceUSD: tokenPrice,
-		EthPriceUSD:   b.ethPrice,
+		EthPriceUSD:   ethPrice,
 	}, nil
 }
 
 // GetBatchTokenPrices returns batch token prices in USD
 func (b *BitgetSDKPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []uint16) (map[uint16]*TokenPrice, error) {
+	// Update ETH price first (this will acquire write lock)
 	if err := b.updateETHPrice(ctx); err != nil {
 		return nil, fmt.Errorf("failed to update ETH price: %w", err)
 	}
@@ -121,7 +129,10 @@ func (b *BitgetSDKPriceFeed) updateETHPrice(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch ETH price: %w", err)
 	}
 
+	b.mu.Lock()
 	b.ethPrice = price
+	b.mu.Unlock()
+
 	b.log.Info("Fetched ETH price from Bitget",
 		"source", "bitget",
 		"symbol", "ETHUSDT",
@@ -227,16 +238,27 @@ func (b *BitgetSDKPriceFeed) fetchPriceOnce(ctx context.Context, symbol string) 
 }
 
 // UpdateTokenMap updates token mapping
+// This method is safe to call concurrently with other methods
+// The input map is copied to prevent external modifications
 func (b *BitgetSDKPriceFeed) UpdateTokenMap(tokenMap map[uint16]string) {
-	b.tokenMap = tokenMap
-	b.log.Info("Updated token map", "token_map", tokenMap)
+	b.mu.Lock()
+	// Create a defensive copy to prevent external modifications
+	copied := make(map[uint16]string, len(tokenMap))
+	for k, v := range tokenMap {
+		copied[k] = v
+	}
+	b.tokenMap = copied
+	b.mu.Unlock()
+	b.log.Info("Updated token map", "token_map", copied)
 }
 
 // GetSupportedTokens returns list of supported token IDs
 func (b *BitgetSDKPriceFeed) GetSupportedTokens() []uint16 {
+	b.mu.RLock()
 	tokenIDs := make([]uint16, 0, len(b.tokenMap))
 	for tokenID := range b.tokenMap {
 		tokenIDs = append(tokenIDs, tokenID)
 	}
+	b.mu.RUnlock()
 	return tokenIDs
 }

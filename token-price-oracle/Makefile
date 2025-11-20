@@ -6,7 +6,7 @@ VERSION := v0.1.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
-LDFLAGSSTRING +=-X main.Version=$(VERSION)
+LDFLAGSSTRING +=-X main.GitVersion=$(VERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 build:
@@ -14,7 +14,7 @@ build:
 	go mod download
 	env GO111MODULE=on CGO_ENABLED=1 CGO_LDFLAGS="-ldl" go build -o build/bin/token-price-oracle -v $(LDFLAGS) ./cmd
 run: build
-	.build/bin/token-price-oracle
+	./build/bin/token-price-oracle
 
 test:
 	go test -v ./...

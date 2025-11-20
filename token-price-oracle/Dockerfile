@@ -25,18 +25,18 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy binary from build stage
-COPY --from=builder /app/bin/gas-price-oracle .
+COPY --from=builder /app/build/bin/token-price-oracle .
 
 # Create log directory
-RUN mkdir -p /data/logs/morph-gas-oracle
+RUN mkdir -p /data/logs/token-price-oracle
 
 # Expose metrics port
 EXPOSE 6060
 
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:6060/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:6060/metrics || exit 1
 
 # Run service
-ENTRYPOINT ["./gas-price-oracle"]
+ENTRYPOINT ["./token-price-oracle"]
 

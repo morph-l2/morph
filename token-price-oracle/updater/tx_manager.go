@@ -29,10 +29,12 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Get transaction options
+	// Get transaction options (returns a copy)
 	auth := m.l2Client.GetOpts()
 	auth.Context = ctx
-	auth.GasLimit = 100000 // Default gas limit
+	// GasLimit is set to 0 to enable automatic gas estimation
+	// The go-ethereum library will estimate gas if GasLimit is 0
+	auth.GasLimit = 0
 
 	// Execute transaction function
 	tx, err := txFunc(auth)
@@ -40,7 +42,9 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 		return nil, err
 	}
 
-	log.Info("Transaction sent", "tx_hash", tx.Hash().Hex())
+	log.Info("Transaction sent", 
+		"tx_hash", tx.Hash().Hex(),
+		"gas_limit", tx.Gas())
 
 	// Wait for transaction to be mined
 	receipt, err := bind.WaitMined(ctx, m.l2Client.GetClient(), tx)
@@ -49,9 +53,14 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	}
 
 	if receipt.Status == 0 {
-		log.Error("Transaction failed", "tx_hash", tx.Hash().Hex())
+		log.Error("Transaction failed", 
+			"tx_hash", tx.Hash().Hex(),
+			"gas_used", receipt.GasUsed)
 	} else {
-		log.Debug("Transaction confirmed", "tx_hash", tx.Hash().Hex(), "gas_used", receipt.GasUsed)
+		log.Info("Transaction confirmed", 
+			"tx_hash", tx.Hash().Hex(), 
+			"gas_used", receipt.GasUsed,
+			"gas_limit", tx.Gas())
 	}
 
 	return receipt, nil

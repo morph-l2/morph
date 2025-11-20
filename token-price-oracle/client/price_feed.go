@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/log"
@@ -54,6 +55,16 @@ func (f *FallbackPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) (
 
 		price, err := feed.GetTokenPrice(ctx, tokenID)
 		if err == nil {
+			// Validate returned price to prevent nil pointer panics
+			if price == nil || price.TokenPriceUSD == nil || price.EthPriceUSD == nil {
+				f.log.Warn("Feed returned nil price or components, treating as failure",
+					"token_id", tokenID,
+					"feed", feedName,
+					"priority", i)
+				lastErr = fmt.Errorf("feed %s returned incomplete price for token %d", feedName, tokenID)
+				continue
+			}
+
 			f.log.Info("Successfully fetched price from feed",
 				"source", feedName,
 				"token_id", tokenID,
@@ -87,8 +98,27 @@ func (f *FallbackPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []
 
 		prices, err := feed.GetBatchTokenPrices(ctx, tokenIDs)
 		if err == nil {
+			// Validate all returned prices to prevent nil pointer panics
+			hasInvalidPrice := false
+			for tokenID, price := range prices {
+				if price == nil || price.TokenPriceUSD == nil || price.EthPriceUSD == nil {
+					f.log.Warn("Feed returned nil price or components for token, treating as failure",
+						"token_id", tokenID,
+						"feed", feedName,
+						"priority", i)
+					hasInvalidPrice = true
+					break
+				}
+			}
+
+			if hasInvalidPrice {
+				lastErr = fmt.Errorf("feed %s returned incomplete prices", feedName)
+				continue
+			}
+
 			f.log.Info("Successfully fetched batch prices from feed",
-				"token_count", len(tokenIDs),
+				"token_count", len(prices),
+				"requested_count", len(tokenIDs),
 				"feed", feedName,
 				"priority", i)
 			return prices, nil
