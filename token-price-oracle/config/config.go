@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"morph-l2/bindings/predeploys"
 	"strconv"
 	"strings"
 	"time"
@@ -90,13 +91,7 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 	}
 
 	// Parse token registry address (optional)
-	registryAddr := ctx.String(flags.L2TokenRegistryAddressFlag.Name)
-	if registryAddr != "" {
-		if !common.IsHexAddress(registryAddr) {
-			return nil, fmt.Errorf("invalid L2_TOKEN_REGISTRY address: %s", registryAddr)
-		}
-		cfg.L2TokenRegistryAddr = common.HexToAddress(registryAddr)
-	}
+	cfg.L2TokenRegistryAddr = predeploys.L2TokenRegistryAddr
 
 	// Parse price update interval
 	cfg.PriceUpdateInterval = ctx.Duration(flags.PriceUpdateIntervalFlag.Name)

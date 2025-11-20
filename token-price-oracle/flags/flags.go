@@ -31,13 +31,6 @@ var (
 
 	/* Optional Flags */
 
-	L2TokenRegistryAddressFlag = cli.StringFlag{
-		Name:   "l2-token-registry-address",
-		Usage:  "Address of the L2 TokenRegistry contract",
-		Value:  "0x5300000000000000000000000000000000000021",
-		EnvVar: prefixEnvVar("L2_TOKEN_REGISTRY"),
-	}
-
 	TxnPerBatchFlag = cli.Uint64Flag{
 		Name:   "txn-per-batch",
 		Usage:  "Expected transactions per batch",
@@ -149,7 +142,6 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
-	L2TokenRegistryAddressFlag,
 	TxnPerBatchFlag,
 	PriceUpdateIntervalFlag,
 	TokenIDsFlag,

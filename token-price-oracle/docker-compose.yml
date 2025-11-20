@@ -11,9 +11,6 @@ services:
       # L2 RPC endpoint
       TOKEN_PRICE_ORACLE_L2_ETH_RPC: ${TOKEN_PRICE_ORACLE_L2_ETH_RPC:-http://host.docker.internal:8545}
       
-      # L2 Token Registry contract address
-      TOKEN_PRICE_ORACLE_L2_TOKEN_REGISTRY_ADDRESS: ${TOKEN_PRICE_ORACLE_L2_TOKEN_REGISTRY_ADDRESS:-0x5300000000000000000000000000000000000021}
-      
       # Private key for signing transactions
       TOKEN_PRICE_ORACLE_PRIVATE_KEY: ${TOKEN_PRICE_ORACLE_PRIVATE_KEY}
       
