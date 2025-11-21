@@ -33,7 +33,6 @@ func TestGetBlob(t *testing.T) {
 	if len(logs) > 0 {
 		for _, lg := range logs {
 			txHash := lg.TxHash
-			require.NoError(t, err)
 			block, err := l1Client.BlockByNumber(context.Background(), big.NewInt(int64(lg.BlockNumber)))
 			require.NoError(t, err)
 			tx, _, err := l1Client.TransactionByHash(context.Background(), txHash)
