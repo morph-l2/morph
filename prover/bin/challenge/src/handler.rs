@@ -175,7 +175,7 @@ impl ChallengeHandler {
                 if !batch_proof.proof_data.is_empty() {
                     log::info!("query proof and prove state: {:#?}", batch_index);
                     let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
-                    sleep(Duration::from_secs(600)).await;
+                    sleep(Duration::from_secs(60)).await;
                     self.prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
                     continue;
                 }
