@@ -457,12 +457,17 @@ async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, bat
         return None;
     };
 
-    let version: u8 = param.batch_data_input.version;
+    let mut version: u8 = param.batch_data_input.version;
     let prev_state_root: [u8; 32] = param.batch_data_input.prev_state_root;
     let post_state_root: [u8; 32] = param.batch_data_input.post_state_root;
     let withdrawal_root: [u8; 32] = param.batch_data_input.withdrawal_root;
     let last_block_number: u64 = param.batch_data_input.last_block_number;
     let num_l1_messages = param.batch_data_input.num_l1_messages;
+    log::info!("======> batch inspect: decode tx.input, version =  {:#?}", version);
+    log::info!("======> batch inspect: decode tx.input, param =  {:#?}", param);
+    if version == 1 {
+        version = 2;
+    }
 
     let mut batch_info = BatchInfo {
         version,
