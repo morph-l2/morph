@@ -102,6 +102,7 @@ build-bk-test-morph-test-qanet-to-morph-token-price-oracle:
 	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-test-morph-test-qanet-to-morph-token-price-oracle:
+	ls
 	/data/secret-manager-wrapper  ./token-price-oracle
 
 build-bk-prod-morph-prod-testnet-to-morph-token-price-oracle-hoodi:
