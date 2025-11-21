@@ -129,6 +129,7 @@ type DeployConfig struct {
 	// Upgrade configs
 	Morph203Time *uint64 `json:"morph203Time,omitempty"`
 	ViridianTime *uint64 `json:"viridianTime,omitempty"`
+	EmeraldTime  *uint64 `json:"emeraldTime,omitempty"`
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
@@ -455,6 +456,12 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 	//	"_initialized":  1,
 	//	"_initializing": false,
 	//}
+	storage["L2TokenRegistry"] = state.StorageValues{
+		"_initialized":     1,
+		"_initializing":    false,
+		"_owner":           config.FinalSystemOwner,
+		"allowListEnabled": true,
+	}
 	storage["Record"] = state.StorageValues{
 		"_initialized":             1,
 		"_initializing":            false,
