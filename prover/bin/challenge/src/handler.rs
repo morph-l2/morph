@@ -465,9 +465,6 @@ async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, bat
     let num_l1_messages = param.batch_data_input.num_l1_messages;
     log::info!("======> batch inspect: decode tx.input, version =  {:#?}", version);
     log::info!("======> batch inspect: decode tx.input, param =  {:#?}", param);
-    if version == 1 {
-        version = 2;
-    }
 
     let mut batch_info = BatchInfo {
         version,
