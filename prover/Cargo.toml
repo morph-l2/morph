@@ -96,8 +96,7 @@ morph-prove = { path = "bin/host" }
 # shadow-prove = { path = "shadow-prove" }
 
 [workspace.dependencies.revm]
-git = "https://github.com/morph-l2/revm"
-branch = "erc20-fee"
+path = "/root/projects/layer2/morph/revm/crates/revm"
 default-features = false
 features = [
     "morph-default-handler",
@@ -107,8 +106,7 @@ features = [
 ]
 
 [workspace.dependencies.revm-primitives]
-git = "https://github.com/morph-l2/revm"
-branch = "erc20-fee"
+path = "/root/projects/layer2/morph/revm/crates/primitives"
 default-features = false
 features = [
     "morph-default-handler",

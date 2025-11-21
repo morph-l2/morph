@@ -1,7 +1,11 @@
 /// Use alt token for tx fee.
 use alloy::{
     consensus::{EncodableSignature, SignableTransaction, Signed, Transaction, TxType},
-    eips::{eip2930::AccessList, eip7702::SignedAuthorization},
+    eips::{
+        eip2718::{Decodable2718, Encodable2718},
+        eip2930::AccessList,
+        eip7702::SignedAuthorization,
+    },
     primitives::{keccak256, Bytes, ChainId, Signature, TxKind, B256, U256},
     rlp::{BufMut, Decodable, Encodable, Header},
 };
@@ -257,8 +261,8 @@ impl TxAltFee {
 
     /// Get transaction type
     #[doc(alias = "transaction_type")]
-    pub(crate) const fn tx_type(&self) -> TxType {
-        TxType::Eip1559
+    pub(crate) const fn tx_type(&self) -> u8 {
+        0x7f
     }
 
     /// Calculates a heuristic for the in-memory size of the [TxEip1559] transaction.
@@ -344,6 +348,24 @@ impl Transaction for TxAltFee {
     // fn fee_limit(&self) -> u64 {
     //     0x7f
     // }
+}
+
+impl Encodable2718 for TxAltFee {
+    fn type_flag(&self) -> Option<u8> {
+        Some(0x7f)
+    }
+
+    fn encode_2718_len(&self) -> usize {
+        let payload_length = self.fields_len();
+        1 + Header { list: true, payload_length }.length() + payload_length
+    }
+
+    fn encode_2718(&self, out: &mut dyn BufMut) {
+        0x7fu8.encode(out);
+        let header = Header { list: true, payload_length: self.fields_len() };
+        header.encode(out);
+        self.encode(out)
+    }
 }
 
 impl SignableTransaction<Signature> for TxAltFee {

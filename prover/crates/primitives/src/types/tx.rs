@@ -112,10 +112,11 @@ pub struct TransactionTrace {
     pub(crate) access_list: AccessList,
     /// authorization list
     #[serde(rename = "authorizationList")]
+    #[serde(default)]
     #[serde_as(as = "DefaultOnNull")]
     pub(crate) authorization_list: AuthorizationList,
     /// For AltFeeType
-    #[serde(rename = "feeTokenId")]
+    #[serde(rename = "feeTokenID")]
     pub(crate) fee_token_id: Option<u16>,
     /// For AltFeeType
     #[serde(rename = "feeLimit")]

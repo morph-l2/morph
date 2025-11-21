@@ -66,3 +66,4 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
     drop(executor);
     Ok(batch_info)
 }
+

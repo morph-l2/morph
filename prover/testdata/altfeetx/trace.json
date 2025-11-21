@@ -54,6 +54,7 @@
                     "data": "0x",
                     "isCreate": false,
                     "accessList": [],
+                    "authorizationList":[],
                     "v": "0x0",
                     "r": "0xa403ab9024c991d5c5d16eab7588f1edd101b37d65ed772446c3d40278fcb65c",
                     "s": "0x6a8ccbb0f6160a3a776b9e5e2a5756008aa25be79a3d39c6fa9c6c7ed740ccee"
