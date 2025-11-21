@@ -102,7 +102,8 @@ build-bk-test-morph-test-qanet-to-morph-token-price-oracle:
 	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-test-morph-test-qanet-to-morph-token-price-oracle:
-	/data/secret-manager-wrapper  /data/token-price-oracle
+	sleep 100000
+	# /data/secret-manager-wrapper  /data/token-price-oracle
 
 build-bk-prod-morph-prod-testnet-to-morph-token-price-oracle-hoodi:
 	if [ ! -d dist ]; then mkdir -p dist; fi
