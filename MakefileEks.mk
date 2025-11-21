@@ -98,8 +98,8 @@ build-bk-test-morph-test-qanet-to-morph-token-price-oracle:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o token-price-oracle/token-price-oracle ./token-price-oracle/cmd
 	cp token-price-oracle/token-price-oracle dist/
-	tar -czvf token-price-oracle.tar.gz dist
-	aws s3 cp token-price-oracle.tar.gz s3://morph-7637-morph-technical-department-qanet-data/morph-setup/token-price-oracle.tar.gz
+	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-test-morph-test-qanet-to-morph-token-price-oracle:
 	/data/secret-manager-wrapper  ./token-price-oracle
@@ -108,8 +108,7 @@ build-bk-prod-morph-prod-testnet-to-morph-token-price-oracle-hoodi:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o token-price-oracle/token-price-oracle ./token-price-oracle/cmd
 	cp token-price-oracle/token-price-oracle dist/
-	tar -czvf token-price-oracle.tar.gz dist
-	aws s3 cp token-price-oracle.tar.gz s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/token-price-oracle.tar.gz
+
 
 start-bk-prod-morph-prod-testnet-to-morph-token-price-oracle-hoodi:
 	/data/secret-manager-wrapper ./token-price-oracle
@@ -119,8 +118,7 @@ build-bk-prod-morph-prod-mainnet-to-morph-token-price-oracle:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o token-price-oracle/token-price-oracle ./token-price-oracle/cmd
 	cp token-price-oracle/token-price-oracle dist/
-	tar -czvf token-price-oracle.tar.gz dist
-	aws s3 cp token-price-oracle.tar.gz s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/token-price-oracle.tar.gz
+
 
 start-bk-prod-morph-prod-mainnet-to-morph-token-price-oracle:
 	/data/secret-manager-wrapper ./token-price-oracle
