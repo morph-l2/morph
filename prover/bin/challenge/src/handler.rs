@@ -12,7 +12,6 @@ use eyre::anyhow;
 use serde::{Deserialize, Serialize};
 use std::env::var;
 use std::error::Error;
-use std::ops::Mul;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -175,7 +174,7 @@ impl ChallengeHandler {
                 if !batch_proof.proof_data.is_empty() {
                     log::info!("query proof and prove state: {:#?}", batch_index);
                     let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
-                    sleep(Duration::from_secs(60)).await;
+                    sleep(Duration::from_secs(600)).await;
                     self.prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
                     continue;
                 }
@@ -457,7 +456,7 @@ async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, bat
         return None;
     };
 
-    let mut version: u8 = param.batch_data_input.version;
+    let version: u8 = param.batch_data_input.version;
     let prev_state_root: [u8; 32] = param.batch_data_input.prev_state_root;
     let post_state_root: [u8; 32] = param.batch_data_input.post_state_root;
     let withdrawal_root: [u8; 32] = param.batch_data_input.withdrawal_root;
