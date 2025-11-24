@@ -15,7 +15,7 @@ import (
 
 const (
 	// GolangCIVersion to be used for linting.
-	GolangCIVersion = "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.58.1"
+	GolangCIVersion = "github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
 )
 
 // GOBIN environment variable.
@@ -51,13 +51,18 @@ func main() {
 func lint(depth int64) {
 	v := flag.Bool("v", false, "log verbosely")
 
+	// Ensure we use the correct Go toolchain
+	env := os.Environ()
+	env = append(env, "GOTOOLCHAIN=auto")
+
 	// Make sure GOLANGCI is downloaded and available.
 	argsGet := []string{"install", GolangCIVersion}
 	cmd := exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), argsGet...)
+	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("could not list pkgs: %v\n%s", err, string(out))
+		log.Fatalf("could not install golangci-lint: %v\n%s", err, string(out))
 	}
 
 	cmd = exec.Command(filepath.Join(goBin(), "golangci-lint"))
@@ -72,10 +77,13 @@ func lint(depth int64) {
 		cmd.Args = append(cmd.Args, "-v")
 	}
 
+	// Set environment for golangci-lint
+	cmd.Env = env
+
 	fmt.Println("Linting...")
 	cmd.Stderr, cmd.Stdout = os.Stderr, os.Stdout
 
 	if err := cmd.Run(); err != nil {
-		log.Fatal("Error: Could not Lint ", "error: ", err, ", cmd: ", cmd)
+		log.Fatal("Error: Could not Lint ", "error", err, ", cmd", cmd)
 	}
 }

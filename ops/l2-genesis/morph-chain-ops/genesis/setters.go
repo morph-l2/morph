@@ -107,7 +107,7 @@ func SetTouchable(db vm.StateDB, name string, address common.Address, storage st
 
 	db.SetState(address, ImplementationSlot, codeAddr.Hash())
 
-	if err := setupPredeploy(db, deployResults, slotResults, storage, name, address, codeAddr); err != nil {
+	if err = setupPredeploy(db, deployResults, slotResults, storage, name, address, codeAddr); err != nil {
 		return err
 	}
 
