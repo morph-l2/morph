@@ -64,7 +64,7 @@ where
 
         // Batch should not have been verified yet.
         if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(true) {
-            log::debug!("batch of {:?} already prove state successful", batch_info.batch_index);
+            log::info!("batch of {:?} already prove state successful", batch_info.batch_index);
             return Ok(None);
         };
 
@@ -191,7 +191,7 @@ where
     //         return Err("find commit_batch log error".to_string());
     //     }
     // };
-    let batch_index = 45468;
+    let batch_index = 46026;
 
     if batch_index == 0 {
         return Err(String::from("batch_index is 0"));
@@ -228,7 +228,7 @@ where
     //     }
     // };
     // let tx_hash = "0xd360ae1ef3ab56857c2c3ee24655306518ee077c7dfea20bea2f8bceea86fd93";
-    let next_tx_hash = TxHash::from_hex("0xfa73e6514566bc7d92ae53f9892580cf64ff30480ce0d781f1e78e5a4da6efea").unwrap_or_default();
+    let next_tx_hash = TxHash::from_hex("0x5bc8ac5ecd99968550c415a5c1384fb7dcffb9423fa60b139bade5ac67d7f5bc").unwrap_or_default();
     let batch_header = batch_header_inspect(l1_provider, next_tx_hash)
         .await
         .ok_or_else(|| "Failed to inspect batch header".to_string())?;
