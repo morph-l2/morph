@@ -24,7 +24,7 @@ const (
 func ValidPriceFeedTypes() []PriceFeedType {
 	return []PriceFeedType{
 		PriceFeedTypeBitget,
-		PriceFeedTypeBinance,
+		// PriceFeedTypeBinance,  // TODO: Add back when Binance price feed is implemented
 	}
 }
 

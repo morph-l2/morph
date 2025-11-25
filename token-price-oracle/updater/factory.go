@@ -119,12 +119,9 @@ func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (c
 		return feed, "bitget", nil
 
 	case config.PriceFeedTypeBinance:
-		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBinance]
-		if !exists || len(mapping) == 0 {
-			return nil, "", fmt.Errorf("binance price feed requires token mapping, please configure --token-mapping-binance")
-		}
-		// TODO: Implement Binance price feed when ready
-		return nil, "", fmt.Errorf("binance price feed not yet implemented")
+		// Binance price feed is not yet implemented
+		// This case should not be reached since Binance is not in ValidPriceFeedTypes
+		return nil, "", fmt.Errorf("binance price feed is not supported yet")
 
 	default:
 		return nil, "", fmt.Errorf("unsupported price feed type: %s", feedType)

@@ -171,7 +171,3 @@ go test ./client -run TestBitgetPriceFeed -v
 go test ./... -short
 ```
 
-## Documentation
-
--   [PRICE_UPDATE.md](./PRICE_UPDATE.md) - Token price update 功能
--   [BITGET_PRICE_FEED.md](./BITGET_PRICE_FEED.md) - Bitget 价格源使用指南
