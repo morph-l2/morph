@@ -99,9 +99,10 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 
 	cfg.PriceThreshold = ctx.Uint64(flags.PriceThresholdFlag.Name)
 
-	// Validate price threshold is reasonable (percentage should be 0-100)
-	if cfg.PriceThreshold > 100 {
-		return nil, fmt.Errorf("price threshold %d is too large (should be 0-100 for percentage)", cfg.PriceThreshold)
+	// Validate price threshold is reasonable (basis points should be 0-10000)
+	// 10000 bps = 100%
+	if cfg.PriceThreshold > 10000 {
+		return nil, fmt.Errorf("price threshold %d is too large (should be 0-10000 basis points, where 10000 bps = 100%%)", cfg.PriceThreshold)
 	}
 
 	// Parse and validate price feed priority list

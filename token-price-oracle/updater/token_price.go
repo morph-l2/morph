@@ -339,8 +339,9 @@ func (u *PriceUpdater) updateBalanceMetrics(ctx context.Context) error {
 }
 
 // shouldUpdatePrice checks if the price change exceeds the threshold
-// Formula: |newPrice - lastPrice| / lastPrice * 100 >= threshold
-// Example: if threshold is 5, price must change by at least 5% to trigger update
+// Formula: |newPrice - lastPrice| / lastPrice * 10000 >= threshold
+// Threshold is in basis points (bps): 1 bps = 0.01%, 100 bps = 1%, 10000 bps = 100%
+// Example: if threshold is 100 (bps), price must change by at least 1% to trigger update
 func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
 	// Validate inputs
 	if lastPrice == nil || newPrice == nil {
@@ -352,27 +353,37 @@ func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
 		return true // Always update if no previous price
 	}
 
-	// Validate threshold is reasonable (should be < 100 for percentage)
-	// If threshold is unreasonably large, log warning and use default
+	// Validate threshold is reasonable (should be <= 10000 for basis points)
+	// If threshold is unreasonably large, log warning and cap at 100% (10000 bps)
 	threshold := u.priceThreshold
-	if threshold > 100 {
-		log.Warn("Price threshold is unusually large, capping at 100%",
-			"configured_threshold", threshold)
-		threshold = 100
+	if threshold > 10000 {
+		log.Warn("Price threshold is unusually large, capping at 100% (10000 bps)",
+			"configured_threshold", threshold,
+			"capped_threshold", 10000)
+		threshold = 10000
 	}
 
 	// Calculate absolute difference: |newPrice - lastPrice|
 	diff := new(big.Int).Sub(newPrice, lastPrice)
 	diff.Abs(diff)
 
-	// Calculate percentage change: diff * 100 / lastPrice
-	// This gives us the percentage as an integer (e.g., 5 for 5%)
-	percentage := new(big.Int).Mul(diff, big.NewInt(100))
-	percentage.Div(percentage, lastPrice)
+	// Calculate change in basis points: diff * 10000 / lastPrice
+	// This gives us the change in bps (e.g., 100 for 1%, 10 for 0.1%, 1 for 0.01%)
+	bps := new(big.Int).Mul(diff, big.NewInt(10000))
+	bps.Div(bps, lastPrice)
 
-	// Compare with threshold (both are percentages)
+	// Compare with threshold (both are in basis points)
 	thresholdBig := big.NewInt(int64(threshold))
-	return percentage.Cmp(thresholdBig) >= 0
+	shouldUpdate := bps.Cmp(thresholdBig) >= 0
+	
+	log.Debug("Price change check",
+		"last_price", lastPrice.String(),
+		"new_price", newPrice.String(),
+		"change_bps", bps.String(),
+		"threshold_bps", threshold,
+		"should_update", shouldUpdate)
+	
+	return shouldUpdate
 }
 
 // fetchTokenIDsFromContract fetches supported token IDs from L2TokenRegistry contract

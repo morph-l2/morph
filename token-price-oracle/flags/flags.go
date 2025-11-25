@@ -46,7 +46,7 @@ var (
 
 	PriceThresholdFlag = cli.Uint64Flag{
 		Name:   "price-threshold",
-		Usage:  "Price change threshold percentage to trigger update (e.g. 5 for 5%)",
+		Usage:  "Price change threshold in basis points (bps) to trigger update (e.g. 100 for 1%, 10 for 0.1%, 1 for 0.01%)",
 		Value:  0,
 		EnvVar: prefixEnvVar("PRICE_THRESHOLD"),
 	}
