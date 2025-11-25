@@ -12,6 +12,11 @@ import (
 	"morph-l2/token-price-oracle/flags"
 )
 
+const (
+	// MaxPriceThresholdBPS is the maximum allowed price threshold in basis points (100% = 10000 bps)
+	MaxPriceThresholdBPS = 10000
+)
+
 // PriceFeedType represents the type of price feed source
 type PriceFeedType string
 
@@ -99,10 +104,10 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 
 	cfg.PriceThreshold = ctx.Uint64(flags.PriceThresholdFlag.Name)
 
-	// Validate price threshold is reasonable (basis points should be 0-10000)
-	// 10000 bps = 100%
-	if cfg.PriceThreshold > 10000 {
-		return nil, fmt.Errorf("price threshold %d is too large (should be 0-10000 basis points, where 10000 bps = 100%%)", cfg.PriceThreshold)
+	// Validate price threshold is reasonable (basis points should be 0-MaxPriceThresholdBPS)
+	if cfg.PriceThreshold > MaxPriceThresholdBPS {
+		return nil, fmt.Errorf("price threshold %d is too large (should be 0-%d basis points, where %d bps = 100%%)", 
+			cfg.PriceThreshold, MaxPriceThresholdBPS, MaxPriceThresholdBPS)
 	}
 
 	// Parse and validate price feed priority list

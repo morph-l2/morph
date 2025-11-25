@@ -12,6 +12,7 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 	"morph-l2/bindings/bindings"
 	"morph-l2/token-price-oracle/client"
+	"morph-l2/token-price-oracle/config"
 	"morph-l2/token-price-oracle/metrics"
 )
 
@@ -353,23 +354,24 @@ func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
 		return true // Always update if no previous price
 	}
 
-	// Validate threshold is reasonable (should be <= 10000 for basis points)
-	// If threshold is unreasonably large, log warning and cap at 100% (10000 bps)
+	// Validate threshold is reasonable (should be <= MaxPriceThresholdBPS)
+	// If threshold is unreasonably large, log warning and cap at 100%
 	threshold := u.priceThreshold
-	if threshold > 10000 {
-		log.Warn("Price threshold is unusually large, capping at 100% (10000 bps)",
+	if threshold > config.MaxPriceThresholdBPS {
+		log.Warn("Price threshold is unusually large, capping at 100%",
 			"configured_threshold", threshold,
-			"capped_threshold", 10000)
-		threshold = 10000
+			"capped_threshold", config.MaxPriceThresholdBPS,
+			"max_bps", config.MaxPriceThresholdBPS)
+		threshold = config.MaxPriceThresholdBPS
 	}
 
 	// Calculate absolute difference: |newPrice - lastPrice|
 	diff := new(big.Int).Sub(newPrice, lastPrice)
 	diff.Abs(diff)
 
-	// Calculate change in basis points: diff * 10000 / lastPrice
+	// Calculate change in basis points: diff * MaxPriceThresholdBPS / lastPrice
 	// This gives us the change in bps (e.g., 100 for 1%, 10 for 0.1%, 1 for 0.01%)
-	bps := new(big.Int).Mul(diff, big.NewInt(10000))
+	bps := new(big.Int).Mul(diff, big.NewInt(int64(config.MaxPriceThresholdBPS)))
 	bps.Div(bps, lastPrice)
 
 	// Compare with threshold (both are in basis points)
