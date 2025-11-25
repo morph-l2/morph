@@ -1,4 +1,7 @@
-.PHONY: build test lint clean run docker-build
+.PHONY: all build test lint clean run docker-build help
+
+# Default target
+all: build
 
 GITCOMMIT := $(shell git rev-parse HEAD)
 GITDATE := $(shell git show -s --format='%ct')
@@ -30,10 +33,12 @@ docker-build:
 
 help:
 	@echo "Available targets:"
+	@echo "  all (default)      - Build the token-price-oracle binary"
 	@echo "  build              - Build the token-price-oracle binary"
 	@echo "  run                - Build and run the service"
 	@echo "  test               - Run tests"
 	@echo "  lint               - Run linter"
 	@echo "  clean              - Clean build artifacts"
 	@echo "  docker-build       - Build Docker image"
+	@echo "  help               - Show this help message"
 

@@ -8,10 +8,9 @@ replace (
 )
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20251121022222-5ecdbc91b324
+	github.com/morph-l2/go-ethereum v1.10.14-0.20251125061742-69718a9dcab9
 	github.com/prometheus/client_golang v1.17.0
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli v1.22.17
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -85,6 +84,5 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
