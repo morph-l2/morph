@@ -120,8 +120,9 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
     let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
     blocks.iter_mut().for_each(|blobk| blobk.flatten());
+    let verify_result = EVMVerifier::verify(blocks);
 
-    if let Ok(batch_info) = EVMVerifier::verify(blocks) {
+    if let Ok(batch_info) = verify_result {
         let blob_info = morph_executor_host::get_blob_info(blocks).unwrap();
         let (versioned_hash, _) = BlobVerifier::verify(&blob_info, blocks.len()).unwrap();
 
@@ -137,7 +138,7 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
         batch_file.write_all(&batch_header[..]).expect("failed to batch_header");
         true
     } else {
-        let e = EVMVerifier::verify(blocks).unwrap_err();
+        let e = verify_result.unwrap_err();
         let error_data = serde_json::json!({
             "error_code": "EVM_EXECUTE_NOT_EXPECTED",
             "error_msg": e.to_string()
@@ -208,4 +209,20 @@ fn save_trace(batch_index: u64, chunk_traces: &Vec<BlockTrace>) {
 
     serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();
     log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
+}
+
+#[test]
+fn test_save_execute() {
+    let batch_index = 102u64;
+
+    let mut blocks = load_trace("../../testdata/viridian/eip7702_traces.json");
+    println!("blocks.len(): {:?}", blocks.len());
+    let traces = blocks.first_mut().unwrap();
+
+    if !save_batch_header(traces, batch_index) {
+        save_trace(batch_index, traces);
+        println!("save_batch_header error");
+    } else {
+        println!("save_batch_header success");
+    }
 }

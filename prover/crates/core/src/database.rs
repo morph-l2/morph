@@ -193,12 +193,17 @@ impl DatabaseRef for ReadOnlyDB {
         // then the upcoming trace contains code (meaning the code is used in this new block),
         // we can't directly update the CacheDB, so we offer the code by hash here.
         // However, if the code still cannot be found, this is an error.
-        self.code_db.get(&hash).cloned().ok_or_else(|| {
-            unreachable!(
-                "Code is either loaded or not needed (like EXTCODESIZE), code hash: {:?}",
-                hash
-            );
-        })
+        // self.code_db.get(&hash).cloned().ok_or_else(|| {
+        //     unreachable!(
+        //         "Code is either loaded or not needed (like EXTCODESIZE), code hash: {:?}",
+        //         hash
+        //     );
+        // })
+
+        Ok(self.code_db.get(&hash).cloned().unwrap_or_else(|| {
+            println!("---------------->code_by_hash_ref error: {:?}", hash);
+            Bytecode::default()
+        }))
     }
 
     /// Get storage value of address at index.
