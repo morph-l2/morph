@@ -120,7 +120,7 @@ pub struct TransactionTrace {
     pub(crate) fee_token_id: Option<u16>,
     /// For AltFeeType
     #[serde(rename = "feeLimit")]
-    pub(crate) fee_limit: Option<u64>,
+    pub(crate) fee_limit: Option<U64>,
     /// signature v
     pub(crate) v: U64,
     /// signature r
@@ -200,7 +200,7 @@ impl TxTrace for TransactionTrace {
     }
 
     fn fee_limit(&self) -> u64 {
-        self.fee_limit.unwrap_or_default()
+        self.fee_limit.unwrap_or_default().to()
     }
 }
 
@@ -281,7 +281,7 @@ impl TxTrace for ArchivedTransactionTrace {
     }
 
     fn fee_limit(&self) -> u64 {
-        self.fee_limit.unwrap_or(0)
+        self.fee_limit.unwrap_or(U64::default()).to()
     }
 }
 

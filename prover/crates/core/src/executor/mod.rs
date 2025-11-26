@@ -19,6 +19,7 @@ use std::{fmt::Debug, rc::Rc};
 
 mod builder;
 pub use builder::EvmExecutorBuilder;
+use std::str::FromStr;
 
 /// Convert from Option<&[SignedAuthorization]> to Option<RevmAuthorizationList>
 fn convert_authorization_list(
@@ -162,6 +163,29 @@ impl EvmExecutor<'_> {
                     })?;
 
                 dev_trace!("{_result:#?}");
+
+                let balance_from = revm
+                    .context
+                    .evm
+                    .inner
+                    .db
+                    .load_account(
+                        Address::from_str("0x70997970c51812dc3a010c7d01b50e0d17dc79c8").unwrap(),
+                    )
+                    .unwrap().info.nonce;
+                let balance_to = revm
+                    .context
+                    .evm
+                    .inner
+                    .db
+                    .load_account(
+                        Address::from_str("0x0742d35cc6634c0532925a3b844bc9e7595f0beb").unwrap(),
+                    )
+                    .unwrap().info.balance;
+                println!(
+                    "exe after, balance_from: {:?}, balance_to: {:?}",
+                    balance_from, balance_to
+                );
             }
             self.hooks.post_tx_execution(self, idx);
 
@@ -217,9 +241,24 @@ impl EvmExecutor<'_> {
                 for (key, value) in db_acc.storage.iter() {
                     if !value.is_zero() {
                         cycle_track!(
-                            storage_trie
+                            if let Err(e) = storage_trie
                                 .update_store(&key.to_be_bytes::<32>(), &value.to_be_bytes())
-                                .expect("failed to update storage"),
+                            {
+                                println!(
+                                    "addr: {}, key: 0x{}, value: 0x{}",
+                                    addr,
+                                    key.to_be_bytes::<32>()
+                                        .iter()
+                                        .map(|b| format!("{:02x}", b))
+                                        .collect::<String>(),
+                                    value
+                                        .to_be_bytes::<32>()
+                                        .iter()
+                                        .map(|b| format!("{:02x}", b))
+                                        .collect::<String>()
+                                );
+                                panic!("failed to update storage: {:?}", e);
+                            },
                             "Zktrie::update_store"
                         );
                     } else {
