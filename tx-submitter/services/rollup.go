@@ -202,6 +202,20 @@ func (r *Rollup) Start() error {
 		}
 		r.metrics.SetLastFinalizedBatch(lastFinalizedBatch.Uint64())
 
+		// has pending finalize batch (outside challenge window)
+		hasPendingFinalizeBatch := false
+		if lastCommittedBatch.Uint64() > lastFinalizedBatch.Uint64() {
+			// Check if the next batch to finalize is outside challenge window
+			nextToFinalize := new(big.Int).Add(lastFinalizedBatch, big.NewInt(1))
+			inWindow, err := r.Rollup.BatchInsideChallengeWindow(nil, nextToFinalize)
+			if err != nil {
+				log.Warn("check challenge window error", "error", err, "batch_index", nextToFinalize.Uint64())
+			} else if !inWindow {
+				// Batch is outside challenge window and ready to finalize
+				hasPendingFinalizeBatch = true
+			}
+		}
+		r.metrics.SetHasPendingFinalizeBatch(hasPendingFinalizeBatch)
 	})
 
 	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
