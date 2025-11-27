@@ -4,11 +4,10 @@ use crate::types::{tx_alt_fee::TxAltFee, TxL1Msg, TypedTransaction};
 use alloy::{
     consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy},
     eips::eip2930::AccessList,
-    hex::{self, FromHex, ToHexExt},
-    primitives::{keccak256, Bytes, ChainId, Signature, SignatureError, TxKind},
+    primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
 };
 use std::{fmt::Debug, sync::Once};
-use zktrie::{ZkMemoryDb, ZkTrieNode};
+use zktrie::ZkMemoryDb;
 
 /// Predeployed contracts
 pub mod predeployed;
@@ -139,53 +138,6 @@ pub trait Block: Debug {
     }
 }
 
-#[test]
-fn test_parse_node() {
-    use zk_trie::ZkTrieNode;
-    init_hash_scheme();
-    // let k = Node::<H>::hash_bytes(key).unwrap();
-    // let slot = "0xf6fe0582e0e323a551f456b66350a1ed549948a34fdd35be011d229e00171c1f";//trace base
-    // let slot = "f6fe0582e0e323a551f456b66350a1ed549948a34fdd35be011d229e00171c22"; // trace scale
-    // --token_registry_base 53bdca72fa8d2e145a1b3bd11cde5bd75428acd18eac3d6adf4e06e7e637706d
-    let slot = "0x53bdca72fa8d2e145a1b3bd11cde5bd75428acd18eac3d6adf4e06e7e637706d"; //trace2 base
-    
-    let slot_bytes = Bytes::from_hex(slot).unwrap().0;
-    let slot_vec = slot_bytes.to_vec();
-    let keccak256_storage_key = keccak256(&slot_vec);      
-    println!("keccak256_storage_key: {:?}", hex::encode(&keccak256_storage_key));
-    // let s_key = Node::<HashImpl>::hash_bytes(key).map_err(|e: raw::ImplError| e.to_string())?;
-    // slot_vec.reverse();
-    let hash = ZkTrieNode::caculate_hash(&slot_vec);
-    println!("slot.hash: {:?}", hash.encode_hex_with_prefix());
-
-    // let data =
-    // "0x092d3daf332cd7de6ab5b3c6a35a4b5cce72f3d27a06651eb978fd9388f01269e806fcbf20a7b857bd27beed745f7a8d78d88e5296073cd03f10374152757dc520"
-    // ;
-    // let data ="0x040883d4562dfe8ba7ad8176bc2844d35ecc486199d589a152eabcee8398f3aebb05080000000000000000000000000000000000000000000000000aec000000000000000000000000000000000000000000000000000000000000000000000000000000002210b66a78475855b4b7ce7919e4a755b8bd1db84d0bcb2080d24d08923fc51444107d7c70e67e04d35d77455d5755c94d4897196e4ea9a341c1a6d864a6d4d518d32c9790b7656cb1991e831f76e6d65151cbd1c05aef8cfa7d369ad2076f84205300000000000000000000000000000000000021000000000000000000000000";
-    let data = "0x040aa21e0431b54bcb95ffe603681684b4e243ffa1b430a687f471298b5c5460260101000000000000000000000000000000000000000000000000000000000000000000012035fc5993f6158720375840ee7e788ea393d23dd7e7b4b98143d0d76537902793";
-    // let s = data.trim_start_matches("0x").trim_start_matches("0X");
-
-    let proof = Bytes::from_hex(data).unwrap().0;
-    let proof = proof.to_vec();
-    // proof.reverse();
-    // let bytes = n.to_be_bytes(); // [0x09, 0x2d]
-
-    let n = ZkTrieNode::parse(proof.as_ref()).unwrap();
-    println!("node.node_hash: {:?}", n.node_hash().encode_hex_with_prefix());
-    println!("node.value_hash: {:?}", n.value_hash().unwrap().encode_hex_with_prefix());
-    println!("node.node_key: {:?}", n.node_key().encode_hex_with_prefix());
-
-    let value = n.value();
-    // println!("node.value: {:?}", value);
-    println!("node.value_hex: {:?}", hex::encode(&value));
-}
-
-#[test]
-fn test_keccak256_node() {
-    let slot = "0xf6fe0582e0e323a551f456b66350a1ed549948a34fdd35be011d229e00171c1f";
-    let storage_key = keccak256(&Bytes::from_hex(slot).unwrap());
-    println!("--storage_key_hex: {:?}", hex::encode(&storage_key));
-}
 /// Utility trait for transaction trace
 pub trait TxTrace {
     /// Return the hash of the transaction

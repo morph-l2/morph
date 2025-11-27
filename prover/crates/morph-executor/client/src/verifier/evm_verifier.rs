@@ -30,14 +30,6 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
         .hardfork_config(fork_config)
         .build(&traces[0])?;
 
-    // let db = executor.db();
-    // let to_balance = db
-    //     .load_account(Address::from_str("0x70997970c51812dc3a010c7d01b50e0d17dc79c8").unwrap())
-    //     .unwrap()
-    //     .info
-    //     .balance;
-    // println!("executor brfore, to_balance: {:?}", to_balance);
-
     let amount_from = executor.get_storage_value(
         Address::from_str("0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9").unwrap(),
         U256::from_str("0x9c35da83f88043b3115f30d93beacec49ca14b6238430bdff196a249c29baa80")

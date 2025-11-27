@@ -1,11 +1,7 @@
 /// Use alt token for tx fee.
 use alloy::{
-    consensus::{EncodableSignature, SignableTransaction, Signed, Transaction, TxType},
-    eips::{
-        eip2718::{Decodable2718, Encodable2718},
-        eip2930::AccessList,
-        eip7702::SignedAuthorization,
-    },
+    consensus::{EncodableSignature, SignableTransaction, Signed, Transaction},
+    eips::{eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization},
     primitives::{keccak256, Bytes, ChainId, Signature, TxKind, B256, U256},
     rlp::{BufMut, Decodable, Encodable, Header},
 };

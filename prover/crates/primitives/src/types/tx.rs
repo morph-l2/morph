@@ -619,7 +619,16 @@ impl Decodable for TypedTransaction {
         if buf.is_empty() {
             return Err(alloy::rlp::Error::InputTooShort);
         }
-        Ok(TypedTransaction::Enveloped(TxEnvelope::decode_2718(buf).unwrap()))
+        let tx_type = *buf.first().unwrap_or(&0u8);
+        match tx_type {
+            0x7f => {
+                return Ok(TypedTransaction::AltFee(
+                    TxAltFee::decode_signed_fields(&mut &buf[1..])
+                        .map_err(|_| alloy::rlp::Error::Custom("decode TxAltFee error"))?,
+                ))
+            }
+            _ => return Ok(TypedTransaction::Enveloped(TxEnvelope::decode_2718(buf).unwrap())),
+        };
     }
 }
 
