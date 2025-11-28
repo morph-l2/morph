@@ -108,6 +108,7 @@ pub struct TransactionTrace {
     /// authorization list
     #[serde(rename = "authorizationList")]
     #[serde_as(as = "DefaultOnNull")]
+    #[serde(default)]
     pub(crate) authorization_list: AuthorizationList,
     /// signature v
     pub(crate) v: U64,
