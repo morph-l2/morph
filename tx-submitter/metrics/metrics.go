@@ -12,20 +12,21 @@ import (
 
 // Metrics represents the metrics collection for the tx-submitter
 type Metrics struct {
-	WalletBalance         prometheus.Gauge
-	RpcErrors             prometheus.Counter
-	RollupCostSum         prometheus.Gauge
-	FinalizeCostSum       prometheus.Gauge
-	RollupCost            prometheus.Gauge
-	FinalizeCost          prometheus.Gauge
-	CollectedL1FeeSum     prometheus.Gauge
-	IndexerBlockProcessed prometheus.Gauge
-	LastCommittedBatch    prometheus.Gauge
-	LastFinalizedBatch    prometheus.Gauge
-	reorgs                prometheus.Counter
-	reorgDepthVal         uint64
-	reorgCountVal         uint64
-	confirmedTxs          *prometheus.CounterVec
+	WalletBalance           prometheus.Gauge
+	RpcErrors               prometheus.Counter
+	RollupCostSum           prometheus.Gauge
+	FinalizeCostSum         prometheus.Gauge
+	RollupCost              prometheus.Gauge
+	FinalizeCost            prometheus.Gauge
+	CollectedL1FeeSum       prometheus.Gauge
+	IndexerBlockProcessed   prometheus.Gauge
+	LastCommittedBatch      prometheus.Gauge
+	LastFinalizedBatch      prometheus.Gauge
+	HasPendingFinalizeBatch prometheus.Gauge
+	reorgs                  prometheus.Counter
+	reorgDepthVal           uint64
+	reorgCountVal           uint64
+	confirmedTxs            *prometheus.CounterVec
 }
 
 // NewMetrics creates a new Metrics instance
@@ -71,6 +72,10 @@ func NewMetrics() *Metrics {
 			Name: "tx_submitter_last_finalized_batch",
 			Help: "Latest batch finalized by the submitter",
 		}),
+		HasPendingFinalizeBatch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "tx_submitter_has_pending_finalize_batch",
+			Help: "Whether there are batches pending finalization (1 = yes, 0 = no)",
+		}),
 		reorgs: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "tx_submitter_reorgs_total",
 			Help: "Total number of chain reorganizations detected",
@@ -96,6 +101,7 @@ func NewMetrics() *Metrics {
 	_ = prometheus.Register(m.IndexerBlockProcessed)
 	_ = prometheus.Register(m.LastCommittedBatch)
 	_ = prometheus.Register(m.LastFinalizedBatch)
+	_ = prometheus.Register(m.HasPendingFinalizeBatch)
 	_ = prometheus.Register(m.reorgs)
 	_ = prometheus.Register(m.confirmedTxs)
 
@@ -142,6 +148,16 @@ func (m *Metrics) SetLastCommittedBatch(index uint64) {
 // SetLastFinalizedBatch sets the last finalized batch index metric
 func (m *Metrics) SetLastFinalizedBatch(index uint64) {
 	m.LastFinalizedBatch.Set(float64(index))
+}
+
+// SetHasPendingFinalizeBatch sets whether there are batches pending finalization
+// hasPending should be true if there are pending batches, false otherwise
+func (m *Metrics) SetHasPendingFinalizeBatch(hasPending bool) {
+	if hasPending {
+		m.HasPendingFinalizeBatch.Set(1)
+	} else {
+		m.HasPendingFinalizeBatch.Set(0)
+	}
 }
 
 // IncReorgs increments the reorg counter
@@ -192,6 +208,7 @@ func (m *Metrics) UnregisterMetrics() {
 	prometheus.Unregister(m.IndexerBlockProcessed)
 	prometheus.Unregister(m.LastCommittedBatch)
 	prometheus.Unregister(m.LastFinalizedBatch)
+	prometheus.Unregister(m.HasPendingFinalizeBatch)
 	prometheus.Unregister(m.reorgs)
 	prometheus.Unregister(m.confirmedTxs)
 }
