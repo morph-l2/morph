@@ -71,7 +71,7 @@ where
 
         // Batch should not have been verified yet.
         if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(true) {
-            log::debug!("batch of {:?} already prove state successful", batch_info.batch_index);
+            log::info!("batch of {:?} already prove state successful", batch_info.batch_index);
             return Ok(None);
         };
 
@@ -208,7 +208,7 @@ where
             None => return Err(String::from("batch_blocks_inspect none")),
         };
 
-    if blocks.0 <= blocks.1 {
+    if blocks.0 >= blocks.1 {
         return Err(String::from("blocks is empty"));
     }
 
@@ -228,11 +228,11 @@ where
     // A rollup commit_batch_input contains prev batch_header.
     let next_tx_hash = match logs.last() {
         Some(log) => log.transaction_hash.unwrap_or_default(),
-
         None => {
             return Err("find commit_batch log error".to_string());
         }
     };
+
     let batch_header = batch_header_inspect(l1_provider, next_tx_hash)
         .await
         .ok_or_else(|| "Failed to inspect batch header".to_string())?;

@@ -110,6 +110,10 @@ async fn handle_with_prover<T, P, N>(
 
         // Query existing proof
         if let Some(prove_result) = query_proof(batch_index).await {
+            if !prove_result.error_code.is_empty() {
+                log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
+                break;
+            }
             if !prove_result.proof_data.is_empty() {
                 log::info!("query proof and prove state: {:?}", batch_index);
                 prove_state(batch_index, l1_shadow_rollup).await;
@@ -160,6 +164,10 @@ async fn handle_with_prover<T, P, N>(
             max_waiting_time -= 300; // Query results every 5 minutes.
             match query_proof(batch_index).await {
                 Some(prove_result) => {
+                    if !prove_result.error_code.is_empty() {
+                        log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
+                        return;
+                    }
                     log::debug!("query proof and prove state: {:#?}", batch_index);
                     if !prove_result.proof_data.is_empty() {
                         prove_state(batch_index, l1_shadow_rollup).await;

@@ -107,6 +107,7 @@ pub struct TransactionTrace {
     pub(crate) access_list: AccessList,
     /// authorization list
     #[serde(rename = "authorizationList")]
+    #[serde(default)]
     #[serde_as(as = "DefaultOnNull")]
     pub(crate) authorization_list: AuthorizationList,
     /// signature v
@@ -557,15 +558,33 @@ impl Decodable for TypedTransaction {
 mod tests {
     use super::*;
 
-    const TRACE: &str = include_str!("../../../../testdata/dev.json");
+    const TRACE: &str = include_str!("../../../../testdata/mainnet_batch_traces.json");
+    const TRACE_7702: &str = include_str!("../../../../testdata/viridian/eip7702_traces.json");
+
 
     #[test]
     fn test_transaction_trace_deserialize() {
-        let trace = serde_json::from_str::<serde_json::Value>(TRACE).unwrap()["result"].clone();
-        let txs = trace["transactions"].clone();
+        let trace = serde_json::from_str::<serde_json::Value>(TRACE).unwrap().clone();
+        let txs = trace[0][1]["transactions"].clone();
         for tx in txs.as_array().unwrap() {
-            let tx: TransactionTrace = serde_json::from_value(tx.clone()).unwrap();
-            let _ = tx.try_build_typed_tx().unwrap();
+            let tx_trace: TransactionTrace = serde_json::from_value(tx.clone()).unwrap();
+            println!("tx_trace.data: {:?}", tx_trace.data());
+            let typed_tx = tx_trace.try_build_typed_tx().unwrap();
+            println!("typed_tx.data: {:?}", typed_tx.data());        }
+    }
+
+    #[test]
+    fn test_transaction_7702_trace_deserialize() {
+        println!("TRACE.len(): {:?}", TRACE_7702.len());
+        let trace = serde_json::from_str::<serde_json::Value>(TRACE_7702).unwrap().clone();
+
+        let txs = trace[0][0]["transactions"].clone();
+        for tx in txs.as_array().unwrap() {
+            let tx_trace: TransactionTrace = serde_json::from_value(tx.clone()).unwrap();
+            println!("tx_trace.authorization_list: {:?}", tx_trace.authorization_list());
+            let typed_tx = tx_trace.try_build_typed_tx().unwrap();
+            println!("typed_tx.authorization_list: {:?}", typed_tx.authorization_list());
         }
     }
+    
 }
