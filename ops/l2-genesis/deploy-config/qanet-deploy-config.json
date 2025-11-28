@@ -25,6 +25,7 @@
   "recordNextBatchSubmissionIndex": 1,
   "morph203Time": 0,
   "viridianTime": 0,
+  "emeraldTime": 0,
   "morphTokenName": "Morph Token",
   "morphTokenSymbol": "Morph",
   "morphTokenOwner": "0x716173f5BBE0b4B51AaDF5A5840fA9A79D01636E",

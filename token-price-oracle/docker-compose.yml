@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  token-price-oracle:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: morph-token-price-oracle
+    restart: unless-stopped
+    environment:
+      # L2 RPC endpoint
+      TOKEN_PRICE_ORACLE_L2_ETH_RPC: ${TOKEN_PRICE_ORACLE_L2_ETH_RPC:-http://host.docker.internal:8545}
+      
+      # Private key for signing transactions
+      TOKEN_PRICE_ORACLE_PRIVATE_KEY: ${TOKEN_PRICE_ORACLE_PRIVATE_KEY}
+      
+      # Price update configuration
+      TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL: ${TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL:-30s}
+      TOKEN_PRICE_ORACLE_PRICE_THRESHOLD: ${TOKEN_PRICE_ORACLE_PRICE_THRESHOLD:-5}  # percentage (%)
+      
+      # Price feed configuration
+      TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY: ${TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY:-bitget}
+      TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET: ${TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET}
+      TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BINANCE: ${TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BINANCE}
+      
+      # Token IDs to monitor (optional, will fetch from contract if not set)
+      TOKEN_PRICE_ORACLE_TOKEN_IDS: ${TOKEN_PRICE_ORACLE_TOKEN_IDS}
+      
+      # Metrics server
+      TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE: ${TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE:-true}
+      TOKEN_PRICE_ORACLE_METRICS_HOSTNAME: ${TOKEN_PRICE_ORACLE_METRICS_HOSTNAME:-0.0.0.0}
+      TOKEN_PRICE_ORACLE_METRICS_PORT: ${TOKEN_PRICE_ORACLE_METRICS_PORT:-6060}
+      
+      # Logging
+      TOKEN_PRICE_ORACLE_LOG_LEVEL: ${TOKEN_PRICE_ORACLE_LOG_LEVEL:-info}
+    ports:
+      - "${METRICS_PORT:-6060}:6060"  # Metrics endpoint
+    volumes:
+      - oracle-logs:/data/logs/morph-gas-oracle
+    networks:
+      - morph-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  oracle-logs:
+    driver: local
+
+networks:
+  morph-network:
+    driver: bridge

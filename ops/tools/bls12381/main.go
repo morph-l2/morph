@@ -77,14 +77,14 @@ func main() {
 	var costGas uint64
 
 	// hashToG1Curve
-	bls12381MapG1 := vm.PrecompiledContractsBLS[common.BytesToAddress([]byte{17})]
+	bls12381MapG1 := vm.PrecompiledContractsEmerald[common.BytesToAddress([]byte{17})]
 	messagePointOnCurveBz, err := bls12381MapG1.Run(messageInput)
 	if err != nil {
 		panic(err)
 	}
 	costGas += bls12381MapG1.RequiredGas(messageInput)
 
-	bls12381Pairing := vm.PrecompiledContractsBLS[common.BytesToAddress([]byte{16})]
+	bls12381Pairing := vm.PrecompiledContractsEmerald[common.BytesToAddress([]byte{16})]
 	// left side add pair, message(point on g1) & public key(point on g2)
 	byteRaw := blssignatures.PublicKeyToBytes(aggPubKeys)
 	fmt.Println("aggPubKeys length: ", len(byteRaw))

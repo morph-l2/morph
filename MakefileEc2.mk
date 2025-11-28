@@ -22,7 +22,7 @@ build-bk-prod-morph-prod-mainnet-to-morph-tx-submitter:
 	tar -czvf tx-submitter.tar.gz dist
 	aws s3 cp tx-submitter.tar.gz s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/tx-submitter.tar.gz
 
-
+# build for qanet
 build-bk-test-morph-test-qanet-to-morph-node-qanet:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	cd $(PWD)/node && make build
@@ -37,7 +37,6 @@ build-bk-test-morph-test-qanet-to-morph-tx-submitter-qanet:
 	cp tx-submitter/tx-submitter dist/
 	tar -czvf tx-submitter.tar.gz dist
 	aws s3 cp tx-submitter.tar.gz s3://morph-7637-morph-technical-department-qanet-data/morph-setup/tx-submitter.tar.gz
-  
   
  # build for hoodi
 build-bk-prod-morph-prod-testnet-to-morph-node-hoodi:
@@ -54,4 +53,3 @@ build-bk-prod-morph-prod-testnet-to-morph-tx-submitter-hoodi:
 	cp tx-submitter/tx-submitter dist/
 	tar -czvf tx-submitter.tar.gz dist
 	aws s3 cp tx-submitter.tar.gz s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/tx-submitter.tar.gz
-

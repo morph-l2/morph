@@ -27,6 +27,7 @@
   "morphTokenDailyInflationRate": 1,
   "morph203Time": 0,
   "viridianTime": 0,
+  "emeraldTime": 0,
   "l2StakingSequencerMaxSize": 4,
   "l2StakingUnDelegatedLockEpochs": 2,
   "l2StakingRewardStartTime": 1728000000,
