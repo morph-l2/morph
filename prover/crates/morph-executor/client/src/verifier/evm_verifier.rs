@@ -35,14 +35,12 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
         U256::from_str("0x9c35da83f88043b3115f30d93beacec49ca14b6238430bdff196a249c29baa80")
             .unwrap(),
     );
-    println!("executor brfore, amount_from: {:?}", amount_from);
 
     let amount_to = executor.get_storage_value(
         Address::from_str("0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9").unwrap(),
         U256::from_str("0x8c37336c8eae88ad7bbf871a6a05192bff663bf13ee0773449221a2afccbd95a")
             .unwrap(),
     );
-    println!("executor brfore, amount_to: {:?}", amount_to);
 
     #[allow(clippy::map_identity)]
     #[allow(clippy::manual_inspect)]
@@ -54,20 +52,6 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
 
     let trace_root_after = batch_info.post_state_root();
     let revm_root_after = executor.commit_changes(&zktrie_db);
-
-    let amount_from = executor.get_storage_value(
-        Address::from_str("0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9").unwrap(),
-        U256::from_str("0x9c35da83f88043b3115f30d93beacec49ca14b6238430bdff196a249c29baa80")
-            .unwrap(),
-    );
-    println!("executor deduct_caller_with_erc20, amount_from: {:?}", amount_from);
-
-    let amount_to = executor.get_storage_value(
-        Address::from_str("0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9").unwrap(),
-        U256::from_str("0x8c37336c8eae88ad7bbf871a6a05192bff663bf13ee0773449221a2afccbd95a")
-            .unwrap(),
-    );
-    println!("executor deduct_caller_with_erc20, amount_to: {:?}", amount_to);
 
     if revm_root_after != batch_info.post_state_root() {
         dev_error!(
