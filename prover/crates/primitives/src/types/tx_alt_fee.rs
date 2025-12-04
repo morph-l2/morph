@@ -68,7 +68,7 @@ pub struct TxAltFee {
     /// For AltFeeType
     pub fee_token_id: u16,
     /// For AltFeeType
-    pub fee_limit: u64,
+    pub fee_limit: U256,
 }
 
 impl TxAltFee {

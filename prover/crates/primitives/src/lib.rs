@@ -198,7 +198,7 @@ pub trait TxTrace {
     fn fee_token_id(&self) -> u16;
 
     /// Get `fee_limit`.
-    fn fee_limit(&self) -> u64;
+    fn fee_limit(&self) -> U256;
 
     /// Try to build a typed transaction
     fn try_build_typed_tx(&self) -> Result<TypedTransaction, SignatureError> {
@@ -428,7 +428,7 @@ impl<T: TxTrace> TxTrace for &T {
         (*self).fee_token_id()
     }
 
-    fn fee_limit(&self) -> u64 {
+    fn fee_limit(&self) -> U256 {
         (*self).fee_limit()
     }
 }

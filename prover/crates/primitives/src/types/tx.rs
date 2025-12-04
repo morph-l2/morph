@@ -120,7 +120,7 @@ pub struct TransactionTrace {
     pub(crate) fee_token_id: Option<u16>,
     /// For AltFeeType
     #[serde(rename = "feeLimit")]
-    pub(crate) fee_limit: Option<U64>,
+    pub(crate) fee_limit: Option<U256>,
     /// signature v
     pub(crate) v: U64,
     /// signature r
@@ -199,7 +199,7 @@ impl TxTrace for TransactionTrace {
         self.fee_token_id.unwrap_or_default()
     }
 
-    fn fee_limit(&self) -> u64 {
+    fn fee_limit(&self) -> U256 {
         self.fee_limit.unwrap_or_default().to()
     }
 }
@@ -280,8 +280,8 @@ impl TxTrace for ArchivedTransactionTrace {
         self.fee_token_id.unwrap_or(0)
     }
 
-    fn fee_limit(&self) -> u64 {
-        self.fee_limit.unwrap_or(U64::default()).to()
+    fn fee_limit(&self) -> U256 {
+        self.fee_limit.unwrap_or(U256::default())
     }
 }
 
@@ -604,7 +604,7 @@ impl TypedTransaction {
     }
 
     /// Returns the fee limit if this is an AltFee transaction, otherwise None.
-    pub fn fee_limit(&self) -> Option<u64> {
+    pub fn fee_limit(&self) -> Option<U256> {
         match self {
             TypedTransaction::Enveloped(_) => None,
             TypedTransaction::L1Msg(_) => None,
