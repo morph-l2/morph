@@ -290,7 +290,7 @@ pub trait TxTrace {
                     fee_token_id: self.fee_token_id(),
                     fee_limit: self.fee_limit(),
                 };
-                println!("tx.self.fee_token_id(): {:?}", self.fee_token_id());
+                println!("tx.self.fee_token_id: {:?}", self.fee_token_id());
                 TypedTransaction::AltFee(tx.into_signed(self.signature()?))
             }
             _ => unimplemented!("unsupported tx type: {}", self.ty()),

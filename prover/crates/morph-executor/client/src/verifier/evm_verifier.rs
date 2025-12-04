@@ -30,18 +30,6 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
         .hardfork_config(fork_config)
         .build(&traces[0])?;
 
-    let amount_from = executor.get_storage_value(
-        Address::from_str("0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9").unwrap(),
-        U256::from_str("0x9c35da83f88043b3115f30d93beacec49ca14b6238430bdff196a249c29baa80")
-            .unwrap(),
-    );
-
-    let amount_to = executor.get_storage_value(
-        Address::from_str("0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9").unwrap(),
-        U256::from_str("0x8c37336c8eae88ad7bbf871a6a05192bff663bf13ee0773449221a2afccbd95a")
-            .unwrap(),
-    );
-
     #[allow(clippy::map_identity)]
     #[allow(clippy::manual_inspect)]
     executor.handle_block(&traces[0])?;
