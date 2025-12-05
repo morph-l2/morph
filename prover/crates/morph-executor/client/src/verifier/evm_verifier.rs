@@ -29,6 +29,7 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
     let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
         .hardfork_config(fork_config)
         .build(&traces[0])?;
+
     #[allow(clippy::map_identity)]
     #[allow(clippy::manual_inspect)]
     executor.handle_block(&traces[0])?;
@@ -39,6 +40,7 @@ fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
 
     let trace_root_after = batch_info.post_state_root();
     let revm_root_after = executor.commit_changes(&zktrie_db);
+
     if revm_root_after != batch_info.post_state_root() {
         dev_error!(
             "root mismatch: root after in trace = {trace_root_after:x}, root after in revm = {revm_root_after:x}"

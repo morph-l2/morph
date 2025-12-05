@@ -1,4 +1,4 @@
-use crate::{metrics::METRICS, util::read_env_var, BatchInfo};
+use crate::{metrics::METRICS, BatchInfo};
 use alloy::{
     consensus::Transaction,
     network::{Network, ReceiptResponse},
@@ -47,30 +47,14 @@ where
     /**
      * Sync a latest batch to l1-shadow-rollup.
      */
-    pub async fn sync_batch(&self) -> Result<Option<BatchInfo>, anyhow::Error> {
+    pub async fn sync_batch(
+        &self,
+        batch_info: BatchInfo,
+        batch_header: Bytes,
+    ) -> Result<Option<BatchInfo>, anyhow::Error> {
         log::info!("start sync_batch...");
-
-        let latest = self.l1_provider.get_block_number().await?;
-
-        // Fetch a commited batch on l1 rollup.
-        let (batch_info, batch_header) = match get_committed_batch(
-            U64::from(latest),
-            &self.l1_rollup,
-            &self.l1_provider,
-            &self.l2_provider,
-        )
-        .await
-        {
-            Ok(Some(committed_batch)) => committed_batch,
-            Ok(None) => return Ok(None),
-            Err(msg) => {
-                log::error!("get_committed_batch error: {:?}", msg);
-                return Ok(None);
-            }
-        };
-
         // Batch should not have been verified yet.
-        if is_prove_success(batch_info.batch_index, &self.l1_shadow_rollup).await.unwrap_or(true) {
+        if self.is_prove_success(batch_info.batch_index).await.unwrap_or(true) {
             log::debug!("batch of {:?} already prove state successful", batch_info.batch_index);
             return Ok(None);
         };
@@ -155,90 +139,141 @@ where
         log::info!(">Sync shadow batch complete: {:#?}", batch_info.batch_index);
         Ok(Some(batch_info))
     }
-}
 
-async fn get_committed_batch<T, P, N>(
-    latest: U64,
-    l1_rollup: &RollupInstance<T, P, N>,
-    l1_provider: &RootProvider<Http<Client>>,
-    l2_provider: &RootProvider<Http<Client>>,
-) -> Result<Option<(BatchInfo, Bytes)>, String>
-where
-    P: Provider<T, N> + Clone,
-    T: Transport + Clone,
-    N: Network,
-{
-    log::info!("latest l1 blocknum = {:#?}", latest);
-    let start = if latest > U64::from(600) { latest - U64::from(600) } else { U64::from(1) };
-    let filter =
-        l1_rollup.CommitBatch_filter().filter.from_block(start).address(*l1_rollup.address());
-    let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
-        Ok(logs) => logs,
-        Err(e) => {
-            log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
-            return Err("l1_rollup.commit_batch.get_logs provider error".to_string());
-        }
-    };
-    if logs.is_empty() {
-        log::warn!("There have been no commit_batch logs for the last 600 blocks");
-        return Ok(None);
-    }
-    if logs.len() < 3 {
-        log::warn!("No enough commit_batch logs for the last 600 blocks");
-        return Ok(None);
-    }
-    logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
+    pub async fn get_committed_batch(&self) -> Result<Option<(BatchInfo, Bytes)>, String> {
+        let latest = match self.l1_provider.get_block_number().await {
+            Ok(v) => U64::from(v),
+            Err(e) => {
+                log::error!("l1_provider.get_block_number error: {:?}", e);
+                return Err("l1_provider.get_block_number error".to_string());
+            }
+        };
 
-    let batch_index = match logs.get(logs.len() - 2) {
-        Some(log) => {
-            let _index = U256::from_be_slice(log.topics()[1].as_slice());
-            _index.to::<u64>()
+        log::info!("latest l1 blocknum = {:#?}", latest);
+        let start = if latest > U64::from(600) { latest - U64::from(600) } else { U64::from(1) };
+        let filter = self
+            .l1_rollup
+            .CommitBatch_filter()
+            .filter
+            .from_block(start)
+            .address(*self.l1_rollup.address());
+        let mut logs: Vec<Log> = match self.l1_provider.get_logs(&filter).await {
+            Ok(logs) => logs,
+            Err(e) => {
+                log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
+                return Err("l1_rollup.commit_batch.get_logs provider error".to_string());
+            }
+        };
+        if logs.is_empty() {
+            log::warn!("There have been no commit_batch logs for the last 600 blocks");
+            return Ok(None);
         }
-        None => {
-            return Err("find commit_batch log error".to_string());
+        if logs.len() < 3 {
+            log::warn!("No enough commit_batch logs for the last 600 blocks");
+            return Ok(None);
         }
-    };
+        logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
 
-    if batch_index == 0 {
-        return Err(String::from("batch_index is 0"));
-    }
-    let (blocks, total_txn_count) =
-        match batch_blocks_inspect(l1_rollup, l2_provider, batch_index).await {
+        let batch_index = match logs.get(logs.len() - 2) {
+            Some(log) => {
+                let _index = U256::from_be_slice(log.topics()[1].as_slice());
+                _index.to::<u64>()
+            }
+            None => {
+                return Err("find commit_batch log error".to_string());
+            }
+        };
+
+        if batch_index == 0 {
+            return Err(String::from("batch_index is 0"));
+        }
+        let (blocks, total_txn_count) = match self.batch_blocks_inspect(batch_index).await {
             Some(block_txn) => block_txn,
             None => return Err(String::from("batch_blocks_inspect none")),
         };
 
-    if blocks.0 <= blocks.1 {
-        return Err(String::from("blocks is empty"));
-    }
-
-    if blocks.1 - blocks.0 + 1 > read_env_var("SHADOW_PROVING_MAX_BLOCK", 300) {
-        log::warn!("Too many blocks in the latest batch to shadow prove");
-        return Ok(None);
-    }
-
-    if total_txn_count > read_env_var("SHADOW_PROVING_MAX_TXN", 600) {
-        log::warn!("Too many txn in the latest batch to shadow prove");
-        return Ok(None);
-    }
-
-    let batch_info: BatchInfo =
-        BatchInfo { batch_index, start_block: blocks.0, end_block: blocks.1 };
-
-    // A rollup commit_batch_input contains prev batch_header.
-    let next_tx_hash = match logs.last() {
-        Some(log) => log.transaction_hash.unwrap_or_default(),
-
-        None => {
-            return Err("find commit_batch log error".to_string());
+        if blocks.0 <= blocks.1 {
+            return Err(String::from("blocks is empty"));
         }
-    };
-    let batch_header = batch_header_inspect(l1_provider, next_tx_hash)
-        .await
-        .ok_or_else(|| "Failed to inspect batch header".to_string())?;
 
-    log::info!("Found the committed batch, batch index = {:#?}", batch_index);
-    Ok(Some((batch_info, batch_header)))
+        let batch_info: BatchInfo = BatchInfo {
+            batch_index,
+            start_block: blocks.0,
+            end_block: blocks.1,
+            total_txn: total_txn_count,
+        };
+
+        // A rollup commit_batch_input contains prev batch_header.
+        let next_tx_hash = match logs.last() {
+            Some(log) => log.transaction_hash.unwrap_or_default(),
+
+            None => {
+                return Err("find commit_batch log error".to_string());
+            }
+        };
+        let batch_header = batch_header_inspect(&self.l1_provider, next_tx_hash)
+            .await
+            .ok_or_else(|| "Failed to inspect batch header".to_string())?;
+
+        log::info!("Found the committed batch, batch index = {:#?}", batch_index);
+        Ok(Some((batch_info, batch_header)))
+    }
+
+    async fn batch_blocks_inspect(&self, batch_index: u64) -> Option<((u64, u64), u64)> {
+        let prev_bn = match self.l1_rollup.batchDataStore(U256::from(batch_index - 1)).call().await
+        {
+            Ok(s) => s.blockNumber.to::<u64>(),
+            Err(e) => {
+                log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+                return None;
+            }
+        };
+
+        let current_bn = match self.l1_rollup.batchDataStore(U256::from(batch_index)).call().await {
+            Ok(s) => s.blockNumber.to::<u64>(),
+            Err(e) => {
+                log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+                return None;
+            }
+        };
+
+        let mut total_tx_count: u64 = 0;
+        for i in prev_bn + 1..current_bn + 1 {
+            total_tx_count += self
+                .l2_provider
+                .get_block_transaction_count_by_number(i.into())
+                .await
+                .unwrap_or_default()
+                .unwrap_or_default();
+        }
+
+        log::info!(
+            "decode_blocks, blocks_len: {:#?}, start_block: {:#?}, txn_in_batch: {:?}",
+            current_bn - prev_bn,
+            prev_bn + 1,
+            total_tx_count
+        );
+
+        METRICS.shadow_txn_len.set(total_tx_count as i64);
+
+        Some(((prev_bn + 1, current_bn), total_tx_count))
+    }
+
+    async fn is_prove_success(&self, batch_index: u64) -> Option<bool> {
+        let is_prove_success: bool =
+            match self.l1_shadow_rollup.isProveSuccess(U256::from(batch_index)).call().await {
+                Ok(x) => x._0,
+                Err(e) => {
+                    log::info!(
+                        "query l1_shadow_rollup.is_prove_success error, batch index = {:#?}, {:#?}",
+                        batch_index,
+                        e
+                    );
+                    return None;
+                }
+            };
+        Some(is_prove_success)
+    }
 }
 
 pub async fn batch_header_inspect(
@@ -274,77 +309,6 @@ pub async fn batch_header_inspect(
     };
     let parent_batch_header: Bytes = param.batchDataInput.parentBatchHeader;
     Some(parent_batch_header)
-}
-
-async fn batch_blocks_inspect<T, P, N>(
-    l1_rollup: &RollupInstance<T, P, N>,
-    l2_provider: &RootProvider<Http<Client>>,
-    batch_index: u64,
-) -> Option<((u64, u64), u64)>
-where
-    P: Provider<T, N> + Clone,
-    T: Transport + Clone,
-    N: Network,
-{
-    let prev_bn = match l1_rollup.batchDataStore(U256::from(batch_index - 1)).call().await {
-        Ok(s) => s.blockNumber.to::<u64>(),
-        Err(e) => {
-            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
-            return None;
-        }
-    };
-
-    let current_bn = match l1_rollup.batchDataStore(U256::from(batch_index)).call().await {
-        Ok(s) => s.blockNumber.to::<u64>(),
-        Err(e) => {
-            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
-            return None;
-        }
-    };
-
-    let mut total_tx_count: u64 = 0;
-    for i in prev_bn + 1..current_bn + 1 {
-        total_tx_count += l2_provider
-            .get_block_transaction_count_by_number(i.into())
-            .await
-            .unwrap_or_default()
-            .unwrap_or_default();
-    }
-
-    log::info!(
-        "decode_blocks, blocks_len: {:#?}, start_block: {:#?}, txn_in_batch: {:?}",
-        current_bn - prev_bn,
-        prev_bn + 1,
-        total_tx_count
-    );
-
-    METRICS.shadow_txn_len.set(total_tx_count as i64);
-
-    Some(((prev_bn + 1, current_bn), total_tx_count))
-}
-
-async fn is_prove_success<T, P, N>(
-    batch_index: u64,
-    l1_rollup: &ShadowRollupInstance<T, P, N>,
-) -> Option<bool>
-where
-    P: Provider<T, N> + Clone,
-    T: Transport + Clone,
-    N: Network,
-{
-    let is_prove_success: bool =
-        match l1_rollup.isProveSuccess(U256::from(batch_index)).call().await {
-            Ok(x) => x._0,
-            Err(e) => {
-                log::info!(
-                    "query l1_shadow_rollup.is_prove_success error, batch index = {:#?}, {:#?}",
-                    batch_index,
-                    e
-                );
-                return None;
-            }
-        };
-    Some(is_prove_success)
 }
 
 #[tokio::test]
@@ -390,7 +354,8 @@ async fn test_sync_batch() {
         l2_provider,
         l1_signer,
     );
-    bs.sync_batch().await.unwrap();
+    let batch = bs.get_committed_batch().await.unwrap().unwrap();
+    bs.sync_batch(batch.0, batch.1).await.unwrap();
 }
 
 #[tokio::test]
