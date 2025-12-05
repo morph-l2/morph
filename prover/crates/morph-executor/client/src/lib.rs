@@ -41,7 +41,7 @@ pub fn verify(input: &ClientInput) -> Result<B256, anyhow::Error> {
 
     // Verify EVM exec.
     println!("cycle-tracker-start: evm-verify");
-    let batch_info = EVMVerifier::verify(&input.l2_traces).unwrap();
+    let batch_info = EVMVerifier::verify(&input.l2_traces)?;
     println!("cycle-tracker-end: evm-verify");
 
     // Calc public input hash.

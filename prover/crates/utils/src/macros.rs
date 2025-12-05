@@ -41,7 +41,7 @@ macro_rules! dev_trace {
     ($($arg:tt)*) => {
         #[cfg(any(feature = "dev", test))]
         {
-            $crate::tracing::trace!($($arg)*);
+            // $crate::tracing::trace!($($arg)*);
         }
     };
 }
@@ -52,7 +52,7 @@ macro_rules! dev_info {
     ($($arg:tt)*) => {
         #[cfg(any(feature = "dev", test))]
         {
-            $crate::tracing::info!($($arg)*);
+            // $crate::tracing::info!($($arg)*);
         }
     };
 }
@@ -63,7 +63,7 @@ macro_rules! dev_error {
     ($($arg:tt)*) => {
         #[cfg(any(feature = "dev", test))]
         {
-            $crate::tracing::error!($($arg)*);
+            // $crate::tracing::error!($($arg)*);
         }
     };
 }
@@ -74,7 +74,7 @@ macro_rules! dev_debug {
     ($($arg:tt)*) => {
         #[cfg(any(feature = "dev", test))]
         {
-            $crate::tracing::debug!($($arg)*);
+            // $crate::tracing::debug!($($arg)*);
         }
     };
 }
@@ -85,7 +85,7 @@ macro_rules! dev_warn {
     ($($arg:tt)*) => {
         #[cfg(any(feature = "dev", test))]
         {
-            $crate::tracing::warn!($($arg)*);
+            // $crate::tracing::warn!($($arg)*);
         }
     };
 }

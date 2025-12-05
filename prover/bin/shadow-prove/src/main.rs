@@ -13,10 +13,12 @@ use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, Writ
 use log::Record;
 use prometheus::{Encoder, TextEncoder};
 use shadow_proving::{
+    execute::exceut_batch,
     metrics::{METRICS, REGISTRY},
     shadow_prove::ShadowProver,
     shadow_rollup::BatchSyncer,
     util::{read_env_var, read_parse_env},
+    SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
 
 use tokio::time::sleep;
@@ -28,6 +30,9 @@ async fn main() {
     dotenv().ok();
     setup_logging();
     log::info!("Starting shadow proving...");
+    log::info!("Loading with env SHADOW_PROVING_MAX_BLOCK: {}", *SHADOW_PROVING_MAX_BLOCK);
+    log::info!("Loading with env SHADOW_PROVING_MAX_TXN: {}", *SHADOW_PROVING_MAX_TXN);
+    log::info!("Loading with env SHADOW_PROVING_PROVER_RPC: {}", *SHADOW_PROVING_PROVER_RPC);
 
     // Start metric management.
     metric_mng().await;
@@ -73,8 +78,36 @@ async fn main() {
 
     loop {
         sleep(Duration::from_secs(12)).await;
+        // Get committed batch
+        let (batch_info, batch_header) = match batch_syncer.get_committed_batch().await {
+            Ok(Some(committed_batch)) => committed_batch,
+            Ok(None) => continue,
+            Err(e) => {
+                log::error!("get_committed_batch error: {:?}", e);
+                continue
+            }
+        };
+
+        // Execute batch
+        match exceut_batch(&batch_info).await {
+            Ok(_) => (),
+            Err(e) => {
+                log::error!("exceut_batch error: {:?}", e);
+                continue
+            }
+        }
+
         // Sync & Prove
-        let result = match batch_syncer.sync_batch().await {
+        if batch_info.end_block - batch_info.start_block + 1 > *SHADOW_PROVING_MAX_BLOCK {
+            log::warn!("Too many blocks in the latest batch to shadow prove");
+            continue;
+        }
+
+        if batch_info.total_txn > *SHADOW_PROVING_MAX_TXN {
+            log::warn!("Too many txn in the latest batch to shadow prove");
+            continue;
+        }
+        let result = match batch_syncer.sync_batch(batch_info, batch_header).await {
             Ok(Some(batch)) => shadow_prover.prove(batch).await,
             Ok(None) => Ok(()),
             Err(e) => Err(e),
@@ -266,7 +299,8 @@ async fn test_prove_batch() {
     let rt = shadow_tx.send().await.unwrap();
     println!("commitBatch success: {:?}", rt.tx_hash());
 
-    let batch_info = BatchInfo { batch_index, start_block: 1000001, end_block: 1000002 };
+    let batch_info =
+        BatchInfo { batch_index, start_block: 1000001, end_block: 1000002, total_txn: 100 };
 
     shadow_prover.prove(batch_info).await.unwrap();
 }
