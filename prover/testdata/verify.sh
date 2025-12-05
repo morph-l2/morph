@@ -44,8 +44,9 @@ echo "RPC URL: $RPC_URL"
 echo "Output file: $OUTPUT_FILE"
 echo ""
 
-# Initialize the JSON array
+# Initialize the JSON array with outer and inner array
 echo "[" > "$TEMP_FILE"
+echo "  [" >> "$TEMP_FILE"
 
 FIRST=true
 SUCCESS_COUNT=0
@@ -68,10 +69,8 @@ for ((block=$START_BLOCK; block<=$END_BLOCK; block++)); do
         fi
         FIRST=false
         
-        # Wrap the trace in an array and append to file
-        echo "    [" >> "$TEMP_FILE"
-        echo "        $TRACE" >> "$TEMP_FILE"
-        echo -n "    ]" >> "$TEMP_FILE"
+        # Append the trace directly (without wrapping in individual array)
+        echo -n "    $TRACE" >> "$TEMP_FILE"
         
         echo "✓ Success"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
@@ -81,8 +80,9 @@ for ((block=$START_BLOCK; block<=$END_BLOCK; block++)); do
     fi
 done
 
-# Close the JSON array
+# Close the inner and outer JSON arrays
 echo "" >> "$TEMP_FILE"
+echo "  ]" >> "$TEMP_FILE"
 echo "]" >> "$TEMP_FILE"
 
 # Validate and format JSON
@@ -137,4 +137,3 @@ fi
 echo "================================================"
 
 exit $RUST_EXIT_CODE
-

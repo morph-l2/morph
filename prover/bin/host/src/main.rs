@@ -21,6 +21,7 @@ fn main() {
     let args = Args::parse();
     let traces: &mut Vec<Vec<BlockTrace>> = &mut load_trace(&args.block_path);
     let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
+    println!("block_traces.len: {:?}", block_traces.len());
 
     let _ = prove(block_traces, args.prove).unwrap();
 }
