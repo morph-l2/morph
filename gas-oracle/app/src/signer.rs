@@ -85,13 +85,12 @@ async fn sign_tx(
 
 //Fee estimator
 lazy_static::lazy_static! {
-    static ref PRIORITY_FEE_INCREASE_MULTIPLIER: i32= read_env_var("PRIORITY_FEE_INCREASE_MULTIPLIER", 11);
-    static ref PRIORITY_FEE_INCREASE_DIVISOR: i32= read_env_var("PRIORITY_FEE_INCREASE_DIVISOR", 10);
     static ref EIP1559_FEE_ESTIMATION_MAX_FEE: u64= read_env_var("EIP1559_FEE_ESTIMATION_MAX_FEE", 200_000_000_000);
 }
 
+const PRIORITY_FEE_PER_GAS_WEI: u64 = 1_000_000; // 0.001 Gwei
 fn eip1559_estimator(base_fee_per_gas: U256, _rewards: Vec<Vec<U256>>) -> (U256, U256) {
-    let max_priority_fee_per_gas = U256::from(10u32.pow(6)); //0.001Gwei
+    let max_priority_fee_per_gas = U256::from(PRIORITY_FEE_PER_GAS_WEI);
     let max_fee_per_gas = std::cmp::min(
         U256::from(*EIP1559_FEE_ESTIMATION_MAX_FEE),
         base_fee_per_gas + max_priority_fee_per_gas,
