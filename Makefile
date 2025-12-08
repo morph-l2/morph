@@ -1,6 +1,6 @@
 ################## update dependencies ####################
-ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.0.8
-ETHEREUM_TARGET_VERSION := morph-v2.0.8
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := d085f8c79a53edbd45c4af09f8a8182f1b1d5401
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20251119080508-d085f8c79a53
 TENDERMINT_TARGET_VERSION := v0.3.2
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -147,7 +147,7 @@ devnet-down:
 	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
 .PHONY: devnet-down
 
-devnet-clean-build: devnet-down
+devnet-clean-build: devnet-down devnet-l1-clean
 	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
@@ -162,6 +162,10 @@ devnet-clean: devnet-clean-build
 
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
+
+devnet-l1-clean:
+	@cd ops/docker && ./layer1/scripts/clean.sh
+.PHONY: devnet-l1-clean
 
 devnet-logs:
 	@(cd ops/docker && docker-compose logs -f)
