@@ -553,4 +553,3 @@ impl Decodable for TypedTransaction {
         Ok(TypedTransaction::Enveloped(TxEnvelope::decode_2718(buf).unwrap()))
     }
 }
-

@@ -119,7 +119,7 @@ impl Prover {
 fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
     let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
-    blocks.iter_mut().for_each(|blobk| blobk.flatten());
+    blocks.iter_mut().for_each(|block| block.flatten());
     let verify_result = EVMVerifier::verify(blocks);
 
     if let Ok(batch_info) = verify_result {

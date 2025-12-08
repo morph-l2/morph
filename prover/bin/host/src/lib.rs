@@ -34,7 +34,7 @@ pub fn prove(
 
     // Prepare input.
     // Convert the traces' format to reduce conversion costs in the client.
-    blocks.iter_mut().for_each(|blobk| blobk.flatten());
+    blocks.iter_mut().for_each(|block| block.flatten());
     let client_input =
         ClientInput { l2_traces: blocks.clone(), blob_info: get_blob_info(blocks).unwrap() };
 
