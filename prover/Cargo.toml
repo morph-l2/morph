@@ -105,7 +105,7 @@ morph-prove = { path = "bin/host" }
 
 [workspace.dependencies.revm]
 git = "https://github.com/morph-l2/revm"
-branch = "emerald"
+branch = "release/v42"
 default-features = false
 features = [
     "morph-default-handler",
@@ -116,7 +116,7 @@ features = [
 
 [workspace.dependencies.revm-primitives]
 git = "https://github.com/morph-l2/revm"
-branch = "emerald"
+branch = "release/v42"
 default-features = false
 features = [
     "morph-default-handler",

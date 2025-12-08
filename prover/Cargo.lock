@@ -5282,7 +5282,7 @@ dependencies = [
 [[package]]
 name = "revm"
 version = "14.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=emerald#4c6ffda7b0c425cbf18108547a07a76bbce53833"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#17ddb55b4313d8cf5282dc8dfa3aa7635301953d"
 dependencies = [
  "auto_impl",
  "cfg-if 1.0.0",
@@ -5296,7 +5296,7 @@ dependencies = [
 [[package]]
 name = "revm-interpreter"
 version = "10.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=emerald#4c6ffda7b0c425cbf18108547a07a76bbce53833"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#17ddb55b4313d8cf5282dc8dfa3aa7635301953d"
 dependencies = [
  "cfg-if 1.0.0",
  "revm-primitives",
@@ -5306,7 +5306,7 @@ dependencies = [
 [[package]]
 name = "revm-precompile"
 version = "11.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=emerald#4c6ffda7b0c425cbf18108547a07a76bbce53833"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#17ddb55b4313d8cf5282dc8dfa3aa7635301953d"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -5328,7 +5328,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "9.0.0"
-source = "git+https://github.com/morph-l2/revm?branch=emerald#4c6ffda7b0c425cbf18108547a07a76bbce53833"
+source = "git+https://github.com/morph-l2/revm?branch=release/v42#17ddb55b4313d8cf5282dc8dfa3aa7635301953d"
 dependencies = [
  "alloy-eips",
  "alloy-primitives 0.8.0",
