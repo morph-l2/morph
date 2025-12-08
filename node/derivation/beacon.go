@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/params"
@@ -141,17 +140,6 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref L1BlockRef, h
 	return resp.Data, nil
 }
 
-// GetBlobSidecar fetches blob sidecars that were confirmed in the specified L1 block with the
-// given indexed hashes. Order of the returned sidecars is not guaranteed, and blob data is not
-// checked for validity.
-func (cl *L1BeaconClient) GetBlobSidecar(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
-	blobSidecars, err := cl.GetBlobSidecars(ctx, ref, hashes)
-	if err != nil {
-		return types.BlobTxSidecar{}, fmt.Errorf("%w: failed to get blob sidecars for L1BlockRef %v", err, ref)
-	}
-	return sidecarFromSidecars(blobSidecars, hashes)
-}
-
 func indexFunc(s []*BlobSidecar, f func(blobSidecars *BlobSidecar) bool) int {
 	for i := range s {
 		if f(s[i]) {
@@ -159,43 +147,6 @@ func indexFunc(s []*BlobSidecar, f func(blobSidecars *BlobSidecar) bool) int {
 		}
 	}
 	return -1
-}
-
-func sidecarFromSidecars(blobSidecars []*BlobSidecar, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
-	var blobTxSidecar types.BlobTxSidecar
-	for i, ih := range hashes {
-		// The beacon node api makes no guarantees on order of the returned blob sidecars, so
-		// search for the sidecar that matches the current indexed hash to ensure blobs are
-		// returned in the same order.
-		scIndex := indexFunc(
-			blobSidecars,
-			func(sc *BlobSidecar) bool { return uint64(sc.Index) == ih.Index })
-		if scIndex == -1 {
-			return types.BlobTxSidecar{}, fmt.Errorf("no blob in response matches desired index: %v", ih.Index)
-		}
-		sidecar := blobSidecars[scIndex]
-
-		// make sure the blob's kzg commitment hashes to the expected value
-		hash := KZGToVersionedHash(kzg4844.Commitment(sidecar.KZGCommitment))
-		if hash != ih.Hash {
-			return types.BlobTxSidecar{}, fmt.Errorf("expected hash %s for blob at index %d but got %s", ih.Hash, ih.Index, hash)
-		}
-
-		// confirm blob data is valid by verifying its proof against the commitment
-		var blob Blob
-		b, err := hexutil.Decode(sidecar.Blob)
-		if err != nil {
-			return types.BlobTxSidecar{}, fmt.Errorf("hexutil.Decode(sidecar.Blob) error:%v", err)
-		}
-		copy(blob[:], b)
-		if err := VerifyBlobProof(&blob, kzg4844.Commitment(sidecar.KZGCommitment), kzg4844.Proof(sidecar.KZGProof)); err != nil {
-			return types.BlobTxSidecar{}, fmt.Errorf("%w: blob at index %d failed verification", err, i)
-		}
-		blobTxSidecar.Blobs = append(blobTxSidecar.Blobs, *blob.KZGBlob())
-		blobTxSidecar.Commitments = append(blobTxSidecar.Commitments, kzg4844.Commitment(sidecar.KZGCommitment))
-		blobTxSidecar.Proofs = append(blobTxSidecar.Proofs, kzg4844.Proof(sidecar.KZGProof))
-	}
-	return blobTxSidecar, nil
 }
 
 // IndexedBlobHash represents a blob hash that commits to a single blob confirmed in a block.  The
