@@ -132,7 +132,7 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref L1BlockRef, h
 	}
 	// Some Beacon nodes may ignore the indices parameter and return all sidecars for the slot.
 	// We only need to ensure we have at least the number of sidecars we requested.
-	// The sidecarFromSidecars function will filter and match the correct ones by index.
+	// Callers are responsible for filtering the correct sidecars by index if needed.
 	if len(resp.Data) < len(hashes) {
 		return nil, fmt.Errorf("expected at least %v sidecars but got %v", len(hashes), len(resp.Data))
 	}
