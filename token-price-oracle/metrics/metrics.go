@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -52,6 +53,18 @@ func init() {
 	prometheus.MustRegister(AccountBalance)
 	prometheus.MustRegister(LastSuccessfulUpdateTimestamp)
 	prometheus.MustRegister(UpdatesTotal)
+
+	// Initialize metrics with default values to avoid nil pointer issues in alerting systems
+	// Set initial timestamp to current time (program start time)
+	LastSuccessfulUpdateTimestamp.Set(float64(time.Now().Unix()))
+	// Initialize counter labels to ensure they exist from the start
+	// Must call Add(0) to actually create the metric, WithLabelValues alone doesn't create it
+	UpdatesTotal.WithLabelValues("updated").Add(0)
+	UpdatesTotal.WithLabelValues("skipped").Add(0)
+	// Initialize error counter labels
+	UpdateErrors.WithLabelValues("price").Add(0)
+	// Note: AccountBalance is NOT initialized here to avoid triggering low balance alerts
+	// It will be set with the real value on the first update cycle
 }
 
 // StartMetricsServer starts metrics HTTP server
