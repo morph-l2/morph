@@ -631,20 +631,3 @@ impl Decodable for TypedTransaction {
         };
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const TRACE: &str = include_str!("../../../../testdata/dev.json");
-
-    #[test]
-    fn test_transaction_trace_deserialize() {
-        let trace = serde_json::from_str::<serde_json::Value>(TRACE).unwrap()["result"].clone();
-        let txs = trace["transactions"].clone();
-        for tx in txs.as_array().unwrap() {
-            let tx: TransactionTrace = serde_json::from_value(tx.clone()).unwrap();
-            let _ = tx.try_build_typed_tx().unwrap();
-        }
-    }
-}

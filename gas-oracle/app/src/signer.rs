@@ -85,14 +85,12 @@ async fn sign_tx(
 
 //Fee estimator
 lazy_static::lazy_static! {
-    static ref PRIORITY_FEE_INCREASE_MULTIPLIER: i32= read_env_var("PRIORITY_FEE_INCREASE_MULTIPLIER", 11);
-    static ref PRIORITY_FEE_INCREASE_DIVISOR: i32= read_env_var("PRIORITY_FEE_INCREASE_DIVISOR", 10);
     static ref EIP1559_FEE_ESTIMATION_MAX_FEE: u64= read_env_var("EIP1559_FEE_ESTIMATION_MAX_FEE", 200_000_000_000);
 }
 
-fn eip1559_estimator(base_fee_per_gas: U256, rewards: Vec<Vec<U256>>) -> (U256, U256) {
-    let max_priority_fee_per_gas =
-        std::cmp::max(estimate_priority_fee(rewards), base_fee_per_gas / 10);
+const PRIORITY_FEE_PER_GAS_WEI: u64 = 1_000_000; // 0.001 Gwei
+fn eip1559_estimator(base_fee_per_gas: U256, _rewards: Vec<Vec<U256>>) -> (U256, U256) {
+    let max_priority_fee_per_gas = U256::from(PRIORITY_FEE_PER_GAS_WEI);
     let max_fee_per_gas = std::cmp::min(
         U256::from(*EIP1559_FEE_ESTIMATION_MAX_FEE),
         base_fee_per_gas + max_priority_fee_per_gas,
@@ -101,26 +99,14 @@ fn eip1559_estimator(base_fee_per_gas: U256, rewards: Vec<Vec<U256>>) -> (U256, 
     (max_fee_per_gas, max_priority_fee_per_gas)
 }
 
-fn estimate_priority_fee(rewards: Vec<Vec<U256>>) -> U256 {
-    let mut rewards: Vec<U256> =
-        rewards.iter().map(|r| r[0]).filter(|r| *r > U256::zero()).collect();
-    if rewards.is_empty() {
-        return U256::zero()
-    }
-    if rewards.len() == 1 {
-        return rewards[0]
-    }
-    // Sort the rewards as we will eventually take the median.
-    rewards.sort();
-    rewards[rewards.len() / 2] * *PRIORITY_FEE_INCREASE_MULTIPLIER / *PRIORITY_FEE_INCREASE_DIVISOR
-}
+
 
 #[tokio::test]
 #[ignore]
 async fn test_estimate_eip1559_fees() {
     dotenv::dotenv().ok();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    let l2_provider = Provider::<Http>::try_from("https://rpc.xx.io").unwrap();
+    let l2_provider = Provider::<Http>::try_from("https://rpc-quicknode.morphl2.io").unwrap();
     let l2_signer = Arc::new(SignerMiddleware::new(
         l2_provider.clone(),
         Wallet::from_str("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")

@@ -77,7 +77,7 @@ async fn main() {
     );
 
     loop {
-        sleep(Duration::from_secs(12)).await;
+        sleep(Duration::from_secs(30)).await;
         // Get committed batch
         let (batch_info, batch_header) = match batch_syncer.get_committed_batch().await {
             Ok(Some(committed_batch)) => committed_batch,

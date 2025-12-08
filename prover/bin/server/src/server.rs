@@ -285,6 +285,31 @@ async fn query_proof(batch_index: String) -> ProveResult {
             .unwrap_or("nothing")
             .ends_with(format!("batch_{}", batch_index.trim()).as_str())
         {
+            // execute_result
+            let prove_result_path = path.join("execute_result.json");
+            if prove_result_path.exists() {
+                match fs::File::open(prove_result_path) {
+                    Ok(file) => {
+                        let reader = BufReader::new(file);
+                        let prove_result: serde_json::Value =
+                            serde_json::from_reader(reader).unwrap_or_default();
+                        if let Some(error_code) = prove_result.get("error_code") {
+                            result.error_code = error_code.as_str().unwrap_or("").to_string();
+                        }
+                        if let Some(error_msg) = prove_result.get("error_msg") {
+                            result.error_msg = error_msg.as_str().unwrap_or("").to_string();
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load prove_result: {:#?}", e);
+                        result.error_msg = String::from("Failed to load prove_result");
+                    }
+                }
+            }
+            if !result.error_code.is_empty() {
+                return result;
+            }
+
             //pi_batch_agg.data
             let proof_path = path.join("plonk_proof.json");
             if !proof_path.exists() {
@@ -322,7 +347,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             break;
         }
     }
-    if result.proof_data.is_empty() {
+    if result.proof_data.is_empty() && result.error_msg.is_empty() {
         result.error_msg = String::from("No proof was found");
     }
     result

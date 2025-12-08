@@ -55,7 +55,7 @@ where
         log::info!("start sync_batch...");
         // Batch should not have been verified yet.
         if self.is_prove_success(batch_info.batch_index).await.unwrap_or(true) {
-            log::debug!("batch of {:?} already prove state successful", batch_info.batch_index);
+            log::info!("batch of {:?} already prove state successful", batch_info.batch_index);
             return Ok(None);
         };
 
@@ -192,9 +192,9 @@ where
             None => return Err(String::from("batch_blocks_inspect none")),
         };
 
-        if blocks.0 <= blocks.1 {
-            return Err(String::from("blocks is empty"));
-        }
+    if blocks.0 >= blocks.1 {
+        return Err(String::from("blocks is empty"));
+    }
 
         let batch_info: BatchInfo = BatchInfo {
             batch_index,
