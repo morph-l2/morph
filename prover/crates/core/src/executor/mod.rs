@@ -92,6 +92,12 @@ impl EvmExecutor<'_> {
         };
 
         for (idx, tx) in l2_trace.transactions().enumerate() {
+            cfg_if::cfg_if! {
+                if #[cfg(not(target_os = "zkvm"))] {
+                    println!("handle block: {:?}, handle tx: {:?}th", l2_trace.number(), idx);
+                }
+            }
+
             cycle_tracker_start!("handle tx {}", idx);
 
             dev_trace!("handle {idx}th tx");
@@ -277,9 +283,11 @@ impl EvmExecutor<'_> {
                 poseidon_code_hash.0,
             ];
             cycle_track!(
-                zktrie
-                    .update_account(addr.as_slice(), &acc_data)
-                    .unwrap_or_else(|_| panic!("failed to update account: {}", addr)),
+                zktrie.update_account(addr.as_slice(), &acc_data).unwrap_or_else(|e| println!(
+                    "---------------->failed to update account: {:?}, address: {:?}",
+                    addr,
+                    e.to_string()
+                )),
                 "Zktrie::update_account"
             );
 
