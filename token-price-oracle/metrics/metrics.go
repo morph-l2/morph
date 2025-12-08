@@ -25,12 +25,33 @@ var (
 			Help: "Account balance in ETH",
 		},
 	)
+
+	// LastSuccessfulUpdateTimestamp records the Unix timestamp of the last successful update cycle
+	// A successful update includes: prices updated on-chain OR prices skipped (below threshold)
+	// This helps monitor if the oracle is running normally
+	LastSuccessfulUpdateTimestamp = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "last_successful_update_timestamp",
+			Help: "Unix timestamp of the last successful price update cycle (includes both updates and skips)",
+		},
+	)
+
+	// UpdatesTotal counts total number of successful update cycles
+	UpdatesTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "updates_total",
+			Help: "Total number of successful update cycles",
+		},
+		[]string{"type"}, // type: "updated" or "skipped"
+	)
 )
 
 // init registers all metrics
 func init() {
 	prometheus.MustRegister(UpdateErrors)
 	prometheus.MustRegister(AccountBalance)
+	prometheus.MustRegister(LastSuccessfulUpdateTimestamp)
+	prometheus.MustRegister(UpdatesTotal)
 }
 
 // StartMetricsServer starts metrics HTTP server

@@ -181,6 +181,9 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 
 	if len(tokenIDsToUpdate) == 0 {
 		log.Debug("No prices need updating (all changes below threshold)")
+		// Record as successful update cycle (skipped)
+		metrics.LastSuccessfulUpdateTimestamp.Set(float64(time.Now().Unix()))
+		metrics.UpdatesTotal.WithLabelValues("skipped").Inc()
 		return nil
 	}
 
@@ -218,6 +221,10 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		"token_count", len(tokenIDsToUpdate))
 
 	// Step 5: Update metrics
+	// Record as successful update cycle (updated)
+	metrics.LastSuccessfulUpdateTimestamp.Set(float64(time.Now().Unix()))
+	metrics.UpdatesTotal.WithLabelValues("updated").Inc()
+
 	for i, tokenID := range tokenIDsToUpdate {
 		log.Debug("Price updated",
 			"token_id", tokenID,
