@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20251125061742-69718a9dcab9
+	github.com/morph-l2/go-ethereum v1.10.14-0.20251203083507-49fa27bcab24
 	github.com/prometheus/client_golang v1.17.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/urfave/cli v1.22.17
