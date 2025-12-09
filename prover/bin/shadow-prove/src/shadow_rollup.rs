@@ -188,7 +188,7 @@ where
             return Err(String::from("batch_index is 0"));
         }
 
-        let prev_tx_hash = match logs.first() {
+        let prev_tx_hash = match logs.get(logs.len() - 3) {
             Some(log) => log.transaction_hash.unwrap_or_default(),
             None => {
                 return Err("find commit_batch log error".to_string());
