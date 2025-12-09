@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +17,10 @@ import (
 
 const (
 	bitgetTickerPath = "/api/v2/spot/market/tickers"
+
+	// StablecoinPrefix is used to mark stablecoins with fixed USD price
+	// Format: "$1.0" means the token is pegged to $1.0 USD
+	StablecoinPrefix = "$"
 )
 
 // BitgetSDKPriceFeed uses Bitget REST API to fetch prices
@@ -63,6 +68,10 @@ func NewBitgetSDKPriceFeed(tokenMap map[uint16]string, baseURL string) *BitgetSD
 
 // GetTokenPrice returns token price in USD
 // Note: Caller should ensure ETH price is updated via GetBatchTokenPrices for batch operations
+//
+// Stablecoin handling:
+// - If the symbol starts with "$" (e.g., "$1.0"), it's treated as a stablecoin with fixed price
+// - Example: "3:$1.0" means token ID 3 is a stablecoin pegged to $1.0 USD
 func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) (*TokenPrice, error) {
 	b.mu.RLock()
 	symbol, exists := b.tokenMap[tokenID]
@@ -73,23 +82,43 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 		return nil, fmt.Errorf("token ID %d not mapped to trading pair", tokenID)
 	}
 
-	// Fetch token price
-	tokenPrice, err := b.fetchPrice(ctx, symbol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch price for %s: %w", symbol, err)
-	}
-
 	// Use cached ETH price (should be updated by GetBatchTokenPrices)
 	if ethPrice.Cmp(big.NewFloat(0)) == 0 {
 		return nil, fmt.Errorf("ETH price not initialized, please call GetBatchTokenPrices first")
 	}
 
-	b.log.Info("Fetched price from Bitget",
-		"source", "bitget",
-		"token_id", tokenID,
-		"symbol", symbol,
-		"token_price_usd", tokenPrice.String(),
-		"eth_price_usd", ethPrice.String())
+	var tokenPrice *big.Float
+
+	// Check if this is a stablecoin with fixed price (e.g., "$1.0")
+	if strings.HasPrefix(symbol, StablecoinPrefix) {
+		priceStr := strings.TrimPrefix(symbol, StablecoinPrefix)
+		fixedPrice, err := strconv.ParseFloat(priceStr, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid stablecoin price format '%s': %w", symbol, err)
+		}
+		tokenPrice = big.NewFloat(fixedPrice)
+
+		b.log.Info("Using fixed stablecoin price",
+			"source", "stablecoin",
+			"token_id", tokenID,
+			"symbol", symbol,
+			"token_price_usd", tokenPrice.String(),
+			"eth_price_usd", ethPrice.String())
+	} else {
+		// Fetch token price from exchange
+		var err error
+		tokenPrice, err = b.fetchPrice(ctx, symbol)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch price for %s: %w", symbol, err)
+		}
+
+		b.log.Info("Fetched price from Bitget",
+			"source", "bitget",
+			"token_id", tokenID,
+			"symbol", symbol,
+			"token_price_usd", tokenPrice.String(),
+			"eth_price_usd", ethPrice.String())
+	}
 
 	return &TokenPrice{
 		TokenID:       tokenID,

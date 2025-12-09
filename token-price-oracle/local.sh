@@ -8,11 +8,16 @@
   --price-update-interval 30s \
   --price-threshold 100 \
   --price-feed-priority bitget \
-  --token-mapping-bitget "1:BGBUSDT,2:BTCUSDT" \
+  --token-mapping-bitget "1:BGBUSDT,2:BTCUSDT,3:\$1.0" \
   --bitget-api-base-url https://api.bitget.com \
   --log-level info \
   --metrics-server-enable
 
 # Price threshold examples (in basis points):
 # 1 bps = 0.01%, 10 bps = 0.1%, 100 bps = 1%, 500 bps = 5%, 1000 bps = 10%
+
+# Token mapping format:
+#   - Regular tokens: tokenID:SYMBOL (e.g., 1:BGBUSDT, 2:BTCUSDT)
+#   - Stablecoins:    tokenID:$PRICE (e.g., 3:$1.0 for USDT pegged to $1 USD)
+# Note: Use \$ in bash to escape the dollar sign
 
