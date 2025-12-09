@@ -55,11 +55,11 @@ pub async fn start() {
     // Step2. start metric management
     metric_mng().await;
 
-    // Step3. start prover
-    start_prover().await;
-
-    // Step4. start executor
+    // Step3. start executor
     start_executor().await;
+
+    // Step4. start prover
+    start_prover().await;
 }
 
 async fn prover_mng() {
@@ -99,8 +99,10 @@ async fn start_prover() {
 }
 
 async fn start_executor() {
-    let mut executor = Executor::new(Arc::clone(&EXECUTE_QUEUE)).unwrap();
-    executor.execute_for_queue().await;
+    tokio::spawn(async {
+        let mut executor = Executor::new(Arc::clone(&EXECUTE_QUEUE)).unwrap();
+        executor.execute_for_queue().await;
+    });
 }
 
 async fn handle_metrics() -> String {
