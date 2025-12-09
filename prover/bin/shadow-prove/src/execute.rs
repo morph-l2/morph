@@ -15,7 +15,7 @@ pub struct ExecuteResult {
     pub error_code: String,
 }
 
-pub async fn exceut_batch(batch: &BatchInfo) -> Result<(), anyhow::Error> {
+pub async fn execute_batch(batch: &BatchInfo) -> Result<(), anyhow::Error> {
     // Request the proverServer to prove.
     let request = ExecuteRequest {
         batch_index: batch.batch_index,
