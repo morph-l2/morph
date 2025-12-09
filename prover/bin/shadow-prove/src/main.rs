@@ -72,7 +72,7 @@ async fn main() {
     );
 
     loop {
-        sleep(Duration::from_secs(12)).await;
+        sleep(Duration::from_secs(30)).await;
         // Sync & Prove
         let result = match batch_syncer.sync_batch().await {
             Ok(Some(batch)) => shadow_prover.prove(batch).await,

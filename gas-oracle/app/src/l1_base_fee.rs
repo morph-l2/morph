@@ -1,7 +1,8 @@
 use std::{str::FromStr, sync::Arc};
 
 use crate::{
-    abi::gas_price_oracle_abi::GasPriceOracle, calc_blob_basefee, external_sign::ExternalSign, metrics::ORACLE_SERVICE_METRICS, signer::send_transaction, OracleError
+    abi::gas_price_oracle_abi::GasPriceOracle, external_sign::ExternalSign,
+    metrics::ORACLE_SERVICE_METRICS, signer::send_transaction, OracleError,
 };
 use ethers::prelude::*;
 use eyre::anyhow;
@@ -210,8 +211,14 @@ async fn query_l1_base_fee(
         })?;
 
     let l1_base_fee = latest_block.base_fee_per_gas.unwrap_or_default();
-    let excess_blob_gas = latest_block.excess_blob_gas.unwrap_or_default();
-    let latest_blob_fee = calc_blob_basefee(excess_blob_gas.as_u64());
+
+    // Use the Blob blobBaseFee provided by the L1 node.
+    // We no longer compute it locally (e.g. via `calc_blob_basefee`) to avoid
+    // depending on future L1 config changes.
+    let latest_blob_fee = l1_provider
+        .request::<(), U256>("eth_blobBaseFee", ())
+        .await
+        .map_err(|e| OracleError::L1BaseFeeError(anyhow!(format!("eth_blobBaseFee: {:#?}", e))))?;
 
     let gas_price = match l1_provider.get_gas_price().await {
         Ok(gp) => gp,
@@ -225,4 +232,16 @@ async fn query_l1_base_fee(
     };
 
     Ok((l1_base_fee, U256::from(latest_blob_fee), gas_price))
+}
+
+#[tokio::test]
+async fn test_eth_blob_base_fee() -> Result<(), OracleError> {
+    let l1_provider = Provider::<Http>::try_from("https://ethereum-rpc.publicnode.com").unwrap();
+    let blob_base_fee = l1_provider
+        .request::<(), U256>("eth_blobBaseFee", ())
+        .await
+        .map_err(|e| OracleError::L1BaseFeeError(anyhow!(format!("eth_blobBaseFee: {:#?}", e))))?;
+
+    println!("eth_blobBaseFee: {:?}", blob_base_fee);
+    Ok(())
 }

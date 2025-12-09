@@ -21,6 +21,7 @@ tiny-keccak.workspace = true
 
 sbv-primitives.workspace = true
 sbv-utils.workspace = true
+cfg-if =  { workspace = true }
 
 [dev-dependencies]
 ctor.workspace = true
