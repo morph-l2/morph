@@ -140,15 +140,6 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref L1BlockRef, h
 	return resp.Data, nil
 }
 
-func indexFunc(s []*BlobSidecar, f func(blobSidecars *BlobSidecar) bool) int {
-	for i := range s {
-		if f(s[i]) {
-			return i
-		}
-	}
-	return -1
-}
-
 // IndexedBlobHash represents a blob hash that commits to a single blob confirmed in a block.  The
 // index helps us avoid unnecessary blob to blob hash conversions to find the right content in a
 // sidecar.
