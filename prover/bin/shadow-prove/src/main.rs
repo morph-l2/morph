@@ -18,7 +18,7 @@ use shadow_proving::{
     shadow_prove::ShadowProver,
     shadow_rollup::BatchSyncer,
     util::{read_env_var, read_parse_env},
-    SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
+    SHADOW_EXECUTE, SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
 
 use tokio::time::sleep;
@@ -96,16 +96,18 @@ async fn main() {
             log::info!("Batch {} has already been processed, skipping", batch_info.batch_index);
             continue;
         }
-
-        // Execute batch
-        match execute_batch(&batch_info).await {
-            Ok(_) => {
-                // Update the latest processed batch index
-                latest_processed_batch = batch_info.batch_index;
-            },
-            Err(e) => {
-                log::error!("execute_batch error: {:?}", e);
-                continue
+        if *SHADOW_EXECUTE {
+            log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
+            // Execute batch
+            match execute_batch(&batch_info).await {
+                Ok(_) => {
+                    // Update the latest processed batch index
+                    latest_processed_batch = batch_info.batch_index;
+                }
+                Err(e) => {
+                    log::error!("execute_batch error: {:?}", e);
+                    continue
+                }
             }
         }
 

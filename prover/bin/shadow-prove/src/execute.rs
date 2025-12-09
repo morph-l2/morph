@@ -24,7 +24,7 @@ pub async fn execute_batch(batch: &BatchInfo) -> Result<(), anyhow::Error> {
         rpc: "http://localhost:8545".to_owned(),
     };
     let rt = tokio::task::spawn_blocking(move || {
-        util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch")
+        util::call_prover(serde_json::to_string(&request).unwrap(), "/execute_batch")
     })
     .await;
 

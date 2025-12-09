@@ -174,30 +174,39 @@ where
         }
         logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
 
-        let batch_index = match logs.get(logs.len() - 2) {
+        let batch_index_hash = match logs.get(logs.len() - 2) {
             Some(log) => {
                 let _index = U256::from_be_slice(log.topics()[1].as_slice());
-                _index.to::<u64>()
+                (_index.to::<u64>(), log.transaction_hash.unwrap_or_default())
             }
             None => {
                 return Err("find commit_batch log error".to_string());
             }
         };
 
-        if batch_index == 0 {
+        if batch_index_hash.0 == 0 {
             return Err(String::from("batch_index is 0"));
         }
-        let (blocks, total_txn_count) = match self.batch_blocks_inspect(batch_index).await {
-            Some(block_txn) => block_txn,
-            None => return Err(String::from("batch_blocks_inspect none")),
+
+        let prev_tx_hash = match logs.first() {
+            Some(log) => log.transaction_hash.unwrap_or_default(),
+            None => {
+                return Err("find commit_batch log error".to_string());
+            }
         };
 
-    if blocks.0 >= blocks.1 {
-        return Err(String::from("blocks is empty"));
-    }
+        let (blocks, total_txn_count) =
+            match self.batch_blocks_inspect(prev_tx_hash, batch_index_hash.1).await {
+                Some(block_txn) => block_txn,
+                None => return Err(String::from("batch_blocks_inspect none")),
+            };
+
+        if blocks.0 >= blocks.1 {
+            return Err(String::from("blocks is empty"));
+        }
 
         let batch_info: BatchInfo = BatchInfo {
-            batch_index,
+            batch_index: batch_index_hash.0,
             start_block: blocks.0,
             end_block: blocks.1,
             total_txn: total_txn_count,
@@ -211,34 +220,32 @@ where
                 return Err("find commit_batch log error".to_string());
             }
         };
-        let batch_header = batch_header_inspect(&self.l1_provider, next_tx_hash)
+        let batch_input = batch_input_inspect(&self.l1_provider, next_tx_hash)
             .await
             .ok_or_else(|| "Failed to inspect batch header".to_string())?;
 
-        log::info!("Found the committed batch, batch index = {:#?}", batch_index);
-        Ok(Some((batch_info, batch_header)))
+        log::info!("Found the committed batch, batch index = {:#?}", batch_index_hash.0);
+        Ok(Some((batch_info, batch_input.0)))
     }
 
-    async fn batch_blocks_inspect(&self, batch_index: u64) -> Option<((u64, u64), u64)> {
-        let prev_bn = match self.l1_rollup.batchDataStore(U256::from(batch_index - 1)).call().await
-        {
-            Ok(s) => s.blockNumber.to::<u64>(),
-            Err(e) => {
-                log::error!("l1_rollup.batch_data_store err: {:#?}", e);
-                return None;
-            }
-        };
+    async fn batch_blocks_inspect(
+        &self,
+        prev_batch_hash: TxHash,
+        current_batch_hash: TxHash,
+    ) -> Option<((u64, u64), u64)> {
+        let prev_batch_input = batch_input_inspect(&self.l1_provider, prev_batch_hash).await?;
+        let current_batch_input =
+            batch_input_inspect(&self.l1_provider, current_batch_hash).await?;
+        let start_block = prev_batch_input.1 + 1;
+        let end_block = current_batch_input.1;
 
-        let current_bn = match self.l1_rollup.batchDataStore(U256::from(batch_index)).call().await {
-            Ok(s) => s.blockNumber.to::<u64>(),
-            Err(e) => {
-                log::error!("l1_rollup.batch_data_store err: {:#?}", e);
-                return None;
-            }
-        };
+        if start_block == 0 {
+            log::error!("batch_blocks_inspect: start_block = 0, tx_hash =  {:#?}", prev_batch_hash);
+            return None;
+        }
 
         let mut total_tx_count: u64 = 0;
-        for i in prev_bn + 1..current_bn + 1 {
+        for i in start_block..end_block + 1 {
             total_tx_count += self
                 .l2_provider
                 .get_block_transaction_count_by_number(i.into())
@@ -249,14 +256,14 @@ where
 
         log::info!(
             "decode_blocks, blocks_len: {:#?}, start_block: {:#?}, txn_in_batch: {:?}",
-            current_bn - prev_bn,
-            prev_bn + 1,
+            end_block - start_block,
+            start_block,
             total_tx_count
         );
 
         METRICS.shadow_txn_len.set(total_tx_count as i64);
 
-        Some(((prev_bn + 1, current_bn), total_tx_count))
+        Some(((start_block, end_block), total_tx_count))
     }
 
     async fn is_prove_success(&self, batch_index: u64) -> Option<bool> {
@@ -276,10 +283,10 @@ where
     }
 }
 
-pub async fn batch_header_inspect(
+pub async fn batch_input_inspect(
     l1_provider: &RootProvider<Http<Client>>,
     hash: TxHash,
-) -> Option<Bytes> {
+) -> Option<(Bytes, u64)> {
     //Step1.  Get transaction
     let result = l1_provider.get_transaction_by_hash(hash).await;
     let tx = match result {
@@ -308,9 +315,9 @@ pub async fn batch_header_inspect(
         return None;
     };
     let parent_batch_header: Bytes = param.batchDataInput.parentBatchHeader;
-    Some(parent_batch_header)
+    let last_block_number: u64 = param.batchDataInput.lastBlockNumber;
+    Some((parent_batch_header, last_block_number))
 }
-
 #[tokio::test]
 async fn test_sync_batch() {
     use alloy::{
@@ -369,10 +376,11 @@ async fn test_inspect_batch_header() {
     let next_tx_hash =
         B256::from_str("0x2bdfb2bd0b8c9210bfb593cc5734e3f092fcdd54fe74c46a938448b0422089f7")
             .unwrap();
-    let batch_header = batch_header_inspect(&provider, next_tx_hash)
+    let batch_header = batch_input_inspect(&provider, next_tx_hash)
         .await
         .ok_or_else(|| "Failed to inspect batch header".to_string())
-        .unwrap();
+        .unwrap()
+        .0;
 
     let batch_store = ShadowRollup::BatchStore {
         prevStateRoot: batch_header.get(89..121).unwrap_or_default().try_into().unwrap_or_default(),
