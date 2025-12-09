@@ -76,6 +76,9 @@ async fn main() {
         l1_signer,
     );
 
+    // Track the latest processed batch index
+    let mut latest_processed_batch: u64 = 0;
+
     loop {
         sleep(Duration::from_secs(30)).await;
         // Get committed batch
@@ -88,9 +91,18 @@ async fn main() {
             }
         };
 
+        // Check if batch has already been processed
+        if batch_info.batch_index <= latest_processed_batch {
+            log::info!("Batch {} has already been processed, skipping", batch_info.batch_index);
+            continue;
+        }
+
         // Execute batch
         match execute_batch(&batch_info).await {
-            Ok(_) => (),
+            Ok(_) => {
+                // Update the latest processed batch index
+                latest_processed_batch = batch_info.batch_index;
+            },
             Err(e) => {
                 log::error!("execute_batch error: {:?}", e);
                 continue
