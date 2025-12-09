@@ -96,6 +96,9 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 		if err != nil {
 			return nil, fmt.Errorf("invalid stablecoin price format '%s': %w", symbol, err)
 		}
+		if fixedPrice <= 0 {
+			return nil, fmt.Errorf("stablecoin price must be positive, got '%s'", symbol)
+		}
 		tokenPrice = big.NewFloat(fixedPrice)
 
 		b.log.Info("Using fixed stablecoin price",
