@@ -30,6 +30,7 @@ update_all_mod:
 	@$(MAKE) update_mod MODULE=ops/tools
 	@$(MAKE) update_mod MODULE=oracle
 	@$(MAKE) update_mod MODULE=tx-submitter
+	@$(MAKE) update_mod MODULE=token-price-oracle
 
 
 update:

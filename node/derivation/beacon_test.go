@@ -41,14 +41,14 @@ func TestGetBlob(t *testing.T) {
 			fmt.Println(indexedBlobHashes)
 			header, err := l1Client.HeaderByNumber(context.Background(), big.NewInt(int64(lg.BlockNumber)))
 			require.NoError(t, err)
-			var bts eth.BlobTxSidecar
+			var bts []*BlobSidecar
 			if len(indexedBlobHashes) != 0 {
-				bts, err = l1BeaconClient.GetBlobSidecar(context.Background(), L1BlockRef{
+				bts, err = l1BeaconClient.GetBlobSidecarsEnhanced(context.Background(), L1BlockRef{
 					Time: header.Time,
 				}, indexedBlobHashes)
 				require.NoError(t, err)
 			}
-			t.Log(len(bts.Blobs))
+			t.Log(len(bts))
 		}
 
 	}
