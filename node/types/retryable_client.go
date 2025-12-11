@@ -2,9 +2,6 @@ package types
 
 import (
 	"context"
-	"math/big"
-	"strings"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
@@ -13,6 +10,9 @@ import (
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/ethclient/authclient"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+	"math/big"
+	"strings"
+	"time"
 )
 
 const (
@@ -27,27 +27,47 @@ const (
 )
 
 type RetryableClient struct {
-	authClient *authclient.Client
-	ethClient  *ethclient.Client
-	b          backoff.BackOff
-	logger     tmlog.Logger
+	legacyAuthClient *authclient.Client
+	legacyEthClient  *ethclient.Client
+	authClient       *authclient.Client
+	ethClient        *ethclient.Client
+	mptTime          uint64 // TODO rename
+	b                backoff.BackOff
+	logger           tmlog.Logger
 }
 
 // NewRetryableClient make the client retryable
 // Will retry calling the api, if the connection is refused
-func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Client, logger tmlog.Logger) *RetryableClient {
+func NewRetryableClient(legacyAuthClient *authclient.Client, legacyEthClient *ethclient.Client, authClient *authclient.Client, ethClient *ethclient.Client, logger tmlog.Logger) *RetryableClient {
 	logger = logger.With("module", "retryClient")
 	return &RetryableClient{
-		authClient: authClient,
-		ethClient:  ethClient,
-		b:          backoff.NewExponentialBackOff(),
-		logger:     logger,
+		legacyAuthClient: legacyAuthClient,
+		legacyEthClient:  legacyEthClient,
+		authClient:       authClient,
+		ethClient:        ethClient,
+		b:                backoff.NewExponentialBackOff(),
+		logger:           logger,
 	}
 }
 
+func (c *RetryableClient) aClient(timeStamp uint64) *authclient.Client {
+	if c.mptTime >= timeStamp {
+		return c.legacyAuthClient
+	}
+	return c.authClient
+}
+
+func (c *RetryableClient) eClient(timeStamp uint64) *ethclient.Client {
+	if c.mptTime >= timeStamp {
+		return c.legacyEthClient
+	}
+	return c.ethClient
+}
+
 func (rc *RetryableClient) AssembleL2Block(ctx context.Context, number *big.Int, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
+	timestamp := uint64(time.Now().Unix())
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.authClient.AssembleL2Block(ctx, number, transactions)
+		resp, respErr := rc.aClient(timestamp).AssembleL2Block(ctx, &timestamp, number, transactions)
 		if respErr != nil {
 			rc.logger.Info("failed to AssembleL2Block", "error", respErr)
 			if retryableError(respErr) {
@@ -65,7 +85,7 @@ func (rc *RetryableClient) AssembleL2Block(ctx context.Context, number *big.Int,
 
 func (rc *RetryableClient) ValidateL2Block(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data) (ret bool, err error) {
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.authClient.ValidateL2Block(ctx, executableL2Data)
+		resp, respErr := rc.aClient(executableL2Data.Timestamp).ValidateL2Block(ctx, executableL2Data)
 		if respErr != nil {
 			rc.logger.Info("failed to ValidateL2Block", "error", respErr)
 			if retryableError(respErr) {
@@ -83,7 +103,7 @@ func (rc *RetryableClient) ValidateL2Block(ctx context.Context, executableL2Data
 
 func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, batchHash *common.Hash) (err error) {
 	if retryErr := backoff.Retry(func() error {
-		respErr := rc.authClient.NewL2Block(ctx, executableL2Data, batchHash)
+		respErr := rc.aClient(executableL2Data.Timestamp).NewL2Block(ctx, executableL2Data, batchHash)
 		if respErr != nil {
 			rc.logger.Info("failed to NewL2Block", "error", respErr)
 			if retryableError(respErr) {
@@ -100,7 +120,7 @@ func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *cat
 
 func (rc *RetryableClient) NewSafeL2Block(ctx context.Context, safeL2Data *catalyst.SafeL2Data) (ret *eth.Header, err error) {
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.authClient.NewSafeL2Block(ctx, safeL2Data)
+		resp, respErr := rc.aClient(safeL2Data.Timestamp).NewSafeL2Block(ctx, safeL2Data)
 		if respErr != nil {
 			rc.logger.Info("failed to NewSafeL2Block", "error", respErr)
 			if retryableError(respErr) {
@@ -118,7 +138,8 @@ func (rc *RetryableClient) NewSafeL2Block(ctx context.Context, safeL2Data *catal
 
 func (rc *RetryableClient) CommitBatch(ctx context.Context, batch *eth.RollupBatch, signatures []eth.BatchSignature) (err error) {
 	if retryErr := backoff.Retry(func() error {
-		respErr := rc.authClient.CommitBatch(ctx, batch, signatures)
+		// TODO timestamp
+		respErr := rc.aClient(0).CommitBatch(ctx, batch, signatures)
 		if respErr != nil {
 			rc.logger.Info("failed to CommitBatch", "error", respErr)
 			if retryableError(respErr) {
@@ -135,7 +156,8 @@ func (rc *RetryableClient) CommitBatch(ctx context.Context, batch *eth.RollupBat
 
 func (rc *RetryableClient) AppendBlsSignature(ctx context.Context, batchHash common.Hash, signature eth.BatchSignature) (err error) {
 	if retryErr := backoff.Retry(func() error {
-		respErr := rc.authClient.AppendBlsSignature(ctx, batchHash, signature)
+		// TODO timestamp
+		respErr := rc.aClient(0).AppendBlsSignature(ctx, batchHash, signature)
 		if respErr != nil {
 			rc.logger.Info("failed to call AppendBlsSignature", "error", respErr)
 			if retryableError(respErr) {
@@ -152,7 +174,8 @@ func (rc *RetryableClient) AppendBlsSignature(ctx context.Context, batchHash com
 
 func (rc *RetryableClient) BlockNumber(ctx context.Context) (ret uint64, err error) {
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.ethClient.BlockNumber(ctx)
+		// TODO timestamp
+		resp, respErr := rc.eClient(0).BlockNumber(ctx)
 		if respErr != nil {
 			rc.logger.Info("failed to call BlockNumber", "error", respErr)
 			if retryableError(respErr) {
@@ -170,7 +193,8 @@ func (rc *RetryableClient) BlockNumber(ctx context.Context) (ret uint64, err err
 
 func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.Int) (ret *eth.Header, err error) {
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.ethClient.HeaderByNumber(ctx, blockNumber)
+		// TODO timestamp
+		resp, respErr := rc.eClient(0).HeaderByNumber(ctx, blockNumber)
 		if respErr != nil {
 			rc.logger.Info("failed to call BlockNumber", "error", respErr)
 			if retryableError(respErr) {
@@ -188,7 +212,8 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 
 func (rc *RetryableClient) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) (ret []byte, err error) {
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.ethClient.CallContract(ctx, call, blockNumber)
+		// TODO timestamp
+		resp, respErr := rc.eClient(0).CallContract(ctx, call, blockNumber)
 		if respErr != nil {
 			rc.logger.Info("failed to call eth_call", "error", respErr)
 			if retryableError(respErr) {
@@ -206,7 +231,8 @@ func (rc *RetryableClient) CallContract(ctx context.Context, call ethereum.CallM
 
 func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) (ret []byte, err error) {
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.ethClient.CodeAt(ctx, contract, blockNumber)
+		// TODO timestamp
+		resp, respErr := rc.eClient(0).CodeAt(ctx, contract, blockNumber)
 		if respErr != nil {
 			rc.logger.Info("failed to call eth_getCode", "error", respErr)
 			if retryableError(respErr) {
