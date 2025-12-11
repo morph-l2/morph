@@ -46,6 +46,7 @@ func NewRetryableClient(legacyAuthClient *authclient.Client, legacyEthClient *et
 		legacyEthClient:  legacyEthClient,
 		authClient:       authClient,
 		ethClient:        ethClient,
+		mptTime:          uint64(time.Now().Add(time.Hour).Unix()), // TODO
 		b:                backoff.NewExponentialBackOff(),
 		logger:           logger,
 	}
