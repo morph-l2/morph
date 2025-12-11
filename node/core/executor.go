@@ -29,7 +29,6 @@ import (
 type NewSyncerFunc func() (*sync.Syncer, error)
 
 type Executor struct {
-	l2LegacyClient      *types.RetryableClient
 	l2Client            *types.RetryableClient
 	bc                  BlockConverter
 	nextL1MsgIndex      uint64
