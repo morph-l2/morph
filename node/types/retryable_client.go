@@ -2,6 +2,10 @@ package types
 
 import (
 	"context"
+	"math/big"
+	"strings"
+	"time"
+
 	"github.com/cenkalti/backoff/v4"
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
@@ -10,9 +14,6 @@ import (
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/ethclient/authclient"
 	tmlog "github.com/tendermint/tendermint/libs/log"
-	"math/big"
-	"strings"
-	"time"
 )
 
 const (
