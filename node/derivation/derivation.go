@@ -78,6 +78,15 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	if err != nil {
 		return nil, err
 	}
+	// TODO
+	laClient, err := authclient.DialContext(context.Background(), cfg.L2.EngineAddr, cfg.L2.JwtSecret)
+	if err != nil {
+		return nil, err
+	}
+	leClient, err := ethclient.Dial(cfg.L2.EthAddr)
+	if err != nil {
+		return nil, err
+	}
 	aClient, err := authclient.DialContext(context.Background(), cfg.L2.EngineAddr, cfg.L2.JwtSecret)
 	if err != nil {
 		return nil, err
@@ -129,7 +138,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logger:                logger,
 		RollupContractAddress: cfg.RollupContractAddress,
 		confirmations:         cfg.L1.Confirmations,
-		l2Client:              types.NewRetryableClient(aClient, eClient, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))),
+		l2Client:              types.NewRetryableClient(laClient, leClient, aClient, eClient, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))),
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
 		startHeight:           cfg.StartHeight,

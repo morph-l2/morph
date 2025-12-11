@@ -70,6 +70,15 @@ func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
 func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubKey) (*Executor, error) {
 	logger := config.Logger
 	logger = logger.With("module", "executor")
+	// TODO
+	laClient, err := authclient.DialContext(context.Background(), config.L2.EngineAddr, config.L2.JwtSecret)
+	if err != nil {
+		return nil, err
+	}
+	leClient, err := ethclient.Dial(config.L2.EthAddr)
+	if err != nil {
+		return nil, err
+	}
 	aClient, err := authclient.DialContext(context.Background(), config.L2.EngineAddr, config.L2.JwtSecret)
 	if err != nil {
 		return nil, err
@@ -79,7 +88,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	l2Client := types.NewRetryableClient(aClient, eClient, config.Logger)
+	l2Client := types.NewRetryableClient(laClient, leClient, aClient, eClient, config.Logger)
 	index, err := getNextL1MsgIndex(l2Client)
 	if err != nil {
 		return nil, err
