@@ -86,7 +86,7 @@ impl ExternalSign {
         let req_data = self.craft_req_data(data, tx_info)?;
 
         let rt = self.do_request(&self.url, &req_data).await?;
-        log::debug!("ext_sign response: {:?}", rt);
+        log::info!("ext_sign rt: {:?}", rt);
 
         let response: Response = serde_json::from_str(&rt)?;
         if response.result.sign_datas.is_empty() {
@@ -96,6 +96,7 @@ impl ExternalSign {
             //hex prefix + 65bytes sig
             return Err("ext_sign response sign data invalid".into());
         }
+
 
         let sig = hex::decode(&response.result.sign_datas[0].sign[2..])?;
         let signed_tx: Bytes = tx.rlp_signed(&Signature::try_from(sig.as_slice())?);
@@ -139,8 +140,13 @@ impl ExternalSign {
     async fn do_request(&self, url: &str, payload: &ReqData) -> Result<String, Box<dyn Error>> {
         log::debug!("===payload: {:?}", serde_json::to_string(payload).unwrap());
         let response: reqwest::Response = self.client.post(url).json(&payload).send().await?;
-        if !response.status().is_success() {
-            return Err(format!("ext_sign response status not ok: {:?}", response.status()).into());
+        log::info!("===do_request response: {:?}", response);
+        
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await?;
+            log::info!("===do_request response text: {:?}", &text);
+            return Err(format!("ext_sign response status not ok: {:?}", status).into());
         }
         Ok(response.text().await?)
     }

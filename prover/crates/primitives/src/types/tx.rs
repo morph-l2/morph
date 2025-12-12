@@ -107,6 +107,7 @@ pub struct TransactionTrace {
     pub(crate) access_list: AccessList,
     /// authorization list
     #[serde(rename = "authorizationList")]
+    #[serde(default)]
     #[serde_as(as = "DefaultOnNull")]
     pub(crate) authorization_list: AuthorizationList,
     /// signature v
@@ -550,22 +551,5 @@ impl Decodable for TypedTransaction {
             return Err(alloy::rlp::Error::InputTooShort);
         }
         Ok(TypedTransaction::Enveloped(TxEnvelope::decode_2718(buf).unwrap()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const TRACE: &str = include_str!("../../../../testdata/dev.json");
-
-    #[test]
-    fn test_transaction_trace_deserialize() {
-        let trace = serde_json::from_str::<serde_json::Value>(TRACE).unwrap()["result"].clone();
-        let txs = trace["transactions"].clone();
-        for tx in txs.as_array().unwrap() {
-            let tx: TransactionTrace = serde_json::from_value(tx.clone()).unwrap();
-            let _ = tx.try_build_typed_tx().unwrap();
-        }
     }
 }

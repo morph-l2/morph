@@ -192,7 +192,7 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 			continue
 		}
 		if rollupCommitBatch.BatchIndex.Uint64() > batchIndex {
-			return fmt.Errorf(fmt.Sprintf("batch is incontinuity,expect %v,have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64()))
+			return fmt.Errorf("batch is incontinuity, expect %v, have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64())
 		}
 		// set batchIndex to new batch index + 1
 		batchIndex = rollupCommitBatch.BatchIndex.Uint64() + 1

@@ -119,6 +119,9 @@ func BuildMorph(immutable ImmutableConfig, config *InitConfig) (DeploymentResult
 		{
 			Name: "ProxyAdmin",
 		},
+		{
+			Name: "L2TokenRegistry",
+		},
 	}
 	return BuildL2(deployments, config)
 }
@@ -233,6 +236,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	switch deployment.Name {
 	case "GasPriceOracle":
 		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend, common.BigToAddress(common.Big1))
+	case "L2TokenRegistry":
+		_, tx, _, err = bindings.DeployL2TokenRegistry(opts, backend)
 	case "L2CrossDomainMessenger":
 		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend)
 	case "Sequencer":
