@@ -1,7 +1,9 @@
-use std::{env::var, str::FromStr};
+use std::str::FromStr;
+
+use crate::SHADOW_PROVING_PROVER_RPC;
 
 pub fn call_prover(param: String, function: &str) -> Option<String> {
-    let prover_rpc = var("SHADOW_PROVING_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
+    let prover_rpc = SHADOW_PROVING_PROVER_RPC.clone();
 
     let client = reqwest::blocking::Client::new();
     let url = prover_rpc.to_owned() + function;
@@ -61,9 +63,11 @@ async fn test_call_prover() {
         shadow: true,
     };
 
-    let rt = tokio::task::spawn_blocking(move || call_prover(serde_json::to_string(&request).unwrap(), "/query_proof"))
-        .await
-        .unwrap();
+    let rt = tokio::task::spawn_blocking(move || {
+        call_prover(serde_json::to_string(&request).unwrap(), "/query_proof")
+    })
+    .await
+    .unwrap();
 
     match rt {
         Some(info) => {

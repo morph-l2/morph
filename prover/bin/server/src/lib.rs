@@ -1,6 +1,7 @@
 pub mod server;
 
 use std::str::FromStr;
+pub mod execute;
 pub mod queue;
 
 use once_cell::sync::Lazy;

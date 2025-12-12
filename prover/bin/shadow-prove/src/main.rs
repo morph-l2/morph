@@ -13,10 +13,12 @@ use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, Writ
 use log::Record;
 use prometheus::{Encoder, TextEncoder};
 use shadow_proving::{
+    execute::execute_batch,
     metrics::{METRICS, REGISTRY},
     shadow_prove::ShadowProver,
     shadow_rollup::BatchSyncer,
     util::{read_env_var, read_parse_env},
+    SHADOW_EXECUTE, SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
 
 use tokio::time::sleep;
@@ -28,6 +30,9 @@ async fn main() {
     dotenv().ok();
     setup_logging();
     log::info!("Starting shadow proving...");
+    log::info!("Loading with env SHADOW_PROVING_MAX_BLOCK: {}", *SHADOW_PROVING_MAX_BLOCK);
+    log::info!("Loading with env SHADOW_PROVING_MAX_TXN: {}", *SHADOW_PROVING_MAX_TXN);
+    log::info!("Loading with env SHADOW_PROVING_PROVER_RPC: {}", *SHADOW_PROVING_PROVER_RPC);
 
     // Start metric management.
     metric_mng().await;
@@ -71,10 +76,52 @@ async fn main() {
         l1_signer,
     );
 
+    // Track the latest processed batch index
+    let mut latest_processed_batch: u64 = 0;
+
     loop {
         sleep(Duration::from_secs(30)).await;
+        // Get committed batch
+        let (batch_info, batch_header) = match batch_syncer.get_committed_batch().await {
+            Ok(Some(committed_batch)) => committed_batch,
+            Ok(None) => continue,
+            Err(e) => {
+                log::error!("get_committed_batch error: {:?}", e);
+                continue
+            }
+        };
+
+        // Check if batch has already been processed
+        if batch_info.batch_index <= latest_processed_batch {
+            log::info!("Batch {} has already been processed, skipping", batch_info.batch_index);
+            continue;
+        }
+        if *SHADOW_EXECUTE {
+            log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
+            // Execute batch
+            match execute_batch(&batch_info).await {
+                Ok(_) => {
+                    // Update the latest processed batch index
+                    latest_processed_batch = batch_info.batch_index;
+                }
+                Err(e) => {
+                    log::error!("execute_batch error: {:?}", e);
+                    continue
+                }
+            }
+        }
+
         // Sync & Prove
-        let result = match batch_syncer.sync_batch().await {
+        if batch_info.end_block - batch_info.start_block + 1 > *SHADOW_PROVING_MAX_BLOCK {
+            log::warn!("Too many blocks in the latest batch to shadow prove");
+            continue;
+        }
+
+        if batch_info.total_txn > *SHADOW_PROVING_MAX_TXN {
+            log::warn!("Too many txn in the latest batch to shadow prove");
+            continue;
+        }
+        let result = match batch_syncer.sync_batch(batch_info, batch_header).await {
             Ok(Some(batch)) => shadow_prover.prove(batch).await,
             Ok(None) => Ok(()),
             Err(e) => Err(e),
@@ -182,91 +229,4 @@ fn log_format(
         record.target(),
         record.args()
     )
-}
-
-#[tokio::test]
-async fn test_prove_batch() {
-    use alloy::{
-        network::EthereumWallet,
-        primitives::{Address, B256},
-        providers::{ProviderBuilder, RootProvider},
-        signers::local::PrivateKeySigner,
-        transports::http::{Client, Http},
-    };
-    use shadow_proving::{abi::ShadowRollup, BatchInfo};
-    use std::{env::var, str::FromStr};
-
-    dotenv().ok();
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
-    let l1_rpc: String = read_parse_env("SHADOW_PROVING_L1_RPC");
-    let l1_verify_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
-    let private_key: String = read_parse_env("SHADOW_PROVING_PRIVATE_KEY");
-    let next_tx_hash: String = read_parse_env("NEXT_TX_HASH");
-    let batch_index: u64 = read_parse_env("BATCH_INDEX");
-
-    let signer: PrivateKeySigner = private_key.parse().unwrap();
-    let wallet: EthereumWallet = EthereumWallet::from(signer.clone());
-    let provider: RootProvider<Http<Client>> =
-        ProviderBuilder::new().on_http(l1_rpc.parse().unwrap());
-
-    let verify_provider: RootProvider<Http<Client>> =
-        ProviderBuilder::new().on_http(l1_verify_rpc.parse().unwrap());
-
-    let shadow_rollup =
-        var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
-
-    let l1_signer = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .wallet(wallet)
-        .on_http(l1_verify_rpc.parse().unwrap());
-
-    let l1_shadow_rollup =
-        ShadowRollup::new(Address::from_str(&shadow_rollup).unwrap(), l1_signer.clone());
-
-    let shadow_prover = ShadowProver::new(
-        signer.address(),
-        Address::from_str(&shadow_rollup).unwrap(),
-        verify_provider.clone(),
-        l1_signer,
-    );
-
-    let tx_hash = B256::from_str(&next_tx_hash).unwrap();
-    let batch_header = shadow_proving::shadow_rollup::batch_header_inspect(&provider, tx_hash)
-        .await
-        .ok_or_else(|| "Failed to inspect batch header".to_string())
-        .unwrap();
-
-    let batch_store = ShadowRollup::BatchStore {
-        prevStateRoot: batch_header.get(89..121).unwrap_or_default().try_into().unwrap_or_default(),
-        postStateRoot: batch_header
-            .get(121..153)
-            .unwrap_or_default()
-            .try_into()
-            .unwrap_or_default(),
-        withdrawalRoot: batch_header
-            .get(153..185)
-            .unwrap_or_default()
-            .try_into()
-            .unwrap_or_default(),
-        dataHash: batch_header.get(25..57).unwrap_or_default().try_into().unwrap_or_default(),
-        blobVersionedHash: batch_header
-            .get(57..89)
-            .unwrap_or_default()
-            .try_into()
-            .unwrap_or_default(),
-        sequencerSetVerifyHash: batch_header
-            .get(185..217)
-            .unwrap_or_default()
-            .try_into()
-            .unwrap_or_default(),
-    };
-
-    let shadow_tx = l1_shadow_rollup.commitBatch(batch_index, batch_store);
-    let rt = shadow_tx.send().await.unwrap();
-    println!("commitBatch success: {:?}", rt.tx_hash());
-
-    let batch_info = BatchInfo { batch_index, start_block: 1000001, end_block: 1000002 };
-
-    shadow_prover.prove(batch_info).await.unwrap();
 }

@@ -19,7 +19,8 @@ impl BlobVerifier {
         let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
         cfg_if::cfg_if! {
             if #[cfg(not(target_os = "zkvm"))] {
-                let tx_list = crate::types::blob::decode_transactions(&origin_batch.as_slice()[num_blocks*60..]);
+                let tx_list =
+        crate::types::blob::decode_transactions(&origin_batch.as_slice()[num_blocks*60..]);
                 println!("decoded tx_list_len: {:?}", tx_list.len());
             }
         }

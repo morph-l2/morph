@@ -23,6 +23,7 @@ static HARDFORK_HEIGHTS: Lazy<HashMap<u64, HashMap<SpecId, u64>>> = Lazy::new(||
             (SpecId::CURIE, 0),
             (SpecId::MORPH203, 0),
             (SpecId::VIRIDIAN, 0),
+            (SpecId::EMERALD, 0),
         ]),
     );
     map.insert(
@@ -32,6 +33,7 @@ static HARDFORK_HEIGHTS: Lazy<HashMap<u64, HashMap<SpecId, u64>>> = Lazy::new(||
             (SpecId::CURIE, 0),
             (SpecId::MORPH203, 0),
             (SpecId::VIRIDIAN, 0),
+            (SpecId::EMERALD, 0),
         ]),
     );
     map.insert(
@@ -41,6 +43,7 @@ static HARDFORK_HEIGHTS: Lazy<HashMap<u64, HashMap<SpecId, u64>>> = Lazy::new(||
             (SpecId::CURIE, 0),
             (SpecId::MORPH203, 0),
             (SpecId::VIRIDIAN, 0),
+            (SpecId::EMERALD, 0),
         ]),
     );
 
@@ -54,6 +57,7 @@ pub struct HardforkConfig {
     curie_block: u64,
     morph203_block: u64,
     viridian_block: u64,
+    emerald_block: u64,
 }
 
 impl HardforkConfig {
@@ -65,6 +69,7 @@ impl HardforkConfig {
                 curie_block: heights.get(&SpecId::CURIE).copied().unwrap_or(0),
                 morph203_block: heights.get(&SpecId::MORPH203).copied().unwrap_or(0),
                 viridian_block: heights.get(&SpecId::VIRIDIAN).copied().unwrap_or(0),
+                emerald_block: heights.get(&SpecId::EMERALD).copied().unwrap_or(0),
             }
         } else {
             dev_warn!(
@@ -93,6 +98,12 @@ impl HardforkConfig {
         self
     }
 
+    /// Set the Emerald block number.
+    pub fn set_emerald_block(&mut self, emerald_block: u64) -> &mut Self {
+        self.emerald_block = emerald_block;
+        self
+    }
+
     /// Get the hardfork spec id for a block number.
     pub fn get_spec_id(&self, block_number: u64) -> SpecId {
         match block_number {
@@ -100,7 +111,8 @@ impl HardforkConfig {
             n if n < self.curie_block => SpecId::BERNOULLI,
             n if n < self.morph203_block => SpecId::CURIE,
             n if n < self.viridian_block => SpecId::MORPH203,
-            _ => SpecId::VIRIDIAN,
+            n if n < self.emerald_block => SpecId::VIRIDIAN,
+            _ => SpecId::EMERALD,
         }
     }
 
