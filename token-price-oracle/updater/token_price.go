@@ -111,16 +111,23 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		return nil
 	}
 
-	// Step 1: Fetch new prices from feed (USD prices)
-	tokenPrices, err := u.priceFeed.GetBatchTokenPrices(ctx, tokenIDs)
+	// Step 0: Filter out inactive tokens BEFORE fetching prices (to save API calls)
+	activeTokenIDs, tokenInfoMap := u.filterActiveTokens(ctx, tokenIDs)
+	if len(activeTokenIDs) == 0 {
+		log.Warn("No active tokens to update after filtering")
+		return nil
+	}
+
+	// Step 1: Fetch new prices from feed (USD prices) - only for active tokens
+	tokenPrices, err := u.priceFeed.GetBatchTokenPrices(ctx, activeTokenIDs)
 	if err != nil {
 		return fmt.Errorf("failed to fetch token prices: %w", err)
 	}
 
-	// Step 2: Calculate price ratios using tokenInfo from contract
+	// Step 2: Calculate price ratios using pre-fetched tokenInfo (no extra contract calls)
 	newPriceRatios := make(map[uint16]*big.Int)
 	for tokenID, tokenPrice := range tokenPrices {
-		priceRatio, err := u.calculatePriceRatio(ctx, tokenID, tokenPrice)
+		priceRatio, err := u.calculatePriceRatioWithInfo(tokenID, tokenPrice, tokenInfoMap[tokenID])
 		if err != nil {
 			log.Warn("Failed to calculate price ratio, skipping",
 				"token_id", tokenID,
@@ -181,12 +188,16 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 
 	if len(tokenIDsToUpdate) == 0 {
 		log.Debug("No prices need updating (all changes below threshold)")
+		// Record as successful update cycle (skipped)
+		metrics.LastSuccessfulUpdateTimestamp.Set(float64(time.Now().Unix()))
+		metrics.UpdatesTotal.WithLabelValues("skipped").Inc()
 		return nil
 	}
 
 	log.Info("Updating token prices",
 		"token_count", len(tokenIDsToUpdate),
 		"token_ids", tokenIDsToUpdate,
+		"active_tokens", len(activeTokenIDs),
 		"total_tokens", len(tokenIDs))
 
 	// Step 3: Update prices on L2
@@ -218,6 +229,10 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		"token_count", len(tokenIDsToUpdate))
 
 	// Step 5: Update metrics
+	// Record as successful update cycle (updated)
+	metrics.LastSuccessfulUpdateTimestamp.Set(float64(time.Now().Unix()))
+	metrics.UpdatesTotal.WithLabelValues("updated").Inc()
+
 	for i, tokenID := range tokenIDsToUpdate {
 		log.Debug("Price updated",
 			"token_id", tokenID,
@@ -227,42 +242,79 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 	return nil
 }
 
-// calculatePriceRatio calculates the price ratio for a token
+// TokenInfo is a cached token info from contract
+type TokenInfo struct {
+	TokenAddress string
+	Decimals     uint8
+	Scale        *big.Int
+	IsActive     bool
+}
+
+// filterActiveTokens filters out inactive tokens and returns active tokenIDs with their info
+// This is called BEFORE fetching prices to save API calls
+func (u *PriceUpdater) filterActiveTokens(ctx context.Context, tokenIDs []uint16) ([]uint16, map[uint16]*TokenInfo) {
+	callOpts := &bind.CallOpts{Context: ctx}
+	activeTokenIDs := make([]uint16, 0, len(tokenIDs))
+	tokenInfoMap := make(map[uint16]*TokenInfo)
+
+	for _, tokenID := range tokenIDs {
+		tokenInfo, err := u.registryContract.GetTokenInfo(callOpts, tokenID)
+		if err != nil {
+			log.Warn("Failed to get token info, skipping token",
+				"token_id", tokenID,
+				"error", err)
+			continue
+		}
+
+		// Log and skip inactive tokens
+		if !tokenInfo.IsActive {
+			log.Info("Token is inactive, skipping price update",
+				"token_id", tokenID,
+				"address", tokenInfo.TokenAddress.Hex())
+			continue
+		}
+
+		// Cache token info for later use
+		tokenInfoMap[tokenID] = &TokenInfo{
+			TokenAddress: tokenInfo.TokenAddress.Hex(),
+			Decimals:     tokenInfo.Decimals,
+			Scale:        tokenInfo.Scale,
+			IsActive:     tokenInfo.IsActive,
+		}
+		activeTokenIDs = append(activeTokenIDs, tokenID)
+
+		log.Debug("Token is active",
+			"token_id", tokenID,
+			"address", tokenInfo.TokenAddress.Hex(),
+			"decimals", tokenInfo.Decimals,
+			"scale", tokenInfo.Scale.String())
+	}
+
+	if len(activeTokenIDs) < len(tokenIDs) {
+		log.Info("Filtered tokens by active status",
+			"total", len(tokenIDs),
+			"active", len(activeTokenIDs),
+			"skipped", len(tokenIDs)-len(activeTokenIDs))
+	}
+
+	return activeTokenIDs, tokenInfoMap
+}
+
+// calculatePriceRatioWithInfo calculates the price ratio using pre-fetched token info
 // Formula: priceRatio = tokenScale * tokenPriceUSD * 10^(18 - tokenDecimals) / ethPriceUSD
 // We do multiplications first, then division at the end to avoid precision loss
-func (u *PriceUpdater) calculatePriceRatio(ctx context.Context, tokenID uint16, tokenPrice *client.TokenPrice) (*big.Int, error) {
+func (u *PriceUpdater) calculatePriceRatioWithInfo(tokenID uint16, tokenPrice *client.TokenPrice, tokenInfo *TokenInfo) (*big.Int, error) {
 	// Validate input price data to prevent nil pointer panics
 	if tokenPrice == nil || tokenPrice.TokenPriceUSD == nil || tokenPrice.EthPriceUSD == nil {
 		return nil, fmt.Errorf("token price data missing for token %d", tokenID)
 	}
 
-	// Fetch token info from contract
-	tokenInfo, err := u.registryContract.GetTokenInfo(&bind.CallOpts{
-		Context: ctx,
-	}, tokenID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get token info from contract: %w", err)
-	}
-
-	// Check if token is active
-	if !tokenInfo.IsActive {
-		return nil, fmt.Errorf("token %d is not active", tokenID)
+	if tokenInfo == nil {
+		return nil, fmt.Errorf("token info missing for token %d", tokenID)
 	}
 
 	tokenScale := tokenInfo.Scale
 	tokenDecimals := tokenInfo.Decimals
-
-	log.Debug("Token info from contract",
-		"token_id", tokenID,
-		"address", tokenInfo.TokenAddress.Hex(),
-		"decimals", tokenDecimals,
-		"token_scale", tokenScale.String(),
-		"active", tokenInfo.IsActive)
-
-	// Validate token decimals (must be <= 18 for our formula to work)
-	if tokenDecimals > 18 {
-		return nil, fmt.Errorf("unsupported token decimals %d (>18) for token %d", tokenDecimals, tokenID)
-	}
 
 	// Check ETH price is not zero
 	if tokenPrice.EthPriceUSD.Cmp(big.NewFloat(0)) == 0 {
