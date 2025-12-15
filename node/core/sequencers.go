@@ -18,6 +18,11 @@ import (
 
 const tmKeySize = ed25519.PubKeySize
 
+// blsKeyCheckForkHeight is the height at which blsKey validation was enforced.
+// Before this height (inclusive), invalid blsKey sequencers are still included in the validator set
+// to maintain compatibility with historical blocks.
+const blsKeyCheckForkHeight = 18409547
+
 type validatorInfo struct {
 	address   common.Address
 	blsPubKey blssignatures.PublicKey
@@ -55,7 +60,7 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 	return blssignatures.VerifySignature(sig, messageHash, blsKey)
 }
 
-func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
+func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	seqHash, err := e.sequencerCaller.SequencerSetVerifyHash(nil)
 	if err != nil {
 		return nil, err
@@ -98,8 +103,11 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 		blsPK, err := decodeBlsPubKey(stakesInfo[i].BlsKey)
 		if err != nil {
 			e.logger.Error("failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
-			continue
-			// return nil, err
+			// Before blsKeyCheckForkHeight (inclusive), include sequencers with invalid blsKey
+			// to maintain compatibility with historical blocks
+			if height > blsKeyCheckForkHeight {
+				continue
+			}
 		}
 		// sequencerSet2 is the latest updated sequencer set which is considered as the next validator set for tendermint
 		if slices.Contains(sequencerSet2, stakesInfo[i].Addr) {
@@ -148,8 +156,8 @@ func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, erro
 	return nil, nil
 }
 
-func (e *Executor) updateSequencerSet() ([][]byte, error) {
-	validatorUpdates, err := e.sequencerSetUpdates()
+func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
+	validatorUpdates, err := e.sequencerSetUpdates(height)
 	if err != nil {
 		e.logger.Error("failed to get sequencer set from geth", "err", err)
 		return nil, err
