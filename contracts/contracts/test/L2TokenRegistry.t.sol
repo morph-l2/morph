@@ -689,7 +689,7 @@ contract L2TokenRegistryTest is Test {
         priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
     }
 
-    /// @notice Test: Only owner can access when allowList is disabled (new logic)
+    /// @notice Test: Only owner can access when allowList is disabled
     function test_onlyAllowed_onlyOwner_when_disabled() public {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
