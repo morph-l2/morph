@@ -65,7 +65,9 @@ func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if e.currentSeqHash != nil && bytes.Equal(e.currentSeqHash[:], seqHash[:]) {
+	// Don't use cache at fork height boundary to ensure correct blsKey validation behavior change
+	atForkBoundary := height == blsKeyCheckForkHeight || height == blsKeyCheckForkHeight+1
+	if e.currentSeqHash != nil && bytes.Equal(e.currentSeqHash[:], seqHash[:]) && !atForkBoundary {
 		return e.nextValidators, nil
 	}
 
