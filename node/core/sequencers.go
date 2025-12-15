@@ -18,10 +18,11 @@ import (
 
 const tmKeySize = ed25519.PubKeySize
 
-// blsKeyCheckForkHeight is the height at which blsKey validation was enforced.
-// Before this height (inclusive), invalid blsKey sequencers are still included in the validator set
-// to maintain compatibility with historical blocks.
-const blsKeyCheckForkHeight = 18409547
+// isBlsKeyCheckFork returns true if blsKey validation should be enforced at the given height.
+// For mainnet, blsKey validation is skipped before fork height to maintain historical compatibility.
+func (e *Executor) isBlsKeyCheckFork(height uint64) bool {
+	return e.blsKeyCheckForkHeight == 0 || height > e.blsKeyCheckForkHeight
+}
 
 type validatorInfo struct {
 	address   common.Address
@@ -66,7 +67,7 @@ func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 		return nil, err
 	}
 	// Don't use cache at fork height boundary to ensure correct blsKey validation behavior change
-	atForkBoundary := height == blsKeyCheckForkHeight || height == blsKeyCheckForkHeight+1
+	atForkBoundary := e.blsKeyCheckForkHeight > 0 && (height == e.blsKeyCheckForkHeight || height == e.blsKeyCheckForkHeight+1)
 	if e.currentSeqHash != nil && bytes.Equal(e.currentSeqHash[:], seqHash[:]) && !atForkBoundary {
 		return e.nextValidators, nil
 	}
@@ -105,9 +106,7 @@ func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 		blsPK, err := decodeBlsPubKey(stakesInfo[i].BlsKey)
 		if err != nil {
 			e.logger.Error("failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
-			// Before blsKeyCheckForkHeight (inclusive), include sequencers with invalid blsKey
-			// to maintain compatibility with historical blocks
-			if height > blsKeyCheckForkHeight {
+			if e.isBlsKeyCheckFork(height) {
 				continue
 			}
 		}
