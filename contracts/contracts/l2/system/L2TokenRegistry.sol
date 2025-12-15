@@ -294,6 +294,10 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
             tokenRegistration[_tokenAddress] = _tokenID;
         }
 
+        // Reset priceRatio to 0 to ensure consistency
+        // priceRatio depends on scale and decimals, so it must be recalculated after tokenInfo changes
+        priceRatio[_tokenID] = 0;
+
         // Note: tokenID should already be in supportedTokenSet from registration
         // No need to add again as EnumerableSet.add() is idempotent but wastes gas
 
@@ -480,6 +484,10 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         // Validate scale is non-zero
         if (_newScale == 0) revert InvalidScale();
         tokenRegistry[_tokenID].scale = _newScale;
+
+        // Reset priceRatio to 0 to ensure consistency
+        // priceRatio depends on scale, so it must be recalculated after scale changes
+        priceRatio[_tokenID] = 0;
 
         emit TokenScaleUpdated(_tokenID, _newScale);
     }
