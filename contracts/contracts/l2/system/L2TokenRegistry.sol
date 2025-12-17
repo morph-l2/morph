@@ -416,10 +416,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @notice Calculate the corresponding token amount for a given ETH amount
      * @dev Calculation formula:
      *      - ratio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
-     *      - tokenAmount = (ethAmount * 10^tokenDecimals) / ratio
-     *      - Substituting ratio: tokenAmount = (ethAmount * 10^tokenDecimals) / (tokenScale * (tokenPrice / ethPrice) * 10^(18 - tokenDecimals))
-     *      - Simplified: tokenAmount = (ethAmount * 10^tokenDecimals * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18 / ethPrice)
-     *      - Final: tokenAmount = (ethAmount * ethPrice * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18)
+     *      - tokenAmount = ⌈(ethAmount × tokenScale) / tokenRate⌉
      *      - Note: Uses ceiling division to ensure users receive fair token amounts
      * @param _tokenID Token ID of the ERC20 token
      * @param _ethAmount ETH amount (unit: wei)
