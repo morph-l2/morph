@@ -45,7 +45,13 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @notice Check if caller is in Allow List
      */
     modifier onlyAllowed() {
-        if (allowListEnabled && !allowList[msg.sender] && msg.sender != owner()) {
+        bool isOwner = msg.sender == owner();
+        bool isAllowedByList = allowListEnabled && allowList[msg.sender];
+
+        // Owner always has access
+        // When allowList is enabled, allowList users can access
+        // When allowList is disabled, only owner can access
+        if (!isOwner && !isAllowedByList) {
             revert CallerNotAllowed();
         }
         _;

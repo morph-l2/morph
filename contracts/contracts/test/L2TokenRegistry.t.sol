@@ -461,14 +461,28 @@ contract L2TokenRegistryTest is Test {
         priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
     }
 
-    function test_updatePriceRatio_succeeds_when_allowListDisabled() public {
+    function test_updatePriceRatio_reverts_when_allowListDisabled_and_not_owner() public {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
         vm.prank(owner);
         priceOracle.setAllowListEnabled(false);
 
+        // When allowList is disabled, only owner can access
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
         vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+    }
+
+    function test_updatePriceRatio_succeeds_when_allowListDisabled_and_owner() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.setAllowListEnabled(false);
+
+        // Owner can still access when allowList is disabled
+        vm.prank(owner);
         priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
 
         assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
@@ -625,6 +639,214 @@ contract L2TokenRegistryTest is Test {
     /*//////////////////////////////////////////////////////////////
                             Allow List Tests
     //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                        onlyAllowed Modifier Tests
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test: Owner always has access regardless of allowList status
+    function test_onlyAllowed_owner_always_has_access() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Case 1: allowListEnabled = true, owner not in allowList
+        assertTrue(priceOracle.allowListEnabled());
+        assertFalse(priceOracle.allowList(owner));
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+
+        // Case 2: allowListEnabled = false
+        vm.prank(owner);
+        priceOracle.setAllowListEnabled(false);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 2e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 2e12);
+    }
+
+    /// @notice Test: AllowList user can access when allowList is enabled
+    function test_onlyAllowed_allowListUser_succeeds_when_enabled() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Add alice to allowList
+        address[] memory users = new address[](1);
+        bool[] memory allowed = new bool[](1);
+        users[0] = alice;
+        allowed[0] = true;
+
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        // allowListEnabled = true, alice in allowList -> should succeed
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+    }
+
+    /// @notice Test: Non-allowList user cannot access when allowList is enabled
+    function test_onlyAllowed_nonAllowListUser_reverts_when_enabled() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // allowListEnabled = true, bob not in allowList -> should revert
+        assertTrue(priceOracle.allowListEnabled());
+        assertFalse(priceOracle.allowList(bob));
+
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(bob);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+    }
+
+    /// @notice Test: Only owner can access when allowList is disabled
+    function test_onlyAllowed_onlyOwner_when_disabled() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Add alice to allowList first
+        address[] memory users = new address[](1);
+        bool[] memory allowed = new bool[](1);
+        users[0] = alice;
+        allowed[0] = true;
+
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        // Disable allowList
+        vm.prank(owner);
+        priceOracle.setAllowListEnabled(false);
+
+        // Even though alice is in allowList, she cannot access when allowList is disabled
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Bob (not in allowList) also cannot access
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(bob);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Only owner can access
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+    }
+
+    /// @notice Test: User removed from allowList cannot access anymore
+    function test_onlyAllowed_removedUser_reverts() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Add alice to allowList
+        address[] memory users = new address[](1);
+        bool[] memory allowed = new bool[](1);
+        users[0] = alice;
+        allowed[0] = true;
+
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        // alice can access
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+
+        // Remove alice from allowList
+        allowed[0] = false;
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        // alice cannot access anymore
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 2e12);
+    }
+
+    /// @notice Test: Multiple users in allowList can all access
+    function test_onlyAllowed_multipleUsers_succeed() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Add both alice and bob to allowList
+        address[] memory users = new address[](2);
+        bool[] memory allowed = new bool[](2);
+        users[0] = alice;
+        users[1] = bob;
+        allowed[0] = true;
+        allowed[1] = true;
+
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        // Both alice and bob can access
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+
+        vm.prank(bob);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 2e12);
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 2e12);
+    }
+
+    /// @notice Test: onlyAllowed modifier logic summary table
+    /// | isOwner | allowListEnabled | inAllowList | Result  |
+    /// |---------|------------------|-------------|---------|
+    /// | true    | true             | true        | ALLOWED |
+    /// | true    | true             | false       | ALLOWED |
+    /// | true    | false            | true        | ALLOWED |
+    /// | true    | false            | false       | ALLOWED |
+    /// | false   | true             | true        | ALLOWED |
+    /// | false   | true             | false       | REVERT  |
+    /// | false   | false            | true        | REVERT  |
+    /// | false   | false            | false       | REVERT  |
+    function test_onlyAllowed_comprehensive_logic() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Setup: add alice to allowList, bob is not in allowList
+        address[] memory users = new address[](1);
+        bool[] memory allowed = new bool[](1);
+        users[0] = alice;
+        allowed[0] = true;
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        // Case: allowListEnabled = true
+        assertTrue(priceOracle.allowListEnabled());
+
+        // Owner (not in list) -> ALLOWED
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Alice (in list) -> ALLOWED
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 2e12);
+
+        // Bob (not in list) -> REVERT
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(bob);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 3e12);
+
+        // Case: allowListEnabled = false
+        vm.prank(owner);
+        priceOracle.setAllowListEnabled(false);
+
+        // Owner -> ALLOWED
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 4e12);
+
+        // Alice (even in list) -> REVERT (allowList disabled means only owner)
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(alice);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 5e12);
+
+        // Bob -> REVERT
+        vm.expectRevert(bytes4(keccak256("CallerNotAllowed()")));
+        vm.prank(bob);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 6e12);
+    }
 
     function test_setAllowList_succeeds() public {
         address[] memory users = new address[](2);
