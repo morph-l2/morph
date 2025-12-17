@@ -6445,6 +6445,7 @@ dependencies = [
  "revm",
  "rsp-mpt",
  "serde",
+ "serde_json",
  "tracing",
 ]
 

@@ -57,3 +57,4 @@ fn test_main_context() {
 
     let db = evm.inner.journaled_state.database.take_bundle();
 }
+
