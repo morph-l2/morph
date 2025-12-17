@@ -41,6 +41,7 @@ func main() {
 	app.Action = L2NodeMain
 	app.Commands = []cli.Command{
 		keyConverterCmd,
+		versionCmd,
 	}
 	err := app.Run(os.Args)
 	if err != nil {
