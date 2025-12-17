@@ -6,8 +6,7 @@ use alloy::{
     eips::eip2930::AccessList,
     primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
 };
-use std::{fmt::Debug, sync::Once};
-use zktrie::ZkMemoryDb;
+use std::fmt::Debug;
 
 /// Predeployed contracts
 pub mod predeployed;
@@ -21,21 +20,6 @@ pub use alloy::{
     primitives as alloy_primitives,
     primitives::{Address, B256, U256},
 };
-pub use zktrie as zk_trie;
-
-/// Initialize the hash scheme for zkTrie.
-pub fn init_hash_scheme() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        zktrie::init_hash_scheme_simple(|a: &[u8; 32], b: &[u8; 32], domain: &[u8; 32]| {
-            use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
-            let a = Fr::from_bytes(a).into_option()?;
-            let b = Fr::from_bytes(b).into_option()?;
-            let domain = Fr::from_bytes(domain).into_option()?;
-            Some(hash_with_domain(&[a, b], domain).to_repr())
-        });
-    });
-}
 
 /// Blanket trait for block trace extensions.
 pub trait Block: Debug {
@@ -85,13 +69,13 @@ pub trait Block: Debug {
     fn flatten_proofs(&self) -> impl Iterator<Item = (&B256, &[u8])>;
 
     /// Update zktrie state from trace
-    #[inline]
-    fn build_zktrie_db(&self, zktrie_db: &mut ZkMemoryDb) {
-        init_hash_scheme();
-        for (_, bytes) in self.flatten_proofs() {
-            zktrie_db.add_node_bytes(bytes, None).unwrap();
-        }
-    }
+    // #[inline]
+    // fn build_zktrie_db(&self, zktrie_db: &mut ZkMemoryDb) {
+    //     init_hash_scheme();
+    //     for (_, bytes) in self.flatten_proofs() {
+    //         zktrie_db.add_node_bytes(bytes, None).unwrap();
+    //     }
+    // }
 
     /// Number of l1 transactions
     #[inline]
@@ -150,7 +134,7 @@ pub trait TxTrace {
     fn nonce(&self) -> u64;
 
     /// Get `gas_limit`.
-    fn gas_limit(&self) -> u128;
+    fn gas_limit(&self) -> u64;
 
     /// Get `gas_price`
     fn gas_price(&self) -> u128;
@@ -254,7 +238,7 @@ pub trait TxTrace {
                     gas_limit: self.gas_limit(),
                     max_fee_per_gas: self.max_fee_per_gas(),
                     max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
-                    to: self.to(),
+                    to: *self.to().to().expect("EIP-7702 transaction must have a recipient"),
                     value: self.value(),
                     access_list: self.access_list(),
                     authorization_list: self.authorization_list(),
@@ -376,7 +360,7 @@ impl<T: TxTrace> TxTrace for &T {
         (*self).nonce()
     }
 
-    fn gas_limit(&self) -> u128 {
+    fn gas_limit(&self) -> u64 {
         (*self).gas_limit()
     }
 

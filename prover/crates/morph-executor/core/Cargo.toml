@@ -1,0 +1,24 @@
+[package]
+name = "morph-executor-core"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alloy = { workspace = true, features = [
+    "consensus",
+    "eips",
+    "k256",
+    "rlp",
+    "serde",
+] }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_with.workspace = true
+revm = { workspace = true, features = [
+    "serde",
+    "bn",
+], default-features = false }
+prover-primitives.workspace = true
+tiny-keccak = { workspace = true }
+thiserror = { workspace = true }

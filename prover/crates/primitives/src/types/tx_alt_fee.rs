@@ -1,8 +1,8 @@
 /// Use alt token for tx fee.
 use alloy::{
-    consensus::{EncodableSignature, SignableTransaction, Signed, Transaction},
-    eips::{eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization},
-    primitives::{keccak256, Bytes, ChainId, Signature, TxKind, B256, U256},
+    consensus::{SignableTransaction, Signed, Transaction, transaction::RlpEcdsaEncodableTx},
+    eips::{eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization, Typed2718},
+    primitives::{Address, Bytes, ChainId, Signature, TxKind, B256, U256},
     rlp::{BufMut, Decodable, Encodable, Header},
 };
 use core::mem;
@@ -24,7 +24,7 @@ pub struct TxAltFee {
     /// this transaction. This is paid up-front, before any
     /// computation is done and may not be increased
     /// later; formally Tg.
-    pub gas_limit: u128,
+    pub gas_limit: u64,
     /// A scalar value equal to the maximum
     /// amount of gas that should be used in executing
     /// this transaction. This is paid up-front, before any
@@ -155,42 +155,16 @@ impl TxAltFee {
         self.fee_limit.encode(out);
     }
 
-    /// Returns what the encoded length should be, if the transaction were RLP encoded with the
-    /// given signature, depending on the value of `with_header`.
-    ///
-    /// If `with_header` is `true`, the payload length will include the RLP header length.
-    /// If `with_header` is `false`, the payload length will not include the RLP header length.
-    pub fn encoded_len_with_signature<S>(&self, signature: &S, with_header: bool) -> usize
-    where
-        S: EncodableSignature,
-    {
-        // this counts the tx fields and signature fields
-        let payload_length = self.fields_len() + signature.rlp_vrs_len();
-
-        // this counts:
-        // * tx type byte
-        // * inner header length
-        // * inner payload length
-        let inner_payload_length =
-            1 + Header { list: true, payload_length }.length() + payload_length;
-
-        if with_header {
-            // header length plus length of the above, wrapped with a string header
-            Header { list: false, payload_length: inner_payload_length }.length() +
-                inner_payload_length
-        } else {
-            inner_payload_length
-        }
-    }
-
     /// Inner encoding function that is used for both rlp [`Encodable`] trait and for calculating
     /// hash that for eip2718 does not require a rlp header.
     #[doc(hidden)]
-    pub fn encode_with_signature<S>(&self, signature: &S, out: &mut dyn BufMut, with_header: bool)
-    where
-        S: EncodableSignature,
-    {
-        let payload_length = self.fields_len() + signature.rlp_vrs_len();
+    pub fn encode_with_signature(
+        &self,
+        signature: &Signature,
+        out: &mut dyn BufMut,
+        with_header: bool,
+    ) {
+        let payload_length = self.fields_len() + signature.rlp_rs_len() + signature.v().length();
         if with_header {
             Header {
                 list: false,
@@ -203,10 +177,7 @@ impl TxAltFee {
     }
 
     /// Encodes the transaction according to EIP-2718, without a header.
-    pub fn encode_2718<S>(&self, signature: &S, out: &mut dyn BufMut)
-    where
-        S: EncodableSignature,
-    {
+    pub fn encode_2718(&self, signature: &Signature, out: &mut dyn BufMut) {
         self.encode_with_signature(signature, out, false);
     }
 
@@ -227,7 +198,7 @@ impl TxAltFee {
         let original_len = buf.len();
 
         let tx = Self::decode_fields(buf)?;
-        let signature = Signature::decode_rlp_vrs(buf)?;
+        let signature = Signature::decode_rlp_vrs(buf, bool::decode)?;
 
         let signed = tx.into_signed(signature);
         if buf.len() + header.payload_length != original_len {
@@ -244,15 +215,12 @@ impl TxAltFee {
     /// tx type byte or string header.
     ///
     /// This __does__ encode a list header and include a signature.
-    pub fn encode_with_signature_fields<S>(&self, signature: &S, out: &mut dyn BufMut)
-    where
-        S: EncodableSignature,
-    {
-        let payload_length = self.fields_len() + signature.rlp_vrs_len();
+    pub fn encode_with_signature_fields(&self, signature: &Signature, out: &mut dyn BufMut) {
+        let payload_length = self.fields_len() + signature.rlp_rs_len() + signature.v().length();
         let header = Header { list: true, payload_length };
         header.encode(out);
         self.encode_fields(out);
-        signature.write_rlp_vrs(out);
+        signature.write_rlp_vrs(out, signature.v());
     }
 
     /// Get transaction type
@@ -278,6 +246,12 @@ impl TxAltFee {
     }
 }
 
+impl Typed2718 for TxAltFee {
+    fn ty(&self) -> u8 {
+        0x7f
+    }
+}
+
 impl Transaction for TxAltFee {
     fn chain_id(&self) -> Option<ChainId> {
         Some(self.chain_id)
@@ -287,7 +261,7 @@ impl Transaction for TxAltFee {
         self.nonce
     }
 
-    fn gas_limit(&self) -> u128 {
+    fn gas_limit(&self) -> u64 {
         self.gas_limit
     }
 
@@ -311,21 +285,21 @@ impl Transaction for TxAltFee {
         None
     }
 
-    fn to(&self) -> TxKind {
-        self.to
+    fn to(&self) -> Option<Address> {
+        self.to.into()
     }
 
     fn value(&self) -> U256 {
         self.value
     }
 
-    fn input(&self) -> &[u8] {
+    fn input(&self) -> &alloy::primitives::Bytes {
         &self.input
     }
 
-    fn ty(&self) -> u8 {
-        0x7f
-    }
+    // fn ty(&self) -> u8 {
+    //     0x7f
+    // }
 
     fn access_list(&self) -> Option<&AccessList> {
         Some(&self.access_list)
@@ -337,6 +311,37 @@ impl Transaction for TxAltFee {
 
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
+    }
+
+    fn effective_tip_per_gas(&self, base_fee: u64) -> Option<u128> {
+        let base_fee = base_fee as u128;
+        let max_fee_per_gas = self.max_fee_per_gas();
+        if max_fee_per_gas < base_fee {
+            return None;
+        }
+        let fee = max_fee_per_gas - base_fee;
+        self.max_priority_fee_per_gas()
+            .map_or(Some(fee), |priority_fee| Some(fee.min(priority_fee)))
+    }
+
+    fn authorization_count(&self) -> Option<u64> {
+        self.authorization_list().map(|auths| auths.len() as u64)
+    }
+
+    fn effective_gas_price(&self, base_fee: Option<u64>) -> u128 {
+        self.effective_gas_price(base_fee)
+    }
+
+    fn is_dynamic_fee(&self) -> bool {
+        todo!()
+    }
+
+    fn kind(&self) -> TxKind {
+        todo!()
+    }
+
+    fn is_create(&self) -> bool {
+        todo!()
     }
     // fn fee_token_id(&self) -> u16 {
     //     0x7f
@@ -378,17 +383,34 @@ impl SignableTransaction<Signature> for TxAltFee {
         self.length() + 1
     }
 
-    fn into_signed(self, signature: Signature) -> Signed<Self> {
-        // Drop any v chain id value to ensure the signature format is correct at the time of
-        // combination for an EIP-1559 transaction. V should indicate the y-parity of the
-        // signature.
-        let signature = signature.with_parity_bool();
+    // fn into_signed(self, signature: Signature) -> Signed<Self> {
+    //     // Drop any v chain id value to ensure the signature format is correct at the time of
+    //     // combination for an EIP-1559 transaction. V should indicate the y-parity of the
+    //     // signature.
+    //     let signature = signature.with_parity_bool();
 
-        let mut buf = Vec::with_capacity(self.encoded_len_with_signature(&signature, false));
-        self.encode_with_signature(&signature, &mut buf, false);
-        let hash = keccak256(&buf);
+    //     let mut buf = Vec::with_capacity(self.encoded_len_with_signature(&signature, false));
+    //     self.encode_with_signature(&signature, &mut buf, false);
+    //     let hash = keccak256(&buf);
 
-        Signed::new_unchecked(self, signature, hash)
+    //     Signed::new_unchecked(self, signature, hash)
+    // }
+}
+
+impl RlpEcdsaEncodableTx for TxAltFee {
+    fn rlp_encode_signed(&self, signature: &Signature, out: &mut dyn BufMut) {
+        // Encode the transaction type byte
+        out.put_u8(self.tx_type());
+        // Encode the transaction fields with signature
+        self.encode_with_signature_fields(signature, out);
+    }
+
+    fn rlp_encoded_fields_length(&self) -> usize {
+        self.fields_len()
+    }
+
+    fn rlp_encode_fields(&self, out: &mut dyn BufMut) {
+        self.encode_fields(out);
     }
 }
 

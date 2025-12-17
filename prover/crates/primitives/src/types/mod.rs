@@ -1,30 +1,19 @@
-use crate::{init_hash_scheme, Block};
+use crate::Block;
 use alloy::primitives::{Address, Bytes, B256, U256};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Map};
-use zktrie::ZkTrieNode;
 
 mod authorization_list;
 mod tx;
 /// Alternative fee transaction types
-pub mod tx_alt_fee;
 pub use authorization_list::{ArchivedSignedAuthorization, AuthorizationList};
-pub use tx::{ArchivedTransactionTrace, TransactionTrace, TxL1Msg, TypedTransaction};
+/// Alternative fee transaction types
+pub mod tx_alt_fee;
+mod tx_en;
+pub use tx::{TransactionTrace, TxL1Msg, TypedTransaction};
 
 /// Block header
-#[derive(
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    Serialize,
-    Deserialize,
-    Default,
-    Debug,
-    Clone,
-    Hash,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
 struct BlockHeader {
     /// block number
     number: U256,
@@ -46,38 +35,14 @@ struct BlockHeader {
 }
 
 /// Coinbase
-#[derive(
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    Serialize,
-    Deserialize,
-    Default,
-    Debug,
-    Clone,
-    Hash,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
 struct Coinbase {
     /// address of coinbase
     address: Address,
 }
 
 /// Bytecode trace
-#[derive(
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    Serialize,
-    Deserialize,
-    Default,
-    Debug,
-    Clone,
-    Hash,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Hash)]
 struct BytecodeTrace {
     /// bytecode
     code: Bytes,
@@ -85,21 +50,7 @@ struct BytecodeTrace {
 
 /// storage trace
 #[serde_as]
-#[derive(
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    Serialize,
-    Deserialize,
-    Default,
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Hash,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct StorageTrace {
     /// root before
     #[serde(rename = "rootBefore")]
@@ -123,11 +74,8 @@ pub struct StorageTrace {
 /// Block trace format
 ///
 /// ref: <https://github.com/scroll-tech/go-ethereum/blob/develop/core/types/l2trace.go>
-#[derive(
-    rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Serialize, Deserialize, Default, Debug, Clone,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+
 pub struct BlockTrace {
     /// chain id
     #[serde(rename = "chainID", default)]
@@ -140,7 +88,7 @@ pub struct BlockTrace {
     pub transactions: Vec<TransactionTrace>,
     //d execution_results
     /// bytecodes
-    codes: Vec<BytecodeTrace>,
+    pub codes: Vec<BytecodeTrace>,
     /// storage trace BEFORE execution
     #[serde(rename = "storageTrace")]
     pub storage_trace: StorageTrace,
@@ -153,33 +101,32 @@ pub struct BlockTrace {
 const MAGICSMTBYTES: &[u8] = "THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI".as_bytes();
 
 impl BlockTrace {
-    /// Convert legacy traces to the latest format
-    pub fn flatten(&mut self) {
-        let account_proofs =
-            self.storage_trace.proofs.iter().flat_map(|kv_map| {
-                kv_map.iter().map(|(k, bts)| (k, bts.iter().map(Bytes::as_ref)))
-            });
+    // Convert legacy traces to the latest format
+    // pub fn flatten(&mut self) {
+    //     let account_proofs =
+    //         self.storage_trace.proofs.iter().flat_map(|kv_map| {
+    //             kv_map.iter().map(|(k, bts)| (k, bts.iter().map(Bytes::as_ref)))
+    //         });
 
-        let storage_proofs = self.storage_trace.storage_proofs.iter().flat_map(|(k, kv_map)| {
-            kv_map.iter().map(move |(sk, bts)| (k, sk, bts.iter().map(Bytes::as_ref)))
-        });
+    //     let storage_proofs = self.storage_trace.storage_proofs.iter().flat_map(|(k, kv_map)| {
+    //         kv_map.iter().map(move |(sk, bts)| (k, sk, bts.iter().map(Bytes::as_ref)))
+    //     });
 
-        let proofs = account_proofs
-            .flat_map(|(_, bytes)| bytes)
-            .chain(storage_proofs.flat_map(|(_, _, bytes)| bytes));
+    //     let proofs = account_proofs
+    //         .flat_map(|(_, bytes)| bytes)
+    //         .chain(storage_proofs.flat_map(|(_, _, bytes)| bytes));
 
-        let mut rt = vec![];
-        init_hash_scheme();
-        for bytes in proofs {
-            if bytes == MAGICSMTBYTES {
-                continue;
-            }
-            let n = ZkTrieNode::parse(bytes).expect("Blocktrace ZkTrieNode::parse");
-            let k: [u8; 32] = n.node_hash();
-            rt.push((B256::from_slice(&k), Bytes::copy_from_slice(bytes)));
-        }
-        self.storage_trace.flatten_proofs = Some(rt);
-    }
+    //     let mut rt = vec![];
+    //     for bytes in proofs {
+    //         if bytes == MAGICSMTBYTES {
+    //             continue;
+    //         }
+    //         let n = ZkTrieNode::parse(bytes).expect("Blocktrace ZkTrieNode::parse");
+    //         let k: [u8; 32] = n.node_hash();
+    //         rt.push((B256::from_slice(&k), Bytes::copy_from_slice(bytes)));
+    //     }
+    //     self.storage_trace.flatten_proofs = Some(rt);
+    // }
 }
 
 impl Block for BlockTrace {
@@ -215,74 +162,6 @@ impl Block for BlockTrace {
 
     fn prevrandao(&self) -> Option<B256> {
         self.header.mix_hash
-    }
-
-    fn transactions(&self) -> impl Iterator<Item = &Self::Tx> {
-        self.transactions.iter()
-    }
-
-    fn root_before(&self) -> B256 {
-        self.storage_trace.root_before
-    }
-
-    fn root_after(&self) -> B256 {
-        self.storage_trace.root_after
-    }
-
-    fn codes(&self) -> impl ExactSizeIterator<Item = &[u8]> {
-        self.codes.iter().map(|code| code.code.as_ref())
-    }
-
-    fn start_l1_queue_index(&self) -> u64 {
-        self.start_l1_queue_index
-    }
-
-    fn flatten_proofs(&self) -> impl Iterator<Item = (&B256, &[u8])> {
-        self.storage_trace
-            .flatten_proofs
-            .as_ref()
-            .into_iter()
-            .flat_map(|proof| proof.iter().map(|(k, v)| (k, v.as_ref())))
-    }
-}
-
-impl Block for ArchivedBlockTrace {
-    type Tx = ArchivedTransactionTrace;
-
-    fn number(&self) -> u64 {
-        self.header.number.to()
-    }
-
-    fn block_hash(&self) -> B256 {
-        self.header.hash
-    }
-
-    fn chain_id(&self) -> u64 {
-        self.chain_id
-    }
-
-    fn coinbase(&self) -> Address {
-        self.coinbase.address
-    }
-
-    fn timestamp(&self) -> U256 {
-        self.header.timestamp
-    }
-
-    fn gas_limit(&self) -> U256 {
-        self.header.gas_limit
-    }
-
-    fn base_fee_per_gas(&self) -> Option<U256> {
-        self.header.base_fee_per_gas.as_ref().copied()
-    }
-
-    fn difficulty(&self) -> U256 {
-        self.header.difficulty
-    }
-
-    fn prevrandao(&self) -> Option<B256> {
-        self.header.mix_hash.as_ref().copied()
     }
 
     fn transactions(&self) -> impl Iterator<Item = &Self::Tx> {
@@ -391,50 +270,5 @@ mod tests {
             result: BlockTrace,
         }
         let _block: BlockTrace = serde_json::from_str::<Test>(TRACE).unwrap().result;
-    }
-
-    #[test]
-    fn test_rkyv() {
-        let trace = serde_json::from_str::<serde_json::Value>(TRACE).unwrap()["result"].clone();
-        let block: BlockTrace = serde_json::from_value(trace).unwrap();
-        let archived_bytes = rkyv::to_bytes::<_, 4096>(&block).unwrap();
-        let archived_block =
-            rkyv::check_archived_root::<BlockTrace>(archived_bytes.as_ref()).unwrap();
-
-        assert_eq!(block.chain_id, archived_block.chain_id);
-        assert_eq!(block.coinbase.address, archived_block.coinbase.address);
-
-        assert_eq!(block.header.number, archived_block.header.number);
-        assert_eq!(block.header.hash, archived_block.header.hash);
-        assert_eq!(block.header.timestamp, archived_block.header.timestamp);
-        assert_eq!(block.header.gas_limit, archived_block.header.gas_limit);
-        assert_eq!(block.header.base_fee_per_gas, archived_block.header.base_fee_per_gas);
-        assert_eq!(block.header.difficulty, archived_block.header.difficulty);
-        assert_eq!(block.header.mix_hash, archived_block.header.mix_hash);
-
-        let txs = block.transactions.iter().map(|tx| tx.try_build_typed_tx().unwrap());
-        let archived_txs =
-            archived_block.transactions.iter().map(|tx| tx.try_build_typed_tx().unwrap());
-        for (tx, archived_tx) in txs.zip(archived_txs) {
-            assert_eq!(tx, archived_tx);
-        }
-
-        for (code, archived_code) in block.codes.iter().zip(archived_block.codes.iter()) {
-            assert_eq!(code.code.as_ref(), archived_code.code.as_ref());
-        }
-
-        assert_eq!(block.storage_trace.root_before, archived_block.storage_trace.root_before);
-        assert_eq!(block.storage_trace.root_after, archived_block.storage_trace.root_after);
-        // for (proof, archived_proof) in block
-        //     .storage_trace
-        //     .flatten_proofs
-        //     .iter()
-        //     .zip(archived_block.storage_trace.flatten_proofs.iter())
-        // {
-        //     assert_eq!(proof.get(0).unwrap().0, archived_proof.0);
-        //     assert_eq!(proof.get(1).as_ref(), archived_proof.1.as_ref());
-        // }
-
-        assert_eq!(block.start_l1_queue_index, archived_block.start_l1_queue_index);
     }
 }

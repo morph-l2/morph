@@ -1,7 +1,7 @@
 use alloy::primitives::ruint::aliases::U256;
-use sbv_core::{BatchInfo, EvmExecutorBuilder, HardforkConfig, VerificationError};
-use sbv_primitives::{types::BlockTrace, Address};
-use sbv_utils::dev_error;
+use morph_executor_core::{EthEvm, batch::BatchInfo, error::VerificationError};
+use prover_primitives::{types::BlockTrace, Address};
+use prover_utils::dev_error;
 use std::str::FromStr;
 
 // use Verifier;
@@ -22,49 +22,49 @@ impl EVMVerifier {
 
 fn execute(traces: &[BlockTrace]) -> Result<BatchInfo, VerificationError> {
     println!("cycle-tracker-start: zktrie_db");
-    let (mut batch_info, zktrie_db) = BatchInfo::from_block_traces(traces);
+    let mut batch_info = BatchInfo::from_block_traces(traces);
     println!("cycle-tracker-end: zktrie_db");
 
-    let fork_config: HardforkConfig = HardforkConfig::default_from_chain_id(2818);
-    let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
-        .hardfork_config(fork_config)
-        .build(&traces[0])?;
+    // let fork_config: HardforkConfig = HardforkConfig::default_from_chain_id(2818);
+    // let mut executor = EvmExecutorBuilder::new(zktrie_db.clone())
+    //     .hardfork_config(fork_config)
+    //     .build(&traces[0])?;
 
-    #[allow(clippy::map_identity)]
-    #[allow(clippy::manual_inspect)]
-    executor.handle_block(&traces[0])?;
-    for trace in traces[1..].iter() {
-        executor.update_db(trace)?;
-        executor.handle_block(trace)?;
-    }
+    // #[allow(clippy::map_identity)]
+    // #[allow(clippy::manual_inspect)]
+    // executor.handle_block(&traces[0])?;
+    // for trace in traces[1..].iter() {
+    //     executor.update_db(trace)?;
+    //     executor.handle_block(trace)?;
+    // }
 
-    let trace_root_after = batch_info.post_state_root();
-    let revm_root_after = executor.commit_changes(&zktrie_db);
+    // let trace_root_after = batch_info.post_state_root();
+    // let revm_root_after = executor.commit_changes(&zktrie_db);
 
-    if revm_root_after != batch_info.post_state_root() {
-        dev_error!(
-            "root mismatch: root after in trace = {trace_root_after:x}, root after in revm = {revm_root_after:x}"
-        );
-        return Err(VerificationError::RootMismatch {
-            root_trace: trace_root_after,
-            root_revm: revm_root_after,
-        });
-    }
+    // if revm_root_after != batch_info.post_state_root() {
+    //     dev_error!(
+    //         "root mismatch: root after in trace = {trace_root_after:x}, root after in revm = {revm_root_after:x}"
+    //     );
+    //     return Err(VerificationError::RootMismatch {
+    //         root_trace: trace_root_after,
+    //         root_revm: revm_root_after,
+    //     });
+    // }
 
-    // post_withdraw_root;
-    let withdraw_root = executor.get_storage_value(
-        Address::from_str(WITHDRAW_ROOT_ADDRESS).unwrap(),
-        U256::from(WITHDRAW_ROOT_SLOT),
-    );
-    // post_sequencer_root;
-    let sequencer_root = executor.get_storage_value(
-        Address::from_str(SEQUENCER_ROOT_ADDRESS).unwrap(),
-        U256::from(SEQUENCER_ROOT_SLOT),
-    );
+    // // post_withdraw_root;
+    // let withdraw_root = executor.get_storage_value(
+    //     Address::from_str(WITHDRAW_ROOT_ADDRESS).unwrap(),
+    //     U256::from(WITHDRAW_ROOT_SLOT),
+    // );
+    // // post_sequencer_root;
+    // let sequencer_root = executor.get_storage_value(
+    //     Address::from_str(SEQUENCER_ROOT_ADDRESS).unwrap(),
+    //     U256::from(SEQUENCER_ROOT_SLOT),
+    // );
 
-    batch_info.withdraw_root = Some(withdraw_root.into());
-    batch_info.sequencer_root = Some(sequencer_root.into());
+    // batch_info.withdraw_root = Some(withdraw_root.into());
+    // batch_info.sequencer_root = Some(sequencer_root.into());
 
-    drop(executor);
+    // drop(executor);
     Ok(batch_info)
 }

@@ -1,7 +1,7 @@
 use alloy::rlp::Decodable;
 use anyhow::{anyhow, Ok};
 use ruzstd::StreamingDecoder;
-use sbv_primitives::types::TypedTransaction;
+use prover_primitives::types::TypedTransaction;
 use std::io::Read;
 
 /// This magic number is included at the start of a single Zstandard frame

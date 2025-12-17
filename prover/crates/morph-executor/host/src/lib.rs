@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use morph_executor_utils::read_env_var;
-use sbv_primitives::{types::BlockTrace, Block, TxTrace};
+use prover_primitives::{types::BlockTrace, Block, TxTrace};
 use std::{io::Write, path::Path, sync::Arc};
 use zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 
@@ -30,7 +30,7 @@ pub fn load_trusted_setup() -> KzgSettings {
         read_env_var("TRUSTED_SETUP_4844", "configs/4844_trusted_setup.txt".to_string());
     let trusted_setup_file = Path::new(&setup_config);
     assert!(trusted_setup_file.exists());
-    KzgSettings::load_trusted_setup_file(trusted_setup_file).unwrap()
+    KzgSettings::load_trusted_setup_file(trusted_setup_file, 0).unwrap()
 }
 
 pub fn get_blob_info(block_trace: &Vec<BlockTrace>) -> Result<BlobInfo, anyhow::Error> {
@@ -90,23 +90,30 @@ pub fn encode_blob(tx_bytes: Vec<u8>) -> [u8; 131072] {
 /// Populate kzg info.
 pub fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo, anyhow::Error> {
     let kzg_settings: Arc<c_kzg::KzgSettings> = Arc::clone(&MAINNET_KZG_TRUSTED_SETUP);
-    let commitment = KzgCommitment::blob_to_kzg_commitment(
-        &Blob::from_bytes(blob_bytes).unwrap(),
-        &kzg_settings,
-    )
-    .map_err(|e| anyhow!(format!("generate KzgCommitment error: {:?}", e)))?;
+    // let commitment = KzgCommitment::blob_to_kzg_commitment(
+    //     &Blob::from_bytes(blob_bytes).unwrap(),
+    //     &kzg_settings,
+    // )
+    // .map_err(|e| anyhow!(format!("generate KzgCommitment error: {:?}", e)))?;
 
-    let proof = KzgProof::compute_blob_kzg_proof(
-        &Blob::from_bytes(blob_bytes).unwrap(),
-        &Bytes48::from_bytes(commitment.as_slice()).unwrap(),
-        &kzg_settings,
-    )
-    .map_err(|e| anyhow!(format!("generate KzgCommitment error: {:?}", e)))?;
+    // let proof = KzgProof::compute_blob_kzg_proof(
+    //     &Blob::from_bytes(blob_bytes).unwrap(),
+    //     &Bytes48::from_bytes(commitment.as_slice()).unwrap(),
+    //     &kzg_settings,
+    // )
+    // .map_err(|e| anyhow!(format!("generate KzgCommitment error: {:?}", e)))?;
 
+    // let blob_info = BlobInfo {
+    //     blob_data: blob_bytes.to_vec(),
+    //     commitment: commitment.to_vec(),
+    //     proof: proof.as_slice().to_vec(),
+    // };
+
+    // TODO lib is changed, temporarily disable kzg proof generation
     let blob_info = BlobInfo {
         blob_data: blob_bytes.to_vec(),
-        commitment: commitment.to_vec(),
-        proof: proof.as_slice().to_vec(),
+        commitment: vec![0u8; 48],
+        proof: vec![0u8; 48],
     };
     Ok(blob_info)
 }

@@ -32,8 +32,7 @@ dotenv = { workspace = true }
 morph-executor-host = { workspace = true }
 morph-executor-client = { workspace = true }
 morph-executor-utils = { workspace = true }
-sbv-primitives = { workspace = true }
+prover-primitives = { workspace = true }
 
 [build-dependencies]
-sp1-helper = { workspace = true }
 morph-executor-utils = { workspace = true }

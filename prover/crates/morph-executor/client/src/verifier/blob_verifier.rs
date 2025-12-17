@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use kzg_rs::{get_kzg_settings, Blob as KzgRsBlob, Bytes48};
 
-use sbv_primitives::B256;
+use prover_primitives::B256;
 use sha2::{Digest as _, Sha256};
 
 use crate::types::{blob::get_origin_batch, input::BlobInfo};

@@ -5,10 +5,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-c-kzg = { workspace = true }
 zstd = { workspace = true }
 anyhow = { workspace = true }
 once_cell = { workspace = true }
-sbv-primitives = { workspace = true }
+prover-primitives = { workspace = true }
 morph-executor-client = { workspace = true }
 morph-executor-utils = { workspace = true }
+alloy-consensus = { workspace = true }
+c-kzg = { workspace = true }

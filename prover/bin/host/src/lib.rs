@@ -4,7 +4,7 @@ use evm::{save_plonk_fixture, EvmProofFixture};
 use morph_executor_client::{types::input::ClientInput, verify};
 use morph_executor_host::get_blob_info;
 use morph_executor_utils::read_env_var;
-use sbv_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
+use prover_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
 use sp1_sdk::{HashableKey, ProverClient, SP1Stdin};
 use std::time::Instant;
 

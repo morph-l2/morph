@@ -3,14 +3,18 @@ use crate::{
     TxTrace,
 };
 use alloy::{
-    consensus::{Signed, Transaction, TxEnvelope, TxType},
+    consensus::{
+        transaction::SignerRecoverable, Signed, Transaction, TxEnvelope, TxType, Typed2718,
+    },
     eips::{
         eip2718::{Decodable2718, Encodable2718},
         eip2930::AccessList,
+        eip4844::DATA_GAS_PER_BLOB,
         eip7702::SignedAuthorization,
     },
     primitives::{
-        keccak256, Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64,
+        keccak256, Address, Bytes, ChainId, Selector, Signature, SignatureError, TxKind, B256,
+        U256, U64,
     },
     rlp::{BufMut, BytesMut, Decodable, Encodable, Header},
 };
@@ -41,7 +45,7 @@ pub struct TxL1Msg {
     /// this transaction. This is paid up-front, before any
     /// computation is done and may not be increased
     /// later; formally Tg.
-    pub gas_limit: u128,
+    pub gas_limit: u64,
     /// The 160-bit address of the message call’s recipient or, for a contract creation
     /// transaction, ∅, used here to denote the only member of B0 ; formally Tt.
     pub to: TxKind,
@@ -60,18 +64,7 @@ pub struct TxL1Msg {
 
 /// Transaction Trace
 #[serde_as]
-#[derive(
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Default,
-    Debug,
-    Clone,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, Hash, PartialEq, Eq))]
+#[derive(serde::Serialize, serde::Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TransactionTrace {
     /// tx hash
     #[serde(default, rename = "txHash")]
@@ -142,8 +135,8 @@ impl TxTrace for TransactionTrace {
         self.nonce
     }
 
-    fn gas_limit(&self) -> u128 {
-        self.gas as u128
+    fn gas_limit(&self) -> u64 {
+        self.gas
     }
 
     fn gas_price(&self) -> u128 {
@@ -192,7 +185,7 @@ impl TxTrace for TransactionTrace {
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {
-        Signature::from_rs_and_parity(self.r, self.s, self.v)
+        Ok(Signature::from_scalars_and_parity(self.r.into(), self.s.into(), true))
     }
 
     fn fee_token_id(&self) -> u16 {
@@ -204,84 +197,9 @@ impl TxTrace for TransactionTrace {
     }
 }
 
-impl TxTrace for ArchivedTransactionTrace {
-    fn tx_hash(&self) -> B256 {
-        self.tx_hash
-    }
-
+impl Typed2718 for TypedTransaction {
     fn ty(&self) -> u8 {
-        self.ty
-    }
-
-    fn nonce(&self) -> u64 {
-        self.nonce
-    }
-
-    fn gas_limit(&self) -> u128 {
-        self.gas as u128
-    }
-
-    fn gas_price(&self) -> u128 {
-        self.gas_price.to()
-    }
-
-    fn max_fee_per_gas(&self) -> u128 {
-        self.gas_fee_cap.as_ref().map(|v| v.to()).unwrap_or_default()
-    }
-
-    fn max_priority_fee_per_gas(&self) -> u128 {
-        self.gas_tip_cap.as_ref().map(|v| v.to()).unwrap_or_default()
-    }
-
-    unsafe fn get_from_unchecked(&self) -> Address {
-        self.from
-    }
-
-    fn to(&self) -> TxKind {
-        if self.is_create {
-            TxKind::Create
-        } else {
-            debug_assert!(self.to.as_ref().map(|a| !a.is_zero()).unwrap_or(false));
-            TxKind::Call(*self.to.as_ref().expect("to address must be present"))
-        }
-    }
-
-    fn chain_id(&self) -> ChainId {
-        self.chain_id.to()
-    }
-
-    fn value(&self) -> U256 {
-        self.value
-    }
-
-    fn data(&self) -> Bytes {
-        Bytes::copy_from_slice(self.data.as_ref())
-    }
-
-    fn access_list(&self) -> AccessList {
-        rkyv::Deserialize::<AccessList, _>::deserialize(&self.access_list, &mut rkyv::Infallible)
-            .unwrap()
-    }
-
-    fn authorization_list(&self) -> Vec<SignedAuthorization> {
-        rkyv::Deserialize::<AuthorizationList, _>::deserialize(
-            &self.authorization_list,
-            &mut rkyv::Infallible,
-        )
-        .unwrap()
-        .into()
-    }
-
-    fn signature(&self) -> Result<Signature, SignatureError> {
-        Signature::from_rs_and_parity(self.r, self.s, self.v)
-    }
-
-    fn fee_token_id(&self) -> u16 {
-        self.fee_token_id.unwrap_or(0)
-    }
-
-    fn fee_limit(&self) -> U256 {
-        self.fee_limit.unwrap_or(U256::default())
+        0x7e
     }
 }
 
@@ -302,7 +220,7 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn gas_limit(&self) -> u128 {
+    fn gas_limit(&self) -> u64 {
         match self {
             TypedTransaction::Enveloped(tx) => tx.gas_limit(),
             TypedTransaction::L1Msg(tx) => tx.gas_limit(),
@@ -350,7 +268,7 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn to(&self) -> TxKind {
+    fn to(&self) -> Option<Address> {
         match self {
             TypedTransaction::Enveloped(tx) => tx.to(),
             TypedTransaction::L1Msg(tx) => tx.to(),
@@ -366,7 +284,7 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn input(&self) -> &[u8] {
+    fn input(&self) -> &alloy::primitives::Bytes {
         match self {
             TypedTransaction::Enveloped(tx) => tx.input(),
             TypedTransaction::L1Msg(tx) => tx.input(),
@@ -374,13 +292,13 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn ty(&self) -> u8 {
-        match self {
-            TypedTransaction::Enveloped(tx) => tx.ty(),
-            TypedTransaction::L1Msg(tx) => tx.ty(),
-            TypedTransaction::AltFee(tx) => tx.tx().ty(),
-        }
-    }
+    // fn ty(&self) -> u8 {
+    //     match self {
+    //         TypedTransaction::Enveloped(tx) => tx.ty(),
+    //         TypedTransaction::L1Msg(tx) => tx.ty(),
+    //         TypedTransaction::AltFee(tx) => tx.tx().ty(),
+    //     }
+    // }
 
     fn access_list(&self) -> Option<&AccessList> {
         match self {
@@ -404,6 +322,54 @@ impl Transaction for TypedTransaction {
             TypedTransaction::L1Msg(_) => None,
             TypedTransaction::AltFee(_) => None,
         }
+    }
+
+    fn effective_gas_price(&self, _base_fee: Option<u64>) -> u128 {
+        todo!()
+    }
+
+    fn is_dynamic_fee(&self) -> bool {
+        todo!()
+    }
+
+    fn kind(&self) -> TxKind {
+        todo!()
+    }
+
+    fn is_create(&self) -> bool {
+        todo!()
+    }
+
+    fn effective_tip_per_gas(&self, base_fee: u64) -> Option<u128> {
+        let base_fee = base_fee as u128;
+        let max_fee_per_gas = self.max_fee_per_gas();
+        if max_fee_per_gas < base_fee {
+            return None;
+        }
+        let fee = max_fee_per_gas - base_fee;
+        self.max_priority_fee_per_gas()
+            .map_or(Some(fee), |priority_fee| Some(fee.min(priority_fee)))
+    }
+
+    fn function_selector(&self) -> Option<&Selector> {
+        if self.kind().is_call() {
+            self.input().get(..4).and_then(|s| TryFrom::try_from(s).ok())
+        } else {
+            None
+        }
+    }
+
+    fn blob_count(&self) -> Option<u64> {
+        self.blob_versioned_hashes().map(|h| h.len() as u64)
+    }
+
+    #[inline]
+    fn blob_gas_used(&self) -> Option<u64> {
+        self.blob_count().map(|blobs| blobs * DATA_GAS_PER_BLOB)
+    }
+
+    fn authorization_count(&self) -> Option<u64> {
+        self.authorization_list().map(|auths| auths.len() as u64)
     }
 }
 
@@ -431,8 +397,8 @@ impl Transaction for TxL1Msg {
         self.nonce
     }
 
-    fn gas_limit(&self) -> u128 {
-        self.gas_limit
+    fn gas_limit(&self) -> u64 {
+        self.gas_limit as u64
     }
 
     fn gas_price(&self) -> Option<u128> {
@@ -455,21 +421,21 @@ impl Transaction for TxL1Msg {
         0
     }
 
-    fn to(&self) -> TxKind {
-        self.to
+    fn to(&self) -> Option<Address> {
+        self.to.to().copied()
     }
 
     fn value(&self) -> U256 {
         self.value
     }
 
-    fn input(&self) -> &[u8] {
-        self.input.as_ref()
+    fn input(&self) -> &alloy::primitives::Bytes {
+        &self.input
     }
 
-    fn ty(&self) -> u8 {
-        0x7e
-    }
+    // fn ty(&self) -> u8 {
+    //     0x7e
+    // }
 
     fn access_list(&self) -> Option<&AccessList> {
         None
@@ -482,6 +448,54 @@ impl Transaction for TxL1Msg {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
+
+    fn effective_tip_per_gas(&self, base_fee: u64) -> Option<u128> {
+        let base_fee = base_fee as u128;
+        let max_fee_per_gas = self.max_fee_per_gas();
+        if max_fee_per_gas < base_fee {
+            return None;
+        }
+        let fee = max_fee_per_gas - base_fee;
+        self.max_priority_fee_per_gas()
+            .map_or(Some(fee), |priority_fee| Some(fee.min(priority_fee)))
+    }
+
+    fn function_selector(&self) -> Option<&Selector> {
+        if self.kind().is_call() {
+            self.input().get(..4).and_then(|s| TryFrom::try_from(s).ok())
+        } else {
+            None
+        }
+    }
+
+    fn blob_count(&self) -> Option<u64> {
+        self.blob_versioned_hashes().map(|h| h.len() as u64)
+    }
+
+    #[inline]
+    fn blob_gas_used(&self) -> Option<u64> {
+        self.blob_count().map(|blobs| blobs * DATA_GAS_PER_BLOB)
+    }
+
+    fn authorization_count(&self) -> Option<u64> {
+        self.authorization_list().map(|auths| auths.len() as u64)
+    }
+
+    fn effective_gas_price(&self, _base_fee: Option<u64>) -> u128 {
+        todo!()
+    }
+
+    fn is_dynamic_fee(&self) -> bool {
+        todo!()
+    }
+
+    fn kind(&self) -> TxKind {
+        todo!()
+    }
+
+    fn is_create(&self) -> bool {
+        todo!()
+    }
 }
 
 impl Encodable for TxL1Msg {
@@ -492,6 +506,12 @@ impl Encodable for TxL1Msg {
         self.value.encode(out);
         self.input.0.encode(out);
         self.from.encode(out);
+    }
+}
+
+impl Typed2718 for TxL1Msg {
+    fn ty(&self) -> u8 {
+        0x7e
     }
 }
 
@@ -511,15 +531,25 @@ impl Encodable2718 for TxL1Msg {
         header.encode(out);
         self.encode(out)
     }
+
+    fn encoded_2718(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(self.encode_2718_len());
+        self.encode_2718(&mut out);
+        out
+    }
 }
 
 impl TypedTransaction {
     /// Return the hash of the inner transaction.
-    pub fn tx_hash(&self) -> &B256 {
+    pub fn tx_hash(&self) -> B256 {
         match self {
-            TypedTransaction::Enveloped(tx) => tx.tx_hash(),
-            TypedTransaction::L1Msg(tx) => &tx.tx_hash,
-            TypedTransaction::AltFee(tx) => tx.hash(),
+            TypedTransaction::Enveloped(tx) => *tx.tx_hash(),
+            TypedTransaction::L1Msg(tx) => tx.tx_hash,
+            TypedTransaction::AltFee(tx) => {
+                let mut bytes = BytesMut::new();
+                tx.tx().encode_2718(tx.signature(), &mut bytes);
+                keccak256(&bytes)
+            }
         }
     }
 
@@ -528,7 +558,9 @@ impl TypedTransaction {
     /// Fails if the transaction is enveloped and recovering the signer fails.
     pub fn get_or_recover_signer(&self) -> Result<Address, SignatureError> {
         match self {
-            TypedTransaction::Enveloped(tx) => tx.recover_signer(),
+            TypedTransaction::Enveloped(tx) => {
+                tx.recover_signer().map_err(|_| SignatureError::InvalidParity(0))
+            }
             TypedTransaction::L1Msg(tx) => Ok(tx.from),
             TypedTransaction::AltFee(tx) => tx.recover_signer(),
         }

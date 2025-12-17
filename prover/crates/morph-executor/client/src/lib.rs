@@ -1,8 +1,8 @@
 pub mod types;
 mod verifier;
 use alloy::hex;
-use sbv_primitives::{Block, TxTrace, B256};
-use sbv_utils::dev_info;
+use prover_primitives::{Block, TxTrace, B256};
+use prover_utils::dev_info;
 use types::input::ClientInput;
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 

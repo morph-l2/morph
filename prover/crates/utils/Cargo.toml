@@ -1,5 +1,5 @@
 [package]
-name = "sbv-utils"
+name = "prover-utils"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 
 version.workspace = true
