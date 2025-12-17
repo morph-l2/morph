@@ -58,7 +58,8 @@ interface IL2TokenRegistry {
                             Errors
     //////////////////////////////////////////////////////////////*/
 
-    error TokenAlreadyRegistered();
+    error TokenIDAlreadyRegistered();
+    error TokenAddressAlreadyRegistered();
     error TokenNotFound();
     error InvalidTokenID();
     error InvalidTokenAddress();
