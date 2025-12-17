@@ -403,6 +403,17 @@ contract L2TokenRegistryTest is Test {
         assertEq(info.decimals, 18); // Should fetch DAI's decimals
     }
 
+    function test_updateTokenInfo_reverts_when_scale_is_zero() public {
+        // First register a token
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Try to update with scale = 0
+        vm.expectRevert(bytes4(keccak256("InvalidScale()")));
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, true, 0);
+    }
+
     function test_deactivateToken_succeeds() public {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
