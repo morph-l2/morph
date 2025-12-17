@@ -58,18 +58,18 @@ interface IL2TokenRegistry {
                             Errors
     //////////////////////////////////////////////////////////////*/
 
-    error TokenAlreadyRegistered();
+    error TokenIDAlreadyRegistered();
+    error TokenAddressAlreadyRegistered();
     error TokenNotFound();
     error InvalidTokenID();
     error InvalidTokenAddress();
     error InvalidBalanceSlot();
     error InvalidScale();
     error InvalidPrice();
-    error InvalidPercent();
     error CallerNotAllowed();
     error InvalidArrayLength();
     error DifferentLength();
-    error AlreadyInitialized();
+    error ZeroTokenAmount();
 
     /*//////////////////////////////////////////////////////////////
                             Allow List Functions
@@ -192,9 +192,10 @@ interface IL2TokenRegistry {
     /**
      * @notice Get token information
      * @param _tokenID Token ID
-     * @return TokenInfo structure
+     * @return info TokenInfo structure with actual balanceSlot (automatically -1 from stored value)
+     * @return hasBalanceSlot Whether balanceSlot was stored with +1 offset (true = slot was adjusted)
      */
-    function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory);
+    function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory info, bool hasBalanceSlot);
 
     /**
      * @notice Get token ID by address
