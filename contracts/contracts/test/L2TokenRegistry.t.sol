@@ -90,11 +90,12 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.tokenAddress, address(usdc));
         assertEq(info.balanceSlot, BALANCE_SLOT_USDC);
         assertEq(info.isActive, false);
         assertEq(info.decimals, 6);
+        assertTrue(hasBalanceSlot);
     }
 
     function test_registerToken_reverts_when_tokenID_is_zero() public {
@@ -125,13 +126,13 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (L2TokenRegistry.TokenInfo memory info, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.decimals, 6); // USDC has 6 decimals
 
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, true, SCALE_DAI);
 
-        info = priceOracle.getTokenInfo(TOKEN_ID_DAI);
+        (info, ) = priceOracle.getTokenInfo(TOKEN_ID_DAI);
         assertEq(info.decimals, 18); // DAI has 18 decimals
     }
 
@@ -139,7 +140,7 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (L2TokenRegistry.TokenInfo memory info, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertFalse(info.isActive);
     }
 
@@ -185,9 +186,12 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.registerTokens(tokenIDs, tokenAddresses, balanceSlots, needBalanceSlots, scales);
 
-        assertEq(priceOracle.getTokenInfo(TOKEN_ID_USDC).tokenAddress, address(usdc));
-        assertEq(priceOracle.getTokenInfo(TOKEN_ID_USDT).tokenAddress, address(usdt));
-        assertEq(priceOracle.getTokenInfo(TOKEN_ID_DAI).tokenAddress, address(dai));
+        (L2TokenRegistry.TokenInfo memory infoUSDC, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (L2TokenRegistry.TokenInfo memory infoUSDT, ) = priceOracle.getTokenInfo(TOKEN_ID_USDT);
+        (L2TokenRegistry.TokenInfo memory infoDAI, ) = priceOracle.getTokenInfo(TOKEN_ID_DAI);
+        assertEq(infoUSDC.tokenAddress, address(usdc));
+        assertEq(infoUSDT.tokenAddress, address(usdt));
+        assertEq(infoDAI.tokenAddress, address(dai));
     }
 
     function test_registerTokens_reverts_when_arrayLength_mismatch() public {
@@ -225,8 +229,9 @@ contract L2TokenRegistryTest is Test {
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
         // Get balanceSlot through getTokenInfo (should return actual value = 9)
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.balanceSlot, BALANCE_SLOT_USDC);
+        assertTrue(hasBalanceSlot);
 
         // Read balanceSlot directly from storage
         // tokenRegistry is at slot 151
@@ -264,8 +269,9 @@ contract L2TokenRegistryTest is Test {
         priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), balanceSlot0, true, SCALE_USDT);
 
         // Get balanceSlot through getTokenInfo (should return actual value = 0)
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDT);
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(TOKEN_ID_USDT);
         assertEq(info.balanceSlot, balanceSlot0);
+        assertTrue(hasBalanceSlot); // Even slot 0 is a valid stored slot
 
         // Read balanceSlot directly from storage
         uint256 mappingSlot = 151;
@@ -300,19 +306,22 @@ contract L2TokenRegistryTest is Test {
         bytes32 key = keccak256(abi.encode(TOKEN_ID_USDC, mappingSlot));
         bytes32 storedValue = vm.load(address(priceOracle), bytes32(uint256(key) + 1));
         assertEq(uint256(storedValue), 10);
-        assertEq(bytes32(uint256(storedValue) - 1), priceOracle.getTokenInfo(TOKEN_ID_USDC).balanceSlot);
+        (L2TokenRegistry.TokenInfo memory infoUSDC, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertEq(bytes32(uint256(storedValue) - 1), infoUSDC.balanceSlot);
 
         // Verify USDT: stored=11, actual=10
         key = keccak256(abi.encode(TOKEN_ID_USDT, mappingSlot));
         storedValue = vm.load(address(priceOracle), bytes32(uint256(key) + 1));
         assertEq(uint256(storedValue), 11);
-        assertEq(bytes32(uint256(storedValue) - 1), priceOracle.getTokenInfo(TOKEN_ID_USDT).balanceSlot);
+        (L2TokenRegistry.TokenInfo memory infoUSDT, ) = priceOracle.getTokenInfo(TOKEN_ID_USDT);
+        assertEq(bytes32(uint256(storedValue) - 1), infoUSDT.balanceSlot);
 
         // Verify DAI: stored=12, actual=11
         key = keccak256(abi.encode(TOKEN_ID_DAI, mappingSlot));
         storedValue = vm.load(address(priceOracle), bytes32(uint256(key) + 1));
         assertEq(uint256(storedValue), 12);
-        assertEq(bytes32(uint256(storedValue) - 1), priceOracle.getTokenInfo(TOKEN_ID_DAI).balanceSlot);
+        (L2TokenRegistry.TokenInfo memory infoDAI, ) = priceOracle.getTokenInfo(TOKEN_ID_DAI);
+        assertEq(bytes32(uint256(storedValue) - 1), infoDAI.balanceSlot);
     }
 
     function test_balanceSlot_storage_query_needBalanceSlot_false() public {
@@ -324,8 +333,9 @@ contract L2TokenRegistryTest is Test {
         priceOracle.registerToken(tokenID, address(usdc), anySlot, false, SCALE_USDC);
 
         // Get balanceSlot through getTokenInfo (should return 0 because needBalanceSlot was false)
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(tokenID);
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(tokenID);
         assertEq(info.balanceSlot, bytes32(0));
+        assertFalse(hasBalanceSlot); // No balanceSlot was stored
 
         // Read balanceSlot directly from storage
         uint256 mappingSlot = 151;
@@ -372,9 +382,10 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), newBalanceSlot, true, true, SCALE_USDC);
 
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.balanceSlot, newBalanceSlot);
         assertTrue(info.isActive);
+        assertTrue(hasBalanceSlot);
     }
 
     function test_updateTokenInfo_reverts_when_address_collision() public {
@@ -398,7 +409,7 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(dai), BALANCE_SLOT_USDC, true, true, SCALE_DAI);
 
-        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (L2TokenRegistry.TokenInfo memory info, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.tokenAddress, address(dai));
         assertEq(info.decimals, 18); // Should fetch DAI's decimals
     }
@@ -410,7 +421,8 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, true, SCALE_USDC);
 
-        assertTrue(priceOracle.getTokenInfo(TOKEN_ID_USDC).isActive);
+        (L2TokenRegistry.TokenInfo memory infoActive, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertTrue(infoActive.isActive);
 
         // Use batchUpdateTokenStatus to deactivate token
         uint16[] memory tokenIDs = new uint16[](1);
@@ -421,7 +433,8 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.batchUpdateTokenStatus(tokenIDs, isActives);
 
-        assertFalse(priceOracle.getTokenInfo(TOKEN_ID_USDC).isActive);
+        (L2TokenRegistry.TokenInfo memory infoDeactivated, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertFalse(infoDeactivated.isActive);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -545,8 +558,8 @@ contract L2TokenRegistryTest is Test {
 
         // Inverse using on-chain values
         uint256 ratio = priceOracle.getTokenPrice(TOKEN_ID_USDC);
-        uint256 scale = priceOracle.getTokenInfo(TOKEN_ID_USDC).scale;
-        uint256 ethGasPrice = (tokenGasPrice * ratio) / scale;
+        (L2TokenRegistry.TokenInfo memory info, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        uint256 ethGasPrice = (tokenGasPrice * ratio) / info.scale;
         assertEq(ethGasPrice, expectedEthGasPrice);
     }
 
@@ -934,5 +947,105 @@ contract L2TokenRegistryTest is Test {
         // Token should still be in supported list
         assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
         assertEq(priceOracle.getSupportedTokenCount(), 1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    hasBalanceSlot Return Value Tests
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test: hasBalanceSlot returns true when needBalanceSlot was true
+    function test_hasBalanceSlot_returns_true_when_slot_stored() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        
+        assertTrue(hasBalanceSlot);
+        assertEq(info.balanceSlot, BALANCE_SLOT_USDC);
+    }
+
+    /// @notice Test: hasBalanceSlot returns false when needBalanceSlot was false
+    function test_hasBalanceSlot_returns_false_when_slot_not_stored() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, false, SCALE_USDC);
+
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        
+        assertFalse(hasBalanceSlot);
+        assertEq(info.balanceSlot, bytes32(0));
+    }
+
+    /// @notice Test: hasBalanceSlot returns true even when balanceSlot is 0
+    function test_hasBalanceSlot_returns_true_when_slot_is_zero() public {
+        bytes32 slotZero = bytes32(uint256(0));
+        
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), slotZero, true, SCALE_USDC);
+
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlot) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        
+        // Even though the actual slot is 0, hasBalanceSlot should be true
+        // because the stored value is 0 + 1 = 1 (non-zero)
+        assertTrue(hasBalanceSlot);
+        assertEq(info.balanceSlot, slotZero);
+    }
+
+    /// @notice Test: hasBalanceSlot after updateTokenInfo with needBalanceSlot true
+    function test_hasBalanceSlot_after_updateTokenInfo_with_slot() public {
+        // Register without balanceSlot
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, false, SCALE_USDC);
+
+        (, bool hasBalanceSlotBefore) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertFalse(hasBalanceSlotBefore);
+
+        // Update to have balanceSlot
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, false, SCALE_USDC);
+
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlotAfter) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertTrue(hasBalanceSlotAfter);
+        assertEq(info.balanceSlot, BALANCE_SLOT_USDC);
+    }
+
+    /// @notice Test: hasBalanceSlot after updateTokenInfo removing slot
+    function test_hasBalanceSlot_after_updateTokenInfo_removing_slot() public {
+        // Register with balanceSlot
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        (, bool hasBalanceSlotBefore) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertTrue(hasBalanceSlotBefore);
+
+        // Update to remove balanceSlot
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, false, false, SCALE_USDC);
+
+        (L2TokenRegistry.TokenInfo memory info, bool hasBalanceSlotAfter) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertFalse(hasBalanceSlotAfter);
+        assertEq(info.balanceSlot, bytes32(0));
+    }
+
+    /// @notice Test: Multiple tokens with different hasBalanceSlot values
+    function test_hasBalanceSlot_multiple_tokens() public {
+        // USDC with balanceSlot
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // USDT without balanceSlot
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, false, SCALE_USDT);
+
+        // DAI with balanceSlot
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_DAI, address(dai), BALANCE_SLOT_DAI, true, SCALE_DAI);
+
+        (, bool hasUSDC) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        (, bool hasUSDT) = priceOracle.getTokenInfo(TOKEN_ID_USDT);
+        (, bool hasDAI) = priceOracle.getTokenInfo(TOKEN_ID_DAI);
+
+        assertTrue(hasUSDC);
+        assertFalse(hasUSDT);
+        assertTrue(hasDAI);
     }
 }
