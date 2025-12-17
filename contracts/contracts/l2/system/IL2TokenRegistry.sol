@@ -68,6 +68,7 @@ interface IL2TokenRegistry {
     error CallerNotAllowed();
     error InvalidArrayLength();
     error DifferentLength();
+    error ZeroTokenAmount();
 
     /*//////////////////////////////////////////////////////////////
                             Allow List Functions

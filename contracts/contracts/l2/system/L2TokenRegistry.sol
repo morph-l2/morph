@@ -442,7 +442,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         uint256 numerator = _ethAmount * uint256(info.scale);
         tokenAmount = (numerator + ratio - 1) / ratio;
         
-        if (tokenAmount == 0) revert InvalidPrice();
+        if (tokenAmount == 0) revert ZeroTokenAmount();
 
         return tokenAmount;
     }
