@@ -28,6 +28,24 @@ var (
 		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
 	}
 
+	L2LegacyEthAddr = cli.StringFlag{
+		Name:   "l2legacy.eth",
+		Usage:  "Address of L2 legacy Engine JSON-RPC endpoints to use (eth namespace required)",
+		EnvVar: prefixEnvVar("L2_LEGACY_ETH_RPC"),
+	}
+
+	L2LegacyEngineAddr = cli.StringFlag{
+		Name:   "l2legacy.engine",
+		Usage:  "Address of L2 legacy Engine JSON-RPC endpoints to use (engine namespace required)",
+		EnvVar: prefixEnvVar("L2_LEGACY_ENGINE_RPC"),
+	}
+
+	MptTime = cli.Uint64Flag{
+		Name:   "upgrade.mptTime",
+		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
+		EnvVar: prefixEnvVar("MPT_TIME"),
+	}
+
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -304,6 +322,9 @@ var Flags = []cli.Flag{
 	L2EthAddr,
 	L2EngineAddr,
 	L2EngineJWTSecret,
+	L2LegacyEthAddr,
+	L2LegacyEngineAddr,
+	MptTime,
 	MaxL1MessageNumPerBlock,
 	L2CrossDomainMessengerContractAddr,
 	L2SequencerAddr,

@@ -28,7 +28,9 @@ var (
 )
 
 type Config struct {
+	L2Legacy                      *types.L2Config `json:"l_2_legacy"`
 	L2                            *types.L2Config `json:"l2"`
+	MptTime                       uint64          `json:"mpt_time"`
 	L2CrossDomainMessengerAddress common.Address  `json:"cross_domain_messenger_address"`
 	SequencerAddress              common.Address  `json:"sequencer_address"`
 	GovAddress                    common.Address  `json:"gov_address"`
@@ -122,6 +124,12 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L2.EngineAddr = l2EngineAddr
 	c.L2.JwtSecret = secret
 
+	l2LegacyEthAddr := ctx.GlobalString(flags.L2LegacyEthAddr.Name)
+	l2LegacyEngineAddr := ctx.GlobalString(flags.L2LegacyEngineAddr.Name)
+	c.L2Legacy.EthAddr = l2LegacyEthAddr
+	c.L2Legacy.EngineAddr = l2LegacyEngineAddr
+	c.L2Legacy.JwtSecret = secret // same secret
+	c.MptTime = ctx.GlobalUint64(flags.MptTime.Name)
 	if ctx.GlobalIsSet(flags.MaxL1MessageNumPerBlock.Name) {
 		c.MaxL1MessageNumPerBlock = ctx.GlobalUint64(flags.MaxL1MessageNumPerBlock.Name)
 		if c.MaxL1MessageNumPerBlock == 0 {

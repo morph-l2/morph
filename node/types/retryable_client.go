@@ -41,14 +41,14 @@ type RetryableClient struct {
 
 // NewRetryableClient make the client retryable
 // Will retry calling the api, if the connection is refused
-func NewRetryableClient(legacyAuthClient *authclient.Client, legacyEthClient *ethclient.Client, authClient *authclient.Client, ethClient *ethclient.Client, logger tmlog.Logger) *RetryableClient {
+func NewRetryableClient(legacyAuthClient *authclient.Client, legacyEthClient *ethclient.Client, authClient *authclient.Client, ethClient *ethclient.Client, mptTime uint64, logger tmlog.Logger) *RetryableClient {
 	logger = logger.With("module", "retryClient")
 	return &RetryableClient{
 		legacyAuthClient: legacyAuthClient,
 		legacyEthClient:  legacyEthClient,
 		authClient:       authClient,
 		ethClient:        ethClient,
-		mptTime:          uint64(time.Now().Add(time.Hour).Unix()), // TODO: make configurable
+		mptTime:          mptTime,
 		b:                backoff.NewExponentialBackOff(),
 		logger:           logger,
 	}
