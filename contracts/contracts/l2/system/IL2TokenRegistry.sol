@@ -65,11 +65,9 @@ interface IL2TokenRegistry {
     error InvalidBalanceSlot();
     error InvalidScale();
     error InvalidPrice();
-    error InvalidPercent();
     error CallerNotAllowed();
     error InvalidArrayLength();
     error DifferentLength();
-    error AlreadyInitialized();
 
     /*//////////////////////////////////////////////////////////////
                             Allow List Functions
