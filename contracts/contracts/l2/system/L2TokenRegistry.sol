@@ -32,7 +32,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     mapping(address user => bool allowed) public allowList;
 
     /// @notice Whether whitelist is enabled
-    bool public allowListEnabled = true;
+    bool public allowListEnabled;
 
     /// @notice Set of supported token IDs
     EnumerableSetUpgradeable.UintSet private supportedTokenSet;
@@ -45,7 +45,13 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @notice Check if caller is in Allow List
      */
     modifier onlyAllowed() {
-        if (allowListEnabled && !allowList[msg.sender] && msg.sender != owner()) {
+        bool isOwner = msg.sender == owner();
+        bool isAllowedByList = allowListEnabled && allowList[msg.sender];
+
+        // Owner always has access
+        // When allowList is enabled, allowList users can access
+        // When allowList is disabled, only owner can access
+        if (!isOwner && !isAllowedByList) {
             revert CallerNotAllowed();
         }
         _;
@@ -266,6 +272,9 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         // Check new information
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
+        // Check new scale
+        if (_scale == 0) revert InvalidScale();
+
         // Prevent address being shared across different tokenIDs
         uint16 existing = tokenRegistration[_tokenAddress];
         if (existing != 0 && existing != _tokenID) revert TokenAlreadyRegistered();
@@ -293,6 +302,10 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
             delete tokenRegistration[oldAddress];
             tokenRegistration[_tokenAddress] = _tokenID;
         }
+
+        // Reset priceRatio to 0 to ensure consistency
+        // priceRatio depends on scale and decimals, so it must be recalculated after tokenInfo changes
+        priceRatio[_tokenID] = 0;
 
         // Note: tokenID should already be in supportedTokenSet from registration
         // No need to add again as EnumerableSet.add() is idempotent but wastes gas
@@ -403,10 +416,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
      * @notice Calculate the corresponding token amount for a given ETH amount
      * @dev Calculation formula:
      *      - ratio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
-     *      - tokenAmount = (ethAmount * 10^tokenDecimals) / ratio
-     *      - Substituting ratio: tokenAmount = (ethAmount * 10^tokenDecimals) / (tokenScale * (tokenPrice / ethPrice) * 10^(18 - tokenDecimals))
-     *      - Simplified: tokenAmount = (ethAmount * 10^tokenDecimals * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18 / ethPrice)
-     *      - Final: tokenAmount = (ethAmount * ethPrice * 10^tokenDecimals) / (tokenScale * tokenPrice * 10^18)
+     *      - tokenAmount = ⌈(ethAmount × tokenScale) / tokenRate⌉
      *      - Note: Uses ceiling division to ensure users receive fair token amounts
      * @param _tokenID Token ID of the ERC20 token
      * @param _ethAmount ETH amount (unit: wei)
@@ -480,6 +490,10 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         // Validate scale is non-zero
         if (_newScale == 0) revert InvalidScale();
         tokenRegistry[_tokenID].scale = _newScale;
+
+        // Reset priceRatio to 0 to ensure consistency
+        // priceRatio depends on scale, so it must be recalculated after scale changes
+        priceRatio[_tokenID] = 0;
 
         emit TokenScaleUpdated(_tokenID, _newScale);
     }
