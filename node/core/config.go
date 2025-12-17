@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	MainnetUpgradeBatchTime uint64 = 2000
-	HoleskyUpgradeBatchTime uint64 = 350000
+	MainnetUpgradeBatchTime      uint64 = 0
+	MainnetBlsKeyCheckForkHeight uint64 = 18409547
 )
 
 type Config struct {
@@ -35,6 +35,7 @@ type Config struct {
 	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
 	UpgradeBatchTime              uint64          `json:"upgrade_batch_time"`
+	BlsKeyCheckForkHeight         uint64          `json:"bls_key_check_fork_height"`
 	DevSequencer                  bool            `json:"dev_sequencer"`
 	Logger                        tmlog.Logger    `json:"logger"`
 }
@@ -157,12 +158,12 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.DevSequencer = ctx.GlobalBool(flags.DevSequencer.Name)
 	}
 
-	// setup batch upgrade index
+	// setup batch upgrade index and fork heights
 	switch {
 	case ctx.GlobalIsSet(flags.MainnetFlag.Name):
 		c.UpgradeBatchTime = MainnetUpgradeBatchTime
-	case ctx.GlobalIsSet(flags.HoleskyFlag.Name):
-		c.UpgradeBatchTime = HoleskyUpgradeBatchTime
+		c.BlsKeyCheckForkHeight = MainnetBlsKeyCheckForkHeight
+		logger.Info("set UpgradeBatchTime: ", c.UpgradeBatchTime, "BlsKeyCheckForkHeight: ", c.BlsKeyCheckForkHeight)
 	case ctx.GlobalIsSet(flags.UpgradeBatchTime.Name):
 		c.UpgradeBatchTime = ctx.GlobalUint64(flags.UpgradeBatchTime.Name)
 		logger.Info("set UpgradeBatchTime: ", ctx.GlobalUint64(flags.UpgradeBatchTime.Name))
