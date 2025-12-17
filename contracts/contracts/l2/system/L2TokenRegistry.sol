@@ -450,16 +450,19 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     /**
      * @notice Get token information
      * @param _tokenID Token ID
-     * @return TokenInfo structure with actual balanceSlot (automatically -1 from stored value)
+     * @return info TokenInfo structure with actual balanceSlot (automatically -1 from stored value)
+     * @return hasBalanceSlot Whether balanceSlot was stored with +1 offset (true = slot was adjusted)
      */
-    function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory) {
+    function getTokenInfo(uint16 _tokenID) external view returns (TokenInfo memory info, bool hasBalanceSlot) {
         if (tokenRegistry[_tokenID].tokenAddress == address(0)) revert TokenNotFound();
 
-        TokenInfo memory info = tokenRegistry[_tokenID];
+        info = tokenRegistry[_tokenID];
+        // Check if balanceSlot was stored (non-zero means it was stored with +1 offset)
+        hasBalanceSlot = info.balanceSlot != bytes32(0);
         // Convert stored balanceSlot to actual value
         info.balanceSlot = _toActualBalanceSlot(info.balanceSlot);
 
-        return info;
+        return (info, hasBalanceSlot);
     }
 
     /**
