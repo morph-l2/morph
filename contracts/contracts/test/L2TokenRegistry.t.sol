@@ -1168,4 +1168,329 @@ contract L2TokenRegistryTest is Test {
         assertTrue(priceOracle.isTokenSupported(TOKEN_ID_USDC));
         assertEq(priceOracle.getSupportedTokenCount(), 1);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                    Price Reset on Update Tests
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test: updateTokenScale resets priceRatio to 0
+    function test_updateTokenScale_resets_priceRatio() public {
+        // Register token and set price
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+
+        // Update scale - should reset priceRatio to 0
+        vm.prank(owner);
+        priceOracle.updateTokenScale(TOKEN_ID_USDC, 1e18);
+
+        // priceRatio should now be 0
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+
+        // calculateTokenAmount should revert with InvalidPrice
+        vm.expectRevert(bytes4(keccak256("InvalidPrice()")));
+        priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+
+        // After setting new priceRatio, it should work again
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e15);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e15);
+
+        // Now calculation should succeed
+        uint256 tokenAmount = priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+        assertGt(tokenAmount, 0);
+    }
+
+    /// @notice Test: updateTokenInfo resets priceRatio to 0
+    function test_updateTokenInfo_resets_priceRatio() public {
+        // Register token and set price
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+
+        // Update token info - should reset priceRatio to 0
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, true, SCALE_USDC);
+
+        // priceRatio should now be 0
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+
+        // calculateTokenAmount should revert with InvalidPrice
+        vm.expectRevert(bytes4(keccak256("InvalidPrice()")));
+        priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+    }
+
+    /// @notice Test: updateTokenInfo resets priceRatio when changing tokenAddress
+    function test_updateTokenInfo_resets_priceRatio_on_address_change() public {
+        // Register token and set price
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+
+        // Update token info with new address (DAI) - should reset priceRatio to 0
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(dai), BALANCE_SLOT_DAI, true, true, SCALE_DAI);
+
+        // priceRatio should now be 0
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+
+        // Token info should be updated
+        L2TokenRegistry.TokenInfo memory info = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+        assertEq(info.tokenAddress, address(dai));
+        assertEq(info.decimals, 18);
+    }
+
+    /// @notice Test: Ensures data consistency after scale update
+    function test_data_consistency_after_scale_update() public {
+        // Register token
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Set initial price based on scale = 1e6
+        // ratio = scale * (tokenPrice / ethPrice) * 10^(18-6)
+        // For 1 USDC = 0.001 ETH: ratio = 1e6 * 0.001 * 1e12 = 1e15
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e15);
+
+        // Calculate token amount: (1 ether * 1e6) / 1e15 = 1e9 (smallest units)
+        // For 6 decimal token, 1e9 = 1000 USDC
+        uint256 amount1 = priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+        assertEq(amount1, 1e9);
+
+        // Now update scale to 1e18
+        vm.prank(owner);
+        priceOracle.updateTokenScale(TOKEN_ID_USDC, 1e18);
+
+        // priceRatio is now 0, must set new consistent value
+        // New ratio for scale = 1e18: ratio = 1e18 * 0.001 * 1e12 = 1e27
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e27);
+
+        // Calculate token amount: (1 ether * 1e18) / 1e27 = 1e9
+        // Same result as before - this demonstrates consistency
+        uint256 amount2 = priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+        assertEq(amount2, 1e9);
+
+        // Both calculations return the same value, proving data consistency
+        assertEq(amount1, amount2);
+    }
+
+    /// @notice Test: Multiple scale updates reset priceRatio each time
+    function test_multiple_scale_updates_reset_priceRatio() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // First update: set price
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+
+        // Update scale first time
+        vm.prank(owner);
+        priceOracle.updateTokenScale(TOKEN_ID_USDC, 1e8);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+
+        // Set new price
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 2e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 2e12);
+
+        // Update scale second time
+        vm.prank(owner);
+        priceOracle.updateTokenScale(TOKEN_ID_USDC, 1e10);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+
+        // Set new price again
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 3e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 3e12);
+    }
+
+    /// @notice Test: updateTokenInfo resets priceRatio even when only changing isActive
+    function test_updateTokenInfo_resets_priceRatio_on_isActive_change() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+
+        // Update only isActive to true (keeping everything else the same)
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, true, SCALE_USDC);
+
+        // priceRatio should still be reset to 0
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+    }
+
+    /// @notice Test: updateTokenInfo resets priceRatio when changing scale
+    function test_updateTokenInfo_resets_priceRatio_on_scale_change() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+
+        // Update scale via updateTokenInfo
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, false, 1e18);
+
+        // priceRatio should be reset to 0
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+
+        // Scale should be updated
+        assertEq(priceOracle.getTokenInfo(TOKEN_ID_USDC).scale, 1e18);
+    }
+
+    /// @notice Test: getTokenPrice returns 0 after scale update
+    function test_getTokenPrice_returns_zero_after_scale_update() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // getTokenPrice should work
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 1e12);
+
+        // Update scale
+        vm.prank(owner);
+        priceOracle.updateTokenScale(TOKEN_ID_USDC, 1e18);
+
+        // getTokenPrice returns 0 (priceRatio is reset)
+        assertEq(priceOracle.getTokenPrice(TOKEN_ID_USDC), 0);
+
+        // But calculateTokenAmount should revert since priceRatio is 0
+        vm.expectRevert(bytes4(keccak256("InvalidPrice()")));
+        priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+    }
+
+    /// @notice Test: Batch operations after tokenInfo update
+    function test_batch_operations_after_tokenInfo_update() public {
+        // Register multiple tokens
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, true, SCALE_USDT);
+
+        // Set prices for both
+        uint16[] memory tokenIDs = new uint16[](2);
+        uint256[] memory prices = new uint256[](2);
+        tokenIDs[0] = TOKEN_ID_USDC;
+        tokenIDs[1] = TOKEN_ID_USDT;
+        prices[0] = 1e12;
+        prices[1] = 2e12;
+
+        vm.prank(owner);
+        priceOracle.batchUpdatePrices(tokenIDs, prices);
+
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDT), 2e12);
+
+        // Update USDC tokenInfo - only USDC's priceRatio should be reset
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, true, SCALE_USDC);
+
+        // USDC priceRatio should be 0, USDT should remain unchanged
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDT), 2e12);
+    }
+
+    /// @notice Test: updateTokenScale by allowList user also resets priceRatio
+    function test_updateTokenScale_by_allowList_user_resets_priceRatio() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Add alice to allowList
+        address[] memory users = new address[](1);
+        bool[] memory allowed = new bool[](1);
+        users[0] = alice;
+        allowed[0] = true;
+        vm.prank(owner);
+        priceOracle.setAllowList(users, allowed);
+
+        // Set price by owner
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 1e12);
+
+        // Alice updates scale - should reset priceRatio
+        vm.prank(alice);
+        priceOracle.updateTokenScale(TOKEN_ID_USDC, 1e18);
+
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+    }
+
+    /// @notice Test: Recovery workflow after accidental scale update
+    function test_recovery_workflow_after_scale_update() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        // Set initial price
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Token is active and working
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, true, SCALE_USDC);
+
+        // Oops! Someone updated scale, now priceRatio is 0
+        // Token calculations will fail
+        vm.expectRevert(bytes4(keccak256("InvalidPrice()")));
+        priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+
+        // Recovery: set the correct priceRatio
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Now it works again
+        uint256 amount = priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 1 ether);
+        assertGt(amount, 0);
+    }
+
+    /// @notice Test: priceRatio reset does not affect other token data
+    function test_priceRatio_reset_preserves_other_data() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Activate token
+        vm.prank(owner);
+        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, true, SCALE_USDC);
+
+        // Get info before scale update
+        L2TokenRegistry.TokenInfo memory infoBefore = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+
+        // Update scale
+        vm.prank(owner);
+        priceOracle.updateTokenScale(TOKEN_ID_USDC, 2e6);
+
+        // Get info after scale update
+        L2TokenRegistry.TokenInfo memory infoAfter = priceOracle.getTokenInfo(TOKEN_ID_USDC);
+
+        // priceRatio should be 0
+        assertEq(priceOracle.priceRatio(TOKEN_ID_USDC), 0);
+
+        // Other data should be preserved
+        assertEq(infoAfter.tokenAddress, infoBefore.tokenAddress);
+        assertEq(infoAfter.balanceSlot, infoBefore.balanceSlot);
+        assertEq(infoAfter.isActive, infoBefore.isActive);
+        assertEq(infoAfter.decimals, infoBefore.decimals);
+
+        // Only scale changed
+        assertEq(infoAfter.scale, 2e6);
+        assertTrue(infoAfter.scale != infoBefore.scale);
+    }
 }
