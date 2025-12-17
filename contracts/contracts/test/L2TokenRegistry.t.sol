@@ -611,6 +611,18 @@ contract L2TokenRegistryTest is Test {
         }
     }
 
+    function test_calculateTokenAmount_reverts_when_ethAmount_is_zero() public {
+        vm.prank(owner);
+        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
+
+        vm.prank(owner);
+        priceOracle.updatePriceRatio(TOKEN_ID_USDC, 1e12);
+
+        // Try to calculate with ethAmount = 0, should revert with ZeroTokenAmount
+        vm.expectRevert(bytes4(keccak256("ZeroTokenAmount()")));
+        priceOracle.calculateTokenAmount(TOKEN_ID_USDC, 0);
+    }
+
     /*//////////////////////////////////////////////////////////////
                             Allow List Tests
     //////////////////////////////////////////////////////////////*/

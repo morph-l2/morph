@@ -65,6 +65,7 @@ interface IL2TokenRegistry {
     error InvalidBalanceSlot();
     error InvalidScale();
     error InvalidPrice();
+    error ZeroTokenAmount();
     error InvalidPercent();
     error CallerNotAllowed();
     error InvalidArrayLength();
