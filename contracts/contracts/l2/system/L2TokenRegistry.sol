@@ -32,7 +32,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
     mapping(address user => bool allowed) public allowList;
 
     /// @notice Whether whitelist is enabled
-    bool public allowListEnabled = true;
+    bool public allowListEnabled;
 
     /// @notice Set of supported token IDs
     EnumerableSetUpgradeable.UintSet private supportedTokenSet;
