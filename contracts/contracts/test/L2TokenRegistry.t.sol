@@ -107,7 +107,7 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
-        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.expectRevert(bytes4(keccak256("TokenIDAlreadyRegistered()")));
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdt), BALANCE_SLOT_USDT, true, SCALE_USDT);
     }
@@ -116,7 +116,7 @@ contract L2TokenRegistryTest is Test {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
 
-        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.expectRevert(bytes4(keccak256("TokenAddressAlreadyRegistered()")));
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDT, address(usdc), BALANCE_SLOT_USDT, true, SCALE_USDT);
     }
@@ -385,7 +385,7 @@ contract L2TokenRegistryTest is Test {
         priceOracle.registerToken(TOKEN_ID_USDT, address(usdt), BALANCE_SLOT_USDT, true, SCALE_USDT);
 
         // Try to update USDT to use USDC's address - should revert
-        vm.expectRevert(bytes4(keccak256("TokenAlreadyRegistered()")));
+        vm.expectRevert(bytes4(keccak256("TokenAddressAlreadyRegistered()")));
         vm.prank(owner);
         priceOracle.updateTokenInfo(TOKEN_ID_USDT, address(usdc), BALANCE_SLOT_USDT, true, true, SCALE_USDT);
     }

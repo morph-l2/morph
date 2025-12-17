@@ -221,8 +221,8 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
 
         // Forbid zero ID and enforce uniqueness for both ID and address
         if (_tokenID == 0) revert InvalidTokenID();
-        if (tokenRegistry[_tokenID].tokenAddress != address(0)) revert TokenAlreadyRegistered();
-        if (tokenRegistration[_tokenAddress] != 0) revert TokenAlreadyRegistered();
+        if (tokenRegistry[_tokenID].tokenAddress != address(0)) revert TokenIDAlreadyRegistered();
+        if (tokenRegistration[_tokenAddress] != 0) revert TokenAddressAlreadyRegistered();
 
         // Validate scale is non-zero
         if (_scale == 0) revert InvalidScale();
@@ -277,7 +277,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
 
         // Prevent address being shared across different tokenIDs
         uint16 existing = tokenRegistration[_tokenAddress];
-        if (existing != 0 && existing != _tokenID) revert TokenAlreadyRegistered();
+        if (existing != 0 && existing != _tokenID) revert TokenAddressAlreadyRegistered();
 
         // Get decimals from contract
         uint8 decimals = 18; // Default value
