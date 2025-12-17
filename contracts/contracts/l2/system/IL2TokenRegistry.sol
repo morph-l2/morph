@@ -58,18 +58,18 @@ interface IL2TokenRegistry {
                             Errors
     //////////////////////////////////////////////////////////////*/
 
-    error TokenAlreadyRegistered();
+    error TokenIDAlreadyRegistered();
+    error TokenAddressAlreadyRegistered();
     error TokenNotFound();
     error InvalidTokenID();
     error InvalidTokenAddress();
     error InvalidBalanceSlot();
     error InvalidScale();
     error InvalidPrice();
-    error InvalidPercent();
     error CallerNotAllowed();
     error InvalidArrayLength();
     error DifferentLength();
-    error AlreadyInitialized();
+    error ZeroTokenAmount();
 
     /*//////////////////////////////////////////////////////////////
                             Allow List Functions
