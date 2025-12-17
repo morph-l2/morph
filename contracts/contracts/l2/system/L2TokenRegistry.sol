@@ -266,6 +266,9 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         // Check new information
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
 
+        // Check new scale
+        if (_scale == 0) revert InvalidScale();
+
         // Prevent address being shared across different tokenIDs
         uint16 existing = tokenRegistration[_tokenAddress];
         if (existing != 0 && existing != _tokenID) revert TokenAlreadyRegistered();
