@@ -33,7 +33,9 @@ const (
 
 type Config struct {
 	L1                    *types.L1Config `json:"l1"`
+	L2Legacy              *types.L2Config `json:"l2_legacy"`
 	L2                    *types.L2Config `json:"l2"`
+	MptTime               uint64          `json:"mpt_time"`
 	BeaconRpc             string          `json:"beacon_rpc"`
 	RollupContractAddress common.Address  `json:"rollup_contract_address"`
 	StartHeight           uint64          `json:"start_height"`
@@ -135,6 +137,12 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L2.EthAddr = l2EthAddr
 	c.L2.EngineAddr = l2EngineAddr
 	c.L2.JwtSecret = secret
+	l2LegacyEthAddr := ctx.GlobalString(flags.L2LegacyEthAddr.Name)
+	l2LegacyEngineAddr := ctx.GlobalString(flags.L2LegacyEngineAddr.Name)
+	c.L2Legacy.EthAddr = l2LegacyEthAddr
+	c.L2Legacy.EngineAddr = l2LegacyEngineAddr
+	c.L2Legacy.JwtSecret = secret // same secret
+	c.MptTime = ctx.GlobalUint64(flags.L2LegacyEthAddr.Name)
 	c.MetricsServerEnable = ctx.GlobalBool(flags.MetricsServerEnable.Name)
 	c.MetricsHostname = ctx.GlobalString(flags.MetricsHostname.Name)
 	c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)
