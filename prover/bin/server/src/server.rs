@@ -139,7 +139,7 @@ async fn add_pending_req(param: String) -> String {
         Err(_) => return String::from("deserialize proveRequest failed"),
     };
     log::info!(
-        "recived prove request of batch_index: {:#?}, shadow: {:#?}",
+        "received prove request of batch_index: {:#?}, shadow: {:#?}",
         prove_request.batch_index,
         prove_request.shadow.unwrap_or(false)
     );
