@@ -8,14 +8,11 @@ use std::{
 };
 
 use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
-use alloy::{
-    providers::{Provider, ProviderBuilder, ReqwestProvider, RootProvider},
-    transports::http::reqwest,
-};
+use alloy::providers::{Provider, ProviderBuilder, RootProvider};
 use anyhow::anyhow;
 use morph_executor_client::{BlobVerifier, EVMVerifier};
 use morph_prove::{evm::EvmProofFixture, prove};
-use sbv_primitives::types::BlockTrace;
+use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 

@@ -7,13 +7,10 @@ use std::{
 };
 
 use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR};
-use alloy::{
-    providers::{Provider, ProviderBuilder, ReqwestProvider, RootProvider},
-    transports::http::reqwest,
-};
+use alloy::providers::{ProviderBuilder, RootProvider};
 use anyhow::anyhow;
 use morph_prove::prove;
-use sbv_primitives::types::BlockTrace;
+use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -28,7 +25,7 @@ pub struct ExecuteRequest {
 
 pub struct Executor {
     execute_queue: Arc<Mutex<Vec<ExecuteRequest>>>,
-    provider: ReqwestProvider,
+    provider: RootProvider,
 }
 
 impl Executor {
@@ -72,7 +69,7 @@ impl Executor {
 }
 
 /// Executes a batch asynchronously.
-async fn execute_batch(req: ExecuteRequest, provider: ReqwestProvider) {
+async fn execute_batch(req: ExecuteRequest, provider: RootProvider) {
     // Step1. Fetch trace
     log::info!("Requesting trace of batch-{:#?} ...", req.batch_index);
     let mut block_traces =
@@ -106,7 +103,7 @@ async fn get_block_traces(
     batch_index: u64,
     start_block: u64,
     end_block: u64,
-    provider: &ReqwestProvider,
+    provider: &RootProvider,
 ) -> Option<Vec<BlockTrace>> {
     let mut block_traces: Vec<BlockTrace> = Vec::new();
     for block_num in start_block..end_block + 1 {

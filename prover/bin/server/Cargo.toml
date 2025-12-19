@@ -22,3 +22,4 @@ flexi_logger = { workspace = true }
 hex = { workspace = true }
 morph-executor-client = { workspace = true }
 morph-executor-host = { workspace = true }
+reqwest = { workspace = true }

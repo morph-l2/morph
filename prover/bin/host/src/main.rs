@@ -2,7 +2,7 @@ use std::{fs::File, io::BufReader};
 
 use clap::Parser;
 use morph_prove::prove;
-use sbv_primitives::types::BlockTrace;
+use prover_primitives::types::BlockTrace;
 
 /// The arguments for the command.
 #[derive(Parser, Debug)]

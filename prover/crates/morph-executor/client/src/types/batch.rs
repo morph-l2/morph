@@ -1,9 +1,7 @@
-use prover_primitives::Block;
+use crate::types::input::BlockInput;
+use alloy::primitives::Keccak256;
 use revm::primitives::B256;
-use std::rc::Rc;
-use tiny_keccak::{Hasher, Keccak};
 
-/// A chunk is a set of continuous blocks.
 /// BatchInfo is metadata of chunk, with following fields:
 /// - state root before this chunk
 /// - state root after this chunk
@@ -15,7 +13,7 @@ use tiny_keccak::{Hasher, Keccak};
 pub struct BatchInfo {
     chain_id: u64,
     prev_state_root: B256,
-    post_state_root: B256,
+    pub post_state_root: B256,
     /// withdraw_root
     pub withdraw_root: Option<B256>,
     /// sequencer_root
@@ -24,30 +22,33 @@ pub struct BatchInfo {
 }
 
 impl BatchInfo {
-    /// Construct by block traces
-    pub fn from_block_traces<T: Block>(traces: &[T]) -> Self {
-        let chain_id = traces.first().unwrap().chain_id();
-        let prev_state_root = traces.first().expect("at least 1 block needed").root_before();
-        let post_state_root = traces.last().expect("at least 1 block needed").root_after();
+    /// Construct by block inputs
+    pub fn from_block_inputs(
+        block_inputs: &Vec<BlockInput>,
+        post_state_root: B256,
+        withdraw_root: B256,
+    ) -> Self {
+        let blocks = block_inputs.iter().map(|x| x.current_block.clone()).collect::<Vec<_>>();
+        let chain_id = blocks.first().unwrap().chain_id;
+        let prev_state_root = blocks.first().unwrap().prev_state_root;
 
-        let mut data_hasher = Keccak::v256();
-        data_hasher.update(&traces.last().unwrap().number().to_be_bytes());
-        let num_l1_txs: u16 = traces.iter().map(|x| x.num_l1_txs()).sum::<u64>() as u16;
+        let mut data_hasher = Keccak256::new();
+        data_hasher.update(&blocks.last().unwrap().header.number.to_be_bytes::<32>());
+        let num_l1_txs: u16 = blocks.iter().map(|x| x.num_l1_txs()).sum::<u64>() as u16;
         data_hasher.update(&num_l1_txs.to_be_bytes());
 
-        for trace in traces.iter() {
-            trace.hash_l1_msg(&mut data_hasher);
+        for block in blocks.iter() {
+            block.hash_l1_msg(&mut data_hasher);
         }
-        let mut data_hash = B256::ZERO;
-        data_hasher.finalize(&mut data_hash.0);
+        let l1_data_hash = data_hasher.finalize();
 
         let info = BatchInfo {
             chain_id,
             prev_state_root,
             post_state_root,
-            withdraw_root: None,
+            withdraw_root: Some(withdraw_root),
             sequencer_root: None,
-            data_hash,
+            data_hash: l1_data_hash,
         };
 
         info
@@ -64,7 +65,7 @@ impl BatchInfo {
     ///     blob versioned hash
     /// )
     pub fn public_input_hash(&self, versioned_hash: &B256) -> B256 {
-        let mut hasher = Keccak::v256();
+        let mut hasher = Keccak256::new();
 
         hasher.update(&self.chain_id.to_be_bytes());
         hasher.update(self.prev_state_root.as_slice());
@@ -74,9 +75,7 @@ impl BatchInfo {
         hasher.update(self.data_hash.as_slice());
         hasher.update(versioned_hash.as_slice());
 
-        let mut public_input_hash = B256::ZERO;
-        hasher.finalize(&mut public_input_hash.0);
-        public_input_hash
+        hasher.finalize()
     }
 
     /// Chain ID of this chunk

@@ -1,4 +1,4 @@
-use crate::Block;
+use crate::{Block, TxTrace};
 use alloy::primitives::{Address, Bytes, B256, U256};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Map};
@@ -14,24 +14,27 @@ pub use tx::{TransactionTrace, TxL1Msg, TypedTransaction};
 
 /// Block header
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
-struct BlockHeader {
+pub struct BlockHeader {
     /// block number
-    number: U256,
+    pub number: U256,
     /// block hash
-    hash: B256,
+    pub hash: B256,
+    /// state root
+    #[serde(rename = "stateRoot")]
+    pub state_root: B256,
     /// timestamp
-    timestamp: U256,
+    pub timestamp: U256,
     /// gas limit
     #[serde(rename = "gasLimit")]
-    gas_limit: U256,
+    pub gas_limit: U256,
     /// base fee per gas
     #[serde(rename = "baseFeePerGas")]
-    base_fee_per_gas: Option<U256>,
+    pub base_fee_per_gas: Option<U256>,
     /// difficulty
-    difficulty: U256,
+    pub difficulty: U256,
     /// mix hash
     #[serde(rename = "mixHash")]
-    mix_hash: Option<B256>,
+    pub mix_hash: Option<B256>,
 }
 
 /// Coinbase
@@ -83,7 +86,7 @@ pub struct BlockTrace {
     /// coinbase
     coinbase: Coinbase,
     /// block
-    header: BlockHeader,
+    pub header: BlockHeader,
     /// txs
     pub transactions: Vec<TransactionTrace>,
     //d execution_results
@@ -101,6 +104,10 @@ pub struct BlockTrace {
 const MAGICSMTBYTES: &[u8] = "THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI".as_bytes();
 
 impl BlockTrace {
+    /// Returns the typed transactions in the block.
+    pub fn typed_transactions(&self) -> Vec<TypedTransaction> {
+        self.transactions.iter().map(|tx_trace| tx_trace.try_build_typed_tx().unwrap()).collect()
+    }
     // Convert legacy traces to the latest format
     // pub fn flatten(&mut self) {
     //     let account_proofs =

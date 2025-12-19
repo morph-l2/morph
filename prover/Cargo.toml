@@ -81,6 +81,7 @@ morph-executor-host = { path = "crates/morph-executor/host" }
 morph-executor-client = { path = "crates/morph-executor/client" }
 morph-executor-utils = { path = "crates/morph-executor/utils" }
 morph-executor-core = { path = "crates/morph-executor/core" }
+prover-storage = { path = "crates/storage" }
 morph-prove = { path = "bin/host" }
 prover-primitives = { path = "crates/primitives" }
 prover-utils = { path = "crates/utils" }
@@ -91,6 +92,9 @@ sp1-core-executor = { version = "5.1.0", features = ["bigint-rug"] }
 sp1-prover = "5.1.0"
 sp1-sdk = { version = "5.1.0", features = ["native-gnark"] }
 sp1-zkvm = { version = "5.1.0" }
+
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.1", default-features = false }
+reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.1", default-features = false }
 
 revm = { version = "31.0.1", features = [
     "serde",

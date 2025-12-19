@@ -1,7 +1,10 @@
 use anyhow::anyhow;
 pub mod evm;
 use evm::{save_plonk_fixture, EvmProofFixture};
-use morph_executor_client::{types::input::ClientInput, verify};
+use morph_executor_client::{
+    types::input::{BlockInput, ExecutorInput},
+    verify,
+};
 use morph_executor_host::get_blob_info;
 use morph_executor_utils::read_env_var;
 use prover_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
@@ -34,13 +37,14 @@ pub fn prove(
 
     // Prepare input.
     // Convert the traces' format to reduce conversion costs in the client.
-    blocks.iter_mut().for_each(|block| block.flatten());
+    let blocks_inputs =
+        blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
     let client_input =
-        ClientInput { l2_traces: blocks.clone(), blob_info: get_blob_info(blocks).unwrap() };
+        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info(blocks).unwrap() };
 
     // Execute the program in native
-    let expected_hash =
-        verify(&client_input).map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
+    let expected_hash = verify(client_input.clone())
+        .map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
     log::info!(
         "pi_hash generated with native execution: {}",
         alloy::hex::encode_prefixed(expected_hash.as_slice())
@@ -49,11 +53,11 @@ pub fn prove(
     // Execute the program in sp1-vm
     let mut stdin = SP1Stdin::new();
     stdin.write(&serde_json::to_string(&client_input).unwrap());
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
 
     if read_env_var("DEVNET", false) {
         let (mut public_values, execution_report) = client
-            .execute(BATCH_VERIFIER_ELF, stdin.clone())
+            .execute(BATCH_VERIFIER_ELF, &stdin)
             .run()
             .map_err(|e| anyhow!(format!("sp1-vm execution err: {:?}", e)))?;
 
@@ -84,7 +88,7 @@ pub fn prove(
     // Generate the proof
     let start = Instant::now();
     let mut proof = client
-        .prove(&pk, stdin)
+        .prove(&pk, &stdin)
         .plonk()
         .run()
         .map_err(|e| anyhow!(format!("proving failed: {:?}", e)))?;
@@ -121,7 +125,7 @@ mod tests {
         BlobVerifier,
     };
     use morph_executor_host::{encode_blob, populate_kzg};
-    use sbv_primitives::{alloy_primitives::hex, types::TypedTransaction};
+    use prover_primitives::{alloy_primitives::hex, types::TypedTransaction};
     #[test]
     fn test_blob() {
         //blob to txn
@@ -174,7 +178,7 @@ mod tests {
     }
 
     pub fn load_zstd_blob() -> [u8; 131072] {
-        use sbv_primitives::alloy_primitives::hex;
+        use prover_primitives::alloy_primitives::hex;
         use std::{fs, path::Path};
 
         //https://holesky.etherscan.io/blob/0x018494ae7657bebd9e590baf3736ac9207a5d2275ef98c025dad3232b7875278?bid=2391294

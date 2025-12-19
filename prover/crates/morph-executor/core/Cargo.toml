@@ -22,3 +22,4 @@ revm = { workspace = true, features = [
 prover-primitives.workspace = true
 tiny-keccak = { workspace = true }
 thiserror = { workspace = true }
+rsp-mpt = { workspace = true }

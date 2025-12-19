@@ -18,10 +18,11 @@ use alloy::{
     },
     rlp::{BufMut, BytesMut, Decodable, Encodable, Header},
 };
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull};
 
 /// Wrapped Ethereum Transaction
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TypedTransaction {
     /// Normal enveloped ethereum transaction
     Enveloped(TxEnvelope),
@@ -32,7 +33,7 @@ pub enum TypedTransaction {
 }
 
 /// Layer1 Message Transaction
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TxL1Msg {
     /// The 32-byte hash of the transaction.
     pub tx_hash: B256,
@@ -540,6 +541,7 @@ impl Encodable2718 for TxL1Msg {
 }
 
 impl TypedTransaction {
+
     /// Return the hash of the inner transaction.
     pub fn tx_hash(&self) -> B256 {
         match self {

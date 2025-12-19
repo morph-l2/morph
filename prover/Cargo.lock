@@ -485,7 +485,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -3342,7 +3342,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if 1.0.0",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -3483,16 +3483,23 @@ name = "morph-executor-client"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "alloy-consensus",
  "anyhow",
  "cfg-if 1.0.0",
  "kzg-rs",
  "morph-executor-core",
  "prover-primitives",
+ "prover-storage",
  "prover-utils",
+ "reth-execution-types",
+ "reth-trie",
+ "revm",
+ "rsp-mpt",
  "ruzstd",
  "serde",
  "serde_with",
  "sha2",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -3503,6 +3510,7 @@ dependencies = [
  "anyhow",
  "prover-primitives",
  "revm",
+ "rsp-mpt",
  "serde",
  "serde_with",
  "thiserror 1.0.63",
@@ -4568,7 +4576,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.111",
@@ -4608,9 +4616,25 @@ dependencies = [
  "once_cell",
  "prometheus",
  "prover-primitives",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "prover-storage"
+version = "2.0.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-debug",
+ "anyhow",
+ "prover-primitives",
+ "revm",
+ "rsp-mpt",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
@@ -4949,6 +4973,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-ethereum-primitives"
+version = "1.9.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.9.1#3afe69a5738459a7cb5f46c598c7f541a1510f32"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-rlp",
+ "reth-primitives-traits",
+]
+
+[[package]]
 name = "reth-execution-errors"
 version = "1.9.1"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.9.1#3afe69a5738459a7cb5f46c598c7f541a1510f32"
@@ -4959,6 +4995,22 @@ dependencies = [
  "nybbles",
  "reth-storage-errors",
  "thiserror 2.0.17",
+]
+
+[[package]]
+name = "reth-execution-types"
+version = "1.9.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.9.1#3afe69a5738459a7cb5f46c598c7f541a1510f32"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-evm",
+ "alloy-primitives",
+ "derive_more 2.1.0",
+ "reth-ethereum-primitives",
+ "reth-primitives-traits",
+ "reth-trie-common",
+ "revm",
 ]
 
 [[package]]
@@ -6435,21 +6487,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
-name = "storage"
-version = "2.0.0"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types-debug",
- "anyhow",
- "prover-primitives",
- "revm",
- "rsp-mpt",
- "serde",
- "serde_json",
- "tracing",
-]
-
-[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7109,7 +7146,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "static_assertions",
 ]
 
