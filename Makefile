@@ -1,6 +1,6 @@
 ################## update dependencies ####################
-ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.0.9
-ETHEREUM_TARGET_VERSION := morph-v2.0.8
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.1.0
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20251219060125-03910bc750a2
 TENDERMINT_TARGET_VERSION := v0.3.2
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -30,6 +30,7 @@ update_all_mod:
 	@$(MAKE) update_mod MODULE=ops/tools
 	@$(MAKE) update_mod MODULE=oracle
 	@$(MAKE) update_mod MODULE=tx-submitter
+	@$(MAKE) update_mod MODULE=token-price-oracle
 
 
 update:

@@ -230,10 +230,6 @@ var (
 		Name:  "mainnet",
 		Usage: "Morph mainnet",
 	}
-	HoleskyFlag = cli.BoolFlag{
-		Name:  "holesky",
-		Usage: "Morph Holesky",
-	}
 
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
@@ -345,7 +341,6 @@ var Flags = []cli.Flag{
 	// batch rules
 	UpgradeBatchTime,
 	MainnetFlag,
-	HoleskyFlag,
 
 	// logger
 	LogLevel,

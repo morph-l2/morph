@@ -1,4 +1,5 @@
 use crate::{
+    execute::{ExecuteRequest, Executor},
     queue::{ProveRequest, Prover},
     read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY,
 };
@@ -38,6 +39,9 @@ pub static MAX_PROVE_BLOCKS: Lazy<usize> = Lazy::new(|| read_env_var("MAX_PROVE_
 pub static PROVE_QUEUE: Lazy<Arc<Mutex<Vec<ProveRequest>>>> =
     Lazy::new(|| Arc::new(Mutex::new(vec![])));
 
+pub static EXECUTE_QUEUE: Lazy<Arc<Mutex<Vec<ExecuteRequest>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(vec![])));
+
 // Main async function to start prover service.
 // 1. Spawns prover mng.
 // 2. Spawns metric mng.
@@ -51,7 +55,10 @@ pub async fn start() {
     // Step2. start metric management
     metric_mng().await;
 
-    // Step3. start prover
+    // Step3. start executor
+    start_executor().await;
+
+    // Step4. start prover
     start_prover().await;
 }
 
@@ -59,6 +66,7 @@ async fn prover_mng() {
     tokio::spawn(async {
         let service = Router::new()
             .route("/prove_batch", post(add_pending_req))
+            .route("/execute_batch", post(add_execute_req))
             .route("/query_proof", post(query_prove_result))
             .route("/query_status", post(query_status));
 
@@ -88,6 +96,13 @@ async fn metric_mng() {
 async fn start_prover() {
     let mut prover = Prover::new(Arc::clone(&PROVE_QUEUE)).unwrap();
     prover.prove_for_queue().await;
+}
+
+async fn start_executor() {
+    tokio::spawn(async {
+        let mut executor = Executor::new(Arc::clone(&EXECUTE_QUEUE)).unwrap();
+        executor.execute_for_queue().await;
+    });
 }
 
 async fn handle_metrics() -> String {
@@ -164,6 +179,54 @@ async fn add_pending_req(param: String) -> String {
     String::from(task_status::STARTED)
 }
 
+// Add execute request to queue.
+async fn add_execute_req(param: String) -> String {
+    // Verify parameter is not empty
+    if param.is_empty() {
+        return String::from("request is empty");
+    }
+
+    // Deserialize parameter to ExecuteRequest type
+    let execute_request: Result<ExecuteRequest, serde_json::Error> = serde_json::from_str(&param);
+
+    // Handle deserialization result
+    let execute_request = match execute_request {
+        Ok(req) => req,
+        Err(_) => return String::from("deserialize executeRequest failed"),
+    };
+    log::info!("received execute request of batch_index: {:#?}", execute_request.batch_index);
+
+    if execute_request.end_block < execute_request.start_block {
+        return String::from("blocks index error");
+    }
+
+    let blocks_len = execute_request.end_block - execute_request.start_block + 1;
+    if blocks_len as usize > *MAX_PROVE_BLOCKS {
+        return format!(
+            "blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
+            blocks_len, MAX_PROVE_BLOCKS
+        );
+    }
+
+    // Verify RPC URL format
+    if !execute_request.rpc.starts_with("http://") && !execute_request.rpc.starts_with("https://") {
+        return String::from("invalid rpc url");
+    }
+
+    let mut queue_lock = match timeout(Duration::from_secs(1), EXECUTE_QUEUE.lock()).await {
+        Ok(queue_lock) => queue_lock,
+        Err(_) => return String::from("queue is busy"),
+    };
+
+    if queue_lock.len() > 2 {
+        return String::from("The execute queue is full");
+    }
+    // Add request to queue
+    log::info!("add execute req of batch: {:#?}", execute_request.batch_index);
+    queue_lock.push(execute_request);
+    String::from(task_status::STARTED)
+}
+
 // Async function to check status of a proof request for a batch.
 // PROVED  -> there are already proven results.
 async fn check_batch_status(prove_request: &ProveRequest) -> Option<String> {
@@ -224,6 +287,31 @@ async fn query_proof(batch_index: String) -> ProveResult {
             .unwrap_or("nothing")
             .ends_with(format!("batch_{}", batch_index.trim()).as_str())
         {
+            // execute_result
+            let prove_result_path = path.join("execute_result.json");
+            if prove_result_path.exists() {
+                match fs::File::open(prove_result_path) {
+                    Ok(file) => {
+                        let reader = BufReader::new(file);
+                        let prove_result: serde_json::Value =
+                            serde_json::from_reader(reader).unwrap_or_default();
+                        if let Some(error_code) = prove_result.get("error_code") {
+                            result.error_code = error_code.as_str().unwrap_or("").to_string();
+                        }
+                        if let Some(error_msg) = prove_result.get("error_msg") {
+                            result.error_msg = error_msg.as_str().unwrap_or("").to_string();
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load prove_result: {:#?}", e);
+                        result.error_msg = String::from("Failed to load prove_result");
+                    }
+                }
+            }
+            if !result.error_code.is_empty() {
+                return result;
+            }
+
             //pi_batch_agg.data
             let proof_path = path.join("plonk_proof.json");
             if !proof_path.exists() {
@@ -261,7 +349,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             break;
         }
     }
-    if result.proof_data.is_empty() {
+    if result.proof_data.is_empty() && result.error_msg.is_empty() {
         result.error_msg = String::from("No proof was found");
     }
     result

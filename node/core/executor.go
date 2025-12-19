@@ -51,9 +51,10 @@ type Executor struct {
 	isSequencer    bool
 	devSequencer   bool
 
-	UpgradeBatchTime uint64
-	rollupABI        *abi.ABI
-	batchingCache    *BatchingCache
+	UpgradeBatchTime      uint64
+	blsKeyCheckForkHeight uint64
+	rollupABI             *abi.ABI
+	batchingCache         *BatchingCache
 
 	logger  tmlog.Logger
 	metrics *Metrics
@@ -108,21 +109,22 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		tmPubKeyBytes = tmPubKey.Bytes()
 	}
 	executor := &Executor{
-		l2Client:            l2Client,
-		bc:                  &Version1Converter{},
-		govCaller:           gov,
-		sequencerCaller:     sequencer,
-		l2StakingCaller:     l2Staking,
-		tmPubKey:            tmPubKeyBytes,
-		nextL1MsgIndex:      index,
-		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
-		newSyncerFunc:       newSyncFunc,
-		devSequencer:        config.DevSequencer,
-		rollupABI:           rollupAbi,
-		batchingCache:       NewBatchingCache(),
-		UpgradeBatchTime:    config.UpgradeBatchTime,
-		logger:              logger,
-		metrics:             PrometheusMetrics("morphnode"),
+		l2Client:              l2Client,
+		bc:                    &Version1Converter{},
+		govCaller:             gov,
+		sequencerCaller:       sequencer,
+		l2StakingCaller:       l2Staking,
+		tmPubKey:              tmPubKeyBytes,
+		nextL1MsgIndex:        index,
+		maxL1MsgNumPerBlock:   config.MaxL1MessageNumPerBlock,
+		newSyncerFunc:         newSyncFunc,
+		devSequencer:          config.DevSequencer,
+		rollupABI:             rollupAbi,
+		batchingCache:         NewBatchingCache(),
+		UpgradeBatchTime:      config.UpgradeBatchTime,
+		blsKeyCheckForkHeight: config.BlsKeyCheckForkHeight,
+		logger:                logger,
+		metrics:               PrometheusMetrics("morphnode"),
 	}
 
 	if config.DevSequencer {
@@ -135,7 +137,12 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return executor, nil
 	}
 
-	if _, err = executor.updateSequencerSet(); err != nil {
+	// Get current height for initial sequencer set update
+	currentHeight, err := l2Client.BlockNumber(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if _, err = executor.updateSequencerSet(currentHeight); err != nil {
 		return nil, err
 	}
 
@@ -327,7 +334,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	var newValidatorSet = consensusData.ValidatorSet
 	var newBatchParams *tmproto.BatchParams
 	if !e.devSequencer {
-		if newValidatorSet, err = e.updateSequencerSet(); err != nil {
+		if newValidatorSet, err = e.updateSequencerSet(l2Block.Number); err != nil {
 			return nil, nil, err
 		}
 		if newBatchParams, err = e.batchParamsUpdates(l2Block.Number); err != nil {
@@ -390,9 +397,16 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 	if err != nil {
 		return nil, nil, err
 	}
-	newValidators := make([][]byte, len(addrs))
+	newValidators := make([][]byte, 0, len(addrs))
 	for i := range stakesInfo {
-		newValidators[i] = stakesInfo[i].TmKey[:]
+		// validate blsKey to keep consistent with sequencerSetUpdates
+		if _, err := decodeBlsPubKey(stakesInfo[i].BlsKey); err != nil {
+			e.logger.Error("getParamsAndValsAtHeight: failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
+			if e.isBlsKeyCheckFork(uint64(height)) {
+				continue
+			}
+		}
+		newValidators = append(newValidators, stakesInfo[i].TmKey[:])
 	}
 
 	return &tmproto.BatchParams{
