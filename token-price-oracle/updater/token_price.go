@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
-	"github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/go-ethereum/log"
 	"morph-l2/bindings/bindings"
 	"morph-l2/token-price-oracle/client"
 	"morph-l2/token-price-oracle/config"
 	"morph-l2/token-price-oracle/metrics"
+
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/log"
 )
 
 // PriceUpdater handles token price updates
@@ -267,27 +268,27 @@ func (u *PriceUpdater) filterActiveTokens(ctx context.Context, tokenIDs []uint16
 		}
 
 		// Log and skip inactive tokens
-		if !tokenInfo.IsActive {
+		if !tokenInfo.Info.IsActive {
 			log.Info("Token is inactive, skipping price update",
 				"token_id", tokenID,
-				"address", tokenInfo.TokenAddress.Hex())
+				"address", tokenInfo.Info.TokenAddress.Hex())
 			continue
 		}
 
 		// Cache token info for later use
 		tokenInfoMap[tokenID] = &TokenInfo{
-			TokenAddress: tokenInfo.TokenAddress.Hex(),
-			Decimals:     tokenInfo.Decimals,
-			Scale:        tokenInfo.Scale,
-			IsActive:     tokenInfo.IsActive,
+			TokenAddress: tokenInfo.Info.TokenAddress.Hex(),
+			Decimals:     tokenInfo.Info.Decimals,
+			Scale:        tokenInfo.Info.Scale,
+			IsActive:     tokenInfo.Info.IsActive,
 		}
 		activeTokenIDs = append(activeTokenIDs, tokenID)
 
 		log.Debug("Token is active",
 			"token_id", tokenID,
-			"address", tokenInfo.TokenAddress.Hex(),
-			"decimals", tokenInfo.Decimals,
-			"scale", tokenInfo.Scale.String())
+			"address", tokenInfo.Info.TokenAddress.Hex(),
+			"decimals", tokenInfo.Info.Decimals,
+			"scale", tokenInfo.Info.Scale.String())
 	}
 
 	if len(activeTokenIDs) < len(tokenIDs) {
@@ -429,14 +430,14 @@ func (u *PriceUpdater) shouldUpdatePrice(lastPrice, newPrice *big.Int) bool {
 	// Compare with threshold (both are in basis points)
 	thresholdBig := big.NewInt(int64(threshold))
 	shouldUpdate := bps.Cmp(thresholdBig) >= 0
-	
+
 	log.Debug("Price change check",
 		"last_price", lastPrice.String(),
 		"new_price", newPrice.String(),
 		"change_bps", bps.String(),
 		"threshold_bps", threshold,
 		"should_update", shouldUpdate)
-	
+
 	return shouldUpdate
 }
 
