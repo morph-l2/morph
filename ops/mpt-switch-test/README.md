@@ -1,11 +1,11 @@
-# MPT Switch 测试
+# MPT Switch Test
 
-测试 sequencer node 和 sentry node 在 MPT 升级时间点的客户端切换逻辑。
+Test the client switching logic of sequencer node and sentry node at MPT upgrade time.
 
-## 架构
+## Architecture
 
 ```
-升级前:                              升级后 (交换):
+Before upgrade:                      After upgrade (swap):
 ┌─────────────┐                     ┌─────────────┐
 │  Sequencer  │──► ZK Geth          │  Sequencer  │──► MPT Geth
 │    Node     │    (:8545)          │    Node     │    (:9545)
@@ -17,17 +17,17 @@
 └─────────────┘                     └─────────────┘
 ```
 
-**关键点：**
-- 两个 Node 共用同样的两个 Geth 实例
-- 升级时间到达后，两个 Node 交换 Geth 连接
+**Key points:**
+- Both nodes share the same two Geth instances
+- When upgrade time is reached, both nodes swap Geth connections
 - Sequencer: ZK Geth → MPT Geth
 - Sentry: MPT Geth → ZK Geth
 
-## 前置条件
+## Prerequisites
 
-### 准备二进制文件
+### Prepare Binaries
 
-将所有二进制文件放到 `bin` 目录下：
+Place all binaries in the `bin` directory:
 
 ```bash
 ops/mpt-switch-test/bin/
@@ -36,55 +36,55 @@ ops/mpt-switch-test/bin/
 └── tendermint
 ```
 
-Genesis 文件 (`genesis-l2.json`) 已包含在目录中。
+Genesis file (`genesis-l2.json`) is already included in the directory.
 
-## 使用方法
+## Usage
 
 ```bash
 cd /Users/corey.zhang/workspace/morph/ops/mpt-switch-test
 
-# 1. 启动测试环境 (60秒后触发切换)
+# 1. Start test environment (switch triggers after 60 seconds)
 ./test-mpt-switch-local.sh start 60
 
-# 2. 监控 Sequencer 切换日志
+# 2. Monitor Sequencer switch logs
 ./test-mpt-switch-local.sh monitor sequencer
 
-# 3. 监控 Sentry 切换日志
+# 3. Monitor Sentry switch logs
 ./test-mpt-switch-local.sh monitor sentry
 
-# 4. 查看状态
+# 4. Check status
 ./test-mpt-switch-local.sh status
 
-# 5. 停止服务
+# 5. Stop services
 ./test-mpt-switch-local.sh stop
 
-# 6. 清理数据
+# 6. Clean data
 ./test-mpt-switch-local.sh clean
 ```
 
-## 命令列表
+## Command List
 
-| 命令 | 说明 |
-|------|------|
-| `start [delay]` | 启动测试环境，delay 为 MPT 切换延迟秒数 (默认 60) |
-| `stop` | 停止所有服务 |
-| `clean` | 清理所有测试数据 |
-| `status` | 查看服务状态和区块高度 |
-| `monitor [target]` | 监控日志 (sequencer/sentry/all) |
-| `logs [service]` | 查看日志 (sequencer/sentry/zk-geth/mpt-geth/all) |
+| Command | Description |
+|---------|-------------|
+| `start [delay]` | Start test environment, delay is MPT switch delay in seconds (default 60) |
+| `stop` | Stop all services |
+| `clean` | Clean all test data |
+| `status` | Check service status and block height |
+| `monitor [target]` | Monitor logs (sequencer/sentry/all) |
+| `logs [service]` | View logs (sequencer/sentry/zk-geth/mpt-geth/all) |
 
-## 端口分配
+## Port Allocation
 
-| 服务 | HTTP | Engine | P2P |
-|------|------|--------|-----|
+| Service | HTTP | Engine | P2P |
+|---------|------|--------|-----|
 | ZK Geth | 8545 | 8551 | 30303 |
 | MPT Geth | 9545 | 9551 | 30304 |
 | Sequencer Node | - | - | 26656 (RPC: 26657) |
 | Sentry Node | - | - | 26756 (RPC: 26757) |
 
-## 预期日志
+## Expected Logs
 
-两个 Node 都应该看到类似的切换日志：
+Both nodes should see similar switch logs:
 
 ```
 MPT switch time reached, MUST wait for MPT node to sync
@@ -97,22 +97,22 @@ Successfully switched to MPT client
   remote_block=<n> target_block=<m> wait_duration=<duration>
 ```
 
-## 文件结构
+## File Structure
 
 ```
 mpt-switch-test/
-├── test-mpt-switch-local.sh  # 测试脚本
-├── README.md                 # 本文档
-├── genesis-l2.json           # L2 创世文件 (已包含)
-├── bin/                      # 二进制文件目录 (需手动放置)
+├── test-mpt-switch-local.sh  # Test script
+├── README.md                 # This document
+├── genesis-l2.json           # L2 genesis file (included)
+├── bin/                      # Binary directory (needs to be placed manually)
 │   ├── geth
 │   ├── morphnode
 │   └── tendermint
-└── .testdata/                # 测试数据目录 (启动时生成)
-    ├── zk-geth/              # ZK Geth 数据
-    ├── mpt-geth/             # MPT Geth 数据
-    ├── sequencer-node/       # Sequencer Node 数据
-    ├── sentry-node/          # Sentry Node 数据
-    ├── jwt-secret.txt        # JWT 密钥
-    └── *.log                 # 日志文件
+└── .testdata/                # Test data directory (generated on startup)
+    ├── zk-geth/              # ZK Geth data
+    ├── mpt-geth/             # MPT Geth data
+    ├── sequencer-node/       # Sequencer Node data
+    ├── sentry-node/          # Sentry Node data
+    ├── jwt-secret.txt        # JWT secret
+    └── *.log                 # Log files
 ```

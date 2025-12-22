@@ -24,23 +24,23 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 路径配置
+# Path configuration
 MORPH_ROOT="${SCRIPT_DIR}/../.."
 BIN_DIR="${SCRIPT_DIR}/bin"
 
-# 所有二进制文件都放在 bin 目录下
+# All binaries are placed in the bin directory
 GETH_BIN="${BIN_DIR}/geth"
 NODE_BIN="${BIN_DIR}/morphnode"
 TENDERMINT_BIN="${BIN_DIR}/tendermint"
 
-# 测试数据目录
+# Test data directory
 TEST_DATA_DIR="${SCRIPT_DIR}/.testdata"
 ZK_GETH_DIR="${TEST_DATA_DIR}/zk-geth"
 MPT_GETH_DIR="${TEST_DATA_DIR}/mpt-geth"
 SEQUENCER_NODE_DIR="${TEST_DATA_DIR}/sequencer-node"
 SENTRY_NODE_DIR="${TEST_DATA_DIR}/sentry-node"
 
-# 端口配置
+# Port configuration
 # ZK Geth (used by Sequencer before upgrade, by Sentry after upgrade)
 ZK_GETH_HTTP_PORT=8545
 ZK_GETH_WS_PORT=8546
@@ -61,13 +61,13 @@ SEQ_NODE_RPC_PORT=26657
 SENTRY_NODE_P2P_PORT=26756
 SENTRY_NODE_RPC_PORT=26757
 
-# PID 文件
+# PID files
 ZK_GETH_PID="${TEST_DATA_DIR}/zk-geth.pid"
 MPT_GETH_PID="${TEST_DATA_DIR}/mpt-geth.pid"
 SEQUENCER_NODE_PID="${TEST_DATA_DIR}/sequencer-node.pid"
 SENTRY_NODE_PID="${TEST_DATA_DIR}/sentry-node.pid"
 
-# 颜色输出
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -90,7 +90,7 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# 检查依赖
+# Check dependencies
 check_dependencies() {
     log_info "Checking dependencies in ${BIN_DIR}..."
     
@@ -120,17 +120,17 @@ check_dependencies() {
     log_success "All binaries found"
 }
 
-# 准备配置文件
+# Prepare configuration files
 prepare_configs() {
     log_info "Preparing configuration..."
     
-    # 创建数据目录
+    # Create data directories
     mkdir -p "$ZK_GETH_DIR"
     mkdir -p "$MPT_GETH_DIR"
     mkdir -p "$SEQUENCER_NODE_DIR"
     mkdir -p "$SENTRY_NODE_DIR"
     
-    # 检查 genesis 文件 (两个模式需要不同的 genesis)
+    # Check genesis files (two modes require different genesis)
     local genesis_zk="${SCRIPT_DIR}/genesis-zk.json"
     local genesis_mpt="${SCRIPT_DIR}/genesis-mpt.json"
     
@@ -144,14 +144,14 @@ prepare_configs() {
         exit 1
     fi
     
-    # 创建 JWT secret
+    # Create JWT secret
     local jwt_file="${TEST_DATA_DIR}/jwt-secret.txt"
     if [ ! -f "$jwt_file" ]; then
         openssl rand -hex 32 > "$jwt_file"
         log_success "Generated JWT secret"
     fi
     
-    # 初始化 geth 数据目录 (两个模式使用不同的 genesis)
+    # Initialize geth data directories (two modes use different genesis)
     if [ ! -d "${ZK_GETH_DIR}/geth/chaindata" ]; then
         log_info "Initializing zk-geth with genesis-zk.json (useZktrie: true)..."
         "$GETH_BIN" init --datadir="$ZK_GETH_DIR" "$genesis_zk"
@@ -172,51 +172,51 @@ prepare_configs() {
         
         local temp_dir="${TEST_DATA_DIR}/tendermint-temp"
         
-        # 创建 1 个 validator (sequencer) + 1 个 non-validator (sentry)
+        # Create 1 validator (sequencer) + 1 non-validator (sentry)
         "$TENDERMINT_BIN" testnet --v 1 --n 1 --o "$temp_dir" --populate-persistent-peers --hostname-prefix node-
         
-        # node0 是 validator (sequencer), node1 是 non-validator (sentry)
-        # 确保目标目录不存在，这样 mv 会重命名而不是移动到目录内
+        # node0 is validator (sequencer), node1 is non-validator (sentry)
+        # Ensure target directories don't exist, so mv will rename instead of moving into directory
         rm -rf "${SEQUENCER_NODE_DIR}" "${SENTRY_NODE_DIR}"
         mv "${temp_dir}/node0" "${SEQUENCER_NODE_DIR}"
         mv "${temp_dir}/node1" "${SENTRY_NODE_DIR}"
         
-        # 重要: sentry 必须使用与 sequencer 相同的 genesis.json (包含相同的 validator set)
+        # Important: sentry must use the same genesis.json as sequencer (containing the same validator set)
         cp "${SEQUENCER_NODE_DIR}/config/genesis.json" "${SENTRY_NODE_DIR}/config/genesis.json"
         
         rm -rf "$temp_dir"
         
-        # 修改 node 配置
-        # 注意: testnet 命令生成的目录结构是 node0, node1
-        #       但我们重命名后直接放在 SEQUENCER_NODE_DIR 和 SENTRY_NODE_DIR 下
+        # Modify node configuration
+        # Note: testnet command generates directory structure as node0, node1
+        # but after renaming they are placed directly under SEQUENCER_NODE_DIR and SENTRY_NODE_DIR
         local seq_config="${SEQUENCER_NODE_DIR}/config/config.toml"
         local sentry_config="${SENTRY_NODE_DIR}/config/config.toml"
         
-        # 获取 sequencer 的 node ID 用于 sentry 连接
+        # Get sequencer's node ID for sentry connection
         local seq_node_id=$("$TENDERMINT_BIN" show-node-id --home "${SEQUENCER_NODE_DIR}")
         
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            # Sequencer 配置
+            # Sequencer configuration
             sed -i '' 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' "$seq_config"
             sed -i '' 's#prometheus = false#prometheus = true#g' "$seq_config"
             sed -i '' "s#laddr = \"tcp://0.0.0.0:26656\"#laddr = \"tcp://0.0.0.0:${SEQ_NODE_P2P_PORT}\"#g" "$seq_config"
             sed -i '' "s#laddr = \"tcp://127.0.0.1:26657\"#laddr = \"tcp://127.0.0.1:${SEQ_NODE_RPC_PORT}\"#g" "$seq_config"
             
-            # Sentry 配置 (连接到 sequencer)
+            # Sentry configuration (connects to sequencer)
             sed -i '' 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' "$sentry_config"
             sed -i '' 's#prometheus = false#prometheus = true#g' "$sentry_config"
             sed -i '' "s#laddr = \"tcp://0.0.0.0:26656\"#laddr = \"tcp://0.0.0.0:${SENTRY_NODE_P2P_PORT}\"#g" "$sentry_config"
             sed -i '' "s#laddr = \"tcp://127.0.0.1:26657\"#laddr = \"tcp://127.0.0.1:${SENTRY_NODE_RPC_PORT}\"#g" "$sentry_config"
-            # 设置 persistent_peers 指向 sequencer (替换任何现有值)
+            # Set persistent_peers to point to sequencer (replace any existing value)
             sed -i '' "s#persistent_peers = \".*\"#persistent_peers = \"${seq_node_id}@127.0.0.1:${SEQ_NODE_P2P_PORT}\"#" "$sentry_config"
         else
-            # Linux - Sequencer 配置
+            # Linux - Sequencer configuration
             sed -i 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' "$seq_config"
             sed -i 's#prometheus = false#prometheus = true#g' "$seq_config"
             sed -i "s#laddr = \"tcp://0.0.0.0:26656\"#laddr = \"tcp://0.0.0.0:${SEQ_NODE_P2P_PORT}\"#g" "$seq_config"
             sed -i "s#laddr = \"tcp://127.0.0.1:26657\"#laddr = \"tcp://127.0.0.1:${SEQ_NODE_RPC_PORT}\"#g" "$seq_config"
             
-            # Linux - Sentry 配置
+            # Linux - Sentry configuration
             sed -i 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' "$sentry_config"
             sed -i 's#prometheus = false#prometheus = true#g' "$sentry_config"
             sed -i "s#laddr = \"tcp://0.0.0.0:26656\"#laddr = \"tcp://0.0.0.0:${SENTRY_NODE_P2P_PORT}\"#g" "$sentry_config"
@@ -346,7 +346,7 @@ start_sentry_node() {
     log_success "sentry-node started (PID: $(cat $SENTRY_NODE_PID))"
 }
 
-# 等待 Geth 就绪
+# Wait for Geth to be ready
 wait_for_geth() {
     local port=$1
     local name=$2
@@ -367,7 +367,7 @@ wait_for_geth() {
     log_success "${name} is ready"
 }
 
-# 停止所有服务
+# Stop all services
 stop_all() {
     log_info "Stopping all services..."
     
@@ -386,7 +386,7 @@ stop_all() {
     log_success "All services stopped"
 }
 
-# 清理数据
+# Clean data
 clean_data() {
     log_info "Cleaning test data..."
     rm -rf "$TEST_DATA_DIR"
@@ -447,12 +447,12 @@ view_logs() {
     esac
 }
 
-# 检查状态
+# Check status
 check_status() {
     echo ""
     log_info "=== Service Status ==="
     
-    # 进程状态
+    # Process status
     for pid_file in "$ZK_GETH_PID" "$MPT_GETH_PID" "$SEQUENCER_NODE_PID" "$SENTRY_NODE_PID"; do
         local name=$(basename "$pid_file" .pid)
         if [ -f "$pid_file" ] && kill -0 "$(cat $pid_file)" 2>/dev/null; then
@@ -486,7 +486,7 @@ check_status() {
     echo ""
 }
 
-# 显示帮助
+# Show help
 show_help() {
     echo "MPT Switch Local Test Script"
     echo ""
