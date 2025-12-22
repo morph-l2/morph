@@ -285,7 +285,10 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	}
 
 	if wrappedBlock.Number <= height {
-		e.logger.Info("ignore it, the block was delivered", "block number", wrappedBlock.Number)
+		e.logger.Info("block already delivered by geth (via P2P sync)", "block_number", wrappedBlock.Number)
+		// Even if block was already delivered (e.g., synced via P2P), we still need to check
+		// if MPT switch should happen, otherwise sentry nodes won't switch to the correct geth.
+		e.l2Client.EnsureSwitched(context.Background(), wrappedBlock.Timestamp, wrappedBlock.Number)
 		if e.devSequencer {
 			return nil, consensusData.ValidatorSet, nil
 		}
@@ -295,6 +298,10 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	// We only accept the continuous blocks for now.
 	// It acts like full sync. Snap sync is not enabled until the Geth enables snapshot with zkTrie
 	if wrappedBlock.Number > height+1 {
+		e.logger.Error("!!! CRITICAL: Geth is behind - node BLOCKED !!!",
+			"consensus_block", wrappedBlock.Number,
+			"geth_height", height,
+			"action", "Switch to MPT-compatible geth IMMEDIATELY")
 		return nil, nil, types.ErrWrongBlockNumber
 	}
 
@@ -326,7 +333,15 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	}
 	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash)
 	if err != nil {
-		e.logger.Error("failed to NewL2Block", "error", err)
+		e.logger.Error("========================================")
+		e.logger.Error("CRITICAL: Failed to deliver block to geth!")
+		e.logger.Error("========================================")
+		e.logger.Error("failed to NewL2Block",
+			"error", err,
+			"block_number", l2Block.Number,
+			"block_timestamp", l2Block.Timestamp)
+		e.logger.Error("HINT: If this occurs after MPT upgrade, your geth node may not support MPT blocks. " +
+			"Please ensure you are running an MPT-compatible geth node.")
 		return nil, nil, err
 	}
 

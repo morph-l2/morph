@@ -68,15 +68,29 @@ func (rc *RetryableClient) eClient() *ethclient.Client {
 	return rc.ethClient
 }
 
+// EnsureSwitched checks if MPT switch time has been reached and switches to MPT client if needed.
+// This should be called when the block is already delivered (e.g., synced via P2P) to ensure
+// the client switch happens even if NewL2Block is not called.
+func (rc *RetryableClient) EnsureSwitched(ctx context.Context, timeStamp uint64, number uint64) {
+	rc.switchClient(ctx, timeStamp, number)
+}
+
 func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, number uint64) {
-	if rc.mpt.Load() || timeStamp <= rc.mptTime {
+	if rc.mpt.Load() {
+		return
+	}
+	if timeStamp <= rc.mptTime {
 		return
 	}
 
-	rc.logger.Info("MPT switch time reached, MUST wait for MPT node to sync",
+	rc.logger.Info("========================================")
+	rc.logger.Info("MPT UPGRADE: Switch time reached!")
+	rc.logger.Info("========================================")
+	rc.logger.Info("MPT switch time reached, switching from legacy client to MPT client",
 		"mpt_time", rc.mptTime,
 		"current_time", timeStamp,
 		"target_block", number)
+	rc.logger.Info("Current status: connected to LEGACY geth, waiting for MPT geth to sync...")
 
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
@@ -87,13 +101,18 @@ func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, n
 	for {
 		remote, err := rc.ethClient.BlockNumber(ctx)
 		if err != nil {
-			rc.logger.Error("Failed to get MPT block number, retrying...", "error", err)
+			rc.logger.Error("Failed to get MPT geth block number",
+				"error", err,
+				"hint", "Please ensure MPT geth is running and accessible")
 			<-ticker.C
 			continue
 		}
 
 		if remote+1 >= number {
 			rc.mpt.Store(true)
+			rc.logger.Info("========================================")
+			rc.logger.Info("MPT UPGRADE: Successfully switched!")
+			rc.logger.Info("========================================")
 			rc.logger.Info("Successfully switched to MPT client",
 				"remote_block", remote,
 				"target_block", number,
@@ -101,9 +120,9 @@ func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, n
 			return
 		}
 
-		if time.Since(lastLogTime) >= 10*time.Second {
-			rc.logger.Info("Waiting for MPT node to sync...",
-				"remote_block", remote,
+		if time.Since(lastLogTime) >= 5*time.Second {
+			rc.logger.Error("!!! WAITING: Node BLOCKED waiting for MPT geth !!!",
+				"mpt_geth_block", remote,
 				"target_block", number,
 				"blocks_behind", number-remote-1,
 				"wait_duration", time.Since(startTime))

@@ -32,3 +32,8 @@ contracts/mainnet.json
 
 # logs
 *.log
+
+# mpt-switch-test data
+ops/mpt-switch-test/.testdata
+ops/mpt-switch-test/bin
+ops/mpt-switch-test/local-test/geth-data

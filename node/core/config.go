@@ -44,6 +44,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		L2:                            new(types.L2Config),
+		L2Legacy:                      new(types.L2Config),
 		Logger:                        tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		MaxL1MessageNumPerBlock:       100,
 		L2CrossDomainMessengerAddress: predeploys.L2CrossDomainMessengerAddr,
