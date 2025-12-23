@@ -15,17 +15,17 @@ func prefixEnvVar(name string) string {
 var (
 	/* Required Flags */
 	L2EthRPCFlag = cli.StringFlag{
-		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for L2",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
+		Name:  "l2-eth-rpc",
+		Usage: "HTTP provider URL for L2",
+		//Required: true,
+		EnvVar: prefixEnvVar("L2_ETH_RPC"),
 	}
 
 	PrivateKeyFlag = cli.StringFlag{
-		Name:     "private-key",
-		Usage:    "The private key to use for sending transactions to L2",
-		Required: true,
-		EnvVar:   prefixEnvVar("PRIVATE_KEY"),
+		Name:  "private-key",
+		Usage: "The private key to use for sending transactions to L2",
+		//Required: true,
+		EnvVar: prefixEnvVar("PRIVATE_KEY"),
 	}
 
 	/* Optional Flags */
