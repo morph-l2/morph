@@ -103,14 +103,14 @@ build-bk-test-morph-test-qanet-to-morph-token-price-oracle:
 
 start-bk-test-morph-test-qanet-to-morph-token-price-oracle:
 	 /data/secret-manager-wrapper  ./token-price-oracle
-
-build-bk-prod-morph-prod-testnet-to-morph-token-price-oracle-hoodi:
+# hoodi token price oracle
+build-bk-prod-morph-prod-testnet-to-morph-token-price-oracle:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o token-price-oracle/token-price-oracle ./token-price-oracle/cmd
 	cp token-price-oracle/token-price-oracle dist/
 
 
-start-bk-prod-morph-prod-testnet-to-morph-token-price-oracle-hoodi:
+start-bk-prod-morph-prod-testnet-to-morph-token-price-oracle:
 	/data/secret-manager-wrapper ./token-price-oracle
 
 
