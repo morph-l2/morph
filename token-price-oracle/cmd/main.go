@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/morph-l2/go-ethereum/log"
-	"github.com/urfave/cli"
-	"morph-l2/token-price-oracle/flags"
 	"morph-l2/token-price-oracle/metrics"
 )
 
@@ -20,28 +18,12 @@ var (
 )
 
 func main() {
-	app := cli.NewApp()
-	app.Flags = flags.Flags
-	app.Version = fmt.Sprintf("%s-%s-%s", GitVersion, GitCommit, GitDate)
-	app.Name = "token-price-oracle"
-	app.Usage = "Gas Price Oracle Service"
-	app.Description = "Service for monitoring L1 gas prices and updating L2 GasPriceOracle contract"
-	app.Action = Main
-
-	if err := app.Run(os.Args); err != nil {
-		log.Crit("Application failed", "err", err)
-	}
-}
-
-func Main(cliCtx *cli.Context) error {
 	// Setup basic logging
 	log.Root().SetHandler(log.StreamHandler(os.Stdout, log.TerminalFormat(true)))
-	log.Info("Starting token-price-oracle (metrics only mode)")
+	log.Info("Starting token-price-oracle (metrics only mode)", "version", fmt.Sprintf("%s-%s-%s", GitVersion, GitCommit, GitDate))
 
-	// Get metrics config
-	metricsHost := cliCtx.String(flags.MetricsHostnameFlag.Name)
-	metricsPort := cliCtx.Uint64(flags.MetricsPortFlag.Name)
-	metricsAddr := fmt.Sprintf("%s:%d", metricsHost, metricsPort)
+	// Metrics server address
+	metricsAddr := "0.0.0.0:6060"
 
 	// Start metrics server
 	go func() {
@@ -60,5 +42,4 @@ func Main(cliCtx *cli.Context) error {
 
 	time.Sleep(1 * time.Second)
 	log.Info("Token price Oracle stopped")
-	return nil
 }
