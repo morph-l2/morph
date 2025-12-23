@@ -1,0 +1,34 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ISP1Verifier",
+  "sourceName": "contracts/libraries/verifier/ISP1Verifier.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "programVKey",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "publicValues",
+          "type": "bytes"
+        },
+        {
+          "internalType": "bytes",
+          "name": "proofBytes",
+          "type": "bytes"
+        }
+      ],
+      "name": "verifyProof",
+      "outputs": [],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

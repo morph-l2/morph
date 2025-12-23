@@ -1,0 +1,203 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MockCrossDomainMessenger",
+  "sourceName": "contracts/mock/MockCrossDomainMessenger.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ErrZeroAddress",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "messageHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "FailedRelayedMessage",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "messageHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "RelayedMessage",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "target",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "messageNonce",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "gasLimit",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "message",
+          "type": "bytes"
+        }
+      ],
+      "name": "SentMessage",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "callTarget",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "messageNonce",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_value",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_gasLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_refundAddress",
+          "type": "address"
+        }
+      ],
+      "name": "sendMessage",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_value",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_gasLimit",
+          "type": "uint256"
+        }
+      ],
+      "name": "sendMessage",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_xDomainMessageSender",
+          "type": "address"
+        }
+      ],
+      "name": "setXDomainMessageSender",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "xDomainMessageSender",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561000f575f80fd5b5061046d8061001d5f395ff3fe608060405260043610610063575f3560e01c8063b2267a7b11610041578063b2267a7b146100e6578063bf24eb63146100fa578063ecc704281461015a575f80fd5b80635f7b1577146100675780636e296e451461007e578063b002fba9146100d3575b5f80fd5b61007c6100753660046102ed565b5050505050565b005b348015610089575f80fd5b505f546100a99073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b61007c6100e136600461035a565b610174565b61007c6100f43660046103d6565b50505050565b348015610105575f80fd5b5061007c610114366004610431565b5f80547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b348015610165575f80fd5b506040515f81526020016100ca565b5f8373ffffffffffffffffffffffffffffffffffffffff1634848460405161019d929190610451565b5f6040518083038185875af1925050503d805f81146101d7576040519150601f19603f3d011682016040523d82523d5f602084013e6101dc565b606091505b50509050806100f4576040513d805f833e8082fd5b803573ffffffffffffffffffffffffffffffffffffffff81168114610214575f80fd5b919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f82601f830112610255575f80fd5b813567ffffffffffffffff8082111561027057610270610219565b604051601f83017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019082821181831017156102b6576102b6610219565b816040528381528660208588010111156102ce575f80fd5b836020870160208301375f602085830101528094505050505092915050565b5f805f805f60a08688031215610301575f80fd5b61030a866101f1565b945060208601359350604086013567ffffffffffffffff81111561032c575f80fd5b61033888828901610246565b9350506060860135915061034e608087016101f1565b90509295509295909350565b5f805f6040848603121561036c575f80fd5b610375846101f1565b9250602084013567ffffffffffffffff80821115610391575f80fd5b818601915086601f8301126103a4575f80fd5b8135818111156103b2575f80fd5b8760208285010111156103c3575f80fd5b6020830194508093505050509250925092565b5f805f80608085870312156103e9575f80fd5b6103f2856101f1565b935060208501359250604085013567ffffffffffffffff811115610414575f80fd5b61042087828801610246565b949793965093946060013593505050565b5f60208284031215610441575f80fd5b61044a826101f1565b9392505050565b818382375f910190815291905056fea164736f6c6343000818000a",
+  "deployedBytecode": "0x608060405260043610610063575f3560e01c8063b2267a7b11610041578063b2267a7b146100e6578063bf24eb63146100fa578063ecc704281461015a575f80fd5b80635f7b1577146100675780636e296e451461007e578063b002fba9146100d3575b5f80fd5b61007c6100753660046102ed565b5050505050565b005b348015610089575f80fd5b505f546100a99073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b61007c6100e136600461035a565b610174565b61007c6100f43660046103d6565b50505050565b348015610105575f80fd5b5061007c610114366004610431565b5f80547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b348015610165575f80fd5b506040515f81526020016100ca565b5f8373ffffffffffffffffffffffffffffffffffffffff1634848460405161019d929190610451565b5f6040518083038185875af1925050503d805f81146101d7576040519150601f19603f3d011682016040523d82523d5f602084013e6101dc565b606091505b50509050806100f4576040513d805f833e8082fd5b803573ffffffffffffffffffffffffffffffffffffffff81168114610214575f80fd5b919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f82601f830112610255575f80fd5b813567ffffffffffffffff8082111561027057610270610219565b604051601f83017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019082821181831017156102b6576102b6610219565b816040528381528660208588010111156102ce575f80fd5b836020870160208301375f602085830101528094505050505092915050565b5f805f805f60a08688031215610301575f80fd5b61030a866101f1565b945060208601359350604086013567ffffffffffffffff81111561032c575f80fd5b61033888828901610246565b9350506060860135915061034e608087016101f1565b90509295509295909350565b5f805f6040848603121561036c575f80fd5b610375846101f1565b9250602084013567ffffffffffffffff80821115610391575f80fd5b818601915086601f8301126103a4575f80fd5b8135818111156103b2575f80fd5b8760208285010111156103c3575f80fd5b6020830194508093505050509250925092565b5f805f80608085870312156103e9575f80fd5b6103f2856101f1565b935060208501359250604085013567ffffffffffffffff811115610414575f80fd5b61042087828801610246565b949793965093946060013593505050565b5f60208284031215610441575f80fd5b61044a826101f1565b9392505050565b818382375f910190815291905056fea164736f6c6343000818000a",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

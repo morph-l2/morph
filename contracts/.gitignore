@@ -1,4 +1,4 @@
-*artifacts
+# *artifacts
 *.idea
 .resource-metering.csv
 .storage-layout
@@ -22,7 +22,7 @@ deployFile.json
 newFile.json
 
 dist
-artifacts
+# artifacts
 cache
 cache-hardhat
 
@@ -56,7 +56,7 @@ __pycache__
 # Ignore echidna artifacts
 crytic-export
 
-# compile
+compile
 cache
 abi
 data

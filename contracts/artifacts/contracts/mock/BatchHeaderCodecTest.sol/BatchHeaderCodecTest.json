@@ -1,0 +1,320 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "BatchHeaderCodecTest",
+  "sourceName": "contracts/mock/BatchHeaderCodecTest.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "computeBatchHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "batchHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "version",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "l1MessagePopped",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalL1MessagePopped",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "dataHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "blobVersionedHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "prevStateHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "postStateHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "withdrawRootHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "sequencerSetVerifyHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "parentBatchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "skipMap",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct BatchHeaderCodecTest.BatchHeaderData",
+          "name": "data",
+          "type": "tuple"
+        }
+      ],
+      "name": "computeBatchHashWithData",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "batchHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getBatchIndex",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "batchIndex",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getBlobVersionedHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_blobVersionedHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getDataHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_dataHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getL1MessagePopped",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "l1MessagePopped",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getParentBatchHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_parentBatchHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getPostStateHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_postStateHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getPrevStateHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_prevStateHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getSequencerSetVerifyHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_sequencerSetVerifyHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getTotalL1MessagePopped",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalL1MessagePopped",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getVersion",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "version",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_batchHeader",
+          "type": "bytes"
+        }
+      ],
+      "name": "getWithdrawRootHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_withdrawRootHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561000f575f80fd5b506104f98061001d5f395ff3fe608060405234801561000f575f80fd5b50600436106100da575f3560e01c806343355f5711610088578063ae68b05611610063578063ae68b0561461019b578063b3c3dc6c146101ae578063c8359461146101c1578063ecbabc00146101d4575f80fd5b806343355f571461016257806384f8591d1461017557806391d1555614610188575f80fd5b80632bd6aca2116100b85780632bd6aca21461012957806330f98c291461013c5780633280af121461014f575f80fd5b80631427bc43146100de5780631c2620c6146101035780631f464ab514610116575b5f80fd5b6100f16100ec366004610448565b6101e7565b60405190815260200160405180910390f35b6100f1610111366004610448565b61020c565b6100f1610124366004610448565b610229565b6100f1610137366004610448565b610243565b6100f161014a366004610448565b61025d565b6100f161015d366004610448565b610277565b6100f16101703660046104b4565b61028f565b6100f1610183366004610448565b61031b565b6100f1610196366004610448565b610335565b6100f16101a9366004610448565b61034f565b6100f16101bc366004610448565b610369565b6100f16101cf366004610448565b610383565b6100f16101e2366004610448565b61039d565b5f806101f384846103ba565b509050610204816009015160c01c90565b949350505050565b5f8061021884846103ba565b509050610204816011015160c01c90565b5f8061023584846103ba565b5090506102048160b9015190565b5f8061024f84846103ba565b5090506102048160d9015190565b5f8061026984846103ba565b509050610204816059015190565b5f805f61028485856103ba565b902095945050505050565b6040515f9061029f818435610441565b602083013560c01b6001820152604083013560c01b6009820152606083013560c01b60118201526080830135601982015260a0830135603982015260c0830135605982015260e08301356079820152610100830135609982015261012083013560b982015261014083013560d982015260f981205b9392505050565b5f8061032784846103ba565b509050610204815160f81c90565b5f8061034184846103ba565b509050610204816099015190565b5f8061035b84846103ba565b509050610204816019015190565b5f8061037584846103ba565b509050610204816039015190565b5f8061038f84846103ba565b509050610204816079015190565b5f806103a984846103ba565b509050610204816001015160c01c90565b5f8160f981101561042b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f626174636820686561646572206c656e67746820746f6f20736d616c6c000000604482015260640160405180910390fd5b6040519150808483378082016040529250929050565b8082535050565b5f8060208385031215610459575f80fd5b823567ffffffffffffffff80821115610470575f80fd5b818501915085601f830112610483575f80fd5b813581811115610491575f80fd5b8660208285010111156104a2575f80fd5b60209290920196919550909350505050565b5f602082840312156104c4575f80fd5b813567ffffffffffffffff8111156104da575f80fd5b82016101808185031215610314575f80fdfea164736f6c6343000818000a",
+  "deployedBytecode": "0x608060405234801561000f575f80fd5b50600436106100da575f3560e01c806343355f5711610088578063ae68b05611610063578063ae68b0561461019b578063b3c3dc6c146101ae578063c8359461146101c1578063ecbabc00146101d4575f80fd5b806343355f571461016257806384f8591d1461017557806391d1555614610188575f80fd5b80632bd6aca2116100b85780632bd6aca21461012957806330f98c291461013c5780633280af121461014f575f80fd5b80631427bc43146100de5780631c2620c6146101035780631f464ab514610116575b5f80fd5b6100f16100ec366004610448565b6101e7565b60405190815260200160405180910390f35b6100f1610111366004610448565b61020c565b6100f1610124366004610448565b610229565b6100f1610137366004610448565b610243565b6100f161014a366004610448565b61025d565b6100f161015d366004610448565b610277565b6100f16101703660046104b4565b61028f565b6100f1610183366004610448565b61031b565b6100f1610196366004610448565b610335565b6100f16101a9366004610448565b61034f565b6100f16101bc366004610448565b610369565b6100f16101cf366004610448565b610383565b6100f16101e2366004610448565b61039d565b5f806101f384846103ba565b509050610204816009015160c01c90565b949350505050565b5f8061021884846103ba565b509050610204816011015160c01c90565b5f8061023584846103ba565b5090506102048160b9015190565b5f8061024f84846103ba565b5090506102048160d9015190565b5f8061026984846103ba565b509050610204816059015190565b5f805f61028485856103ba565b902095945050505050565b6040515f9061029f818435610441565b602083013560c01b6001820152604083013560c01b6009820152606083013560c01b60118201526080830135601982015260a0830135603982015260c0830135605982015260e08301356079820152610100830135609982015261012083013560b982015261014083013560d982015260f981205b9392505050565b5f8061032784846103ba565b509050610204815160f81c90565b5f8061034184846103ba565b509050610204816099015190565b5f8061035b84846103ba565b509050610204816019015190565b5f8061037584846103ba565b509050610204816039015190565b5f8061038f84846103ba565b509050610204816079015190565b5f806103a984846103ba565b509050610204816001015160c01c90565b5f8160f981101561042b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f626174636820686561646572206c656e67746820746f6f20736d616c6c000000604482015260640160405180910390fd5b6040519150808483378082016040529250929050565b8082535050565b5f8060208385031215610459575f80fd5b823567ffffffffffffffff80821115610470575f80fd5b818501915085601f830112610483575f80fd5b813581811115610491575f80fd5b8660208285010111156104a2575f80fd5b60209290920196919550909350505050565b5f602082840312156104c4575f80fd5b813567ffffffffffffffff8111156104da575f80fd5b82016101808185031215610314575f80fdfea164736f6c6343000818000a",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

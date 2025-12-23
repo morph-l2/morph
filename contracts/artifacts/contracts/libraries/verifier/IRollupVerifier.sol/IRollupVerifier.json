@@ -1,0 +1,39 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IRollupVerifier",
+  "sourceName": "contracts/libraries/verifier/IRollupVerifier.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_version",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_batchIndex",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_aggrProof",
+          "type": "bytes"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_publicInputHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "verifyAggregateProof",
+      "outputs": [],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "Predeploys",
+  "sourceName": "contracts/libraries/constants/Predeploys.sol",
+  "abi": [],
+  "bytecode": "0x602c6032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea164736f6c6343000818000a",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea164736f6c6343000818000a",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

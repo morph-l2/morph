@@ -1,0 +1,24 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "AddressAliasHelper",
+  "sourceName": "contracts/libraries/common/AddressAliasHelper.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "OFFSET",
+      "outputs": [
+        {
+          "internalType": "uint160",
+          "name": "",
+          "type": "uint160"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6086610033600b8282823980515f1a607314602757634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe73000000000000000000000000000000000000000030146080604052600436106032575f3560e01c8063ce665dd8146036575b5f80fd5b605073111100000000000000000000000000000000111181565b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200160405180910390f3fea164736f6c6343000818000a",
+  "deployedBytecode": "0x73000000000000000000000000000000000000000030146080604052600436106032575f3560e01c8063ce665dd8146036575b5f80fd5b605073111100000000000000000000000000000000111181565b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200160405180910390f3fea164736f6c6343000818000a",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

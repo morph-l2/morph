@@ -1,0 +1,94 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "TestUpgradeV1",
+  "sourceName": "contracts/mock/TestUpgrade.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_version",
+          "type": "uint256"
+        }
+      ],
+      "name": "setVersion",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "va",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vb",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vc",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vd",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60e060405260015f55348015610013575f80fd5b506001608052600260a052600360c05260805160a05160c05161014061004a5f395f60b101525f607801525f60d801526101405ff3fe608060405234801561000f575f80fd5b506004361061006f575f3560e01c8063408def1e1161004d578063408def1e146100fa57806354fd4d501461010e578063d6a9378c14610116575f80fd5b8063156e9a4314610073578063188cdb37146100ac5780633cc5eef8146100d3575b5f80fd5b61009a7f000000000000000000000000000000000000000000000000000000000000000081565b60405190815260200160405180910390f35b61009a7f000000000000000000000000000000000000000000000000000000000000000081565b61009a7f000000000000000000000000000000000000000000000000000000000000000081565b61010c61010836600461011c565b5f55565b005b61009a5f5481565b5f61009a565b5f6020828403121561012c575f80fd5b503591905056fea164736f6c6343000818000a",
+  "deployedBytecode": "0x608060405234801561000f575f80fd5b506004361061006f575f3560e01c8063408def1e1161004d578063408def1e146100fa57806354fd4d501461010e578063d6a9378c14610116575f80fd5b8063156e9a4314610073578063188cdb37146100ac5780633cc5eef8146100d3575b5f80fd5b61009a7f000000000000000000000000000000000000000000000000000000000000000081565b60405190815260200160405180910390f35b61009a7f000000000000000000000000000000000000000000000000000000000000000081565b61009a7f000000000000000000000000000000000000000000000000000000000000000081565b61010c61010836600461011c565b5f55565b005b61009a5f5481565b5f61009a565b5f6020828403121561012c575f80fd5b503591905056fea164736f6c6343000818000a",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

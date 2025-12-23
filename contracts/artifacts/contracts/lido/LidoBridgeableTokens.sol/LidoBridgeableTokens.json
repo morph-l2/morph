@@ -1,0 +1,62 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "LidoBridgeableTokens",
+  "sourceName": "contracts/lido/LidoBridgeableTokens.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ErrorAccountIsZeroAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ErrorNonZeroMsgValue",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ErrorUnsupportedL1Token",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ErrorUnsupportedL2Token",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ErrorZeroAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "l1Token",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "l2Token",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

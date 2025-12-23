@@ -1,0 +1,120 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "TestUpgradeV2",
+  "sourceName": "contracts/mock/TestUpgrade.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "otherVersion",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_version",
+          "type": "uint256"
+        }
+      ],
+      "name": "setOtherVersion",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_version",
+          "type": "uint256"
+        }
+      ],
+      "name": "setVersion",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "va",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vb",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vc",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vd",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x61010060405260025f556002600155348015610019575f80fd5b50600260a052600360c052600460e05260805160a05160c05160e0516101816100595f395f60c701525f60ee01525f608e01525f61013b01526101815ff3fe608060405234801561000f575f80fd5b5060043610610085575f3560e01c806346cb855d1161005857806346cb855d1461012557806354fd4d501461012d578063c619904014610110578063d6a9378c14610136575f80fd5b8063156e9a4314610089578063188cdb37146100c25780633cc5eef8146100e9578063408def1e14610110575b5f80fd5b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b60405190815260200160405180910390f35b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b61012361011e36600461015d565b600155565b005b6100b05f5481565b6100b060015481565b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b5f6020828403121561016d575f80fd5b503591905056fea164736f6c6343000818000a",
+  "deployedBytecode": "0x608060405234801561000f575f80fd5b5060043610610085575f3560e01c806346cb855d1161005857806346cb855d1461012557806354fd4d501461012d578063c619904014610110578063d6a9378c14610136575f80fd5b8063156e9a4314610089578063188cdb37146100c25780633cc5eef8146100e9578063408def1e14610110575b5f80fd5b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b60405190815260200160405180910390f35b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b61012361011e36600461015d565b600155565b005b6100b05f5481565b6100b060015481565b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b5f6020828403121561016d575f80fd5b503591905056fea164736f6c6343000818000a",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
