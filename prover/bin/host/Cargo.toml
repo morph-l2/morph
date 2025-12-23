@@ -29,10 +29,8 @@ dotenv = { workspace = true }
 
 
 # workspace
-morph-executor-host = { workspace = true }
-morph-executor-client = { workspace = true }
-morph-executor-utils = { workspace = true }
+prover-executor-host = { workspace = true }
+prover-executor-client = { workspace = true }
 prover-primitives = { workspace = true }
+prover-utils = { workspace = true }
 
-[build-dependencies]
-morph-executor-utils = { workspace = true }

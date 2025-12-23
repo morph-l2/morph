@@ -1,10 +1,12 @@
 pub mod types;
 mod verifier;
-use alloy::hex;
+use alloy_primitives::hex;
 use prover_primitives::B256;
-use prover_utils::dev_info;
+use prover_utils::profile_report;
 use types::input::ExecutorInput;
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
+
+pub const EVM_VERIFY: &str = "evm verify";
 
 pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     // Verify DA
@@ -16,7 +18,7 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     for trace in &input.block_inputs {
         // BlockContext
         let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
-        block_ctx.extend_from_slice(&trace.current_block.header.number.to_be_bytes::<32>());
+        block_ctx.extend_from_slice(&trace.current_block.header.number.to::<u64>().to_be_bytes());
         block_ctx
             .extend_from_slice(&trace.current_block.header.timestamp.to::<u64>().to_be_bytes());
         block_ctx.extend_from_slice(
@@ -44,9 +46,7 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     assert_eq!(batch_data, batch_from_trace, "blob data mismatch!");
 
     // Verify EVM exec.
-    println!("cycle-tracker-start: evm-verify");
-    let batch_info = EVMVerifier::verify(input.block_inputs)?;
-    println!("cycle-tracker-end: evm-verify");
+    let batch_info = profile_report!(EVM_VERIFY, { EVMVerifier::verify(input.block_inputs) })?;
 
     // Calc public input hash.
     println!("cycle-tracker-start: cacl_public_input_hash");
@@ -62,6 +62,6 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     );
     let public_input_hash = batch_info.public_input_hash(&versioned_hash);
     println!("cycle-tracker-end: cacl_public_input_hash");
-    dev_info!("public input hash: {:?}", public_input_hash);
+    println!("public input hash: {:?}", public_input_hash);
     Ok(B256::from_slice(public_input_hash.as_slice()))
 }

@@ -7,8 +7,8 @@ use std::{
 };
 
 use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR};
-use alloy::providers::{ProviderBuilder, RootProvider};
-use anyhow::anyhow;
+use alloy::providers::ProviderBuilder;
+use alloy_provider::{DynProvider, Provider};
 use morph_prove::prove;
 use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
@@ -25,14 +25,13 @@ pub struct ExecuteRequest {
 
 pub struct Executor {
     execute_queue: Arc<Mutex<Vec<ExecuteRequest>>>,
-    provider: RootProvider,
+    provider: DynProvider,
 }
 
 impl Executor {
     pub fn new(execute_queue: Arc<Mutex<Vec<ExecuteRequest>>>) -> Result<Self, anyhow::Error> {
-        let url = reqwest::Url::parse(PROVER_L2_RPC.as_str())
-            .map_err(|_| anyhow!("Invalid L2 RPC URL"))?;
-        let provider = ProviderBuilder::new().on_provider(RootProvider::new_http(url));
+        let rpc_url = PROVER_L2_RPC.parse()?;
+        let provider = ProviderBuilder::new().connect_http(rpc_url).erased();
 
         Ok(Self { execute_queue, provider })
     }
@@ -69,7 +68,7 @@ impl Executor {
 }
 
 /// Executes a batch asynchronously.
-async fn execute_batch(req: ExecuteRequest, provider: RootProvider) {
+async fn execute_batch(req: ExecuteRequest, provider: DynProvider) {
     // Step1. Fetch trace
     log::info!("Requesting trace of batch-{:#?} ...", req.batch_index);
     let mut block_traces =
@@ -103,7 +102,7 @@ async fn get_block_traces(
     batch_index: u64,
     start_block: u64,
     end_block: u64,
-    provider: &RootProvider,
+    provider: &DynProvider,
 ) -> Option<Vec<BlockTrace>> {
     let mut block_traces: Vec<BlockTrace> = Vec::new();
     for block_num in start_block..end_block + 1 {

@@ -8,10 +8,10 @@ use std::{
 };
 
 use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
-use alloy::providers::{Provider, ProviderBuilder, RootProvider};
-use anyhow::anyhow;
-use morph_executor_client::{BlobVerifier, EVMVerifier};
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy_provider::DynProvider;
 use morph_prove::{evm::EvmProofFixture, prove};
+use prover_executor_client::{types::input::BlockInput, BlobVerifier, EVMVerifier};
 use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -28,14 +28,13 @@ pub struct ProveRequest {
 
 pub struct Prover {
     pub prove_queue: Arc<Mutex<Vec<ProveRequest>>>,
-    provider: ReqwestProvider,
+    provider: DynProvider,
 }
 
 impl Prover {
     pub fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
-        let url = reqwest::Url::parse(PROVER_L2_RPC.as_str())
-            .map_err(|_| anyhow!("Invalid L2 RPC URL"))?;
-        let provider = ProviderBuilder::new().on_provider(RootProvider::new_http(url));
+        let rpc_url = PROVER_L2_RPC.parse()?;
+        let provider = ProviderBuilder::new().connect_http(rpc_url).erased();
 
         Ok(Self { prove_queue, provider })
     }
@@ -116,11 +115,13 @@ impl Prover {
 fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
     let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
-    blocks.iter_mut().for_each(|block| block.flatten());
-    let verify_result = EVMVerifier::verify(blocks);
+
+    let blocks_inputs =
+        blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+    let verify_result = EVMVerifier::verify(blocks_inputs);
 
     if let Ok(batch_info) = verify_result {
-        let blob_info = morph_executor_host::get_blob_info(blocks).unwrap();
+        let blob_info = prover_executor_host::get_blob_info(blocks).unwrap();
         let (versioned_hash, _) = BlobVerifier::verify(&blob_info, blocks.len()).unwrap();
 
         // Save batch_header
@@ -166,7 +167,7 @@ async fn get_block_traces(
     batch_index: u64,
     start_block: u64,
     end_block: u64,
-    provider: &ReqwestProvider,
+    provider: &DynProvider,
 ) -> Option<Vec<BlockTrace>> {
     let mut block_traces: Vec<BlockTrace> = Vec::new();
     for block_num in start_block..end_block + 1 {

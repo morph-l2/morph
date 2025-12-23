@@ -4,7 +4,6 @@ use zstd::{
 };
 
 // we use offset window no more than = 17
-// TODO: use for multi-block zstd.
 #[allow(dead_code)]
 pub const CL_WINDOW_LIMIT: usize = 17;
 

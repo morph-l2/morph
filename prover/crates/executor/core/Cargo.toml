@@ -1,17 +1,15 @@
 [package]
-name = "morph-executor-core"
+name = "prover-executor-core"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alloy = { workspace = true, features = [
-    "consensus",
-    "eips",
-    "k256",
-    "rlp",
-    "serde",
+alloy-primitives = { workspace = true, features = [
+    "sha3-keccak",
+    "map-foldhash",
 ] }
+alloy-consensus.workspace = true
 anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true

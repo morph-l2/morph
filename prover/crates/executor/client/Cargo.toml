@@ -1,20 +1,12 @@
 [package]
-name = "morph-executor-client"
+name = "prover-executor-client"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-prover-utils.workspace = true
 prover-primitives.workspace = true
-morph-executor-core.workspace = true
-alloy = { workspace = true, features = [
-    "consensus",
-    "eips",
-    "k256",
-    "rlp",
-    "serde",
-] }
+prover-executor-core.workspace = true
 kzg-rs = { workspace = true }
 sha2 = { workspace = true }
 anyhow = { workspace = true }
@@ -26,6 +18,14 @@ rsp-mpt = { workspace = true }
 revm = { workspace = true }
 thiserror = { workspace = true }
 alloy-consensus.workspace = true
-reth-execution-types.workspace = true
+# reth-execution-types.workspace = true
 reth-trie.workspace = true
 prover-storage.workspace = true
+alloy-primitives = { workspace = true, features = [
+    "sha3-keccak",
+    "map-hashbrown",
+    "rayon",
+] }
+alloy-rlp = { workspace = true }
+revm-primitives = { workspace = true }
+prover-utils.workspace = true

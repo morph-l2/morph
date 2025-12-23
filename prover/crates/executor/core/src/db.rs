@@ -1,5 +1,5 @@
-use alloy::consensus::TrieAccount;
-use alloy::primitives::map::HashMap;
+use alloy_consensus::TrieAccount;
+use alloy_primitives::map::HashMap;
 use anyhow::anyhow;
 use revm::primitives::{keccak256, Address, B256, U256};
 use revm::{
@@ -48,10 +48,16 @@ impl DatabaseRef for TrieDB<'_> {
 
     /// Get basic account information.
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
+        println!("address in basic_ref: {:?}", address);
         let hashed_address = keccak256(address);
         let hashed_address = hashed_address.as_slice();
 
-        let account_in_trie = self.inner.state_trie.get_rlp::<TrieAccount>(hashed_address).unwrap();
+        let account_in_trie = self
+            .inner
+            .state_trie
+            .get_rlp::<TrieAccount>(hashed_address)
+            .map_err(|e| println!("get account of {:?} from trie error: {:?}", address, e))
+            .unwrap();
 
         let account = account_in_trie.map(|account_in_trie| AccountInfo {
             balance: account_in_trie.balance,

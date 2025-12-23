@@ -1,4 +1,4 @@
-use alloy::primitives::{Address, FixedBytes};
+use alloy_primitives::{Address, FixedBytes};
 use rsp_mpt::Error as MptError;
 
 #[derive(Debug, thiserror::Error)]

@@ -326,19 +326,19 @@ impl Transaction for TypedTransaction {
     }
 
     fn effective_gas_price(&self, _base_fee: Option<u64>) -> u128 {
-        todo!()
+        self.gas_price().unwrap_or_default()
     }
 
     fn is_dynamic_fee(&self) -> bool {
-        todo!()
+        self.max_fee_per_gas() != 0
     }
 
     fn kind(&self) -> TxKind {
-        todo!()
+        self.to().into()
     }
 
     fn is_create(&self) -> bool {
-        todo!()
+        self.kind().is_create()
     }
 
     fn effective_tip_per_gas(&self, base_fee: u64) -> Option<u128> {

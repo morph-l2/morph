@@ -10,5 +10,5 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # workspace
-morph-executor-client = { workspace = true }
+prover-executor-client = { workspace = true }
 prover-primitives= { workspace = true }

@@ -1,5 +1,5 @@
 use crate::types::input::BlockInput;
-use alloy::primitives::Keccak256;
+use alloy_primitives::Keccak256;
 use revm::primitives::B256;
 
 /// BatchInfo is metadata of chunk, with following fields:

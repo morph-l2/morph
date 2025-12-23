@@ -1,4 +1,4 @@
-use alloy::rlp::Decodable;
+use alloy_rlp::Decodable;
 use anyhow::{anyhow, Ok};
 use ruzstd::StreamingDecoder;
 use prover_primitives::types::TypedTransaction;

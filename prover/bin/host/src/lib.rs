@@ -1,13 +1,13 @@
 use anyhow::anyhow;
 pub mod evm;
 use evm::{save_plonk_fixture, EvmProofFixture};
-use morph_executor_client::{
+use prover_executor_client::{
     types::input::{BlockInput, ExecutorInput},
     verify,
 };
-use morph_executor_host::get_blob_info;
-use morph_executor_utils::read_env_var;
+use prover_executor_host::get_blob_info;
 use prover_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
+use prover_utils::read_env_var;
 use sp1_sdk::{HashableKey, ProverClient, SP1Stdin};
 use std::time::Instant;
 
@@ -89,7 +89,7 @@ pub fn prove(
     let start = Instant::now();
     let mut proof = client
         .prove(&pk, &stdin)
-        .plonk()
+        .core()
         .run()
         .map_err(|e| anyhow!(format!("proving failed: {:?}", e)))?;
 
@@ -117,14 +117,14 @@ pub fn prove(
 
 #[cfg(test)]
 mod tests {
-    use morph_executor_client::{
+    use prover_executor_client::{
         types::{
             blob::{decode_transactions, get_origin_batch},
             input::BlobInfo,
         },
         BlobVerifier,
     };
-    use morph_executor_host::{encode_blob, populate_kzg};
+    use prover_executor_host::{encode_blob, populate_kzg};
     use prover_primitives::{alloy_primitives::hex, types::TypedTransaction};
     #[test]
     fn test_blob() {
