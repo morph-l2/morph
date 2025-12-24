@@ -1,4 +1,5 @@
 # hoodi
+version：release/0.4.x 96c7524ae8d6d9717191201a20afe45f046d8611
 ## L2TokenRegistry
 use L2 owner's private_key
 ```
