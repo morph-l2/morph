@@ -1,6 +1,6 @@
 use alloy_consensus::Transaction;
 use alloy_primitives::{map::HashMap, Keccak256, U256};
-use prover_executor_core::db::TrieDB;
+use prover_storage::TrieDB;
 use prover_primitives::{
     types::{BlockHeader, BlockTrace, TypedTransaction},
     Address, Block, B256,

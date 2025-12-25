@@ -1,5 +1,10 @@
 //! Storage utilities.
 
+/// `revm` database adapters backed by storage/witness data.
+pub mod db;
+
+pub use db::TrieDB;
+
 use alloy_primitives::Bytes;
 use alloy_rpc_types_debug::ExecutionWitness;
 use prover_primitives::{types::BlockTrace, Block};

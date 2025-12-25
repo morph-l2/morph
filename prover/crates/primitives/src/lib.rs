@@ -1,11 +1,9 @@
 //! Stateless Block Verifier primitives library.
 
 use crate::types::{tx_alt_fee::TxAltFee, TxL1Msg, TypedTransaction};
-use alloy::{
-    consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy},
-    eips::eip2930::AccessList,
-    primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
-};
+use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy};
+use alloy_eips::eip2930::AccessList;
+use alloy_primitives::{Bytes, ChainId, Signature, SignatureError, TxKind};
 use std::fmt::Debug;
 
 /// Predeployed contracts
@@ -13,13 +11,11 @@ pub mod predeployed;
 /// Types definition
 pub mod types;
 
-pub use alloy::{
-    consensus as alloy_consensus,
-    consensus::Transaction,
-    eips::eip7702::SignedAuthorization,
-    primitives as alloy_primitives,
-    primitives::{Address, B256, U256},
-};
+pub use alloy_consensus as alloy_consensus;
+pub use alloy_consensus::Transaction;
+pub use alloy_eips::eip7702::SignedAuthorization;
+pub use alloy_primitives as alloy_primitives;
+pub use alloy_primitives::{Address, B256, U256};
 
 /// Blanket trait for block trace extensions.
 pub trait Block: Debug {

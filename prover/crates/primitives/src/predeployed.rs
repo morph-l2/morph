@@ -1,6 +1,6 @@
 /// Predeployed Gas Price Oracle
 pub mod l1_gas_price_oracle {
-    use alloy::primitives::{address, Address, U256};
+    use alloy_primitives::{address, Address, U256};
 
     /// L1GasPriceOracle predeployed address
     pub const ADDRESS: Address = address!("5300000000000000000000000000000000000002");
@@ -26,13 +26,4 @@ pub mod l1_gas_price_oracle {
     pub const INITIAL_COMMIT_SCALAR: U256 = U256::from_limbs([230759955285, 0, 0, 0]);
     /// Initial blob scalar after curie fork
     pub const INITIAL_BLOB_SCALAR: U256 = U256::from_limbs([417565260, 0, 0, 0]);
-
-    /// Bytecode before curie hardfork
-    /// curl 127.0.0.1:8545 -X POST -H "Content-Type: application/json" --data
-    /// '{"method":"eth_getCode","params":["0x5300000000000000000000000000000000000002","latest"],"
-    /// id":1,"jsonrpc":"2.0"}'
-    pub static V1_BYTECODE: &[u8] = include_bytes!("./data/v1_l1_oracle_bytecode.bin");
-    /// Bytecode after curie hardfork
-    /// <https://github.com/scroll-tech/go-ethereum/blob/9ec83a509ac7f6dd2d0beb054eb14c19f3e67a72/rollup/rcfg/config.go#L50>
-    pub static V2_BYTECODE: &[u8] = include_bytes!("./data/v2_l1_oracle_bytecode.bin");
 }

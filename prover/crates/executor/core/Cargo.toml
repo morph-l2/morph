@@ -5,19 +5,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alloy-primitives = { workspace = true, features = [
-    "sha3-keccak",
-    "map-foldhash",
-] }
-alloy-consensus.workspace = true
-anyhow = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_with.workspace = true
 revm = { workspace = true, features = [
     "serde",
     "bn",
 ], default-features = false }
-prover-primitives.workspace = true
-tiny-keccak = { workspace = true }
 thiserror = { workspace = true }
-rsp-mpt = { workspace = true }

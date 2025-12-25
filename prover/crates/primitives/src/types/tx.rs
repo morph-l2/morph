@@ -2,22 +2,20 @@ use crate::{
     types::{tx_alt_fee::TxAltFee, AuthorizationList},
     TxTrace,
 };
-use alloy::{
-    consensus::{
-        transaction::SignerRecoverable, Signed, Transaction, TxEnvelope, TxType, Typed2718,
-    },
-    eips::{
-        eip2718::{Decodable2718, Encodable2718},
-        eip2930::AccessList,
-        eip4844::DATA_GAS_PER_BLOB,
-        eip7702::SignedAuthorization,
-    },
-    primitives::{
-        keccak256, Address, Bytes, ChainId, Selector, Signature, SignatureError, TxKind, B256,
-        U256, U64,
-    },
-    rlp::{BufMut, BytesMut, Decodable, Encodable, Header},
+use alloy_consensus::{
+    transaction::SignerRecoverable, Signed, Transaction, TxEnvelope, TxType, Typed2718,
 };
+use alloy_eips::{
+    eip2718::{Decodable2718, Encodable2718},
+    eip2930::AccessList,
+    eip4844::DATA_GAS_PER_BLOB,
+    eip7702::SignedAuthorization,
+};
+use alloy_primitives::{
+    keccak256, Address, Bytes, ChainId, Selector, Signature, SignatureError, TxKind, B256, U256,
+    U64,
+};
+use alloy_rlp::{BufMut, BytesMut, Decodable, Encodable, Header};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull};
 
@@ -285,7 +283,7 @@ impl Transaction for TypedTransaction {
         }
     }
 
-    fn input(&self) -> &alloy::primitives::Bytes {
+    fn input(&self) -> &alloy_primitives::Bytes {
         match self {
             TypedTransaction::Enveloped(tx) => tx.input(),
             TypedTransaction::L1Msg(tx) => tx.input(),
@@ -430,7 +428,7 @@ impl Transaction for TxL1Msg {
         self.value
     }
 
-    fn input(&self) -> &alloy::primitives::Bytes {
+    fn input(&self) -> &alloy_primitives::Bytes {
         &self.input
     }
 
@@ -649,16 +647,16 @@ impl TypedTransaction {
 
 /// Get a TypedTransaction directly from a rlp encoded byte stream
 impl Decodable for TypedTransaction {
-    fn decode(buf: &mut &[u8]) -> alloy::rlp::Result<Self> {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         if buf.is_empty() {
-            return Err(alloy::rlp::Error::InputTooShort);
+            return Err(alloy_rlp::Error::InputTooShort);
         }
         let tx_type = *buf.first().unwrap_or(&0u8);
         match tx_type {
             0x7f => {
                 return Ok(TypedTransaction::AltFee(
                     TxAltFee::decode_signed_fields(&mut &buf[1..])
-                        .map_err(|_| alloy::rlp::Error::Custom("decode TxAltFee error"))?,
+                        .map_err(|_| alloy_rlp::Error::Custom("decode TxAltFee error"))?,
                 ))
             }
             _ => return Ok(TypedTransaction::Enveloped(TxEnvelope::decode_2718(buf).unwrap())),

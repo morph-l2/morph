@@ -1,5 +1,5 @@
 use crate::{Block, TxTrace};
-use alloy::primitives::{Address, Bytes, B256, U256};
+use alloy_primitives::{Address, Bytes, B256, U256};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Map};
 
@@ -75,8 +75,6 @@ pub struct StorageTrace {
 }
 
 /// Block trace format
-///
-/// ref: <https://github.com/scroll-tech/go-ethereum/blob/develop/core/types/l2trace.go>
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 
 pub struct BlockTrace {
@@ -89,9 +87,8 @@ pub struct BlockTrace {
     pub header: BlockHeader,
     /// txs
     pub transactions: Vec<TransactionTrace>,
-    //d execution_results
     /// bytecodes
-    pub codes: Vec<BytecodeTrace>,
+    codes: Vec<BytecodeTrace>,
     /// storage trace BEFORE execution
     #[serde(rename = "storageTrace")]
     pub storage_trace: StorageTrace,
@@ -101,39 +98,11 @@ pub struct BlockTrace {
     start_l1_queue_index: u64,
 }
 
-const MAGICSMTBYTES: &[u8] = "THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI".as_bytes();
-
 impl BlockTrace {
     /// Returns the typed transactions in the block.
     pub fn typed_transactions(&self) -> Vec<TypedTransaction> {
         self.transactions.iter().map(|tx_trace| tx_trace.try_build_typed_tx().unwrap()).collect()
     }
-    // Convert legacy traces to the latest format
-    // pub fn flatten(&mut self) {
-    //     let account_proofs =
-    //         self.storage_trace.proofs.iter().flat_map(|kv_map| {
-    //             kv_map.iter().map(|(k, bts)| (k, bts.iter().map(Bytes::as_ref)))
-    //         });
-
-    //     let storage_proofs = self.storage_trace.storage_proofs.iter().flat_map(|(k, kv_map)| {
-    //         kv_map.iter().map(move |(sk, bts)| (k, sk, bts.iter().map(Bytes::as_ref)))
-    //     });
-
-    //     let proofs = account_proofs
-    //         .flat_map(|(_, bytes)| bytes)
-    //         .chain(storage_proofs.flat_map(|(_, _, bytes)| bytes));
-
-    //     let mut rt = vec![];
-    //     for bytes in proofs {
-    //         if bytes == MAGICSMTBYTES {
-    //             continue;
-    //         }
-    //         let n = ZkTrieNode::parse(bytes).expect("Blocktrace ZkTrieNode::parse");
-    //         let k: [u8; 32] = n.node_hash();
-    //         rt.push((B256::from_slice(&k), Bytes::copy_from_slice(bytes)));
-    //     }
-    //     self.storage_trace.flatten_proofs = Some(rt);
-    // }
 }
 
 impl Block for BlockTrace {
@@ -203,14 +172,14 @@ impl Block for BlockTrace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TxTrace;
-    use alloy::primitives::*;
+    use alloy_primitives::*;
 
     const TRACE: &str = include_str!("../../../../testdata/dev.json");
 
     #[test]
     fn test_deserialize() {
-        let trace = serde_json::from_str::<serde_json::Value>(TRACE).unwrap()["result"].clone();
+        // NOTE: testdata/dev.json is a nested list: [[ { ..block trace.. } ]]
+        let trace = serde_json::from_str::<serde_json::Value>(TRACE).unwrap()[0][0].clone();
 
         let coinbase: Coinbase = serde_json::from_value(trace["coinbase"].clone()).unwrap();
         assert_eq!(coinbase.address, address!("5300000000000000000000000000000000000005"));
@@ -272,10 +241,6 @@ mod tests {
             b256!("2f6af5a76ddd2fcd78b2f72e39282a782bfa30625b7d8d8f7506603b7511ba38")
         );
 
-        #[derive(Deserialize)]
-        struct Test {
-            result: BlockTrace,
-        }
-        let _block: BlockTrace = serde_json::from_str::<Test>(TRACE).unwrap().result;
+        let _block: BlockTrace = serde_json::from_value(trace).unwrap();
     }
 }

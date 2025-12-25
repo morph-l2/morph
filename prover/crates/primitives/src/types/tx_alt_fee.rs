@@ -1,10 +1,12 @@
 /// Use alt token for tx fee.
-use alloy::{
-    consensus::{SignableTransaction, Signed, Transaction, transaction::RlpEcdsaEncodableTx},
-    eips::{eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization, Typed2718},
-    primitives::{Address, Bytes, ChainId, Signature, TxKind, B256, U256},
-    rlp::{BufMut, Decodable, Encodable, Header},
+use alloy_consensus::{
+    transaction::RlpEcdsaEncodableTx, SignableTransaction, Signed, Transaction,
 };
+use alloy_eips::{
+    eip2718::Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization, Typed2718,
+};
+use alloy_primitives::{Address, Bytes, ChainId, Signature, TxKind, B256, U256};
+use alloy_rlp::{BufMut, Decodable, Encodable, Header};
 use core::mem;
 use serde_with::serde_as;
 
@@ -106,7 +108,7 @@ impl TxAltFee {
     /// - `access_list`
     /// - `fee_token_id`
     /// - `fee_limit`
-    pub fn decode_fields(buf: &mut &[u8]) -> alloy::rlp::Result<Self> {
+    pub fn decode_fields(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         Ok(Self {
             chain_id: Decodable::decode(buf)?,
             nonce: Decodable::decode(buf)?,
@@ -141,7 +143,7 @@ impl TxAltFee {
     }
 
     /// Encodes only the transaction's fields into the desired buffer, without a RLP header.
-    pub(crate) fn encode_fields(&self, out: &mut dyn alloy::rlp::BufMut) {
+    pub(crate) fn encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
         self.chain_id.encode(out);
         self.nonce.encode(out);
         self.max_priority_fee_per_gas.encode(out);
@@ -188,10 +190,10 @@ impl TxAltFee {
     ///
     /// This __does__ expect the bytes to start with a list header and include a signature.
     #[doc(hidden)]
-    pub fn decode_signed_fields(buf: &mut &[u8]) -> alloy::rlp::Result<Signed<Self>> {
+    pub fn decode_signed_fields(buf: &mut &[u8]) -> alloy_rlp::Result<Signed<Self>> {
         let header = Header::decode(buf)?;
         if !header.list {
-            return Err(alloy::rlp::Error::UnexpectedString);
+            return Err(alloy_rlp::Error::UnexpectedString);
         }
 
         // record original length so we can check encoding
@@ -202,7 +204,7 @@ impl TxAltFee {
 
         let signed = tx.into_signed(signature);
         if buf.len() + header.payload_length != original_len {
-            return Err(alloy::rlp::Error::ListLengthMismatch {
+            return Err(alloy_rlp::Error::ListLengthMismatch {
                 expected: header.payload_length,
                 got: original_len - buf.len(),
             });
@@ -293,7 +295,7 @@ impl Transaction for TxAltFee {
         self.value
     }
 
-    fn input(&self) -> &alloy::primitives::Bytes {
+    fn input(&self) -> &alloy_primitives::Bytes {
         &self.input
     }
 
@@ -374,7 +376,7 @@ impl SignableTransaction<Signature> for TxAltFee {
         self.chain_id = chain_id;
     }
 
-    fn encode_for_signing(&self, out: &mut dyn alloy::rlp::BufMut) {
+    fn encode_for_signing(&self, out: &mut dyn alloy_rlp::BufMut) {
         out.put_u8(self.tx_type() as u8);
         self.encode(out)
     }
@@ -427,12 +429,12 @@ impl Encodable for TxAltFee {
 }
 
 impl Decodable for TxAltFee {
-    fn decode(data: &mut &[u8]) -> alloy::rlp::Result<Self> {
+    fn decode(data: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let header = Header::decode(data)?;
         let remaining_len = data.len();
 
         if header.payload_length > remaining_len {
-            return Err(alloy::rlp::Error::InputTooShort);
+            return Err(alloy_rlp::Error::InputTooShort);
         }
 
         Self::decode_fields(data)

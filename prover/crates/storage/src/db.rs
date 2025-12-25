@@ -8,6 +8,9 @@ use revm::{
 };
 use rsp_mpt::EthereumState;
 
+/// A read-only `revm::DatabaseRef` backed by an [`rsp_mpt::EthereumState`].
+///
+/// This is mainly used to execute EVM transactions against a witness-derived MPT state.
 #[derive(Debug)]
 pub struct TrieDB<'a> {
     inner: &'a EthereumState,
@@ -16,6 +19,11 @@ pub struct TrieDB<'a> {
 }
 
 impl<'a> TrieDB<'a> {
+    /// Create a new [`TrieDB`].
+    ///
+    /// - `inner`: MPT-backed ethereum state.
+    /// - `block_hashes`: optional block hash mapping (used by `BLOCKHASH`).
+    /// - `bytecode_by_hash`: bytecode lookup by code hash.
     pub fn new(
         inner: &'a EthereumState,
         block_hashes: HashMap<u64, B256>,
@@ -23,22 +31,10 @@ impl<'a> TrieDB<'a> {
     ) -> Self {
         Self { inner, block_hashes, bytecode_by_hash }
     }
-}
 
-impl<'a> TrieDB<'a> {
+    /// Convenience helper to read a storage slot value.
     pub fn get_storage_value(&self, address: Address, index: U256) -> Result<U256, anyhow::Error> {
         self.storage_ref(address, index).map_err(|e| anyhow!("storage_ref error: {:?}", e))
-
-        // let storage_trie = self
-        //     .inner
-        //     .storage_tries
-        //     .get(hashed_address)
-        //     .expect("A storage trie must be provided for each account");
-
-        // storage_trie
-        //     .get_rlp::<U256>(keccak256(index.to_be_bytes::<32>()).as_slice())
-        //     .expect("Can get from MPT")
-        //     .unwrap_or_default()
     }
 }
 
@@ -48,7 +44,6 @@ impl DatabaseRef for TrieDB<'_> {
 
     /// Get basic account information.
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        println!("address in basic_ref: {:?}", address);
         let hashed_address = keccak256(address);
         let hashed_address = hashed_address.as_slice();
 
@@ -56,7 +51,10 @@ impl DatabaseRef for TrieDB<'_> {
             .inner
             .state_trie
             .get_rlp::<TrieAccount>(hashed_address)
-            .map_err(|e| println!("get account of {:?} from trie error: {:?}", address, e))
+            .map_err(|e| {
+                // keep behavior non-panicking (consistent with original code's debug printing)
+                eprintln!("get account of {:?} from trie error: {:?}", address, e);
+            })
             .unwrap();
 
         let account = account_in_trie.map(|account_in_trie| AccountInfo {
@@ -71,7 +69,11 @@ impl DatabaseRef for TrieDB<'_> {
 
     /// Get account code by its hash.
     fn code_by_hash_ref(&self, hash: B256) -> Result<Bytecode, Self::Error> {
-        Ok(self.bytecode_by_hash.get(&hash).map(|code| (*code).clone()).unwrap())
+        Ok(self
+            .bytecode_by_hash
+            .get(&hash)
+            .map(|code| (*code).clone())
+            .unwrap())
     }
 
     /// Get storage value of address at index.

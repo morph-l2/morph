@@ -22,7 +22,9 @@ alloy-primitives = { workspace = true, features = [
 ] }
 prover-primitives = { workspace = true }
 alloy-rpc-types-debug = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
+alloy-consensus = { workspace = true }
 [lints]
 workspace = true
+
+[dev-dependencies]
+serde_json = { workspace = true }

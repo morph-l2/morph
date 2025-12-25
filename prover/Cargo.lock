@@ -56,23 +56,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "algebra-client"
-version = "0.1.0"
-dependencies = [
- "sp1-zkvm",
-]
-
-[[package]]
-name = "algebra-host"
-version = "0.1.0"
-dependencies = [
- "hex",
- "serde",
- "serde_json",
- "sp1-sdk",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -90,11 +73,8 @@ dependencies = [
  "alloy-network",
  "alloy-provider",
  "alloy-rpc-client",
- "alloy-rpc-types",
- "alloy-serde",
  "alloy-transport",
  "alloy-transport-http",
- "alloy-trie",
 ]
 
 [[package]]
@@ -1379,22 +1359,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bls12381-client"
-version = "0.1.0"
-dependencies = [
- "bls12_381 0.8.0",
- "sp1-zkvm",
-]
-
-[[package]]
-name = "bls12381-host"
-version = "0.1.0"
-dependencies = [
- "hex",
- "sp1-sdk",
-]
-
-[[package]]
 name = "bls12_381"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1403,18 +1367,6 @@ dependencies = [
  "ff 0.12.1",
  "group 0.12.1",
  "pairing 0.22.0",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
-name = "bls12_381"
-version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?branch=main#9ea427c0eb1a7e2ac16902a322aea156c496ddb0"
-dependencies = [
- "ff 0.13.1",
- "group 0.13.0",
- "pairing 0.23.0",
  "rand_core 0.6.4",
  "subtle",
 ]
@@ -3230,7 +3182,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a575df5f985fe1cd5b2b05664ff6accfc46559032b954529fd225a2168d27b0f"
 dependencies = [
  "bitvec",
- "bls12_381 0.7.1",
+ "bls12_381",
  "ff 0.12.1",
  "group 0.12.1",
  "rand_core 0.6.4",
@@ -3270,22 +3222,6 @@ checksum = "422fbc7ff2f2f5bdffeb07718e5a5324dca72b0c9293d50df4026652385e3314"
 dependencies = [
  "digest 0.10.7",
  "sha3-asm",
-]
-
-[[package]]
-name = "keccak256-client"
-version = "0.1.0"
-dependencies = [
- "alloy",
- "sp1-zkvm",
-]
-
-[[package]]
-name = "keccak256-host"
-version = "0.1.0"
-dependencies = [
- "hex",
- "sp1-sdk",
 ]
 
 [[package]]
@@ -4541,16 +4477,8 @@ dependencies = [
 name = "prover-executor-core"
 version = "0.1.0"
 dependencies = [
- "alloy-consensus",
- "alloy-primitives",
- "anyhow",
- "prover-primitives",
  "revm",
- "rsp-mpt",
- "serde",
- "serde_with",
  "thiserror 1.0.63",
- "tiny-keccak",
 ]
 
 [[package]]
@@ -4573,7 +4501,10 @@ dependencies = [
 name = "prover-primitives"
 version = "2.0.0"
 dependencies = [
- "alloy",
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-rlp",
  "serde",
  "serde_json",
  "serde_with",
@@ -4608,13 +4539,13 @@ dependencies = [
 name = "prover-storage"
 version = "2.0.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
  "alloy-rpc-types-debug",
  "anyhow",
  "prover-primitives",
  "revm",
  "rsp-mpt",
- "serde",
  "serde_json",
  "tracing",
 ]
@@ -7818,7 +7749,7 @@ dependencies = [
  "ark-std 0.4.0",
  "bitvec",
  "blake2",
- "bls12_381 0.7.1",
+ "bls12_381",
  "byteorder",
  "cfg-if 1.0.0",
  "group 0.12.1",
@@ -7841,24 +7772,6 @@ version = "0.13.0"
 source = "git+https://github.com/scroll-tech/zstd-rs?branch=hack/mul-block#5c0892b6567dab31394d701477183ce9d6a32aca"
 dependencies = [
  "zstd-safe",
-]
-
-[[package]]
-name = "zstd-client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ruzstd",
- "sp1-zkvm",
-]
-
-[[package]]
-name = "zstd-host"
-version = "0.1.0"
-dependencies = [
- "hex",
- "ruzstd",
- "sp1-sdk",
 ]
 
 [[package]]
