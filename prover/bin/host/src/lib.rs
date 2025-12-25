@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{bail, Context};
 pub mod evm;
 use evm::{save_plonk_fixture, EvmProofFixture};
 use prover_executor_client::{
@@ -21,18 +21,16 @@ pub fn prove(
     blocks: &mut Vec<BlockTrace>,
     prove: bool,
 ) -> Result<Option<EvmProofFixture>, anyhow::Error> {
-    // Setup the logger.
-    // sp1_sdk::utils::setup_logger();
     let program_hash = keccak256(BATCH_VERIFIER_ELF);
     log::info!("Program Hash [view on Explorer]:");
     log::info!("{}", alloy::hex::encode_prefixed(program_hash));
 
     if blocks.len() > MAX_PROVE_BLOCKS {
-        return Err(anyhow!(format!(
-            "check block_tracs, blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
+        bail!(
+            "check block_traces, blocks len = {} exceeds MAX_PROVE_BLOCKS = {}",
             blocks.len(),
             MAX_PROVE_BLOCKS
-        )));
+        );
     }
 
     // Prepare input.
@@ -40,11 +38,10 @@ pub fn prove(
     let blocks_inputs =
         blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
     let client_input =
-        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info(blocks).unwrap() };
+        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info(blocks)? };
 
     // Execute the program in native
-    let expected_hash = verify(client_input.clone())
-        .map_err(|e| anyhow!(format!("native execution err: {:?}", e)))?;
+    let expected_hash = verify(client_input.clone()).context("native execution failed")?;
     log::info!(
         "pi_hash generated with native execution: {}",
         alloy::hex::encode_prefixed(expected_hash.as_slice())
@@ -52,17 +49,15 @@ pub fn prove(
 
     // Execute the program in sp1-vm
     let mut stdin = SP1Stdin::new();
-    stdin.write(&serde_json::to_string(&client_input).unwrap());
+    stdin.write(&serde_json::to_string(&client_input)?);
     let client = ProverClient::from_env();
 
     if read_env_var("DEVNET", false) {
-        let (mut public_values, execution_report) = client
-            .execute(BATCH_VERIFIER_ELF, &stdin)
-            .run()
-            .map_err(|e| anyhow!(format!("sp1-vm execution err: {:?}", e)))?;
+        let (mut public_values, execution_report) =
+            client.execute(BATCH_VERIFIER_ELF, &stdin).run().context("sp1-vm execution failed")?;
 
         log::info!(
-            "Program executed successfully, Number of cycles: {:?}",
+            "Program executed successfully, Number of cycles: {}",
             execution_report.total_instruction_count()
         );
         let pi_hash = public_values.read::<[u8; 32]>();
@@ -72,7 +67,7 @@ pub fn prove(
             "pi_hash generated with sp1-vm execution: {}",
             alloy::hex::encode_prefixed(public_values.as_slice())
         );
-        assert_eq!(pi_hash, expected_hash, "pi_hash == expected_pi_hash ");
+        assert_eq!(pi_hash, expected_hash, "pi_hash mismatch with expected hash");
         log::info!("Values are correct!");
     }
 
@@ -80,29 +75,26 @@ pub fn prove(
         log::info!("Execution completed, No prove request, skipping...");
         return Ok(None);
     }
+
     log::info!("Start proving...");
-    // Setup the program for proving.
     let (pk, vk) = client.setup(BATCH_VERIFIER_ELF);
     log::info!("Batch ELF Verification Key: {:?}", vk.vk.bytes32());
 
     // Generate the proof
     let start = Instant::now();
-    let mut proof = client
-        .prove(&pk, &stdin)
-        .core()
-        .run()
-        .map_err(|e| anyhow!(format!("proving failed: {:?}", e)))?;
+    let mut proof = client.prove(&pk, &stdin).core().run().context("proving failed")?;
 
     let duration_mins = start.elapsed().as_secs() / 60;
-    log::info!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
+    log::info!("Successfully generated proof!, time use: {} minutes", duration_mins);
 
     // Verify the proof.
-    client.verify(&proof, &vk).map_err(|e| anyhow!(format!("failed to verify proof: {:?}", e)))?;
+    client.verify(&proof, &vk).context("failed to verify proof")?;
     log::info!("Successfully verified proof!");
 
     // Deserialize the public values.
     let pi_bytes = proof.public_values.read::<[u8; 32]>();
     log::info!("pi_hash generated with sp1-vm prove: {}", alloy::hex::encode_prefixed(pi_bytes));
+
     let fixture = EvmProofFixture {
         vkey: vk.bytes32().to_string(),
         public_values: B256::from_slice(&pi_bytes).to_string(),
@@ -143,10 +135,8 @@ mod tests {
         let x = tx_list.iter().flat_map(|tx| tx.rlp()).collect::<Vec<u8>>();
         tx_bytes.extend(x);
         assert!(tx_bytes == origin_batch, "tx_bytes==origin_batch");
-        // tx_bytes[121..1000].fill(0);
         let blob = encode_blob(tx_bytes);
 
-        std::env::set_var("TRUSTED_SETUP_4844", "../../configs/4844_trusted_setup.txt");
         let blob_info: BlobInfo = populate_kzg(&blob).unwrap();
 
         let (versioned_hash, batch_data) = BlobVerifier::verify(&blob_info, 1).unwrap();
@@ -155,26 +145,6 @@ mod tests {
             hex::encode(versioned_hash.as_slice()),
             batch_data.len()
         );
-    }
-
-    fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Vec<u8> {
-        assert!(origin_batch.len() > 182, "batch.len need less than METADATA_LENGTH");
-
-        let num_valid_chunks = u16::from_be_bytes(origin_batch[0..2].try_into().unwrap()); // size of num_valid_chunks is 2bytes.
-        assert!(num_valid_chunks as usize <= 45, "Exceeded MAX_AGG_SNARKS");
-
-        let data_size: u64 = origin_batch[2..2 + 4 * num_valid_chunks as usize]
-            .chunks_exact(4)
-            .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()) as u64)
-            .sum();
-
-        let tx_payload_end = 182 + data_size as usize;
-        assert!(
-            origin_batch.len() >= tx_payload_end,
-            "The batch does not contain the complete tx_payload"
-        );
-
-        origin_batch[182..tx_payload_end].to_vec()
     }
 
     pub fn load_zstd_blob() -> [u8; 131072] {

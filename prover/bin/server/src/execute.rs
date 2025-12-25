@@ -7,8 +7,7 @@ use std::{
 };
 
 use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR};
-use alloy::providers::ProviderBuilder;
-use alloy_provider::{DynProvider, Provider};
+use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use morph_prove::prove;
 use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};

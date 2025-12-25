@@ -18,7 +18,8 @@ fn main() {
     sp1_sdk::utils::setup_logger();
 
     // Setup the prover client.
-    let client = ProverClient::new();
+    std::env::set_var("SP1_PROVER", "cpu");
+    let client = ProverClient::from_env();
 
     // Setup the program.
     let (_, vk) = client.setup(STATELESS_VERIFIER_ELF);
