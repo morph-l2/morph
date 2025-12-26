@@ -99,6 +99,9 @@ func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.
 	}
 
 	// Get the target contract address and calldata from the unsigned tx
+	if tx.To() == nil {
+		return nil, fmt.Errorf("contract creation transactions are not supported")
+	}
 	toAddr := *tx.To()
 	callData := tx.Data()
 

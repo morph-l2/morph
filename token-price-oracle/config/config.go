@@ -232,6 +232,21 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 			return nil, fmt.Errorf("external sign is enabled but missing required config: address=%s, url=%s, appid=%s, chain=%s",
 				cfg.ExternalSignAddress, cfg.ExternalSignUrl, cfg.ExternalSignAppid, cfg.ExternalSignChain)
 		}
+
+		// Validate address format
+		if !common.IsHexAddress(cfg.ExternalSignAddress) {
+			return nil, fmt.Errorf("invalid external sign address format: %s", cfg.ExternalSignAddress)
+		}
+
+		// Validate URL format
+		if !strings.HasPrefix(cfg.ExternalSignUrl, "http://") && !strings.HasPrefix(cfg.ExternalSignUrl, "https://") {
+			return nil, fmt.Errorf("invalid external sign URL format (must start with http:// or https://): %s", cfg.ExternalSignUrl)
+		}
+
+		// Validate RSA private key format
+		if !strings.Contains(cfg.ExternalSignRsaPriv, "RSA PRIVATE KEY") {
+			return nil, fmt.Errorf("invalid RSA private key format (must contain 'RSA PRIVATE KEY')")
+		}
 	} else {
 		// If not using external sign, private key is required
 		if cfg.PrivateKey == "" {
