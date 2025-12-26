@@ -65,6 +65,14 @@ type Config struct {
 	BitgetAPIBaseURL    string                              // Bitget API base URL
 	BinanceAPIBaseURL   string                              // Binance API base URL
 
+	// External sign
+	ExternalSign        bool
+	ExternalSignAddress string
+	ExternalSignAppid   string
+	ExternalSignChain   string
+	ExternalSignUrl     string
+	ExternalSignRsaPriv string
+
 	// Metrics
 	MetricsServerEnable bool
 	MetricsHostname     string
@@ -84,6 +92,14 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 	cfg := &Config{
 		L2RPC:      ctx.String(flags.L2EthRPCFlag.Name),
 		PrivateKey: ctx.String(flags.PrivateKeyFlag.Name),
+
+		// External sign
+		ExternalSign:        ctx.Bool(flags.ExternalSignFlag.Name),
+		ExternalSignAddress: ctx.String(flags.ExternalSignAddressFlag.Name),
+		ExternalSignAppid:   ctx.String(flags.ExternalSignAppidFlag.Name),
+		ExternalSignChain:   ctx.String(flags.ExternalSignChainFlag.Name),
+		ExternalSignUrl:     ctx.String(flags.ExternalSignUrlFlag.Name),
+		ExternalSignRsaPriv: ctx.String(flags.ExternalSignRsaPrivFlag.Name),
 
 		MetricsServerEnable: ctx.Bool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.String(flags.MetricsHostnameFlag.Name),
@@ -205,6 +221,21 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 			if cfg.BinanceAPIBaseURL == "" {
 				return nil, fmt.Errorf("binance feed is configured but --binance-api-base-url is not set")
 			}
+		}
+	}
+
+	// Validate external sign config
+	if cfg.ExternalSign {
+		if cfg.ExternalSignAddress == "" || cfg.ExternalSignUrl == "" ||
+			cfg.ExternalSignAppid == "" || cfg.ExternalSignChain == "" ||
+			cfg.ExternalSignRsaPriv == "" {
+			return nil, fmt.Errorf("external sign is enabled but missing required config: address=%s, url=%s, appid=%s, chain=%s",
+				cfg.ExternalSignAddress, cfg.ExternalSignUrl, cfg.ExternalSignAppid, cfg.ExternalSignChain)
+		}
+	} else {
+		// If not using external sign, private key is required
+		if cfg.PrivateKey == "" {
+			return nil, fmt.Errorf("private key is required when external sign is not enabled")
 		}
 	}
 

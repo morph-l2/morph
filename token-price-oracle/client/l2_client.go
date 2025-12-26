@@ -5,21 +5,26 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/log"
+	"morph-l2/token-price-oracle/config"
 )
 
 // L2Client wraps L2 chain client
 type L2Client struct {
-	client  *ethclient.Client
-	chainID *big.Int
-	opts    *bind.TransactOpts
+	client       *ethclient.Client
+	chainID      *big.Int
+	opts         *bind.TransactOpts
+	signer       *Signer
+	externalSign bool
 }
 
 // NewL2Client creates new L2 client
-func NewL2Client(rpcURL string, privateKey string) (*L2Client, error) {
+func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L2 RPC: %w", err)
@@ -38,27 +43,62 @@ func NewL2Client(rpcURL string, privateKey string) (*L2Client, error) {
 		return nil, fmt.Errorf("failed to get chain ID: %w", err)
 	}
 
-	// Parse private key (remove 0x prefix if present)
-	privateKeyHex := privateKey
-	if len(privateKey) > 2 && privateKey[:2] == "0x" {
-		privateKeyHex = privateKey[2:]
-	}
-	key, err := crypto.HexToECDSA(privateKeyHex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	l2Client := &L2Client{
+		client:       client,
+		chainID:      chainID,
+		externalSign: cfg.ExternalSign,
 	}
 
-	// Create transaction options
-	opts, err := bind.NewKeyedTransactorWithChainID(key, chainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transactor: %w", err)
+	if cfg.ExternalSign {
+		// External sign mode
+		rsaPriv, err := externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse RSA private key: %w", err)
+		}
+
+		l2Client.signer = NewSigner(
+			true,
+			cfg.ExternalSignAppid,
+			rsaPriv,
+			cfg.ExternalSignAddress,
+			cfg.ExternalSignChain,
+			cfg.ExternalSignUrl,
+			chainID,
+		)
+
+		// Create opts with external signer address (for read-only operations)
+		l2Client.opts = &bind.TransactOpts{
+			From:   common.HexToAddress(cfg.ExternalSignAddress),
+			NoSend: true, // We'll handle sending manually
+		}
+
+		log.Info("L2 client initialized with external signing",
+			"address", cfg.ExternalSignAddress,
+			"chainID", chainID)
+	} else {
+		// Local private key mode
+		privateKeyHex := cfg.PrivateKey
+		if len(cfg.PrivateKey) > 2 && cfg.PrivateKey[:2] == "0x" {
+			privateKeyHex = cfg.PrivateKey[2:]
+		}
+		key, err := crypto.HexToECDSA(privateKeyHex)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %w", err)
+		}
+
+		// Create transaction options
+		opts, err := bind.NewKeyedTransactorWithChainID(key, chainID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transactor: %w", err)
+		}
+		l2Client.opts = opts
+
+		log.Info("L2 client initialized with local signing",
+			"address", opts.From.Hex(),
+			"chainID", chainID)
 	}
 
-	return &L2Client{
-		client:  client,
-		chainID: chainID,
-		opts:    opts,
-	}, nil
+	return l2Client, nil
 }
 
 // Close closes client connection
@@ -97,4 +137,19 @@ func (c *L2Client) GetBalance(ctx context.Context, address common.Address) (*big
 // WalletAddress returns wallet address
 func (c *L2Client) WalletAddress() common.Address {
 	return c.opts.From
+}
+
+// IsExternalSign returns whether external signing is enabled
+func (c *L2Client) IsExternalSign() bool {
+	return c.externalSign
+}
+
+// GetSigner returns the external signer (nil if using local signing)
+func (c *L2Client) GetSigner() *Signer {
+	return c.signer
+}
+
+// GetChainID returns the chain ID
+func (c *L2Client) GetChainID() *big.Int {
+	return c.chainID
 }
