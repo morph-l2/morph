@@ -8,6 +8,7 @@ import (
 	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
@@ -66,10 +67,20 @@ func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 			chainID,
 		)
 
-		// Create opts with external signer address (for read-only operations)
+		fromAddr := common.HexToAddress(cfg.ExternalSignAddress)
+		ethSigner := types.NewLondonSigner(chainID)
+
+		// Create opts with a placeholder signer for building transactions
+		// The actual signing will be done by external signer
 		l2Client.opts = &bind.TransactOpts{
-			From:   common.HexToAddress(cfg.ExternalSignAddress),
+			From:   fromAddr,
 			NoSend: true, // We'll handle sending manually
+			Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+				// This is a placeholder signer - we don't actually sign here
+				// The transaction will be signed by external signer later
+				// We need to return the transaction with correct signer hash for gas estimation
+				return tx.WithSignature(ethSigner, make([]byte, 65))
+			},
 		}
 
 		log.Info("L2 client initialized with external signing",
