@@ -1,12 +1,9 @@
 use std::{str::FromStr, time::Duration};
 
-use alloy::{
-    network::EthereumWallet,
-    primitives::Address,
-    providers::{ProviderBuilder, RootProvider},
-    signers::local::PrivateKeySigner,
-    transports::http::{Client, Http},
-};
+use alloy_network::EthereumWallet;
+use alloy_primitives::Address;
+use alloy_provider::{Provider, ProviderBuilder};
+use alloy_signer_local::PrivateKeySigner;
 use axum::{routing::get, Router};
 use dotenv::dotenv;
 use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
@@ -22,7 +19,6 @@ use shadow_proving::{
 };
 
 use tokio::time::sleep;
-use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() {
@@ -47,19 +43,17 @@ async fn main() {
 
     let signer: PrivateKeySigner = private_key.parse().expect("parse PrivateKeySigner");
     let wallet: EthereumWallet = EthereumWallet::from(signer.clone());
-    let l1_provider: RootProvider<Http<Client>> =
-        ProviderBuilder::new().on_http(l1_rpc.parse().expect("parse l1_rpc to Url"));
+    let l1_provider =
+        ProviderBuilder::new().connect_http(l1_rpc.parse().expect("parse l1_rpc to Url")).erased();
 
-    let l2_provider: RootProvider<Http<Client>> =
-        ProviderBuilder::new().on_http(l2_rpc.parse().expect("parse l2_rpc to Url"));
+    let l2_provider =
+        ProviderBuilder::new().connect_http(l2_rpc.parse().expect("parse l2_rpc to Url")).erased();
 
-    let verify_provider: RootProvider<Http<Client>> =
-        ProviderBuilder::new().on_http(l1_verify_rpc.parse().expect("parse l1_rpc to Url"));
+    let verify_provider = ProviderBuilder::new()
+        .connect_http(l1_verify_rpc.parse().expect("parse l1_rpc to Url"))
+        .erased();
 
-    let l1_signer = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .wallet(wallet)
-        .on_provider(verify_provider.clone());
+    let l1_signer = ProviderBuilder::new().wallet(wallet).connect_provider(verify_provider.clone());
 
     let batch_syncer = BatchSyncer::new(
         Address::from_str(&rollup).unwrap(),
@@ -80,60 +74,70 @@ async fn main() {
     let mut latest_processed_batch: u64 = 0;
 
     loop {
-        sleep(Duration::from_secs(30)).await;
-        // Get committed batch
-        let (batch_info, batch_header) = match batch_syncer.get_committed_batch().await {
-            Ok(Some(committed_batch)) => committed_batch,
-            Ok(None) => continue,
+        match batch_syncer.get_committed_batch().await {
+            Ok(Some((batch_info, batch_header))) => {
+                // Check if batch has already been processed
+                if batch_info.batch_index <= latest_processed_batch {
+                    log::info!(
+                        "Batch {} has already been processed, skipping",
+                        batch_info.batch_index
+                    );
+                } else {
+                    let mut execution_success = true;
+                    if *SHADOW_EXECUTE {
+                        log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
+                        // Execute batch
+                        if let Err(e) = execute_batch(&batch_info).await {
+                            log::error!("execute_batch error: {:?}", e);
+                            execution_success = false;
+                        } else {
+                            // Update the latest processed batch index
+                            latest_processed_batch = batch_info.batch_index;
+                        }
+                    }
+
+                    if execution_success {
+                        // Sync & Prove
+                        if batch_info.end_block - batch_info.start_block + 1 >
+                            *SHADOW_PROVING_MAX_BLOCK
+                        {
+                            log::warn!("Too many blocks in the latest batch to shadow prove");
+                        } else if batch_info.total_txn > *SHADOW_PROVING_MAX_TXN {
+                            log::warn!("Too many txn in the latest batch to shadow prove");
+                        } else {
+                            let result = match batch_syncer
+                                .sync_batch(batch_info.clone(), batch_header)
+                                .await
+                            {
+                                Ok(Some(batch)) => shadow_prover.prove(batch).await,
+                                Ok(None) => Ok(()),
+                                Err(e) => Err(e),
+                            };
+
+                            // Handle result.
+                            match result {
+                                Ok(()) => {
+                                    if !*SHADOW_EXECUTE {
+                                        latest_processed_batch = batch_info.batch_index;
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("shadow proving exec error: {:#?}", e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(None) => {
+                log::debug!("No new committed batch found");
+            }
             Err(e) => {
                 log::error!("get_committed_batch error: {:?}", e);
-                continue
-            }
-        };
-
-        // Check if batch has already been processed
-        if batch_info.batch_index <= latest_processed_batch {
-            log::info!("Batch {} has already been processed, skipping", batch_info.batch_index);
-            continue;
-        }
-        if *SHADOW_EXECUTE {
-            log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
-            // Execute batch
-            match execute_batch(&batch_info).await {
-                Ok(_) => {
-                    // Update the latest processed batch index
-                    latest_processed_batch = batch_info.batch_index;
-                }
-                Err(e) => {
-                    log::error!("execute_batch error: {:?}", e);
-                    continue
-                }
             }
         }
 
-        // Sync & Prove
-        if batch_info.end_block - batch_info.start_block + 1 > *SHADOW_PROVING_MAX_BLOCK {
-            log::warn!("Too many blocks in the latest batch to shadow prove");
-            continue;
-        }
-
-        if batch_info.total_txn > *SHADOW_PROVING_MAX_TXN {
-            log::warn!("Too many txn in the latest batch to shadow prove");
-            continue;
-        }
-        let result = match batch_syncer.sync_batch(batch_info, batch_header).await {
-            Ok(Some(batch)) => shadow_prover.prove(batch).await,
-            Ok(None) => Ok(()),
-            Err(e) => Err(e),
-        };
-
-        // Handle result.
-        match result {
-            Ok(()) => (),
-            Err(e) => {
-                log::error!("shadow proving exec error: {:#?}", e);
-            }
-        }
+        sleep(Duration::from_secs(30)).await;
     }
 }
 
@@ -142,8 +146,7 @@ async fn metric_mng() {
     register_metrics();
     let metric_address = read_env_var("SHADOW_PROVING_METRIC_ADDRESS", "0.0.0.0:6060".to_string());
     tokio::spawn(async move {
-        let metrics =
-            Router::new().route("/metrics", get(handle_metrics)).layer(TraceLayer::new_for_http());
+        let metrics = Router::new().route("/metrics", get(handle_metrics));
         axum::Server::bind(&metric_address.parse().unwrap())
             .serve(metrics.into_make_service())
             .await

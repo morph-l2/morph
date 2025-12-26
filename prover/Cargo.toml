@@ -3,6 +3,7 @@ members = [
     "bin/host",
     "bin/client",
     "bin/server",
+    "bin/shadow-prove",
     "crates/executor/host",
     "crates/executor/client",
     "crates/executor/core",
@@ -10,7 +11,7 @@ members = [
     "crates/utils",
     "crates/storage",
 ]
-exclude = ["bin/shadow-prove", "bin/challenge"]
+exclude = ["bin/challenge"]
 resolver = "2"
 
 [workspace.package]
@@ -63,7 +64,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Compression
 ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
-zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = ["experimental"] }
+zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = [
+    "experimental",
+] }
 
 # Crypto
 c-kzg = "2.1.5"
@@ -75,28 +78,51 @@ rand = "0.8"
 # EVM & Blockchain (Alloy, REVM, Reth)
 alloy = { version = "1.1.0", default-features = false }
 alloy-chains = { version = "0.2.17", default-features = false }
-alloy-consensus = { version = "1.1.0", default-features = false, features = ["serde", "serde-bincode-compat"] }
+alloy-consensus = { version = "=1.1.0", default-features = false, features = [
+    "serde",
+    "serde-bincode-compat",
+] }
 alloy-eips = { version = "1.1.0", default-features = false, features = ["kzg"] }
 alloy-evm = { version = "0.23.1", default-features = false }
-alloy-genesis = { version = "1.1.0", default-features = false, features = ["serde-bincode-compat"] }
+alloy-genesis = { version = "1.1.0", default-features = false, features = [
+    "serde-bincode-compat",
+] }
 alloy-json-rpc = { version = "1.1.0", default-features = false }
 alloy-network = { version = "1.1.0", default-features = false }
-alloy-primitives = { version = "1.4.1", default-features = false, features = ["sha3-keccak", "map-hashbrown"] }
-alloy-provider = { version = "1.1.0", default-features = false, features = ["reqwest", "reqwest-rustls-tls"] }
+alloy-primitives = { version = "1.4.1", default-features = false, features = [
+    "sha3-keccak",
+    "map-hashbrown",
+] }
+alloy-provider = { version = "=1.1.0", default-features = false, features = [
+    "reqwest",
+    "reqwest-rustls-tls",
+] }
 alloy-rlp = "0.3.10"
 alloy-rpc-client = { version = "1.1.0", default-features = false }
-alloy-rpc-types = { version = "1.1.0", default-features = false, features = ["eth"] }
+alloy-rpc-types = { version = "1.1.0", default-features = false, features = [
+    "eth",
+] }
 alloy-rpc-types-debug = { version = "1.1.0", default-features = false }
 alloy-serde = "1.1.0"
 alloy-transport = { version = "1.1.0", default-features = false }
-alloy-transport-http = { version = "1.1.0", features = ["reqwest-rustls-tls"], default-features = false }
+alloy-transport-http = { version = "1.1.0", features = [
+    "reqwest-rustls-tls",
+], default-features = false }
 alloy-transport-ws = { version = "1.1.0" }
 alloy-trie = "0.9.1"
+alloy-sol-types = { version = "1.4.1", features = ["json"] }
+alloy-contract = { version = "1.1.0", default-features = false }
+alloy-signer-local = { version = "=1.1.0", default-features = false }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.1", default-features = false }
-revm = { version = "31.0.1", features = ["serde", "bn"], default-features = false }
+revm = { version = "31.0.1", features = [
+    "serde",
+    "bn",
+], default-features = false }
 revm-database = { version = "9.0.4", default-features = false }
 revm-database-interface = { version = "8.0.5", default-features = false }
-revm-primitives = { version = "21.0.2", features = ["serde"], default-features = false }
+revm-primitives = { version = "21.0.2", features = [
+    "serde",
+], default-features = false }
 rsp-mpt = { git = "https://github.com/succinctlabs/rsp.git", branch = "main" }
 
 # ZK / SP1

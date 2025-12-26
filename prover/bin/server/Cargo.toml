@@ -26,4 +26,4 @@ flexi_logger = { workspace = true }
 hex = { workspace = true }
 prover-executor-client = { workspace = true }
 prover-executor-host = { workspace = true }
-reqwest = { workspace = true }
+
