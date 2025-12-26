@@ -104,7 +104,7 @@ func Main(cliCtx *cli.Context) error {
 	}
 
 	// Create L2 client
-	l2Client, err := client.NewL2Client(cfg.L2RPC, cfg.PrivateKey)
+	l2Client, err := client.NewL2Client(cfg.L2RPC, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create L2 client: %w", err)
 	}
