@@ -9,10 +9,7 @@ use revm::{Context, Database, MainBuilder, MainContext};
 /// The Ethereum EVM context type.
 pub type EthEvmContext<DB> = Context<BlockEnv, TxEnv, CfgEnv, DB>;
 
-/// 基于 `revm` 的以太坊执行器封装。
-///
-/// 说明：目前只提供 `NoOpInspector` 的 `new` 构造；未来如果需要自定义 inspector / precompile，
-/// 可在此基础上扩展。
+/// An Ethereum executor wrapper based on `revm`.
 pub struct EthEvm<DB: Database, I, PRECOMPILE = EthPrecompiles> {
     pub inner: Evm<
         EthEvmContext<DB>,

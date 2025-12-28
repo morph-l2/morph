@@ -11,10 +11,10 @@ pub mod predeployed;
 /// Types definition
 pub mod types;
 
-pub use alloy_consensus as alloy_consensus;
+pub use alloy_consensus;
 pub use alloy_consensus::Transaction;
 pub use alloy_eips::eip7702::SignedAuthorization;
-pub use alloy_primitives as alloy_primitives;
+pub use alloy_primitives;
 pub use alloy_primitives::{Address, B256, U256};
 
 /// Blanket trait for block trace extensions.
@@ -95,26 +95,6 @@ pub trait Block: Debug {
     fn num_l2_txs(&self) -> u64 {
         // 0x7e is l1 tx
         self.transactions().filter(|tx| !tx.is_l1_tx()).count() as u64
-    }
-
-    /// Hash the header of the block
-    #[inline]
-    fn hash_da_header(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        let num_txs = (self.num_l1_txs() + self.num_l2_txs()) as u16;
-        hasher.update(&self.number().to_be_bytes());
-        hasher.update(&self.timestamp().to::<u64>().to_be_bytes());
-        hasher
-            .update(&self.base_fee_per_gas().unwrap_or_default().to_be_bytes::<{ U256::BYTES }>());
-        hasher.update(&self.gas_limit().to::<u64>().to_be_bytes());
-        hasher.update(&num_txs.to_be_bytes());
-    }
-
-    /// Hash the l1 messages of the block
-    #[inline]
-    fn hash_l1_msg(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        for tx_hash in self.transactions().filter(|tx| tx.is_l1_tx()).map(|tx| tx.tx_hash()) {
-            hasher.update(tx_hash.as_slice())
-        }
     }
 }
 

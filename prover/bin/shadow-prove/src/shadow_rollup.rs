@@ -241,17 +241,20 @@ where
             return None;
         }
 
-        let mut tasks = Vec::new();
-        for i in start_block..=end_block {
-            let provider = self.l2_provider.clone();
-            tasks.push(
-                async move { provider.get_block_transaction_count_by_number(i.into()).await },
-            );
-        }
-        let results = join_all(tasks).await;
         let mut total_tx_count: u64 = 0;
-        for res in results {
-            total_tx_count += res.unwrap_or_default().unwrap_or_default();
+        let block_numbers: Vec<u64> = (start_block..=end_block).collect();
+        for chunk in block_numbers.chunks(10) {
+            let mut tasks = Vec::with_capacity(chunk.len());
+            for &i in chunk {
+                let provider = self.l2_provider.clone();
+                tasks.push(async move {
+                    provider.get_block_transaction_count_by_number(i.into()).await
+                });
+            }
+            let results = join_all(tasks).await;
+            for res in results {
+                total_tx_count += res.unwrap_or_default().unwrap_or_default();
+            }
         }
 
         log::info!(

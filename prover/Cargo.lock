@@ -3478,7 +3478,6 @@ dependencies = [
  "clap",
  "dotenv",
  "env_logger",
- "hex",
  "log",
  "once_cell",
  "prover-executor-client",
@@ -4556,7 +4555,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "tiny-keccak",
 ]
 
 [[package]]
@@ -4569,7 +4567,6 @@ dependencies = [
  "axum 0.4.8",
  "dotenv",
  "flexi_logger",
- "hex",
  "log",
  "morph-prove",
  "once_cell",
@@ -4594,7 +4591,6 @@ dependencies = [
  "revm",
  "rsp-mpt",
  "serde_json",
- "tracing",
 ]
 
 [[package]]
@@ -5857,10 +5853,12 @@ dependencies = [
  "env_logger",
  "flexi_logger",
  "futures",
- "hex",
  "log",
  "once_cell",
  "prometheus",
+ "prover-executor-client",
+ "prover-executor-host",
+ "prover-primitives",
  "reqwest",
  "serde",
  "serde_json",

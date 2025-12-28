@@ -18,7 +18,6 @@ sp1-sdk = { workspace = true }
 anyhow.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
-hex = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 log = { workspace = true }

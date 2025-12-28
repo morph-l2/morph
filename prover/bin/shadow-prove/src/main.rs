@@ -1,8 +1,8 @@
 use std::{str::FromStr, time::Duration};
 
-use alloy_network::EthereumWallet;
+use alloy_network::{Ethereum, EthereumWallet};
 use alloy_primitives::Address;
-use alloy_provider::{Provider, ProviderBuilder};
+use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use axum::{routing::get, Router};
 use dotenv::dotenv;
@@ -10,7 +10,7 @@ use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, Writ
 use log::Record;
 use prometheus::{Encoder, TextEncoder};
 use shadow_proving::{
-    execute::execute_batch,
+    execute::try_execute_batch,
     metrics::{METRICS, REGISTRY},
     shadow_prove::ShadowProver,
     shadow_rollup::BatchSyncer,
@@ -18,7 +18,8 @@ use shadow_proving::{
     SHADOW_EXECUTE, SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
 
-use tokio::time::sleep;
+use tokio::time::interval;
+use tokio::{sync::broadcast, time::MissedTickBehavior};
 
 #[tokio::main]
 async fn main() {
@@ -33,6 +34,96 @@ async fn main() {
     // Start metric management.
     metric_mng().await;
 
+    let (batch_syncer, shadow_prover, l2_provider) = init_shadow_proving();
+
+    let (tx, mut rx) = broadcast::channel(4);
+    let batch_syncer_exec = batch_syncer.clone();
+
+    tokio::spawn(async move {
+        // Track the latest processed batch index
+        let mut latest_processed_batch: u64 = 0;
+        let mut ticker = interval(Duration::from_secs(60));
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+
+            // Get committed batch
+            let (batch_info, batch_header) = match batch_syncer_exec.get_committed_batch().await {
+                Ok(Some(committed_batch)) => committed_batch,
+                Ok(None) => continue,
+                Err(e) => {
+                    log::error!("get_committed_batch error: {:?}", e);
+                    continue;
+                }
+            };
+
+            // Check if batch has already been processed
+            if batch_info.batch_index <= latest_processed_batch {
+                log::info!("Batch {} has already been processed, skipping", batch_info.batch_index);
+                continue;
+            }
+            if *SHADOW_EXECUTE {
+                log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
+                // Execute batch
+                match try_execute_batch(&batch_info, &l2_provider).await {
+                    Ok(_) => {
+                        // Update the latest processed batch index
+                        latest_processed_batch = batch_info.batch_index;
+                    }
+                    Err(e) => {
+                        log::error!("execute_batch error: {:?}", e);
+                        continue;
+                    }
+                }
+            } else {
+                latest_processed_batch = batch_info.batch_index;
+            }
+
+            // Sync & Prove checks
+            if batch_info.end_block - batch_info.start_block + 1 > *SHADOW_PROVING_MAX_BLOCK {
+                log::warn!("Too many blocks in the latest batch to shadow prove");
+                continue;
+            }
+
+            if batch_info.total_txn > *SHADOW_PROVING_MAX_TXN {
+                log::warn!("Too many txn in the latest batch to shadow prove");
+                continue;
+            }
+
+            if let Err(e) = tx.send((batch_info, batch_header)) {
+                log::error!("Failed to send batch to prove queue: {:?}", e);
+            }
+        }
+    });
+
+    loop {
+        let (batch_info, batch_header) = match rx.recv().await {
+            Ok(v) => v,
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                log::warn!("Prove thread lagged, skipped {} batches", skipped);
+                continue;
+            }
+            Err(broadcast::error::RecvError::Closed) => break,
+        };
+
+        let result = match batch_syncer.sync_batch(batch_info, batch_header).await {
+            Ok(Some(batch)) => shadow_prover.prove(batch).await,
+            Ok(None) => Ok(()),
+            Err(e) => Err(e),
+        };
+
+        // Handle result.
+        match result {
+            Ok(()) => (),
+            Err(e) => {
+                log::error!("shadow proving exec error: {:#?}", e);
+            }
+        }
+    }
+}
+
+fn init_shadow_proving(
+) -> (BatchSyncer<DynProvider, Ethereum>, ShadowProver<DynProvider, Ethereum>, DynProvider) {
     let l1_verify_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
     let l1_rpc: String = read_parse_env("SHADOW_PROVING_L1_RPC");
     let l2_rpc: String = read_parse_env("SHADOW_PROVING_L2_RPC");
@@ -53,7 +144,8 @@ async fn main() {
         .connect_http(l1_verify_rpc.parse().expect("parse l1_rpc to Url"))
         .erased();
 
-    let l1_signer = ProviderBuilder::new().wallet(wallet).connect_provider(verify_provider.clone());
+    let l1_signer =
+        ProviderBuilder::new().wallet(wallet).connect_provider(verify_provider.clone()).erased();
 
     let batch_syncer = BatchSyncer::new(
         Address::from_str(&rollup).unwrap(),
@@ -70,75 +162,7 @@ async fn main() {
         l1_signer,
     );
 
-    // Track the latest processed batch index
-    let mut latest_processed_batch: u64 = 0;
-
-    loop {
-        match batch_syncer.get_committed_batch().await {
-            Ok(Some((batch_info, batch_header))) => {
-                // Check if batch has already been processed
-                if batch_info.batch_index <= latest_processed_batch {
-                    log::info!(
-                        "Batch {} has already been processed, skipping",
-                        batch_info.batch_index
-                    );
-                } else {
-                    let mut execution_success = true;
-                    if *SHADOW_EXECUTE {
-                        log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
-                        // Execute batch
-                        if let Err(e) = execute_batch(&batch_info).await {
-                            log::error!("execute_batch error: {:?}", e);
-                            execution_success = false;
-                        } else {
-                            // Update the latest processed batch index
-                            latest_processed_batch = batch_info.batch_index;
-                        }
-                    }
-
-                    if execution_success {
-                        // Sync & Prove
-                        if batch_info.end_block - batch_info.start_block + 1 >
-                            *SHADOW_PROVING_MAX_BLOCK
-                        {
-                            log::warn!("Too many blocks in the latest batch to shadow prove");
-                        } else if batch_info.total_txn > *SHADOW_PROVING_MAX_TXN {
-                            log::warn!("Too many txn in the latest batch to shadow prove");
-                        } else {
-                            let result = match batch_syncer
-                                .sync_batch(batch_info.clone(), batch_header)
-                                .await
-                            {
-                                Ok(Some(batch)) => shadow_prover.prove(batch).await,
-                                Ok(None) => Ok(()),
-                                Err(e) => Err(e),
-                            };
-
-                            // Handle result.
-                            match result {
-                                Ok(()) => {
-                                    if !*SHADOW_EXECUTE {
-                                        latest_processed_batch = batch_info.batch_index;
-                                    }
-                                }
-                                Err(e) => {
-                                    log::error!("shadow proving exec error: {:#?}", e);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("No new committed batch found");
-            }
-            Err(e) => {
-                log::error!("get_committed_batch error: {:?}", e);
-            }
-        }
-
-        sleep(Duration::from_secs(30)).await;
-    }
+    (batch_syncer, shadow_prover, l2_provider)
 }
 
 // Metric management

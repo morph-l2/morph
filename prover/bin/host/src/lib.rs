@@ -35,13 +35,7 @@ pub fn prove(
 
     // Prepare input.
     // Convert the traces' format to reduce conversion costs in the client.
-    let blocks_inputs =
-        blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
-    let client_input =
-        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info(blocks)? };
-
-    // Execute the program in native
-    let expected_hash = verify(client_input.clone()).context("native execution failed")?;
+    let (client_input, expected_hash) = execute_batch(blocks)?;
     log::info!(
         "pi_hash generated with native execution: {}",
         alloy::hex::encode_prefixed(expected_hash.as_slice())
@@ -107,6 +101,17 @@ pub fn prove(
     Ok(Some(fixture))
 }
 
+pub fn execute_batch(
+    blocks: &mut Vec<BlockTrace>,
+) -> Result<(ExecutorInput, alloy::primitives::FixedBytes<32>), anyhow::Error> {
+    let blocks_inputs =
+        blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+    let client_input =
+        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info(blocks)? };
+    let expected_hash = verify(client_input.clone()).context("native execution failed")?;
+    Ok((client_input, expected_hash))
+}
+
 #[cfg(test)]
 mod tests {
     use prover_executor_client::{
@@ -142,7 +147,7 @@ mod tests {
         let (versioned_hash, batch_data) = BlobVerifier::verify(&blob_info, 1).unwrap();
         println!(
             "versioned_hash: {:?}, batch_data len: {:?}",
-            hex::encode(versioned_hash.as_slice()),
+            alloy::hex::encode(versioned_hash.as_slice()),
             batch_data.len()
         );
     }
