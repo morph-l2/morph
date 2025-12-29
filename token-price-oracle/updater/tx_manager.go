@@ -2,11 +2,12 @@ package updater
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 
+	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
@@ -14,28 +15,10 @@ import (
 	"morph-l2/token-price-oracle/client"
 )
 
-const (
-	// GasPriceBumpPercent is the percentage to increase gas price for replacement tx
-	// EIP-1559 requires at least 10% bump, we use 15% to be safe
-	GasPriceBumpPercent = 15
-	// MaxGasPriceBumpMultiplier limits how much we can bump gas price (e.g., 3x original)
-	MaxGasPriceBumpMultiplier = 3
-)
-
-// PendingTxInfo stores information about a pending transaction
-type PendingTxInfo struct {
-	TxHash    common.Hash
-	Nonce     uint64
-	GasFeeCap *big.Int
-	GasTipCap *big.Int
-	SentAt    time.Time
-}
-
 // TxManager manages transaction sending to avoid nonce conflicts
 type TxManager struct {
-	l2Client  *client.L2Client
-	mu        sync.Mutex
-	pendingTx *PendingTxInfo // Track the last pending transaction
+	l2Client *client.L2Client
+	mu       sync.Mutex
 }
 
 // NewTxManager creates a new transaction manager
@@ -47,27 +30,37 @@ func NewTxManager(l2Client *client.L2Client) *TxManager {
 
 // SendTransaction sends a transaction in a thread-safe manner
 // It ensures only one transaction is sent at a time to avoid nonce conflicts
-// If there's a pending transaction, it will wait for it or replace it
+// Before sending, it checks if there are any pending transactions by comparing nonces
 func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check if there's a pending transaction that needs to be handled
-	if m.pendingTx != nil {
-		receipt, err := m.handlePendingTx(ctx)
-		if err != nil {
-			log.Warn("Failed to handle pending transaction, will try to replace",
-				"pending_tx", m.pendingTx.TxHash.Hex(),
-				"error", err)
-			// Continue to send new transaction which may replace the pending one
-		} else if receipt != nil {
-			log.Info("Previous pending transaction confirmed",
-				"tx_hash", m.pendingTx.TxHash.Hex(),
-				"status", receipt.Status)
-			m.pendingTx = nil
-			// Previous tx confirmed, continue to send new transaction
-		}
+	fromAddr := m.l2Client.WalletAddress()
+
+	// Check if there are pending transactions by comparing nonces
+	confirmedNonce, err := m.l2Client.GetClient().NonceAt(ctx, fromAddr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get confirmed nonce: %w", err)
 	}
+
+	pendingNonce, err := m.l2Client.GetClient().PendingNonceAt(ctx, fromAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	if pendingNonce > confirmedNonce {
+		// There are pending transactions, don't send new one
+		log.Warn("Found pending transactions, skipping this round",
+			"address", fromAddr.Hex(),
+			"confirmed_nonce", confirmedNonce,
+			"pending_nonce", pendingNonce,
+			"pending_count", pendingNonce-confirmedNonce)
+		return nil, fmt.Errorf("pending transactions exist (confirmed: %d, pending: %d)", confirmedNonce, pendingNonce)
+	}
+
+	log.Info("No pending transactions, proceeding to send",
+		"address", fromAddr.Hex(),
+		"nonce", confirmedNonce)
 
 	// Get transaction options (returns a copy)
 	auth := m.l2Client.GetOpts()
@@ -86,32 +79,6 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	auth.GasLimit = estimatedGas * 3 / 2
 	log.Info("Gas estimation completed", "estimated", estimatedGas, "actual_limit", auth.GasLimit)
 
-	// Check if we need to replace a pending transaction (same nonce)
-	if m.pendingTx != nil {
-		// Get current nonce from network
-		fromAddr := m.l2Client.WalletAddress()
-		pendingNonce, err := m.l2Client.GetClient().PendingNonceAt(ctx, fromAddr)
-		if err != nil {
-			log.Warn("Failed to get pending nonce", "error", err)
-		} else if pendingNonce <= m.pendingTx.Nonce {
-			// There's still a pending tx with this nonce, need to replace it
-			log.Info("Replacing pending transaction",
-				"old_tx", m.pendingTx.TxHash.Hex(),
-				"old_nonce", m.pendingTx.Nonce,
-				"pending_nonce", pendingNonce)
-
-			// Bump gas price for replacement
-			auth.Nonce = big.NewInt(int64(m.pendingTx.Nonce))
-			auth.GasFeeCap, auth.GasTipCap = m.bumpGasPrice(m.pendingTx.GasFeeCap, m.pendingTx.GasTipCap)
-
-			log.Info("Gas price bumped for replacement",
-				"old_fee_cap", m.pendingTx.GasFeeCap,
-				"new_fee_cap", auth.GasFeeCap,
-				"old_tip_cap", m.pendingTx.GasTipCap,
-				"new_tip_cap", auth.GasTipCap)
-		}
-	}
-
 	// Now send the actual transaction
 	auth.NoSend = false
 	tx, err = txFunc(auth)
@@ -119,140 +86,97 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 		return nil, err
 	}
 
-	// Store pending transaction info
-	m.pendingTx = &PendingTxInfo{
-		TxHash:    tx.Hash(),
-		Nonce:     tx.Nonce(),
-		GasFeeCap: tx.GasFeeCap(),
-		GasTipCap: tx.GasTipCap(),
-		SentAt:    time.Now(),
-	}
-
 	log.Info("Transaction sent",
 		"tx_hash", tx.Hash().Hex(),
 		"nonce", tx.Nonce(),
-		"gas_limit", tx.Gas(),
-		"gas_fee_cap", tx.GasFeeCap(),
-		"gas_tip_cap", tx.GasTipCap())
+		"gas_limit", tx.Gas())
 
-	// Wait for transaction to be mined with custom timeout and retry logic
-	receipt, err := m.waitForReceipt(ctx, tx.Hash(), 60*time.Second, 2*time.Second)
+	// Wait for transaction to be mined - will keep waiting until confirmed or dropped
+	receipt, err := m.waitForReceipt(ctx, tx.Hash(), 2*time.Second)
 	if err != nil {
 		log.Error("Failed to wait for transaction receipt",
 			"tx_hash", tx.Hash().Hex(),
 			"error", err)
-		// Don't clear pendingTx here - let next round handle it
 		return nil, err
 	}
 
-	// Transaction confirmed, clear pending tx
-	m.pendingTx = nil
 	return receipt, nil
 }
 
-// handlePendingTx checks if the pending transaction has been confirmed
-func (m *TxManager) handlePendingTx(ctx context.Context) (*types.Receipt, error) {
-	if m.pendingTx == nil {
-		return nil, nil
-	}
-
-	// Try to get receipt for pending tx
-	receipt, err := m.l2Client.GetClient().TransactionReceipt(ctx, m.pendingTx.TxHash)
-	if err == nil && receipt != nil {
-		return receipt, nil
-	}
-
-	// Check if the nonce has been used (tx might have been replaced)
-	fromAddr := m.l2Client.WalletAddress()
-	confirmedNonce, err := m.l2Client.GetClient().NonceAt(ctx, fromAddr, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get confirmed nonce: %w", err)
-	}
-
-	if confirmedNonce > m.pendingTx.Nonce {
-		// Nonce has been used, the tx (or a replacement) was confirmed
-		log.Info("Pending nonce has been confirmed (possibly replaced)",
-			"pending_nonce", m.pendingTx.Nonce,
-			"confirmed_nonce", confirmedNonce)
-		m.pendingTx = nil
-		return nil, nil
-	}
-
-	// Transaction still pending
-	return nil, fmt.Errorf("transaction %s still pending (nonce: %d)", m.pendingTx.TxHash.Hex(), m.pendingTx.Nonce)
-}
-
-// bumpGasPrice increases gas price by GasPriceBumpPercent, capped at MaxGasPriceBumpMultiplier
-func (m *TxManager) bumpGasPrice(oldFeeCap, oldTipCap *big.Int) (*big.Int, *big.Int) {
-	// Calculate bump: oldPrice * (100 + GasPriceBumpPercent) / 100
-	bumpMultiplier := big.NewInt(100 + GasPriceBumpPercent)
-	hundred := big.NewInt(100)
-
-	newFeeCap := new(big.Int).Mul(oldFeeCap, bumpMultiplier)
-	newFeeCap.Div(newFeeCap, hundred)
-
-	newTipCap := new(big.Int).Mul(oldTipCap, bumpMultiplier)
-	newTipCap.Div(newTipCap, hundred)
-
-	// Cap at MaxGasPriceBumpMultiplier times original
-	maxFeeCap := new(big.Int).Mul(oldFeeCap, big.NewInt(MaxGasPriceBumpMultiplier))
-	maxTipCap := new(big.Int).Mul(oldTipCap, big.NewInt(MaxGasPriceBumpMultiplier))
-
-	if newFeeCap.Cmp(maxFeeCap) > 0 {
-		log.Warn("Gas fee cap bump capped at max multiplier",
-			"calculated", newFeeCap,
-			"capped", maxFeeCap)
-		newFeeCap = maxFeeCap
-	}
-
-	if newTipCap.Cmp(maxTipCap) > 0 {
-		log.Warn("Gas tip cap bump capped at max multiplier",
-			"calculated", newTipCap,
-			"capped", maxTipCap)
-		newTipCap = maxTipCap
-	}
-
-	return newFeeCap, newTipCap
-}
-
-// waitForReceipt waits for a transaction receipt with timeout and custom polling interval
-func (m *TxManager) waitForReceipt(ctx context.Context, txHash common.Hash, timeout, pollInterval time.Duration) (*types.Receipt, error) {
-	deadline := time.Now().Add(timeout)
+// waitForReceipt waits for a transaction receipt indefinitely until:
+// 1. Receipt is received (transaction confirmed)
+// 2. Transaction is not found (dropped from pool) - exits immediately
+// Network errors will cause retry, NOT exit
+func (m *TxManager) waitForReceipt(ctx context.Context, txHash common.Hash, pollInterval time.Duration) (*types.Receipt, error) {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
-	log.Debug("Waiting for transaction receipt",
+	startTime := time.Now()
+
+	log.Info("Waiting for transaction receipt (will wait indefinitely)",
 		"tx_hash", txHash.Hex(),
-		"timeout", timeout,
 		"poll_interval", pollInterval)
 
 	for {
-		// Check if we've exceeded the timeout
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timeout waiting for transaction %s after %v", txHash.Hex(), timeout)
+		// Check context cancellation first
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("context cancelled while waiting for transaction %s (waited %v): %w",
+				txHash.Hex(), time.Since(startTime), ctx.Err())
+		default:
 		}
 
-		// Try to get the receipt
+		// Try to get the receipt first
 		receipt, err := m.l2Client.GetClient().TransactionReceipt(ctx, txHash)
 		if err == nil && receipt != nil {
-			log.Debug("Receipt received",
+			log.Info("Receipt received",
 				"tx_hash", txHash.Hex(),
 				"status", receipt.Status,
 				"gas_used", receipt.GasUsed,
-				"block_number", receipt.BlockNumber)
+				"block_number", receipt.BlockNumber,
+				"waited", time.Since(startTime))
 			return receipt, nil
 		}
 
+		// No receipt yet, check if transaction is still in the pool
+		tx, isPending, err := m.l2Client.GetClient().TransactionByHash(ctx, txHash)
+
 		if err != nil {
-			log.Trace("Receipt retrieval failed, will retry",
+			// Check if it's a "not found" error - transaction dropped
+			if errors.Is(err, ethereum.NotFound) {
+				log.Error("Transaction not found, dropped from pool",
+					"tx_hash", txHash.Hex(),
+					"waited", time.Since(startTime))
+				return nil, fmt.Errorf("transaction %s dropped from pool (not found)", txHash.Hex())
+			}
+
+			// Other errors (network, etc.) - just log and retry
+			log.Warn("Transaction query failed, will retry",
 				"tx_hash", txHash.Hex(),
+				"waited", time.Since(startTime),
 				"error", err)
+		} else if tx == nil {
+			// tx is nil but no error - treat as not found
+			log.Error("Transaction returned nil, dropped from pool",
+				"tx_hash", txHash.Hex(),
+				"waited", time.Since(startTime))
+			return nil, fmt.Errorf("transaction %s dropped from pool (returned nil)", txHash.Hex())
+		} else {
+			// Transaction found, log progress every minute
+			elapsed := time.Since(startTime)
+			if int(elapsed.Seconds()) > 0 && int(elapsed.Seconds())%60 == 0 {
+				log.Info("Still waiting for transaction receipt",
+					"tx_hash", txHash.Hex(),
+					"is_pending", isPending,
+					"waited", elapsed)
+			}
 		}
 
-		// Wait for next poll or context cancellation
+		// Wait for next poll
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled while waiting for transaction %s: %w", txHash.Hex(), ctx.Err())
+			return nil, fmt.Errorf("context cancelled while waiting for transaction %s (waited %v): %w",
+				txHash.Hex(), time.Since(startTime), ctx.Err())
 		case <-ticker.C:
 			// Continue to next iteration
 		}
