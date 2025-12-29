@@ -2,12 +2,10 @@ package updater
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
@@ -91,8 +89,8 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 		"nonce", tx.Nonce(),
 		"gas_limit", tx.Gas())
 
-	// Wait for transaction to be mined - will keep waiting until confirmed or dropped
-	receipt, err := m.waitForReceipt(ctx, tx.Hash(), 2*time.Second)
+	// Wait for transaction to be mined with timeout and retry logic
+	receipt, err := m.waitForReceipt(ctx, tx.Hash(), 60*time.Second, 2*time.Second)
 	if err != nil {
 		log.Error("Failed to wait for transaction receipt",
 			"tx_hash", tx.Hash().Hex(),
@@ -103,80 +101,44 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	return receipt, nil
 }
 
-// waitForReceipt waits for a transaction receipt indefinitely until:
-// 1. Receipt is received (transaction confirmed)
-// 2. Transaction is not found (dropped from pool) - exits immediately
-// Network errors will cause retry, NOT exit
-func (m *TxManager) waitForReceipt(ctx context.Context, txHash common.Hash, pollInterval time.Duration) (*types.Receipt, error) {
+// waitForReceipt waits for a transaction receipt with timeout and custom polling interval
+func (m *TxManager) waitForReceipt(ctx context.Context, txHash common.Hash, timeout, pollInterval time.Duration) (*types.Receipt, error) {
+	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
-	startTime := time.Now()
-
-	log.Info("Waiting for transaction receipt (will wait indefinitely)",
+	log.Debug("Waiting for transaction receipt",
 		"tx_hash", txHash.Hex(),
+		"timeout", timeout,
 		"poll_interval", pollInterval)
 
 	for {
-		// Check context cancellation first
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled while waiting for transaction %s (waited %v): %w",
-				txHash.Hex(), time.Since(startTime), ctx.Err())
-		default:
+		// Check if we've exceeded the timeout
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timeout waiting for transaction %s after %v", txHash.Hex(), timeout)
 		}
 
-		// Try to get the receipt first
+		// Try to get the receipt
 		receipt, err := m.l2Client.GetClient().TransactionReceipt(ctx, txHash)
 		if err == nil && receipt != nil {
-			log.Info("Receipt received",
+			log.Debug("Receipt received",
 				"tx_hash", txHash.Hex(),
 				"status", receipt.Status,
 				"gas_used", receipt.GasUsed,
-				"block_number", receipt.BlockNumber,
-				"waited", time.Since(startTime))
+				"block_number", receipt.BlockNumber)
 			return receipt, nil
 		}
 
-		// No receipt yet, check if transaction is still in the pool
-		tx, isPending, err := m.l2Client.GetClient().TransactionByHash(ctx, txHash)
-
 		if err != nil {
-			// Check if it's a "not found" error - transaction dropped
-			if errors.Is(err, ethereum.NotFound) {
-				log.Error("Transaction not found, dropped from pool",
-					"tx_hash", txHash.Hex(),
-					"waited", time.Since(startTime))
-				return nil, fmt.Errorf("transaction %s dropped from pool (not found)", txHash.Hex())
-			}
-
-			// Other errors (network, etc.) - just log and retry
-			log.Warn("Transaction query failed, will retry",
+			log.Trace("Receipt retrieval failed, will retry",
 				"tx_hash", txHash.Hex(),
-				"waited", time.Since(startTime),
 				"error", err)
-		} else if tx == nil {
-			// tx is nil but no error - treat as not found
-			log.Error("Transaction returned nil, dropped from pool",
-				"tx_hash", txHash.Hex(),
-				"waited", time.Since(startTime))
-			return nil, fmt.Errorf("transaction %s dropped from pool (returned nil)", txHash.Hex())
-		} else {
-			// Transaction found, log progress every minute
-			elapsed := time.Since(startTime)
-			if int(elapsed.Seconds()) > 0 && int(elapsed.Seconds())%60 == 0 {
-				log.Info("Still waiting for transaction receipt",
-					"tx_hash", txHash.Hex(),
-					"is_pending", isPending,
-					"waited", elapsed)
-			}
 		}
 
-		// Wait for next poll
+		// Wait for next poll or context cancellation
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled while waiting for transaction %s (waited %v): %w",
-				txHash.Hex(), time.Since(startTime), ctx.Err())
+			return nil, fmt.Errorf("context cancelled while waiting for transaction %s: %w", txHash.Hex(), ctx.Err())
 		case <-ticker.C:
 			// Continue to next iteration
 		}
