@@ -116,6 +116,33 @@ func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.
 		return nil, fmt.Errorf("external signer is not initialized")
 	}
 
+	fromAddr := m.l2Client.WalletAddress()
+
+	// Check if there are pending transactions by comparing nonces
+	confirmedNonce, err := m.l2Client.GetClient().NonceAt(ctx, fromAddr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get confirmed nonce: %w", err)
+	}
+
+	pendingNonce, err := m.l2Client.GetClient().PendingNonceAt(ctx, fromAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	if pendingNonce > confirmedNonce {
+		// There are pending transactions, don't send new one
+		log.Warn("Found pending transactions, skipping this round",
+			"address", fromAddr.Hex(),
+			"confirmed_nonce", confirmedNonce,
+			"pending_nonce", pendingNonce,
+			"pending_count", pendingNonce-confirmedNonce)
+		return nil, fmt.Errorf("pending transactions exist (confirmed: %d, pending: %d)", confirmedNonce, pendingNonce)
+	}
+
+	log.Info("No pending transactions, proceeding to send",
+		"address", fromAddr.Hex(),
+		"nonce", confirmedNonce)
+
 	// Get transaction options (returns a copy) with NoSend=true to get calldata
 	auth := m.l2Client.GetOpts()
 	auth.Context = ctx

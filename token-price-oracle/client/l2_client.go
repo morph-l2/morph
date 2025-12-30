@@ -70,15 +70,18 @@ func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 		fromAddr := common.HexToAddress(cfg.ExternalSignAddress)
 		ethSigner := types.NewLondonSigner(chainID)
 
-		// Create opts with a placeholder signer for building transactions
-		// The actual signing will be done by external signer
+		// Create opts with a placeholder signer for building transactions.
+		// This allows contract bindings to construct transaction objects so we can
+		// extract the calldata and target address. The placeholder signature is never
+		// actually broadcast - the real signing happens via external signer.
+		// SAFETY: NoSend is always true, and tx_manager.go only extracts To() and Data()
+		// from the placeholder tx, then creates a new properly signed transaction.
 		l2Client.opts = &bind.TransactOpts{
 			From:   fromAddr,
-			NoSend: true, // We'll handle sending manually
+			NoSend: true, // CRITICAL: Must always be true for external signing mode
 			Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				// This is a placeholder signer - we don't actually sign here
-				// The transaction will be signed by external signer later
-				// We need to return the transaction with correct signer hash for gas estimation
+				// Placeholder signer - returns tx with dummy signature to satisfy bind package.
+				// This tx is NEVER sent; only used to extract calldata for external signing.
 				return tx.WithSignature(ethSigner, make([]byte, 65))
 			},
 		}

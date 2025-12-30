@@ -229,8 +229,8 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		if cfg.ExternalSignAddress == "" || cfg.ExternalSignUrl == "" ||
 			cfg.ExternalSignAppid == "" || cfg.ExternalSignChain == "" ||
 			cfg.ExternalSignRsaPriv == "" {
-			return nil, fmt.Errorf("external sign is enabled but missing required config: address=%s, url=%s, appid=%s, chain=%s",
-				cfg.ExternalSignAddress, cfg.ExternalSignUrl, cfg.ExternalSignAppid, cfg.ExternalSignChain)
+			return nil, fmt.Errorf("external sign is enabled but missing required config: address=%s, url=%s, appid=%s, chain=%s, rsa_priv_set=%t",
+				cfg.ExternalSignAddress, cfg.ExternalSignUrl, cfg.ExternalSignAppid, cfg.ExternalSignChain, cfg.ExternalSignRsaPriv != "")
 		}
 
 		// Validate address format
