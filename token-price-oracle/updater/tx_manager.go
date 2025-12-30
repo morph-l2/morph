@@ -28,6 +28,7 @@ func NewTxManager(l2Client *client.L2Client) *TxManager {
 
 // SendTransaction sends a transaction in a thread-safe manner
 // It ensures only one transaction is sent at a time to avoid nonce conflicts
+// Before sending, it checks if there are any pending transactions by comparing nonces
 func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -40,6 +41,33 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 
 // sendWithLocalSign sends transaction using local private key signing
 func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
+	fromAddr := m.l2Client.WalletAddress()
+
+	// Check if there are pending transactions by comparing nonces
+	confirmedNonce, err := m.l2Client.GetClient().NonceAt(ctx, fromAddr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get confirmed nonce: %w", err)
+	}
+
+	pendingNonce, err := m.l2Client.GetClient().PendingNonceAt(ctx, fromAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	if pendingNonce > confirmedNonce {
+		// There are pending transactions, don't send new one
+		log.Warn("Found pending transactions, skipping this round",
+			"address", fromAddr.Hex(),
+			"confirmed_nonce", confirmedNonce,
+			"pending_nonce", pendingNonce,
+			"pending_count", pendingNonce-confirmedNonce)
+		return nil, fmt.Errorf("pending transactions exist (confirmed: %d, pending: %d)", confirmedNonce, pendingNonce)
+	}
+
+	log.Info("No pending transactions, proceeding to send",
+		"address", fromAddr.Hex(),
+		"nonce", confirmedNonce)
+
 	// Get transaction options (returns a copy)
 	auth := m.l2Client.GetOpts()
 	auth.Context = ctx
@@ -66,9 +94,10 @@ func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.Tra
 
 	log.Info("Transaction sent (local sign)",
 		"tx_hash", tx.Hash().Hex(),
+		"nonce", tx.Nonce(),
 		"gas_limit", tx.Gas())
 
-	// Wait for transaction to be mined with custom timeout and retry logic
+	// Wait for transaction to be mined with timeout and retry logic
 	receipt, err := m.waitForReceipt(ctx, tx.Hash(), 60*time.Second, 2*time.Second)
 	if err != nil {
 		log.Error("Failed to wait for transaction receipt",
@@ -76,6 +105,7 @@ func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.Tra
 			"error", err)
 		return nil, err
 	}
+
 	return receipt, nil
 }
 
