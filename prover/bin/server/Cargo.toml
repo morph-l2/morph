@@ -8,17 +8,19 @@ anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
-sbv-primitives = { workspace = true }
-alloy = { workspace = true, features = ["providers"] }
+prover-primitives = { workspace = true }
+alloy-provider = { workspace = true, features = [
+    "reqwest",
+    "reqwest-rustls-tls",
+] }
+alloy-primitives = { workspace = true }
 once_cell = { workspace = true }
 log = { workspace = true }
 prometheus = { workspace = true }
 morph-prove = { workspace = true }
 axum = { workspace = true }
-# tower = { workspace = true }
-# tower-http = { workspace = true }
 dotenv = { workspace = true }
 flexi_logger = { workspace = true }
-hex = { workspace = true }
-morph-executor-client = { workspace = true }
-morph-executor-host = { workspace = true }
+prover-executor-client = { workspace = true }
+prover-executor-host = { workspace = true }
+

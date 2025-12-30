@@ -1,0 +1,17 @@
+[package]
+name = "prover-executor-host"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zstd = { workspace = true }
+anyhow = { workspace = true }
+once_cell = { workspace = true }
+prover-primitives = { workspace = true }
+prover-executor-client = { workspace = true }
+prover-utils = { workspace = true }
+alloy-consensus = { workspace = true }
+c-kzg = { workspace = true }
+kzg-rs = { workspace = true }
+alloy-eips= { workspace = true }

@@ -1,5 +1,5 @@
 [package]
-name = "sbv-primitives"
+name = "prover-primitives"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 
 version.workspace = true
@@ -12,14 +12,12 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-alloy = { workspace = true, features = ["consensus", "eips", "k256", "rlp", "rkyv", "serde"] }
-rkyv.workspace = true
+alloy-consensus = { workspace = true, features = ["k256"] }
+alloy-eips = { workspace = true, features = ["k256"] }
+alloy-primitives = { workspace = true, features = ["serde", "k256"] }
+alloy-rlp.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true
-tiny-keccak.workspace = true
-
-poseidon-bn254.workspace = true
-zktrie.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

@@ -18,7 +18,6 @@ sp1-sdk = { workspace = true }
 anyhow.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
-hex = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 log = { workspace = true }
@@ -29,11 +28,8 @@ dotenv = { workspace = true }
 
 
 # workspace
-morph-executor-host = { workspace = true }
-morph-executor-client = { workspace = true }
-morph-executor-utils = { workspace = true }
-sbv-primitives = { workspace = true }
+prover-executor-host = { workspace = true }
+prover-executor-client = { workspace = true }
+prover-primitives = { workspace = true }
+prover-utils = { workspace = true }
 
-[build-dependencies]
-sp1-helper = { workspace = true }
-morph-executor-utils = { workspace = true }

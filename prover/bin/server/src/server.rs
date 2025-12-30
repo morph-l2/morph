@@ -3,6 +3,7 @@ use crate::{
     queue::{ProveRequest, Prover},
     read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY,
 };
+use alloy_primitives::hex;
 use axum::{
     routing::{get, post},
     Router,
@@ -253,7 +254,10 @@ async fn query_prove_result(batch_index: String) -> String {
 
 async fn query_proof(batch_index: String) -> ProveResult {
     if batch_index.is_empty() {
-        return ProveResult { error_msg: "batch_index is empty ".to_string(), ..Default::default() };
+        return ProveResult {
+            error_msg: "batch_index is empty ".to_string(),
+            ..Default::default()
+        };
     }
     let proof_dir = match fs::read_dir(PROVER_PROOF_DIR.to_string()) {
         Ok(dir) => dir,
@@ -324,7 +328,13 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 Ok(file) => {
                     let reader = BufReader::new(file);
                     let proof: EvmProofFixture = serde_json::from_reader(reader).unwrap();
-                    proof_data.extend(alloy::hex::decode(proof.proof).unwrap());
+                    match hex::decode(proof.proof) {
+                        Ok(data) => proof_data.extend(data),
+                        Err(e) => {
+                            log::error!("Failed to decode proof data: {:#?}", e);
+                            result.error_msg = String::from("Failed to decode proof data");
+                        }
+                    }
                 }
                 Err(e) => {
                     log::error!("Failed to load proof_data: {:#?}", e);

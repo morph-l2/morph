@@ -1,16 +1,13 @@
 use crate::{metrics::METRICS, BatchInfo};
-use alloy::{
-    consensus::Transaction,
-    network::{Network, ReceiptResponse},
-    primitives::{Address, Bytes, TxHash, U256, U64},
-    providers::{Provider, RootProvider},
-    rpc::types::Log,
-    sol_types::SolCall,
-    transports::{
-        http::{Client, Http},
-        Transport,
-    },
-};
+use alloy_consensus::Transaction;
+use alloy_network::{Network, ReceiptResponse};
+use alloy_primitives::{hex, Address, Bytes, TxHash, U256, U64};
+use alloy_provider::{DynProvider, Provider};
+use alloy_rpc_types::Log;
+use alloy_sol_types::SolCall;
+
+use anyhow::{anyhow, Result};
+use futures::future::join_all;
 
 use crate::{
     Rollup::{self, RollupInstance},
@@ -18,24 +15,23 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub struct BatchSyncer<T, P, N> {
-    l1_provider: RootProvider<Http<Client>>,
-    l2_provider: RootProvider<Http<Client>>,
-    l1_rollup: RollupInstance<Http<Client>, RootProvider<Http<Client>>>,
-    l1_shadow_rollup: ShadowRollupInstance<T, P, N>,
+pub struct BatchSyncer<P, N> {
+    l1_provider: DynProvider,
+    l2_provider: DynProvider,
+    l1_rollup: RollupInstance<DynProvider>,
+    l1_shadow_rollup: ShadowRollupInstance<P, N>,
 }
 
-impl<T, P, N> BatchSyncer<T, P, N>
+impl<P, N> BatchSyncer<P, N>
 where
-    P: Provider<T, N> + Clone,
-    T: Transport + Clone,
+    P: Provider<N> + Clone,
     N: Network,
 {
     pub fn new(
         rollup_address: Address,
         shadow_rollup_address: Address,
-        l1_provider: RootProvider<Http<Client>>,
-        l2_provider: RootProvider<Http<Client>>,
+        l1_provider: DynProvider,
+        l2_provider: DynProvider,
         wallet: P,
     ) -> Self {
         let l1_rollup = Rollup::RollupInstance::new(rollup_address, l1_provider.clone());
@@ -51,7 +47,7 @@ where
         &self,
         batch_info: BatchInfo,
         batch_header: Bytes,
-    ) -> Result<Option<BatchInfo>, anyhow::Error> {
+    ) -> Result<Option<BatchInfo>> {
         log::info!("start sync_batch...");
         // Batch should not have been verified yet.
         if self.is_prove_success(batch_info.batch_index).await.unwrap_or(true) {
@@ -112,12 +108,12 @@ where
             "sync batch of {:?}, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
             dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
             batch_info.batch_index,
-            alloy::hex::encode_prefixed(batch_store.prevStateRoot),
-            alloy::hex::encode_prefixed(batch_store.postStateRoot),
-            alloy::hex::encode_prefixed(batch_store.withdrawalRoot),
-            alloy::hex::encode_prefixed(batch_store.dataHash),
-            alloy::hex::encode_prefixed(batch_store.blobVersionedHash),
-            alloy::hex::encode_prefixed(batch_store.sequencerSetVerifyHash),
+            hex::encode_prefixed(batch_store.prevStateRoot),
+            hex::encode_prefixed(batch_store.postStateRoot),
+            hex::encode_prefixed(batch_store.withdrawalRoot),
+            hex::encode_prefixed(batch_store.dataHash),
+            hex::encode_prefixed(batch_store.blobVersionedHash),
+            hex::encode_prefixed(batch_store.sequencerSetVerifyHash),
         );
 
         // Commit the shadow batch.
@@ -130,7 +126,8 @@ where
                 return Ok(None);
             }
         };
-        let receipt = pending_tx.get_receipt().await.unwrap();
+        let receipt =
+            pending_tx.get_receipt().await.map_err(|e| anyhow!("get receipt error: {e}"))?;
         if !receipt.status() {
             log::error!("shadow_rollup.commit_batch check_receipt fail");
             return Ok(None);
@@ -140,12 +137,12 @@ where
         Ok(Some(batch_info))
     }
 
-    pub async fn get_committed_batch(&self) -> Result<Option<(BatchInfo, Bytes)>, String> {
+    pub async fn get_committed_batch(&self) -> Result<Option<(BatchInfo, Bytes)>> {
         let latest = match self.l1_provider.get_block_number().await {
             Ok(v) => U64::from(v),
             Err(e) => {
                 log::error!("l1_provider.get_block_number error: {:?}", e);
-                return Err("l1_provider.get_block_number error".to_string());
+                return Err(anyhow!("l1_provider.get_block_number error"));
             }
         };
 
@@ -161,7 +158,7 @@ where
             Ok(logs) => logs,
             Err(e) => {
                 log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
-                return Err("l1_rollup.commit_batch.get_logs provider error".to_string());
+                return Err(anyhow!("l1_rollup.commit_batch.get_logs provider error"));
             }
         };
         if logs.is_empty() {
@@ -180,29 +177,29 @@ where
                 (_index.to::<u64>(), log.transaction_hash.unwrap_or_default())
             }
             None => {
-                return Err("find commit_batch log error".to_string());
+                return Err(anyhow!("find commit_batch log error"));
             }
         };
 
         if batch_index_hash.0 == 0 {
-            return Err(String::from("batch_index is 0"));
+            return Err(anyhow!("batch_index is 0"));
         }
 
         let prev_tx_hash = match logs.get(logs.len() - 3) {
             Some(log) => log.transaction_hash.unwrap_or_default(),
             None => {
-                return Err("find commit_batch log error".to_string());
+                return Err(anyhow!("find commit_batch log error"));
             }
         };
 
         let (blocks, total_txn_count) =
             match self.batch_blocks_inspect(prev_tx_hash, batch_index_hash.1).await {
                 Some(block_txn) => block_txn,
-                None => return Err(String::from("batch_blocks_inspect none")),
+                None => return Err(anyhow!("batch_blocks_inspect none")),
             };
 
         if blocks.0 >= blocks.1 {
-            return Err(String::from("blocks is empty"));
+            return Err(anyhow!("blocks is empty"));
         }
 
         let batch_info: BatchInfo = BatchInfo {
@@ -217,12 +214,12 @@ where
             Some(log) => log.transaction_hash.unwrap_or_default(),
 
             None => {
-                return Err("find commit_batch log error".to_string());
+                return Err(anyhow!("find commit_batch log error"));
             }
         };
         let batch_input = batch_input_inspect(&self.l1_provider, next_tx_hash)
             .await
-            .ok_or_else(|| "Failed to inspect batch header".to_string())?;
+            .ok_or_else(|| anyhow!("Failed to inspect batch header"))?;
 
         log::info!("Found the committed batch, batch index = {:#?}", batch_index_hash.0);
         Ok(Some((batch_info, batch_input.0)))
@@ -245,18 +242,24 @@ where
         }
 
         let mut total_tx_count: u64 = 0;
-        for i in start_block..end_block + 1 {
-            total_tx_count += self
-                .l2_provider
-                .get_block_transaction_count_by_number(i.into())
-                .await
-                .unwrap_or_default()
-                .unwrap_or_default();
+        let block_numbers: Vec<u64> = (start_block..=end_block).collect();
+        for chunk in block_numbers.chunks(10) {
+            let mut tasks = Vec::with_capacity(chunk.len());
+            for &i in chunk {
+                let provider = self.l2_provider.clone();
+                tasks.push(async move {
+                    provider.get_block_transaction_count_by_number(i.into()).await
+                });
+            }
+            let results = join_all(tasks).await;
+            for res in results {
+                total_tx_count += res.unwrap_or_default().unwrap_or_default();
+            }
         }
 
         log::info!(
             "decode_blocks, blocks_len: {:#?}, start_block: {:#?}, txn_in_batch: {:?}",
-            end_block - start_block,
+            end_block - start_block + 1,
             start_block,
             total_tx_count
         );
@@ -269,7 +272,7 @@ where
     async fn is_prove_success(&self, batch_index: u64) -> Option<bool> {
         let is_prove_success: bool =
             match self.l1_shadow_rollup.isProveSuccess(U256::from(batch_index)).call().await {
-                Ok(x) => x._0,
+                Ok(x) => x,
                 Err(e) => {
                     log::info!(
                         "query l1_shadow_rollup.is_prove_success error, batch index = {:#?}, {:#?}",
@@ -283,10 +286,7 @@ where
     }
 }
 
-pub async fn batch_input_inspect(
-    l1_provider: &RootProvider<Http<Client>>,
-    hash: TxHash,
-) -> Option<(Bytes, u64)> {
+pub async fn batch_input_inspect(l1_provider: &DynProvider, hash: TxHash) -> Option<(Bytes, u64)> {
     //Step1.  Get transaction
     let result = l1_provider.get_transaction_by_hash(hash).await;
     let tx = match result {
@@ -308,7 +308,7 @@ pub async fn batch_input_inspect(
         log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
         return None;
     }
-    let param = if let Ok(_param) = Rollup::commitBatchCall::abi_decode(&data, false) {
+    let param = if let Ok(_param) = Rollup::commitBatchCall::abi_decode(&data) {
         _param
     } else {
         log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
@@ -320,13 +320,10 @@ pub async fn batch_input_inspect(
 }
 #[tokio::test]
 async fn test_sync_batch() {
-    use alloy::{
-        network::EthereumWallet,
-        primitives::Address,
-        providers::{ProviderBuilder, RootProvider},
-        signers::local::PrivateKeySigner,
-        transports::http::{Client, Http},
-    };
+    use alloy_network::EthereumWallet;
+    use alloy_primitives::Address;
+    use alloy_provider::ProviderBuilder;
+    use alloy_signer_local::PrivateKeySigner;
     use std::{env::var, str::FromStr};
 
     let l1_rpc: String = var("SHADOW_PROVING_VERIFY_L1_RPC").unwrap_or(
@@ -340,19 +337,16 @@ async fn test_sync_batch() {
 
     let signer: PrivateKeySigner = private_key.parse().unwrap();
     let wallet: EthereumWallet = EthereumWallet::from(signer.clone());
-    let l1_provider: RootProvider<Http<Client>> =
-        ProviderBuilder::new().on_http(l1_rpc.parse().unwrap());
-    let l2_provider: RootProvider<Http<Client>> =
-        ProviderBuilder::new().on_http(l2_rpc.parse().unwrap());
+    let l1_provider: DynProvider =
+        ProviderBuilder::new().connect_http(l1_rpc.parse().unwrap()).erased();
+    let l2_provider: DynProvider =
+        ProviderBuilder::new().connect_http(l2_rpc.parse().unwrap()).erased();
 
     let rollup = var("SHADOW_PROVING_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
     let shadow_rollup =
         var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
 
-    let l1_signer = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .wallet(wallet)
-        .on_http(l1_rpc.parse().unwrap());
+    let l1_signer = ProviderBuilder::new().wallet(wallet).connect_http(l1_rpc.parse().unwrap());
 
     let bs = BatchSyncer::new(
         Address::from_str(&rollup).unwrap(),
@@ -367,12 +361,15 @@ async fn test_sync_batch() {
 
 #[tokio::test]
 async fn test_inspect_batch_header() {
-    use alloy::{primitives::B256, providers::ProviderBuilder};
+    use alloy_primitives::B256;
+    use alloy_provider::ProviderBuilder;
     use std::str::FromStr;
 
-    let provider: RootProvider<Http<Client>> = ProviderBuilder::new().on_http(
-        "https://eth-holesky.g.alchemy.com/v2/xxxxxxx".parse().expect("parse l1_rpc to Url"),
-    );
+    let provider: DynProvider = ProviderBuilder::new()
+        .connect_http(
+            "https://eth-holesky.g.alchemy.com/v2/xxxxxxx".parse().expect("parse l1_rpc to Url"),
+        )
+        .erased();
     let next_tx_hash =
         B256::from_str("0x2bdfb2bd0b8c9210bfb593cc5734e3f092fcdd54fe74c46a938448b0422089f7")
             .unwrap();

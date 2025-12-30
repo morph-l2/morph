@@ -1,41 +1,21 @@
 //! Stateless Block Verifier primitives library.
 
 use crate::types::{tx_alt_fee::TxAltFee, TxL1Msg, TypedTransaction};
-use alloy::{
-    consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy},
-    eips::eip2930::AccessList,
-    primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
-};
-use std::{fmt::Debug, sync::Once};
-use zktrie::ZkMemoryDb;
+use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy};
+use alloy_eips::eip2930::AccessList;
+use alloy_primitives::{Bytes, ChainId, Signature, SignatureError, TxKind};
+use std::fmt::Debug;
 
 /// Predeployed contracts
 pub mod predeployed;
 /// Types definition
 pub mod types;
 
-pub use alloy::{
-    consensus as alloy_consensus,
-    consensus::Transaction,
-    eips::eip7702::SignedAuthorization,
-    primitives as alloy_primitives,
-    primitives::{Address, B256, U256},
-};
-pub use zktrie as zk_trie;
-
-/// Initialize the hash scheme for zkTrie.
-pub fn init_hash_scheme() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        zktrie::init_hash_scheme_simple(|a: &[u8; 32], b: &[u8; 32], domain: &[u8; 32]| {
-            use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
-            let a = Fr::from_bytes(a).into_option()?;
-            let b = Fr::from_bytes(b).into_option()?;
-            let domain = Fr::from_bytes(domain).into_option()?;
-            Some(hash_with_domain(&[a, b], domain).to_repr())
-        });
-    });
-}
+pub use alloy_consensus;
+pub use alloy_consensus::Transaction;
+pub use alloy_eips::eip7702::SignedAuthorization;
+pub use alloy_primitives;
+pub use alloy_primitives::{Address, B256, U256};
 
 /// Blanket trait for block trace extensions.
 pub trait Block: Debug {
@@ -85,13 +65,13 @@ pub trait Block: Debug {
     fn flatten_proofs(&self) -> impl Iterator<Item = (&B256, &[u8])>;
 
     /// Update zktrie state from trace
-    #[inline]
-    fn build_zktrie_db(&self, zktrie_db: &mut ZkMemoryDb) {
-        init_hash_scheme();
-        for (_, bytes) in self.flatten_proofs() {
-            zktrie_db.add_node_bytes(bytes, None).unwrap();
-        }
-    }
+    // #[inline]
+    // fn build_zktrie_db(&self, zktrie_db: &mut ZkMemoryDb) {
+    //     init_hash_scheme();
+    //     for (_, bytes) in self.flatten_proofs() {
+    //         zktrie_db.add_node_bytes(bytes, None).unwrap();
+    //     }
+    // }
 
     /// Number of l1 transactions
     #[inline]
@@ -116,26 +96,6 @@ pub trait Block: Debug {
         // 0x7e is l1 tx
         self.transactions().filter(|tx| !tx.is_l1_tx()).count() as u64
     }
-
-    /// Hash the header of the block
-    #[inline]
-    fn hash_da_header(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        let num_txs = (self.num_l1_txs() + self.num_l2_txs()) as u16;
-        hasher.update(&self.number().to_be_bytes());
-        hasher.update(&self.timestamp().to::<u64>().to_be_bytes());
-        hasher
-            .update(&self.base_fee_per_gas().unwrap_or_default().to_be_bytes::<{ U256::BYTES }>());
-        hasher.update(&self.gas_limit().to::<u64>().to_be_bytes());
-        hasher.update(&num_txs.to_be_bytes());
-    }
-
-    /// Hash the l1 messages of the block
-    #[inline]
-    fn hash_l1_msg(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        for tx_hash in self.transactions().filter(|tx| tx.is_l1_tx()).map(|tx| tx.tx_hash()) {
-            hasher.update(tx_hash.as_slice())
-        }
-    }
 }
 
 /// Utility trait for transaction trace
@@ -150,7 +110,7 @@ pub trait TxTrace {
     fn nonce(&self) -> u64;
 
     /// Get `gas_limit`.
-    fn gas_limit(&self) -> u128;
+    fn gas_limit(&self) -> u64;
 
     /// Get `gas_price`
     fn gas_price(&self) -> u128;
@@ -254,7 +214,7 @@ pub trait TxTrace {
                     gas_limit: self.gas_limit(),
                     max_fee_per_gas: self.max_fee_per_gas(),
                     max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
-                    to: self.to(),
+                    to: *self.to().to().expect("EIP-7702 transaction must have a recipient"),
                     value: self.value(),
                     access_list: self.access_list(),
                     authorization_list: self.authorization_list(),
@@ -376,7 +336,7 @@ impl<T: TxTrace> TxTrace for &T {
         (*self).nonce()
     }
 
-    fn gas_limit(&self) -> u128 {
+    fn gas_limit(&self) -> u64 {
         (*self).gas_limit()
     }
 

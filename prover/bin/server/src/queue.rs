@@ -3,19 +3,14 @@ use std::{
     io::{BufReader, BufWriter, Write},
     path::PathBuf,
     sync::Arc,
-    thread,
     time::{Duration, Instant},
 };
 
 use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
-use alloy::{
-    providers::{Provider, ProviderBuilder, ReqwestProvider, RootProvider},
-    transports::http::reqwest,
-};
-use anyhow::anyhow;
-use morph_executor_client::{BlobVerifier, EVMVerifier};
+use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use morph_prove::{evm::EvmProofFixture, prove};
-use sbv_primitives::types::BlockTrace;
+use prover_executor_client::{types::input::BlockInput, BlobVerifier, EVMVerifier};
+use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -31,14 +26,13 @@ pub struct ProveRequest {
 
 pub struct Prover {
     pub prove_queue: Arc<Mutex<Vec<ProveRequest>>>,
-    provider: ReqwestProvider,
+    provider: DynProvider,
 }
 
 impl Prover {
     pub fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
-        let url = reqwest::Url::parse(PROVER_L2_RPC.as_str())
-            .map_err(|_| anyhow!("Invalid L2 RPC URL"))?;
-        let provider = ProviderBuilder::new().on_provider(RootProvider::new_http(url));
+        let rpc_url = PROVER_L2_RPC.parse()?;
+        let provider = ProviderBuilder::new().connect_http(rpc_url).erased();
 
         Ok(Self { prove_queue, provider })
     }
@@ -47,7 +41,7 @@ impl Prover {
     pub async fn prove_for_queue(&mut self) {
         log::info!("Waiting for prove request");
         loop {
-            thread::sleep(Duration::from_millis(12000));
+            tokio::time::sleep(Duration::from_millis(12000)).await;
 
             // Step1. Get request from queue
             let (batch_index, start_block, end_block) = match self.prove_queue.lock().await.pop() {
@@ -117,13 +111,16 @@ impl Prover {
 }
 
 fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
-    let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
+    let proof_dir =
+        PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
-    blocks.iter_mut().for_each(|block| block.flatten());
-    let verify_result = EVMVerifier::verify(blocks);
+
+    let blocks_inputs =
+        blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+    let verify_result = EVMVerifier::verify(blocks_inputs);
 
     if let Ok(batch_info) = verify_result {
-        let blob_info = morph_executor_host::get_blob_info(blocks).unwrap();
+        let blob_info = prover_executor_host::get_blob_info(blocks).unwrap();
         let (versioned_hash, _) = BlobVerifier::verify(&blob_info, blocks.len()).unwrap();
 
         // Save batch_header
@@ -134,7 +131,8 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
         batch_header.extend_from_slice(&batch_info.data_hash().0);
         batch_header.extend_from_slice(&versioned_hash.0);
         batch_header.extend_from_slice(&batch_info.sequencer_root().0);
-        let mut batch_file = File::create(format!("{}/batch_header.data", proof_dir)).unwrap();
+        batch_header.extend_from_slice(&batch_info.sequencer_root().0);
+        let mut batch_file = File::create(proof_dir.join("batch_header.data")).unwrap();
         batch_file.write_all(&batch_header[..]).expect("failed to batch_header");
         true
     } else {
@@ -143,7 +141,7 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
             "error_code": "EVM_EXECUTE_NOT_EXPECTED",
             "error_msg": e.to_string()
         });
-        let mut batch_file = File::create(format!("{}/execute_result.json", proof_dir)).unwrap();
+        let mut batch_file = File::create(proof_dir.join("execute_result.json")).unwrap();
         batch_file
             .write_all(serde_json::to_string_pretty(&error_data).unwrap().as_bytes())
             .expect("failed to write error");
@@ -153,8 +151,8 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
 }
 
 fn save_proof(batch_index: u64, proof: EvmProofFixture) {
-    let proof_dir = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
-    let batch_dir = PathBuf::from(proof_dir);
+    let batch_dir =
+        PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
     std::fs::create_dir_all(&batch_dir).expect("failed to create proof path");
     std::fs::write(
         batch_dir.join("plonk_proof.json"),
@@ -169,7 +167,7 @@ async fn get_block_traces(
     batch_index: u64,
     start_block: u64,
     end_block: u64,
-    provider: &ReqwestProvider,
+    provider: &DynProvider,
 ) -> Option<Vec<BlockTrace>> {
     let mut block_traces: Vec<BlockTrace> = Vec::new();
     for block_num in start_block..end_block + 1 {
@@ -202,9 +200,9 @@ fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
 
 #[allow(dead_code)]
 fn save_trace(batch_index: u64, chunk_traces: &Vec<BlockTrace>) {
-    let path = PROVER_PROOF_DIR.to_string() + format!("/batch_{}", batch_index).as_str();
-    fs::create_dir_all(path.clone()).unwrap();
-    let file = File::create(format!("{}/block_traces.json", path.as_str())).unwrap();
+    let path = PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
+    fs::create_dir_all(&path).unwrap();
+    let file = File::create(path.join("block_traces.json")).unwrap();
     let writer = BufWriter::new(file);
 
     serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();

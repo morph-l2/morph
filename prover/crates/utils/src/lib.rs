@@ -1,17 +1,48 @@
-//! Stateless Block Verifier utils library.
+use std::str::FromStr;
 
-#[cfg(any(feature = "dev", test))]
-#[doc(hidden)]
-pub use tracing;
+pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
+    std::env::var(var_name)
+        .map(|s| s.parse::<T>().unwrap_or_else(|_| default.clone()))
+        .unwrap_or(default)
+}
 
-#[macro_use]
-mod macros;
 
-mod utils;
-#[cfg(any(feature = "debug-account", feature = "debug-storage"))]
-pub use utils::debug::DebugRecorder;
 
-/// Metrics module
-#[cfg(feature = "metrics")]
-#[doc(hidden)]
-pub mod metrics;
+/// Profile the given code block cycle count.
+#[macro_export]
+macro_rules! profile {
+    ($name:expr, $block:block) => {{
+        #[cfg(target_os = "zkvm")]
+        {
+            println!("cycle-tracker-start: {}", $name);
+            let result = (|| $block)();
+            println!("cycle-tracker-end: {}", $name);
+            result
+        }
+
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            $block
+        }
+    }};
+}
+
+/// Profile the given code block and add the cycle count to the execution report.
+#[macro_export]
+macro_rules! profile_report {
+    ($name:expr, $block:block) => {{
+        #[cfg(target_os = "zkvm")]
+        {
+            println!("cycle-tracker-report-start: {}", $name);
+            let result = (|| $block)();
+            println!("cycle-tracker-report-end: {}", $name);
+            result
+        }
+
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            $block
+        }
+    }};
+}
+

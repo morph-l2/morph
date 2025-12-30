@@ -3,16 +3,15 @@ members = [
     "bin/host",
     "bin/client",
     "bin/server",
-    "crates/morph-executor/host",
-    "crates/morph-executor/client",
-    "crates/morph-executor/utils",
-    "crates/core",
+    "bin/shadow-prove",
+    "crates/executor/host",
+    "crates/executor/client",
+    "crates/executor/core",
     "crates/primitives",
-    "crates/sbv",
     "crates/utils",
-    "tests/*/*",
+    "crates/storage",
 ]
-exclude = ["bin/shadow-prove", "bin/challenge"]
+exclude = ["bin/challenge"]
 resolver = "2"
 
 [workspace.package]
@@ -25,128 +24,120 @@ homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 repository = "https://github.com/morph-l2/morph/tree/main/prover"
 
 [workspace.dependencies]
-alloy = { version = "0.3" }
-hex = "0.4"
-once_cell = "1.19"
-rkyv = { version = "0.7", features = ["validation"] }
-thiserror = "1.0"
-tiny-keccak = "2.0"
-getrandom = { version = "*", features = ["custom"] } # just for disable
-log = "0.4"
-prometheus = { version = "0.9", features = ["process"] }
-zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = [
-    "experimental",
-] }
-ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
-
-# crypto
-c-kzg = { version = "1.0.3", features = ["no-threads"] }
-kzg-rs = { git = "https://github.com/morph-l2/kzg-rs.git", branch = "sp1-bls-dev" }
-sha2 = "0.10.8"
-
-sp1-zkvm = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0" }
-sp1-sdk = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0", features = [
-    "native-gnark",
-] }
-sp1-helper = { git = "https://github.com/morph-l2/sp1.git", branch = "morph-1.0" }
-
-# dependencies from scroll-tech
-poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master", features = [
-    "bn254",
-] }
-zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features = [
-    "rs_zktrie",
-] }
-
-# binary dependencies
+# General Utilities
 anyhow = "1.0"
-async-channel = "2.2"
+cfg-if = "1.0.0"
 clap = "4"
+csv = "1.3"
+ctor = "0.2"
+dotenv = "0.15.0"
 env_logger = "0.9"
-futures = "0.3"
+flexi_logger = "0.29"
+log = "0.4"
+once_cell = "1.19"
+thiserror = "1.0"
+url = "2.5"
+
+# Serialization
 serde = "1.0"
 serde_json = "1.0"
 serde_with = "3.9"
-tokio = { version = "1", default-features = false }
-url = "2.5"
-eyre = "0.6"
+
+# Async & Networking
 axum = "0.4.3"
-# tower = { version = "0.4", features = ["full"] }
-# tower-http = { version = "0.4", features = ["full"] }
-dotenv = "0.15.0"
-flexi_logger = "0.29"
-
-# optional dependencies
-csv = "1.3"
-ctor = "0.2"
-hyper = { version = "1.4", features = ["server", "http1"] }
-hyper-util = { version = "0.1", features = ["tokio"] }
-http-body-util = "0.1"
-prometheus-client = "0.22"
-# pprof = { version = "0.13", features = ["flamegraph"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-cfg-if = "1.0.0"
-
-# dev dependencies
-rand = "0.8"
+futures = "0.3"
 reqwest = "0.12"
+tokio = { version = "1.21", default-features = false }
 
-# workspace
-sbv = { path = "crates/sbv" }
-sbv-core = { path = "crates/core" }
-sbv-primitives = { path = "crates/primitives" }
-sbv-utils = { path = "crates/utils" }
-morph-executor-host = { path = "crates/morph-executor/host" }
-morph-executor-client = { path = "crates/morph-executor/client" }
-morph-executor-utils = { path = "crates/morph-executor/utils" }
+# Logging & Metrics
+prometheus = { version = "0.9", features = ["process"] }
+prometheus-client = "0.22"
+
+# Compression
+ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
+zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = [
+    "experimental",
+] }
+
+# Crypto
+c-kzg = "2.1.5"
+kzg-rs = { git = "https://github.com/succinctlabs/kzg-rs" }
+sha2 = "0.10.8"
+rand = "0.8"
+
+# EVM & Blockchain (Alloy, REVM, Reth)
+alloy = { version = "1.1.0", default-features = false }
+alloy-chains = { version = "0.2.17", default-features = false }
+alloy-consensus = { version = "=1.1.0", default-features = false, features = [
+    "serde",
+    "serde-bincode-compat",
+] }
+alloy-eips = { version = "1.1.0", default-features = false, features = ["kzg"] }
+alloy-evm = { version = "0.23.1", default-features = false }
+alloy-genesis = { version = "1.1.0", default-features = false, features = [
+    "serde-bincode-compat",
+] }
+alloy-json-rpc = { version = "1.1.0", default-features = false }
+alloy-network = { version = "1.1.0", default-features = false }
+alloy-primitives = { version = "1.4.1", default-features = false, features = [
+    "sha3-keccak",
+    "map-hashbrown",
+] }
+alloy-provider = { version = "=1.1.0", default-features = false, features = [
+    "reqwest",
+    "reqwest-rustls-tls",
+] }
+alloy-rlp = "0.3.10"
+alloy-rpc-client = { version = "1.1.0", default-features = false }
+alloy-rpc-types = { version = "1.1.0", default-features = false, features = [
+    "eth",
+] }
+alloy-rpc-types-debug = { version = "1.1.0", default-features = false }
+alloy-serde = "1.1.0"
+alloy-transport = { version = "1.1.0", default-features = false }
+alloy-transport-http = { version = "1.1.0", features = [
+    "reqwest-rustls-tls",
+], default-features = false }
+alloy-transport-ws = { version = "1.1.0" }
+alloy-trie = "0.9.1"
+alloy-sol-types = { version = "1.4.1", features = ["json"] }
+alloy-contract = { version = "1.1.0", default-features = false }
+alloy-signer-local = { version = "=1.1.0", default-features = false }
+revm = { version = "31.0.1", features = [
+    "serde",
+    "bn",
+], default-features = false }
+revm-database = { version = "9.0.4", default-features = false }
+revm-database-interface = { version = "8.0.5", default-features = false }
+revm-primitives = { version = "21.0.2", features = [
+    "serde",
+], default-features = false }
+rsp-mpt = { git = "https://github.com/succinctlabs/rsp.git", branch = "main" }
+
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.1", default-features = false }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
+
+# ZK / SP1
+sp1-sdk = { version = "5.1.0" }
+sp1-zkvm = { version = "5.1.0" }
+
+# Workspace Members
 morph-prove = { path = "bin/host" }
-# shadow-prove = { path = "shadow-prove" }
-
-[workspace.dependencies.revm]
-git = "https://github.com/morph-l2/revm"
-branch = "release/v42"
-default-features = false
-features = [
-    "morph-default-handler",
-    "morph-poseidon-codehash",
-    "std",
-    "optional_no_base_fee",
-]
-
-[workspace.dependencies.revm-primitives]
-git = "https://github.com/morph-l2/revm"
-branch = "release/v42"
-default-features = false
-features = [
-    "morph-default-handler",
-    "morph-poseidon-codehash",
-    "std",
-    "optional_no_base_fee",
-]
-
+prover-executor-client = { path = "crates/executor/client" }
+prover-executor-core = { path = "crates/executor/core" }
+prover-executor-host = { path = "crates/executor/host" }
+prover-primitives = { path = "crates/primitives" }
+prover-storage = { path = "crates/storage" }
+prover-utils = { path = "crates/utils" }
 
 [workspace.lints.rust]
 missing-docs = "deny"
 missing-debug-implementations = "deny"
 
 [patch.crates-io]
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
-sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
-
-ff = { git = "https://github.com/scroll-tech/ff", branch = "feat/sp1" }
-
-# patched add rkyv support & MSRV 1.75
-ruint = { git = "https://github.com/scroll-tech/uint.git", branch = "v1.12.3" }
-
-alloy = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
-alloy-eips = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
-
-alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
-alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
-
-alloy-core = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0" }
-alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0" }
-
-#[profile.release]
-#debug-assertions = true
+# Precompile patches
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha2-0.10.9-sp1-4.0.0", package = "sha2" }
+bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-5.0.0", package = "substrate-bn" }
+sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha3-0.10.8-sp1-4.0.0" }
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-5.0.0" }
+p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-5.0.0" }

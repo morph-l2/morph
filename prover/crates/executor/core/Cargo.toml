@@ -1,0 +1,13 @@
+[package]
+name = "prover-executor-core"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+revm = { workspace = true, features = [
+    "serde",
+    "bn",
+], default-features = false }
+thiserror = { workspace = true }
+morph-revm = { workspace = true }

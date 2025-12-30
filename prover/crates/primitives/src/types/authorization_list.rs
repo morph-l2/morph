@@ -1,15 +1,9 @@
-use alloy::{
-    eips::eip7702::SignedAuthorization,
-    primitives::{Address, Signature, U256, U8},
-};
+use alloy_eips::eip7702::{Authorization, SignedAuthorization};
+use alloy_primitives::{Address, Signature, U256, U8};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A wrapper around SignedAuthorization that implements Archive trait
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
+/// A wrapper around SignedAuthorization that implements JSON-(de)serialization compat.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ArchivedSignedAuthorization {
     /// The chain ID of the authorization
     pub chain_id: U256,
@@ -21,7 +15,7 @@ pub struct ArchivedSignedAuthorization {
     pub r: U256,
     /// Signature s value
     pub s: U256,
-    /// Signature v value
+    /// Signature v value (yParity)
     pub v: U8,
 }
 
@@ -75,46 +69,36 @@ impl<'de> Deserialize<'de> for ArchivedSignedAuthorization {
 
 impl From<SignedAuthorization> for ArchivedSignedAuthorization {
     fn from(auth: SignedAuthorization) -> Self {
-        let (inner, signature) = auth.into_parts();
         Self {
-            chain_id: inner.chain_id,
-            address: inner.address,
-            nonce: inner.nonce,
-            r: signature.r(),
-            s: signature.s(),
-            v: U8::from(signature.v().y_parity_byte()),
+            chain_id: auth.chain_id,
+            address: auth.address,
+            nonce: auth.nonce,
+            r: auth.r(),
+            s: auth.s(),
+            v: U8::from(auth.y_parity()),
         }
     }
 }
 
 impl From<ArchivedSignedAuthorization> for SignedAuthorization {
     fn from(auth: ArchivedSignedAuthorization) -> Self {
-        use alloy::eips::eip7702::Authorization;
-        let inner =
-            Authorization { chain_id: auth.chain_id, address: auth.address, nonce: auth.nonce };
+        let inner = Authorization { chain_id: auth.chain_id, address: auth.address, nonce: auth.nonce };
+
+        // yParity: 0/1
         let v: u8 = auth.v.to();
-        let parity = alloy::primitives::Parity::try_from(v as u64).unwrap();
-        let signature = Signature::from_rs_and_parity(auth.r, auth.s, parity).unwrap();
+        let parity = v != 0;
+
+        // Convert U256 to FixedBytes<32> for r and s
+        let r_bytes = auth.r.to_be_bytes();
+        let s_bytes = auth.s.to_be_bytes();
+        let signature = Signature::from_scalars_and_parity(r_bytes.into(), s_bytes.into(), parity);
+
         inner.into_signed(signature)
     }
 }
 
-/// A wrapper around Vec<SignedAuthorization> that implements Archive trait
-#[derive(
-    Clone,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    Serialize,
-    Deserialize,
-)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug, PartialEq, Eq, Hash))]
+/// A wrapper around Vec<SignedAuthorization> that implements JSON (de)serialization.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AuthorizationList(pub Vec<ArchivedSignedAuthorization>);
 
 impl From<Vec<SignedAuthorization>> for AuthorizationList {
@@ -128,3 +112,4 @@ impl From<AuthorizationList> for Vec<SignedAuthorization> {
         auths.0.into_iter().map(SignedAuthorization::from).collect()
     }
 }
+
