@@ -28,14 +28,42 @@ func NewTxManager(l2Client *client.L2Client) *TxManager {
 
 // SendTransaction sends a transaction in a thread-safe manner
 // It ensures only one transaction is sent at a time to avoid nonce conflicts
+// Before sending, it checks if there are any pending transactions by comparing nonces
 func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	fromAddr := m.l2Client.WalletAddress()
+
+	// Check if there are pending transactions by comparing nonces
+	confirmedNonce, err := m.l2Client.GetClient().NonceAt(ctx, fromAddr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get confirmed nonce: %w", err)
+	}
+
+	pendingNonce, err := m.l2Client.GetClient().PendingNonceAt(ctx, fromAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	if pendingNonce > confirmedNonce {
+		// There are pending transactions, don't send new one
+		log.Warn("Found pending transactions, skipping this round",
+			"address", fromAddr.Hex(),
+			"confirmed_nonce", confirmedNonce,
+			"pending_nonce", pendingNonce,
+			"pending_count", pendingNonce-confirmedNonce)
+		return nil, fmt.Errorf("pending transactions exist (confirmed: %d, pending: %d)", confirmedNonce, pendingNonce)
+	}
+
+	log.Info("No pending transactions, proceeding to send",
+		"address", fromAddr.Hex(),
+		"nonce", confirmedNonce)
+
 	// Get transaction options (returns a copy)
 	auth := m.l2Client.GetOpts()
 	auth.Context = ctx
-	
+
 	// First, estimate gas with GasLimit = 0
 	auth.GasLimit = 0
 	auth.NoSend = true
@@ -43,12 +71,12 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate gas: %w", err)
 	}
-	
+
 	// Use 1.5x of estimated gas as the actual gas limit
 	estimatedGas := tx.Gas()
 	auth.GasLimit = estimatedGas * 3 / 2
 	log.Info("Gas estimation completed", "estimated", estimatedGas, "actual_limit", auth.GasLimit)
-	
+
 	// Now send the actual transaction
 	auth.NoSend = false
 	tx, err = txFunc(auth)
@@ -58,9 +86,10 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 
 	log.Info("Transaction sent",
 		"tx_hash", tx.Hash().Hex(),
+		"nonce", tx.Nonce(),
 		"gas_limit", tx.Gas())
 
-	// Wait for transaction to be mined with custom timeout and retry logic
+	// Wait for transaction to be mined with timeout and retry logic
 	receipt, err := m.waitForReceipt(ctx, tx.Hash(), 60*time.Second, 2*time.Second)
 	if err != nil {
 		log.Error("Failed to wait for transaction receipt",
@@ -68,6 +97,7 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 			"error", err)
 		return nil, err
 	}
+
 	return receipt, nil
 }
 
