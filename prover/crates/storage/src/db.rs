@@ -6,7 +6,7 @@ use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
 };
-use rsp_mpt::EthereumState;
+use prover_mpt::EthereumState;
 
 /// A read-only `revm::DatabaseRef` backed by an [`rsp_mpt::EthereumState`].
 ///

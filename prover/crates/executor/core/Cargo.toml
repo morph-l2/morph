@@ -11,3 +11,6 @@ revm = { workspace = true, features = [
 ], default-features = false }
 thiserror = { workspace = true }
 morph-revm = { workspace = true }
+morph-evm = { workspace = true }
+morph-chainspec = { workspace = true }
+alloy-evm = { workspace = true }

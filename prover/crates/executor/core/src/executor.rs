@@ -1,42 +1,43 @@
+use alloy_evm::{revm::Context, Database, EvmEnv};
+use morph_chainspec::hardfork::MorphHardfork;
+use morph_evm::MorphBlockEnv;
+use morph_revm::MorphEvm;
 
-use revm::context::{BlockEnv, CfgEnv, Evm, TxEnv};
-use revm::handler::instructions::EthInstructions;
-use revm::handler::{EthFrame, EthPrecompiles};
+use revm::context::BlockEnv;
 use revm::inspector::NoOpInspector;
-use revm::interpreter::interpreter::EthInterpreter;
-use revm::{Context, Database, MainBuilder, MainContext};
+use revm::MainContext;
 
-/// The Ethereum EVM context type.
-pub type EthEvmContext<DB> = Context<BlockEnv, TxEnv, CfgEnv, DB>;
+/// An Morph executor wrapper based on `revm`.
 
-/// An Ethereum executor wrapper based on `revm`.
-pub struct EthEvm<DB: Database, I, PRECOMPILE = EthPrecompiles> {
-    pub inner: Evm<
-        EthEvmContext<DB>,
-        I,
-        EthInstructions<EthInterpreter, EthEvmContext<DB>>,
-        PRECOMPILE,
-        EthFrame,
-    >,
+pub struct MorphExecutor<DB: Database, I = NoOpInspector> {
+    pub inner: morph_revm::MorphEvm<DB, I>,
 }
 
-impl<DB: Database> EthEvm<DB, NoOpInspector> {
+impl<DB: Database> MorphExecutor<DB> {
     /// Create a new [`MorphEvm`] instance.
-    pub fn new(db: DB, block_env: BlockEnv, cfg_env: CfgEnv) -> Self {
+    pub fn new(db: DB, input: EvmEnv<MorphHardfork, MorphBlockEnv>) -> Self {
         let ctx = Context::mainnet()
             .with_db(db)
-            .with_block(block_env)
-            .with_cfg(cfg_env)
-            .with_tx(Default::default())
-            .build_mainnet_with_inspector(NoOpInspector);
+            .with_block(input.block_env)
+            .with_cfg(input.cfg_env)
+            .with_tx(Default::default());
 
-        Self { inner: ctx }
+        let evm = MorphEvm::new(ctx, NoOpInspector {});
+        Self { inner: evm }
+    }
+    pub fn with_hardfork(db: DB, block_env: BlockEnv) -> Self {
+        let mut env: EvmEnv<MorphHardfork, MorphBlockEnv> =
+            EvmEnv::default().with_timestamp(block_env.timestamp);
+        env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Viridian);
+        env.block_env = MorphBlockEnv { inner: block_env };
+        Self::new(db, env)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use revm::context::TxEnv;
     use revm::database::State;
     use revm::primitives::{Address, U256};
     use revm::ExecuteEvm;
@@ -45,7 +46,10 @@ mod tests {
     fn test_main_context() {
         let state = State::builder().build();
 
-        let mut evm = EthEvm::new(state, BlockEnv::default(), CfgEnv::default());
+        let mut env = EvmEnv::default().with_timestamp(U256::ZERO);
+        env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Viridian);
+
+        let mut evm = MorphExecutor::new(state, env);
         let tx = TxEnv {
             nonce: 0,
             gas_price: 1_000_000_000,

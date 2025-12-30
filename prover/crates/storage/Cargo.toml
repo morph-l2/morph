@@ -10,7 +10,6 @@ repository.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-rsp-mpt = { workspace = true }
 revm = { workspace = true, features = [
     "serde",
     "bn",
@@ -20,6 +19,7 @@ alloy-primitives = { workspace = true, features = [
     "map-foldhash",
 ] }
 prover-primitives = { workspace = true }
+prover-mpt = { workspace = true }
 alloy-rpc-types-debug = { workspace = true }
 alloy-consensus = { workspace = true }
 

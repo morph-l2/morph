@@ -4,9 +4,9 @@ use crate::types::input::BlockInput;
 use alloy_consensus::Transaction;
 use alloy_primitives::Address;
 use alloy_primitives::{ruint::aliases::U256, uint};
-use prover_executor_core::EthEvm;
+use prover_executor_core::MorphExecutor;
 use reth_trie::{HashedPostState, KeccakKeyHasher};
-use revm::context::{BlockEnv, CfgEnv};
+use revm::context::BlockEnv;
 use revm::database::{BundleState, State};
 use revm::primitives::address;
 use revm::ExecuteEvm;
@@ -71,7 +71,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         beneficiary: block_input.current_block.coinbase,
         ..Default::default()
     };
-    let mut evm = EthEvm::new(state, block_env, CfgEnv::default());
+
+    let mut evm = MorphExecutor::with_hardfork(state, block_env);
     // Execute transactions in block.
     let block = &block_input.current_block;
     for tx in &block.transactions {

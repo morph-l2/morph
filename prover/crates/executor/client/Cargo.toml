@@ -5,26 +5,26 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-prover-primitives.workspace = true
-prover-executor-core.workspace = true
-kzg-rs = { workspace = true }
-sha2 = { workspace = true }
 anyhow = { workspace = true }
+cfg-if = { workspace = true }
+sha2 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true
 ruzstd = { workspace = true }
-cfg-if = { workspace = true }
-rsp-mpt = { workspace = true }
-revm = { workspace = true }
+kzg-rs = { workspace = true }
 thiserror = { workspace = true }
+alloy-rlp = { workspace = true }
 alloy-consensus.workspace = true
-reth-trie.workspace = true
-prover-storage.workspace = true
 alloy-primitives = { workspace = true, features = [
     "sha3-keccak",
     "map-hashbrown",
     "rayon",
 ] }
-alloy-rlp = { workspace = true }
-revm-primitives = { workspace = true }
+alloy-evm = { workspace = true }
+revm = { workspace = true }
+reth-trie.workspace = true
+prover-executor-core.workspace = true
+prover-primitives.workspace = true
+prover-storage.workspace = true
 prover-utils.workspace = true
+prover-mpt = { workspace = true }

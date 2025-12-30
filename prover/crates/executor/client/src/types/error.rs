@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, FixedBytes};
-use rsp_mpt::Error as MptError;
+use prover_mpt::Error as MptError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {

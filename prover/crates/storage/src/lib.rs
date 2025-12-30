@@ -40,7 +40,7 @@ pub fn trace_to_execution_witness(trace: &BlockTrace) -> anyhow::Result<Executio
 #[cfg(test)]
 mod tests {
     use prover_primitives::{types::BlockTrace, Block};
-    use rsp_mpt::EthereumState;
+    use prover_mpt::EthereumState;
     use std::fs::File;
     use std::io::BufReader;
 

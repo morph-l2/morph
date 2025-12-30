@@ -7,7 +7,7 @@ use prover_primitives::{
 };
 use prover_storage::trace_to_execution_witness;
 use revm::{primitives::keccak256, state::Bytecode};
-use rsp_mpt::EthereumState;
+use prover_mpt::EthereumState;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
