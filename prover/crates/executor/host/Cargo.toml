@@ -8,10 +8,18 @@ edition = "2021"
 zstd = { workspace = true }
 anyhow = { workspace = true }
 once_cell = { workspace = true }
-prover-primitives = { workspace = true }
-prover-executor-client = { workspace = true }
-prover-utils = { workspace = true }
 alloy-consensus = { workspace = true }
 c-kzg = { workspace = true }
 kzg-rs = { workspace = true }
-alloy-eips= { workspace = true }
+alloy-eips = { workspace = true }
+prover-primitives = { workspace = true }
+prover-executor-client = { workspace = true }
+prover-utils = { workspace = true }
+prover-storage.workspace = true
+prover-executor-core.workspace = true
+revm = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-network = { workspace = true }
+alloy-rpc-types = { workspace = true }
+reth-trie.workspace = true
+morph-revm = { workspace = true }

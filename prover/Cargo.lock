@@ -4608,7 +4608,7 @@ checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 [[package]]
 name = "morph-chainspec"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#6c51ca9dab75653bfffffdb6ecc8d58307042c46"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4627,7 +4627,7 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#6c51ca9dab75653bfffffdb6ecc8d58307042c46"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -4648,7 +4648,7 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#6c51ca9dab75653bfffffdb6ecc8d58307042c46"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4681,11 +4681,13 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#6c51ca9dab75653bfffffdb6ecc8d58307042c46"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
+ "alloy-eips",
  "alloy-evm",
  "alloy-primitives",
+ "alloy-rlp",
  "alloy-sol-types",
  "auto_impl",
  "derive_more 2.1.0",
@@ -6047,6 +6049,7 @@ dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
  "kzg-rs",
+ "morph-revm",
  "prover-executor-core",
  "prover-mpt",
  "prover-primitives",
@@ -6079,13 +6082,21 @@ version = "0.1.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
+ "alloy-network",
+ "alloy-provider",
+ "alloy-rpc-types",
  "anyhow",
  "c-kzg",
  "kzg-rs",
+ "morph-revm",
  "once_cell",
  "prover-executor-client",
+ "prover-executor-core",
  "prover-primitives",
+ "prover-storage",
  "prover-utils",
+ "reth-trie",
+ "revm",
  "zstd 0.13.0",
 ]
 
@@ -6145,12 +6156,22 @@ version = "2.0.0"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types",
  "alloy-rpc-types-debug",
+ "alloy-transport",
  "anyhow",
+ "async-trait",
  "prover-mpt",
  "prover-primitives",
+ "reth-primitives-traits",
+ "reth-storage-errors",
+ "reth-trie",
  "revm",
  "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

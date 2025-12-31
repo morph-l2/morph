@@ -1,9 +1,12 @@
 //! Storage utilities.
 
+pub mod account_proof;
+pub mod basic_rpc_db;
+pub mod error;
 /// `revm` database adapters backed by storage/witness data.
-pub mod db;
+pub mod witness_db;
 
-pub use db::TrieDB;
+pub use witness_db::TrieDB;
 
 use alloy_primitives::Bytes;
 use alloy_rpc_types_debug::ExecutionWitness;
@@ -39,8 +42,8 @@ pub fn trace_to_execution_witness(trace: &BlockTrace) -> anyhow::Result<Executio
 
 #[cfg(test)]
 mod tests {
-    use prover_primitives::{types::BlockTrace, Block};
     use prover_mpt::EthereumState;
+    use prover_primitives::{types::BlockTrace, Block};
     use std::fs::File;
     use std::io::BufReader;
 

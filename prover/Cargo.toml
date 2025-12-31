@@ -37,6 +37,8 @@ flexi_logger = "0.29"
 log = "0.4"
 once_cell = "1.19"
 thiserror = "2.0.14"
+async-trait = "0.1.89"
+tracing = { version = "0.1.44", default-features = false }
 
 # Serialization
 serde = "1.0"
@@ -47,7 +49,10 @@ serde_with = "3.9"
 axum = "0.4.3"
 futures = "0.3"
 reqwest = "0.12"
-tokio = { version = "1.21", default-features = false }
+tokio = { version = "1.21", default-features = false, features = [
+    "rt",
+    "rt-multi-thread",
+] }
 
 # Logging & Metrics
 prometheus = { version = "0.9", features = ["process"] }
@@ -106,11 +111,13 @@ alloy-signer-local = { version = "=1.1.3", default-features = false }
 rlp = "0.5.2"
 hex-literal = "0.4.1"
 revm = { version = "33.1.0", features = ["optional_fee_charge"] }
+reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3" }
+reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3" }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "morph-tx" }
+morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "morph-tx" }
+morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "morph-tx" }
+morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "morph-tx" }
 
 # ZK / SP1
 sp1-sdk = { version = "5.1.0" }

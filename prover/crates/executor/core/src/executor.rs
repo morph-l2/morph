@@ -37,6 +37,7 @@ impl<DB: Database> MorphExecutor<DB> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use morph_revm::MorphTxEnv;
     use revm::context::TxEnv;
     use revm::database::State;
     use revm::primitives::{Address, U256};
@@ -59,7 +60,8 @@ mod tests {
             data: revm::primitives::Bytes::new(),
             ..Default::default()
         };
-        let _rt = evm.inner.transact_one(tx);
+        let morph_tx = MorphTxEnv { inner: tx, rlp_bytes: Default::default(), fee_token_id: 1u16 };
+        let _rt = evm.inner.transact_one(morph_tx);
         let _state = evm.inner.finalize();
         let _db = evm.inner.journaled_state.database.take_bundle();
     }

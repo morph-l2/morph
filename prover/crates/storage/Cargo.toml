@@ -22,6 +22,16 @@ prover-primitives = { workspace = true }
 prover-mpt = { workspace = true }
 alloy-rpc-types-debug = { workspace = true }
 alloy-consensus = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-transport = { workspace = true }
+thiserror = { workspace = true }
+alloy-rpc-types = { workspace = true }
+reth-trie = { workspace = true }
+reth-primitives-traits = { workspace = true }
+reth-storage-errors = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

@@ -28,3 +28,4 @@ prover-primitives.workspace = true
 prover-storage.workspace = true
 prover-utils.workspace = true
 prover-mpt = { workspace = true }
+morph-revm = { workspace = true }
