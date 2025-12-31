@@ -14,12 +14,12 @@ Token Price Oracle service monitors token prices and updates the price ratio bet
 
 ## Quick Start
 
-### Environment Variables
+### Environment Variables (Local Signing Mode)
 
 ```bash
 # Required
 export TOKEN_PRICE_ORACLE_L2_ETH_RPC="https://rpc.morphl2.io"
-export TOKEN_PRICE_ORACLE_PRIVATE_KEY="0x..."
+export TOKEN_PRICE_ORACLE_PRIVATE_KEY="0x..."  # Required for local signing only
 export TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL="https://api.bitget.com"
 export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET="1:BTCUSDT,2:ETHUSDT"
 
@@ -30,6 +30,8 @@ export TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE="true"
 export TOKEN_PRICE_ORACLE_METRICS_PORT="6060"
 export TOKEN_PRICE_ORACLE_LOG_LEVEL="info"
 ```
+
+> **Note**: `PRIVATE_KEY` is only required when using local signing mode. For production, use [External Signing](#external-signing-recommended-for-production) instead.
 
 ### Build and Run
 
@@ -52,14 +54,19 @@ docker run -d \
 
 ## Configuration
 
-### Required
+### Required (All Modes)
 
 | Environment Variable | Description |
 |---------------------|-------------|
 | `TOKEN_PRICE_ORACLE_L2_ETH_RPC` | L2 node RPC endpoint |
-| `TOKEN_PRICE_ORACLE_PRIVATE_KEY` | Signing private key (local signing mode) |
 | `TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL` | Bitget API base URL |
 | `TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET` | TokenID to trading pair mapping |
+
+### Required (Local Signing Mode Only)
+
+| Environment Variable | Description |
+|---------------------|-------------|
+| `TOKEN_PRICE_ORACLE_PRIVATE_KEY` | Signing private key (not needed if using external signing) |
 
 ### Optional
 
