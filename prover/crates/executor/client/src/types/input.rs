@@ -1,13 +1,13 @@
-use alloy_consensus::Transaction;
+use alloy_consensus::{transaction::TxHashRef, Transaction};
 use alloy_primitives::{map::HashMap, Keccak256, U256};
-use prover_storage::TrieDB;
+use prover_mpt::EthereumState;
 use prover_primitives::{
-    types::{BlockHeader, BlockTrace, TypedTransaction},
-    Address, Block, B256,
+    types::{BlockHeader, BlockTrace},
+    Address, Block, MorphTxEnvelope, B256,
 };
 use prover_storage::trace_to_execution_witness;
+use prover_storage::TrieDB;
 use revm::{primitives::keccak256, state::Bytecode};
-use prover_mpt::EthereumState;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -31,7 +31,7 @@ pub struct L2Block {
     /// block
     pub header: BlockHeader,
     /// transactions
-    pub transactions: Vec<TypedTransaction>,
+    pub transactions: Vec<MorphTxEnvelope>,
     /// previous state root
     pub prev_state_root: B256,
     /// post state root
@@ -136,4 +136,33 @@ impl BlockInput {
 pub struct ExecutorInput {
     pub block_inputs: Vec<BlockInput>,
     pub blob_info: BlobInfo,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::types::input::L2Block;
+    use alloy_consensus::Typed2718;
+    use prover_primitives::types::BlockTrace;
+    use std::fs::File;
+    use std::io::BufReader;
+
+    #[test]
+    fn test_trace_to_execution_witness() {
+        let block_trace = load_trace("../../../testdata/mpt/local_transfer_eth.json");
+        println!("loaded {} blocks", block_trace.len());
+        let blocks: Vec<L2Block> =
+            block_trace.iter().map(|trace| L2Block::from_block_trace(trace)).collect();
+
+        let first_block = blocks.first().unwrap();
+        let txs = first_block.transactions.clone();
+        let first_txn = txs.first().unwrap();
+
+        println!("first_txn ty: {:?}", first_txn.ty());
+    }
+
+    fn load_trace(file_path: &str) -> Vec<BlockTrace> {
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).unwrap()
+    }
 }

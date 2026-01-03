@@ -29,3 +29,7 @@ prover-storage.workspace = true
 prover-utils.workspace = true
 prover-mpt = { workspace = true }
 morph-revm = { workspace = true }
+
+
+[dev-dependencies]
+serde_json = { workspace = true }

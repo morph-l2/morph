@@ -1,10 +1,10 @@
-use alloy_consensus::{transaction::SignerRecoverable, BlockHeader, Transaction, TxEnvelope};
+use alloy_consensus::{transaction::SignerRecoverable, BlockHeader, Transaction};
 use alloy_network::{BlockResponse, Network};
 use alloy_provider::Provider;
 use anyhow::{bail, Context};
 use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
-use prover_primitives::{types::TypedTransaction, B256};
+use prover_primitives::{MorphTxEnvelope, B256};
 use prover_storage::basic_rpc_db::{BasicRpcDb, RpcDb};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::{
@@ -22,7 +22,7 @@ impl HostExecutor {
     where
         P: Provider<N> + Clone + std::fmt::Debug,
         N: Network,
-        TxEnvelope: From<<N as Network>::TransactionResponse>,
+        MorphTxEnvelope: From<<N as Network>::TransactionResponse>,
     {
         let block: <N as Network>::BlockResponse = provider
             .get_block_by_number(block_number.into())
@@ -34,7 +34,7 @@ impl HostExecutor {
             .as_transactions()
             .context("block response does not contain full transactions")?;
 
-        let evm_txns: Vec<TxEnvelope> = network_txns.iter().cloned().map(Into::into).collect();
+        let evm_txns: Vec<MorphTxEnvelope> = network_txns.iter().cloned().map(Into::into).collect();
 
         // Init db.
         let rpc_db = BasicRpcDb::new(provider.clone(), block_number, B256::default());
@@ -88,6 +88,6 @@ impl HostExecutor {
     }
 }
 
-fn _to_prover_tx(_txns: &Vec<alloy_rpc_types::Transaction>) -> Vec<TypedTransaction> {
+fn _to_prover_tx(_txns: &Vec<alloy_rpc_types::Transaction>) -> Vec<MorphTxEnvelope> {
     vec![]
 }

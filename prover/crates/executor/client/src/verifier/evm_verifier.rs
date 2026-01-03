@@ -1,6 +1,7 @@
 use crate::types::batch::BatchInfo;
 use crate::types::error::ClientError;
 use crate::types::input::BlockInput;
+use alloy_consensus::transaction::SignerRecoverable;
 use alloy_consensus::Transaction;
 use alloy_primitives::Address;
 use alloy_primitives::{ruint::aliases::U256, uint};
@@ -77,8 +78,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     // Execute transactions in block.
     let block = &block_input.current_block;
     for tx in &block.transactions {
-        let recovered_from =
-            tx.get_or_recover_signer().map_err(|_| ClientError::SignatureRecoveryFailed)?;
+        let recovered_from = SignerRecoverable::recover_signer(tx)
+            .map_err(|_| ClientError::SignatureRecoveryFailed)?;
         let tx = revm::context::TxEnv {
             caller: recovered_from,
             nonce: tx.nonce(),

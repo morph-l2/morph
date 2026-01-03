@@ -1,9 +1,9 @@
 //! Stateless Block Verifier primitives library.
 
-use crate::types::{tx_alt_fee::TxAltFee, TxL1Msg, TypedTransaction};
-use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy};
+use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy};
 use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{Bytes, ChainId, Signature, SignatureError, TxKind};
+use morph_primitives::{TxAltFee, TxL1Msg};
 use std::fmt::Debug;
 
 /// Predeployed contracts
@@ -16,6 +16,7 @@ pub use alloy_consensus::Transaction;
 pub use alloy_eips::eip7702::SignedAuthorization;
 pub use alloy_primitives;
 pub use alloy_primitives::{Address, B256, U256};
+pub use morph_primitives::MorphTxEnvelope;
 
 /// Blanket trait for block trace extensions.
 pub trait Block: Debug {
@@ -160,8 +161,8 @@ pub trait TxTrace {
     /// Get `fee_limit`.
     fn fee_limit(&self) -> U256;
 
-    /// Try to build a typed transaction
-    fn try_build_typed_tx(&self) -> Result<TypedTransaction, SignatureError> {
+    /// Try to build a envelope tx
+    fn try_build_tx_envelope(&self) -> Result<MorphTxEnvelope, SignatureError> {
         let chain_id = self.chain_id();
 
         let tx = match self.ty() {
@@ -176,7 +177,7 @@ pub trait TxTrace {
                     input: self.data(),
                 };
 
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Legacy(tx.into_signed(self.signature()?))
             }
             0x1 => {
                 let tx = TxEip2930 {
@@ -190,7 +191,7 @@ pub trait TxTrace {
                     input: self.data(),
                 };
 
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Eip2930(tx.into_signed(self.signature()?))
             }
             0x02 => {
                 let tx = TxEip1559 {
@@ -205,7 +206,7 @@ pub trait TxTrace {
                     input: self.data(),
                 };
 
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Eip1559(tx.into_signed(self.signature()?))
             }
             0x04 => {
                 let tx = TxEip7702 {
@@ -220,27 +221,26 @@ pub trait TxTrace {
                     authorization_list: self.authorization_list(),
                     input: self.data(),
                 };
-
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Eip7702(tx.into_signed(self.signature()?))
             }
             0x7e => {
                 let tx = TxL1Msg {
                     tx_hash: self.tx_hash(),
                     from: unsafe { self.get_from_unchecked() },
                     nonce: self.nonce(),
-                    gas_limit: self.gas_limit(),
+                    gas_limit: self.gas_limit() as u128,
                     to: self.to(),
                     value: self.value(),
                     input: self.data(),
                 };
 
-                TypedTransaction::L1Msg(tx)
+                MorphTxEnvelope::L1Msg(tx.into_signed(self.signature()?))
             }
             0x7f => {
                 let tx = TxAltFee {
                     chain_id,
                     nonce: self.nonce(),
-                    gas_limit: self.gas_limit(),
+                    gas_limit: self.gas_limit() as u128,
                     max_fee_per_gas: self.max_fee_per_gas(),
                     max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
                     to: self.to(),
@@ -250,8 +250,7 @@ pub trait TxTrace {
                     fee_token_id: self.fee_token_id(),
                     fee_limit: self.fee_limit(),
                 };
-                println!("tx.self.fee_token_id: {:?}", self.fee_token_id());
-                TypedTransaction::AltFee(tx.into_signed(self.signature()?))
+                MorphTxEnvelope::AltFee(tx.into_signed(self.signature()?))
             }
             _ => unimplemented!("unsupported tx type: {}", self.ty()),
         };

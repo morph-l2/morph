@@ -1,5 +1,6 @@
 use crate::{Block, TxTrace};
 use alloy_primitives::{Address, Bytes, B256, U256};
+use morph_primitives::MorphTxEnvelope;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Map};
 
@@ -7,10 +8,7 @@ mod authorization_list;
 mod tx;
 /// Alternative fee transaction types
 pub use authorization_list::{ArchivedSignedAuthorization, AuthorizationList};
-/// Alternative fee transaction types
-pub mod tx_alt_fee;
-mod tx_en;
-pub use tx::{TransactionTrace, TxL1Msg, TypedTransaction};
+pub use tx::TransactionTrace;
 
 /// Block header
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
@@ -100,8 +98,8 @@ pub struct BlockTrace {
 
 impl BlockTrace {
     /// Returns the typed transactions in the block.
-    pub fn typed_transactions(&self) -> Vec<TypedTransaction> {
-        self.transactions.iter().map(|tx_trace| tx_trace.try_build_typed_tx().unwrap()).collect()
+    pub fn typed_transactions(&self) -> Vec<MorphTxEnvelope> {
+        self.transactions.iter().map(|tx_trace| tx_trace.try_build_tx_envelope().unwrap()).collect()
     }
 }
 

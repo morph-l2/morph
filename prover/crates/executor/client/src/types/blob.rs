@@ -1,7 +1,8 @@
 use alloy_rlp::Decodable;
 use anyhow::{anyhow, Ok};
+#[cfg(not(target_os = "zkvm"))]
+use prover_primitives::MorphTxEnvelope;
 use ruzstd::StreamingDecoder;
-use prover_primitives::types::TypedTransaction;
 use std::io::Read;
 
 /// This magic number is included at the start of a single Zstandard frame
@@ -60,8 +61,8 @@ pub fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Result<Vec<u8>, anyhow::E
 }
 
 #[cfg(not(target_os = "zkvm"))]
-pub fn decode_transactions(bs: &[u8]) -> Vec<TypedTransaction> {
-    let mut txs_decoded: Vec<TypedTransaction> = Vec::new();
+pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
+    let mut txs_decoded: Vec<MorphTxEnvelope> = Vec::new();
 
     let mut offset: usize = 0;
     while offset < bs.len() {
@@ -100,7 +101,7 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<TypedTransaction> {
         };
 
         let tx_bytes = bs[offset..offset + rlp_tx_len].to_vec();
-        let tx_decoded: TypedTransaction = TypedTransaction::decode(&mut tx_bytes.as_slice())
+        let tx_decoded: MorphTxEnvelope = MorphTxEnvelope::decode(&mut tx_bytes.as_slice())
             .inspect_err(|e| {
                 println!("decode_transaction error: {e:?}");
             })

@@ -4608,7 +4608,6 @@ checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 [[package]]
 name = "morph-chainspec"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4627,7 +4626,6 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -4648,13 +4646,18 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
+ "alloy-serde",
+ "modular-bitfield",
+ "reth-codecs",
+ "reth-db-api",
  "reth-ethereum-primitives",
+ "reth-primitives-traits",
+ "serde",
 ]
 
 [[package]]
@@ -4681,7 +4684,6 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=morph-tx#f1f9e24a570efc9366763de7db5ed4e913fd5b2a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6059,6 +6061,7 @@ dependencies = [
  "revm",
  "ruzstd",
  "serde",
+ "serde_json",
  "serde_with",
  "sha2",
  "thiserror 2.0.17",
@@ -6123,6 +6126,7 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
+ "morph-primitives",
  "serde",
  "serde_json",
  "serde_with",

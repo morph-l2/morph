@@ -43,7 +43,7 @@ pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
             .transactions
             .iter()
             .filter(|tx| !tx.is_l1_tx())
-            .flat_map(|tx| tx.try_build_typed_tx().unwrap().rlp())
+            .flat_map(|tx| tx.try_build_tx_envelope().unwrap().rlp())
             .collect::<Vec<u8>>();
         tx_bytes.extend(x);
     }
