@@ -6,3 +6,8 @@ edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-network = { workspace = true }
+alloy-json-rpc = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+log = { workspace = true }

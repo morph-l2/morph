@@ -4608,6 +4608,7 @@ checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 [[package]]
 name = "morph-chainspec"
 version = "0.7.5"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#a56de17b97c5080e7234231d6516891a85e74212"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4626,6 +4627,7 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.7.5"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#a56de17b97c5080e7234231d6516891a85e74212"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -4646,6 +4648,7 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.7.5"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#a56de17b97c5080e7234231d6516891a85e74212"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4684,6 +4687,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.7.5"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#a56de17b97c5080e7234231d6516891a85e74212"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6086,6 +6090,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-network",
+ "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-types",
  "anyhow",
@@ -6095,6 +6100,7 @@ dependencies = [
  "once_cell",
  "prover-executor-client",
  "prover-executor-core",
+ "prover-mpt",
  "prover-primitives",
  "prover-storage",
  "prover-utils",
@@ -6182,7 +6188,12 @@ dependencies = [
 name = "prover-utils"
 version = "0.1.0"
 dependencies = [
+ "alloy-json-rpc",
+ "alloy-network",
+ "alloy-provider",
  "anyhow",
+ "log",
+ "serde",
 ]
 
 [[package]]
@@ -8836,6 +8847,7 @@ dependencies = [
  "prover-executor-client",
  "prover-executor-host",
  "prover-primitives",
+ "prover-utils",
  "reqwest",
  "serde",
  "serde_json",

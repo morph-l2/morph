@@ -9,9 +9,10 @@ use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::context::BlockEnv;
-use revm::database::{BundleState, State};
+use revm::database::states::bundle_state::BundleRetention;
+use revm::database::State;
 use revm::primitives::address;
-use revm::ExecuteEvm;
+use revm::ExecuteCommitEvm;
 
 // use Verifier;
 pub struct EVMVerifier;
@@ -58,12 +59,13 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
 fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     //Build db and verify state.
     let trie_db = block_input.witness_db()?;
-    let bundle_state = BundleState::default();
+
     let state = State::builder()
         .with_database_ref(&trie_db)
-        .with_bundle_prestate(bundle_state)
+        .with_bundle_update()
         .without_state_clear()
         .build();
+
     // Build EVM.
     let block_env = BlockEnv {
         number: block_input.current_block.header.number,
@@ -76,11 +78,12 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
 
     let mut evm = MorphExecutor::with_hardfork(state, block_env);
     // Execute transactions in block.
+    let mut block_input_orgin = block_input.clone();
     let block = &block_input.current_block;
     for tx in &block.transactions {
         let recovered_from = SignerRecoverable::recover_signer(tx)
             .map_err(|_| ClientError::SignatureRecoveryFailed)?;
-        let tx = revm::context::TxEnv {
+        let tx_env = revm::context::TxEnv {
             caller: recovered_from,
             nonce: tx.nonce(),
             gas_price: tx.gas_price().unwrap_or_default(),
@@ -90,24 +93,53 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
             data: revm::primitives::Bytes::from(tx.input().to_vec()),
             ..Default::default()
         };
-        let morph_tx = MorphTxEnv { inner: tx, rlp_bytes: Default::default(), fee_token_id: 1u16 };
+        let morph_tx = MorphTxEnv { inner: tx_env, rlp_bytes: None, ..Default::default() };
 
         let _rt = evm
             .inner
-            .transact(morph_tx)
+            .transact_commit(morph_tx)
             .map_err(|e| ClientError::BlockExecutionError(e.to_string()))?;
     }
+    evm.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
     let bundle_state = evm.inner.ctx.journaled_state.database.take_bundle();
-    drop(evm);
-    drop(trie_db);
+    println!("bundle_state len: {:?}", bundle_state.len());
     // Verify post state root.
     let hashed_post_state =
         HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);
-    block_input.parent_state.update(&hashed_post_state);
-    if block_input.parent_state.state_root() != block_input.current_block.post_state_root {
+    block_input_orgin.parent_state.update(&hashed_post_state);
+
+    if block_input_orgin.parent_state.state_root()
+        != block_input_orgin.current_block.post_state_root
+    {
         return Err(ClientError::MismatchedStateRoot(
-            block_input.current_block.header.number.to::<u64>(),
+            block_input_orgin.current_block.header.number.to::<u64>(),
         ));
     };
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::types::input::BlockInput;
+    use crate::verifier::evm_verifier::execute;
+    use prover_primitives::types::BlockTrace;
+    use std::fs::File;
+    use std::io::BufReader;
+
+    #[test]
+    fn test_execute_local() {
+        let block_trace = load_trace("../../../testdata/mpt/local_transfer_eth.json");
+        println!("loaded {} block_traces", block_trace.len());
+        let blocks: Vec<BlockInput> =
+            block_trace.iter().map(|trace| BlockInput::from_trace(trace)).collect();
+        println!("blocks len: {:?}", blocks.len());
+
+        let _rt = execute(blocks).unwrap();
+    }
+
+    fn load_trace(file_path: &str) -> Vec<BlockTrace> {
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).unwrap()
+    }
 }

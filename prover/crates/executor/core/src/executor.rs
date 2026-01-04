@@ -28,7 +28,7 @@ impl<DB: Database> MorphExecutor<DB> {
     pub fn with_hardfork(db: DB, block_env: BlockEnv) -> Self {
         let mut env: EvmEnv<MorphHardfork, MorphBlockEnv> =
             EvmEnv::default().with_timestamp(block_env.timestamp);
-        env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Viridian);
+        env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Curie);
         env.block_env = MorphBlockEnv { inner: block_env };
         Self::new(db, env)
     }
@@ -60,7 +60,8 @@ mod tests {
             data: revm::primitives::Bytes::new(),
             ..Default::default()
         };
-        let morph_tx = MorphTxEnv { inner: tx, rlp_bytes: Default::default(), fee_token_id: 1u16 };
+        let morph_tx =
+            MorphTxEnv { inner: tx, rlp_bytes: Default::default(), ..Default::default() };
         let _rt = evm.inner.transact_one(morph_tx);
         let _state = evm.inner.finalize();
         let _db = evm.inner.journaled_state.database.take_bundle();

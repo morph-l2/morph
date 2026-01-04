@@ -74,3 +74,24 @@ async fn get_block_traces(
     }
     Some(block_traces)
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_provider::{Provider, ProviderBuilder};
+    use prover_executor_client::{types::input::BlockInput, EVMVerifier};
+    use prover_primitives::types::BlockTrace;
+    use prover_utils::provider::get_block_trace;
+
+    #[tokio::test]
+    async fn test_execute_remote() {
+        let provider =
+            ProviderBuilder::new().connect_http("http://127.0.0.1:9545".parse().unwrap()).erased();
+
+        let block_trace = get_block_trace::<BlockTrace>(53, &provider).await.unwrap();
+        println!("loaded block_{} traces", block_trace.header.number);
+        let block_input: BlockInput = BlockInput::from_trace(&block_trace);
+
+        let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
+        println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
+    }
+}
