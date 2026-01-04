@@ -72,6 +72,9 @@ interface IRollup {
     /// @notice error zero address
     error ErrZeroAddress();
 
+    /// @notice error invalid timing for permissionless batch submission
+    error InvalidTiming();
+
     /**********
      * Events *
      **********/
@@ -85,6 +88,11 @@ interface IRollup {
     /// @param batchIndex   The index of the batch.
     /// @param batchHash    The hash of the batch
     event RevertBatch(uint256 indexed batchIndex, bytes32 indexed batchHash);
+
+    /// @notice Emitted when a range of batches is reverted in commitBatchWithProof.
+    /// @param startBatchIndex  The starting batch index (inclusive).
+    /// @param count            The number of batches reverted.
+    event RevertBatchRange(uint256 indexed startBatchIndex, uint256 count);
 
     /// @notice Emitted when a batch is finalized.
     /// @param batchIndex   The index of the batch.

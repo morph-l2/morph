@@ -57,6 +57,8 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
     /// @inheritdoc IL1MessageQueueWithGasPriceOracle
     address public whitelistChecker;
 
+    mapping(uint256 => uint256) public messageEnqueueTime;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -260,6 +262,14 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
         return hash;
     }
 
+    function getFirstUnfinalizedMessageEnqueueTime() external view returns (uint256 timestamp) {
+        return messageEnqueueTime[pendingQueueIndex];
+    }
+
+    function getMessageEnqueueTimestamp(uint256 index) external view returns (uint256 timestamp) {
+        return messageEnqueueTime[index];
+    }
+
     /*****************************
      * Public Mutating Functions *
      *****************************/
@@ -363,6 +373,7 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
         uint256 _queueIndex = messageQueue.length;
         bytes32 _hash = computeTransactionHash(_sender, _queueIndex, _value, _target, _gasLimit, _data);
         messageQueue.push(_hash);
+        messageEnqueueTime[_queueIndex] = block.timestamp;
 
         // emit event
         emit QueueTransaction(_sender, _target, _value, uint64(_queueIndex), _gasLimit, _data);

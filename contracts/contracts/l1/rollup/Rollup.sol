@@ -100,6 +100,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice committedStateRoots
     mapping(uint256 batchIndex => bytes32 stateRoot) public committedStateRoots;
 
+    uint256 public rollupDelayPeird;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -220,6 +222,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external payable override onlyActiveStaker nonReqRevert whenNotPaused {
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput);
+    }
+
+    function _commitBatchWithBatchData(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput
+    ) internal {
         require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
         require(batchDataInput.postStateRoot != bytes32(0), "new state root is zero");
@@ -259,7 +268,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
 
-        {            
+        {
             uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
             if (batchDataInput.version == 1) {
                 _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
@@ -316,6 +325,52 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             "the signature verification failed"
         );
         emit CommitBatch(_batchIndex, committedBatches[_batchIndex]);
+    }
+
+    function commitBatchWithProof(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput,
+        bytes calldata _batchHeader,
+        bytes calldata _batchProof
+    ) external payable nonReqRevert whenNotPaused {
+        require(!inChallenge, "already in challenge");
+        (uint256 _parentBatchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
+        uint256 _parentBatchIndex = BatchHeaderCodecV0.getBatchIndex(_parentBatchPtr);
+        require(_parentBatchIndex == lastFinalizedBatchIndex, "incorrect batch index");
+        
+        // check delay timing - allow if EITHER batch submission OR L1 message processing is stalled
+        // This enables permissionless batch submission when sequencers are offline or censoring
+        if (batchDataStore[lastCommittedBatchIndex].originTimestamp + rollupDelayPeird >= block.timestamp &&
+            IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeird >= block.timestamp
+        ) {
+            revert InvalidTiming();
+        }
+        // revert batch from the parent batch to the last committed batch
+        uint256 revertCount = lastCommittedBatchIndex - _parentBatchIndex;
+        if (revertCount > 0) {
+            uint256 startBatchIndex = _parentBatchIndex + 1;
+            for (uint256 i = startBatchIndex; i <= lastCommittedBatchIndex; i++) {
+                committedBatches[i] = bytes32(0);
+            }
+            emit RevertBatchRange(startBatchIndex, revertCount);
+        }
+        lastCommittedBatchIndex = _parentBatchIndex;
+ 
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput);
+
+        // get batch data from batch header
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        // check batch hash
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+
+        // verify consistency between batchDataInput and batchHeader
+        _verifyBatchConsistency(batchDataInput, memPtr);
+
+        // verify proof
+        _verifyProof(memPtr, _batchProof);
+        // finalize batch
+        finalizeBatch(_batchHeader);
     }
 
     /// @inheritdoc IRollup
@@ -477,7 +532,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused onlyActiveStaker{
+    function proveState(
+        bytes calldata _batchHeader,
+        bytes calldata _batchProof
+    ) external nonReqRevert whenNotPaused onlyActiveStaker {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
@@ -614,6 +672,51 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
     }
 
+    /// @dev Internal function to verify consistency between BatchDataInput and batch header.
+    /// @param batchDataInput The batch data input from the caller.
+    /// @param memPtr The memory pointer to the loaded batch header.
+    function _verifyBatchConsistency(
+        BatchDataInput calldata batchDataInput,
+        uint256 memPtr
+    ) private pure {
+        // verify version
+        require(
+            batchDataInput.version == BatchHeaderCodecV0.getVersion(memPtr),
+            "batch version mismatch"
+        );
+
+        // verify number of L1 messages
+        require(
+            batchDataInput.numL1Messages == BatchHeaderCodecV0.getL1MessagePopped(memPtr),
+            "l1 message count mismatch"
+        );
+
+        // verify previous state root
+        require(
+            batchDataInput.prevStateRoot == BatchHeaderCodecV0.getPrevStateHash(memPtr),
+            "prev state root mismatch"
+        );
+
+        // verify post state root
+        require(
+            batchDataInput.postStateRoot == BatchHeaderCodecV0.getPostStateHash(memPtr),
+            "post state root mismatch"
+        );
+
+        // verify withdrawal root
+        require(
+            batchDataInput.withdrawalRoot == BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
+            "withdrawal root mismatch"
+        );
+
+        // verify parent batch hash
+        (, bytes32 _parentBatchHash) = _loadBatchHeader(batchDataInput.parentBatchHeader);
+        require(
+            _parentBatchHash == BatchHeaderCodecV0.getParentBatchHash(memPtr),
+            "parent batch hash mismatch"
+        );
+    }
+
     /// @dev Internal function to verify the zk proof.
     function _verifyProof(uint256 memPtr, bytes calldata _batchProof) private view {
         // Check validity of proof
@@ -727,7 +830,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (_version == 0) {
             (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
         } else if (_version == 1) {
-             (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
+            (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
         } else {
             revert("Unsupported batch version");
         }
