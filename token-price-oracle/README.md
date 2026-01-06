@@ -1,173 +1,190 @@
-# Gas Price Oracle
+# Token Price Oracle
 
-Gas Price Oracle service monitors L1 gas prices and updates the GasPriceOracle contract on L2.
+Token Price Oracle service monitors token prices and updates the price ratio between tokens and ETH to L2 on-chain contracts, enabling Alt Fee Token functionality.
 
 ## Features
 
--   **L1 Base Fee Update**: Monitors L1 base fee and blob base fee, updates to L2
--   **Scalar Update**: Calculates and updates commit scalar and blob scalar
--   **Transaction Manager**: Serializes all contract updates to avoid nonce conflicts
--   **Metrics Monitoring**: Exposes Prometheus metrics
--   **Flags Configuration**: Uses `urfave/cli` for configuration management (supports both CLI flags and environment variables)
+- **Real-time Price Monitoring**: Fetches token USD prices from exchange APIs (Bitget)
+- **Price Ratio Calculation**: Computes price ratio between tokens and ETH
+- **Threshold-based Updates**: Only updates on-chain when price change exceeds threshold, saving Gas
+- **Batch Updates**: Updates multiple token prices in a single `batchUpdatePrices` transaction
+- **Fallback Mechanism**: Supports automatic switching between multiple data sources
+- **Transaction Management**: Prevents nonce conflicts, supports local and external signing
+- **Prometheus Monitoring**: Provides operational metrics
 
-## Configuration
+## Quick Start
 
-The service uses flags that can be set either via command line or environment variables (with `GAS_ORACLE_` prefix).
-
-### Required Flags
-
-| Flag                  | Env Var                     | Description                     |
-| --------------------- | --------------------------- | ------------------------------- |
-| `--l1-eth-rpc`        | `GAS_ORACLE_L1_ETH_RPC`     | L1 RPC endpoint                 |
-| `--l2-eth-rpc`        | `GAS_ORACLE_L2_ETH_RPC`     | L2 RPC endpoint                 |
-| `--l1-beacon-rpc`     | `GAS_ORACLE_L1_BEACON_RPC`  | L1 Beacon Chain API endpoint    |
-| `--l1-rollup-address` | `GAS_ORACLE_L1_ROLLUP`      | L1 Rollup contract address      |
-| `--private-key`       | `GAS_ORACLE_L2_PRIVATE_KEY` | Private key for L2 transactions |
-
-### Optional Flags
-
-| Flag                            | Env Var                            | Default         | Description                 |
-| ------------------------------- | ---------------------------------- | --------------- | --------------------------- |
-| `--l2-gas-price-oracle-address` | `GAS_ORACLE_L2_GAS_PRICE_ORACLE`   | `0x5300...0002` | L2 GasPriceOracle contract  |
-| `--gas-threshold`               | `GAS_ORACLE_GAS_THRESHOLD`         | `10`            | Update threshold percentage |
-| `--interval`                    | `GAS_ORACLE_INTERVAL`              | `6s`            | Base fee update interval    |
-| `--overhead-interval`           | `GAS_ORACLE_OVERHEAD_INTERVAL`     | `10`            | Scalar update frequency     |
-| `--txn-per-batch`               | `GAS_ORACLE_TXN_PER_BATCH`         | `50`            | Expected txs per batch      |
-| `--log-level`                   | `GAS_ORACLE_LOG_LEVEL`             | `info`          | Log level                   |
-| `--log-filename`                | `GAS_ORACLE_LOG_FILENAME`          | -               | Log file path               |
-| `--metrics-server-enable`       | `GAS_ORACLE_METRICS_SERVER_ENABLE` | `false`         | Enable metrics server       |
-| `--metrics-hostname`            | `GAS_ORACLE_METRICS_HOSTNAME`      | `0.0.0.0`       | Metrics server host         |
-| `--metrics-port`                | `GAS_ORACLE_METRICS_PORT`          | `6060`          | Metrics server port         |
-
-## Usage
-
-### Command Line
+### Environment Variables (Local Signing Mode)
 
 ```bash
-./bin/token-price-oracle \
-  --l1-eth-rpc https://ethereum-rpc.com \
-  --l2-eth-rpc https://morph-l2-rpc.com \
-  --l1-beacon-rpc https://beacon-api.com \
-  --l1-rollup-address 0x... \
-  --private-key 0x... \
-  --metrics-server-enable \
-  --log-level debug
+# Required
+export TOKEN_PRICE_ORACLE_L2_ETH_RPC="https://rpc.morphl2.io"
+export TOKEN_PRICE_ORACLE_PRIVATE_KEY="0x..."  # Required for local signing only
+export TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL="https://api.bitget.com"
+export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET="1:BTCUSDT,2:ETHUSDT"
+
+# Optional
+export TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL="1m"
+export TOKEN_PRICE_ORACLE_PRICE_THRESHOLD="100"  # 1% (100 bps)
+export TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE="true"
+export TOKEN_PRICE_ORACLE_METRICS_PORT="6060"
+export TOKEN_PRICE_ORACLE_LOG_LEVEL="info"
 ```
 
-### Environment Variables
+> **Note**: `PRIVATE_KEY` is only required when using local signing mode. For production, use [External Signing](#external-signing-recommended-for-production) instead.
 
-```bash
-export GAS_ORACLE_L1_ETH_RPC="https://ethereum-rpc.com"
-export GAS_ORACLE_L2_ETH_RPC="https://morph-l2-rpc.com"
-export GAS_ORACLE_L1_BEACON_RPC="https://beacon-api.com"
-export GAS_ORACLE_L1_ROLLUP="0x..."
-export GAS_ORACLE_L2_PRIVATE_KEY="0x..."
-export GAS_ORACLE_METRICS_SERVER_ENABLE=true
-export GAS_ORACLE_LOG_LEVEL=info
-
-./bin/token-price-oracle
-```
-
-## Build and Run
-
-**Note**: This project uses Go workspace and depends on `../bindings` module.
+### Build and Run
 
 ```bash
 # Build
 make build
 
 # Run
-make run
+./build/bin/token-price-oracle
 
-# Test
+# Or use Docker
+make docker-build
+docker run -d \
+  -e TOKEN_PRICE_ORACLE_L2_ETH_RPC="..." \
+  -e TOKEN_PRICE_ORACLE_PRIVATE_KEY="..." \
+  -e TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL="..." \
+  -e TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET="..." \
+  morph/token-price-oracle:latest
+```
+
+## Configuration
+
+### Required (All Modes)
+
+| Environment Variable | Description |
+|---------------------|-------------|
+| `TOKEN_PRICE_ORACLE_L2_ETH_RPC` | L2 node RPC endpoint |
+| `TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL` | Bitget API base URL |
+| `TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET` | TokenID to trading pair mapping |
+
+### Required (Local Signing Mode Only)
+
+| Environment Variable | Description |
+|---------------------|-------------|
+| `TOKEN_PRICE_ORACLE_PRIVATE_KEY` | Signing private key (not needed if using external signing) |
+
+### Optional
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL` | `1m` | Price update interval |
+| `TOKEN_PRICE_ORACLE_PRICE_THRESHOLD` | `100` | Update threshold (basis points, 100=1%) |
+| `TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY` | `bitget` | Price feed priority |
+| `TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE` | `false` | Enable metrics server |
+| `TOKEN_PRICE_ORACLE_METRICS_HOSTNAME` | `0.0.0.0` | Metrics server hostname |
+| `TOKEN_PRICE_ORACLE_METRICS_PORT` | `6060` | Metrics server port |
+| `TOKEN_PRICE_ORACLE_LOG_LEVEL` | `info` | Log level |
+| `TOKEN_PRICE_ORACLE_LOG_FILENAME` | - | Log file path |
+
+### External Signing (Recommended for Production)
+
+| Environment Variable | Description |
+|---------------------|-------------|
+| `TOKEN_PRICE_ORACLE_EXTERNAL_SIGN` | Enable external signing (`true`/`false`) |
+| `TOKEN_PRICE_ORACLE_EXTERNAL_SIGN_ADDRESS` | Signing account address |
+| `TOKEN_PRICE_ORACLE_EXTERNAL_SIGN_APPID` | External signing service AppID |
+| `TOKEN_PRICE_ORACLE_EXTERNAL_SIGN_CHAIN` | Chain identifier |
+| `TOKEN_PRICE_ORACLE_EXTERNAL_SIGN_URL` | External signing service URL |
+| `TOKEN_PRICE_ORACLE_EXTERNAL_SIGN_RSA_PRIV` | RSA private key (PEM format) |
+
+## Price Calculation
+
+### Price Ratio Formula
+
+```
+priceRatio = tokenScale × tokenPriceUSD × 10^(18 - tokenDecimals) / ethPriceUSD
+```
+
+### Threshold
+
+Threshold is specified in basis points (bps):
+- 1 bps = 0.01%
+- 100 bps = 1%
+- 10000 bps = 100%
+
+On-chain prices are only updated when price change exceeds the threshold, avoiding unnecessary Gas costs.
+
+## Monitoring
+
+### Prometheus Metrics
+
+When metrics server is enabled, access `http://<host>:<port>/metrics`:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `last_successful_update_timestamp` | Gauge | Last successful update timestamp |
+| `updates_total{type="updated"}` | Counter | Actual update count |
+| `updates_total{type="skipped"}` | Counter | Skipped update count |
+| `update_errors_total{type="price"}` | Counter | Update error count |
+| `account_balance_eth` | Gauge | Oracle account balance |
+
+### Health Check
+
+```bash
+curl http://<host>:<port>/health
+```
+
+### Suggested Alert Rules
+
+```yaml
+# Price not updated for a long time
+- alert: TokenPriceOracleStalled
+  expr: time() - last_successful_update_timestamp > 300
+  for: 1m
+  labels:
+    severity: critical
+
+# Low account balance
+- alert: TokenPriceOracleLowBalance
+  expr: account_balance_eth < 0.1
+  for: 5m
+  labels:
+    severity: warning
+```
+
+## Project Structure
+
+```
+token-price-oracle/
+├── cmd/              # Entry point
+├── flags/            # CLI flags definition
+├── config/           # Configuration loading
+├── client/           # Client wrappers
+│   ├── l2_client.go  # L2 chain client
+│   ├── price_feed.go # Price feed interface
+│   ├── bitget_sdk.go # Bitget API client
+│   └── sign.go       # External signing
+├── updater/          # Update logic
+│   ├── token_price.go # Price updater
+│   ├── tx_manager.go  # Transaction manager
+│   └── factory.go     # Factory methods
+├── metrics/          # Prometheus metrics
+└── README.md         # This document
+```
+
+## Development
+
+```bash
+# Run tests
 make test
 
 # Test Bitget price feed (requires network)
 go test ./client -run TestBitgetPriceFeed -v
 
-# Docker
-make docker-build
-docker run -d \
-  -e GAS_ORACLE_L1_ETH_RPC="..." \
-  -e GAS_ORACLE_L2_ETH_RPC="..." \
-  -e GAS_ORACLE_L1_BEACON_RPC="..." \
-  -e GAS_ORACLE_L1_ROLLUP="0x..." \
-  -e GAS_ORACLE_L2_PRIVATE_KEY="0x..." \
-  morph/token-price-oracle:latest
+# Format code
+go fmt ./...
+
+# Local run
+cp env.example .env
+# Edit .env configuration
+source .env && make run
 ```
 
-## Monitoring
+## License
 
-When metrics server is enabled, it exposes metrics at `<hostname>:<port>/metrics`:
-
--   `l1_base_fee` - L1 base fee (Gwei)
--   `l1_base_fee_on_l2` - L1 base fee on L2
--   `l1_blob_base_fee_on_l2` - L1 blob base fee on L2
--   `commit_scalar` - Commit scalar value
--   `blob_scalar` - Blob scalar value
--   `txn_per_batch` - Transactions per batch
--   `gas_oracle_owner_balance` - Oracle account balance
--   `base_fee_update_count` - Total base fee updates
--   `scalar_update_count` - Total scalar updates
--   `update_errors_total` - Update errors by type
-
-Health check endpoint: `<hostname>:<port>/health`
-
-## Architecture
-
-```
-gas-price-oracle/
-├── cmd/              # Main entry point
-├── flags/            # CLI flags definitions
-├── config/           # Configuration from flags
-├── updater/          # Update implementations
-│   ├── basefee.go    # Base fee updater
-│   ├── scalar.go     # Scalar updater
-│   └── tx_manager.go # Transaction manager (prevents nonce conflicts)
-├── client/           # Client wrappers
-├── calc/             # Calculation logic
-└── metrics/          # Prometheus metrics
-
-Uses: ../bindings/bindings (project root contract bindings)
-```
-
-## Key Components
-
-### Transaction Manager
-
-All contract updates are serialized through `TxManager` to prevent nonce conflicts:
-
--   Holds a mutex to ensure only one transaction is sent at a time
--   Manages nonce retrieval and transaction confirmation
--   Used by both `BaseFeeUpdater` and `ScalarUpdater`
-
-### Base Fee Updater
-
--   Runs on a fixed interval (default 6s)
--   Fetches L1 base fee and blob base fee
--   Updates L2 contract when threshold is exceeded
-
-### Scalar Updater
-
--   Runs every N base fee update cycles (default 10)
--   Reads `CommitBatch` events from L1 Rollup
--   Calculates commit and blob scalars
--   Updates L2 contract when necessary
-
-### Blob Processing
-
-Blob data processing is partially implemented (interface defined in `calc/blob.go`). The actual blob parsing and L2 transaction extraction is deferred for future implementation.
-
-## Testing
-
-```bash
-# Run all tests
-go test ./...
-
-# Test Bitget price feed (requires network)
-go test ./client -run TestBitgetPriceFeed -v
-
-# Skip integration tests
-go test ./... -short
-```
-
+MIT
