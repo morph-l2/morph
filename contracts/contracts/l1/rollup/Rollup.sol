@@ -372,6 +372,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // verify consistency between batchDataInput and batchHeader
         _verifyBatchConsistency(batchDataInput, memPtr);
 
+        // Override finalizeTimestamp for ZKP-backed immediate finality
+        batchDataStore[_batchIndex].finalizeTimestamp = block.timestamp;
+
         // verify proof
         _verifyProof(memPtr, _batchProof);
         // finalize batch
