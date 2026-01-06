@@ -18,7 +18,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
     IRollup.BatchSignatureInput public batchSignatureInput;
     
     // Slot constants for storage manipulation (from forge inspect Rollup storageLayout)
-    uint256 constant ROLLUP_DELAY_PERIOD_SLOT = 172; // slot for rollupDelayPeird
+    uint256 constant ROLLUP_DELAY_PERIOD_SLOT = 172; // slot for rollupDelayPeriod
     uint256 constant FINALIZATION_PERIOD_SLOT = 152; // slot for finalizationPeriodSeconds
     
     // ZERO_VERSIONED_HASH constant from Rollup contract
@@ -62,7 +62,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(alice);
         l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
         
-        // Set rollupDelayPeird (e.g., 1 hour) - no prank needed for hevm.store
+        // Set rollupDelayPeriod (e.g., 1 hour) - no prank needed for hevm.store
         hevm.store(address(rollup), bytes32(ROLLUP_DELAY_PERIOD_SLOT), bytes32(uint256(3600)));
     }
     
@@ -397,7 +397,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         _mockMessageQueueStalled();
         _setFinalizationPeriodToZero(); // Allow immediate finality
         
-        // Warp time to simulate stall (> rollupDelayPeird)
+        // Warp time to simulate stall (> rollupDelayPeriod)
         hevm.warp(block.timestamp + 7200);
         
         bytes32 prevStateRoot = bytes32(uint256(1));

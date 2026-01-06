@@ -127,9 +127,9 @@ interface IRollup {
     event UpdateProofRewardPercent(uint256 oldPercent, uint256 newPercent);
 
     /// @notice Emitted when the rollup delay period is updated.
-    /// @param oldPeriod  The old rollupDelayPeird.
-    /// @param newPeriod  The new rollupDelayPeird.
-    event RollupDelayPeirdUpdate(uint256 oldPeriod, uint256 newPeriod);
+    /// @param oldPeriod  The old rollupDelayPeriod.
+    /// @param newPeriod  The new rollupDelayPeriod.
+    event RollupDelayPeriodUpdate(uint256 oldPeriod, uint256 newPeriod);
 
     /// @notice Emit when prove remaining claimed.
     /// @param receiver  receiver address.

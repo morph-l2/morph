@@ -100,7 +100,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice committedStateRoots
     mapping(uint256 batchIndex => bytes32 stateRoot) public committedStateRoots;
 
-    uint256 public rollupDelayPeird;
+    uint256 public rollupDelayPeriod;
 
     /**********************
      * Function Modifiers *
@@ -185,10 +185,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
     }
 
-    function initialize3(uint256 _rollupDelayPeird) external reinitializer(3) {
-        require(_rollupDelayPeird != 0, "invalid rollup delay peird");
-        rollupDelayPeird = _rollupDelayPeird;
-        emit RollupDelayPeirdUpdate(0, _rollupDelayPeird);
+    function initialize3(uint256 _rollupDelayPeriod) external reinitializer(3) {
+        require(_rollupDelayPeriod != 0, "invalid rollup delay period");
+        rollupDelayPeriod = _rollupDelayPeriod;
+        emit RollupDelayPeriodUpdate(0, _rollupDelayPeriod);
     }
     /************************
      * Restricted Functions *
@@ -345,8 +345,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         
         // check delay timing - allow if EITHER batch submission OR L1 message processing is stalled
         // This enables permissionless batch submission when sequencers are offline or censoring
-        if (batchDataStore[lastCommittedBatchIndex].originTimestamp + rollupDelayPeird >= block.timestamp &&
-            IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeird >= block.timestamp
+        if (batchDataStore[lastCommittedBatchIndex].originTimestamp + rollupDelayPeriod >= block.timestamp &&
+            IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeriod >= block.timestamp
         ) {
             revert InvalidTiming();
         }
@@ -470,13 +470,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit UpdateFinalizationPeriodSeconds(_oldFinalizationPeriodSeconds, finalizationPeriodSeconds);
     }
 
-    /// @notice Update rollupDelayPeird.
+    /// @notice Update rollupDelayPeriod.
     /// @param _newPeriod New rollup delay period.
-    function updateRollupDelayPeird(uint256 _newPeriod) external onlyOwner {
-        require(_newPeriod > 0 && _newPeriod != rollupDelayPeird, "invalid new rollup delay period");
-        uint256 _oldRollupDelayPeird = rollupDelayPeird;
-        rollupDelayPeird = _newPeriod;
-        emit RollupDelayPeirdUpdate(_oldRollupDelayPeird, rollupDelayPeird);
+    function updateRollupDelayPeriod(uint256 _newPeriod) external onlyOwner {
+        require(_newPeriod > 0 && _newPeriod != rollupDelayPeriod, "invalid new rollup delay period");
+        uint256 _oldRollupDelayPeriod = rollupDelayPeriod;
+        rollupDelayPeriod = _newPeriod;
+        emit RollupDelayPeriodUpdate(_oldRollupDelayPeriod, rollupDelayPeriod);
     }
 
     /// @notice Add an account to the challenger list.
