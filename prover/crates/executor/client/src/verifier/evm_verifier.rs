@@ -5,9 +5,7 @@ use alloy_consensus::transaction::SignerRecoverable;
 use alloy_consensus::Transaction;
 use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
-use prover_primitives::predeployed::l1_gas_price_oracle::{
-    WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
-};
+use prover_primitives::predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::context::BlockEnv;
 use revm::database::states::bundle_state::BundleRetention;

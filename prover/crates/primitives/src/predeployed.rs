@@ -1,6 +1,6 @@
 /// Predeployed Gas Price Oracle
 pub mod l1_gas_price_oracle {
-    use alloy_primitives::{address, uint, Address, U256};
+    use alloy_primitives::{address, Address, U256};
 
     /// L1GasPriceOracle predeployed address
     pub const ADDRESS: Address = address!("5300000000000000000000000000000000000002");
@@ -26,10 +26,15 @@ pub mod l1_gas_price_oracle {
     pub const INITIAL_COMMIT_SCALAR: U256 = U256::from_limbs([230759955285, 0, 0, 0]);
     /// Initial blob scalar after curie fork
     pub const INITIAL_BLOB_SCALAR: U256 = U256::from_limbs([417565260, 0, 0, 0]);
+}
 
-    /// withdraw root address
+/// Predeployed L2ToL1Message
+pub mod l2_to_l1_message {
+    use alloy_primitives::{address, uint, Address, U256};
+
+    /// Withdraw root address
     pub const WITHDRAW_ROOT_ADDRESS: Address =
         address!("0x5300000000000000000000000000000000000001");
-    /// withdraw root slot
+    /// Withdraw root slot
     pub const WITHDRAW_ROOT_SLOT: U256 = uint!(33_U256);
 }

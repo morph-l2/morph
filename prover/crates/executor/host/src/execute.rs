@@ -6,7 +6,7 @@ use anyhow::{bail, Context};
 use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
 use prover_primitives::{
-    predeployed::l1_gas_price_oracle::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT},
+    predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT},
     MorphTxEnvelope, TxTrace,
 };
 use prover_storage::basic_rpc_db::{BasicRpcDb, RpcDb};

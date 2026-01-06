@@ -161,14 +161,24 @@ pub trait TxTrace {
     /// Get `fee_limit`.
     fn fee_limit(&self) -> U256;
 
+    /// Get `sig_v`.
+    fn sig_v(&self) -> u64;
+
     /// Try to build a envelope tx
     fn try_build_tx_envelope(&self) -> Result<MorphTxEnvelope, SignatureError> {
         let chain_id = self.chain_id();
 
         let tx = match self.ty() {
             0x0 => {
+                fn chain_id_from_v_eip155(v: u64) -> Option<u64> {
+                    if v >= 35 {
+                        Some((v - 35) / 2)
+                    } else {
+                        None
+                    }
+                }
                 let tx = TxLegacy {
-                    chain_id: if chain_id >= 35 { Some(chain_id) } else { None },
+                    chain_id: chain_id_from_v_eip155(self.sig_v()),
                     nonce: self.nonce(),
                     gas_price: self.gas_price(),
                     gas_limit: self.gas_limit(),
@@ -389,5 +399,9 @@ impl<T: TxTrace> TxTrace for &T {
 
     fn fee_limit(&self) -> U256 {
         (*self).fee_limit()
+    }
+
+    fn sig_v(&self) -> u64 {
+        (*self).sig_v()
     }
 }
