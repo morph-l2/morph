@@ -1,6 +1,10 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
-use alloy_primitives::{keccak256, map::HashMap, Address, B256};
+use alloy_primitives::{
+    keccak256,
+    map::{hash_map::Entry, HashMap},
+    Address, B256,
+};
 use alloy_rpc_types::EIP1186AccountProofResponse;
 use reth_trie::{AccountProof, HashedPostState, HashedStorage, TrieAccount};
 use serde::{Deserialize, Serialize};
@@ -93,23 +97,48 @@ impl EthereumState {
                         .get(hashed_address)
                         .cloned()
                         .unwrap_or_else(|| HashedStorage::new(false));
-                    let storage_root = {
-                        let storage_trie = self.storage_tries.entry(*hashed_address).or_default();
 
-                        if state_storage.wiped {
-                            storage_trie.clear();
+                    let storage_root = match self.storage_tries.entry(*hashed_address) {
+                        Entry::Occupied(entry) => {
+                            // If `post_state` includes storage changes, update the storage slots.
+                            let storage_trie = entry.into_mut();
+                            if state_storage.wiped {
+                                storage_trie.clear();
+                            }
+                            for (key, value) in state_storage.storage.iter() {
+                                let key = key.as_slice();
+                                if value.is_zero() {
+                                    storage_trie.delete(key).unwrap();
+                                } else {
+                                    storage_trie.insert_rlp(key, *value).unwrap();
+                                }
+                            }
+                            storage_trie.hash()
                         }
+                        Entry::Vacant(_) => {
+                            let mut storage_trie = MptNode::default();
+                            for (key, value) in state_storage.storage.iter() {
+                                let key = key.as_slice();
+                                if value.is_zero() {
+                                    storage_trie.delete(key).unwrap();
+                                } else {
+                                    storage_trie.insert_rlp(key, *value).unwrap();
+                                }
+                            }
 
-                        for (key, value) in state_storage.storage.iter() {
-                            let key = key.as_slice();
-                            if value.is_zero() {
-                                storage_trie.delete(key).unwrap();
+                            if storage_trie.is_empty() && !state_storage.wiped {
+                                // If `post_state` has no storage changes for this account,
+                                // the storage root remains the one in the original state trie.
+                                let acc = self
+                                    .state_trie
+                                    .get_rlp::<TrieAccount>(&hashed_address.0)
+                                    .unwrap_or_default()
+                                    .unwrap_or_default();
+                                acc.storage_root
                             } else {
-                                storage_trie.insert_rlp(key, *value).unwrap();
+                                storage_trie.hash()
                             }
                         }
-
-                        storage_trie.hash()
                     };
 
                     let state_account = TrieAccount {

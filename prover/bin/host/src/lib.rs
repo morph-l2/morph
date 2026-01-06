@@ -1,5 +1,6 @@
 use anyhow::{bail, Context};
 pub mod evm;
+pub mod execute;
 use evm::{save_plonk_fixture, EvmProofFixture};
 use prover_executor_client::{
     types::input::{BlockInput, ExecutorInput},

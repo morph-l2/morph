@@ -1267,7 +1267,7 @@ fn node_from_digest(digest: B256) -> MptNode {
 
 #[cfg(test)]
 mod tests {
-    use hex_literal::hex;
+    use alloy_primitives::{hex, Keccak256};
 
     use super::*;
 
@@ -1531,5 +1531,16 @@ mod tests {
             assert_eq!(trie.hash(), reference.hash());
         }
         assert!(trie.is_empty());
+    }
+
+    #[test]
+    fn test_node_hash() {
+        let node_hex = "0xf90211a03c52773a9c6dec4cf2c37cfc090b02ce5c5386f846f89744388c36b38a3446d6a0e010896dd1752edadaf00dbeee9fd28ed1d4baf0a1e3dd606366bc3d053b2d42a052dc00254bcc9600688e19791c2ec10d00da1514d7460764915e1ea0b9c4677ea000abe06f7a250d17c8a9d9414ccddc87b84d09d8b935207e62fac51df37d73eea0bf60ae2c2da08c77061b7cf73e919f8daa876895c07862e1fadca74f7c26dd5fa0b289d9a37cbd574b90f8aad1d293842c404b13b14883ac8916d8219ee7af8c3ca01fc697622e66997b6252538c4e6218469aaa47265613f8298bbf8febcdfc245fa084f1d32e1d424a8542b07e526b7c48faf1b3e30177a98c9b80e09e19836ffbefa028f9ab895442c30e986e13d38d1f0453283d993b6c7bb7fe293873dc05b5e992a035e022c2d6c9901e4a7627c4691469e539462eea5cb4e40ab52cc9b184c8aec6a0558247bfcc35f805655bf3b0ec0407449200910400977ccd0bb29d8bf80647e7a06f2e2f55ba5a57fd3f7318ad80f0121b84524d016f3d41ad86cf8883bb22c9d8a0b30a604ca465bef7b5d0544c77b6dc26cb10b91d0055bdb3f6beb75537810974a045da91eb99e791661aa19f80b4362382a1384d2ff0c8245c259b3cab270c1a09a084006db0b6b1dfdb9b1812a517c4054980b8d65ed28f01c2c9a461d0cd941c5fa0fa31bf4a7722d0b9b098c225b2902c582483ac6c2cb7f8bda967371e1d3694cd80";
+        let node_bytes = hex::decode(node_hex).unwrap();
+
+        let mut hasher = Keccak256::new();
+        hasher.update(&node_bytes);
+        let result = hasher.finalize();
+        println!("Hash: 0x{:x}", result);
     }
 }

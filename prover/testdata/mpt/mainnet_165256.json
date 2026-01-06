@@ -57,7 +57,7 @@
             }
         ],
         "storageTrace": {
-            "rootBefore": "0x14f9a573f205858411a625060f074d0b01772ec06b8028e7670c434e51afd9a3",
+            "rootBefore": "0xd6ecdbab2ed6c8d80c3d7a9f125a5369e097de95d164f135b37fd3a7ea8f142c",
             "rootAfter": "0x0b7b9981d10896cda66dbac0741c6d908da59cf88e2d08ac5e34ce4ddb514a6e",
             "proofs": {
                 "0x5300000000000000000000000000000000000001": [

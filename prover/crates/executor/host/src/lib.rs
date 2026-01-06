@@ -4,6 +4,7 @@ use std::{io::Write, sync::Arc};
 use zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 
 pub mod execute;
+pub mod utils;
 mod zstd_util;
 
 /// The number of bytes to represent an unsigned 256 bit number.

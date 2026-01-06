@@ -1,5 +1,5 @@
 use crate::{Block, TxTrace};
-use alloy_primitives::{Address, Bytes, B256, U256};
+use alloy_primitives::{Address, Bytes, B256, U256, U64};
 use morph_primitives::MorphTxEnvelope;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Map};
@@ -17,6 +17,9 @@ pub struct BlockHeader {
     pub number: U256,
     /// block hash
     pub hash: B256,
+    /// the start index of L1Message needs to be processed
+    #[serde(default, rename = "nextL1MsgIndex")]
+    pub next_l1_msg_index: U64,
     /// state root
     #[serde(rename = "stateRoot")]
     pub state_root: B256,

@@ -33,3 +33,7 @@ prover-executor-client = { workspace = true }
 prover-primitives = { workspace = true }
 prover-utils = { workspace = true }
 
+alloy-provider = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

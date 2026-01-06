@@ -1,12 +1,12 @@
 use alloy_consensus::TrieAccount;
 use alloy_primitives::map::HashMap;
 use anyhow::anyhow;
+use prover_mpt::EthereumState;
 use revm::primitives::{keccak256, Address, B256, U256};
 use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
 };
-use prover_mpt::EthereumState;
 
 /// A read-only `revm::DatabaseRef` backed by an [`rsp_mpt::EthereumState`].
 ///
@@ -53,7 +53,12 @@ impl DatabaseRef for TrieDB<'_> {
             .get_rlp::<TrieAccount>(hashed_address)
             .map_err(|e| {
                 // keep behavior non-panicking (consistent with original code's debug printing)
-                eprintln!("get account of {:?} from trie error: {:?}", address, e);
+                eprintln!(
+                    "get account of {:?}, hashed_address: {:?} from trie error: {:?}",
+                    address,
+                    alloy_primitives::hex::encode_prefixed(hashed_address),
+                    e
+                );
             })
             .unwrap();
 
@@ -69,11 +74,7 @@ impl DatabaseRef for TrieDB<'_> {
 
     /// Get account code by its hash.
     fn code_by_hash_ref(&self, hash: B256) -> Result<Bytecode, Self::Error> {
-        Ok(self
-            .bytecode_by_hash
-            .get(&hash)
-            .map(|code| (*code).clone())
-            .unwrap())
+        Ok(self.bytecode_by_hash.get(&hash).map(|code| (*code).clone()).unwrap())
     }
 
     /// Get storage value of address at index.

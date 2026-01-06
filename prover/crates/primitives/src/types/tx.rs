@@ -2,7 +2,7 @@ use crate::{types::AuthorizationList, TxTrace};
 
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64,
+    Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64, U8,
 };
 use serde_with::{serde_as, DefaultOnNull};
 
@@ -37,6 +37,10 @@ use serde_with::{serde_as, DefaultOnNull};
 //     pub input: Bytes,
 // }
 
+fn default_chain_id() -> U64 {
+    U64::from(53077)
+}
+
 /// Transaction Trace
 #[serde_as]
 #[derive(serde::Serialize, serde::Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
@@ -46,18 +50,18 @@ pub struct TransactionTrace {
     pub(crate) tx_hash: B256,
     /// tx type (in raw from)
     #[serde(rename = "type")]
-    pub(crate) ty: u8,
+    pub(crate) ty: U8,
     /// nonce
-    pub(crate) nonce: u64,
+    pub(crate) nonce: U64,
     /// gas limit
-    pub(crate) gas: u64,
+    pub(crate) gas: U64,
     #[serde(rename = "gasPrice")]
     /// gas price
     pub(crate) gas_price: U256,
-    #[serde(rename = "gasTipCap")]
+    #[serde(rename = "gasTipCap", alias = "maxPriorityFeePerGas")]
     /// gas tip cap
     pub(crate) gas_tip_cap: Option<U256>,
-    #[serde(rename = "gasFeeCap")]
+    #[serde(rename = "gasFeeCap", alias = "maxFeePerGas")]
     /// gas fee cap
     pub(crate) gas_fee_cap: Option<U256>,
     /// from
@@ -66,16 +70,20 @@ pub struct TransactionTrace {
     pub(crate) to: Option<Address>,
     /// chain id
     #[serde(rename = "chainId")]
+    #[serde(default = "default_chain_id")]
     pub(crate) chain_id: U64,
     /// value amount
     pub(crate) value: U256,
     /// call data
+    #[serde(alias = "input")]
     pub(crate) data: Bytes,
     /// is creation
     #[serde(rename = "isCreate")]
+    #[serde(default)]
     pub(crate) is_create: bool,
     /// access list
     #[serde(rename = "accessList")]
+    #[serde(default)]
     #[serde_as(as = "DefaultOnNull")]
     pub(crate) access_list: AccessList,
     /// authorization list
@@ -103,15 +111,15 @@ impl TxTrace for TransactionTrace {
     }
 
     fn ty(&self) -> u8 {
-        self.ty
+        self.ty.to::<u8>()
     }
 
     fn nonce(&self) -> u64 {
-        self.nonce
+        self.nonce.to::<u64>()
     }
 
     fn gas_limit(&self) -> u64 {
-        self.gas
+        self.gas.to::<u64>()
     }
 
     fn gas_price(&self) -> u128 {
@@ -160,7 +168,7 @@ impl TxTrace for TransactionTrace {
     }
 
     fn signature(&self) -> Result<Signature, SignatureError> {
-        Ok(Signature::from_scalars_and_parity(self.r.into(), self.s.into(), true))
+        Ok(Signature::from_scalars_and_parity(self.r.into(), self.s.into(), self.v != 0))
     }
 
     fn fee_token_id(&self) -> u16 {

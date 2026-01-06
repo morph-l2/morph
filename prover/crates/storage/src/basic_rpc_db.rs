@@ -4,13 +4,14 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::account_proof::eip1186_proof_to_account_proof;
+use crate::account_proof::{eip1186_proof_to_account_proof, EIP1186AccountProofResponseCompat};
 use alloy_consensus::{BlockHeader, Header};
-use alloy_primitives::{map::HashMap, U256};
+use alloy_primitives::{map::HashMap, StorageKey, U256};
 use alloy_provider::{
     network::{primitives::HeaderResponse, BlockResponse},
     Network, Provider,
 };
+use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
 use prover_mpt::EthereumState;
 use reth_storage_errors::{db::DatabaseError, provider::ProviderError};
@@ -61,11 +62,8 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
 
         // Fetch the proof for the account.
         let proof = self
-            .provider
-            .get_proof(address, vec![])
-            .number(self.block_number)
-            .await
-            .map_err(|e| RpcDbError::GetProofError(address, e.to_string()))?;
+            .eth_get_proof(address, Vec::<alloy_primitives::StorageKey>::new(), self.block_number)
+            .await?;
 
         // Fetch the code of the account.
         let code = self
@@ -97,6 +95,24 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
             .insert(address, account_info.clone());
 
         Ok(account_info)
+    }
+
+    async fn eth_get_proof(
+        &self,
+        address: Address,
+        keys: Vec<StorageKey>,
+        block_number: u64,
+    ) -> Result<alloy_rpc_types::EIP1186AccountProofResponse, RpcDbError> {
+        let raw: EIP1186AccountProofResponseCompat = self
+            .provider
+            .raw_request::<(Address, Vec<alloy_primitives::StorageKey>, BlockId), _>(
+                "eth_getProof".into(),
+                (address, keys, block_number.into()),
+            )
+            .await
+            .map_err(|e| RpcDbError::GetProofError(address, e.to_string()))?;
+        let proof: alloy_rpc_types::EIP1186AccountProofResponse = raw.into();
+        Ok(proof)
     }
 
     /// Fetch the storage value at an [Address] and [U256] index.
@@ -173,6 +189,7 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
         })?;
         let result =
             tokio::task::block_in_place(|| handle.block_on(self.fetch_account_info(address)));
+
         let account_info =
             result.map_err(|e| ProviderError::Database(DatabaseError::Other(e.to_string())))?;
         Ok(Some(account_info))
@@ -249,14 +266,11 @@ where
                 .collect::<Vec<_>>();
 
             let storage_proof =
-                self.provider.get_proof(*address, keys.clone()).number(self.block_number).await?;
+                self.eth_get_proof(*address, keys.clone(), self.block_number).await?;
             before_storage_proofs.push(eip1186_proof_to_account_proof(storage_proof));
 
-            let storage_proof = self
-                .provider
-                .get_proof(*address, modified_keys)
-                .number(self.block_number + 1)
-                .await?;
+            let storage_proof =
+                self.eth_get_proof(*address, modified_keys, self.block_number + 1).await?;
             after_storage_proofs.push(eip1186_proof_to_account_proof(storage_proof));
         }
 

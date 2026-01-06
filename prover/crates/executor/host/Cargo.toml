@@ -25,3 +25,9 @@ alloy-rpc-types = { workspace = true }
 reth-trie.workspace = true
 morph-revm = { workspace = true }
 alloy-primitives = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_with.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }

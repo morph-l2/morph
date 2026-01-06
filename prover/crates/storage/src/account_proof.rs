@@ -36,3 +36,40 @@ pub fn eip1186_proof_to_account_proof(proof: EIP1186AccountProofResponse) -> Acc
 
     AccountProof { address, info, proof: account_proof, storage_root, storage_proofs }
 }
+
+use alloy_primitives::{Address, Bytes, B256, U256, U64};
+use alloy_rpc_types::EIP1186StorageProof;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EIP1186AccountProofResponseCompat {
+    /// The account address.
+    pub address: Address,
+    /// The account balance.
+    pub balance: U256,
+    /// The hash of the code of the account.
+    #[serde(alias = "keccakCodeHash")]
+    pub code_hash: B256,
+    /// The account nonce.
+    pub nonce: U64,
+    /// The hash of the storage of the account.
+    pub storage_hash: B256,
+    /// The account proof.
+    pub account_proof: Vec<Bytes>,
+    /// The storage proof.
+    pub storage_proof: Vec<EIP1186StorageProof>,
+}
+
+impl From<EIP1186AccountProofResponseCompat> for EIP1186AccountProofResponse {
+    fn from(v: EIP1186AccountProofResponseCompat) -> Self {
+        Self {
+            address: v.address,
+            balance: v.balance,
+            code_hash: v.code_hash,
+            nonce: v.nonce.to::<u64>(),
+            storage_hash: v.storage_hash,
+            account_proof: v.account_proof,
+            storage_proof: v.storage_proof,
+        }
+    }
+}

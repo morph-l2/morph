@@ -3,22 +3,19 @@ use crate::types::error::ClientError;
 use crate::types::input::BlockInput;
 use alloy_consensus::transaction::SignerRecoverable;
 use alloy_consensus::Transaction;
-use alloy_primitives::Address;
-use alloy_primitives::{ruint::aliases::U256, uint};
 use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
+use prover_primitives::predeployed::l1_gas_price_oracle::{
+    WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
+};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::context::BlockEnv;
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
-use revm::primitives::address;
 use revm::ExecuteCommitEvm;
 
 // use Verifier;
 pub struct EVMVerifier;
-
-const WITHDRAW_ROOT_ADDRESS: Address = address!("0x5300000000000000000000000000000000000001");
-const WITHDRAW_ROOT_SLOT: U256 = uint!(33_U256);
 
 impl EVMVerifier {
     pub fn verify(blocks: Vec<BlockInput>) -> Result<BatchInfo, ClientError> {
@@ -65,7 +62,6 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         .with_bundle_update()
         .without_state_clear()
         .build();
-
     // Build EVM.
     let block_env = BlockEnv {
         number: block_input.current_block.header.number,
@@ -76,7 +72,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         ..Default::default()
     };
 
-    let mut evm = MorphExecutor::with_hardfork(state, block_env);
+    let mut evm = MorphExecutor::with_hardfork(state, block_env.clone());
     // Execute transactions in block.
     let mut block_input_orgin = block_input.clone();
     let block = &block_input.current_block;
@@ -86,23 +82,26 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         let tx_env = revm::context::TxEnv {
             caller: recovered_from,
             nonce: tx.nonce(),
-            gas_price: tx.gas_price().unwrap_or_default(),
+            gas_price: tx.effective_gas_price(Some(block_env.basefee)),
+            gas_priority_fee: tx.max_priority_fee_per_gas(),
             gas_limit: tx.gas_limit(),
             kind: tx.kind(),
             value: tx.value(),
             data: revm::primitives::Bytes::from(tx.input().to_vec()),
             ..Default::default()
         };
-        let morph_tx = MorphTxEnv { inner: tx_env, rlp_bytes: None, ..Default::default() };
+        let morph_tx =
+            MorphTxEnv { inner: tx_env, rlp_bytes: Some(tx.rlp()), ..Default::default() };
 
         let _rt = evm
             .inner
             .transact_commit(morph_tx)
             .map_err(|e| ClientError::BlockExecutionError(e.to_string()))?;
     }
+
     evm.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
     let bundle_state = evm.inner.ctx.journaled_state.database.take_bundle();
-    println!("bundle_state len: {:?}", bundle_state.len());
+
     // Verify post state root.
     let hashed_post_state =
         HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);
@@ -115,6 +114,11 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
             block_input_orgin.current_block.header.number.to::<u64>(),
         ));
     };
+    println!(
+        "====success execute block_{:?} in client====",
+        block_input.current_block.header.number.to::<u64>()
+    );
+
     Ok(())
 }
 
@@ -128,6 +132,8 @@ mod tests {
 
     #[test]
     fn test_execute_local() {
+        // local_transfer_eth
+        // mainnet_809
         let block_trace = load_trace("../../../testdata/mpt/local_transfer_eth.json");
         println!("loaded {} block_traces", block_trace.len());
         let blocks: Vec<BlockInput> =
