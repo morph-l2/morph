@@ -4,7 +4,9 @@ use anyhow::{bail, Context};
 use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
 use prover_primitives::{
-    predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT},
+    predeployed::l2_to_l1_message::{
+        SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
+    },
     TxTrace,
 };
 use prover_storage::basic_rpc_db::{BasicRpcDb, RpcDb};
@@ -62,15 +64,8 @@ impl HostExecutor {
         // Init DB (RPC-backed, rooted at previous block).
         let rpc_db = BasicRpcDb::new(provider.clone(), prev_block_number, prev_disk_root.disk_root);
 
-        // Warm up predeployed contract info (improves determinism and reduces latency spikes).
-        rpc_db
-            .fetch_account_info(WITHDRAW_ROOT_ADDRESS)
-            .await
-            .context("failed to fetch WITHDRAW_ROOT_ADDRESS account info")?;
-        rpc_db
-            .fetch_storage_at(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)
-            .await
-            .context("failed to fetch WITHDRAW_ROOT_ADDRESS storage slot")?;
+        // Warm up predeployed contract info.
+        load_predeployed_contracts(&rpc_db).await?;
 
         let state = State::builder()
             .with_database_ref(&rpc_db)
@@ -158,6 +153,28 @@ impl HostExecutor {
             post_state_root: disk_root.disk_root,
         })
     }
+}
+
+async fn load_predeployed_contracts(
+    rpc_db: &BasicRpcDb<DynProvider, alloy_network::Ethereum>,
+) -> Result<(), anyhow::Error> {
+    rpc_db
+        .fetch_account_info(WITHDRAW_ROOT_ADDRESS)
+        .await
+        .context("failed to fetch WITHDRAW_ROOT_ADDRESS account info")?;
+    rpc_db
+        .fetch_storage_at(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)
+        .await
+        .context("failed to fetch WITHDRAW_ROOT_ADDRESS storage slot")?;
+    rpc_db
+        .fetch_account_info(SEQUENCER_ROOT_ADDRESS)
+        .await
+        .context("failed to fetch SEQUENCER_ROOT_ADDRESS account info")?;
+    rpc_db
+        .fetch_storage_at(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)
+        .await
+        .context("failed to fetch SEQUENCER_ROOT_ADDRESS storage slot")?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -35,6 +35,7 @@ async fn main() {
     metric_mng().await;
 
     let (batch_syncer, shadow_prover, l2_provider) = init_shadow_proving();
+    let l2_rpc_url: String = read_parse_env("SHADOW_PROVING_L2_RPC");
 
     let (tx, mut rx) = broadcast::channel(4);
     let batch_syncer_exec = batch_syncer.clone();
@@ -65,7 +66,7 @@ async fn main() {
             if *SHADOW_EXECUTE {
                 log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
                 // Execute batch
-                match try_execute_batch(&batch_info, &l2_provider).await {
+                match try_execute_batch(&batch_info, &l2_provider, l2_rpc_url.clone()).await {
                     Ok(_) => {
                         // Update the latest processed batch index
                         latest_processed_batch = batch_info.batch_index;

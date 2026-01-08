@@ -6,7 +6,7 @@ use prover_executor_client::{
     types::input::{BlockInput, ExecutorInput},
     verify,
 };
-use prover_executor_host::get_blob_info;
+use prover_executor_host::blob::get_blob_info;
 use prover_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
 use prover_utils::read_env_var;
 use sp1_sdk::{HashableKey, ProverClient, SP1Stdin};
@@ -122,7 +122,7 @@ mod tests {
         },
         BlobVerifier,
     };
-    use prover_executor_host::{encode_blob, populate_kzg};
+    use prover_executor_host::blob::{encode_blob, populate_kzg};
     use prover_primitives::MorphTxEnvelope;
     #[test]
     fn test_blob() {

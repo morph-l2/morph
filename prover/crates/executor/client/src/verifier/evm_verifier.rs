@@ -6,7 +6,9 @@ use alloy_consensus::Transaction;
 use alloy_primitives::Bytes;
 use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
-use prover_primitives::predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT};
+use prover_primitives::predeployed::l2_to_l1_message::{
+    SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
+};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::context::BlockEnv;
 use revm::database::states::bundle_state::BundleRetention;
@@ -45,14 +47,18 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
 
     let last_input = block_inputs.last().expect("block_inputs is non-empty (checked above)");
 
-    // The post-withdraw root is required for public inputs; it is derived from the last block.
+    // The post-withdraw-root & post-sequencer-root is required for public inputs.
+    // Tt is derived from the state of the last verified block.
     let post_withdraw_root =
         last_input.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
+    let post_sequencer_root =
+        last_input.get_storage_value(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)?;
 
     Ok(BatchInfo::from_block_inputs(
         &block_inputs,
         last_input.current_block.post_state_root,
         post_withdraw_root.into(),
+        post_sequencer_root.into(),
     ))
 }
 
@@ -117,11 +123,9 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     evm.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
     let bundle_state = evm.inner.ctx.journaled_state.database.take_bundle();
 
-    // Verify the post-state root by applying the block's transition set to the parent (pre-block)
-    // state, then hashing the resulting post-execution state.
+    // Verify the post-state root by applying the block's transition set to the parent (pre-block) state.
     let hashed_post_state =
         HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);
-
     state_for_root_verification.update(&hashed_post_state);
     if state_for_root_verification.state_root() != block.post_state_root {
         return Err(ClientError::MismatchedStateRoot(header.number.to::<u64>()));

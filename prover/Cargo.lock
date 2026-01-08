@@ -8843,6 +8843,7 @@ dependencies = [
  "alloy-transport-http",
  "anyhow",
  "axum 0.4.8",
+ "clap",
  "dotenv",
  "env_logger",
  "flexi_logger",

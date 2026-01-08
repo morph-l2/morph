@@ -1,15 +1,9 @@
 use alloy_provider::{Provider, ProviderBuilder};
-#[cfg(test)]
-use clap::Parser;
-use prover_executor_client::{
-    types::input::{BlockInput, L2Block},
-    EVMVerifier,
-};
+use prover_executor_client::EVMVerifier;
 use prover_executor_host::{
     execute::HostExecutor,
-    utils::{query_block, HostExecutorOutput, ProverBlock},
+    utils::{assemble_block_input, query_block, HostExecutorOutput},
 };
-use prover_primitives::TxTrace;
 
 pub async fn execute(block_number: u64, rpc: &str) {
     let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
@@ -50,30 +44,6 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, rpc: &str) {
     }
 }
 
-fn assemble_block_input(output: HostExecutorOutput, prev_block: ProverBlock) -> BlockInput {
-    let block = output.block;
-    let state = output.state;
-    let codes = output.codes;
-
-    let l2_block = L2Block {
-        chain_id: output.chain_id,
-        coinbase: output.beneficiary,
-        header: block.header,
-        transactions: block
-            .transactions
-            .iter()
-            .map(|tx_trace| tx_trace.try_build_tx_envelope().unwrap())
-            .collect(),
-        prev_state_root: output.prev_state_root,
-        post_state_root: output.post_state_root,
-        start_l1_queue_index: prev_block.header.next_l1_msg_index.to::<u64>(),
-    };
-
-    let block_input = BlockInput { current_block: l2_block, parent_state: state, bytecodes: codes };
-
-    block_input
-}
-
 // cargo test -p morph-prove test_execute -- --nocapture -- --block-number 0x35 --rpc http://127.0.0.1:9545
 #[test]
 fn test_execute() {
@@ -100,8 +70,7 @@ fn test_execute_continuous() {
 
 #[cfg(test)]
 mod test_args {
-    use super::*;
-
+    use clap::Parser;
     const DEFAULT_BLOCK_NUMBER: u64 = 0x477;
     const DEFAULT_START_BLOCK: u64 = DEFAULT_BLOCK_NUMBER;
     const DEFAULT_END_BLOCK: u64 = DEFAULT_BLOCK_NUMBER;

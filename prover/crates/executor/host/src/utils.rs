@@ -1,14 +1,16 @@
+use crate::ClientBlockInput;
 use alloy_primitives::hex::FromHex;
 use alloy_primitives::{Address, Bytes, B256, U256, U64, U8};
 use alloy_provider::{DynProvider, Provider};
 use alloy_rpc_types::AccessList;
 use anyhow::Context;
+pub use prover_executor_client::types::input::L2Block;
 use prover_mpt::EthereumState;
 use prover_primitives::types::{AuthorizationList, BlockHeader, TransactionTrace};
+use prover_primitives::TxTrace;
 use revm::state::Bytecode;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull};
-
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -101,6 +103,34 @@ pub struct HostExecutorOutput {
     pub prev_state_root: B256,
     /// post state root
     pub post_state_root: B256,
+}
+
+pub fn assemble_block_input(
+    output: HostExecutorOutput,
+    prev_block: ProverBlock,
+) -> ClientBlockInput {
+    let block = output.block;
+    let state = output.state;
+    let codes = output.codes;
+
+    let l2_block = L2Block {
+        chain_id: output.chain_id,
+        coinbase: output.beneficiary,
+        header: block.header,
+        transactions: block
+            .transactions
+            .iter()
+            .map(|tx_trace| tx_trace.try_build_tx_envelope().unwrap())
+            .collect(),
+        prev_state_root: output.prev_state_root,
+        post_state_root: output.post_state_root,
+        start_l1_queue_index: prev_block.header.next_l1_msg_index.to::<u64>(),
+    };
+
+    let block_input =
+        ClientBlockInput { current_block: l2_block, parent_state: state, bytecodes: codes };
+
+    block_input
 }
 
 pub async fn query_state_root(

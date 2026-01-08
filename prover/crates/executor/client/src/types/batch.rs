@@ -27,6 +27,7 @@ impl BatchInfo {
         block_inputs: &Vec<BlockInput>,
         post_state_root: B256,
         withdraw_root: B256,
+        sequencer_root: B256,
     ) -> Self {
         let blocks = block_inputs.iter().map(|x| x.current_block.clone()).collect::<Vec<_>>();
         let chain_id = blocks.first().unwrap().chain_id;
@@ -47,7 +48,7 @@ impl BatchInfo {
             prev_state_root,
             post_state_root,
             withdraw_root: Some(withdraw_root),
-            sequencer_root: None,
+            sequencer_root: Some(sequencer_root),
             data_hash: l1_data_hash,
         };
 
