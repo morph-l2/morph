@@ -5,10 +5,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-revm = { workspace = true, features = [
-    "serde",
-    "bn",
-], default-features = false }
+revm = { workspace = true, features = ["serde", "bn"] }
 thiserror = { workspace = true }
 morph-revm = { workspace = true }
 morph-evm = { workspace = true }

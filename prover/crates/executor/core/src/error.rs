@@ -1,4 +1,7 @@
-use revm::{context::result::EVMError, primitives::{B256, alloy_primitives::SignatureError}};
+use revm::{
+    context::result::EVMError,
+    primitives::{alloy_primitives::SignatureError, B256},
+};
 use std::convert::Infallible;
 
 /// Error variants encountered during manipulation of a zkTrie.

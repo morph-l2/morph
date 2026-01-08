@@ -82,7 +82,8 @@ impl From<SignedAuthorization> for ArchivedSignedAuthorization {
 
 impl From<ArchivedSignedAuthorization> for SignedAuthorization {
     fn from(auth: ArchivedSignedAuthorization) -> Self {
-        let inner = Authorization { chain_id: auth.chain_id, address: auth.address, nonce: auth.nonce };
+        let inner =
+            Authorization { chain_id: auth.chain_id, address: auth.address, nonce: auth.nonce };
 
         // yParity: 0/1
         let v: u8 = auth.v.to();
@@ -112,4 +113,3 @@ impl From<AuthorizationList> for Vec<SignedAuthorization> {
         auths.0.into_iter().map(SignedAuthorization::from).collect()
     }
 }
-

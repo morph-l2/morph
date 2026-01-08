@@ -25,10 +25,11 @@ impl<DB: Database> MorphExecutor<DB> {
         let evm = MorphEvm::new(ctx, NoOpInspector {});
         Self { inner: evm }
     }
-    pub fn with_hardfork(db: DB, block_env: BlockEnv) -> Self {
+    pub fn with_hardfork(db: DB, block_env: BlockEnv, chain_id: u64) -> Self {
         let mut env: EvmEnv<MorphHardfork, MorphBlockEnv> =
             EvmEnv::default().with_timestamp(block_env.timestamp);
         env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Curie);
+        env.cfg_env.chain_id = chain_id;
         env.block_env = MorphBlockEnv { inner: block_env };
         Self::new(db, env)
     }

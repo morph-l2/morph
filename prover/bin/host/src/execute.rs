@@ -1,4 +1,6 @@
 use alloy_provider::{Provider, ProviderBuilder};
+#[cfg(test)]
+use clap::Parser;
 use prover_executor_client::{
     types::input::{BlockInput, L2Block},
     EVMVerifier,
@@ -11,14 +13,44 @@ use prover_primitives::TxTrace;
 
 pub async fn execute(block_number: u64, rpc: &str) {
     let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
-    let prev_block = query_block(block_number, &provider).await.unwrap();
+    let current_block = query_block(block_number, &provider).await.unwrap();
+    if current_block.transactions.is_empty() {
+        // skip execute blocks with no transactions
+        return;
+    }
+    let prev_block = query_block(block_number.saturating_sub(1), &provider).await.unwrap();
+    let output: HostExecutorOutput =
+        HostExecutor::execute_block(block_number, &provider).await.unwrap();
 
-    let output = HostExecutor::execute_block(block_number, &provider).await.unwrap();
-    let block_input = to_block_input(output, prev_block);
+    let block_input = assemble_block_input(output, prev_block);
     let _batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
 }
 
-fn to_block_input(output: HostExecutorOutput, prev_block: ProverBlock) -> BlockInput {
+/// Execute a range of blocks (inclusive).
+pub async fn execute_range(start_block: u64, end_block: u64, rpc: &str) {
+    assert!(
+        end_block >= start_block,
+        "end_block ({end_block}) must be >= start_block ({start_block})"
+    );
+    for block_number in start_block..=end_block {
+        execute(block_number, rpc).await;
+    }
+}
+
+/// Execute blocks continuously starting from `start_block`.
+///
+/// Note: In tests we bound the execution by `max_blocks` to avoid infinite loops.
+pub async fn execute_continuous(start_block: u64, max_blocks: u64, rpc: &str) {
+    for offset in 0..max_blocks {
+        let block_number = match start_block.checked_add(offset) {
+            Some(n) => n,
+            None => break,
+        };
+        execute(block_number, rpc).await;
+    }
+}
+
+fn assemble_block_input(output: HostExecutorOutput, prev_block: ProverBlock) -> BlockInput {
     let block = output.block;
     let state = output.state;
     let codes = output.codes;
@@ -50,44 +82,125 @@ fn test_execute() {
     rt.block_on(execute(block_number, &rpc));
 }
 
+// cargo test -p morph-prove test_execute_range -- --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
+#[test]
+fn test_execute_range() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let (start_block, end_block, rpc) = test_args::read_execute_range_args_from_argv();
+    rt.block_on(execute_range(start_block, end_block, &rpc));
+}
+
+// cargo test -p morph-prove test_execute_continuous -- --nocapture -- --start-block 0x35 --max-blocks 2 --rpc http://127.0.0.1:9545
+#[test]
+fn test_execute_continuous() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let (start_block, max_blocks, rpc) = test_args::read_execute_continuous_args_from_argv();
+    rt.block_on(execute_continuous(start_block, max_blocks, &rpc));
+}
+
 #[cfg(test)]
 mod test_args {
-    const DEFAULT_BLOCK_NUMBER: u64 = 0x477;
-    const DEFAULT_RPC: &str = "http://127.0.0.1:9545";
-    pub(super) fn read_execute_args_from_argv() -> (u64, String) {
-        let mut block_number = DEFAULT_BLOCK_NUMBER;
-        let mut rpc = DEFAULT_RPC.to_string();
+    use super::*;
 
-        let mut it = std::env::args().skip(1);
+    const DEFAULT_BLOCK_NUMBER: u64 = 0x477;
+    const DEFAULT_START_BLOCK: u64 = DEFAULT_BLOCK_NUMBER;
+    const DEFAULT_END_BLOCK: u64 = DEFAULT_BLOCK_NUMBER;
+    const DEFAULT_MAX_BLOCKS: u64 = 1000;
+    const DEFAULT_RPC: &str = "http://127.0.0.1:9545";
+
+    /// `execute.rs` Test parameters (supports passing in from `cargo test ... -- <args>`).
+    #[derive(Parser, Debug)]
+    #[command(author, version, about, long_about = None, disable_help_flag = true)]
+    struct ExecuteArgs {
+        /// L2 block number (supports decimal or 0x prefix hexadecimal).
+        #[arg(long = "block-number", alias = "block", default_value_t = DEFAULT_BLOCK_NUMBER, value_parser = parse_u64_auto_radix)]
+        block_number: u64,
+
+        /// RPC endpoint。
+        #[arg(long, default_value = DEFAULT_RPC)]
+        rpc: String,
+    }
+
+    /// Range execute parameters.
+    #[derive(Parser, Debug)]
+    #[command(author, version, about, long_about = None, disable_help_flag = true)]
+    struct ExecuteRangeArgs {
+        /// Start L2 block number (inclusive).
+        #[arg(long = "start-block", alias = "start", default_value_t = DEFAULT_START_BLOCK, value_parser = parse_u64_auto_radix)]
+        start_block: u64,
+
+        /// End L2 block number (inclusive).
+        #[arg(long = "end-block", alias = "end", default_value_t = DEFAULT_END_BLOCK, value_parser = parse_u64_auto_radix)]
+        end_block: u64,
+
+        /// RPC endpoint。
+        #[arg(long, default_value = DEFAULT_RPC)]
+        rpc: String,
+    }
+
+    /// Continuous execute parameters.
+    #[derive(Parser, Debug)]
+    #[command(author, version, about, long_about = None, disable_help_flag = true)]
+    struct ExecuteContinuousArgs {
+        /// Start L2 block number.
+        #[arg(long = "start-block", alias = "start", default_value_t = DEFAULT_START_BLOCK, value_parser = parse_u64_auto_radix)]
+        start_block: u64,
+
+        /// Max blocks to execute (to avoid infinite loop in tests).
+        #[arg(long = "max-blocks", default_value_t = DEFAULT_MAX_BLOCKS, value_parser = parse_u64_auto_radix)]
+        max_blocks: u64,
+
+        /// RPC endpoint。
+        #[arg(long, default_value = DEFAULT_RPC)]
+        rpc: String,
+    }
+
+    pub(super) fn read_execute_args_from_argv() -> (u64, String) {
+        let filtered = filter_argv(&["--block-number", "--block", "--rpc"]);
+
+        let args = ExecuteArgs::parse_from(filtered);
+        (args.block_number, args.rpc)
+    }
+
+    pub(super) fn read_execute_range_args_from_argv() -> (u64, u64, String) {
+        let filtered = filter_argv(&["--start-block", "--start", "--end-block", "--end", "--rpc"]);
+        let args = ExecuteRangeArgs::parse_from(filtered);
+        (args.start_block, args.end_block, args.rpc)
+    }
+
+    pub(super) fn read_execute_continuous_args_from_argv() -> (u64, u64, String) {
+        let filtered = filter_argv(&["--start-block", "--start", "--max-blocks", "--rpc"]);
+        let args = ExecuteContinuousArgs::parse_from(filtered);
+        (args.start_block, args.max_blocks, args.rpc)
+    }
+
+    fn filter_argv(allowed_flags: &[&str]) -> Vec<String> {
+        let argv: Vec<String> = std::env::args().skip(1).collect();
+        let mut filtered: Vec<String> = Vec::with_capacity(argv.len() + 1);
+        // clap expects argv[0] to be the binary name, so we use a placeholder.
+        filtered.push("execute_test".to_string());
+
+        let mut it = argv.into_iter();
         while let Some(arg) = it.next() {
-            match arg.as_str() {
-                "--block-number" | "--block" => {
-                    if let Some(v) = it.next() {
-                        if let Some(parsed) = parse_u64_auto_radix(&v) {
-                            block_number = parsed;
-                        }
-                    }
+            if allowed_flags.iter().any(|f| *f == arg) {
+                filtered.push(arg);
+                if let Some(v) = it.next() {
+                    filtered.push(v);
                 }
-                "--rpc" => {
-                    if let Some(v) = it.next() {
-                        rpc = v;
-                    }
-                }
-                _ => {
-                    // ignore unknown args
-                }
+            } else {
+                // ignore unknown args
             }
         }
 
-        (block_number, rpc)
+        filtered
     }
 
-    fn parse_u64_auto_radix(s: &str) -> Option<u64> {
+    fn parse_u64_auto_radix(s: &str) -> Result<u64, String> {
         let s = s.trim();
         if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
-            u64::from_str_radix(hex, 16).ok()
+            u64::from_str_radix(hex, 16).map_err(|e| e.to_string())
         } else {
-            s.parse::<u64>().ok()
+            s.parse::<u64>().map_err(|e| e.to_string())
         }
     }
 }
