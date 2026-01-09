@@ -268,6 +268,7 @@ start_geth() {
         --port=$p2p_port \
         --nodiscover \
         --gcmode=archive \
+        --cache.preimages \
         --miner.gasprice=0 \
         --verbosity=3 \
         $extra_args \
@@ -296,7 +297,7 @@ start_sequencer_node() {
     export MORPH_NODE_L2_ETH_RPC="http://127.0.0.1:${MPT_GETH_HTTP_PORT}"
     export MORPH_NODE_L2_ENGINE_RPC="http://127.0.0.1:${MPT_GETH_AUTH_PORT}"
     export MORPH_NODE_L2_ENGINE_AUTH="$jwt_file"
-    export MORPH_NODE_MPT_TIME="$mpt_time"
+    # MPT_TIME is now fetched from geth via eth_config API, no need to set it here
     export MORPH_NODE_L1_ETH_RPC="${L1_ETH_RPC:-http://127.0.0.1:9545}"
     export MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS="0x6900000000000000000000000000000000000001"
     export MORPH_NODE_L1_CONFIRMATIONS=0
@@ -331,7 +332,7 @@ start_sentry_node() {
     export MORPH_NODE_L2_ETH_RPC="http://127.0.0.1:${ZK_GETH_HTTP_PORT}"
     export MORPH_NODE_L2_ENGINE_RPC="http://127.0.0.1:${ZK_GETH_AUTH_PORT}"
     export MORPH_NODE_L2_ENGINE_AUTH="$jwt_file"
-    export MORPH_NODE_MPT_TIME="$mpt_time"
+    # MPT_TIME is now fetched from geth via eth_config API, no need to set it here
     export MORPH_NODE_L1_ETH_RPC="${L1_ETH_RPC:-http://127.0.0.1:9545}"
     export MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS="0x6900000000000000000000000000000000000001"
     export MORPH_NODE_L1_CONFIRMATIONS=0
@@ -556,9 +557,9 @@ main() {
             prepare_configs
             
             # Start Geth (only 2 instances)
-            # MPT Geth's genesis-mpt.json is configured with genesisStateRoot matching ZK Geth
-            start_geth "zk-geth" "$GETH_BIN" "$ZK_GETH_DIR" $ZK_GETH_HTTP_PORT $ZK_GETH_WS_PORT $ZK_GETH_AUTH_PORT $ZK_GETH_P2P_PORT "$ZK_GETH_PID"
-            start_geth "mpt-geth" "$GETH_BIN" "$MPT_GETH_DIR" $MPT_GETH_HTTP_PORT $MPT_GETH_WS_PORT $MPT_GETH_AUTH_PORT $MPT_GETH_P2P_PORT "$MPT_GETH_PID"
+            # Pass --override.mptforktime to let Geth know when to switch to MPT mode
+            start_geth "zk-geth" "$GETH_BIN" "$ZK_GETH_DIR" $ZK_GETH_HTTP_PORT $ZK_GETH_WS_PORT $ZK_GETH_AUTH_PORT $ZK_GETH_P2P_PORT "$ZK_GETH_PID" "--override.mptforktime=$mpt_time"
+            start_geth "mpt-geth" "$GETH_BIN" "$MPT_GETH_DIR" $MPT_GETH_HTTP_PORT $MPT_GETH_WS_PORT $MPT_GETH_AUTH_PORT $MPT_GETH_P2P_PORT "$MPT_GETH_PID" "--override.mptforktime=$mpt_time"
             
             # Wait for Geth to be ready
             wait_for_geth $ZK_GETH_HTTP_PORT "zk-geth"

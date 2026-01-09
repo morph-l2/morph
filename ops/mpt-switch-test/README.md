@@ -102,12 +102,17 @@ Successfully switched to MPT client
 ```
 mpt-switch-test/
 ├── test-mpt-switch-local.sh  # Test script
+├── verify-migration.sh       # Migration verification script
+├── check-nodes.sh            # Node status check script
+├── send-txs.sh               # Transaction sending script
 ├── README.md                 # This document
-├── genesis-l2.json           # L2 genesis file (included)
+├── genesis-zk.json           # ZK mode genesis file
+├── genesis-mpt.json          # MPT mode genesis file
 ├── bin/                      # Binary directory (needs to be placed manually)
 │   ├── geth
 │   ├── morphnode
-│   └── tendermint
+│   ├── tendermint
+│   └── migration-checker     # Built by verify-migration.sh
 └── .testdata/                # Test data directory (generated on startup)
     ├── zk-geth/              # ZK Geth data
     ├── mpt-geth/             # MPT Geth data
@@ -115,4 +120,68 @@ mpt-switch-test/
     ├── sentry-node/          # Sentry Node data
     ├── jwt-secret.txt        # JWT secret
     └── *.log                 # Log files
+```
+
+## Migration Verification
+
+After the MPT switch, you can verify that the migration was correct by comparing all account and storage data between ZK Geth and MPT Geth.
+
+### Prerequisites
+
+1. **go-ethereum on trie-checker branch**:
+   ```bash
+   cd /path/to/go-ethereum
+   git checkout trie-checker
+   ```
+
+2. **Test environment running** with both nodes synced
+
+### Verification Commands
+
+```bash
+# 1. Build migration-checker tool
+./verify-migration.sh build
+
+# 2. Check verification readiness
+./verify-migration.sh status
+
+# 3. Auto-verify at latest common block
+./verify-migration.sh auto
+
+# 4. Verify at specific block
+./verify-migration.sh verify 0x10      # hex
+./verify-migration.sh verify 100       # decimal
+
+# 5. Paranoid mode (verify all node hashes)
+./verify-migration.sh auto --paranoid
+```
+
+### What Migration-Checker Verifies
+
+| Item | Description |
+|------|-------------|
+| Account count | Number of accounts must match |
+| Nonce | Each account's nonce must be identical |
+| Balance | Each account's balance must be identical |
+| CodeHash | Contract code hashes must match |
+| Storage | All storage slot values must match |
+
+### Expected Output
+
+```
+[STEP] Running migration-checker...
+  ZK DB:    .testdata/zk-geth/geth/chaindata
+  MPT DB:   .testdata/mpt-geth/geth/chaindata
+  ZK Root:  0x1234...
+  MPT Root: 0x5678...
+
+Accounts done: 1
+Accounts done: 2
+...
+Accounts done: N
+
+[SUCCESS] ==========================================
+[SUCCESS]   Migration verification PASSED!
+[SUCCESS]   All accounts and storage data match.
+[SUCCESS] ==========================================
 ```

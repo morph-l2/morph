@@ -88,7 +88,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	l2Client := types.NewRetryableClient(laClient, leClient, aClient, eClient, config.MptTime, config.Logger)
+	l2Client := types.NewRetryableClient(laClient, leClient, aClient, eClient, config.L2Legacy.EthAddr, config.Logger)
 	index, err := getNextL1MsgIndex(l2Client)
 	if err != nil {
 		return nil, err
@@ -289,10 +289,26 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		// Even if block was already delivered (e.g., synced via P2P), we still need to check
 		// if MPT switch should happen, otherwise sentry nodes won't switch to the correct geth.
 		e.l2Client.EnsureSwitched(context.Background(), wrappedBlock.Timestamp, wrappedBlock.Number)
-		if e.devSequencer {
-			return nil, consensusData.ValidatorSet, nil
+
+		// After switch, re-check height from the new geth client
+		// The block might exist in legacy geth but not in target geth after switch
+		newHeight, err := e.l2Client.BlockNumber(context.Background())
+		if err != nil {
+			return nil, nil, err
 		}
-		return e.getParamsAndValsAtHeight(int64(wrappedBlock.Number))
+		if wrappedBlock.Number > newHeight {
+			e.logger.Info("block not in target geth after switch, need to deliver",
+				"block_number", wrappedBlock.Number,
+				"old_height", height,
+				"new_height", newHeight)
+			// Update height and continue to deliver the block
+			height = newHeight
+		} else {
+			if e.devSequencer {
+				return nil, consensusData.ValidatorSet, nil
+			}
+			return e.getParamsAndValsAtHeight(int64(wrappedBlock.Number))
+		}
 	}
 
 	// We only accept the continuous blocks for now.

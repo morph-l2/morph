@@ -5,7 +5,13 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GETH_BIN="${SCRIPT_DIR}/bin/geth"
-ZK_GETH_HTTP="http://127.0.0.1:9545"
+
+# RPC endpoint: default 8545, pass "1" to use 9545
+if [ "${USE_MPT:-0}" == "1" ]; then
+    GETH_HTTP="http://127.0.0.1:9545"
+else
+    GETH_HTTP="http://127.0.0.1:8545"
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -29,7 +35,7 @@ MAX_INTERVAL=1
 check_balance() {
     local balance=$(curl -s -X POST -H "Content-Type: application/json" \
         --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"${FROM_ADDRESS}\", \"latest\"],\"id\":1}" \
-        "$ZK_GETH_HTTP" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+        "$GETH_HTTP" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
     echo "$balance"
 }
 
@@ -37,7 +43,7 @@ check_balance() {
 get_nonce() {
     local nonce=$(curl -s -X POST -H "Content-Type: application/json" \
         --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionCount\",\"params\":[\"${FROM_ADDRESS}\", \"latest\"],\"id\":1}" \
-        "$ZK_GETH_HTTP" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+        "$GETH_HTTP" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
     echo "$nonce"
 }
 
@@ -45,7 +51,7 @@ get_nonce() {
 get_block() {
     local block=$(curl -s -X POST -H "Content-Type: application/json" \
         --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
-        "$ZK_GETH_HTTP" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+        "$GETH_HTTP" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
     echo "$block"
 }
 
@@ -69,7 +75,7 @@ send_tx() {
             }],
             \"id\":1
         }" \
-        "$ZK_GETH_HTTP" 2>/dev/null)
+        "$GETH_HTTP" 2>/dev/null)
     
     echo "$result"
 }
@@ -78,7 +84,7 @@ send_tx() {
 send_tx_with_cast() {
     if command -v cast &> /dev/null; then
         cast send --private-key "$PRIVATE_KEY" \
-            --rpc-url "$ZK_GETH_HTTP" \
+            --rpc-url "$GETH_HTTP" \
             "$TO_ADDRESS" \
             --value 1wei \
             --gas-price 0 \
@@ -93,6 +99,7 @@ main() {
     log_info "Starting low-frequency transaction sender..."
     log_info "From: $FROM_ADDRESS"
     log_info "To:   $TO_ADDRESS"
+    log_info "RPC:  $GETH_HTTP"
     log_info "Interval: ${MIN_INTERVAL}-${MAX_INTERVAL} seconds"
     echo ""
     
@@ -125,7 +132,7 @@ main() {
             # Using foundry cast (legacy transaction format, async without waiting for confirmation)
             # Using 1 gwei gas price
             local result=$(cast send --private-key "$PRIVATE_KEY" \
-                --rpc-url "$ZK_GETH_HTTP" \
+                --rpc-url "$GETH_HTTP" \
                 "$TO_ADDRESS" \
                 --value 1wei \
                 --legacy \
@@ -150,7 +157,7 @@ main() {
 show_help() {
     echo "Low-frequency transaction sending script"
     echo ""
-    echo "Usage: $0 [start|stop|status]"
+    echo "Usage: [USE_MPT=1] $0 [start|stop|status]"
     echo ""
     echo "Commands:"
     echo "  start   - Start sending transactions (foreground)"
@@ -158,11 +165,14 @@ show_help() {
     echo "  stop    - Stop background process"
     echo "  status  - Check status"
     echo ""
-    echo "Configuration:"
-    echo "  Send interval: ${MIN_INTERVAL}-${MAX_INTERVAL} seconds"
-    echo "  Sender account: $FROM_ADDRESS"
+    echo "Environment Variables:"
+    echo "  USE_MPT=1  - Use MPT Geth (9545), default is ZK Geth (8545)"
     echo ""
-    echo "Note: Requires foundry (cast) or geth with personal API enabled"
+    echo "Examples:"
+    echo "  $0 start           # Send to 8545 (before switch)"
+    echo "  USE_MPT=1 $0 start # Send to 9545 (after switch)"
+    echo ""
+    echo "Note: Requires foundry (cast)"
 }
 
 PID_FILE="${SCRIPT_DIR}/.testdata/send-txs.pid"

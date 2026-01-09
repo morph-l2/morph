@@ -40,12 +40,6 @@ var (
 		EnvVar: prefixEnvVar("L2_LEGACY_ENGINE_RPC"),
 	}
 
-	MptTime = cli.Uint64Flag{
-		Name:   "upgrade.mptTime",
-		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
-		EnvVar: prefixEnvVar("MPT_TIME"),
-	}
-
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -324,7 +318,6 @@ var Flags = []cli.Flag{
 	L2EngineJWTSecret,
 	L2LegacyEthAddr,
 	L2LegacyEngineAddr,
-	MptTime,
 	MaxL1MessageNumPerBlock,
 	L2CrossDomainMessengerContractAddr,
 	L2SequencerAddr,
