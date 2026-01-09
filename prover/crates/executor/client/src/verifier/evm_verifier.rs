@@ -43,9 +43,17 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
     }
 
     // Execute each block sequentially.
-    block_inputs.iter_mut().try_for_each(|block_input| execute_block(block_input))?;
+    block_inputs
+        .iter_mut()
+        .filter(|block_input| !block_input.current_block.transactions.is_empty())
+        .try_for_each(|block_input| execute_block(block_input))?;
 
-    let last_input = block_inputs.last().expect("block_inputs is non-empty (checked above)");
+    // Find the last block_input with non-empty transactions, or fall back to the last one
+    let last_input = block_inputs
+        .iter()
+        .rev()
+        .find(|block_input| !block_input.current_block.transactions.is_empty())
+        .unwrap_or_else(|| block_inputs.last().expect("block_inputs is non-empty (checked above)"));
 
     // The post-withdraw-root & post-sequencer-root is required for public inputs.
     // Tt is derived from the state of the last verified block.
@@ -70,6 +78,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let block = &block_input.current_block;
     let header = &block.header;
     let chain_id = block.chain_id;
+    let tx_count = block.transactions.len();
+    let block_num = header.number.to::<u64>();
 
     // Build DB, this will internally verify the correctness of mpt.
     let trie_db = block_input.witness_db()?;
@@ -130,6 +140,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     if state_for_root_verification.state_root() != block.post_state_root {
         return Err(ClientError::MismatchedStateRoot(header.number.to::<u64>()));
     }
+    println!("====success execute block_{block_num} in client, txns.len: {tx_count}====");
 
     Ok(())
 }

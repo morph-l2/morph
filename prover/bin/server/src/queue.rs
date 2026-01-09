@@ -120,7 +120,7 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
     let verify_result = EVMVerifier::verify(blocks_inputs);
 
     if let Ok(batch_info) = verify_result {
-        let blob_info = prover_executor_host::blob::get_blob_info(blocks).unwrap();
+        let blob_info = prover_executor_host::blob::get_blob_info_from_traces(blocks).unwrap();
         let (versioned_hash, _) = BlobVerifier::verify(&blob_info, blocks.len()).unwrap();
 
         // Save batch_header

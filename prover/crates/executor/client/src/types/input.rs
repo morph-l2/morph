@@ -1,9 +1,8 @@
-use alloy_consensus::{transaction::TxHashRef, Transaction};
-use alloy_primitives::{map::HashMap, Keccak256, U256};
+use alloy_primitives::{map::HashMap, U256};
 use prover_mpt::EthereumState;
 use prover_primitives::{
-    types::{BlockHeader, BlockTrace},
-    Address, Block, MorphTxEnvelope, B256,
+    types::{block::L2Block, BlockTrace},
+    Address, Block, B256,
 };
 use prover_storage::trace_to_execution_witness;
 use prover_storage::TrieDB;
@@ -19,60 +18,6 @@ pub struct BlobInfo {
     pub blob_data: Vec<u8>,
     pub commitment: Vec<u8>,
     pub proof: Vec<u8>,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct L2Block {
-    /// chain id
-    pub chain_id: u64,
-    /// coinbase
-    pub coinbase: Address,
-    /// block
-    pub header: BlockHeader,
-    /// transactions
-    pub transactions: Vec<MorphTxEnvelope>,
-    /// previous state root
-    pub prev_state_root: B256,
-    /// post state root
-    pub post_state_root: B256,
-    /// start l1 queue index
-    pub start_l1_queue_index: u64,
-}
-
-impl L2Block {
-    pub fn from_block_trace(trace: &BlockTrace) -> Self {
-        L2Block {
-            chain_id: trace.chain_id(),
-            coinbase: trace.coinbase(),
-            header: trace.header.clone(),
-            transactions: trace.typed_transactions(),
-            prev_state_root: trace.root_before(),
-            post_state_root: trace.root_after(),
-            start_l1_queue_index: trace.start_l1_queue_index(),
-        }
-    }
-    pub fn num_l1_txs(&self) -> u64 {
-        // 0x7e is l1 tx
-        match self
-            .transactions
-            .iter()
-            .filter(|tx| tx.is_l1_msg())
-            // tx.nonce for l1 tx is the l1 queue index, which is a globally index,
-            // not per user as suggested by the name...
-            .map(|tx| tx.nonce())
-            .max()
-        {
-            None => 0, // not l1 tx in this block
-            Some(end_l1_queue_index) => end_l1_queue_index - self.start_l1_queue_index + 1,
-        }
-    }
-
-    pub fn hash_l1_msg(&self, hasher: &mut Keccak256) {
-        for tx_hash in self.transactions.iter().filter(|tx| tx.is_l1_msg()).map(|tx| tx.tx_hash()) {
-            hasher.update(tx_hash.as_slice())
-        }
-    }
 }
 
 #[serde_as]

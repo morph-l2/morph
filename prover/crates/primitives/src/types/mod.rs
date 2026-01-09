@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Map};
 
 mod authorization_list;
+/// Blob related types
+pub mod blob;
+/// L2 Block
+pub mod block;
 mod tx;
 /// Alternative fee transaction types
 pub use authorization_list::{ArchivedSignedAuthorization, AuthorizationList};

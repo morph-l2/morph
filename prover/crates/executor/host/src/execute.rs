@@ -58,8 +58,7 @@ impl HostExecutor {
             })?;
 
         let tx_count = block.transactions.len();
-        let header_number_u64 = block.header.number.to::<u64>();
-        println!("start execute block_{header_number_u64} in host, txns.len: {tx_count}");
+        let block_num = block.header.number.to::<u64>();
 
         // Init DB (RPC-backed, rooted at previous block).
         let rpc_db = BasicRpcDb::new(provider.clone(), prev_block_number, prev_disk_root.disk_root);
@@ -141,7 +140,7 @@ impl HostExecutor {
             );
         }
 
-        println!("====success execute block_{header_number_u64} in host====");
+        println!("====success execute block_{block_num} in host, txns.len: {tx_count}====");
 
         Ok(HostExecutorOutput {
             chain_id,

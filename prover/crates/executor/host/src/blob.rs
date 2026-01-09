@@ -1,7 +1,8 @@
 use crate::zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
-use crate::ClientBlockInput;
 use prover_executor_client::types::input::BlobInfo;
-use prover_primitives::{types::BlockTrace, Block, TxTrace};
+use prover_primitives::types::blob::{get_blob_data_from_blocks, get_blob_data_from_traces};
+use prover_primitives::types::block::L2Block;
+use prover_primitives::types::BlockTrace;
 use std::{io::Write, sync::Arc};
 
 /// The number of bytes to represent an unsigned 256 bit number.
@@ -14,87 +15,35 @@ const BLOB_WIDTH: usize = 4096;
 /// The bytes len of one blob.
 const BLOB_DATA_SIZE: usize = BLOB_WIDTH * N_BYTES_U256;
 
-pub fn get_blob_info_from_blocks(
-    block_trace: &Vec<ClientBlockInput>,
+pub fn get_blob_info_from_blocks(blocks: &Vec<L2Block>) -> Result<BlobInfo, anyhow::Error> {
+    // Assemble batch data from block header and transactions.
+    let batch_data = get_blob_data_from_blocks(blocks);
+
+    // Compress batch data and encode into blob format.
+    let blob_data = encode_blob(batch_data);
+
+    // Populate kzg commitment & proof.
+    populate_kzg(&blob_data)
+}
+
+pub fn get_blob_info_from_traces(
+    block_traces: &Vec<BlockTrace>,
 ) -> Result<BlobInfo, anyhow::Error> {
-    let batch_info = get_blob_data_from_blocks(block_trace);
-    populate_kzg(&batch_info)
-}
+    // Assemble batch data from block header and transactions.
 
-pub fn get_blob_data_from_blocks(block_inputs: &Vec<ClientBlockInput>) -> [u8; BLOB_DATA_SIZE] {
-    let num_blocks = block_inputs.len();
-    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(num_blocks * 60);
-    let mut tx_bytes: Vec<u8> = vec![];
-    for trace in block_inputs {
-        // BlockContext
-        // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
-        let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
-        block_ctx.extend_from_slice(&trace.current_block.header.number.to::<u64>().to_be_bytes());
-        block_ctx
-            .extend_from_slice(&trace.current_block.header.timestamp.to::<u64>().to_be_bytes());
-        block_ctx.extend_from_slice(
-            &trace.current_block.header.base_fee_per_gas.unwrap_or_default().to_be_bytes::<32>(),
-        );
-        block_ctx
-            .extend_from_slice(&trace.current_block.header.gas_limit.to::<u64>().to_be_bytes());
-        block_ctx.extend_from_slice(&(trace.current_block.transactions.len() as u16).to_be_bytes());
-        block_ctx.extend_from_slice(&(trace.current_block.num_l1_txs() as u16).to_be_bytes());
-        batch_from_trace.extend(block_ctx);
+    let batch_data = get_blob_data_from_traces(block_traces);
+    // Compress batch data and encode into blob format.
 
-        // Collect txns
-        let x = trace
-            .current_block
-            .transactions
-            .iter()
-            .filter(|tx| !tx.is_l1_msg())
-            .flat_map(|tx| tx.rlp())
-            .collect::<Vec<u8>>();
-        tx_bytes.extend(x);
-    }
-    batch_from_trace.extend(tx_bytes);
-    encode_blob(batch_from_trace)
-}
-
-pub fn get_blob_info(block_trace: &Vec<BlockTrace>) -> Result<BlobInfo, anyhow::Error> {
-    let batch_info = get_blob_data(block_trace);
-    populate_kzg(&batch_info)
-}
-
-pub fn get_blob_data(block_trace: &Vec<BlockTrace>) -> [u8; BLOB_DATA_SIZE] {
-    let num_blocks = block_trace.len();
-    let mut batch_from_trace: Vec<u8> = Vec::with_capacity(num_blocks * 60);
-    let mut tx_bytes: Vec<u8> = vec![];
-    for trace in block_trace {
-        // BlockContext
-        // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
-        let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
-        block_ctx.extend_from_slice(&trace.number().to_be_bytes());
-        block_ctx.extend_from_slice(&trace.timestamp().to::<u64>().to_be_bytes());
-        block_ctx
-            .extend_from_slice(&trace.base_fee_per_gas().unwrap_or_default().to_be_bytes::<32>());
-        block_ctx.extend_from_slice(&trace.gas_limit().to::<u64>().to_be_bytes());
-        block_ctx.extend_from_slice(&(trace.transactions.len() as u16).to_be_bytes());
-        block_ctx.extend_from_slice(&(trace.num_l1_txs() as u16).to_be_bytes());
-        batch_from_trace.extend(block_ctx);
-
-        // Collect txns
-        let x = trace
-            .transactions
-            .iter()
-            .filter(|tx| !tx.is_l1_tx())
-            .flat_map(|tx| tx.try_build_tx_envelope().unwrap().rlp())
-            .collect::<Vec<u8>>();
-        tx_bytes.extend(x);
-    }
-    batch_from_trace.extend(tx_bytes);
-    encode_blob(batch_from_trace)
+    let blob_data = encode_blob(batch_data);
+    // Populate kzg commitment & proof.
+    populate_kzg(&blob_data)
 }
 
 pub fn encode_blob(tx_bytes: Vec<u8>) -> [u8; 131072] {
-    // zstd compresse
     if tx_bytes.is_empty() {
         return [0; 131072];
     }
+    // zstd compresse
     let compressed_batch = compresse_batch(tx_bytes.as_slice()).unwrap();
 
     let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
@@ -125,6 +74,7 @@ pub fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo, anyhow::Error> {
     Ok(blob_info)
 }
 
+/// zstd compress batch data
 pub fn compresse_batch(batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     let mut encoder = init_zstd_encoder(N_BLOCK_SIZE_TARGET);
     encoder.set_pledged_src_size(Some(batch.len() as u64)).expect("infallible");

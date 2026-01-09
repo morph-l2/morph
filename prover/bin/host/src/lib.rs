@@ -6,7 +6,7 @@ use prover_executor_client::{
     types::input::{BlockInput, ExecutorInput},
     verify,
 };
-use prover_executor_host::blob::get_blob_info;
+use prover_executor_host::blob::get_blob_info_from_traces;
 use prover_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
 use prover_utils::read_env_var;
 use sp1_sdk::{HashableKey, ProverClient, SP1Stdin};
@@ -107,8 +107,10 @@ pub fn execute_batch(
 ) -> Result<(ExecutorInput, alloy::primitives::FixedBytes<32>), anyhow::Error> {
     let blocks_inputs =
         blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
-    let client_input =
-        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info(blocks)? };
+    let client_input = ExecutorInput {
+        block_inputs: blocks_inputs,
+        blob_info: get_blob_info_from_traces(blocks)?,
+    };
     let expected_hash = verify(client_input.clone()).context("native execution failed")?;
     Ok((client_input, expected_hash))
 }

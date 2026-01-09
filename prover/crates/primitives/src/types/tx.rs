@@ -2,7 +2,8 @@ use crate::{types::AuthorizationList, TxTrace};
 
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    normalize_v, Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U256, U64, U8,
+    normalize_v, Address, Bytes, ChainId, Signature, SignatureError, TxKind, B256, U16, U256, U64,
+    U8,
 };
 use serde_with::{serde_as, DefaultOnNull};
 
@@ -93,7 +94,7 @@ pub struct TransactionTrace {
     pub(crate) authorization_list: AuthorizationList,
     /// For AltFeeType
     #[serde(rename = "feeTokenID")]
-    pub(crate) fee_token_id: Option<u16>,
+    pub(crate) fee_token_id: Option<U16>,
     /// For AltFeeType
     #[serde(rename = "feeLimit")]
     pub(crate) fee_limit: Option<U256>,
@@ -176,7 +177,7 @@ impl TxTrace for TransactionTrace {
     }
 
     fn fee_token_id(&self) -> u16 {
-        self.fee_token_id.unwrap_or_default()
+        self.fee_token_id.unwrap_or_default().to::<u16>()
     }
 
     fn fee_limit(&self) -> U256 {

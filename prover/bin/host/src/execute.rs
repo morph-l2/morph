@@ -7,15 +7,10 @@ use prover_executor_host::{
 
 pub async fn execute(block_number: u64, rpc: &str) {
     let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
-    let current_block = query_block(block_number, &provider).await.unwrap();
-    if current_block.transactions.is_empty() {
-        // skip execute blocks with no transactions
-        return;
-    }
-    let prev_block = query_block(block_number.saturating_sub(1), &provider).await.unwrap();
     let output: HostExecutorOutput =
         HostExecutor::execute_block(block_number, &provider).await.unwrap();
 
+    let prev_block = query_block(block_number.saturating_sub(1), &provider).await.unwrap();
     let block_input = assemble_block_input(output, prev_block);
     let _batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
 }
@@ -44,7 +39,7 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, rpc: &str) {
     }
 }
 
-// cargo test -p morph-prove test_execute -- --nocapture -- --block-number 0x35 --rpc http://127.0.0.1:9545
+// cargo test -p morph-prove --lib -- execute::test_execute --exact --nocapture -- --block-number 0x35 --rpc http://127.0.0.1:9545
 #[test]
 fn test_execute() {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -52,7 +47,7 @@ fn test_execute() {
     rt.block_on(execute(block_number, &rpc));
 }
 
-// cargo test -p morph-prove test_execute_range -- --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
+// cargo test -p morph-prove --lib -- execute::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
 #[test]
 fn test_execute_range() {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -60,7 +55,7 @@ fn test_execute_range() {
     rt.block_on(execute_range(start_block, end_block, &rpc));
 }
 
-// cargo test -p morph-prove test_execute_continuous -- --nocapture -- --start-block 0x35 --max-blocks 2 --rpc http://127.0.0.1:9545
+// cargo test -p morph-prove --lib -- execute::test_execute_continuous -- --nocapture -- --start-block 0x35 --max-blocks 2 --rpc http://127.0.0.1:9545
 #[test]
 fn test_execute_continuous() {
     let rt = tokio::runtime::Runtime::new().unwrap();

@@ -1,16 +1,14 @@
 use crate::ClientBlockInput;
 use alloy_primitives::hex::FromHex;
-use alloy_primitives::{Address, Bytes, B256, U256, U64, U8};
+use alloy_primitives::{Address, B256};
 use alloy_provider::{DynProvider, Provider};
-use alloy_rpc_types::AccessList;
 use anyhow::Context;
-pub use prover_executor_client::types::input::L2Block;
 use prover_mpt::EthereumState;
-use prover_primitives::types::{AuthorizationList, BlockHeader, TransactionTrace};
+use prover_primitives::types::block::L2Block;
+use prover_primitives::types::{BlockHeader, TransactionTrace};
 use prover_primitives::TxTrace;
 use revm::state::Bytecode;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DefaultOnNull};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -20,60 +18,6 @@ pub static CHAIN_CONFIG: LazyLock<HashMap<u64, Address>> = LazyLock::new(|| {
         (53077u64, Address::from_hex("0xfabb0ac9d68b0b445fb7357272ff202c5651694a").unwrap()),
     ])
 });
-
-#[serde_as]
-#[derive(serde::Serialize, serde::Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
-pub struct ProverTx {
-    /// tx hash
-    #[serde(default, rename = "txHash")]
-    pub(crate) tx_hash: B256,
-    /// tx type (in raw from)
-    #[serde(rename = "type")]
-    pub(crate) ty: U8,
-    /// nonce
-    pub(crate) nonce: U64,
-    /// gas limit
-    pub(crate) gas: U64,
-    #[serde(rename = "gasPrice")]
-    /// gas price
-    pub(crate) gas_price: U256,
-    #[serde(rename = "gasTipCap")]
-    /// gas tip cap
-    pub(crate) gas_tip_cap: Option<U256>,
-    #[serde(rename = "gasFeeCap")]
-    /// gas fee cap
-    pub(crate) gas_fee_cap: Option<U256>,
-    /// from
-    pub(crate) from: Address,
-    /// to, NONE for creation (0 addr)
-    pub(crate) to: Option<Address>,
-    /// value amount
-    pub(crate) value: U256,
-    /// call data
-    pub(crate) input: Bytes,
-    /// access list
-    #[serde(rename = "accessList")]
-    #[serde(default)]
-    #[serde_as(as = "DefaultOnNull")]
-    pub(crate) access_list: AccessList,
-    /// authorization list
-    #[serde(rename = "authorizationList")]
-    #[serde(default)]
-    #[serde_as(as = "DefaultOnNull")]
-    pub(crate) authorization_list: AuthorizationList,
-    /// For AltFeeType
-    #[serde(rename = "feeTokenID")]
-    pub(crate) fee_token_id: Option<u16>,
-    /// For AltFeeType
-    #[serde(rename = "feeLimit")]
-    pub(crate) fee_limit: Option<U256>,
-    /// signature v
-    pub(crate) v: U64,
-    /// signature r
-    pub(crate) r: U256,
-    /// signature s
-    pub(crate) s: U256,
-}
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ProverBlock {

@@ -1,12 +1,13 @@
 use crate::{BatchInfo, SHADOW_EXECUTE_WITH_WITNESS};
-use alloy_provider::{DynProvider, Provider, ProviderBuilder};
+use alloy_provider::{DynProvider, Provider};
 use anyhow::{anyhow, Context};
 use prover_executor_client::{
     types::input::{BlockInput, ExecutorInput},
     verify,
 };
 use prover_executor_host::{
-    blob::{get_blob_info, get_blob_info_from_blocks},
+    blob::get_blob_info_from_blocks,
+    blob::get_blob_info_from_traces,
     execute::HostExecutor,
     utils::{assemble_block_input, query_block, HostExecutorOutput},
 };
@@ -30,10 +31,9 @@ pub struct ExecuteResult {
 pub async fn try_execute_batch(
     batch: &BatchInfo,
     provider: &DynProvider,
-    rpc_url: String,
 ) -> Result<(), anyhow::Error> {
     let block_traces =
-        get_block_traces(batch.batch_index, batch.start_block, batch.end_block, provider)
+        get_block_traces(batch.batch_index, batch.start_block, batch.end_block, &provider.clone())
             .await
             .ok_or_else(|| {
                 anyhow!("get_block_traces failed for batch index = {:#?}", batch.batch_index)
@@ -42,24 +42,32 @@ pub async fn try_execute_batch(
     let client_input = if *SHADOW_EXECUTE_WITH_WITNESS {
         let blocks_inputs =
             block_traces.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
-        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info(&block_traces)? }
+        ExecutorInput {
+            block_inputs: blocks_inputs,
+            blob_info: get_blob_info_from_traces(&block_traces)?,
+        }
     } else {
         let start_block = batch.start_block;
         let end_block = batch.end_block;
+        let provider = provider.clone();
         let blocks_inputs = tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-            rt.block_on(async {
-                let provider =
-                    ProviderBuilder::new().connect_http(rpc_url.parse().unwrap()).erased();
-                execute_host_range(start_block, end_block, &provider).await
-            })
+            let runtime = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    log::error!("Failed to build tokio runtime for shadow exec host: {e}");
+                    return vec![];
+                }
+            };
+            runtime.block_on(async { execute_host_range(start_block, end_block, &provider).await })
         })
         .await
         .context("spawn_blocking failed")?;
 
         ExecutorInput {
             block_inputs: blocks_inputs.clone(),
-            blob_info: get_blob_info_from_blocks(&blocks_inputs)?,
+            blob_info: get_blob_info_from_blocks(
+                &blocks_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
+            )?,
         }
     };
 
@@ -138,7 +146,7 @@ mod tests {
         BatchInfo,
     };
 
-    // cargo test -p shadow-proving test_execute_range -- --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
+    // cargo test -p shadow-proving --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
     #[test]
     fn test_execute_range() {
         let (start_block, end_block, rpc) = test_args::read_execute_range_args_from_argv();
@@ -150,7 +158,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_exeute_batch() {
+    async fn test_execute_batch() {
         let handle = tokio::spawn(async move {
             let provider = ProviderBuilder::new()
                 .connect_http("http://127.0.0.1:9545".parse().unwrap())
@@ -159,7 +167,6 @@ mod tests {
             try_execute_batch(
                 &BatchInfo { batch_index: 1, start_block: 53, end_block: 54, total_txn: 1 },
                 &provider,
-                "http://127.0.0.1:9545".to_string(),
             )
             .await
             .unwrap();
