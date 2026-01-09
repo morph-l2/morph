@@ -103,7 +103,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         keys: Vec<StorageKey>,
         block_number: u64,
     ) -> Result<alloy_rpc_types::EIP1186AccountProofResponse, RpcDbError> {
-        let raw: EIP1186AccountProofResponseCompat = self
+        let compact_proof: EIP1186AccountProofResponseCompat = self
             .provider
             .raw_request::<(Address, Vec<alloy_primitives::StorageKey>, BlockId), _>(
                 "eth_getProof".into(),
@@ -111,7 +111,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
             )
             .await
             .map_err(|e| RpcDbError::GetProofError(address, e.to_string()))?;
-        let proof: alloy_rpc_types::EIP1186AccountProofResponse = raw.into();
+        let proof: alloy_rpc_types::EIP1186AccountProofResponse = compact_proof.into();
         Ok(proof)
     }
 

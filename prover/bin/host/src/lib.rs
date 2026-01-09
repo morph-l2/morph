@@ -146,7 +146,7 @@ mod tests {
         tx_bytes.extend(x);
         assert!(tx_bytes == txs_data, "tx_bytes==txs_data");
         block_contexts.extend_from_slice(&tx_bytes);
-        let blob = encode_blob(block_contexts);
+        let blob = encode_blob(block_contexts).unwrap();
         let blob_info: BlobInfo = populate_kzg(&blob).unwrap();
         let (versioned_hash, batch_data) = BlobVerifier::verify(&blob_info, 600).unwrap();
         let versioned_hash_hex = alloy::hex::encode_prefixed(versioned_hash.as_slice());

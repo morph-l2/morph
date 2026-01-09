@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-pub static CHAIN_CONFIG: LazyLock<HashMap<u64, Address>> = LazyLock::new(|| {
+pub static CHAIN_COINBASE: LazyLock<HashMap<u64, Address>> = LazyLock::new(|| {
     HashMap::from([
         (2818u64, Address::from_hex("0x530000000000000000000000000000000000000a").unwrap()),
+        (2910u64, Address::from_hex("0x29107CB79Ef8f69fE1587F77e283d47E84c5202f").unwrap()),
         (53077u64, Address::from_hex("0xfabb0ac9d68b0b445fb7357272ff202c5651694a").unwrap()),
     ])
 });

@@ -55,24 +55,18 @@ pub trait Block: Debug {
 
     /// root before
     fn root_before(&self) -> B256;
+
     /// root after
     fn root_after(&self) -> B256;
+
     /// codes
     fn codes(&self) -> impl ExactSizeIterator<Item = &[u8]>;
+
     /// start l1 queue index
     fn start_l1_queue_index(&self) -> u64;
 
     /// flatten proofs
     fn flatten_proofs(&self) -> impl Iterator<Item = (&B256, &[u8])>;
-
-    /// Update zktrie state from trace
-    // #[inline]
-    // fn build_zktrie_db(&self, zktrie_db: &mut ZkMemoryDb) {
-    //     init_hash_scheme();
-    //     for (_, bytes) in self.flatten_proofs() {
-    //         zktrie_db.add_node_bytes(bytes, None).unwrap();
-    //     }
-    // }
 
     /// Number of l1 transactions
     #[inline]

@@ -1,4 +1,6 @@
+use alloy_primitives::{Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::EIP1186AccountProofResponse;
+use alloy_rpc_types::EIP1186StorageProof;
 use reth_primitives_traits::Account;
 use reth_trie::{AccountProof, StorageProof, EMPTY_ROOT_HASH};
 
@@ -36,9 +38,6 @@ pub fn eip1186_proof_to_account_proof(proof: EIP1186AccountProofResponse) -> Acc
 
     AccountProof { address, info, proof: account_proof, storage_root, storage_proofs }
 }
-
-use alloy_primitives::{Address, Bytes, B256, U256, U64};
-use alloy_rpc_types::EIP1186StorageProof;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

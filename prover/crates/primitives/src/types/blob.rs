@@ -10,7 +10,7 @@ pub fn get_blob_data_from_blocks(block_inputs: &Vec<L2Block>) -> Vec<u8> {
     let mut tx_bytes: Vec<u8> = vec![];
     for block in block_inputs {
         // BlockContext
-        // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchCodecV0.sol
+        // https://github.com/morph-l2/morph/blob/main/contracts/contracts/libraries/codec/BatchHeaderCodecV1.sol
         let mut block_ctx: Vec<u8> = Vec::with_capacity(60);
         block_ctx.extend_from_slice(&block.header.number.to::<u64>().to_be_bytes());
         block_ctx.extend_from_slice(&block.header.timestamp.to::<u64>().to_be_bytes());

@@ -6050,7 +6050,6 @@ name = "prover-executor-client"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus",
- "alloy-evm",
  "alloy-primitives",
  "alloy-rlp",
  "anyhow",
@@ -6076,9 +6075,12 @@ dependencies = [
 name = "prover-executor-core"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-evm",
+ "anyhow",
  "morph-chainspec",
  "morph-evm",
+ "morph-primitives",
  "morph-revm",
  "revm",
  "thiserror 2.0.17",
@@ -6088,28 +6090,21 @@ dependencies = [
 name = "prover-executor-host"
 version = "0.1.0"
 dependencies = [
- "alloy-consensus",
- "alloy-eips",
  "alloy-network",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-types",
  "anyhow",
  "c-kzg",
- "kzg-rs",
- "morph-revm",
- "once_cell",
  "prover-executor-client",
  "prover-executor-core",
  "prover-mpt",
  "prover-primitives",
  "prover-storage",
- "prover-utils",
  "reth-trie",
  "revm",
  "serde",
  "serde_json",
- "serde_with",
  "tokio",
  "zstd 0.13.0",
 ]

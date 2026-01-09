@@ -7,14 +7,9 @@ edition = "2021"
 [dependencies]
 zstd = { workspace = true }
 anyhow = { workspace = true }
-once_cell = { workspace = true }
-alloy-consensus = { workspace = true }
 c-kzg = { workspace = true }
-kzg-rs = { workspace = true }
-alloy-eips = { workspace = true }
 prover-primitives = { workspace = true }
 prover-executor-client = { workspace = true }
-prover-utils = { workspace = true }
 prover-storage.workspace = true
 prover-executor-core.workspace = true
 prover-mpt = { workspace = true }
@@ -22,12 +17,10 @@ revm = { workspace = true }
 alloy-provider = { workspace = true }
 alloy-network = { workspace = true }
 alloy-rpc-types = { workspace = true }
-reth-trie.workspace = true
-morph-revm = { workspace = true }
 alloy-primitives = { workspace = true }
+reth-trie.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-serde_with.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

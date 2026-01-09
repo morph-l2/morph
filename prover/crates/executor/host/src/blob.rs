@@ -1,4 +1,5 @@
 use crate::zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
+use anyhow::{ensure, Context, Result};
 use prover_executor_client::types::input::BlobInfo;
 use prover_primitives::types::blob::{get_blob_data_from_blocks, get_blob_data_from_traces};
 use prover_primitives::types::block::L2Block;
@@ -15,17 +16,19 @@ const BLOB_WIDTH: usize = 4096;
 /// The bytes len of one blob.
 const BLOB_DATA_SIZE: usize = BLOB_WIDTH * N_BYTES_U256;
 
-pub fn get_blob_info_from_blocks(blocks: &Vec<L2Block>) -> Result<BlobInfo, anyhow::Error> {
+// Get blob info from L2 blocks
+pub fn get_blob_info_from_blocks(blocks: &Vec<L2Block>) -> Result<BlobInfo> {
     // Assemble batch data from block header and transactions.
     let batch_data = get_blob_data_from_blocks(blocks);
 
     // Compress batch data and encode into blob format.
-    let blob_data = encode_blob(batch_data);
+    let blob_data = encode_blob(batch_data)?;
 
     // Populate kzg commitment & proof.
     populate_kzg(&blob_data)
 }
 
+// Get blob info from BlockTraces
 pub fn get_blob_info_from_traces(
     block_traces: &Vec<BlockTrace>,
 ) -> Result<BlobInfo, anyhow::Error> {
@@ -34,17 +37,37 @@ pub fn get_blob_info_from_traces(
     let batch_data = get_blob_data_from_traces(block_traces);
     // Compress batch data and encode into blob format.
 
-    let blob_data = encode_blob(batch_data);
+    let blob_data = encode_blob(batch_data)?;
     // Populate kzg commitment & proof.
     populate_kzg(&blob_data)
 }
 
-pub fn encode_blob(tx_bytes: Vec<u8>) -> [u8; 131072] {
+/// Encode `tx_bytes` into an EIP-4844 blob payload (131072 bytes).
+///
+/// The blob represents `BLOB_WIDTH = 4096` BLS12-381 scalar-field (`Fr`) elements (32 bytes each).
+/// We first `zstd`-compress the input, then pack the byte stream into the field elements using
+/// the EIP-4844 canonical encoding constraint: the most-significant byte of each 32-byte element
+/// is forced to `0x00`, and only the remaining 31 bytes carry data.
+///
+/// Since the modulus of the scalar field Fr in BLS12-381 is actually a 255-bit prime number,
+/// So the byte `i` is written to `coefficients[i / 31][1 + (i % 31)]`; the rest is zero-padded.
+/// The resulting bytes can be fed into [`populate_kzg()`](crates/executor/host/src/blob.rs:65) to
+/// compute the KZG commitment and proof.
+///
+pub fn encode_blob(tx_bytes: Vec<u8>) -> Result<[u8; 131072]> {
     if tx_bytes.is_empty() {
-        return [0; 131072];
+        return Ok([0; 131072]);
     }
     // zstd compresse
-    let compressed_batch = compresse_batch(tx_bytes.as_slice()).unwrap();
+    let compressed_batch = compresse_batch(tx_bytes.as_slice()).context("compress batch failed")?;
+    let max = BLOB_WIDTH * (N_BYTES_U256 - 1);
+
+    ensure!(
+        compressed_batch.len() <= max,
+        "compressed batch size {} exceeds the max capacity {}",
+        compressed_batch.len(),
+        max
+    );
 
     let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
     // bls element convert
@@ -55,11 +78,11 @@ pub fn encode_blob(tx_bytes: Vec<u8>) -> [u8; 131072] {
     for (index, value) in coefficients.iter().enumerate() {
         blob_bytes[index * 32..(index + 1) * 32].copy_from_slice(value.as_slice());
     }
-    blob_bytes
+    Ok(blob_bytes)
 }
 
 /// Populate kzg info.
-pub fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo, anyhow::Error> {
+pub fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo> {
     let kzg_settings: Arc<c_kzg::KzgSettings> = c_kzg::ethereum_kzg_settings_arc(8);
     let blob = c_kzg::Blob::from_bytes(blob_bytes)?;
 
@@ -75,11 +98,11 @@ pub fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo, anyhow::Error> {
 }
 
 /// zstd compress batch data
-pub fn compresse_batch(batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+pub fn compresse_batch(batch: &[u8]) -> Result<Vec<u8>> {
     let mut encoder = init_zstd_encoder(N_BLOCK_SIZE_TARGET);
-    encoder.set_pledged_src_size(Some(batch.len() as u64)).expect("infallible");
-    encoder.write_all(batch).expect("infallible");
+    encoder.set_pledged_src_size(Some(batch.len() as u64)).context("zstd set_pledged")?;
+    encoder.write_all(batch).context("zstd write_all")?;
 
-    let encoded_bytes: Vec<u8> = encoder.finish().expect("infallible");
+    let encoded_bytes: Vec<u8> = encoder.finish().context("zstd finish")?;
     Ok(encoded_bytes)
 }

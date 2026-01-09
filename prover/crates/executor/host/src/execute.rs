@@ -1,7 +1,6 @@
-use alloy_consensus::{transaction::SignerRecoverable, Transaction};
+use crate::utils::{query_block, query_state_root, HostExecutorOutput, CHAIN_COINBASE};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
-use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
 use prover_primitives::{
     predeployed::l2_to_l1_message::{
@@ -11,13 +10,7 @@ use prover_primitives::{
 };
 use prover_storage::basic_rpc_db::{BasicRpcDb, RpcDb};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
-use revm::{
-    context::BlockEnv,
-    database::{states::bundle_state::BundleRetention, State},
-    ExecuteCommitEvm,
-};
-
-use crate::utils::{query_block, query_state_root, HostExecutorOutput, CHAIN_CONFIG};
+use revm::{context::BlockEnv, database::State};
 
 /// An executor that fetches data from a [Provider] to execute blocks in the [ClientExecutor].
 #[derive(Debug, Clone)]
@@ -45,9 +38,9 @@ impl HostExecutor {
         let chain_id =
             provider.get_chain_id().await.context("failed to fetch chain_id from provider")?;
 
-        let beneficiary = *CHAIN_CONFIG
+        let beneficiary = *CHAIN_COINBASE
             .get(&chain_id)
-            .with_context(|| format!("chain_id {chain_id} not found in CHAIN_CONFIG"))?;
+            .with_context(|| format!("chain_id {chain_id} not found in CHAIN_COINBASE"))?;
 
         let disk_root = query_state_root(block_number, provider)
             .await
@@ -65,62 +58,35 @@ impl HostExecutor {
 
         // Warm up predeployed contract info.
         load_predeployed_contracts(&rpc_db).await?;
-
+        // Build state.
         let state = State::builder()
             .with_database_ref(&rpc_db)
             .with_bundle_update()
             .without_state_clear()
             .build();
 
-        let basefee_u64 = block.header.base_fee_per_gas.unwrap_or_default().to::<u64>();
+        let basefee = block.header.base_fee_per_gas.unwrap_or_default().to::<u64>();
         let block_env = BlockEnv {
             number: block.header.number,
             timestamp: block.header.timestamp,
-            basefee: basefee_u64,
+            basefee,
             gas_limit: block.header.gas_limit.to::<u64>(),
             beneficiary,
             ..Default::default()
         };
 
+        let txns = block
+            .transactions
+            .iter()
+            .map(|tx_trace| tx_trace.try_build_tx_envelope())
+            .collect::<Result<Vec<_>, _>>()?;
+
         // Build EVM.
-        let mut evm = MorphExecutor::with_hardfork(state, block_env, chain_id);
-
-        // Execute transactions in block.
-        for (tx_index, tx_trace) in block.transactions.iter().enumerate() {
-            let tx = tx_trace
-                .try_build_tx_envelope()
-                .with_context(|| format!("failed to build tx envelope at index {tx_index}"))?;
-
-            let caller = tx
-                .recover_signer()
-                .with_context(|| format!("tx[{tx_index}] recover signer error"))?;
-
-            let tx_env = revm::context::TxEnv {
-                caller,
-                nonce: tx.nonce(),
-                gas_price: tx.effective_gas_price(Some(basefee_u64)),
-                gas_priority_fee: tx.max_priority_fee_per_gas(),
-                gas_limit: tx.gas_limit(),
-                kind: tx.kind(),
-                value: tx.value(),
-                data: revm::primitives::Bytes::from(tx.input().to_vec()),
-                chain_id: Some(chain_id),
-                ..Default::default()
-            };
-
-            let morph_tx =
-                MorphTxEnv { inner: tx_env, rlp_bytes: Some(tx.rlp()), ..Default::default() };
-
-            evm.inner
-                .transact_commit(morph_tx)
-                .with_context(|| format!("tx[{tx_index}] transact_commit error"))?;
-        }
-
-        // Merge transitions and build hashed post-state.
-        evm.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
-        let bundle_state = evm.inner.ctx.journaled_state.database.take_bundle();
-        let hashed_post_state =
-            HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);
+        let mut core_executor = MorphExecutor::with_hardfork(state, block_env, chain_id);
+        // Execute block.
+        let bundle_state = core_executor
+            .execute_block(&txns)
+            .with_context(|| format!("failed to execute block {block_number}"))?;
 
         // Populate state by fetching missing trie nodes/accounts from provider.
         let state = rpc_db
@@ -129,11 +95,14 @@ impl HostExecutor {
             .context("failed to populate post-state from RPC DB")?;
 
         // Verify post state root.
+        let computed_state_root = {
+            let mut state_for_verification = state.clone();
+            state_for_verification.update(&HashedPostState::from_bundle_state::<KeccakKeyHasher>(
+                &bundle_state.state,
+            ));
+            state_for_verification.state_root()
+        };
         let expected_state_root = disk_root.disk_root;
-        let mut state_for_verification = state.clone();
-        state_for_verification.update(&hashed_post_state);
-        let computed_state_root = state_for_verification.state_root();
-
         if computed_state_root != expected_state_root {
             bail!(
                 "Mismatched state root after executing block {block_number}: expected {expected_state_root:?}, got {computed_state_root:?}"
@@ -141,7 +110,6 @@ impl HostExecutor {
         }
 
         println!("====success execute block_{block_num} in host, txns.len: {tx_count}====");
-
         Ok(HostExecutorOutput {
             chain_id,
             beneficiary,

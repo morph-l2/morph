@@ -14,13 +14,11 @@ ruzstd = { workspace = true }
 kzg-rs = { workspace = true }
 thiserror = { workspace = true }
 alloy-rlp = { workspace = true }
-alloy-consensus.workspace = true
 alloy-primitives = { workspace = true, features = [
     "sha3-keccak",
     "map-hashbrown",
     "rayon",
 ] }
-alloy-evm = { workspace = true }
 revm = { workspace = true }
 reth-trie.workspace = true
 prover-executor-core.workspace = true
@@ -32,4 +30,5 @@ morph-revm = { workspace = true }
 
 
 [dev-dependencies]
+alloy-consensus.workspace = true
 serde_json = { workspace = true }

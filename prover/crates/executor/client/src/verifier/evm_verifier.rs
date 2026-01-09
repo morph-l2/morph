@@ -1,47 +1,39 @@
 use crate::types::batch::BatchInfo;
 use crate::types::error::ClientError;
 use crate::types::input::BlockInput;
-use alloy_consensus::transaction::SignerRecoverable;
-use alloy_consensus::Transaction;
-use alloy_primitives::Bytes;
-use morph_revm::MorphTxEnv;
 use prover_executor_core::MorphExecutor;
 use prover_primitives::predeployed::l2_to_l1_message::{
     SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
 };
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::context::BlockEnv;
-use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
-use revm::ExecuteCommitEvm;
 
 // use Verifier;
 pub struct EVMVerifier;
 
 impl EVMVerifier {
     pub fn verify(blocks: Vec<BlockInput>) -> Result<BatchInfo, ClientError> {
+        // Edge case: nothing to execute.
+        if blocks.is_empty() {
+            return Err(ClientError::BlockExecutionError(
+                "empty batch: no block inputs provided".to_string(),
+            ));
+        }
+        // Verify that each block's `prev_state_root` matches the previous block's `post_state_root`.
+        // This ensures the batch is contiguous.
+        if blocks
+            .windows(2)
+            .any(|w| w[0].current_block.post_state_root != w[1].current_block.prev_state_root)
+        {
+            return Err(ClientError::DiscontinuousStateRoot);
+        }
         let batch_info = execute(blocks)?;
         Ok(batch_info)
     }
 }
 
 fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> {
-    // Edge case: nothing to execute.
-    if block_inputs.is_empty() {
-        return Err(ClientError::BlockExecutionError(
-            "empty batch: no block inputs provided".to_string(),
-        ));
-    }
-
-    // Verify that each block's `prev_state_root` matches the previous block's `post_state_root`.
-    // This ensures the batch is contiguous.
-    if block_inputs
-        .windows(2)
-        .any(|w| w[0].current_block.post_state_root != w[1].current_block.prev_state_root)
-    {
-        return Err(ClientError::DiscontinuousStateRoot);
-    }
-
     // Execute each block sequentially.
     block_inputs
         .iter_mut()
@@ -91,7 +83,6 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         .build();
 
     // Build EVM block environment.
-    // Note: base_fee_per_gas is optional (pre-EIP1559); defaulting to 0 keeps behavior stable.
     let block_env = BlockEnv {
         number: header.number,
         timestamp: header.timestamp,
@@ -100,44 +91,21 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         beneficiary: block.coinbase,
         ..Default::default()
     };
-    let basefee = block_env.basefee;
 
-    let mut evm = MorphExecutor::with_hardfork(state, block_env, chain_id);
-
-    // Execute transactions.
-    for tx in &block.transactions {
-        let caller = SignerRecoverable::recover_signer(tx)
-            .map_err(|_| ClientError::SignatureRecoveryFailed)?;
-
-        let tx_env = revm::context::TxEnv {
-            caller,
-            nonce: tx.nonce(),
-            gas_price: tx.effective_gas_price(Some(basefee)),
-            gas_priority_fee: tx.max_priority_fee_per_gas(),
-            gas_limit: tx.gas_limit(),
-            kind: tx.kind(),
-            value: tx.value(),
-            data: Bytes::copy_from_slice(tx.input().as_ref()),
-            chain_id: Some(chain_id),
-            ..Default::default()
-        };
-        let morph_tx =
-            MorphTxEnv { inner: tx_env, rlp_bytes: Some(tx.rlp()), ..Default::default() };
-
-        evm.inner
-            .transact_commit(morph_tx)
-            .map_err(|e| ClientError::BlockExecutionError(e.to_string()))?;
-    }
-
-    // Finalize the transition set into a bundle we can hash for state-root verification.
-    evm.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
-    let bundle_state = evm.inner.ctx.journaled_state.database.take_bundle();
+    let mut core_executor = MorphExecutor::with_hardfork(state, block_env, chain_id);
+    // Execute block.
+    let bundle_state = core_executor
+        .execute_block(&block.transactions)
+        .map_err(|e| ClientError::BlockExecutionError(e.to_string()))?;
 
     // Verify the post-state root by applying the block's transition set to the parent (pre-block) state.
-    let hashed_post_state =
-        HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);
-    state_for_root_verification.update(&hashed_post_state);
-    if state_for_root_verification.state_root() != block.post_state_root {
+    let computed_state_root = {
+        let hashed_post_state =
+            HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);
+        state_for_root_verification.update(&hashed_post_state);
+        state_for_root_verification.state_root()
+    };
+    if computed_state_root != block.post_state_root {
         return Err(ClientError::MismatchedStateRoot(header.number.to::<u64>()));
     }
     println!("====success execute block_{block_num} in client, txns.len: {tx_count}====");

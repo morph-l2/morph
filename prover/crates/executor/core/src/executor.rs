@@ -1,22 +1,31 @@
-use alloy_evm::{revm::Context, Database, EvmEnv};
+use alloy_consensus::{transaction::SignerRecoverable, Transaction};
+use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
+use anyhow::Context;
+use anyhow::Result;
 use morph_chainspec::hardfork::MorphHardfork;
 use morph_evm::MorphBlockEnv;
+use morph_primitives::MorphTxEnvelope;
 use morph_revm::MorphEvm;
 
+use morph_revm::MorphTxEnv;
 use revm::context::BlockEnv;
+use revm::database::BundleState;
 use revm::inspector::NoOpInspector;
 use revm::MainContext;
-
+use revm::{
+    database::{states::bundle_state::BundleRetention, State},
+    ExecuteCommitEvm,
+};
 /// An Morph executor wrapper based on `revm`.
 
 pub struct MorphExecutor<DB: Database, I = NoOpInspector> {
-    pub inner: morph_revm::MorphEvm<DB, I>,
+    pub inner: morph_revm::MorphEvm<State<DB>, I>,
 }
 
 impl<DB: Database> MorphExecutor<DB> {
     /// Create a new [`MorphEvm`] instance.
-    pub fn new(db: DB, input: EvmEnv<MorphHardfork, MorphBlockEnv>) -> Self {
-        let ctx = Context::mainnet()
+    pub fn new(db: State<DB>, input: EvmEnv<MorphHardfork, MorphBlockEnv>) -> Self {
+        let ctx = EvmContext::mainnet()
             .with_db(db)
             .with_block(input.block_env)
             .with_cfg(input.cfg_env)
@@ -25,13 +34,46 @@ impl<DB: Database> MorphExecutor<DB> {
         let evm = MorphEvm::new(ctx, NoOpInspector {});
         Self { inner: evm }
     }
-    pub fn with_hardfork(db: DB, block_env: BlockEnv, chain_id: u64) -> Self {
+    pub fn with_hardfork(db: State<DB>, block_env: BlockEnv, chain_id: u64) -> Self {
         let mut env: EvmEnv<MorphHardfork, MorphBlockEnv> =
             EvmEnv::default().with_timestamp(block_env.timestamp);
         env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Curie);
         env.cfg_env.chain_id = chain_id;
         env.block_env = MorphBlockEnv { inner: block_env };
         Self::new(db, env)
+    }
+
+    pub fn execute_block(&mut self, txns: &Vec<MorphTxEnvelope>) -> Result<BundleState> {
+        let basefee = self.inner.ctx.block.basefee;
+        let chain_id = self.inner.ctx.cfg.chain_id;
+        // Execute transactions in block.
+        for (tx_index, tx) in txns.iter().enumerate() {
+            let caller = SignerRecoverable::recover_signer(tx)
+                .with_context(|| format!("tx[{tx_index}] recover signer error"))?;
+            let tx_env = revm::context::TxEnv {
+                caller,
+                nonce: tx.nonce(),
+                gas_price: tx.effective_gas_price(Some(basefee)),
+                gas_priority_fee: tx.max_priority_fee_per_gas(),
+                gas_limit: tx.gas_limit(),
+                kind: tx.kind(),
+                value: tx.value(),
+                data: revm::primitives::Bytes::from(tx.input().to_vec()),
+                chain_id: Some(chain_id),
+                ..Default::default()
+            };
+
+            let morph_tx =
+                MorphTxEnv { inner: tx_env, rlp_bytes: Some(tx.rlp()), ..Default::default() };
+            self.inner
+                .transact_commit(morph_tx)
+                .with_context(|| format!("tx[{tx_index}] transact_commit error"))?;
+        }
+        // Merge transitions and build hashed post-state.
+        self.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
+        // Collect values that got changed.
+        let bundle_state = self.inner.ctx.journaled_state.database.take_bundle();
+        Ok(bundle_state)
     }
 }
 
@@ -40,13 +82,14 @@ mod tests {
     use super::*;
     use morph_revm::MorphTxEnv;
     use revm::context::TxEnv;
-    use revm::database::State;
+    use revm::database::{CacheDB, EmptyDB, State};
     use revm::primitives::{Address, U256};
     use revm::ExecuteEvm;
 
     #[test]
     fn test_main_context() {
-        let state = State::builder().build();
+        let state: State<CacheDB<EmptyDB>> =
+            State::builder().with_database(CacheDB::default()).build();
 
         let mut env = EvmEnv::default().with_timestamp(U256::ZERO);
         env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Viridian);
