@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"time"
 
 	"github.com/morph-l2/go-ethereum"
@@ -160,7 +159,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logger:                logger,
 		RollupContractAddress: cfg.RollupContractAddress,
 		confirmations:         cfg.L1.Confirmations,
-		l2Client:              types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, cfg.L2.EthAddr, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))),
+		l2Client:              types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, cfg.L2.EthAddr, logger),
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
 		startHeight:           cfg.StartHeight,
