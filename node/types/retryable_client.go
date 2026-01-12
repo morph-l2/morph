@@ -54,99 +54,159 @@ type morphExtension struct {
 	MPTForkTime *uint64 `json:"mptForkTime,omitempty"`
 }
 
-// fetchMPTForkTime fetches the MPT fork time from geth via eth_config API
-func fetchMPTForkTime(rpcURL string, logger tmlog.Logger) (uint64, error) {
+// GethConfig holds the configuration fetched from geth via eth_config API
+type GethConfig struct {
+	SwitchTime uint64
+	UseZktrie  bool
+}
+
+// FetchGethConfig fetches the geth configuration via eth_config API
+func FetchGethConfig(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 	client, err := rpc.Dial(rpcURL)
 	if err != nil {
-		return 0, fmt.Errorf("failed to connect to geth: %w", err)
+		return nil, fmt.Errorf("failed to connect to geth: %w", err)
 	}
 	defer client.Close()
 
 	var result json.RawMessage
 	if err := client.Call(&result, "eth_config"); err != nil {
-		return 0, fmt.Errorf("eth_config call failed: %w", err)
+		return nil, fmt.Errorf("eth_config call failed: %w", err)
 	}
 
 	var resp configResponse
 	if err := json.Unmarshal(result, &resp); err != nil {
-		return 0, fmt.Errorf("failed to parse eth_config response: %w", err)
+		return nil, fmt.Errorf("failed to parse eth_config response: %w", err)
+	}
+
+	config := &GethConfig{}
+
+	// Get useZktrie from current config
+	if resp.Current != nil && resp.Current.Morph != nil {
+		config.UseZktrie = resp.Current.Morph.UseZktrie
+		logger.Info("Fetched useZktrie from geth", "useZktrie", config.UseZktrie)
 	}
 
 	// Try to get mptForkTime from current config
 	if resp.Current != nil && resp.Current.Morph != nil && resp.Current.Morph.MPTForkTime != nil {
-		mptTime := *resp.Current.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", mptTime, "source", "current")
-		return mptTime, nil
+		config.SwitchTime = *resp.Current.Morph.MPTForkTime
+		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "current")
+		return config, nil
 	}
 
 	// Fallback to next config
 	if resp.Next != nil && resp.Next.Morph != nil && resp.Next.Morph.MPTForkTime != nil {
-		mptTime := *resp.Next.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", mptTime, "source", "next")
-		return mptTime, nil
+		config.SwitchTime = *resp.Next.Morph.MPTForkTime
+		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "next")
+		return config, nil
 	}
 
 	// Fallback to last config
 	if resp.Last != nil && resp.Last.Morph != nil && resp.Last.Morph.MPTForkTime != nil {
-		mptTime := *resp.Last.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", mptTime, "source", "last")
-		return mptTime, nil
+		config.SwitchTime = *resp.Last.Morph.MPTForkTime
+		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "last")
+		return config, nil
 	}
 
-	logger.Info("MPT fork time not configured in geth, MPT switch disabled")
-	return 0, nil // No MPT fork configured, return 0 (never switch)
+	logger.Info("MPT fork time not configured in geth, switch disabled")
+	return config, nil
+}
+
+// fetchMPTForkTime fetches the MPT fork time from geth via eth_config API (internal)
+func fetchMPTForkTime(rpcURL string, logger tmlog.Logger) (uint64, error) {
+	config, err := FetchGethConfig(rpcURL, logger)
+	if err != nil {
+		return 0, err
+	}
+	return config.SwitchTime, nil
 }
 
 type RetryableClient struct {
-	legacyAuthClient *authclient.Client
-	legacyEthClient  *ethclient.Client
-	authClient       *authclient.Client
-	ethClient        *ethclient.Client
-	mptTime          uint64
-	mpt              atomic.Bool
-	b                backoff.BackOff
-	logger           tmlog.Logger
+	authClient     *authclient.Client // current geth
+	ethClient      *ethclient.Client  // current geth
+	nextAuthClient *authclient.Client // next geth (for upgrade switch)
+	nextEthClient  *ethclient.Client  // next geth (for upgrade switch)
+	switchTime     uint64             // timestamp to switch to next geth
+	switched       atomic.Bool        // whether switched to next geth
+	b              backoff.BackOff
+	logger         tmlog.Logger
 }
 
-// NewRetryableClient creates a new retryable client that fetches MPT fork time from geth.
-// The legacyEthAddr is used to fetch the MPT fork time via eth_config API.
+// NewRetryableClient creates a new retryable client that fetches switch time from geth.
+// The l2EthAddr is used to fetch the switch time via eth_config API.
 // Will retry calling the api, if the connection is refused.
-func NewRetryableClient(legacyAuthClient *authclient.Client, legacyEthClient *ethclient.Client, authClient *authclient.Client, ethClient *ethclient.Client, legacyEthAddr string, logger tmlog.Logger) *RetryableClient {
+//
+// If nextAuthClient or nextEthClient is nil, switch is disabled and only current client is used.
+// This is useful for nodes that don't need to switch geth (most nodes).
+func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Client, nextAuthClient *authclient.Client, nextEthClient *ethclient.Client, l2EthAddr string, logger tmlog.Logger) *RetryableClient {
 	logger = logger.With("module", "retryClient")
 
-	// Fetch MPT fork time from legacy geth via eth_config API
-	mptTime, err := fetchMPTForkTime(legacyEthAddr, logger)
+	// Fetch switch time from geth
+	switchTime, err := fetchMPTForkTime(l2EthAddr, logger)
 	if err != nil {
-		logger.Error("Failed to fetch MPT fork time from geth, using 0 (MPT switch disabled)", "error", err)
-		mptTime = 0
+		logger.Error("Failed to fetch switch time from geth, using 0", "error", err)
+		switchTime = 0
 	}
 
-	return &RetryableClient{
-		legacyAuthClient: legacyAuthClient,
-		legacyEthClient:  legacyEthClient,
-		authClient:       authClient,
-		ethClient:        ethClient,
-		mptTime:          mptTime,
-		b:                backoff.NewExponentialBackOff(),
-		logger:           logger,
+	// If next client is not configured, disable switch
+	if nextAuthClient == nil || nextEthClient == nil {
+		logger.Info("L2Next client not configured, switch disabled")
+		return &RetryableClient{
+			authClient:     authClient,
+			ethClient:      ethClient,
+			nextAuthClient: authClient, // fallback to current
+			nextEthClient:  ethClient,  // fallback to current
+			switchTime:     switchTime,
+			b:              backoff.NewExponentialBackOff(),
+			logger:         logger,
+		}
 	}
+
+	// Check if switch time has already passed at startup
+	now := uint64(time.Now().Unix())
+	alreadySwitched := switchTime > 0 && now > switchTime
+
+	if alreadySwitched {
+		logger.Info("Switch time already passed at startup, starting with next client",
+			"switchTime", switchTime,
+			"currentTime", now)
+	} else {
+		logger.Info("Geth switch enabled", "switchTime", switchTime)
+	}
+
+	rc := &RetryableClient{
+		authClient:     authClient,
+		ethClient:      ethClient,
+		nextAuthClient: nextAuthClient,
+		nextEthClient:  nextEthClient,
+		switchTime:     switchTime,
+		b:              backoff.NewExponentialBackOff(),
+		logger:         logger,
+	}
+
+	// If switch time already passed, mark as switched immediately
+	if alreadySwitched {
+		rc.switched.Store(true)
+	}
+
+	return rc
 }
 
+
 func (rc *RetryableClient) aClient() *authclient.Client {
-	if !rc.mpt.Load() {
-		return rc.legacyAuthClient
+	if !rc.switched.Load() {
+		return rc.authClient
 	}
-	return rc.authClient
+	return rc.nextAuthClient
 }
 
 func (rc *RetryableClient) eClient() *ethclient.Client {
-	if !rc.mpt.Load() {
-		return rc.legacyEthClient
+	if !rc.switched.Load() {
+		return rc.ethClient
 	}
-	return rc.ethClient
+	return rc.nextEthClient
 }
 
-// EnsureSwitched checks if MPT switch time has been reached and switches to MPT client if needed.
+// EnsureSwitched checks if switch time has been reached and switches to next client if needed.
 // This should be called when the block is already delivered (e.g., synced via P2P) to ensure
 // the client switch happens even if NewL2Block is not called.
 func (rc *RetryableClient) EnsureSwitched(ctx context.Context, timeStamp uint64, number uint64) {
@@ -154,21 +214,21 @@ func (rc *RetryableClient) EnsureSwitched(ctx context.Context, timeStamp uint64,
 }
 
 func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, number uint64) {
-	if rc.mpt.Load() {
+	if rc.switched.Load() {
 		return
 	}
-	if timeStamp <= rc.mptTime {
+	if timeStamp <= rc.switchTime {
 		return
 	}
 
 	rc.logger.Info("========================================")
-	rc.logger.Info("MPT UPGRADE: Switch time reached!")
+	rc.logger.Info("GETH UPGRADE: Switch time reached!")
 	rc.logger.Info("========================================")
-	rc.logger.Info("MPT switch time reached, switching from legacy client to MPT client",
-		"mpt_time", rc.mptTime,
+	rc.logger.Info("Switch time reached, switching from current client to next client",
+		"switch_time", rc.switchTime,
 		"current_time", timeStamp,
 		"target_block", number)
-	rc.logger.Info("Current status: connected to LEGACY geth, waiting for target geth to sync...")
+	rc.logger.Info("Current status: connected to current geth, waiting for next geth to sync...")
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -177,18 +237,18 @@ func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, n
 	lastLogTime := startTime
 
 	for {
-		remote, err := rc.ethClient.BlockNumber(ctx)
+		remote, err := rc.nextEthClient.BlockNumber(ctx)
 		if err != nil {
-			rc.logger.Error("Failed to get target geth block number",
+			rc.logger.Error("Failed to get next geth block number",
 				"error", err,
-				"hint", "Please ensure target geth is running and accessible")
+				"hint", "Please ensure next geth is running and accessible")
 			<-ticker.C
 			continue
 		}
 
 		if remote+1 >= number {
-			// Get target geth's latest block hash for debugging
-			targetHeader, headerErr := rc.ethClient.HeaderByNumber(ctx, big.NewInt(int64(remote)))
+			// Get next geth's latest block hash for debugging
+			targetHeader, headerErr := rc.nextEthClient.HeaderByNumber(ctx, big.NewInt(int64(remote)))
 			targetBlockHash := "unknown"
 			targetStateRoot := "unknown"
 			if headerErr == nil && targetHeader != nil {
@@ -196,11 +256,11 @@ func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, n
 				targetStateRoot = targetHeader.Root.Hex()
 			}
 
-			rc.mpt.Store(true)
+			rc.switched.Store(true)
 			rc.logger.Info("========================================")
-			rc.logger.Info("MPT UPGRADE: Successfully switched!")
+			rc.logger.Info("GETH UPGRADE: Successfully switched!")
 			rc.logger.Info("========================================")
-			rc.logger.Info("Successfully switched to MPT client",
+			rc.logger.Info("Successfully switched to next client",
 				"remote_block", remote,
 				"target_block", number,
 				"target_block_hash", targetBlockHash,
@@ -210,8 +270,8 @@ func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, n
 		}
 
 		if time.Since(lastLogTime) >= 5*time.Second {
-			rc.logger.Error("!!! WAITING: Node BLOCKED waiting for target geth !!!",
-				"target_geth_block", remote,
+			rc.logger.Error("!!! WAITING: Node BLOCKED waiting for next geth !!!",
+				"next_geth_block", remote,
 				"target_block", number,
 				"blocks_behind", number-remote-1,
 				"wait_duration", time.Since(startTime))
@@ -266,18 +326,18 @@ func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *cat
 		"block_number", executableL2Data.Number,
 		"parent_hash", executableL2Data.ParentHash.Hex(),
 		"state_root", executableL2Data.StateRoot.Hex(),
-		"mpt_switched", rc.mpt.Load())
+		"switched", rc.switched.Load())
 
 	rc.switchClient(ctx, executableL2Data.Timestamp, executableL2Data.Number)
 
 	rc.logger.Info("After switchClient",
 		"block_number", executableL2Data.Number,
-		"mpt_switched", rc.mpt.Load())
+		"switched", rc.switched.Load())
 
 	if retryErr := backoff.Retry(func() error {
 		rc.logger.Info("Sending block to geth",
 			"block_number", executableL2Data.Number,
-			"using_mpt_client", rc.mpt.Load())
+			"using_next_client", rc.switched.Load())
 
 		respErr := rc.aClient().NewL2Block(ctx, executableL2Data, batchHash)
 		if respErr != nil {

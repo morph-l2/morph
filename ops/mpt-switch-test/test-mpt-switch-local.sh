@@ -291,11 +291,11 @@ start_sequencer_node() {
     local jwt_file="${TEST_DATA_DIR}/jwt-secret.txt"
     local node_home="${SEQUENCER_NODE_DIR}"
     
-    # Sequencer: legacy=ZK Geth, mpt=MPT Geth
-    export MORPH_NODE_L2_LEGACY_ETH_RPC="http://127.0.0.1:${ZK_GETH_HTTP_PORT}"
-    export MORPH_NODE_L2_LEGACY_ENGINE_RPC="http://127.0.0.1:${ZK_GETH_AUTH_PORT}"
-    export MORPH_NODE_L2_ETH_RPC="http://127.0.0.1:${MPT_GETH_HTTP_PORT}"
-    export MORPH_NODE_L2_ENGINE_RPC="http://127.0.0.1:${MPT_GETH_AUTH_PORT}"
+    # Sequencer: L2=ZK Geth (current), L2Next=MPT Geth (switch target)
+    export MORPH_NODE_L2_ETH_RPC="http://127.0.0.1:${ZK_GETH_HTTP_PORT}"
+    export MORPH_NODE_L2_ENGINE_RPC="http://127.0.0.1:${ZK_GETH_AUTH_PORT}"
+    export MORPH_NODE_L2_NEXT_ETH_RPC="http://127.0.0.1:${MPT_GETH_HTTP_PORT}"
+    export MORPH_NODE_L2_NEXT_ENGINE_RPC="http://127.0.0.1:${MPT_GETH_AUTH_PORT}"
     export MORPH_NODE_L2_ENGINE_AUTH="$jwt_file"
     # MPT_TIME is now fetched from geth via eth_config API, no need to set it here
     export MORPH_NODE_L1_ETH_RPC="${L1_ETH_RPC:-http://127.0.0.1:9545}"
@@ -326,11 +326,12 @@ start_sentry_node() {
     local jwt_file="${TEST_DATA_DIR}/jwt-secret.txt"
     local node_home="${SENTRY_NODE_DIR}"
     
-    # Sentry: legacy=MPT Geth, mpt=ZK Geth (opposite to Sequencer, swaps on upgrade)
-    export MORPH_NODE_L2_LEGACY_ETH_RPC="http://127.0.0.1:${MPT_GETH_HTTP_PORT}"
-    export MORPH_NODE_L2_LEGACY_ENGINE_RPC="http://127.0.0.1:${MPT_GETH_AUTH_PORT}"
-    export MORPH_NODE_L2_ETH_RPC="http://127.0.0.1:${ZK_GETH_HTTP_PORT}"
-    export MORPH_NODE_L2_ENGINE_RPC="http://127.0.0.1:${ZK_GETH_AUTH_PORT}"
+    # Sentry: L2=MPT Geth (current), L2Next=ZK Geth (switch target)
+    # Note: Sentry swaps in opposite direction to Sequencer
+    export MORPH_NODE_L2_ETH_RPC="http://127.0.0.1:${MPT_GETH_HTTP_PORT}"
+    export MORPH_NODE_L2_ENGINE_RPC="http://127.0.0.1:${MPT_GETH_AUTH_PORT}"
+    export MORPH_NODE_L2_NEXT_ETH_RPC="http://127.0.0.1:${ZK_GETH_HTTP_PORT}"
+    export MORPH_NODE_L2_NEXT_ENGINE_RPC="http://127.0.0.1:${ZK_GETH_AUTH_PORT}"
     export MORPH_NODE_L2_ENGINE_AUTH="$jwt_file"
     # MPT_TIME is now fetched from geth via eth_config API, no need to set it here
     export MORPH_NODE_L1_ETH_RPC="${L1_ETH_RPC:-http://127.0.0.1:9545}"

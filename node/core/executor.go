@@ -70,15 +70,7 @@ func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
 func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubKey) (*Executor, error) {
 	logger := config.Logger
 	logger = logger.With("module", "executor")
-	// legacy zk endpoint
-	laClient, err := authclient.DialContext(context.Background(), config.L2Legacy.EngineAddr, config.L2Legacy.JwtSecret)
-	if err != nil {
-		return nil, err
-	}
-	leClient, err := ethclient.Dial(config.L2Legacy.EthAddr)
-	if err != nil {
-		return nil, err
-	}
+	// L2 geth endpoint (required - current geth)
 	aClient, err := authclient.DialContext(context.Background(), config.L2.EngineAddr, config.L2.JwtSecret)
 	if err != nil {
 		return nil, err
@@ -88,7 +80,24 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	l2Client := types.NewRetryableClient(laClient, leClient, aClient, eClient, config.L2Legacy.EthAddr, config.Logger)
+	// L2Next endpoint (optional - for upgrade switch)
+	var aNextClient *authclient.Client
+	var eNextClient *ethclient.Client
+	if config.L2Next != nil && config.L2Next.EngineAddr != "" && config.L2Next.EthAddr != "" {
+		aNextClient, err = authclient.DialContext(context.Background(), config.L2Next.EngineAddr, config.L2Next.JwtSecret)
+		if err != nil {
+			return nil, err
+		}
+		eNextClient, err = ethclient.Dial(config.L2Next.EthAddr)
+		if err != nil {
+			return nil, err
+		}
+		logger.Info("L2Next geth configured (upgrade switch enabled)", "engineAddr", config.L2Next.EngineAddr, "ethAddr", config.L2Next.EthAddr)
+	} else {
+		logger.Info("L2Next geth not configured (no upgrade switch)")
+	}
+
+	l2Client := types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, config.L2.EthAddr, config.Logger)
 	index, err := getNextL1MsgIndex(l2Client)
 	if err != nil {
 		return nil, err

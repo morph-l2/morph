@@ -28,16 +28,16 @@ var (
 		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
 	}
 
-	L2LegacyEthAddr = cli.StringFlag{
-		Name:   "l2legacy.eth",
-		Usage:  "Address of L2 legacy Engine JSON-RPC endpoints to use (eth namespace required)",
-		EnvVar: prefixEnvVar("L2_LEGACY_ETH_RPC"),
+	L2NextEthAddr = cli.StringFlag{
+		Name:   "l2next.eth",
+		Usage:  "Address of next L2 geth JSON-RPC endpoints to switch to (optional, for upgrades)",
+		EnvVar: prefixEnvVar("L2_NEXT_ETH_RPC"),
 	}
 
-	L2LegacyEngineAddr = cli.StringFlag{
-		Name:   "l2legacy.engine",
-		Usage:  "Address of L2 legacy Engine JSON-RPC endpoints to use (engine namespace required)",
-		EnvVar: prefixEnvVar("L2_LEGACY_ENGINE_RPC"),
+	L2NextEngineAddr = cli.StringFlag{
+		Name:   "l2next.engine",
+		Usage:  "Address of next L2 geth Engine JSON-RPC endpoints to switch to (optional, for upgrades)",
+		EnvVar: prefixEnvVar("L2_NEXT_ENGINE_RPC"),
 	}
 
 	L2EngineJWTSecret = cli.StringFlag{
@@ -316,8 +316,8 @@ var Flags = []cli.Flag{
 	L2EthAddr,
 	L2EngineAddr,
 	L2EngineJWTSecret,
-	L2LegacyEthAddr,
-	L2LegacyEngineAddr,
+	L2NextEthAddr,
+	L2NextEngineAddr,
 	MaxL1MessageNumPerBlock,
 	L2CrossDomainMessengerContractAddr,
 	L2SequencerAddr,
