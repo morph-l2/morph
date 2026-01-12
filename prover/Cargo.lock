@@ -4608,7 +4608,7 @@ checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 [[package]]
 name = "morph-chainspec"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#20114b1e6ad72c59a00c64b79d777014c1ff8cd3"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0a20f25640059e2391656a05db012f4efef68008"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4627,7 +4627,7 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#20114b1e6ad72c59a00c64b79d777014c1ff8cd3"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0a20f25640059e2391656a05db012f4efef68008"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -4648,7 +4648,7 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#20114b1e6ad72c59a00c64b79d777014c1ff8cd3"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0a20f25640059e2391656a05db012f4efef68008"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4688,7 +4688,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#20114b1e6ad72c59a00c64b79d777014c1ff8cd3"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0a20f25640059e2391656a05db012f4efef68008"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",

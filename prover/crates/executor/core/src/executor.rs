@@ -1,3 +1,4 @@
+use alloy_consensus::Typed2718;
 use alloy_consensus::{transaction::SignerRecoverable, Transaction};
 use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
 use anyhow::Context;
@@ -51,6 +52,7 @@ impl<DB: Database> MorphExecutor<DB> {
             let caller = SignerRecoverable::recover_signer(tx)
                 .with_context(|| format!("tx[{tx_index}] recover signer error"))?;
             let tx_env = revm::context::TxEnv {
+                tx_type: tx.tx_type().ty(),
                 caller,
                 nonce: tx.nonce(),
                 gas_price: tx.effective_gas_price(Some(basefee)),
@@ -63,8 +65,13 @@ impl<DB: Database> MorphExecutor<DB> {
                 ..Default::default()
             };
 
-            let morph_tx =
-                MorphTxEnv { inner: tx_env, rlp_bytes: Some(tx.rlp()), ..Default::default() };
+            let morph_tx = MorphTxEnv {
+                inner: tx_env,
+                rlp_bytes: Some(tx.rlp()),
+                fee_token_id: tx.fee_token_id(),
+                fee_limit: tx.fee_limit(),
+                ..Default::default()
+            };
             self.inner
                 .transact_commit(morph_tx)
                 .with_context(|| format!("tx[{tx_index}] transact_commit error"))?;

@@ -25,12 +25,6 @@ impl HostExecutor {
         block_number: u64,
         provider: &DynProvider,
     ) -> Result<HostExecutorOutput, anyhow::Error> {
-        // We need a previous block root to initialize the RPC-backed DB.
-        // Using `checked_sub` avoids underflow panics for genesis blocks.
-        let prev_block_number = block_number
-            .checked_sub(1)
-            .context("HostExecutor::execute_block requires block_number > 0 (needs prev state)")?;
-
         let block = query_block(block_number, provider)
             .await
             .with_context(|| format!("query_block failed for block {block_number}"))?;
@@ -45,6 +39,11 @@ impl HostExecutor {
         let disk_root = query_state_root(block_number, provider)
             .await
             .with_context(|| format!("query_state_root failed for block {block_number}"))?;
+
+        // We need a previous block root to initialize the RPC-backed DB.
+        let prev_block_number = block_number
+            .checked_sub(1)
+            .context("HostExecutor::execute_block requires block_number > 0 (needs prev state)")?;
         let prev_disk_root =
             query_state_root(prev_block_number, provider).await.with_context(|| {
                 format!("query_state_root failed for prev block {prev_block_number}")
@@ -89,10 +88,7 @@ impl HostExecutor {
             .with_context(|| format!("failed to execute block {block_number}"))?;
 
         // Populate state by fetching missing trie nodes/accounts from provider.
-        let state = rpc_db
-            .state(&bundle_state)
-            .await
-            .context("failed to populate post-state from RPC DB")?;
+        let state = rpc_db.state(&bundle_state).await.context("failed to populate post-state")?;
 
         // Verify post state root.
         let computed_state_root = {

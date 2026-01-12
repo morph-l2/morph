@@ -40,8 +40,8 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
         .filter(|block_input| !block_input.current_block.transactions.is_empty())
         .try_for_each(|block_input| execute_block(block_input))?;
 
-    // Find the last block_input with non-empty transactions, or fall back to the last one
-    let last_input = block_inputs
+    // Find the last post_state with non-empty transactions, or fall back to the last one
+    let post_state = block_inputs
         .iter()
         .rev()
         .find(|block_input| !block_input.current_block.transactions.is_empty())
@@ -50,23 +50,19 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
     // The post-withdraw-root & post-sequencer-root is required for public inputs.
     // Tt is derived from the state of the last verified block.
     let post_withdraw_root =
-        last_input.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
+        post_state.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
     let post_sequencer_root =
-        last_input.get_storage_value(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)?;
+        post_state.get_storage_value(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)?;
 
     Ok(BatchInfo::from_block_inputs(
         &block_inputs,
-        last_input.current_block.post_state_root,
+        post_state.current_block.post_state_root,
         post_withdraw_root.into(),
         post_sequencer_root.into(),
     ))
 }
 
 fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
-    // Clone the parent (pre-block) state and mutate it with the block's transition set to obtain
-    // the locally computed post-execution state used for state-root verification.
-    let mut state_for_root_verification = block_input.parent_state.clone();
-
     let block = &block_input.current_block;
     let header = &block.header;
     let chain_id = block.chain_id;
@@ -74,7 +70,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let block_num = header.number.to::<u64>();
 
     // Build DB, this will internally verify the correctness of mpt.
-    let trie_db = block_input.witness_db()?;
+    let witness_block = block_input.clone();
+    let trie_db = witness_block.witness_db()?;
     // Build evm state from the execution witness.
     let state = State::builder()
         .with_database_ref(&trie_db)
@@ -102,8 +99,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let computed_state_root = {
         let hashed_post_state =
             HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);
-        state_for_root_verification.update(&hashed_post_state);
-        state_for_root_verification.state_root()
+        block_input.parent_state.update(&hashed_post_state);
+        block_input.parent_state.state_root()
     };
     if computed_state_root != block.post_state_root {
         return Err(ClientError::MismatchedStateRoot(header.number.to::<u64>()));
