@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/morph-l2/externalsign v0.3.1
-	github.com/morph-l2/go-ethereum v1.10.14-0.20251219060125-03910bc750a2
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260113015804-82683159dfd0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/urfave/cli v1.22.17
