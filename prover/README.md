@@ -9,7 +9,7 @@ Generate zk proof for the l2 batch.
 ### Fast Run
 ```sh
 cd bin/host
-RUST_LOG=info TRUSTED_SETUP_4844=./configs/4844_trusted_setup.txt cargo run --release
+RUST_LOG=info TRUSTED_SETUP_4844=../../configs/4844_trusted_setup.txt cargo run --release
 ```
 or
 

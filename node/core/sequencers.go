@@ -18,6 +18,12 @@ import (
 
 const tmKeySize = ed25519.PubKeySize
 
+// isBlsKeyCheckFork returns true if blsKey validation should be enforced at the given height.
+// For mainnet, blsKey validation is skipped before fork height to maintain historical compatibility.
+func (e *Executor) isBlsKeyCheckFork(height uint64) bool {
+	return e.blsKeyCheckForkHeight == 0 || height > e.blsKeyCheckForkHeight
+}
+
 type validatorInfo struct {
 	address   common.Address
 	blsPubKey blssignatures.PublicKey
@@ -55,12 +61,14 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 	return blssignatures.VerifySignature(sig, messageHash, blsKey)
 }
 
-func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
+func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	seqHash, err := e.sequencerCaller.SequencerSetVerifyHash(nil)
 	if err != nil {
 		return nil, err
 	}
-	if e.currentSeqHash != nil && bytes.Equal(e.currentSeqHash[:], seqHash[:]) {
+	// Don't use cache at fork height boundary to ensure correct blsKey validation behavior change
+	atForkBoundary := e.blsKeyCheckForkHeight > 0 && (height == e.blsKeyCheckForkHeight || height == e.blsKeyCheckForkHeight+1)
+	if e.currentSeqHash != nil && bytes.Equal(e.currentSeqHash[:], seqHash[:]) && !atForkBoundary {
 		return e.nextValidators, nil
 	}
 
@@ -98,8 +106,9 @@ func (e *Executor) sequencerSetUpdates() ([][]byte, error) {
 		blsPK, err := decodeBlsPubKey(stakesInfo[i].BlsKey)
 		if err != nil {
 			e.logger.Error("failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
-			continue
-			// return nil, err
+			if e.isBlsKeyCheckFork(height) {
+				continue
+			}
 		}
 		// sequencerSet2 is the latest updated sequencer set which is considered as the next validator set for tendermint
 		if slices.Contains(sequencerSet2, stakesInfo[i].Addr) {
@@ -148,8 +157,8 @@ func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, erro
 	return nil, nil
 }
 
-func (e *Executor) updateSequencerSet() ([][]byte, error) {
-	validatorUpdates, err := e.sequencerSetUpdates()
+func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
+	validatorUpdates, err := e.sequencerSetUpdates(height)
 	if err != nil {
 		e.logger.Error("failed to get sequencer set from geth", "err", err)
 		return nil, err
