@@ -163,7 +163,7 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 
 	// Check if switch time has already passed at startup
 	now := uint64(time.Now().Unix())
-	alreadySwitched := switchTime > 0 && now > switchTime
+	alreadySwitched := switchTime > 0 && now >= switchTime
 
 	if alreadySwitched {
 		logger.Info("Switch time already passed at startup, starting with next client",
@@ -217,7 +217,7 @@ func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, n
 	if rc.switched.Load() {
 		return
 	}
-	if timeStamp <= rc.switchTime {
+	if timeStamp < rc.switchTime {
 		return
 	}
 

@@ -287,7 +287,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			// Skip if: (before switch && MPT geth) or (after switch && ZK geth)
 			skipValidation := false
 			if d.switchTime > 0 {
-				beforeSwitch := lastHeader.Time <= d.switchTime
+				beforeSwitch := lastHeader.Time < d.switchTime
 				if (beforeSwitch && !d.useZktrie) || (!beforeSwitch && d.useZktrie) {
 					skipValidation = true
 					d.logger.Error("Root validation skipped during upgrade transition",
