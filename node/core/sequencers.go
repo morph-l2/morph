@@ -38,10 +38,6 @@ func (e *Executor) VerifySignature(tmPubKey []byte, messageHash []byte, blsSig [
 		e.logger.Info("we are in dev mode, do not verify the bls signature")
 		return true, nil
 	}
-	if !e.isSequencer {
-		e.logger.Debug("non-sequencer node, skip bls signature verification")
-		return true, nil
-	}
 	if len(e.valsByTmKey) == 0 {
 		return false, errors.New("no available sequencers found in layer2")
 	}
