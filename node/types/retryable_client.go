@@ -322,23 +322,9 @@ func (rc *RetryableClient) ValidateL2Block(ctx context.Context, executableL2Data
 }
 
 func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, batchHash *common.Hash) (err error) {
-	rc.logger.Info("NewL2Block called",
-		"block_number", executableL2Data.Number,
-		"parent_hash", executableL2Data.ParentHash.Hex(),
-		"state_root", executableL2Data.StateRoot.Hex(),
-		"switched", rc.switched.Load())
-
 	rc.switchClient(ctx, executableL2Data.Timestamp, executableL2Data.Number)
 
-	rc.logger.Info("After switchClient",
-		"block_number", executableL2Data.Number,
-		"switched", rc.switched.Load())
-
 	if retryErr := backoff.Retry(func() error {
-		rc.logger.Info("Sending block to geth",
-			"block_number", executableL2Data.Number,
-			"using_next_client", rc.switched.Load())
-
 		respErr := rc.aClient().NewL2Block(ctx, executableL2Data, batchHash)
 		if respErr != nil {
 			rc.logger.Error("NewL2Block failed",
@@ -348,8 +334,6 @@ func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *cat
 				return respErr
 			}
 			err = respErr
-		} else {
-			rc.logger.Info("NewL2Block succeeded", "block_number", executableL2Data.Number)
 		}
 		return nil
 	}, rc.b); retryErr != nil {
