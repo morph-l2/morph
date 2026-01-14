@@ -192,7 +192,11 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
 
         let account_info =
             result.map_err(|e| ProviderError::Database(DatabaseError::Other(e.to_string())))?;
-        Ok(Some(account_info))
+        if !account_info.exists() {
+            return Ok(None);
+        } else {
+            Ok(Some(account_info))
+        }
     }
 
     fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {

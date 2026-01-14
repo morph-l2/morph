@@ -1,4 +1,5 @@
 use alloy_consensus::transaction::SignerRecoverable;
+use alloy_consensus::Transaction;
 use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
 use anyhow::Context;
 use anyhow::Result;
@@ -45,10 +46,13 @@ impl<DB: Database> MorphExecutor<DB> {
     pub fn execute_block(&mut self, txns: &Vec<MorphTxEnvelope>) -> Result<BundleState> {
         // Execute transactions in block.
         for (tx_index, tx) in txns.iter().enumerate() {
+            let basefee = self.inner.ctx.block.basefee;
             let caller = SignerRecoverable::recover_signer(tx)
                 .with_context(|| format!("tx[{tx_index}] recover signer error"))?;
 
-            let morph_tx = MorphTxEnv::from_recovered_tx(tx, caller);
+            let mut morph_tx = MorphTxEnv::from_recovered_tx(tx, caller);
+            morph_tx.gas_price = tx.effective_gas_price(Some(basefee));
+
             self.inner
                 .transact_commit(morph_tx)
                 .with_context(|| format!("tx[{tx_index}] transact_commit error"))?;

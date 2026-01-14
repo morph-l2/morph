@@ -64,6 +64,18 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
 
 fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let block = &block_input.current_block;
+
+    if block.transactions.is_empty() {
+        if block.prev_state_root != block.post_state_root {
+            // For empty blocks we don't execute in REVM; the expected post root equals the prev root.
+            return Err(ClientError::MismatchedStateRoot {
+                block_num: block.header.number.to::<u64>(),
+                root_trace: block.prev_state_root,
+                root_revm: block.post_state_root,
+            });
+        }
+        return Ok(());
+    }
     let header = &block.header;
     let chain_id = block.chain_id;
     let tx_count = block.transactions.len();
