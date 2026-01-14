@@ -1,5 +1,5 @@
 use alloy_eips::eip7702::{Authorization, SignedAuthorization};
-use alloy_primitives::{Address, Signature, U256, U8};
+use alloy_primitives::{Address, Signature, U8, U64, U256, normalize_v};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A wrapper around SignedAuthorization that implements JSON-(de)serialization compat.
@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for ArchivedSignedAuthorization {
             #[serde(rename = "chainId")]
             chain_id: U256,
             address: Address,
-            nonce: u64,
+            nonce: U64,
             r: U256,
             s: U256,
             #[serde(rename = "yParity")]
@@ -59,7 +59,7 @@ impl<'de> Deserialize<'de> for ArchivedSignedAuthorization {
         Ok(ArchivedSignedAuthorization {
             chain_id: helper.chain_id,
             address: helper.address,
-            nonce: helper.nonce,
+            nonce: helper.nonce.to::<u64>(),
             r: helper.r,
             s: helper.s,
             v: helper.y_parity,
@@ -85,9 +85,7 @@ impl From<ArchivedSignedAuthorization> for SignedAuthorization {
         let inner =
             Authorization { chain_id: auth.chain_id, address: auth.address, nonce: auth.nonce };
 
-        // yParity: 0/1
-        let v: u8 = auth.v.to();
-        let parity = v != 0;
+        let parity = normalize_v(auth.v.to::<u64>()).unwrap_or_default();
 
         // Convert U256 to FixedBytes<32> for r and s
         let r_bytes = auth.r.to_be_bytes();

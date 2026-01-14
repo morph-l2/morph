@@ -109,11 +109,10 @@ impl TxTrace for TransactionTrace {
     }
 
     fn to(&self) -> TxKind {
-        if self.is_create {
-            TxKind::Create
+        if let Some(to) = self.to {
+            TxKind::Call(to)
         } else {
-            debug_assert!(self.to.map(|a| !a.is_zero()).unwrap_or(false));
-            TxKind::Call(self.to.expect("to address must be present"))
+            TxKind::Create
         }
     }
 

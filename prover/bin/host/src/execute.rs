@@ -39,33 +39,119 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, rpc: &str) {
     }
 }
 
-// cargo test -p morph-prove --lib -- execute::test_execute --exact --nocapture -- --block-number 0x35 --rpc http://127.0.0.1:9545
-#[test]
-fn test_execute() {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let (block_number, rpc) = test_args::read_execute_args_from_argv();
-    rt.block_on(execute(block_number, &rpc));
-}
+#[cfg(test)]
+mod tests {
+    use crate::execute::{execute, execute_continuous, execute_range, test_args};
+    use prover_primitives::types::BlockTrace;
+    use std::{
+        fs::{self, File},
+        io::BufReader,
+        path::{Path, PathBuf},
+    };
 
-// cargo test -p morph-prove --lib -- execute::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
-#[test]
-fn test_execute_range() {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let (start_block, end_block, rpc) = test_args::read_execute_range_args_from_argv();
-    rt.block_on(execute_range(start_block, end_block, &rpc));
-}
+    // cargo test -p morph-prove --lib -- execute::tests::test_execute --exact --nocapture -- --block-number 0x35 --rpc http://127.0.0.1:9545
+    #[test]
+    fn test_execute() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (block_number, rpc) = test_args::read_execute_args_from_argv();
+        rt.block_on(execute(block_number, &rpc));
+    }
 
-// cargo test -p morph-prove --lib -- execute::test_execute_continuous -- --nocapture -- --start-block 0x35 --max-blocks 2 --rpc http://127.0.0.1:9545
-#[test]
-fn test_execute_continuous() {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let (start_block, max_blocks, rpc) = test_args::read_execute_continuous_args_from_argv();
-    rt.block_on(execute_continuous(start_block, max_blocks, &rpc));
+    // cargo test -p morph-prove --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
+    #[test]
+    fn test_execute_range() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (start_block, end_block, rpc) = test_args::read_execute_range_args_from_argv();
+        rt.block_on(execute_range(start_block, end_block, &rpc));
+    }
+
+    // cargo test -p morph-prove --lib -- execute::tests::test_execute_continuous --exact --nocapture -- --start-block 0x35 --max-blocks 2 --rpc http://127.0.0.1:9545
+    #[test]
+    fn test_execute_continuous() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (start_block, max_blocks, rpc) = test_args::read_execute_continuous_args_from_argv();
+        rt.block_on(execute_continuous(start_block, max_blocks, &rpc));
+    }
+
+    // Examples:
+    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture
+    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt/mainnet_809.json
+    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt
+    #[test]
+    fn test_execute_local_traces() {
+        use prover_executor_client::{types::input::BlockInput, EVMVerifier};
+
+        let provided = test_args::read_execute_local_traces_paths_from_argv();
+        let files = resolve_trace_files(&provided);
+        assert!(!files.is_empty(), "no trace files found");
+
+        for file in files {
+            let file_str = file.to_string_lossy();
+            let block_traces = &mut load_trace(&file_str);
+
+            let block_inputs =
+                block_traces.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+
+            let _ = EVMVerifier::verify(block_inputs).map_err(|e| {
+                println!("execute_local_traces verify error for file {file_str}: {:?}", e);
+            });
+        }
+    }
+
+    fn resolve_trace_files(paths: &[String]) -> Vec<PathBuf> {
+        // Default: run all *.json under testdata/mpt/
+        if paths.is_empty() {
+            let dir = default_mpt_trace_dir();
+            return list_json_files(&dir);
+        }
+
+        let mut out = Vec::new();
+        for p in paths {
+            let pb = PathBuf::from(p);
+            if pb.is_dir() {
+                out.extend(list_json_files(&pb));
+            } else {
+                out.push(pb);
+            }
+        }
+
+        out.sort();
+        out
+    }
+
+    fn default_mpt_trace_dir() -> PathBuf {
+        // bin/host (manifest dir) -> repo_root/testdata/mpt
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata/mpt")
+    }
+
+    fn list_json_files(dir: &Path) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        if let Ok(rd) = fs::read_dir(dir) {
+            for entry in rd.flatten() {
+                let path = entry.path();
+                if path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("json"))
+                {
+                    files.push(path);
+                }
+            }
+        }
+        files.sort();
+        files
+    }
+
+    fn load_trace(file_path: &str) -> Vec<BlockTrace> {
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).unwrap()
+    }
 }
 
 #[cfg(test)]
 mod test_args {
-    use clap::Parser;
+    use clap::{ArgAction, Parser};
     const DEFAULT_BLOCK_NUMBER: u64 = 0x477;
     const DEFAULT_START_BLOCK: u64 = DEFAULT_BLOCK_NUMBER;
     const DEFAULT_END_BLOCK: u64 = DEFAULT_BLOCK_NUMBER;
@@ -119,11 +205,26 @@ mod test_args {
         rpc: String,
     }
 
+    /// Local traces execute parameters.
+    #[derive(Parser, Debug)]
+    #[command(author, version, about, long_about = None, disable_help_flag = true)]
+    struct ExecuteLocalTracesArgs {
+        /// Trace file path (json) or directory path. Can be specified multiple times.
+        #[arg(long = "trace", alias = "trace-path", value_name = "FILE_OR_DIR", action = ArgAction::Append)]
+        traces: Vec<String>,
+    }
+
     pub(super) fn read_execute_args_from_argv() -> (u64, String) {
         let filtered = filter_argv(&["--block-number", "--block", "--rpc"]);
 
         let args = ExecuteArgs::parse_from(filtered);
         (args.block_number, args.rpc)
+    }
+
+    pub(super) fn read_execute_local_traces_paths_from_argv() -> Vec<String> {
+        let filtered = filter_argv(&["--trace", "--trace-path"]);
+        let args = ExecuteLocalTracesArgs::parse_from(filtered);
+        args.traces
     }
 
     pub(super) fn read_execute_range_args_from_argv() -> (u64, u64, String) {

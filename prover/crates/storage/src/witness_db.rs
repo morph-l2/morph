@@ -2,7 +2,7 @@ use alloy_consensus::TrieAccount;
 use alloy_primitives::map::HashMap;
 use anyhow::anyhow;
 use prover_mpt::EthereumState;
-use revm::primitives::{keccak256, Address, B256, KECCAK_EMPTY, U256};
+use revm::primitives::{keccak256, Address, B256, U256};
 use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
@@ -62,14 +62,14 @@ impl DatabaseRef for TrieDB<'_> {
             })
             .unwrap();
 
-        Ok(account_in_trie
-            .map(|account_in_trie| AccountInfo {
-                balance: account_in_trie.balance,
-                nonce: account_in_trie.nonce,
-                code_hash: account_in_trie.code_hash,
-                code: None,
-            })
-            .or_else(|| Some(AccountInfo { code_hash: KECCAK_EMPTY, ..Default::default() })))
+        let account = account_in_trie.map(|account_in_trie| AccountInfo {
+            balance: account_in_trie.balance,
+            nonce: account_in_trie.nonce,
+            code_hash: account_in_trie.code_hash,
+            code: None,
+        });
+
+        Ok(account)
     }
 
     /// Get account code by its hash.

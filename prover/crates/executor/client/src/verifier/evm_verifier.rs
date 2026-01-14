@@ -94,7 +94,6 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let bundle_state = core_executor
         .execute_block(&block.transactions)
         .map_err(|e| ClientError::BlockExecutionError(e.to_string()))?;
-
     // Verify the post-state root by applying the block's transition set to the parent (pre-block) state.
     let computed_state_root = {
         let hashed_post_state =
@@ -103,7 +102,11 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         block_input.parent_state.state_root()
     };
     if computed_state_root != block.post_state_root {
-        return Err(ClientError::MismatchedStateRoot(header.number.to::<u64>()));
+        return Err(ClientError::MismatchedStateRoot {
+            block_num: header.number.to::<u64>(),
+            root_trace: block.post_state_root,
+            root_revm: computed_state_root,
+        });
     }
     println!("====success execute block_{block_num} in client, txns.len: {tx_count}====");
 

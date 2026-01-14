@@ -1,5 +1,4 @@
-use alloy_consensus::Typed2718;
-use alloy_consensus::{transaction::SignerRecoverable, Transaction};
+use alloy_consensus::transaction::SignerRecoverable;
 use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
 use anyhow::Context;
 use anyhow::Result;
@@ -18,7 +17,6 @@ use revm::{
     ExecuteCommitEvm,
 };
 /// An Morph executor wrapper based on `revm`.
-
 pub struct MorphExecutor<DB: Database, I = NoOpInspector> {
     pub inner: morph_revm::MorphEvm<State<DB>, I>,
 }
@@ -45,33 +43,12 @@ impl<DB: Database> MorphExecutor<DB> {
     }
 
     pub fn execute_block(&mut self, txns: &Vec<MorphTxEnvelope>) -> Result<BundleState> {
-        let basefee = self.inner.ctx.block.basefee;
-        let chain_id = self.inner.ctx.cfg.chain_id;
         // Execute transactions in block.
         for (tx_index, tx) in txns.iter().enumerate() {
             let caller = SignerRecoverable::recover_signer(tx)
                 .with_context(|| format!("tx[{tx_index}] recover signer error"))?;
-            let tx_env = revm::context::TxEnv {
-                tx_type: tx.tx_type().ty(),
-                caller,
-                nonce: tx.nonce(),
-                gas_price: tx.effective_gas_price(Some(basefee)),
-                gas_priority_fee: tx.max_priority_fee_per_gas(),
-                gas_limit: tx.gas_limit(),
-                kind: tx.kind(),
-                value: tx.value(),
-                data: revm::primitives::Bytes::from(tx.input().to_vec()),
-                chain_id: Some(chain_id),
-                ..Default::default()
-            };
 
-            let morph_tx = MorphTxEnv {
-                inner: tx_env,
-                rlp_bytes: Some(tx.rlp()),
-                fee_token_id: tx.fee_token_id(),
-                fee_limit: tx.fee_limit(),
-                ..Default::default()
-            };
+            let morph_tx = MorphTxEnv::from_recovered_tx(tx, caller);
             self.inner
                 .transact_commit(morph_tx)
                 .with_context(|| format!("tx[{tx_index}] transact_commit error"))?;
@@ -79,7 +56,13 @@ impl<DB: Database> MorphExecutor<DB> {
         // Merge transitions and build hashed post-state.
         self.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
         // Collect values that got changed.
-        let bundle_state = self.inner.ctx.journaled_state.database.take_bundle();
+        let mut bundle_state = self.inner.ctx.journaled_state.database.take_bundle();
+        // If current account_info is not exists and original_info is None,
+        // It means that it has not been changed, account can be filtered out
+        bundle_state.state.retain(|_, acc| {
+            let exists = acc.info.as_ref().map(|info| info.exists()).unwrap_or(false);
+            exists || acc.original_info.is_some()
+        });
         Ok(bundle_state)
     }
 }

@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, FixedBytes};
+use alloy_primitives::{Address, FixedBytes, B256};
 use prover_mpt::Error as MptError;
 
 #[derive(Debug, thiserror::Error)]
@@ -9,8 +9,14 @@ pub enum ClientError {
     InvalidHeaderStateRoot,
     #[error("Block state root error")]
     DiscontinuousStateRoot,
-    #[error("Mismatched state root after executing the block, block number: {}", .0)]
-    MismatchedStateRoot(u64),
+    #[error("root_after in trace doesn't match with root_after in revm: block number = {block_num} root_trace = {root_trace}, root_revm = {root_revm}")]
+    MismatchedStateRoot {
+        block_num: u64,
+        /// Root after in trace
+        root_trace: B256,
+        /// Root after in revm
+        root_revm: B256,
+    },
     #[error("Mismatched storage root after executing the block")]
     MismatchedStorageRoot,
     #[error("unknown chain ID: {}", .0)]
