@@ -56,6 +56,13 @@ type Executor struct {
 	rollupABI             *abi.ABI
 	batchingCache         *BatchingCache
 
+	// MPT fork handling: force batch points at the 1st and 2nd block after fork.
+	// This state machine exists to avoid repeated HeaderByNumber calls after the fork is handled,
+	// while keeping results stable if CalculateCapWithProposalBlock is called multiple times at the same height.
+	mptForkTime        uint64 // cached from geth eth_config.morph.mptForkTime (0 means disabled/unknown)
+	mptForkStage       uint8  // 0: not handled, 1: forced H1, 2: done (forced H2 or skipped beyond H2)
+	mptForkForceHeight uint64 // if equals current height, must return true (stability across multiple calls)
+
 	logger  tmlog.Logger
 	metrics *Metrics
 }
@@ -141,6 +148,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		batchingCache:         NewBatchingCache(),
 		UpgradeBatchTime:      config.UpgradeBatchTime,
 		blsKeyCheckForkHeight: config.BlsKeyCheckForkHeight,
+		mptForkTime:           l2Client.MPTForkTime(),
 		logger:                logger,
 		metrics:               PrometheusMetrics("morphnode"),
 	}
