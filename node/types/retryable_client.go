@@ -40,12 +40,12 @@ type configResponse struct {
 
 // forkConfig represents a single fork configuration
 type forkConfig struct {
-	ActivationTime  uint64                 `json:"activationTime"`
-	ChainId         string                 `json:"chainId"`
-	ForkId          string                 `json:"forkId"`
-	Precompiles     map[string]string      `json:"precompiles"`
-	SystemContracts map[string]string      `json:"systemContracts"`
-	Morph           *morphExtension        `json:"morph,omitempty"`
+	ActivationTime  uint64            `json:"activationTime"`
+	ChainId         string            `json:"chainId"`
+	ForkId          string            `json:"forkId"`
+	Precompiles     map[string]string `json:"precompiles"`
+	SystemContracts map[string]string `json:"systemContracts"`
+	Morph           *morphExtension   `json:"morph,omitempty"`
 }
 
 // morphExtension contains Morph-specific configuration fields
@@ -111,15 +111,6 @@ func FetchGethConfig(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 	return config, nil
 }
 
-// fetchMPTForkTime fetches the MPT fork time from geth via eth_config API (internal)
-func fetchMPTForkTime(rpcURL string, logger tmlog.Logger) (uint64, error) {
-	config, err := FetchGethConfig(rpcURL, logger)
-	if err != nil {
-		return 0, err
-	}
-	return config.SwitchTime, nil
-}
-
 type RetryableClient struct {
 	authClient     *authclient.Client // current geth
 	ethClient      *ethclient.Client  // current geth
@@ -131,21 +122,15 @@ type RetryableClient struct {
 	logger         tmlog.Logger
 }
 
-// NewRetryableClient creates a new retryable client that fetches switch time from geth.
-// The l2EthAddr is used to fetch the switch time via eth_config API.
+// NewRetryableClient creates a new retryable client with the given switch time.
 // Will retry calling the api, if the connection is refused.
 //
 // If nextAuthClient or nextEthClient is nil, switch is disabled and only current client is used.
 // This is useful for nodes that don't need to switch geth (most nodes).
-func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Client, nextAuthClient *authclient.Client, nextEthClient *ethclient.Client, l2EthAddr string, logger tmlog.Logger) *RetryableClient {
+//
+// The switchTime should be fetched via FetchGethConfig before calling this function.
+func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Client, nextAuthClient *authclient.Client, nextEthClient *ethclient.Client, switchTime uint64, logger tmlog.Logger) *RetryableClient {
 	logger = logger.With("module", "retryClient")
-
-	// Fetch switch time from geth
-	switchTime, err := fetchMPTForkTime(l2EthAddr, logger)
-	if err != nil {
-		logger.Error("Failed to fetch switch time from geth, using 0", "error", err)
-		switchTime = 0
-	}
 
 	// If next client is not configured, disable switch
 	if nextAuthClient == nil || nextEthClient == nil {
@@ -190,7 +175,6 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 
 	return rc
 }
-
 
 func (rc *RetryableClient) aClient() *authclient.Client {
 	if !rc.switched.Load() {

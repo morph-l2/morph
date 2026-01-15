@@ -98,7 +98,14 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		logger.Info("L2Next geth not configured (no upgrade switch)")
 	}
 
-	l2Client := types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, config.L2.EthAddr, config.Logger)
+	// Fetch geth config at startup
+	gethCfg, err := types.FetchGethConfig(config.L2.EthAddr, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
+	}
+	logger.Info("Geth config fetched", "switchTime", gethCfg.SwitchTime, "useZktrie", gethCfg.UseZktrie)
+
+	l2Client := types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, gethCfg.SwitchTime, logger)
 	index, err := getNextL1MsgIndex(l2Client)
 	if err != nil {
 		return nil, err
