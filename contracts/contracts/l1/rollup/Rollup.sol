@@ -365,9 +365,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-        bytes32 parentBatchHashFromHeader = BatchHeaderCodecV0.getParentBatchHash(memPtr);
-        (, bytes32 parentBatchHashFromInfo) = _loadBatchHeader(batchDataInput.parentBatchHeader);
-        require(parentBatchHashFromHeader == parentBatchHashFromInfo, "batch info mismatch with batch header");
+        require(lastCommittedBatchIndex == _batchIndex, "incorrect batch header");
         require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
 
         // Override finalizeTimestamp for ZKP-backed immediate finality
