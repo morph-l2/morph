@@ -111,6 +111,15 @@ func FetchGethConfig(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 	return config, nil
 }
 
+// fetchMPTForkTime fetches the MPT fork time from geth via eth_config API (internal)
+func fetchMPTForkTime(rpcURL string, logger tmlog.Logger) (uint64, error) {
+	config, err := FetchGethConfig(rpcURL, logger)
+	if err != nil {
+		return 0, err
+	}
+	return config.SwitchTime, nil
+}
+
 type RetryableClient struct {
 	authClient     *authclient.Client // current geth
 	ethClient      *ethclient.Client  // current geth

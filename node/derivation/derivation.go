@@ -146,8 +146,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	}
 	logger.Info("Geth config fetched", "switchTime", gethCfg.SwitchTime, "useZktrie", gethCfg.UseZktrie)
 
-	l2Client := types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, gethCfg.SwitchTime, logger)
-
 	return &Derivation{
 		ctx:                   ctx,
 		db:                    db,
@@ -161,7 +159,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logger:                logger,
 		RollupContractAddress: cfg.RollupContractAddress,
 		confirmations:         cfg.L1.Confirmations,
-		l2Client:              l2Client,
+		l2Client:              types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, gethCfg.SwitchTime, logger),
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
 		startHeight:           cfg.StartHeight,
