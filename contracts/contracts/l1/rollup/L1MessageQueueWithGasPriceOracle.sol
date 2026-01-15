@@ -259,15 +259,9 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
     }
 
     function getFirstUnfinalizedMessageEnqueueTime() external view returns (uint256 timestamp) {
-        if (pendingQueueIndex < messageQueue.length) {
-            // has pending messages
-            if (messageEnqueueTime[pendingQueueIndex] == 0) {
-                // no enqueue time, return current timestamp
-                return block.timestamp;
-            } else {
-                // return enqueue time
+        if (pendingQueueIndex < messageQueue.length && messageEnqueueTime[pendingQueueIndex] != 0) {
+            // has pending messages and return enqueue time
                 return messageEnqueueTime[pendingQueueIndex];
-            }
         }
         // no pending messages, return current timestamp
         return block.timestamp;
