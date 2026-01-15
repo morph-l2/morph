@@ -151,11 +151,7 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
                     len := 1
                     leave
                 }
-                for {
-
-                } gt(v, 0) {
-
-                } {
+                for {} gt(v, 0) {} {
                     len := add(len, 1)
                     v := shr(8, v)
                 }
@@ -263,7 +259,18 @@ contract L1MessageQueueWithGasPriceOracle is OwnableUpgradeable, IL1MessageQueue
     }
 
     function getFirstUnfinalizedMessageEnqueueTime() external view returns (uint256 timestamp) {
-        return messageEnqueueTime[pendingQueueIndex];
+        if (pendingQueueIndex < messageQueue.length) {
+            // has pending messages
+            if (messageEnqueueTime[pendingQueueIndex] == 0) {
+                // no enqueue time, return current timestamp
+                return block.timestamp;
+            } else {
+                // return enqueue time
+                return messageEnqueueTime[pendingQueueIndex];
+            }
+        }
+        // no pending messages, return current timestamp
+        return block.timestamp;
     }
 
     function getMessageEnqueueTimestamp(uint256 index) external view returns (uint256 timestamp) {

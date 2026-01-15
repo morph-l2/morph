@@ -502,7 +502,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         // - rollupDelay = 1 + 3600 < 3601 => 3601 < 3601 => false ✓
         // - l1MsgQueueDelayed = 0 + 3600 < 3601 => 3600 < 3601 => true ✓
         
-        // Mock L1 message enqueue time to 0 (older than genesis)
+        // Mock L1 message enqueue time to 0 (simulates old unfinalized messages)
         hevm.mockCall(
             address(l1MessageQueueWithGasPriceOracle),
             abi.encodeWithSignature("getFirstUnfinalizedMessageEnqueueTime()"),
@@ -537,6 +537,55 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
             batchHeader1,
             hex"deadbeef"
         );
+    }
+    
+    /// @notice Test: commitBatchWithProof succeeds when queue is empty (no unfinalized messages)
+    function test_commitBatchWithProof_succeeds_when_queue_empty() public {
+        _mockVerifierCall();
+        
+        // When queue is empty, L1MessageQueueWithGasPriceOracle.getFirstUnfinalizedMessageEnqueueTime()
+        // returns block.timestamp, which makes l1MsgQueueDelayed = false
+        // (because block.timestamp + rollupDelayPeriod >= block.timestamp is always true)
+        
+        // Warp first so we have a stable timestamp to mock
+        hevm.warp(block.timestamp + 7200);
+        
+        // Mock getFirstUnfinalizedMessageEnqueueTime to return block.timestamp (queue empty behavior)
+        hevm.mockCall(
+            address(l1MessageQueueWithGasPriceOracle),
+            abi.encodeWithSignature("getFirstUnfinalizedMessageEnqueueTime()"),
+            abi.encode(block.timestamp)
+        );
+        
+        bytes32 prevStateRoot = bytes32(uint256(1));
+        bytes32 postStateRoot = bytes32(uint256(2));
+        bytes32 withdrawalRoot = getTreeRoot();
+        
+        IRollup.BatchDataInput memory batchDataInput = IRollup.BatchDataInput({
+            version: 0,
+            parentBatchHeader: batchHeader0,
+            lastBlockNumber: 1,
+            numL1Messages: 0, // No L1 messages - OK because queue is empty (l1MsgQueueDelayed = false)
+            prevStateRoot: prevStateRoot,
+            postStateRoot: postStateRoot,
+            withdrawalRoot: withdrawalRoot
+        });
+        
+        bytes memory batchHeader1 = _createMatchingBatchHeader(1, 0, prevStateRoot, postStateRoot, withdrawalRoot);
+        
+        // Should succeed:
+        // - rollupDelay = true (7200 > 3600)  
+        // - l1MsgQueueDelayed = false (block.timestamp + 3600 >= block.timestamp)
+        // Entry condition satisfied, no L1 message requirement triggered
+        hevm.prank(alice);
+        rollup.commitBatchWithProof(
+            batchDataInput,
+            batchSignatureInput,
+            batchHeader1,
+            hex"deadbeef"
+        );
+        
+        assertEq(rollup.lastCommittedBatchIndex(), 1);
     }
 }
 
