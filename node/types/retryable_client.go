@@ -40,12 +40,12 @@ type configResponse struct {
 
 // forkConfig represents a single fork configuration
 type forkConfig struct {
-	ActivationTime  uint64                 `json:"activationTime"`
-	ChainId         string                 `json:"chainId"`
-	ForkId          string                 `json:"forkId"`
-	Precompiles     map[string]string      `json:"precompiles"`
-	SystemContracts map[string]string      `json:"systemContracts"`
-	Morph           *morphExtension        `json:"morph,omitempty"`
+	ActivationTime  uint64            `json:"activationTime"`
+	ChainId         string            `json:"chainId"`
+	ForkId          string            `json:"forkId"`
+	Precompiles     map[string]string `json:"precompiles"`
+	SystemContracts map[string]string `json:"systemContracts"`
+	Morph           *morphExtension   `json:"morph,omitempty"`
 }
 
 // morphExtension contains Morph-specific configuration fields
@@ -109,15 +109,6 @@ func FetchGethConfig(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 
 	logger.Info("MPT fork time not configured in geth, switch disabled")
 	return config, nil
-}
-
-// fetchMPTForkTime fetches the MPT fork time from geth via eth_config API (internal)
-func fetchMPTForkTime(rpcURL string, logger tmlog.Logger) (uint64, error) {
-	config, err := FetchGethConfig(rpcURL, logger)
-	if err != nil {
-		return 0, err
-	}
-	return config.SwitchTime, nil
 }
 
 type RetryableClient struct {
@@ -184,7 +175,6 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 
 	return rc
 }
-
 
 func (rc *RetryableClient) aClient() *authclient.Client {
 	if !rc.switched.Load() {
