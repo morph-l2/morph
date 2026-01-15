@@ -192,7 +192,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function initialize3(uint256 _rollupDelayPeriod) external reinitializer(3) {
         require(_rollupDelayPeriod != 0, "invalid rollup delay period");
         rollupDelayPeriod = _rollupDelayPeriod;
-        emit RollupDelayPeriodUpdate(0, _rollupDelayPeriod);
+        emit UpdateRollupDelayPeriod(0, _rollupDelayPeriod);
     }
 
     /************************
@@ -478,7 +478,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(_newPeriod > 0 && _newPeriod != rollupDelayPeriod, "invalid new rollup delay period");
         uint256 _oldRollupDelayPeriod = rollupDelayPeriod;
         rollupDelayPeriod = _newPeriod;
-        emit RollupDelayPeriodUpdate(_oldRollupDelayPeriod, rollupDelayPeriod);
+        emit UpdateRollupDelayPeriod(_oldRollupDelayPeriod, rollupDelayPeriod);
     }
 
     /// @notice Add an account to the challenger list.

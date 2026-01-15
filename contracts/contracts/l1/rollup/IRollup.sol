@@ -72,9 +72,6 @@ interface IRollup {
     /// @notice error zero address
     error ErrZeroAddress();
 
-    /// @notice error invalid timing for permissionless batch submission
-    error InvalidTiming();
-
     /**********
      * Events *
      **********/
@@ -124,7 +121,7 @@ interface IRollup {
     /// @notice Emitted when the rollup delay period is updated.
     /// @param oldPeriod  The old rollupDelayPeriod.
     /// @param newPeriod  The new rollupDelayPeriod.
-    event RollupDelayPeriodUpdate(uint256 oldPeriod, uint256 newPeriod);
+    event UpdateRollupDelayPeriod(uint256 oldPeriod, uint256 newPeriod);
 
     /// @notice Emit when prove remaining claimed.
     /// @param receiver  receiver address.
