@@ -19,7 +19,6 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
     
     // Slot constants for storage manipulation (from forge inspect Rollup storageLayout)
     uint256 constant ROLLUP_DELAY_PERIOD_SLOT = 172; // slot for rollupDelayPeriod
-    uint256 constant FINALIZATION_PERIOD_SLOT = 152; // slot for finalizationPeriodSeconds
     
     // ZERO_VERSIONED_HASH constant from Rollup contract
     bytes32 constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
@@ -121,12 +120,6 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         );
     }
     
-    /// @dev Helper to set finalization period to 0 for immediate finality
-    /// This is needed because commitBatchWithProof commits and finalizes in the same tx
-    function _setFinalizationPeriodToZero() internal {
-        hevm.store(address(rollup), bytes32(FINALIZATION_PERIOD_SLOT), bytes32(uint256(0)));
-    }
-    
     /// @dev Helper to mock L1 message queue calls for stalled state
     function _mockMessageQueueStalled() internal {
         hevm.mockCall(
@@ -138,50 +131,6 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
             address(l1MessageQueueWithGasPriceOracle),
             abi.encodeWithSignature("popCrossDomainMessage(uint256,uint256)"),
             abi.encode()
-        );
-    }
-    
-    /// @notice Test: commitBatchWithProof reverts when parent batch index is not finalized
-    function test_commitBatchWithProof_reverts_when_parentBatchIndex_not_finalized() public {
-        // First commit batch 1 normally to create a non-finalized batch
-        IRollup.BatchDataInput memory batchDataInput1 = IRollup.BatchDataInput({
-            version: 0,
-            parentBatchHeader: batchHeader0,
-            lastBlockNumber: 1,
-            numL1Messages: 0,
-            prevStateRoot: bytes32(uint256(1)),
-            postStateRoot: bytes32(uint256(2)),
-            withdrawalRoot: getTreeRoot()
-        });
-        
-        hevm.prank(alice);
-        rollup.commitBatch(batchDataInput1, batchSignatureInput);
-        
-        // Now batch 1 is committed but not finalized
-        // Create a batch header for batch 1 to use as parent
-        bytes memory batchHeader1 = _createMatchingBatchHeader(1, 0, bytes32(uint256(1)), bytes32(uint256(2)), getTreeRoot());
-        
-        // Try to use batch 1 as parent in commitBatchWithProof
-        // This should fail because lastFinalizedBatchIndex is still 0, but parent is batch 1
-        IRollup.BatchDataInput memory batchDataInput2 = IRollup.BatchDataInput({
-            version: 0,
-            parentBatchHeader: batchHeader1,
-            lastBlockNumber: 2,
-            numL1Messages: 0,
-            prevStateRoot: bytes32(uint256(2)),
-            postStateRoot: bytes32(uint256(3)),
-            withdrawalRoot: getTreeRoot()
-        });
-        
-        bytes memory batchHeader2 = new bytes(BatchHeaderCodecV0.BATCH_HEADER_LENGTH);
-        
-        hevm.prank(alice);
-        hevm.expectRevert("incorrect batch index");
-        rollup.commitBatchWithProof(
-            batchDataInput2,
-            batchSignatureInput,
-            batchHeader2,
-            bytes("")
         );
     }
     
@@ -208,7 +157,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         
         // Don't warp time - both conditions should fail: batch not stalled and L1 messages not stalled
         hevm.prank(alice);
-        hevm.expectRevert(IRollup.InvalidTiming.selector);
+        hevm.expectRevert("invalid timing");
         rollup.commitBatchWithProof(
             batchDataInput,
             batchSignatureInput,
@@ -395,7 +344,6 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
     function test_commitBatchWithProof_succeeds_when_stalled() public {
         _mockVerifierCall();
         _mockMessageQueueStalled();
-        _setFinalizationPeriodToZero(); // Allow immediate finality
         
         // Warp time to simulate stall (> rollupDelayPeriod)
         hevm.warp(block.timestamp + 7200);
@@ -424,18 +372,17 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
             hex"deadbeef" // Non-empty proof required
         );
         
-        // Verify batch was committed and finalized
+        // Verify batch was committed (finalization happens separately via finalizeBatch)
         assertEq(rollup.lastCommittedBatchIndex(), 1);
-        assertEq(rollup.lastFinalizedBatchIndex(), 1);
-        assertEq(rollup.finalizedStateRoots(1), postStateRoot);
-        assertTrue(rollup.withdrawalRoots(withdrawalRoot));
+        // finalizeTimestamp is set to block.timestamp, allowing immediate finalization
+        // but lastFinalizedBatchIndex is not updated until finalizeBatch is called
+        assertEq(rollup.lastFinalizedBatchIndex(), 0);
     }
     
-    /// @notice Test: commitBatchWithProof emits CommitBatch and FinalizeBatch events
+    /// @notice Test: commitBatchWithProof emits CommitBatch event
     function test_commitBatchWithProof_emits_events() public {
         _mockVerifierCall();
         _mockMessageQueueStalled();
-        _setFinalizationPeriodToZero();
         hevm.warp(block.timestamp + 7200);
         
         bytes32 prevStateRoot = bytes32(uint256(1));
@@ -467,68 +414,9 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         );
     }
     
-    /// @notice Test: commitBatchWithProof emits RevertBatchRange when reverting uncommitted batches
-    function test_commitBatchWithProof_reverts_and_emits_RevertBatchRange() public {
-        // First commit batch 1 normally
-        IRollup.BatchDataInput memory batchDataInput1 = IRollup.BatchDataInput({
-            version: 0,
-            parentBatchHeader: batchHeader0,
-            lastBlockNumber: 1,
-            numL1Messages: 0,
-            prevStateRoot: bytes32(uint256(1)),
-            postStateRoot: bytes32(uint256(2)),
-            withdrawalRoot: getTreeRoot()
-        });
-        
-        hevm.prank(alice);
-        rollup.commitBatch(batchDataInput1, batchSignatureInput);
-        
-        assertEq(rollup.lastCommittedBatchIndex(), 1);
-        assertTrue(rollup.committedBatches(1) != bytes32(0));
-        
-        // Setup mocks for commitBatchWithProof
-        _mockVerifierCall();
-        _mockMessageQueueStalled();
-        _setFinalizationPeriodToZero();
-        hevm.warp(block.timestamp + 7200);
-        
-        // Use same state roots - this will revert batch 1 and commit a new batch 1 with same data
-        bytes32 prevStateRoot = bytes32(uint256(1));
-        bytes32 postStateRoot = bytes32(uint256(2));
-        bytes32 withdrawalRoot = getTreeRoot();
-        
-        IRollup.BatchDataInput memory newBatchDataInput = IRollup.BatchDataInput({
-            version: 0,
-            parentBatchHeader: batchHeader0,
-            lastBlockNumber: 1,
-            numL1Messages: 0,
-            prevStateRoot: prevStateRoot,
-            postStateRoot: postStateRoot,
-            withdrawalRoot: withdrawalRoot
-        });
-        
-        bytes memory newBatchHeader1 = _createMatchingBatchHeader(1, 0, prevStateRoot, postStateRoot, withdrawalRoot);
-        
-        // Expect RevertBatchRange event: revert 1 batch (batch 1)
-        hevm.expectEmit(true, false, false, true);
-        emit IRollup.RevertBatchRange(1, 1);
-        
-        hevm.prank(alice);
-        rollup.commitBatchWithProof(
-            newBatchDataInput,
-            batchSignatureInput,
-            newBatchHeader1,
-            hex"deadbeef" // Non-empty proof required
-        );
-        
-        // Verify batch was finalized
-        assertEq(rollup.lastFinalizedBatchIndex(), 1);
-    }
-    
     /// @notice Test: commitBatchWithProof calls verifier with proof
     function test_commitBatchWithProof_calls_verifier() public {
         _mockMessageQueueStalled();
-        _setFinalizationPeriodToZero();
         hevm.warp(block.timestamp + 7200);
         
         bytes32 prevStateRoot = bytes32(uint256(1));
@@ -550,11 +438,6 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         
         // Mock the verifier - it should be called with the proof
         _mockVerifierCall();
-        hevm.mockCall(
-            address(l1MessageQueueWithGasPriceOracle),
-            abi.encodeWithSignature("popCrossDomainMessage(uint256,uint256)"),
-            abi.encode()
-        );
         
         hevm.prank(alice);
         rollup.commitBatchWithProof(
@@ -564,15 +447,14 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
             mockProof
         );
         
-        // Verify batch was finalized (proof verification passed)
-        assertEq(rollup.lastFinalizedBatchIndex(), 1);
+        // Verify batch was committed and proof verification passed
+        assertEq(rollup.lastCommittedBatchIndex(), 1);
     }
     
-    /// @notice Test: commitBatchWithProof verifies batch consistency
-    function test_commitBatchWithProof_verifies_consistency() public {
+    /// @notice Test: commitBatchWithProof sets finalizeTimestamp for immediate finalization
+    function test_commitBatchWithProof_sets_finalizeTimestamp() public {
         _mockVerifierCall();
         _mockMessageQueueStalled();
-        _setFinalizationPeriodToZero();
         hevm.warp(block.timestamp + 7200);
         
         bytes32 prevStateRoot = bytes32(uint256(1));
@@ -600,9 +482,61 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
             hex"deadbeef" // Non-empty proof required
         );
         
-        // Verify the consistency check passed and batch was finalized
-        assertEq(rollup.lastFinalizedBatchIndex(), 1);
-        assertEq(rollup.finalizedStateRoots(1), postStateRoot);
+        // Verify batch was committed
+        assertEq(rollup.lastCommittedBatchIndex(), 1);
+        // finalizeTimestamp is set to block.timestamp, so batch can be finalized immediately
+        assertFalse(rollup.batchInsideChallengeWindow(1));
+    }
+    
+    /// @notice Test: commitBatchWithProof reverts when L1 message delayed but no L1 messages provided
+    function test_commitBatchWithProof_reverts_when_l1msg_delayed_no_messages() public {
+        // To trigger "l1msg delay" error, we need:
+        // 1. rollupDelay = false: originTs + period >= block.timestamp
+        // 2. l1MsgQueueDelayed = true: enqueueTime + period < block.timestamp
+        // 3. numL1Messages = 0
+        //
+        // Genesis batch originTimestamp ≈ 1 (from setUp)
+        // rollupDelayPeriod = 3600
+        //
+        // Setup: enqueueTime = 0, block.timestamp = 3601
+        // - rollupDelay = 1 + 3600 < 3601 => 3601 < 3601 => false ✓
+        // - l1MsgQueueDelayed = 0 + 3600 < 3601 => 3600 < 3601 => true ✓
+        
+        // Mock L1 message enqueue time to 0 (older than genesis)
+        hevm.mockCall(
+            address(l1MessageQueueWithGasPriceOracle),
+            abi.encodeWithSignature("getFirstUnfinalizedMessageEnqueueTime()"),
+            abi.encode(0)
+        );
+        
+        // Warp to exactly 3601 to trigger the condition
+        hevm.warp(3601);
+        
+        bytes32 prevStateRoot = bytes32(uint256(1));
+        bytes32 postStateRoot = bytes32(uint256(2));
+        bytes32 withdrawalRoot = getTreeRoot();
+        
+        IRollup.BatchDataInput memory batchDataInput = IRollup.BatchDataInput({
+            version: 0,
+            parentBatchHeader: batchHeader0,
+            lastBlockNumber: 1,
+            numL1Messages: 0, // No L1 messages!
+            prevStateRoot: prevStateRoot,
+            postStateRoot: postStateRoot,
+            withdrawalRoot: withdrawalRoot
+        });
+        
+        bytes memory batchHeader1 = _createMatchingBatchHeader(1, 0, prevStateRoot, postStateRoot, withdrawalRoot);
+        
+        // Should revert because L1 messages are delayed but no L1 messages provided
+        hevm.prank(alice);
+        hevm.expectRevert("l1msg delay");
+        rollup.commitBatchWithProof(
+            batchDataInput,
+            batchSignatureInput,
+            batchHeader1,
+            hex"deadbeef"
+        );
     }
 }
 

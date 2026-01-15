@@ -227,6 +227,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external payable override onlyActiveStaker nonReqRevert whenNotPaused {
+        // check l1msg delay - sequencer must process L1 messages when delayed
+        if (
+            IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeriod < block.timestamp
+        ) {
+            require(batchDataInput.numL1Messages > 0, "l1msg delay");
+        }
         _commitBatchWithBatchData(batchDataInput, batchSignatureInput);
     }
 
@@ -338,29 +344,19 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes calldata _batchHeader,
         bytes calldata _batchProof
     ) external payable nonReqRevert whenNotPaused {
-        require(!inChallenge, "already in challenge");
-        (uint256 _parentBatchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
-        uint256 _parentBatchIndex = BatchHeaderCodecV0.getBatchIndex(_parentBatchPtr);
-        require(_parentBatchIndex == lastFinalizedBatchIndex, "incorrect batch index");
-        
         // check delay timing - allow if EITHER batch submission OR L1 message processing is stalled
         // This enables permissionless batch submission when sequencers are offline or censoring
-        if (batchDataStore[lastCommittedBatchIndex].originTimestamp + rollupDelayPeriod >= block.timestamp &&
-            IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeriod >= block.timestamp
-        ) {
-            revert InvalidTiming();
+        bool rollupDelay = batchDataStore[lastCommittedBatchIndex].originTimestamp + rollupDelayPeriod <
+            block.timestamp;
+        bool l1MsgQueueDelayed = IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() +
+            rollupDelayPeriod <
+            block.timestamp;
+
+        if (!rollupDelay && l1MsgQueueDelayed) {
+            require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
-        // revert batch from the parent batch to the last committed batch
-        uint256 revertCount = lastCommittedBatchIndex - _parentBatchIndex;
-        if (revertCount > 0) {
-            uint256 startBatchIndex = _parentBatchIndex + 1;
-            for (uint256 i = startBatchIndex; i <= lastCommittedBatchIndex; i++) {
-                committedBatches[i] = bytes32(0);
-            }
-            emit RevertBatchRange(startBatchIndex, revertCount);
-        }
-        lastCommittedBatchIndex = _parentBatchIndex;
- 
+        require(rollupDelay || l1MsgQueueDelayed, "invalid timing");
+
         _commitBatchWithBatchData(batchDataInput, batchSignatureInput);
 
         // get batch data from batch header
@@ -369,16 +365,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
         require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
 
-        // verify consistency between batchDataInput and batchHeader
-        _verifyBatchConsistency(batchDataInput, memPtr);
-
         // Override finalizeTimestamp for ZKP-backed immediate finality
         batchDataStore[_batchIndex].finalizeTimestamp = block.timestamp;
 
         // verify proof
         _verifyProof(memPtr, _batchProof);
-        // finalize batch
-        finalizeBatch(_batchHeader);
     }
 
     /// @inheritdoc IRollup
@@ -687,51 +678,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 startIndex += 256;
             }
         }
-    }
-
-    /// @dev Internal function to verify consistency between BatchDataInput and batch header.
-    /// @param batchDataInput The batch data input from the caller.
-    /// @param memPtr The memory pointer to the loaded batch header.
-    function _verifyBatchConsistency(
-        BatchDataInput calldata batchDataInput,
-        uint256 memPtr
-    ) private pure {
-        // verify version
-        require(
-            batchDataInput.version == BatchHeaderCodecV0.getVersion(memPtr),
-            "batch version mismatch"
-        );
-
-        // verify number of L1 messages
-        require(
-            batchDataInput.numL1Messages == BatchHeaderCodecV0.getL1MessagePopped(memPtr),
-            "l1 message count mismatch"
-        );
-
-        // verify previous state root
-        require(
-            batchDataInput.prevStateRoot == BatchHeaderCodecV0.getPrevStateHash(memPtr),
-            "prev state root mismatch"
-        );
-
-        // verify post state root
-        require(
-            batchDataInput.postStateRoot == BatchHeaderCodecV0.getPostStateHash(memPtr),
-            "post state root mismatch"
-        );
-
-        // verify withdrawal root
-        require(
-            batchDataInput.withdrawalRoot == BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
-            "withdrawal root mismatch"
-        );
-
-        // verify parent batch hash
-        (, bytes32 _parentBatchHash) = _loadBatchHeader(batchDataInput.parentBatchHeader);
-        require(
-            _parentBatchHash == BatchHeaderCodecV0.getParentBatchHash(memPtr),
-            "parent batch hash mismatch"
-        );
     }
 
     /// @dev Internal function to verify the zk proof.
