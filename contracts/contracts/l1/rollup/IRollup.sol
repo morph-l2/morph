@@ -190,6 +190,20 @@ interface IRollup {
         BatchSignatureInput calldata batchSignatureInput
     ) external payable;
 
+    /// @notice Commit a batch with ZKP proof for permissionless submission.
+    /// @dev This function allows anyone to submit batches when the sequencer is offline or censoring.
+    ///
+    /// @param batchDataInput       The BatchDataInput struct
+    /// @param batchSignatureInput  The BatchSignatureInput struct
+    /// @param batchHeader          The batch header for ZKP verification
+    /// @param batchProof           The ZKP proof data
+    function commitBatchWithProof(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput,
+        bytes calldata batchHeader,
+        bytes calldata batchProof
+    ) external;
+
     /// @notice Revert a pending batch.
     /// @dev one can only revert unfinalized batches.
     /// @param batchHeader  The header of current batch, see the encoding in comments of `commitBatch`.

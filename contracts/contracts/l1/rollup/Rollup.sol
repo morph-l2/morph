@@ -100,6 +100,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice committedStateRoots
     mapping(uint256 batchIndex => bytes32 stateRoot) public committedStateRoots;
 
+    /// @notice The delay period for permissionless batch submission.
+    /// @dev After this period, anyone can submit batches if sequencers are offline or censoring.
     uint256 public rollupDelayPeriod;
 
     /**********************
@@ -185,11 +187,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
     }
 
+    /// @notice Initializer for upgrade to version 3.
+    /// @param _rollupDelayPeriod The delay period for permissionless batch submission.
     function initialize3(uint256 _rollupDelayPeriod) external reinitializer(3) {
         require(_rollupDelayPeriod != 0, "invalid rollup delay period");
         rollupDelayPeriod = _rollupDelayPeriod;
         emit RollupDelayPeriodUpdate(0, _rollupDelayPeriod);
     }
+
     /************************
      * Restricted Functions *
      ************************/
@@ -338,12 +343,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit CommitBatch(_batchIndex, committedBatches[_batchIndex]);
     }
 
+    /// @inheritdoc IRollup
+    /// @dev Allows permissionless batch submission when sequencers are offline or censoring.
+    ///      Entry conditions: rollup delay OR L1 message queue delay must be met.
     function commitBatchWithProof(
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput,
         bytes calldata _batchHeader,
         bytes calldata _batchProof
-    ) external payable nonReqRevert whenNotPaused {
+    ) external override nonReqRevert whenNotPaused {
         // check delay timing - allow if EITHER batch submission OR L1 message processing is stalled
         // This enables permissionless batch submission when sequencers are offline or censoring
         bool rollupDelay = batchDataStore[lastCommittedBatchIndex].originTimestamp + rollupDelayPeriod <
