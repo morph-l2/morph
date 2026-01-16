@@ -118,6 +118,11 @@ interface IRollup {
     /// @param newPercent  The new proofRewardPercent.
     event UpdateProofRewardPercent(uint256 oldPercent, uint256 newPercent);
 
+    /// @notice Emitted when the rollup delay period is updated.
+    /// @param oldPeriod  The old rollupDelayPeriod.
+    /// @param newPeriod  The new rollupDelayPeriod.
+    event UpdateRollupDelayPeriod(uint256 oldPeriod, uint256 newPeriod);
+
     /// @notice Emit when prove remaining claimed.
     /// @param receiver  receiver address.
     /// @param amount    claimed amount.
@@ -181,6 +186,20 @@ interface IRollup {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external payable;
+
+    /// @notice Commit a batch with ZKP proof for permissionless submission.
+    /// @dev This function allows anyone to submit batches when the sequencer is offline or censoring.
+    ///
+    /// @param batchDataInput       The BatchDataInput struct
+    /// @param batchSignatureInput  The BatchSignatureInput struct
+    /// @param batchHeader          The batch header for ZKP verification
+    /// @param batchProof           The ZKP proof data
+    function commitBatchWithProof(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput,
+        bytes calldata batchHeader,
+        bytes calldata batchProof
+    ) external;
 
     /// @notice Revert a pending batch.
     /// @dev one can only revert unfinalized batches.
