@@ -86,7 +86,7 @@ func Main() func(ctx *cli.Context) error {
 		if cfg.LogFilename != "" {
 			f, err := os.OpenFile(cfg.LogFilename, os.O_CREATE|os.O_RDWR, os.FileMode(0600))
 			if err != nil {
-				return fmt.Errorf("wrong log.filename set: %d", err)
+				return fmt.Errorf("wrong log.filename set: %v", err)
 			}
 			_ = f.Close()
 
