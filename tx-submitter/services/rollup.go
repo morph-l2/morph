@@ -1238,19 +1238,11 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 		return nil, fmt.Errorf("invalid batch signature")
 	}
 	signers := make([]common.Address, len(blsSignatures))
-	// sigs := make([]blssignatures.Signature, 0)
 	for i, bz := range blsSignatures {
 		if len(bz.Signature) > 0 {
-			// sig, err := blssignatures.SignatureFromBytes(bz.Signature)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// sigs = append(sigs, sig)
 			signers[i] = bz.Signer
 		}
 	}
-	// aggregatedSig := blssignatures.AggregateSignatures(sigs)
-	// blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
 
 	// query bitmap of signers
 	bm, err := r.Staking.GetStakersBitmap(nil, signers)
