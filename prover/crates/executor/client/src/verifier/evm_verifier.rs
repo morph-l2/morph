@@ -41,22 +41,25 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
         .try_for_each(|block_input| execute_block(block_input))?;
 
     // Find the last post_state with non-empty transactions, or fall back to the last one
-    let post_state = block_inputs
-        .iter()
-        .rev()
-        .find(|block_input| !block_input.current_block.transactions.is_empty())
-        .unwrap_or_else(|| block_inputs.last().expect("block_inputs is non-empty (checked above)"));
+    let latest_block = block_inputs.last().expect("block_inputs is non-empty");
+    if latest_block.current_block.transactions.is_empty() {
+        // If the latest block contains no transactions, verify the MPT state here;
+        // otherwise, verify it during transaction execution.
+        if latest_block.current_block.post_state_root != latest_block.parent_state.state_root() {
+            return Err(ClientError::InvalidHeaderStateRoot);
+        }
+    }
 
     // The post-withdraw-root & post-sequencer-root is required for public inputs.
     // Tt is derived from the state of the last verified block.
     let post_withdraw_root =
-        post_state.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
+        latest_block.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
     let post_sequencer_root =
-        post_state.get_storage_value(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)?;
+        latest_block.get_storage_value(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)?;
 
     Ok(BatchInfo::from_block_inputs(
         &block_inputs,
-        post_state.current_block.post_state_root,
+        latest_block.current_block.post_state_root,
         post_withdraw_root.into(),
         post_sequencer_root.into(),
     ))

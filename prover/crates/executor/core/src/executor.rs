@@ -39,6 +39,7 @@ impl<DB: Database> MorphExecutor<DB> {
             EvmEnv::default().with_timestamp(block_env.timestamp);
         env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Curie);
         env.cfg_env.chain_id = chain_id;
+        env.cfg_env.disable_eip7623 = true;
         env.block_env = MorphBlockEnv { inner: block_env };
         Self::new(db, env)
     }

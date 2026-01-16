@@ -1703,9 +1703,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.7.1"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8318a53db07bb3f8dca91a600466bdb3f2eaadeedfdbcf02e1accbad9271ba50"
+checksum = "b35204fbdc0b3f4446b89fc1ac2cf84a8a68971995d0bf2e925ec7cd960f9cb3"
 dependencies = [
  "serde",
 ]
@@ -4608,7 +4608,7 @@ checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 [[package]]
 name = "morph-chainspec"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#97a56ba70076b728774a3c92450ce28121de2bbf"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0bcbbaf31b577cfcb61c84e69d35ceb6bdcc36a5"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4627,7 +4627,7 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#97a56ba70076b728774a3c92450ce28121de2bbf"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0bcbbaf31b577cfcb61c84e69d35ceb6bdcc36a5"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -4648,7 +4648,7 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#97a56ba70076b728774a3c92450ce28121de2bbf"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0bcbbaf31b577cfcb61c84e69d35ceb6bdcc36a5"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4688,7 +4688,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#97a56ba70076b728774a3c92450ce28121de2bbf"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=evm_exec#0bcbbaf31b577cfcb61c84e69d35ceb6bdcc36a5"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
