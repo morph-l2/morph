@@ -32,3 +32,6 @@ contracts/mainnet.json
 
 # logs
 *.log
+
+# mpt-switch-test (local testing only)
+ops/mpt-switch-test
