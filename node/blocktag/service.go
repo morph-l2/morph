@@ -248,8 +248,9 @@ func (s *BlockTagService) getL2BlockForTag(tagType BlockTagType, l2Head uint64) 
 		// Batch data may have been deleted after finalization, cannot validate
 		// Return error so caller skips this batch and keeps previous safe/finalized value
 		// TODO: optimize this by using a different approach to get the state root
-		s.logger.Info("batch %d already finalized (lastFinalized=%d), state root may be deleted",
-			targetBatchIndex, lastFinalizedBatchIndex.Uint64())
+		s.logger.Info("batch already finalized, state root may be deleted",
+			"batchIndex", targetBatchIndex,
+			"lastFinalized", lastFinalizedBatchIndex.Uint64())
 		return 0, common.Hash{}, nil
 	}
 	if err := s.validateBatchStateRoot(targetBatchIndex, targetBatchLastBlockNum); err != nil {
