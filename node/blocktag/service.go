@@ -307,39 +307,39 @@ func (s *BlockTagService) validateBatchStateRoot(batchIndex uint64, batchLastBlo
 // findCompletedBatchForL2Block finds the largest batch where lastL2Block <= l2BlockNum.
 // Uses cached index for optimization: first call binary search, subsequent calls search forward.
 // Separate caches for safe and finalized to avoid conflicts.
-func (s *BlockTagService) findCompletedBatchForL2Block(tagType BlockTagType, l2BlockNum uint64, maxBatchIndex uint64) (uint64, uint64, error) {
-	return s.findCompletedBatchForL2BlockWithDepth(tagType, l2BlockNum, maxBatchIndex, 0)
+func (s *BlockTagService) findCompletedBatchForL2Block(tagType BlockTagType, l2HeaderNum uint64, lastCommittedBatchIndex uint64) (uint64, uint64, error) {
+	return s.findCompletedBatchForL2BlockWithDepth(tagType, l2HeaderNum, lastCommittedBatchIndex, 0)
 }
 
 // findCompletedBatchForL2BlockWithDepth is the internal implementation with recursion depth limit.
 // maxDepth is set to 1 to allow one retry after cache reset.
-func (s *BlockTagService) findCompletedBatchForL2BlockWithDepth(tagType BlockTagType, l2BlockNum uint64, maxBatchIndex uint64, depth int) (uint64, uint64, error) {
+func (s *BlockTagService) findCompletedBatchForL2BlockWithDepth(tagType BlockTagType, l2HeaderNum uint64, lastCommittedBatchIndex uint64, depth int) (uint64, uint64, error) {
 	const maxDepth = 2
 
-	if maxBatchIndex == 0 {
+	if lastCommittedBatchIndex == 0 {
 		return 0, 0, fmt.Errorf("no batches available")
 	}
 
 	// Get cached index based on tag type
 	startIdx := s.getCachedBatchIndex(tagType)
-	if startIdx == 0 || startIdx > maxBatchIndex {
+	if startIdx == 0 || startIdx > lastCommittedBatchIndex {
 		// First time or cache invalid: use binary search to find starting point
-		startIdx = s.binarySearchBatch(l2BlockNum, maxBatchIndex)
+		startIdx = s.binarySearchBatch(l2HeaderNum, lastCommittedBatchIndex)
 		if startIdx == 0 {
-			return 0, 0, fmt.Errorf("no completed batch found for L2 block %d", l2BlockNum)
+			return 0, 0, fmt.Errorf("no completed batch found for L2 block %d", l2HeaderNum)
 		}
 	}
 
 	// Search forward from startIdx
 	var resultIdx, resultLastL2Block uint64
-	for idx := startIdx; idx <= maxBatchIndex; idx++ {
+	for idx := startIdx; idx <= lastCommittedBatchIndex; idx++ {
 		batchData, err := s.rollup.BatchDataStore(nil, big.NewInt(int64(idx)))
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to get batch data for index %d: %w", idx, err)
 		}
 
 		lastL2Block := batchData.BlockNumber.Uint64()
-		if lastL2Block <= l2BlockNum {
+		if lastL2Block <= l2HeaderNum {
 			resultIdx = idx
 			resultLastL2Block = lastL2Block
 			s.setCachedBatchIndex(tagType, idx)
@@ -351,10 +351,10 @@ func (s *BlockTagService) findCompletedBatchForL2BlockWithDepth(tagType BlockTag
 	// Handle L2 reorg: if cache was too new, reset and use binary search
 	if resultIdx == 0 {
 		if depth >= maxDepth {
-			return 0, 0, fmt.Errorf("no completed batch found for L2 block %d after retry", l2BlockNum)
+			return 0, 0, fmt.Errorf("no completed batch found for L2 block %d after retry", l2HeaderNum)
 		}
 		s.setCachedBatchIndex(tagType, 0)
-		return s.findCompletedBatchForL2BlockWithDepth(tagType, l2BlockNum, maxBatchIndex, depth+1)
+		return s.findCompletedBatchForL2BlockWithDepth(tagType, l2HeaderNum, lastCommittedBatchIndex, depth+1)
 	}
 
 	return resultIdx, resultLastL2Block, nil
@@ -375,8 +375,8 @@ func (s *BlockTagService) setCachedBatchIndex(tagType BlockTagType, idx uint64) 
 	}
 }
 
-// binarySearchBatch finds the largest batch index where lastL2Block <= l2BlockNum
-func (s *BlockTagService) binarySearchBatch(l2BlockNum uint64, maxBatchIndex uint64) uint64 {
+// binarySearchBatch finds the largest batch index where lastL2BlockInBatch <= l2HeaderNum
+func (s *BlockTagService) binarySearchBatch(l2HeaderNum uint64, maxBatchIndex uint64) uint64 {
 	low, high := uint64(1), maxBatchIndex
 	var result uint64
 
@@ -387,7 +387,7 @@ func (s *BlockTagService) binarySearchBatch(l2BlockNum uint64, maxBatchIndex uin
 			return result // Return best result so far on error
 		}
 
-		if batchData.BlockNumber.Uint64() <= l2BlockNum {
+		if batchData.BlockNumber.Uint64() <= l2HeaderNum {
 			result = mid
 			low = mid + 1
 		} else {
