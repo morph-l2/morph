@@ -1,11 +1,7 @@
 use alloy_primitives::{map::HashMap, U256};
 use prover_mpt::EthereumState;
-use prover_primitives::{
-    types::{block::L2Block, BlockTrace},
-    Address, Block, B256,
-};
-use prover_storage::trace_to_execution_witness;
-use prover_storage::TrieDB;
+use prover_primitives::{types::block::L2Block, Address, B256};
+use prover_storage_witness::TrieDB;
 use revm::{primitives::keccak256, state::Bytecode};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -34,17 +30,6 @@ pub struct BlockInput {
 }
 
 impl BlockInput {
-    pub fn from_trace(trace: &BlockTrace) -> Self {
-        let witness = trace_to_execution_witness(trace).unwrap();
-        let state = EthereumState::from_execution_witness(&witness, trace.root_before());
-        let bytecodes =
-            witness.codes.into_iter().map(|code| Bytecode::new_raw(code)).collect::<Vec<_>>();
-        BlockInput {
-            current_block: L2Block::from_block_trace(trace),
-            parent_state: state,
-            bytecodes,
-        }
-    }
     pub fn witness_db(&self) -> Result<TrieDB<'_>, ClientError> {
         // verify the state root
         if self.current_block.prev_state_root != self.parent_state.state_root() {

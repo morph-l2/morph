@@ -6,10 +6,7 @@ use prover_executor_client::{
     verify,
 };
 use prover_executor_host::{
-    blob::get_blob_info_from_blocks,
-    blob::get_blob_info_from_traces,
-    execute::HostExecutor,
-    utils::{assemble_block_input, query_block, HostExecutorOutput},
+    blob::{get_blob_info_from_blocks, get_blob_info_from_traces}, execute::HostExecutor, trace_to_input, utils::{HostExecutorOutput, assemble_block_input, query_block}
 };
 use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
@@ -41,7 +38,7 @@ pub async fn try_execute_batch(
 
     let client_input = if *SHADOW_EXECUTE_WITH_WITNESS {
         let blocks_inputs =
-            block_traces.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+            block_traces.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
         ExecutorInput {
             block_inputs: blocks_inputs,
             blob_info: get_blob_info_from_traces(&block_traces)?,
@@ -133,6 +130,7 @@ async fn get_block_traces(
 mod tests {
     use alloy_provider::{Provider, ProviderBuilder};
     use prover_executor_client::{types::input::BlockInput, EVMVerifier};
+    use prover_executor_host::trace_to_input;
     use prover_primitives::types::BlockTrace;
     use prover_utils::provider::get_block_trace;
 
@@ -176,7 +174,7 @@ mod tests {
 
         let block_trace = get_block_trace::<BlockTrace>(53, &provider).await.unwrap();
         println!("loaded block_{} traces", block_trace.header.number);
-        let block_input: BlockInput = BlockInput::from_trace(&block_trace);
+        let block_input: BlockInput = trace_to_input(&block_trace);
 
         let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
         println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);

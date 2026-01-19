@@ -26,6 +26,10 @@ To build the program to risc-v bin:
 cd bin/client
 cargo prove build
 ```
+or use docker:
+```sh
+cargo prove build  --docker --tag v5.2.4
+```
 
 This will output the compiled ELF to the file program/elf/riscv32im-succinct-zkvm-elf.
 

@@ -2,7 +2,6 @@ pub mod types;
 mod verifier;
 use alloy_primitives::hex;
 use prover_primitives::{types::blob::get_blob_data_from_blocks, B256};
-use prover_utils::profile_report;
 use types::input::ExecutorInput;
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 

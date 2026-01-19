@@ -10,7 +10,8 @@ members = [
     "crates/primitives",
     "crates/mpt",
     "crates/utils",
-    "crates/storage",
+    "crates/storage/rpc-db",
+    "crates/storage/witness-db",
 ]
 exclude = ["bin/challenge"]
 resolver = "2"
@@ -77,7 +78,7 @@ alloy-consensus = { version = "=1.1.3", default-features = false, features = [
     "serde",
     "serde-bincode-compat",
 ] }
-alloy-eips = { version = "1.1.3", default-features = false, features = ["kzg"] }
+alloy-eips = { version = "1.1.3", default-features = false }
 alloy-evm = "0.25.2"
 alloy-genesis = { version = "1.1.3", default-features = false, features = [
     "serde-bincode-compat",
@@ -110,20 +111,23 @@ alloy-contract = { version = "1.1.3", default-features = false }
 alloy-signer-local = { version = "=1.1.3", default-features = false }
 rlp = "0.5.2"
 hex-literal = "0.4.1"
-revm = { version = "33.1.0", features = ["optional_fee_charge", "optional_eip7623"] }
-reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3" }
-reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3" }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3" }
+revm = { version = "33.1.0", features = [
+    "optional_fee_charge",
+    "optional_eip7623",
+], default-features = false }
+reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
+reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
 morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "evm_exec" }
 morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "evm_exec" }
 morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "evm_exec" }
 morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "evm_exec" }
 
 
-
 # ZK / SP1
-sp1-sdk = { version = "5.1.0" }
-sp1-zkvm = { version = "5.1.0" }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
+sp1-verifier = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
 
 # Workspace Members
 morph-prove = { path = "bin/host" }
@@ -131,7 +135,8 @@ prover-executor-client = { path = "crates/executor/client" }
 prover-executor-core = { path = "crates/executor/core" }
 prover-executor-host = { path = "crates/executor/host" }
 prover-primitives = { path = "crates/primitives" }
-prover-storage = { path = "crates/storage" }
+prover-storage-rpc = { path = "./crates/storage/rpc-db" }
+prover-storage-witness = { path = "./crates/storage/witness-db" }
 prover-mpt = { path = "crates/mpt" }
 prover-utils = { path = "crates/utils" }
 

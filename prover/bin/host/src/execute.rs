@@ -42,6 +42,7 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, rpc: &str) {
 #[cfg(test)]
 mod tests {
     use crate::execute::{execute, execute_continuous, execute_range, test_args};
+    use prover_executor_host::trace_to_input;
     use prover_primitives::types::BlockTrace;
     use std::{
         fs::{self, File},
@@ -75,11 +76,11 @@ mod tests {
 
     // Examples:
     //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture
-    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt/mainnet_809.json
+    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt/mainnet_19720219.json
     //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt
     #[test]
     fn test_execute_local_traces() {
-        use prover_executor_client::{types::input::BlockInput, EVMVerifier};
+        use prover_executor_client::EVMVerifier;
 
         let provided = test_args::read_execute_local_traces_paths_from_argv();
         let files = resolve_trace_files(&provided);
@@ -90,7 +91,7 @@ mod tests {
             let block_traces = &mut load_trace(&file_str);
 
             let block_inputs =
-                block_traces.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+                block_traces.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
 
             let _ = EVMVerifier::verify(block_inputs).map_err(|e| {
                 println!("execute_local_traces verify error for file {file_str}: {:?}", e);
@@ -269,3 +270,4 @@ mod test_args {
         }
     }
 }
+

@@ -23,8 +23,8 @@ revm = { workspace = true }
 reth-trie.workspace = true
 prover-executor-core.workspace = true
 prover-primitives.workspace = true
-prover-storage.workspace = true
-prover-utils.workspace = true
+prover-storage-witness.workspace = true
+# prover-utils.workspace = true
 prover-mpt = { workspace = true }
 morph-revm = { workspace = true }
 

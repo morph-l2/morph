@@ -127,31 +127,3 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::types::input::BlockInput;
-    use crate::verifier::evm_verifier::execute;
-    use prover_primitives::types::BlockTrace;
-    use std::fs::File;
-    use std::io::BufReader;
-
-    #[test]
-    fn test_execute_local() {
-        // local_transfer_eth
-        // mainnet_809
-        let block_trace = load_trace("../../../testdata/mpt/local_transfer_eth.json");
-        println!("loaded {} block_traces", block_trace.len());
-        let blocks: Vec<BlockInput> =
-            block_trace.iter().map(|trace| BlockInput::from_trace(trace)).collect();
-        println!("blocks len: {:?}", blocks.len());
-
-        let _rt = execute(blocks).unwrap();
-    }
-
-    fn load_trace(file_path: &str) -> Vec<BlockTrace> {
-        let file = File::open(file_path).unwrap();
-        let reader = BufReader::new(file);
-        serde_json::from_reader(reader).unwrap()
-    }
-}

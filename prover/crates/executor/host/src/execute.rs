@@ -8,7 +8,7 @@ use prover_primitives::{
     },
     TxTrace,
 };
-use prover_storage::basic_rpc_db::{BasicRpcDb, RpcDb};
+use prover_storage_rpc::basic_rpc_db::{BasicRpcDb, RpcDb};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::{context::BlockEnv, database::State};
 

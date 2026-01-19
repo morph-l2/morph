@@ -2,19 +2,16 @@ use anyhow::{bail, Context};
 pub mod evm;
 pub mod execute;
 use evm::{save_plonk_fixture, EvmProofFixture};
-use prover_executor_client::{
-    types::input::{BlockInput, ExecutorInput},
-    verify,
-};
-use prover_executor_host::blob::get_blob_info_from_traces;
+use prover_executor_client::{types::input::ExecutorInput, verify};
+use prover_executor_host::{blob::get_blob_info_from_traces, trace_to_input};
 use prover_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
 use prover_utils::read_env_var;
-use sp1_sdk::{HashableKey, ProverClient, SP1Stdin};
+use sp1_sdk::{network::NetworkMode, HashableKey, Prover, ProverClient, SP1Stdin};
+use sp1_verifier::PlonkVerifier;
 use std::time::Instant;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const BATCH_VERIFIER_ELF: &[u8] =
-    include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
+pub const BATCH_VERIFIER_ELF: &[u8] = include_bytes!("../../client/elf/verifier-client");
 
 const MAX_PROVE_BLOCKS: usize = 4096;
 
@@ -34,8 +31,7 @@ pub fn prove(
         );
     }
 
-    // Prepare input.
-    // Convert the traces' format to reduce conversion costs in the client.
+    // Execute in native and prepare input.
     let (client_input, expected_hash) = execute_batch(blocks)?;
     log::info!(
         "pi_hash generated with native execution: {}",
@@ -45,12 +41,14 @@ pub fn prove(
     // Execute the program in sp1-vm
     let mut stdin = SP1Stdin::new();
     stdin.write(&serde_json::to_string(&client_input)?);
-    let client = ProverClient::from_env();
+    let client = ProverClient::builder()
+        .network_for(NetworkMode::Mainnet)
+        .rpc_url("https://rpc.mainnet.succinct.xyz")
+        .build();
 
     if read_env_var("DEVNET", false) {
         let (mut public_values, execution_report) =
             client.execute(BATCH_VERIFIER_ELF, &stdin).run().context("sp1-vm execution failed")?;
-
         log::info!(
             "Program executed successfully, Number of cycles: {}",
             execution_report.total_instruction_count()
@@ -71,25 +69,26 @@ pub fn prove(
         return Ok(None);
     }
 
+    // Generate the proof
     log::info!("Start proving...");
     let (pk, vk) = client.setup(BATCH_VERIFIER_ELF);
     log::info!("Batch ELF Verification Key: {:?}", vk.vk.bytes32());
-
-    // Generate the proof
     let start = Instant::now();
-    let mut proof = client.prove(&pk, &stdin).core().run().context("proving failed")?;
-
+    let mut proof = client.prove(&pk, &stdin).plonk().run().context("proving failed")?;
     let duration_mins = start.elapsed().as_secs() / 60;
     log::info!("Successfully generated proof!, time use: {} minutes", duration_mins);
 
     // Verify the proof.
-    client.verify(&proof, &vk).context("failed to verify proof")?;
+    let plonk_proof = proof.bytes();
+    let public_inputs = proof.public_values.to_vec();
+    let plonk_vk = *sp1_verifier::PLONK_VK_BYTES;
+    PlonkVerifier::verify(&plonk_proof, &public_inputs, &vk.bytes32(), plonk_vk)
+        .context("failed to verify proof")?;
     log::info!("Successfully verified proof!");
 
     // Deserialize the public values.
     let pi_bytes = proof.public_values.read::<[u8; 32]>();
     log::info!("pi_hash generated with sp1-vm prove: {}", alloy::hex::encode_prefixed(pi_bytes));
-
     let fixture = EvmProofFixture {
         vkey: vk.bytes32().to_string(),
         public_values: B256::from_slice(&pi_bytes).to_string(),
@@ -105,8 +104,7 @@ pub fn prove(
 pub fn execute_batch(
     blocks: &mut Vec<BlockTrace>,
 ) -> Result<(ExecutorInput, alloy::primitives::FixedBytes<32>), anyhow::Error> {
-    let blocks_inputs =
-        blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+    let blocks_inputs = blocks.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
     let client_input = ExecutorInput {
         block_inputs: blocks_inputs,
         blob_info: get_blob_info_from_traces(blocks)?,
@@ -176,5 +174,27 @@ mod tests {
         let mut array = [0u8; 131072];
         array.copy_from_slice(&hex_data);
         array
+    }
+
+    use sp1_sdk::{HashableKey, ProverClient, SP1ProofWithPublicValues};
+    use sp1_verifier::PlonkVerifier;
+
+    use crate::BATCH_VERIFIER_ELF;
+
+    #[test]
+    pub fn verify_proof() {
+        let proof_loaded =
+            SP1ProofWithPublicValues::load("../../proof/artifact_block_25215").unwrap();
+
+        let proof = proof_loaded.bytes();
+        let public_inputs = proof_loaded.public_values.to_vec();
+
+        let client = ProverClient::from_env();
+
+        let (_pk, vk) = client.setup(BATCH_VERIFIER_ELF);
+
+        let plonk_vk = *sp1_verifier::PLONK_VK_BYTES;
+        PlonkVerifier::verify(&proof, &public_inputs, &vk.bytes32(), plonk_vk)
+            .expect("plonk verify failed");
     }
 }

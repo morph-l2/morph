@@ -9,7 +9,8 @@ use std::{
 use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use morph_prove::{evm::EvmProofFixture, prove};
-use prover_executor_client::{types::input::BlockInput, BlobVerifier, EVMVerifier};
+use prover_executor_client::{BlobVerifier, EVMVerifier};
+use prover_executor_host::trace_to_input;
 use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -115,8 +116,7 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
         PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
 
-    let blocks_inputs =
-        blocks.iter().map(|trace| BlockInput::from_trace(trace)).collect::<Vec<_>>();
+    let blocks_inputs = blocks.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
     let verify_result = EVMVerifier::verify(blocks_inputs);
 
     if let Ok(batch_info) = verify_result {
