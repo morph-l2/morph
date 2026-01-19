@@ -2,7 +2,7 @@ module morph-l2/node
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.2
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.3
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
