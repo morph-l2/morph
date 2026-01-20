@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-source ../../contracts/.env
+source ../../contracts/.env.qa
 QANET=".qanet"
 CONTRACT_CONFIG="../../contracts/src/deploy-config/qanetl1.ts"
 echo "Regenerating genesis files"
@@ -28,15 +28,15 @@ go run cmd/main.go genesis l2 \
 --outfile.genbatchheader $QANET/genesis-batch-header.json
 touch "$QANET/done"
 )
-l2_genesis_state_root=$(cat $QANET/rollup.json | jq -r .l2_genesis_state_root)
-withdraw_root=$(cat $QANET/rollup.json | jq -r .withdraw_root)
+# l2_genesis_state_root=$(cat $QANET/rollup.json | jq -r .l2_genesis_state_root)
+# withdraw_root=$(cat $QANET/rollup.json | jq -r .withdraw_root)
 genesis_batch_header=$(cat $QANET/rollup.json | jq -r .genesis_batch_header)
 
-echo "Replacing l2_genesis_state_root: $l2_genesis_state_root"
-sed -i "s#rollupGenesisStateRoot: '.*'#rollupGenesisStateRoot: '$l2_genesis_state_root'#g" $CONTRACT_CONFIG
+# echo "Replacing l2_genesis_state_root: $l2_genesis_state_root"
+# sed -i "s#rollupGenesisStateRoot: '.*'#rollupGenesisStateRoot: '$l2_genesis_state_root'#g" $CONTRACT_CONFIG
 
-echo "Replacing withdraw_root: $withdraw_root"
-sed -i "s#withdrawRoot: '.*'#withdrawRoot: '$withdraw_root'#g" $CONTRACT_CONFIG
+# echo "Replacing withdraw_root: $withdraw_root"
+# sed -i "s#withdrawRoot: '.*'#withdrawRoot: '$withdraw_root'#g" $CONTRACT_CONFIG
 
 echo "Replacing  genesis_batch_header: $genesis_batch_header"
 sed -i "s#batchHeader: '.*'#batchHeader: '$genesis_batch_header'#g" $CONTRACT_CONFIG

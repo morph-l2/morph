@@ -4,7 +4,8 @@ const config = {
     contractAdmin: '0x7161DB99e6ffA72053f0817aBfaF2fDb4ab6ccC8',
 
     // chainID config
-    l1ChainID: 900,
+    // hoodi chainID
+    l1ChainID: 560048,
     l2ChainID: 53077,
 
     // L1MessageQueue config
@@ -38,10 +39,10 @@ const config = {
     stakingChallengerRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [
-        "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
-        "0x4a1f64dec538835c125874e275edca367bf6022a",
-        "0xbb8605961105bb3dcd0e86ef94a1bf9fb2270a29",
-        "0x7d7201ad7da2b9b9ab9a36c454a3c2d55c4fbdd8"
+        "0x0000fD664ED5baAF56b058ba5F090E7B72A1aebA",
+        "0x00003484c8B3F3c66C8AC79f768747276f5EAdAB",
+        "0x00007F2eF2fd5EbE1fF350024D8FAa09102c764c",
+        "0x0000B25e20153327CB80a63cb21bE4F21597ca3D"
     ],
     l2SequencerTmKeys: [
         "0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb",
