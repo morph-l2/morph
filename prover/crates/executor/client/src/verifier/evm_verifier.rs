@@ -108,7 +108,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     // Execute block.
     let bundle_state = core_executor
         .execute_block(&block.transactions)
-        .map_err(|e| ClientError::BlockExecutionError(e.to_string()))?;
+        .map_err(|e| ClientError::BlockExecutionError(format!("{:#}", e)))?;
     // Verify the post-state root by applying the block's transition set to the parent (pre-block) state.
     let computed_state_root = {
         let hashed_post_state =
