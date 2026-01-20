@@ -48,8 +48,11 @@ impl<DB: Database> MorphExecutor<DB> {
         // Execute transactions in block.
         for (tx_index, tx) in txns.iter().enumerate() {
             let basefee = self.inner.ctx.block.basefee;
-            let caller = SignerRecoverable::recover_signer(tx)
-                .with_context(|| format!("tx[{tx_index}] recover signer error"))?;
+            let caller = match tx {
+                MorphTxEnvelope::L1Msg(l1) => l1.tx().from, // L1Msg
+                _ => SignerRecoverable::recover_signer(tx)
+                    .with_context(|| format!("tx[{tx_index}] recover signer error"))?,
+            };
 
             let mut morph_tx = MorphTxEnv::from_recovered_tx(tx, caller);
             morph_tx.gas_price = tx.effective_gas_price(Some(basefee));
