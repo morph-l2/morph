@@ -1,4 +1,4 @@
-use alloy_consensus::{transaction::TxHashRef, Transaction};
+use alloy_consensus::transaction::TxHashRef;
 use alloy_primitives::{Address, Keccak256, B256};
 use morph_primitives::MorphTxEnvelope;
 use serde::{Deserialize, Serialize};
@@ -45,19 +45,7 @@ impl L2Block {
 
     /// Returns the number of L1 transactions in the block.
     pub fn num_l1_txs(&self) -> u64 {
-        // 0x7e is l1 tx
-        match self
-            .transactions
-            .iter()
-            .filter(|tx| tx.is_l1_msg())
-            // tx.nonce for l1 tx is the l1 queue index, which is a globally index,
-            // not per user as suggested by the name...
-            .map(|tx| tx.nonce())
-            .max()
-        {
-            None => 0, // not l1 tx in this block
-            Some(end_l1_queue_index) => end_l1_queue_index - self.start_l1_queue_index + 1,
-        }
+        self.header.next_l1_msg_index.to::<u64>() - self.start_l1_queue_index
     }
 
     /// Hashes the L1 messages in the block using the provided hasher.
