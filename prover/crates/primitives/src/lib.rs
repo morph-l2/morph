@@ -107,6 +107,9 @@ pub trait TxTrace {
     /// Get `gas_limit`.
     fn gas_limit(&self) -> u64;
 
+    /// Get `queue_index`.
+    fn queue_index(&self) -> Option<u64>;
+
     /// Get `gas_price`
     fn gas_price(&self) -> u128;
 
@@ -229,13 +232,13 @@ pub trait TxTrace {
             }
             0x7e => {
                 let tx = TxL1Msg {
-                    tx_hash: self.tx_hash(),
                     from: unsafe { self.get_from_unchecked() },
                     nonce: self.nonce(),
                     gas_limit: self.gas_limit() as u128,
                     to: self.to(),
                     value: self.value(),
                     input: self.data(),
+                    queue_index: self.queue_index().unwrap_or(self.nonce()),
                 };
 
                 MorphTxEnvelope::L1Msg(tx.into_signed(self.signature()?))
@@ -397,5 +400,9 @@ impl<T: TxTrace> TxTrace for &T {
 
     fn sig_v(&self) -> u64 {
         (*self).sig_v()
+    }
+
+    fn queue_index(&self) -> Option<u64> {
+        (*self).queue_index()
     }
 }

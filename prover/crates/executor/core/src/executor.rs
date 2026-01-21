@@ -4,6 +4,8 @@ use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
 use anyhow::Context;
 use anyhow::Result;
 use morph_chainspec::hardfork::MorphHardfork;
+use morph_chainspec::hardfork::MorphHardforks;
+use morph_chainspec::MORPH_MAINNET;
 use morph_evm::MorphBlockEnv;
 use morph_primitives::MorphTxEnvelope;
 use morph_revm::MorphEvm;
@@ -37,8 +39,13 @@ impl<DB: Database> MorphExecutor<DB> {
     pub fn with_hardfork(db: State<DB>, block_env: BlockEnv, chain_id: u64) -> Self {
         let mut env: EvmEnv<MorphHardfork, MorphBlockEnv> =
             EvmEnv::default().with_timestamp(block_env.timestamp);
-        env.cfg_env = env.cfg_env.with_spec(MorphHardfork::Curie);
+
+        let spec = &MORPH_MAINNET;
+        let hardfork =
+            spec.morph_hardfork_at(block_env.number.to::<u64>(), block_env.timestamp.to::<u64>());
+        env.cfg_env = env.cfg_env.with_spec(hardfork);
         env.cfg_env.chain_id = chain_id;
+        env.cfg_env.tx_gas_limit_cap = Some(block_env.gas_limit);
         env.cfg_env.disable_eip7623 = true;
         env.block_env = MorphBlockEnv { inner: block_env };
         Self::new(db, env)
@@ -48,11 +55,7 @@ impl<DB: Database> MorphExecutor<DB> {
         // Execute transactions in block.
         for (tx_index, tx) in txns.iter().enumerate() {
             let basefee = self.inner.ctx.block.basefee;
-            let caller = match tx {
-                MorphTxEnvelope::L1Msg(l1) => l1.tx().from, // L1Msg
-                _ => SignerRecoverable::recover_signer(tx)
-                    .with_context(|| format!("tx[{tx_index}] recover signer error"))?,
-            };
+            let caller = SignerRecoverable::recover_signer(tx)?;
 
             let mut morph_tx = MorphTxEnv::from_recovered_tx(tx, caller);
             morph_tx.gas_price = tx.effective_gas_price(Some(basefee));

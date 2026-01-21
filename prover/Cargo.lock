@@ -4173,14 +4173,17 @@ dependencies = [
 [[package]]
 name = "morph-chainspec"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#f9e8e66830e856e06eb9280f594e982cb7b36191"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e746cd7ab8ae9c4e8915533c4baf11ad4fb5b960"
 dependencies = [
+ "alloy-chains",
  "alloy-consensus",
  "alloy-eips",
  "alloy-evm",
  "alloy-genesis",
  "alloy-hardforks",
  "alloy-primitives",
+ "alloy-serde",
+ "auto_impl",
  "reth-chainspec",
  "reth-network-peers",
  "serde",
@@ -4190,8 +4193,9 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#f9e8e66830e856e06eb9280f594e982cb7b36191"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e746cd7ab8ae9c4e8915533c4baf11ad4fb5b960"
 dependencies = [
+ "alloy-consensus",
  "alloy-evm",
  "alloy-primitives",
  "derive_more 2.1.0",
@@ -4207,13 +4211,14 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#f9e8e66830e856e06eb9280f594e982cb7b36191"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e746cd7ab8ae9c4e8915533c4baf11ad4fb5b960"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde",
+ "bytes",
  "reth-ethereum-primitives",
  "reth-primitives-traits",
  "serde",
@@ -4245,7 +4250,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#f9e8e66830e856e06eb9280f594e982cb7b36191"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e746cd7ab8ae9c4e8915533c4baf11ad4fb5b960"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",

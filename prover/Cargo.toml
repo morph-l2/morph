@@ -124,6 +124,7 @@ morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch 
 morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "execute" }
 
 
+
 # ZK / SP1
 sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
 sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }

@@ -47,6 +47,10 @@ pub struct TransactionTrace {
     /// call data
     #[serde(alias = "input")]
     pub(crate) data: Bytes,
+    /// queue index
+    #[serde(rename = "queueIndex")]
+    #[serde(default)]
+    pub(crate) queue_index: Option<U64>,
     /// is creation
     #[serde(rename = "isCreate")]
     #[serde(default)]
@@ -86,6 +90,10 @@ impl TxTrace for TransactionTrace {
 
     fn nonce(&self) -> u64 {
         self.nonce.to::<u64>()
+    }
+
+    fn queue_index(&self) -> Option<u64> {
+        self.queue_index.map(|v| v.to::<u64>())
     }
 
     fn gas_limit(&self) -> u64 {

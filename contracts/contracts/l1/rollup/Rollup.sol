@@ -259,7 +259,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
 
-        {            
+        {
             uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
             if (batchDataInput.version == 1) {
                 _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
@@ -477,7 +477,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      *****************************/
 
     /// @dev proveState proves a batch by submitting a proof.
-    function proveState(bytes calldata _batchHeader, bytes calldata _batchProof) external nonReqRevert whenNotPaused onlyActiveStaker{
+    function proveState(
+        bytes calldata _batchHeader,
+        bytes calldata _batchProof
+    ) external nonReqRevert whenNotPaused onlyActiveStaker {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
@@ -589,6 +592,17 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @param batchIndex The index of the batch to be checked.
     function batchInsideChallengeWindow(uint256 batchIndex) public view returns (bool) {
         return batchDataStore[batchIndex].finalizeTimestamp > block.timestamp;
+    }
+
+    /// @dev proveCommittedBatchState verifies the ZK proof for a committed batch (view-only, no state changes).
+    function proveCommittedBatchState(bytes calldata _batchHeader, bytes calldata _batchProof) public view {
+        // get batch data from batch header
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        // check batch hash
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+
+        _verifyProof(memPtr, _batchProof);
     }
 
     /**********************
@@ -727,7 +741,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (_version == 0) {
             (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
         } else if (_version == 1) {
-             (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
+            (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
         } else {
             revert("Unsupported batch version");
         }

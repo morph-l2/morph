@@ -1,4 +1,3 @@
-use alloy_consensus::transaction::TxHashRef;
 use alloy_primitives::{Address, Keccak256, B256};
 use morph_primitives::MorphTxEnvelope;
 use serde::{Deserialize, Serialize};
@@ -50,8 +49,10 @@ impl L2Block {
 
     /// Hashes the L1 messages in the block using the provided hasher.
     pub fn hash_l1_msg(&self, hasher: &mut Keccak256) {
-        for tx_hash in self.transactions.iter().filter(|tx| tx.is_l1_msg()).map(|tx| tx.tx_hash()) {
-            hasher.update(tx_hash.as_slice())
+        for tx in &self.transactions {
+            if let MorphTxEnvelope::L1Msg(l1) = tx {
+                hasher.update(l1.signature_hash().as_slice());
+            }
         }
     }
 }
