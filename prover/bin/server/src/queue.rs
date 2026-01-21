@@ -6,11 +6,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME};
+use crate::{
+    read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME,
+};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
-use morph_prove::{evm::EvmProofFixture, prove};
-use prover_executor_client::{BlobVerifier, EVMVerifier};
-use prover_executor_host::trace_to_input;
+use morph_prove::{evm::EvmProofFixture, execute::execute_batch, prove};
+use prover_executor_client::{types::input::ExecutorInput, BlobVerifier, EVMVerifier};
+
 use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -81,15 +83,25 @@ impl Prover {
             if read_env_var("SAVE_TRACE", false) {
                 save_trace(batch_index, block_traces);
             }
-            if !save_batch_header(block_traces, batch_index) {
-                save_trace(batch_index, block_traces);
-                continue;
-            }
+
+            let mut input =
+                match gen_block_inputs(batch_index, start_block, end_block, &self.provider).await {
+                    Ok(input) => input,
+                    Err(e) => {
+                        log::error!(
+                            "Generate ExecutorInput error for batch-{:?}, error: {:?}",
+                            batch_index,
+                            e
+                        );
+                        PROVE_RESULT.set(2);
+                        continue;
+                    }
+                };
 
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
             let start = Instant::now();
-            let prove_rt = prove(block_traces, true);
+            let prove_rt = prove(&mut input, true);
 
             match prove_rt {
                 Ok(Some(proof)) => {
@@ -111,18 +123,26 @@ impl Prover {
     }
 }
 
-fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
+async fn gen_block_inputs(
+    batch_index: u64,
+    start_block: u64,
+    end_block: u64,
+    provider: &DynProvider,
+) -> Result<ExecutorInput, anyhow::Error> {
+    // Step1. Get ExecutorInput
+    let executor_input =
+        execute_batch(batch_index, start_block, end_block, provider, *PROVER_USE_RPC_DB).await?;
     let proof_dir =
         PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
 
-    let blocks_inputs = blocks.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
-    let verify_result = EVMVerifier::verify(blocks_inputs);
+    // Step2. Get BatchInfo by EVM Verify.
+    let verify_result = EVMVerifier::verify(executor_input.block_inputs.clone());
 
+    // Step3. Save batch header or error info.
     if let Ok(batch_info) = verify_result {
-        let blob_info = prover_executor_host::blob::get_blob_info_from_traces(blocks).unwrap();
-        let (versioned_hash, _) = BlobVerifier::verify(&blob_info, blocks.len()).unwrap();
-
+        let (versioned_hash, _) =
+            BlobVerifier::verify(&executor_input.blob_info, executor_input.block_inputs.len())?;
         // Save batch_header
         // | batch_data_hash | versioned_hash | sequencer_root |
         // |-----------------|----------------|----------------|
@@ -132,22 +152,21 @@ fn save_batch_header(blocks: &mut Vec<BlockTrace>, batch_index: u64) -> bool {
         batch_header.extend_from_slice(&versioned_hash.0);
         batch_header.extend_from_slice(&batch_info.sequencer_root().0);
         batch_header.extend_from_slice(&batch_info.sequencer_root().0);
-        let mut batch_file = File::create(proof_dir.join("batch_header.data")).unwrap();
+        let mut batch_file = File::create(proof_dir.join("batch_header.data"))?;
         batch_file.write_all(&batch_header[..]).expect("failed to batch_header");
-        true
     } else {
-        let e = verify_result.unwrap_err();
+        let err = verify_result.unwrap_err();
         let error_data = serde_json::json!({
             "error_code": "EVM_EXECUTE_NOT_EXPECTED",
-            "error_msg": e.to_string()
+            "error_msg": err.to_string()
         });
-        let mut batch_file = File::create(proof_dir.join("execute_result.json")).unwrap();
+        let mut batch_file = File::create(proof_dir.join("execute_result.json"))?;
         batch_file
-            .write_all(serde_json::to_string_pretty(&error_data).unwrap().as_bytes())
+            .write_all(serde_json::to_string_pretty(&error_data)?.as_bytes())
             .expect("failed to write error");
-        log::error!("EVM verification failed for batch {}: {}", batch_index, e);
-        false
+        log::error!("EVM verification failed for batch {}: {}", batch_index, err);
     }
+    Ok(executor_input)
 }
 
 fn save_proof(batch_index: u64, proof: EvmProofFixture) {
@@ -207,20 +226,4 @@ fn save_trace(batch_index: u64, chunk_traces: &Vec<BlockTrace>) {
 
     serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();
     log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
-}
-
-#[test]
-fn test_save_execute() {
-    let batch_index = 102u64;
-
-    let mut blocks = load_trace("../../testdata/viridian/eip7702_traces.json");
-    println!("blocks.len(): {:?}", blocks.len());
-    let traces = blocks.first_mut().unwrap();
-
-    if !save_batch_header(traces, batch_index) {
-        save_trace(batch_index, traces);
-        println!("save_batch_header error");
-    } else {
-        println!("save_batch_header success");
-    }
 }

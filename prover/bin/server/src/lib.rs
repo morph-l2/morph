@@ -1,7 +1,6 @@
 pub mod server;
 
 use std::str::FromStr;
-pub mod execute;
 pub mod queue;
 
 use once_cell::sync::Lazy;
@@ -12,6 +11,7 @@ pub static PROVER_PROOF_DIR: Lazy<String> =
     Lazy::new(|| read_env_var("PROVER_PROOF_DIR", "./proof".to_string()));
 pub static PROVER_L2_RPC: Lazy<String> =
     Lazy::new(|| read_env_var("PROVER_L2_RPC", "localhost:8545".to_string()));
+pub static PROVER_USE_RPC_DB: Lazy<bool> = Lazy::new(|| read_env_var("PROVER_USE_RPC_DB", true));
 
 // metrics
 pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);

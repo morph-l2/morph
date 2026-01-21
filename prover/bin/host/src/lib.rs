@@ -1,6 +1,7 @@
 use anyhow::{bail, Context};
 pub mod evm;
 pub mod execute;
+pub mod utils;
 use evm::{save_plonk_fixture, EvmProofFixture};
 use prover_executor_client::{types::input::ExecutorInput, verify};
 use prover_executor_host::{blob::get_blob_info_from_traces, trace_to_input};
@@ -16,23 +17,23 @@ pub const BATCH_VERIFIER_ELF: &[u8] = include_bytes!("../../client/elf/verifier-
 const MAX_PROVE_BLOCKS: usize = 4096;
 
 pub fn prove(
-    blocks: &mut Vec<BlockTrace>,
+    input: &mut ExecutorInput,
     prove: bool,
 ) -> Result<Option<EvmProofFixture>, anyhow::Error> {
     let program_hash = keccak256(BATCH_VERIFIER_ELF);
     log::info!("Program Hash [view on Explorer]:");
     log::info!("{}", alloy::hex::encode_prefixed(program_hash));
 
-    if blocks.len() > MAX_PROVE_BLOCKS {
+    if input.block_inputs.len() > MAX_PROVE_BLOCKS {
         bail!(
             "check block_traces, blocks len = {} exceeds MAX_PROVE_BLOCKS = {}",
-            blocks.len(),
+            input.block_inputs.len(),
             MAX_PROVE_BLOCKS
         );
     }
 
     // Execute in native and prepare input.
-    let (client_input, expected_hash) = execute_batch(blocks)?;
+    let expected_hash = verify(input.clone()).context("native execution failed")?;
     log::info!(
         "pi_hash generated with native execution: {}",
         alloy::hex::encode_prefixed(expected_hash.as_slice())
@@ -40,7 +41,7 @@ pub fn prove(
 
     // Execute the program in sp1-vm
     let mut stdin = SP1Stdin::new();
-    stdin.write(&serde_json::to_string(&client_input)?);
+    stdin.write(&serde_json::to_string(&input)?);
     let client = ProverClient::builder()
         .network_for(NetworkMode::Mainnet)
         .rpc_url("https://rpc.mainnet.succinct.xyz")
@@ -60,7 +61,9 @@ pub fn prove(
             "pi_hash generated with sp1-vm execution: {}",
             alloy::hex::encode_prefixed(public_values.as_slice())
         );
-        assert_eq!(pi_hash, expected_hash, "pi_hash mismatch with expected hash");
+        if pi_hash != expected_hash.as_slice() {
+            bail!("pi_hash mismatch with expected hash");
+        }
         log::info!("Values are correct!");
     }
 
