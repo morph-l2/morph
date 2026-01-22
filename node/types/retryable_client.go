@@ -222,6 +222,23 @@ func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, 
 	return
 }
 
+func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash common.Hash, finalizedBlockHash common.Hash) (err error) {
+	if retryErr := backoff.Retry(func() error {
+		respErr := rc.authClient.SetBlockTags(ctx, safeBlockHash, finalizedBlockHash)
+		if respErr != nil {
+			rc.logger.Info("failed to call SetBlockTags", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		return nil
+	}, rc.b); retryErr != nil {
+		return retryErr
+	}
+	return
+}
+
 // currently we want every error retryable, except the DiscontinuousBlockError
 func retryableError(err error) bool {
 	// return strings.Contains(err.Error(), ConnectionRefused) ||
