@@ -147,7 +147,7 @@ func (b BatchHeaderBytes) LastBlockNumber() (uint64, error) {
 	return binary.BigEndian.Uint64(b[249:257]), nil
 }
 
-// structed batch header for version 0
+// structured batch header for version 0
 type BatchHeaderV0 struct {
 	BatchIndex             uint64
 	L1MessagePopped        uint64
