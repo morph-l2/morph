@@ -33,6 +33,14 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.l2Client.IsExternalSign() {
+		return m.sendWithExternalSign(ctx, txFunc)
+	}
+	return m.sendWithLocalSign(ctx, txFunc)
+}
+
+// sendWithLocalSign sends transaction using local private key signing
+func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
 	fromAddr := m.l2Client.WalletAddress()
 
 	// Check if there are pending transactions by comparing nonces
@@ -84,7 +92,7 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 		return nil, err
 	}
 
-	log.Info("Transaction sent",
+	log.Info("Transaction sent (local sign)",
 		"tx_hash", tx.Hash().Hex(),
 		"nonce", tx.Nonce(),
 		"gas_limit", tx.Gas())
@@ -98,6 +106,90 @@ func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.Trans
 		return nil, err
 	}
 
+	return receipt, nil
+}
+
+// sendWithExternalSign sends transaction using external signing service
+func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
+	signer := m.l2Client.GetSigner()
+	if signer == nil {
+		return nil, fmt.Errorf("external signer is not initialized")
+	}
+
+	fromAddr := m.l2Client.WalletAddress()
+
+	// Check if there are pending transactions by comparing nonces
+	confirmedNonce, err := m.l2Client.GetClient().NonceAt(ctx, fromAddr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get confirmed nonce: %w", err)
+	}
+
+	pendingNonce, err := m.l2Client.GetClient().PendingNonceAt(ctx, fromAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	if pendingNonce > confirmedNonce {
+		// There are pending transactions, don't send new one
+		log.Warn("Found pending transactions, skipping this round",
+			"address", fromAddr.Hex(),
+			"confirmed_nonce", confirmedNonce,
+			"pending_nonce", pendingNonce,
+			"pending_count", pendingNonce-confirmedNonce)
+		return nil, fmt.Errorf("pending transactions exist (confirmed: %d, pending: %d)", confirmedNonce, pendingNonce)
+	}
+
+	log.Info("No pending transactions, proceeding to send",
+		"address", fromAddr.Hex(),
+		"nonce", confirmedNonce)
+
+	// Get transaction options (returns a copy) with NoSend=true to get calldata
+	auth := m.l2Client.GetOpts()
+	auth.Context = ctx
+	auth.NoSend = true
+	auth.GasLimit = 0
+
+	// Call txFunc to get the transaction (this gives us the calldata and to address)
+	tx, err := txFunc(auth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+
+	// Get the target contract address and calldata from the unsigned tx
+	if tx.To() == nil {
+		return nil, fmt.Errorf("contract creation transactions are not supported")
+	}
+	toAddr := *tx.To()
+	callData := tx.Data()
+
+	log.Info("Building external sign transaction",
+		"to", toAddr.Hex(),
+		"calldata_len", len(callData))
+
+	// Create and sign transaction using external signer
+	signedTx, err := signer.CreateAndSignTx(ctx, m.l2Client, toAddr, callData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create and sign transaction: %w", err)
+	}
+
+	// Send the signed transaction
+	err = m.l2Client.GetClient().SendTransaction(ctx, signedTx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send signed transaction: %w", err)
+	}
+
+	log.Info("Transaction sent (external sign)",
+		"tx_hash", signedTx.Hash().Hex(),
+		"gas_limit", signedTx.Gas())
+
+	// Wait for transaction to be mined with custom timeout and retry logic
+	receipt, err := m.waitForReceipt(ctx, signedTx.Hash(), 60*time.Second, 2*time.Second)
+	if err != nil {
+		log.Error("Failed to wait for transaction receipt",
+			"tx_hash", signedTx.Hash().Hex(),
+			"error", err)
+		return nil, err
+	}
 	return receipt, nil
 }
 

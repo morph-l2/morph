@@ -220,6 +220,14 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
 
+	// BlockTag options
+	BlockTagSafeConfirmations = cli.Uint64Flag{
+		Name:   "blocktag.safeConfirmations",
+		Usage:  "Number of L1 blocks to wait before considering a batch as safe",
+		EnvVar: prefixEnvVar("BLOCKTAG_SAFE_CONFIRMATIONS"),
+		Value:  10,
+	}
+
 	// Batch rules
 	UpgradeBatchTime = cli.Uint64Flag{
 		Name:   "upgrade.batchTime",
@@ -337,6 +345,9 @@ var Flags = []cli.Flag{
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
 	L1BeaconAddr,
+
+	// blocktag options
+	BlockTagSafeConfirmations,
 
 	// batch rules
 	UpgradeBatchTime,

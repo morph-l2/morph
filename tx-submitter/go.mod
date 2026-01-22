@@ -2,7 +2,7 @@ module morph-l2/tx-submitter
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.2
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.3
 
 require (
 	github.com/consensys/gnark-crypto v0.16.0
@@ -13,7 +13,6 @@ require (
 	github.com/prometheus/client_golang v1.17.0
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
-	github.com/tendermint/tendermint v0.35.9
 	github.com/urfave/cli v1.22.17
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -34,13 +33,14 @@ require (
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
 	github.com/ethereum/go-ethereum v1.10.26 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
-	github.com/go-kit/log v0.2.1 // indirect
+	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-resty/resty/v2 v2.13.1 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/hashicorp/go-bexpr v0.1.13 // indirect
@@ -57,7 +57,6 @@ require (
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/petermattis/goid v0.0.0-20231207134359-e60b3f734c67 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
@@ -68,7 +67,6 @@ require (
 	github.com/rjeczalik/notify v0.9.3 // indirect
 	github.com/rs/cors v1.11.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/scroll-tech/zktrie v0.8.4 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/status-im/keycard-go v0.3.2 // indirect
