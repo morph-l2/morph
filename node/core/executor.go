@@ -418,3 +418,202 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
 }
+
+// ============================================================================
+// L2NodeV2 interface implementation for sequencer mode
+// ============================================================================
+
+// RequestBlockDataV2 requests block data based on parent hash.
+// This differs from RequestBlockData which uses height.
+// Using parent hash allows for proper fork chain handling in the future.
+func (e *Executor) RequestBlockDataV2(parentHashBytes []byte) (*l2node.BlockV2, bool, error) {
+	if e.l1MsgReader == nil {
+		return nil, false, fmt.Errorf("RequestBlockDataV2 is not allowed to be called")
+	}
+	parentHash := common.BytesToHash(parentHashBytes)
+
+	// Read L1 messages
+	fromIndex := e.nextL1MsgIndex
+	l1Messages := e.l1MsgReader.ReadL1MessagesInRange(fromIndex, fromIndex+e.maxL1MsgNumPerBlock-1)
+	transactions := make(eth.Transactions, len(l1Messages))
+
+	collectedL1Msgs := false
+	if len(l1Messages) > 0 {
+		queueIndex := fromIndex
+		for i, l1Message := range l1Messages {
+			transaction := eth.NewTx(&l1Message.L1MessageTx)
+			transactions[i] = transaction
+			if queueIndex != l1Message.QueueIndex {
+				e.logger.Error("unexpected l1message queue index", "expected", queueIndex, "actual", l1Message.QueueIndex)
+				return nil, false, types.ErrInvalidL1MessageOrder
+			}
+			queueIndex++
+		}
+		collectedL1Msgs = true
+	}
+
+	// Call geth to assemble block based on parent hash
+	l2Block, err := e.l2Client.AssembleL2BlockV2(context.Background(), parentHash, transactions)
+	if err != nil {
+		e.logger.Error("failed to assemble block v2", "parentHash", parentHash.Hex(), "error", err)
+		return nil, false, err
+	}
+
+	e.logger.Info("AssembleL2BlockV2 success ",
+		"number", l2Block.Number,
+		"hash", l2Block.Hash.Hex(),
+		"parentHash", l2Block.ParentHash.Hex(),
+		"tx length", len(l2Block.Transactions),
+		"collectedL1Msgs", collectedL1Msgs,
+	)
+
+	return executableL2DataToBlockV2(l2Block), collectedL1Msgs, nil
+}
+
+// ApplyBlockV2 applies a block to the L2 execution layer.
+// This is used in sequencer mode after block validation.
+func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) error {
+	// Convert BlockV2 to ExecutableL2Data for geth
+	execBlock := blockV2ToExecutableL2Data(block)
+
+	// Check if block is already applied
+	height, err := e.l2Client.BlockNumber(context.Background())
+	if err != nil {
+		return err
+	}
+
+	if execBlock.Number <= height {
+		e.logger.Info("ignore it, the block was already applied", "block number", execBlock.Number)
+		return nil
+	}
+
+	// We only accept continuous blocks
+	if execBlock.Number > height+1 {
+		return types.ErrWrongBlockNumber
+	}
+
+	// Apply the block (no batch hash in sequencer mode for now)
+	err = e.l2Client.NewL2Block(context.Background(), execBlock, nil)
+	if err != nil {
+		e.logger.Error("failed to apply block v2", "error", err)
+		return err
+	}
+
+	// Update L1 message index
+	e.updateNextL1MessageIndex(execBlock)
+
+	e.metrics.Height.Set(float64(execBlock.Number))
+	e.logger.Info("ApplyBlockV2 success", "number", execBlock.Number, "hash", execBlock.Hash.Hex())
+
+	return nil
+}
+
+// GetBlockByNumber retrieves a block by its number from the L2 execution layer.
+// Uses standard eth_getBlockByNumber JSON-RPC.
+func (e *Executor) GetBlockByNumber(height uint64) (*l2node.BlockV2, error) {
+	block, err := e.l2Client.BlockByNumber(context.Background(), big.NewInt(int64(height)))
+	if err != nil {
+		e.logger.Error("failed to get block by number", "height", height, "error", err)
+		return nil, err
+	}
+	return ethBlockToBlockV2(block)
+}
+
+// GetLatestBlockV2 returns the latest block from the L2 execution layer.
+// Uses standard eth_getBlockByNumber JSON-RPC with nil (latest).
+func (e *Executor) GetLatestBlockV2() (*l2node.BlockV2, error) {
+	block, err := e.l2Client.BlockByNumber(context.Background(), nil)
+	if err != nil {
+		e.logger.Error("failed to get latest block", "error", err)
+		return nil, err
+	}
+	return ethBlockToBlockV2(block)
+}
+
+// ==================== Type Conversion Functions ====================
+
+// ethBlockToBlockV2 converts eth.Block to BlockV2
+func ethBlockToBlockV2(block *eth.Block) (*l2node.BlockV2, error) {
+	if block == nil {
+		return nil, fmt.Errorf("block is nil")
+	}
+	header := block.Header()
+
+	// Encode transactions using MarshalBinary (handles EIP-2718 typed transactions correctly)
+	// Initialize as empty slice (not nil) to ensure JSON serialization produces [] instead of null
+	txs := make([][]byte, 0, len(block.Transactions()))
+	for _, tx := range block.Transactions() {
+		bz, err := tx.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal tx, error: %v", err)
+		}
+		txs = append(txs, bz)
+	}
+
+	return &l2node.BlockV2{
+		ParentHash:         header.ParentHash,
+		Miner:              header.Coinbase,
+		Number:             header.Number.Uint64(),
+		GasLimit:           header.GasLimit,
+		BaseFee:            header.BaseFee,
+		Timestamp:          header.Time,
+		Transactions:       txs,
+		StateRoot:          header.Root,
+		GasUsed:            header.GasUsed,
+		ReceiptRoot:        header.ReceiptHash,
+		LogsBloom:          header.Bloom.Bytes(),
+		NextL1MessageIndex: header.NextL1MsgIndex,
+		Hash:               block.Hash(),
+	}, nil
+}
+
+// blockV2ToExecutableL2Data converts BlockV2 to ExecutableL2Data
+func blockV2ToExecutableL2Data(block *l2node.BlockV2) *catalyst.ExecutableL2Data {
+	if block == nil {
+		return nil
+	}
+	// Ensure Transactions is not nil (JSON requires [] not null)
+	txs := block.Transactions
+	if txs == nil {
+		txs = make([][]byte, 0)
+	}
+	return &catalyst.ExecutableL2Data{
+		ParentHash:         block.ParentHash,
+		Miner:              block.Miner,
+		Number:             block.Number,
+		GasLimit:           block.GasLimit,
+		BaseFee:            block.BaseFee,
+		Timestamp:          block.Timestamp,
+		Transactions:       txs,
+		StateRoot:          block.StateRoot,
+		GasUsed:            block.GasUsed,
+		ReceiptRoot:        block.ReceiptRoot,
+		LogsBloom:          block.LogsBloom,
+		WithdrawTrieRoot:   block.WithdrawTrieRoot,
+		NextL1MessageIndex: block.NextL1MessageIndex,
+		Hash:               block.Hash,
+	}
+}
+
+// executableL2DataToBlockV2 converts ExecutableL2Data to BlockV2
+func executableL2DataToBlockV2(data *catalyst.ExecutableL2Data) *l2node.BlockV2 {
+	if data == nil {
+		return nil
+	}
+	return &l2node.BlockV2{
+		ParentHash:         data.ParentHash,
+		Miner:              data.Miner,
+		Number:             data.Number,
+		GasLimit:           data.GasLimit,
+		BaseFee:            data.BaseFee,
+		Timestamp:          data.Timestamp,
+		Transactions:       data.Transactions,
+		StateRoot:          data.StateRoot,
+		GasUsed:            data.GasUsed,
+		ReceiptRoot:        data.ReceiptRoot,
+		LogsBloom:          data.LogsBloom,
+		WithdrawTrieRoot:   data.WithdrawTrieRoot,
+		NextL1MessageIndex: data.NextL1MessageIndex,
+		Hash:               data.Hash,
+	}
+}
