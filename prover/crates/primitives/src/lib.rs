@@ -2,6 +2,7 @@
 
 use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy};
 use alloy_eips::eip2930::AccessList;
+use alloy_eips::Encodable2718;
 use alloy_primitives::{Bytes, ChainId, Signature, SignatureError, TxKind};
 use morph_primitives::{TxAltFee, TxL1Msg};
 use std::fmt::Debug;
@@ -232,16 +233,14 @@ pub trait TxTrace {
             }
             0x7e => {
                 let tx = TxL1Msg {
-                    from: unsafe { self.get_from_unchecked() },
-                    nonce: self.nonce(),
-                    gas_limit: self.gas_limit() as u128,
-                    to: self.to(),
+                    sender: unsafe { self.get_from_unchecked() },
+                    gas_limit: self.gas_limit(),
+                    to: *self.to().to().expect("L1 message must have a recipient"),
                     value: self.value(),
                     input: self.data(),
                     queue_index: self.queue_index().unwrap_or(self.nonce()),
                 };
-
-                MorphTxEnvelope::L1Msg(tx.into_signed(self.signature()?))
+                MorphTxEnvelope::L1Msg(tx.seal())
             }
             0x7f => {
                 let tx = TxAltFee {

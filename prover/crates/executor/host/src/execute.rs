@@ -53,7 +53,12 @@ impl HostExecutor {
         let block_num = block.header.number.to::<u64>();
 
         // Init DB (RPC-backed, rooted at previous block).
-        let rpc_db = BasicRpcDb::new(provider.clone(), prev_block_number, prev_disk_root.disk_root);
+        let rpc_db = BasicRpcDb::new(
+            provider.clone(),
+            chain_id,
+            prev_block_number,
+            prev_disk_root.disk_root,
+        );
 
         // Warm up predeployed contract info.
         load_predeployed_contracts(&rpc_db).await?;

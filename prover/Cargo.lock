@@ -4171,9 +4171,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "modular-bitfield"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a53d79ba8304ac1c4f9eb3b9d281f21f7be9d4626f72ce7df4ad8fbde4f38a74"
+dependencies = [
+ "modular-bitfield-impl",
+ "static_assertions",
+]
+
+[[package]]
+name = "modular-bitfield-impl"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a7d5f7076603ebc68de2dc6a650ec331a062a13abaa346975be747bbfa4b789"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "morph-chainspec"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e403cab17d3a82705bb410f2060b48f1aad3a180"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e972600a5646d49244d956d47fa4d6d8ec59f01a"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -4184,6 +4205,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-serde",
  "auto_impl",
+ "morph-primitives",
  "reth-chainspec",
  "reth-network-peers",
  "serde",
@@ -4193,7 +4215,7 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e403cab17d3a82705bb410f2060b48f1aad3a180"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e972600a5646d49244d956d47fa4d6d8ec59f01a"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -4204,14 +4226,17 @@ dependencies = [
  "morph-revm",
  "reth-evm",
  "reth-evm-ethereum",
+ "reth-primitives-traits",
  "reth-revm",
+ "revm",
  "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]
 name = "morph-primitives"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e403cab17d3a82705bb410f2060b48f1aad3a180"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e972600a5646d49244d956d47fa4d6d8ec59f01a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4250,7 +4275,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.7.5"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e403cab17d3a82705bb410f2060b48f1aad3a180"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=execute#e972600a5646d49244d956d47fa4d6d8ec59f01a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -5896,6 +5921,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-codecs"
+version = "1.9.3"
+source = "git+https://github.com/paradigmxyz/reth?rev=64909d3#64909d33e6b7ab60774e37f5508fb5ad17f41897"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-genesis",
+ "alloy-primitives",
+ "alloy-trie",
+ "bytes",
+ "modular-bitfield",
+ "op-alloy-consensus",
+ "reth-codecs-derive",
+ "reth-zstd-compressors",
+ "serde",
+]
+
+[[package]]
+name = "reth-codecs-derive"
+version = "1.9.3"
+source = "git+https://github.com/paradigmxyz/reth?rev=64909d3#64909d33e6b7ab60774e37f5508fb5ad17f41897"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "reth-db-models"
 version = "1.9.3"
 source = "git+https://github.com/paradigmxyz/reth?rev=64909d3#64909d33e6b7ab60774e37f5508fb5ad17f41897"
@@ -5931,6 +5984,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-eth",
  "alloy-serde",
+ "reth-codecs",
  "reth-primitives-traits",
  "reth-zstd-compressors",
  "serde",
@@ -6040,6 +6094,7 @@ dependencies = [
  "derive_more 2.1.0",
  "once_cell",
  "op-alloy-consensus",
+ "reth-codecs",
  "revm-bytecode",
  "revm-primitives",
  "revm-state",

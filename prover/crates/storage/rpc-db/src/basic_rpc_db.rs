@@ -28,6 +28,8 @@ use crate::error::RpcDbError;
 pub struct BasicRpcDb<P, N> {
     /// The provider which fetches data.
     pub provider: P,
+    /// Chain ID used by Morph's `BLOCKHASH` opcode behavior.
+    pub chain_id: u64,
     /// The block to fetch data from.
     pub block_number: u64,
     ///The state root to fetch data from.
@@ -44,9 +46,10 @@ pub struct BasicRpcDb<P, N> {
 
 impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     /// Create a new [`BasicRpcDb`].
-    pub fn new(provider: P, block_number: u64, state_root: B256) -> Self {
+    pub fn new(provider: P, chain_id: u64, block_number: u64, state_root: B256) -> Self {
         Self {
             provider,
+            chain_id,
             block_number,
             state_root,
             accounts: Arc::new(RwLock::new(HashMap::with_hasher(Default::default()))),
@@ -215,13 +218,23 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
     }
 
     fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
-        let handle = tokio::runtime::Handle::try_current().map_err(|_| {
-            ProviderError::Database(DatabaseError::Other("no tokio runtime found".to_string()))
-        })?;
-        let result = tokio::task::block_in_place(|| handle.block_on(self.fetch_block_hash(number)));
-        let value =
-            result.map_err(|e| ProviderError::Database(DatabaseError::Other(e.to_string())))?;
-        Ok(value)
+        // Morph EVM opcode difference:
+        // `BLOCKHASH(n)` returns `keccak(chain_id || n)` for the last 256 blocks.
+        // Keep Ethereum semantics for out-of-range queries (return zero).
+        if number > self.block_number {
+            return Ok(B256::ZERO);
+        }
+
+        // NOTE: `BLOCKHASH` is only defined for the last 256 blocks.
+        // I.e. for `n < current_number` and `current_number - n <= 256`.
+        if self.block_number.saturating_sub(number) >= 256 {
+            return Ok(B256::ZERO);
+        }
+
+        let mut buf = [0u8; 16];
+        buf[..8].copy_from_slice(&self.chain_id.to_be_bytes());
+        buf[8..].copy_from_slice(&number.to_be_bytes());
+        Ok(alloy_primitives::utils::keccak256(buf).into())
     }
 }
 
