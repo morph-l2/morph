@@ -3,3 +3,8 @@ pub mod executor;
 pub mod input;
 
 pub use executor::MorphExecutor;
+
+/// Chain IDs for different Morph networks.
+pub const MAINNET_CHAIN_ID: u64 = 2818;
+pub const TESTNET_CHAIN_ID: u64 = 2910;
+pub const DEVNET_CHAIN_ID: u64 = 53077;

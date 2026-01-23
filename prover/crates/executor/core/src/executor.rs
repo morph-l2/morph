@@ -9,16 +9,20 @@ use morph_chainspec::MORPH_MAINNET;
 use morph_evm::MorphBlockEnv;
 use morph_primitives::MorphTxEnvelope;
 use morph_revm::MorphEvm;
+use revm::MainContext;
+
+use std::sync::Arc;
 
 use morph_revm::MorphTxEnv;
 use revm::context::BlockEnv;
 use revm::database::BundleState;
 use revm::inspector::NoOpInspector;
-use revm::MainContext;
 use revm::{
     database::{states::bundle_state::BundleRetention, State},
     ExecuteCommitEvm,
 };
+
+use crate::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID};
 /// An Morph executor wrapper based on `revm`.
 pub struct MorphExecutor<DB: Database, I = NoOpInspector> {
     pub inner: morph_revm::MorphEvm<State<DB>, I>,
@@ -40,9 +44,33 @@ impl<DB: Database> MorphExecutor<DB> {
         let mut env: EvmEnv<MorphHardfork, MorphBlockEnv> =
             EvmEnv::default().with_timestamp(block_env.timestamp);
 
-        let spec = &MORPH_MAINNET;
-        let hardfork =
-            spec.morph_hardfork_at(block_env.number.to::<u64>(), block_env.timestamp.to::<u64>());
+        let hardfork = match chain_id {
+            // mainnet
+            MAINNET_CHAIN_ID => {
+                let mut spec = MORPH_MAINNET.clone();
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Morph203, 1747029600u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Viridian, 1762149600u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Emerald, 1767765600u64);
+                spec.morph_hardfork_at(
+                    block_env.number.to::<u64>(),
+                    block_env.timestamp.to::<u64>(),
+                )
+            }
+            // hoodi testnet
+            TESTNET_CHAIN_ID => {
+                let mut spec = MORPH_MAINNET.clone();
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Morph203, 0u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Viridian, 1761544800u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Emerald, 1766988000u64);
+                spec.morph_hardfork_at(
+                    block_env.number.to::<u64>(),
+                    block_env.timestamp.to::<u64>(),
+                )
+            }
+            // devnet
+            DEVNET_CHAIN_ID => MorphHardfork::Emerald,
+            _ => MorphHardfork::Emerald,
+        };
         env.cfg_env = env.cfg_env.with_spec(hardfork);
         env.cfg_env.chain_id = chain_id;
         env.cfg_env.tx_gas_limit_cap = Some(block_env.gas_limit);
@@ -51,7 +79,7 @@ impl<DB: Database> MorphExecutor<DB> {
         Self::new(db, env)
     }
 
-    pub fn execute_block(&mut self, txns: &Vec<MorphTxEnvelope>) -> Result<BundleState> {
+    pub fn execute_block(&mut self, txns: &[MorphTxEnvelope]) -> Result<BundleState> {
         // Execute transactions in block.
         for (tx_index, tx) in txns.iter().enumerate() {
             let basefee = self.inner.ctx.block.basefee;

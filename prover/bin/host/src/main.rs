@@ -29,6 +29,9 @@ struct Args {
     /// RPC endpoint
     #[clap(long, default_value = "http://localhost:8545")]
     rpc: String,
+    /// Whether to save input.
+    #[clap(long)]
+    save_input: bool,
 }
 
 #[tokio::main]
@@ -50,6 +53,14 @@ async fn main() {
             blob_info: get_blob_info_from_traces(block_traces).unwrap(),
         }
     };
+    if args.save_input {
+        let input_path =
+            format!("proof/executor_input_{}_{}.json", args.start_block, args.end_block);
+        let file = File::create(&input_path).unwrap();
+        serde_json::to_writer(file, &input).unwrap();
+        println!("Saved executor input to {}", input_path);
+    }
+
     let _ = prove(&mut input, args.prove).unwrap();
 }
 
