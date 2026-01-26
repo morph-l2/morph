@@ -34,10 +34,7 @@ impl EVMVerifier {
 
 fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> {
     // Execute each block sequentially.
-    block_inputs
-        .iter_mut()
-        .filter(|block_input| !block_input.current_block.transactions.is_empty())
-        .try_for_each(execute_block)?;
+    block_inputs.iter_mut().try_for_each(execute_block)?;
 
     // Find the last post_state with non-empty transactions, or fall back to the last one
     let latest_block = block_inputs.last().expect("block_inputs is non-empty");

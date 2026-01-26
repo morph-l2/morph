@@ -7,10 +7,7 @@ use std::{
 use crate::account_proof::{eip1186_proof_to_account_proof, EIP1186AccountProofResponseCompat};
 use alloy_consensus::{BlockHeader, Header};
 use alloy_primitives::{map::HashMap, StorageKey, U256};
-use alloy_provider::{
-    network::{primitives::HeaderResponse, BlockResponse},
-    Network, Provider,
-};
+use alloy_provider::{network::BlockResponse, Network, Provider};
 use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
 use prover_mpt::EthereumState;
@@ -142,27 +139,6 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         Ok(value)
     }
 
-    /// Fetch the block hash for a block number.
-    pub async fn fetch_block_hash(&self, number: u64) -> Result<B256, RpcDbError> {
-        debug!("fetching block hash for block number: {}", number);
-
-        // Fetch the block.
-        let block = self
-            .provider
-            .get_block_by_number(number.into())
-            .await
-            .map_err(|e| RpcDbError::GetBlockError(number, e.to_string()))?;
-
-        // Record the block hash to the state.
-        let block = block.ok_or(RpcDbError::BlockNotFound(number))?;
-        let hash = block.header().hash();
-
-        let mut oldest_ancestor = self.oldest_ancestor.write().map_err(|_| RpcDbError::Poisoned)?;
-        *oldest_ancestor = number.min(*oldest_ancestor);
-
-        Ok(hash)
-    }
-
     /// Gets all the state keys used. The client uses this to read the actual state data from tries.
     pub fn get_state_requests(&self) -> HashMap<Address, Vec<U256>> {
         let accounts = self.accounts.read().unwrap();
@@ -186,6 +162,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
 impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
     type Error = ProviderError;
 
+    /// Get basic account information.
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let handle = tokio::runtime::Handle::try_current().map_err(|_| {
             ProviderError::Database(DatabaseError::Other("no tokio runtime found".to_string()))
@@ -202,10 +179,12 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
         }
     }
 
+    /// Get account code by its hash.
     fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
         unimplemented!()
     }
 
+    /// Get storage value of address at index.
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let handle = tokio::runtime::Handle::try_current().map_err(|_| {
             ProviderError::Database(DatabaseError::Other("no tokio runtime found".to_string()))
@@ -217,17 +196,19 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
         Ok(value)
     }
 
+    /// Get block hash by its number.
     fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
         // Morph EVM opcode difference:
         // `BLOCKHASH(n)` returns `keccak(chain_id || n)` for the last 256 blocks.
         // Keep Ethereum semantics for out-of-range queries (return zero).
-        if number > self.block_number {
+        let current_block_number = self.block_number + 1;
+        if number >= current_block_number {
             return Ok(B256::ZERO);
         }
 
         // NOTE: `BLOCKHASH` is only defined for the last 256 blocks.
         // I.e. for `n < current_number` and `current_number - n <= 256`.
-        if self.block_number.saturating_sub(number) >= 256 {
+        if current_block_number.saturating_sub(number) > 256 {
             return Ok(B256::ZERO);
         }
 
@@ -255,6 +236,7 @@ where
     P: Provider<N> + Clone,
     N: Network,
 {
+    /// Assemble the EthereumState from the current database state.
     async fn state(&self, bundle_state: &BundleState) -> Result<EthereumState, RpcDbError> {
         let state_requests = self.get_state_requests();
 

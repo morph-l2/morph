@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+/// Mapping from chain ID to default coinbase address.
 pub static CHAIN_COINBASE: LazyLock<HashMap<u64, Address>> = LazyLock::new(|| {
     HashMap::from([
         (2818u64, Address::from_hex("0x530000000000000000000000000000000000000a").unwrap()),
@@ -20,6 +21,7 @@ pub static CHAIN_COINBASE: LazyLock<HashMap<u64, Address>> = LazyLock::new(|| {
     ])
 });
 
+/// Block structure returned by the prover RPC.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ProverBlock {
     /// block
@@ -31,18 +33,25 @@ pub struct ProverBlock {
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct DiskRoot {
+    /// disk root(mpt root)
     #[serde(default, rename = "diskRoot")]
     pub disk_root: B256,
+    /// header root(zktrie root for headers)
     #[serde(default, rename = "headerRoot")]
     pub header_root: B256,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HostExecutorOutput {
+    /// chain id
     pub chain_id: u64,
+    /// beneficiary(coinbase)
     pub beneficiary: Address,
+    /// executed block
     pub block: ProverBlock,
+    /// State containing sparse MPT nodes.
     pub state: EthereumState,
+    /// executed codes
     pub codes: Vec<Bytecode>,
     /// prev state root
     pub prev_state_root: B256,
@@ -50,6 +59,7 @@ pub struct HostExecutorOutput {
     pub post_state_root: B256,
 }
 
+/// Assembles a [ClientBlockInput] from the [HostExecutorOutput] and previous [ProverBlock].
 pub fn assemble_block_input(
     output: HostExecutorOutput,
     prev_block: ProverBlock,
@@ -74,6 +84,7 @@ pub fn assemble_block_input(
     ClientBlockInput { current_block: l2_block, parent_state: state, bytecodes: codes }
 }
 
+/// Queries the state root at a given block number.
 pub async fn query_state_root(
     block_number: u64,
     provider: &DynProvider,
@@ -84,6 +95,7 @@ pub async fn query_state_root(
         .context("morph_diskRoot error")
 }
 
+/// Queries the block at a given block number.
 pub async fn query_block(
     block_number: u64,
     provider: &DynProvider,
@@ -97,6 +109,7 @@ pub async fn query_block(
         .context("eth_getBlockByNumber error")
 }
 
+/// Queries the block at a given block number without transactions.
 pub async fn query_chain_d(
     block_number: u64,
     provider: &DynProvider,

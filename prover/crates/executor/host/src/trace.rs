@@ -10,6 +10,7 @@ use prover_primitives::{
 };
 use revm::state::Bytecode;
 
+/// Converts a block trace to a ClientBlockInput.
 pub fn trace_to_input(trace: &BlockTrace) -> ClientBlockInput {
     let witness = trace_to_execution_witness(trace).unwrap();
     let state = EthereumState::from_execution_witness(&witness, trace.root_before());

@@ -5,6 +5,7 @@ use anyhow::Context;
 use anyhow::Result;
 use morph_chainspec::hardfork::MorphHardfork;
 use morph_chainspec::hardfork::MorphHardforks;
+use morph_chainspec::MORPH_HOODI;
 use morph_chainspec::MORPH_MAINNET;
 use morph_evm::MorphBlockEnv;
 use morph_primitives::MorphTxEnvelope;
@@ -58,7 +59,7 @@ impl<DB: Database> MorphExecutor<DB> {
             }
             // hoodi testnet
             TESTNET_CHAIN_ID => {
-                let mut spec = MORPH_MAINNET.clone();
+                let mut spec = MORPH_HOODI.clone();
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Morph203, 0u64);
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Viridian, 1761544800u64);
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Emerald, 1766988000u64);

@@ -97,7 +97,7 @@ mod tests {
         path::{Path, PathBuf},
     };
 
-    // cargo test -p morph-prove --lib -- execute::tests::test_execute --exact --nocapture -- --block-number 0x35 --rpc http://127.0.0.1:9545
+    // cargo test -p morph-prove --lib -- execute::tests::test_execute --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
     #[test]
     fn test_execute() {
         let rt = tokio::runtime::Runtime::new().unwrap();

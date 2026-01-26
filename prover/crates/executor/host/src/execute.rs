@@ -25,17 +25,21 @@ impl HostExecutor {
         block_number: u64,
         provider: &DynProvider,
     ) -> Result<HostExecutorOutput, anyhow::Error> {
+        // Fetch block.
         let block = query_block(block_number, provider)
             .await
             .with_context(|| format!("query_block failed for block {block_number}"))?;
 
+        // layer2 chain id
         let chain_id =
             provider.get_chain_id().await.context("failed to fetch chain_id from provider")?;
 
+        // beneficiary(coinbase)
         let beneficiary = *CHAIN_COINBASE
             .get(&chain_id)
             .with_context(|| format!("chain_id {chain_id} not found in CHAIN_COINBASE"))?;
 
+        // mpt root at this block
         let disk_root = query_state_root(block_number, provider)
             .await
             .with_context(|| format!("query_state_root failed for block {block_number}"))?;

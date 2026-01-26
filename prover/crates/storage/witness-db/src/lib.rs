@@ -16,7 +16,7 @@ pub struct TrieDB<'a> {
     inner: &'a EthereumState,
     bytecode_by_hash: HashMap<B256, &'a Bytecode>,
     chain_id: u64,
-    block_number: u64,
+    block_number: u64, // current block number
 }
 
 impl<'a> TrieDB<'a> {
@@ -100,13 +100,13 @@ impl DatabaseRef for TrieDB<'_> {
         // Morph EVM opcode difference:
         // `BLOCKHASH(n)` returns `keccak(chain_id || n)` for the last 256 blocks.
         // Keep Ethereum semantics for out-of-range queries (return zero).
-        if number > self.block_number {
+        if number >= self.block_number {
             return Ok(B256::ZERO);
         }
 
         // NOTE: `BLOCKHASH` is only defined for the last 256 blocks.
         // I.e. for `n < current_number` and `current_number - n <= 256`.
-        if self.block_number.saturating_sub(number) >= 256 {
+        if self.block_number.saturating_sub(number) > 256 {
             return Ok(B256::ZERO);
         }
 
