@@ -119,16 +119,16 @@ mod tests {
     #[tokio::test]
     async fn test_execute_batch() {
         let handle = tokio::spawn(async move {
-            let provider = ProviderBuilder::new()
-                .connect_http("http://127.0.0.1:9545".parse().unwrap())
-                .erased();
+        let provider = ProviderBuilder::new()
+            .connect_http("http://127.0.0.1:9545".parse().unwrap())
+            .erased();
 
-            try_execute_batch(
-                &BatchInfo { batch_index: 1, start_block: 53, end_block: 54, total_txn: 1 },
-                &provider,
-            )
-            .await
-            .unwrap();
+        try_execute_batch(
+            &BatchInfo { batch_index: 1, start_block: 53, end_block: 54, total_txn: 1 },
+            &provider,
+        )
+        .await
+        .unwrap();
         });
 
         handle.await.unwrap();

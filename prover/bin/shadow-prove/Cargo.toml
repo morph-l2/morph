@@ -44,4 +44,4 @@ prover-primitives = { workspace = true }
 prover-utils.workspace = true
 
 [dev-dependencies]
-clap = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
