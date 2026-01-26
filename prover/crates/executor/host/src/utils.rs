@@ -71,11 +71,7 @@ pub fn assemble_block_input(
         post_state_root: output.post_state_root,
         start_l1_queue_index: prev_block.header.next_l1_msg_index.to::<u64>(),
     };
-
-    let block_input =
-        ClientBlockInput { current_block: l2_block, parent_state: state, bytecodes: codes };
-
-    block_input
+    ClientBlockInput { current_block: l2_block, parent_state: state, bytecodes: codes }
 }
 
 pub async fn query_state_root(

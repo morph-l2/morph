@@ -72,6 +72,7 @@ pub struct StorageTrace {
     #[serde(rename = "storageProofs", default)]
     #[serde_as(as = "Map<_,Map<_, _>>")]
     /// storage proofs for each account
+    #[allow(clippy::type_complexity)]
     pub storage_proofs: Vec<(Address, Vec<(B256, Vec<Bytes>)>)>,
     /// proofs
     #[serde(rename = "flattenProofs")]

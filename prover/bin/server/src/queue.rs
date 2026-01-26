@@ -6,9 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{
-    read_env_var, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME,
-};
+use crate::{PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use morph_prove::{evm::EvmProofFixture, execute::execute_batch, prove};
 use prover_executor_client::{types::input::ExecutorInput, BlobVerifier, EVMVerifier};
@@ -27,12 +25,15 @@ pub struct ProveRequest {
     pub shadow: Option<bool>,
 }
 
+/// The prover that processes prove requests from a queue.
 pub struct Prover {
     pub prove_queue: Arc<Mutex<Vec<ProveRequest>>>,
     provider: DynProvider,
 }
 
+/// Implementation of the Prover.
 impl Prover {
+    // Create a new Prover instance.
     pub fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
         let rpc_url = PROVER_L2_RPC.parse()?;
         let provider = ProviderBuilder::new().connect_http(rpc_url).erased();
@@ -64,28 +65,9 @@ impl Prover {
                 }
             };
 
-            // let traces: &mut Vec<Vec<BlockTrace>> =
-            //     &mut load_trace("testdata/mainnet_batch_traces.json");
-            // let block_traces: &mut Vec<BlockTrace> = &mut traces[0];
-
-            // Step2. Fetch trace
-            log::info!("Requesting trace of batch-{:#?} ...", batch_index);
-            let res_provider =
-                &mut get_block_traces(batch_index, start_block, end_block, &self.provider).await;
-            let block_traces = match res_provider {
-                Some(block_traces) => block_traces,
-                None => {
-                    PROVE_RESULT.set(2);
-                    continue;
-                }
-            };
-
-            if read_env_var("SAVE_TRACE", false) {
-                save_trace(batch_index, block_traces);
-            }
-
+            // Step2. Generate ExecutorInput
             let mut input =
-                match gen_block_inputs(batch_index, start_block, end_block, &self.provider).await {
+                match gen_client_input(batch_index, start_block, end_block, &self.provider).await {
                     Ok(input) => input,
                     Err(e) => {
                         log::error!(
@@ -123,7 +105,8 @@ impl Prover {
     }
 }
 
-async fn gen_block_inputs(
+/// Generate ExecutorInput for prover client.
+async fn gen_client_input(
     batch_index: u64,
     start_block: u64,
     end_block: u64,
@@ -133,7 +116,7 @@ async fn gen_block_inputs(
     let executor_input =
         execute_batch(batch_index, start_block, end_block, provider, *PROVER_USE_RPC_DB).await?;
     let proof_dir =
-        PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
+        PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
 
     // Step2. Get BatchInfo by EVM Verify.
@@ -169,9 +152,10 @@ async fn gen_block_inputs(
     Ok(executor_input)
 }
 
+/// Save evm proof to file.
 fn save_proof(batch_index: u64, proof: EvmProofFixture) {
     let batch_dir =
-        PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
+        PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
     std::fs::create_dir_all(&batch_dir).expect("failed to create proof path");
     std::fs::write(
         batch_dir.join("plonk_proof.json"),
@@ -179,35 +163,6 @@ fn save_proof(batch_index: u64, proof: EvmProofFixture) {
     )
     .expect("failed to write proof");
     log::info!("Successfully save evm proof of batch-{:?}", batch_index);
-}
-
-// Fetches block traces by provider
-async fn get_block_traces(
-    batch_index: u64,
-    start_block: u64,
-    end_block: u64,
-    provider: &DynProvider,
-) -> Option<Vec<BlockTrace>> {
-    let mut block_traces: Vec<BlockTrace> = Vec::new();
-    for block_num in start_block..end_block + 1 {
-        log::debug!("requesting trace of block {block_num}");
-        let result = provider
-            .raw_request("morph_getBlockTraceByNumberOrHash".into(), [format!("{block_num:#x}")])
-            .await;
-
-        match result {
-            Ok(trace) => block_traces.push(trace),
-            Err(e) => {
-                log::error!("requesting trace error: {e}");
-                return None;
-            }
-        }
-    }
-    if (end_block + 1 - start_block) as usize != block_traces.len() {
-        log::error!("block_traces.len not expected, batch index = {:#?}", batch_index);
-        return None;
-    }
-    Some(block_traces)
 }
 
 #[allow(dead_code)]
@@ -219,7 +174,7 @@ fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
 
 #[allow(dead_code)]
 fn save_trace(batch_index: u64, chunk_traces: &Vec<BlockTrace>) {
-    let path = PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{}", batch_index));
+    let path = PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
     fs::create_dir_all(&path).unwrap();
     let file = File::create(path.join("block_traces.json")).unwrap();
     let writer = BufWriter::new(file);

@@ -24,7 +24,7 @@ pub struct BatchInfo {
 impl BatchInfo {
     /// Construct by block inputs
     pub fn from_block_inputs(
-        block_inputs: &Vec<BlockInput>,
+        block_inputs: &[BlockInput],
         post_state_root: B256,
         withdraw_root: B256,
         sequencer_root: B256,
@@ -34,25 +34,23 @@ impl BatchInfo {
         let prev_state_root = blocks.first().unwrap().prev_state_root;
 
         let mut data_hasher = Keccak256::new();
-        data_hasher.update(&blocks.last().unwrap().header.number.to_be_bytes::<32>());
+        data_hasher.update(blocks.last().unwrap().header.number.to_be_bytes::<32>());
         let num_l1_txs: u16 = blocks.iter().map(|x| x.num_l1_txs()).sum::<u64>() as u16;
-        data_hasher.update(&num_l1_txs.to_be_bytes());
+        data_hasher.update(num_l1_txs.to_be_bytes());
 
         for block in blocks.iter() {
             block.hash_l1_msg(&mut data_hasher);
         }
         let l1_data_hash = data_hasher.finalize();
 
-        let info = BatchInfo {
+        BatchInfo {
             chain_id,
             prev_state_root,
             post_state_root,
             withdraw_root: Some(withdraw_root),
             sequencer_root: Some(sequencer_root),
             data_hash: l1_data_hash,
-        };
-
-        info
+        }
     }
 
     /// Public input hash for a given batch is defined as
@@ -68,7 +66,7 @@ impl BatchInfo {
     pub fn public_input_hash(&self, versioned_hash: &B256) -> B256 {
         let mut hasher = Keccak256::new();
 
-        hasher.update(&self.chain_id.to_be_bytes());
+        hasher.update(self.chain_id.to_be_bytes());
         hasher.update(self.prev_state_root.as_slice());
         hasher.update(self.post_state_root.as_slice());
         hasher.update(self.withdraw_root.unwrap().as_slice());

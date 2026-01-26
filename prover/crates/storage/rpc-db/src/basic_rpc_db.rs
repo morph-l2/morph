@@ -196,7 +196,7 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
         let account_info =
             result.map_err(|e| ProviderError::Database(DatabaseError::Other(e.to_string())))?;
         if !account_info.exists() {
-            return Ok(None);
+            Ok(None)
         } else {
             Ok(Some(account_info))
         }
@@ -234,7 +234,7 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
         let mut buf = [0u8; 16];
         buf[..8].copy_from_slice(&self.chain_id.to_be_bytes());
         buf[8..].copy_from_slice(&number.to_be_bytes());
-        Ok(alloy_primitives::utils::keccak256(buf).into())
+        Ok(alloy_primitives::utils::keccak256(buf))
     }
 }
 

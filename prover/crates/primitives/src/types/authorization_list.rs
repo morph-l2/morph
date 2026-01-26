@@ -1,5 +1,5 @@
 use alloy_eips::eip7702::{Authorization, SignedAuthorization};
-use alloy_primitives::{Address, Signature, U8, U64, U256, normalize_v};
+use alloy_primitives::{normalize_v, Address, Signature, U256, U64, U8};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A wrapper around SignedAuthorization that implements JSON-(de)serialization compat.

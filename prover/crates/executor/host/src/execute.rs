@@ -173,6 +173,6 @@ mod tests {
             .raw_request("eth_getBlockByNumber".into(), (format!("{block_number:#x}"), true))
             .await
             .unwrap();
-        println!("result: {:?}", result);
+        println!("result: {result:?}");
     }
 }

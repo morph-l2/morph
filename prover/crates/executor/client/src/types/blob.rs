@@ -39,7 +39,6 @@ pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Erro
         return Ok(Vec::new());
     }
 
-    println!("cycle-tracker-start: decompress_batch");
     let mut content = MAGIC_NUM.to_le_bytes().to_vec();
     content.append(&mut compressed_batch.to_vec());
     let mut x = content.as_slice();
@@ -47,7 +46,6 @@ pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Erro
     let mut decoder = StreamingDecoder::new(&mut x)?;
     let mut result = Vec::new();
     decoder.read_to_end(&mut result).unwrap();
-    println!("cycle-tracker-end: decompress_batch");
     println!("decompressed_batch: {:?}", result.len());
     Ok(result)
 }
@@ -79,7 +77,7 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
             // Support transaction types: 0x01, 0x02, 0x04
             if first_byte != 0x01 && first_byte != 0x02 && first_byte != 0x04 && first_byte != 0x7f
             {
-                println!("not supported tx type: 0x{:02x}", first_byte);
+                println!("not supported tx type: 0x{first_byte:02x}");
                 break;
             }
             (*bs.get(offset + 1).unwrap() - 0xf7) as usize

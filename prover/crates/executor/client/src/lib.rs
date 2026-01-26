@@ -11,11 +11,13 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     // Verify DA
     let num_blocks = input.block_inputs.len();
     let (versioned_hash, batch_data_from_blob) =
-        BlobVerifier::verify(&input.blob_info, num_blocks).unwrap();
+        BlobVerifier::verify(&input.blob_info, num_blocks)?;
     let batch_data_from_blocks = get_blob_data_from_blocks(
         &input.block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
     );
-    assert_eq!(batch_data_from_blob, batch_data_from_blocks, "blob data mismatch!");
+    if batch_data_from_blob != batch_data_from_blocks {
+        return Err(anyhow::anyhow!("blob data mismatch!"));
+    }
 
     // Verify EVM exec.
     let batch_info = profile_report!(EVM_VERIFY, { EVMVerifier::verify(input.block_inputs) })?;
@@ -32,6 +34,6 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
         hex::encode(batch_info.sequencer_root().as_slice()),
     );
     let public_input_hash = batch_info.public_input_hash(&versioned_hash);
-    println!("public input hash: {:?}", public_input_hash);
+    println!("public input hash: {public_input_hash:?}");
     Ok(B256::from_slice(public_input_hash.as_slice()))
 }

@@ -1,6 +1,6 @@
 use alloy_primitives::{map::HashMap, U256};
 use prover_mpt::EthereumState;
-use prover_primitives::{types::block::L2Block, Address, B256};
+use prover_primitives::{types::block::L2Block, Address};
 use prover_storage_witness::TrieDB;
 use revm::{primitives::keccak256, state::Bytecode};
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ pub struct BlobInfo {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlockInput {
-    // l2 block info
+    /// l2 block info
     pub current_block: L2Block,
 
     /// state as of the parent block.
@@ -38,9 +38,13 @@ impl BlockInput {
 
         let bytecodes_by_hash =
             self.bytecodes.iter().map(|code| (code.hash_slow(), code)).collect::<HashMap<_, _>>();
-        let block_hashes: HashMap<u64, B256> = HashMap::with_hasher(Default::default());
 
-        Ok(TrieDB::new(&self.parent_state, block_hashes, bytecodes_by_hash))
+        Ok(TrieDB::new(
+            &self.parent_state,
+            bytecodes_by_hash,
+            self.current_block.chain_id,
+            self.current_block.header.number.to::<u64>(),
+        ))
     }
 
     /// Get storage value of address at index.
@@ -80,8 +84,7 @@ mod tests {
     fn test_trace_to_execution_witness() {
         let block_trace = load_trace("../../../testdata/mpt/local_transfer_eth.json");
         println!("loaded {} blocks", block_trace.len());
-        let blocks: Vec<L2Block> =
-            block_trace.iter().map(|trace| L2Block::from_block_trace(trace)).collect();
+        let blocks: Vec<L2Block> = block_trace.iter().map(L2Block::from_block_trace).collect();
 
         let first_block = blocks.first().unwrap();
         let txs = first_block.transactions.clone();

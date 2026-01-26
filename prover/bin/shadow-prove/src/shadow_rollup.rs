@@ -308,7 +308,7 @@ pub async fn batch_input_inspect(l1_provider: &DynProvider, hash: TxHash) -> Opt
         log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
         return None;
     }
-    let param = if let Ok(_param) = Rollup::commitBatchCall::abi_decode(&data) {
+    let param = if let Ok(_param) = Rollup::commitBatchCall::abi_decode(data) {
         _param
     } else {
         log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);

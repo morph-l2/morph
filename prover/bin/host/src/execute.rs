@@ -3,20 +3,23 @@ use prover_executor_client::{types::input::ExecutorInput, EVMVerifier};
 use prover_executor_host::{
     blob::{get_blob_info_from_blocks, get_blob_info_from_traces},
     execute::HostExecutor,
-    trace_to_input,
+    trace::trace_to_input,
     utils::{assemble_block_input, query_block, HostExecutorOutput},
     ClientBlockInput,
 };
 use prover_utils::provider::get_block_traces;
 
-pub async fn execute(block_number: u64, provider: &DynProvider) -> ClientBlockInput {
-    let output: HostExecutorOutput =
-        HostExecutor::execute_block(block_number, provider).await.unwrap();
+/// Execute a single block.
+pub async fn execute(
+    block_number: u64,
+    provider: &DynProvider,
+) -> Result<ClientBlockInput, anyhow::Error> {
+    let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
 
-    let prev_block = query_block(block_number.saturating_sub(1), provider).await.unwrap();
+    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
     let block_input = assemble_block_input(output, prev_block);
-    let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
-    block_input
+    let _ = EVMVerifier::verify(vec![block_input.clone()])?;
+    Ok(block_input)
 }
 
 /// Execute a batch of blocks (inclusive).
@@ -33,9 +36,10 @@ pub async fn execute_batch(
     );
 
     let executor_input = if use_rpc_db {
+        // Use rpc db.
         let mut block_inputs = vec![];
         for block_number in start_block..=end_block {
-            block_inputs.push(execute(block_number, provider).await);
+            block_inputs.push(execute(block_number, provider).await?);
         }
         ExecutorInput {
             block_inputs: block_inputs.clone(),
@@ -44,8 +48,9 @@ pub async fn execute_batch(
             )?,
         }
     } else {
+        // Use sequencer's trace rpc.
         let traces = &mut get_block_traces(batch_index, start_block, end_block, provider).await?;
-        let blocks_inputs = traces.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
+        let blocks_inputs = traces.iter().map(trace_to_input).collect::<Vec<_>>();
         ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info_from_traces(traces)? }
     };
 
@@ -59,7 +64,7 @@ pub async fn execute_range(start_block: u64, end_block: u64, provider: &DynProvi
         "end_block ({end_block}) must be >= start_block ({start_block})"
     );
     for block_number in start_block..=end_block {
-        execute(block_number, provider).await;
+        execute(block_number, provider).await.unwrap();
     }
 }
 
@@ -72,7 +77,7 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, provider: &Dy
             Some(n) => n,
             None => break,
         };
-        execute(block_number, provider).await;
+        execute(block_number, provider).await.unwrap();
     }
 }
 
@@ -84,7 +89,7 @@ mod tests {
     };
 
     use alloy_provider::{Provider, ProviderBuilder};
-    use prover_executor_host::trace_to_input;
+    use prover_executor_host::trace::trace_to_input;
     use prover_primitives::types::BlockTrace;
     use std::{
         fs::{self, File},
@@ -99,7 +104,7 @@ mod tests {
         let (block_number, rpc) = command_args::read_execute_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
 
-        rt.block_on(execute(block_number, &provider));
+        rt.block_on(execute(block_number, &provider)).unwrap();
     }
 
     // cargo test -p morph-prove --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
@@ -136,11 +141,10 @@ mod tests {
             let file_str = file.to_string_lossy();
             let block_traces = &mut load_trace(&file_str);
 
-            let block_inputs =
-                block_traces.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
+            let block_inputs = block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
 
             let _ = EVMVerifier::verify(block_inputs).map_err(|e| {
-                println!("execute_local_traces verify error for file {file_str}: {:?}", e);
+                println!("execute_local_traces verify error for file {file_str}: {e:?}");
             });
         }
     }

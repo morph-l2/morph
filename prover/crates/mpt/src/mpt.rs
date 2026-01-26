@@ -1541,6 +1541,6 @@ mod tests {
         let mut hasher = Keccak256::new();
         hasher.update(&node_bytes);
         let result = hasher.finalize();
-        println!("Hash: 0x{:x}", result);
+        println!("Hash: 0x{result:x}");
     }
 }

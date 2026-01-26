@@ -14,27 +14,28 @@ use revm::{
 #[derive(Debug)]
 pub struct TrieDB<'a> {
     inner: &'a EthereumState,
-    block_hashes: HashMap<u64, B256>,
     bytecode_by_hash: HashMap<B256, &'a Bytecode>,
+    chain_id: u64,
+    block_number: u64,
 }
 
 impl<'a> TrieDB<'a> {
     /// Create a new [`TrieDB`].
     ///
     /// - `inner`: MPT-backed ethereum state.
-    /// - `block_hashes`: optional block hash mapping (used by `BLOCKHASH`).
     /// - `bytecode_by_hash`: bytecode lookup by code hash.
     pub fn new(
         inner: &'a EthereumState,
-        block_hashes: HashMap<u64, B256>,
         bytecode_by_hash: HashMap<B256, &'a Bytecode>,
+        chain_id: u64,
+        block_number: u64,
     ) -> Self {
-        Self { inner, block_hashes, bytecode_by_hash }
+        Self { inner, bytecode_by_hash, chain_id, block_number }
     }
 
     /// Convenience helper to read a storage slot value.
     pub fn get_storage_value(&self, address: Address, index: U256) -> Result<U256, anyhow::Error> {
-        self.storage_ref(address, index).map_err(|e| anyhow!("storage_ref error: {:?}", e))
+        self.storage_ref(address, index).map_err(|e| anyhow!("storage_ref error: {e:?}"))
     }
 }
 
@@ -96,61 +97,22 @@ impl DatabaseRef for TrieDB<'_> {
 
     /// Get block hash by block number.
     fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
-        Ok(*self
-            .block_hashes
-            .get(&number)
-            .expect("A block hash must be provided for each block number"))
+        // Morph EVM opcode difference:
+        // `BLOCKHASH(n)` returns `keccak(chain_id || n)` for the last 256 blocks.
+        // Keep Ethereum semantics for out-of-range queries (return zero).
+        if number > self.block_number {
+            return Ok(B256::ZERO);
+        }
+
+        // NOTE: `BLOCKHASH` is only defined for the last 256 blocks.
+        // I.e. for `n < current_number` and `current_number - n <= 256`.
+        if self.block_number.saturating_sub(number) >= 256 {
+            return Ok(B256::ZERO);
+        }
+
+        let mut buf = [0u8; 16];
+        buf[..8].copy_from_slice(&self.chain_id.to_be_bytes());
+        buf[8..].copy_from_slice(&number.to_be_bytes());
+        Ok(alloy_primitives::utils::keccak256(buf))
     }
 }
-
-
-
-// #[cfg(test)]
-// mod tests {
-//     use prover_mpt::EthereumState;
-//     use prover_primitives::{types::BlockTrace, Block};
-//     use std::fs::File;
-//     use std::io::BufReader;
-
-//     use crate::trace_to_execution_witness;
-
-//     #[test]
-//     fn test_trace_to_execution_witness() {
-//         let block_trace = load_trace("../../testdata/mpt/local_transfer_eth.json");
-//         println!("loaded {} blocks", block_trace.len());
-//         let witness = trace_to_execution_witness(&block_trace[0]).unwrap();
-
-//         assert!(!witness.state.is_empty());
-//         assert!(!witness.codes.is_empty());
-//         let state = EthereumState::from_execution_witness(&witness, block_trace[0].root_before());
-
-//         // Check mpt state root equals to block trace root_before
-//         println!("built ethereum state from witness: {:?}", state.state_root());
-//         assert_eq!(state.state_root(), block_trace[0].root_before(), "state root mismatch");
-
-//         // Check number of accounts and storage tries
-//         let mut account_count = 0;
-//         state.state_trie.for_each_leaves(|_, _| account_count += 1);
-//         println!(
-//             "built state trie with {} accounts and {} storage tries",
-//             account_count,
-//             state.storage_tries.len()
-//         );
-//         assert_eq!(
-//             account_count,
-//             block_trace[0].storage_trace.proofs.as_ref().unwrap_or(&Default::default()).len(),
-//             "account_trie_count not expected"
-//         );
-//         assert_eq!(
-//             state.storage_tries.len(),
-//             block_trace[0].storage_trace.storage_proofs.len(),
-//             "storage_trie_count not expected"
-//         );
-//     }
-
-//     fn load_trace(file_path: &str) -> Vec<BlockTrace> {
-//         let file = File::open(file_path).unwrap();
-//         let reader = BufReader::new(file);
-//         serde_json::from_reader(reader).unwrap()
-//     }
-// }

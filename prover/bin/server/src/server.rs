@@ -137,8 +137,7 @@ async fn add_pending_req(param: String) -> String {
     let blocks_len = prove_request.end_block - prove_request.start_block + 1;
     if blocks_len as usize > *MAX_PROVE_BLOCKS {
         return format!(
-            "blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
-            blocks_len, MAX_PROVE_BLOCKS
+            "blocks len = {blocks_len:?} exceeds MAX_PROVE_BLOCKS = {MAX_PROVE_BLOCKS:?}"
         );
     }
 

@@ -17,7 +17,7 @@ impl EVMVerifier {
         // Edge case: nothing to execute.
         if blocks.is_empty() {
             return Err(ClientError::BlockExecutionError(
-                "empty batch: no block inputs provided".to_string(),
+                "empty batch: no block inputs provided".to_owned(),
             ));
         }
         // Verify that each block's `prev_state_root` matches the previous block's `post_state_root`.
@@ -28,8 +28,7 @@ impl EVMVerifier {
         {
             return Err(ClientError::DiscontinuousStateRoot);
         }
-        let batch_info = execute(blocks)?;
-        Ok(batch_info)
+        execute(blocks)
     }
 }
 
@@ -38,7 +37,7 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
     block_inputs
         .iter_mut()
         .filter(|block_input| !block_input.current_block.transactions.is_empty())
-        .try_for_each(|block_input| execute_block(block_input))?;
+        .try_for_each(execute_block)?;
 
     // Find the last post_state with non-empty transactions, or fall back to the last one
     let latest_block = block_inputs.last().expect("block_inputs is non-empty");
@@ -108,7 +107,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     // Execute block.
     let bundle_state = core_executor
         .execute_block(&block.transactions)
-        .map_err(|e| ClientError::BlockExecutionError(format!("{:#}", e)))?;
+        .map_err(|e| ClientError::BlockExecutionError(format!("{e:#}")))?;
     // Verify the post-state root by applying the block's transition set to the parent (pre-block) state.
     let computed_state_root = {
         let hashed_post_state =

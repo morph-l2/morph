@@ -1,14 +1,17 @@
-use crate::{BatchInfo, SHADOW_EXECUTE_WITH_WITNESS};
-use alloy_provider::{DynProvider, Provider};
-use anyhow::{anyhow, Context};
+use crate::{BatchInfo, SHADOW_EXECUTE_USE_RPC_DB};
+use alloy_provider::DynProvider;
+use anyhow::Context;
 use prover_executor_client::{
     types::input::{BlockInput, ExecutorInput},
     verify,
 };
 use prover_executor_host::{
-    blob::{get_blob_info_from_blocks, get_blob_info_from_traces}, execute::HostExecutor, trace_to_input, utils::{HostExecutorOutput, assemble_block_input, query_block}
+    blob::{get_blob_info_from_blocks, get_blob_info_from_traces},
+    execute::HostExecutor,
+    trace::trace_to_input,
+    utils::{assemble_block_input, query_block, HostExecutorOutput},
 };
-use prover_primitives::types::BlockTrace;
+use prover_utils::provider::get_block_traces;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -25,35 +28,32 @@ pub struct ExecuteResult {
     pub error_code: String,
 }
 
+/// Execute a single block.
+pub async fn execute(
+    block_number: u64,
+    provider: &DynProvider,
+) -> Result<BlockInput, anyhow::Error> {
+    let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
+
+    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output, prev_block);
+    Ok(block_input)
+}
+
 pub async fn try_execute_batch(
     batch: &BatchInfo,
     provider: &DynProvider,
 ) -> Result<(), anyhow::Error> {
-    let block_traces =
-        get_block_traces(batch.batch_index, batch.start_block, batch.end_block, &provider.clone())
-            .await
-            .ok_or_else(|| {
-                anyhow!("get_block_traces failed for batch index = {:#?}", batch.batch_index)
-            })?;
-
-    let client_input = if *SHADOW_EXECUTE_WITH_WITNESS {
-        let blocks_inputs =
-            block_traces.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
-        ExecutorInput {
-            block_inputs: blocks_inputs,
-            blob_info: get_blob_info_from_traces(&block_traces)?,
-        }
-    } else {
+    let client_input = if *SHADOW_EXECUTE_USE_RPC_DB {
         let start_block = batch.start_block;
         let end_block = batch.end_block;
         let provider = provider.clone();
-        
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .context("Failed to build tokio runtime for shadow exec host")?;
-        let blocks_inputs =
-            runtime.block_on(async { execute_host_range(start_block, end_block, &provider).await });
+        let blocks_inputs = runtime
+            .block_on(async { execute_host_range(start_block, end_block, &provider).await })?;
 
         ExecutorInput {
             block_inputs: blocks_inputs.clone(),
@@ -61,12 +61,19 @@ pub async fn try_execute_batch(
                 &blocks_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
             )?,
         }
+    } else {
+        // Use sequencer's trace rpc.
+        let traces =
+            &mut get_block_traces(batch.batch_index, batch.start_block, batch.end_block, provider)
+                .await?;
+        let blocks_inputs = traces.iter().map(trace_to_input).collect::<Vec<_>>();
+        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info_from_traces(traces)? }
     };
 
     let result = verify(client_input.clone()).context("native execution failed");
     match result {
         Ok(_) => Ok(()),
-        Err(e) => Err(anyhow::Error::from(e)),
+        Err(e) => Err(e),
     }
 }
 
@@ -75,62 +82,20 @@ pub async fn execute_host_range(
     start_block: u64,
     end_block: u64,
     provider: &DynProvider,
-) -> Vec<BlockInput> {
-    assert!(
-        end_block >= start_block,
-        "end_block ({end_block}) must be >= start_block ({start_block})"
-    );
+) -> Result<Vec<BlockInput>, anyhow::Error> {
     let mut block_inputs = Vec::new();
     for block_number in start_block..=end_block {
-        let block_input = execute_host(block_number, provider).await;
+        let block_input = execute(block_number, provider).await?;
         block_inputs.push(block_input);
     }
-    block_inputs
-}
-
-pub async fn execute_host(block_number: u64, provider: &DynProvider) -> BlockInput {
-    let prev_block = query_block(block_number.saturating_sub(1), &provider).await.unwrap();
-    let output: HostExecutorOutput =
-        HostExecutor::execute_block(block_number, &provider).await.unwrap();
-
-    assemble_block_input(output, prev_block)
-    // let _batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
-}
-
-// Fetches block traces by provider
-async fn get_block_traces(
-    batch_index: u64,
-    start_block: u64,
-    end_block: u64,
-    provider: &DynProvider,
-) -> Option<Vec<BlockTrace>> {
-    let mut block_traces: Vec<BlockTrace> = Vec::new();
-    for block_num in start_block..end_block + 1 {
-        log::debug!("requesting trace of block {block_num}");
-        let result = provider
-            .raw_request("morph_getBlockTraceByNumberOrHash".into(), [format!("{block_num:#x}")])
-            .await;
-
-        match result {
-            Ok(trace) => block_traces.push(trace),
-            Err(e) => {
-                log::error!("requesting trace error: {e}");
-                return None;
-            }
-        }
-    }
-    if (end_block + 1 - start_block) as usize != block_traces.len() {
-        log::error!("block_traces.len not expected, batch index = {:#?}", batch_index);
-        return None;
-    }
-    Some(block_traces)
+    Ok(block_inputs)
 }
 
 #[cfg(test)]
 mod tests {
     use alloy_provider::{Provider, ProviderBuilder};
     use prover_executor_client::{types::input::BlockInput, EVMVerifier};
-    use prover_executor_host::trace_to_input;
+    use prover_executor_host::trace::trace_to_input;
     use prover_primitives::types::BlockTrace;
     use prover_utils::provider::get_block_trace;
 
@@ -146,7 +111,8 @@ mod tests {
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let block_inputs = rt.block_on(execute_host_range(start_block, end_block, &provider));
+        let block_inputs =
+            rt.block_on(execute_host_range(start_block, end_block, &provider)).unwrap();
         let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
     }
 

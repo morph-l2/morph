@@ -4,7 +4,7 @@ use alloy_provider::{Provider, ProviderBuilder};
 use clap::Parser;
 use morph_prove::{execute::execute_batch, prove, utils::command_args::parse_u64_auto_radix};
 use prover_executor_client::types::input::ExecutorInput;
-use prover_executor_host::{blob::get_blob_info_from_traces, trace_to_input};
+use prover_executor_host::{blob::get_blob_info_from_traces, trace::trace_to_input};
 use prover_primitives::types::BlockTrace;
 
 /// The arguments for the command.
@@ -41,13 +41,15 @@ async fn main() {
 
     let args = Args::parse();
     let mut input = if args.use_rpc_db {
+        // Use RPC to fetch state.
         let provider = ProviderBuilder::new().connect_http(args.rpc.parse().unwrap()).erased();
         execute_batch(1, args.start_block, args.end_block, &provider, true).await.unwrap()
     } else {
+        // Use local traces file.
         let block_traces = &mut load_trace(&args.block_path);
         println!("block_traces.len: {:?}", block_traces.len());
         let blocks_inputs =
-            block_traces.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
+            block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
         ExecutorInput {
             block_inputs: blocks_inputs,
             blob_info: get_blob_info_from_traces(block_traces).unwrap(),
@@ -58,7 +60,7 @@ async fn main() {
             format!("proof/executor_input_{}_{}.json", args.start_block, args.end_block);
         let file = File::create(&input_path).unwrap();
         serde_json::to_writer(file, &input).unwrap();
-        println!("Saved executor input to {}", input_path);
+        println!("Saved executor input to {input_path}");
     }
 
     let _ = prove(&mut input, args.prove).unwrap();

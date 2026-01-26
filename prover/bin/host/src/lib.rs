@@ -4,8 +4,7 @@ pub mod execute;
 pub mod utils;
 use evm::{save_plonk_fixture, EvmProofFixture};
 use prover_executor_client::{types::input::ExecutorInput, verify};
-use prover_executor_host::{blob::get_blob_info_from_traces, trace_to_input};
-use prover_primitives::{alloy_primitives::keccak256, types::BlockTrace, B256};
+use prover_primitives::{alloy_primitives::keccak256, B256};
 use prover_utils::read_env_var;
 use sp1_sdk::{network::NetworkMode, HashableKey, Prover, ProverClient, SP1Stdin};
 use sp1_verifier::PlonkVerifier;
@@ -102,18 +101,6 @@ pub fn prove(
         save_plonk_fixture(&fixture);
     }
     Ok(Some(fixture))
-}
-
-pub fn execute_batch(
-    blocks: &mut Vec<BlockTrace>,
-) -> Result<(ExecutorInput, alloy::primitives::FixedBytes<32>), anyhow::Error> {
-    let blocks_inputs = blocks.iter().map(|trace| trace_to_input(trace)).collect::<Vec<_>>();
-    let client_input = ExecutorInput {
-        block_inputs: blocks_inputs,
-        blob_info: get_blob_info_from_traces(blocks)?,
-    };
-    let expected_hash = verify(client_input.clone()).context("native execution failed")?;
-    Ok((client_input, expected_hash))
 }
 
 #[cfg(test)]
