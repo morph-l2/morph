@@ -4,7 +4,7 @@ use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxLe
 use alloy_eips::eip2930::AccessList;
 use alloy_eips::Encodable2718;
 use alloy_primitives::{Bytes, ChainId, Signature, SignatureError, TxKind};
-use morph_primitives::{TxAltFee, TxL1Msg};
+use morph_primitives::{TxL1Msg, TxMorph};
 use std::fmt::Debug;
 
 /// Predeployed contracts
@@ -243,7 +243,7 @@ pub trait TxTrace {
                 MorphTxEnvelope::L1Msg(tx.seal())
             }
             0x7f => {
-                let tx = TxAltFee {
+                let tx = TxMorph {
                     chain_id,
                     nonce: self.nonce(),
                     gas_limit: self.gas_limit() as u128,
@@ -256,7 +256,7 @@ pub trait TxTrace {
                     fee_token_id: self.fee_token_id(),
                     fee_limit: self.fee_limit(),
                 };
-                MorphTxEnvelope::AltFee(tx.into_signed(self.signature()?))
+                MorphTxEnvelope::Morph(tx.into_signed(self.signature()?))
             }
             _ => unimplemented!("unsupported tx type: {}", self.ty()),
         };

@@ -119,16 +119,16 @@ mod tests {
     #[tokio::test]
     async fn test_execute_batch() {
         let handle = tokio::spawn(async move {
-        let provider = ProviderBuilder::new()
-            .connect_http("http://127.0.0.1:9545".parse().unwrap())
-            .erased();
+            let provider = ProviderBuilder::new()
+                .connect_http("http://127.0.0.1:9545".parse().unwrap())
+                .erased();
 
-        try_execute_batch(
-            &BatchInfo { batch_index: 1, start_block: 53, end_block: 54, total_txn: 1 },
-            &provider,
-        )
-        .await
-        .unwrap();
+            try_execute_batch(
+                &BatchInfo { batch_index: 1, start_block: 53, end_block: 54, total_txn: 1 },
+                &provider,
+            )
+            .await
+            .unwrap();
         });
 
         handle.await.unwrap();
@@ -141,6 +141,16 @@ mod tests {
         let block_trace = get_block_trace::<BlockTrace>(53, &provider).await.unwrap();
         println!("loaded block_{} traces", block_trace.header.number);
         let block_input: BlockInput = trace_to_input(&block_trace);
+
+        let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
+        println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
+    }
+
+    #[tokio::test]
+    async fn test_execute_local() {
+        let file = std::fs::File::open("../../testdata/mpt/executor_input_19720290.data").unwrap();
+        let reader = std::io::BufReader::new(file);
+        let block_input: BlockInput = serde_json::from_reader(reader).unwrap();
 
         let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
         println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);

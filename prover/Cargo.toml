@@ -118,10 +118,10 @@ revm = { version = "33.1.0", features = [
 reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
 reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
+morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
+morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
+morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
 
 
 # ZK / SP1
