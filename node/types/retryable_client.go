@@ -201,6 +201,9 @@ func (rc *RetryableClient) switchClient(ctx context.Context, timeStamp uint64, n
 	if rc.switched.Load() {
 		return
 	}
+	if rc.switchTime == 0 {
+		return
+	}
 	if timeStamp < rc.switchTime {
 		return
 	}
