@@ -43,6 +43,7 @@ const HOLESKY_URL = process.env.HOLESKY_RPC_URL || 'http://127.0.0.1:8545'
 const HOODI_URL = process.env.HOODI_RPC_URL || 'https://0xrpc.io/hoodi'
 const MAINNET_URL = process.env.MAINNET_RPC_URL || 'https://ethereum-rpc.publicnode.com'
 const HOODI_L2_URL = process.env.HOODI_L2_RPC_URL || 'https://rpc-hoodi.morph.network'
+const MAINNET_L2_URL = process.env.MAINNET_L2_URL || 'https://rpc.morph.network'
 
 module.exports = {
     defaultNetwork: 'hardhat',
@@ -116,13 +117,20 @@ module.exports = {
             gasPrice: 'auto',
             accounts: [DEPLOYER_PK]
         },
+        mainnetl2: {
+            url: MAINNET_L2_URL,
+            chainId: 2818,
+            gas: 'auto',
+            gasPrice: 'auto',
+            accounts: [DEPLOYER_PK]
+        },
         mainnet: {
             url: MAINNET_URL,
             chainId: 1,
             gas: 'auto',
             gasPrice: 'auto',
             accounts: [DEPLOYER_PK]
-        },
+        }
     },
     foundry: {
         buildInfo: true,
