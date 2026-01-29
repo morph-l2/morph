@@ -290,7 +290,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				beforeSwitch := lastHeader.Time < d.switchTime
 				if (beforeSwitch && !d.useZktrie) || (!beforeSwitch && d.useZktrie) {
 					skipValidation = true
-					d.logger.Error("Root validation skipped during upgrade transition",
+					d.logger.Info("Root validation skipped during upgrade transition",
 						"originStateRootHash", batchInfo.root,
 						"deriveStateRootHash", lastHeader.Root.Hex(),
 						"blockTimestamp", lastHeader.Time,
