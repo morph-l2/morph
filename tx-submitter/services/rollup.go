@@ -22,6 +22,7 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto/bls12381"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/eth"
+	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/morph-l2/go-ethereum/params"
 	"github.com/morph-l2/go-ethereum/rpc"
@@ -835,10 +836,26 @@ func (r *Rollup) finalize() error {
 		log.Info("batch inside challenge window, wait")
 		return nil
 	}
-	// finalize
-
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
+	var l2Clients []iface.L2Client
+	zkmRpc := ""
+	upgradeBatchIndex := uint64(1000000)
+
+	if nextBatchIndex < upgradeBatchIndex {
+		l2Client, err := ethclient.DialContext(context.Background(), zkmRpc)
+		if err != nil {
+			log.Error("failed to connect to L2 provider", "url", zkmRpc)
+			return err
+		}
+		l2Clients = append(l2Clients, l2Client)
+	} else {
+		l2Clients = append(l2Clients, r.L2Clients...)
+	}
+	if len(l2Clients) == 0 {
+		return fmt.Errorf("cannot connect to any l2 rpc")
+	}
+
 	batch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
 	if err != nil {
 		log.Error("get next batch by index error",
