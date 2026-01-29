@@ -14,3 +14,4 @@ morph-evm = { workspace = true }
 morph-chainspec = { workspace = true }
 alloy-evm = { workspace = true }
 alloy-consensus.workspace = true
+log = { workspace = true }

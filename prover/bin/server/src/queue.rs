@@ -48,16 +48,26 @@ impl Prover {
             tokio::time::sleep(Duration::from_millis(12000)).await;
 
             // Step1. Get request from queue
-            let (batch_index, start_block, end_block) = match self.prove_queue.lock().await.pop() {
+            let (batch_index, start_block, end_block, shadow) = match self
+                .prove_queue
+                .lock()
+                .await
+                .pop()
+            {
                 Some(req) => {
                     log::info!(
                         "received prove request, batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, end_block = {:#?}",
                         req.batch_index,
                         req.end_block - req.start_block + 1,
                         req.start_block,
-                        req.end_block,
+                        req.shadow,
                     );
-                    (req.batch_index, req.start_block, req.end_block)
+                    (
+                        req.batch_index,
+                        req.start_block,
+                        req.end_block,
+                        req.shadow.unwrap_or_default(),
+                    )
                 }
                 None => {
                     log::info!("no prove request");
@@ -83,7 +93,7 @@ impl Prover {
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
             let start = Instant::now();
-            let prove_rt = prove(&mut input, true);
+            let prove_rt = prove(&mut input, !shadow);
 
             match prove_rt {
                 Ok(Some(proof)) => {

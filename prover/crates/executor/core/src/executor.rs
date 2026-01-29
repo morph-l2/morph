@@ -92,6 +92,7 @@ impl<DB: Database> MorphExecutor<DB> {
             self.inner
                 .transact_commit(morph_tx)
                 .with_context(|| format!("tx[{tx_index}] transact_commit error"))?;
+            log::info!("tx[{tx_index}] executed");
         }
         // Merge transitions and build hashed post-state.
         self.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);

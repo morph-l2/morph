@@ -5453,6 +5453,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-evm",
  "anyhow",
+ "log",
  "morph-chainspec",
  "morph-evm",
  "morph-primitives",

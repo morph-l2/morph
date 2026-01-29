@@ -241,7 +241,7 @@ where
         let state_requests = self.get_state_requests();
 
         // For every account we touched, fetch the storage proofs for all the slots we touched.
-        tracing::info!("fetching storage proofs");
+        tracing::debug!("fetching storage proofs");
         let mut before_storage_proofs = Vec::new();
         let mut after_storage_proofs = Vec::new();
 

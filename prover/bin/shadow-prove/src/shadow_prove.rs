@@ -150,28 +150,28 @@ async fn handle_with_prover<P, N>(
         }
 
         // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 1600 * blocks_len as usize; //block_prove_time =30min
-        while max_waiting_time > 300 {
-            sleep(Duration::from_secs(300)).await;
-            max_waiting_time -= 300; // Query results every 5 minutes.
-            match query_proof(batch_index).await {
-                Some(prove_result) => {
-                    if !prove_result.error_code.is_empty() {
-                        log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
-                        return;
-                    }
-                    log::debug!("query proof and prove state: {:#?}", batch_index);
-                    if !prove_result.proof_data.is_empty() {
-                        prove_state(batch_index, l1_shadow_rollup).await;
-                        return;
-                    }
-                }
-                None => {
-                    log::error!("prover status unknown, resubmit task");
-                    break;
-                }
-            }
-        }
+        // let mut max_waiting_time: usize = 1600 * blocks_len as usize; //block_prove_time =30min
+        // while max_waiting_time > 300 {
+        //     sleep(Duration::from_secs(300)).await;
+        //     max_waiting_time -= 300; // Query results every 5 minutes.
+        //     match query_proof(batch_index).await {
+        //         Some(prove_result) => {
+        //             if !prove_result.error_code.is_empty() {
+        //                 log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
+        //                 return;
+        //             }
+        //             log::debug!("query proof and prove state: {:#?}", batch_index);
+        //             if !prove_result.proof_data.is_empty() {
+        //                 prove_state(batch_index, l1_shadow_rollup).await;
+        //                 return;
+        //             }
+        //         }
+        //         None => {
+        //             log::error!("prover status unknown, resubmit task");
+        //             break;
+        //         }
+        //     }
+        // }
     }
 }
 
