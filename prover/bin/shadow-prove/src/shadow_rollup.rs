@@ -6,7 +6,7 @@ use alloy_provider::{DynProvider, Provider};
 use alloy_rpc_types::Log;
 use alloy_sol_types::SolCall;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::future::join_all;
 
 use crate::{
@@ -47,10 +47,10 @@ where
         &self,
         batch_info: BatchInfo,
         batch_header: Bytes,
-    ) -> Result<Option<BatchInfo>> {
+    ) -> Result<Option<BatchInfo>, anyhow::Error> {
         log::info!("start sync_batch...");
         // Batch should not have been verified yet.
-        if self.is_prove_success(batch_info.batch_index).await.unwrap_or(true) {
+        if self.is_prove_success(batch_info.batch_index).await? {
             log::info!("batch of {:?} already prove state successful", batch_info.batch_index);
             return Ok(None);
         };
@@ -269,20 +269,13 @@ where
         Some(((start_block, end_block), total_tx_count))
     }
 
-    async fn is_prove_success(&self, batch_index: u64) -> Option<bool> {
-        let is_prove_success: bool =
-            match self.l1_shadow_rollup.isProveSuccess(U256::from(batch_index)).call().await {
-                Ok(x) => x,
-                Err(e) => {
-                    log::info!(
-                        "query l1_shadow_rollup.is_prove_success error, batch index = {:#?}, {:#?}",
-                        batch_index,
-                        e
-                    );
-                    return None;
-                }
-            };
-        Some(is_prove_success)
+    // Check whether a batch has been proved successfully.
+    async fn is_prove_success(&self, batch_index: u64) -> Result<bool, anyhow::Error> {
+        self.l1_shadow_rollup
+            .isProveSuccess(U256::from(batch_index))
+            .call()
+            .await
+            .context("l1_shadow_rollup.is_prove_succes")
     }
 }
 

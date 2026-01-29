@@ -48,12 +48,15 @@ pub async fn try_execute_batch(
         let start_block = batch.start_block;
         let end_block = batch.end_block;
         let provider = provider.clone();
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .context("Failed to build tokio runtime for shadow exec host")?;
-        let blocks_inputs = runtime
-            .block_on(async { execute_host_range(start_block, end_block, &provider).await })?;
+        let blocks_inputs = tokio::task::spawn_blocking(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .context("Failed to build tokio runtime for shadow exec host")?;
+            runtime.block_on(async { execute_host_range(start_block, end_block, &provider).await })
+        })
+        .await
+        .context("spawn_blocking failed")??;
 
         ExecutorInput {
             block_inputs: blocks_inputs.clone(),
