@@ -309,7 +309,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						return
 					}
 				}
-				d.logger.Info("root hash or withdrawal hash is not equal",
+				d.logger.Error("root hash or withdrawal hash is not equal",
 					"originStateRootHash", batchInfo.root,
 					"deriveStateRootHash", lastHeader.Root.Hex(),
 					"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
