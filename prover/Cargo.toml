@@ -26,7 +26,7 @@ homepage = "https://github.com/morph-l2/morph/tree/main/prover"
 repository = "https://github.com/morph-l2/morph/tree/main/prover"
 
 [workspace.dependencies]
-# General Utilities
+indexmap = "1.8"
 anyhow = "1.0"
 cfg-if = "1.0.0"
 clap = "4"
@@ -74,7 +74,7 @@ rand = "0.8"
 # EVM & Blockchain (Alloy, REVM, Reth)
 alloy = { version = "1.1.3", default-features = false }
 alloy-chains = { version = "0.2.17", default-features = false }
-alloy-consensus = { version = "=1.1.3", default-features = false, features = [
+alloy-consensus = { version = "1.1.3", default-features = false, features = [
     "serde",
     "serde-bincode-compat",
 ] }
@@ -108,7 +108,7 @@ alloy-transport-ws = { version = "1.1.3" }
 alloy-trie = "0.9.1"
 alloy-sol-types = { version = "1.4.1", features = ["json"] }
 alloy-contract = { version = "1.1.3", default-features = false }
-alloy-signer-local = { version = "=1.1.3", default-features = false }
+alloy-signer-local = { version = "1.1.3", default-features = false }
 rlp = "0.5.2"
 hex-literal = "0.4.1"
 revm = { version = "33.1.0", features = [
@@ -118,10 +118,10 @@ revm = { version = "33.1.0", features = [
 reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
 reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "64909d3", default-features = false }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
-morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "feat/evm_exec" }
+morph-revm = { path = "../../morph-reth/crates/revm" }
+morph-evm = { path = "../../morph-reth/crates/evm" }
+morph-primitives = { path = "../../morph-reth/crates/primitives" }
+morph-chainspec = { path = "../../morph-reth/crates/chainspec" }
 
 
 # ZK / SP1
@@ -140,7 +140,7 @@ prover-storage-witness = { path = "./crates/storage/witness-db" }
 prover-mpt = { path = "crates/mpt" }
 prover-utils = { path = "crates/utils" }
 
-tracing-subscriber = { version = "=0.3.22", default-features = false }
+tracing-subscriber = { version = "0.3.22", default-features = false }
 
 
 [workspace.lints.rust]

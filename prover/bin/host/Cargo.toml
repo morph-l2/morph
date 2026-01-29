@@ -13,6 +13,7 @@ name = "vkey"
 path = "src/vkey.rs"
 
 [dependencies]
+indexmap = { workspace = true }
 sp1-sdk = { workspace = true }
 sp1-verifier = { workspace = true }
 anyhow.workspace = true

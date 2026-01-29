@@ -2,7 +2,7 @@ use alloy_rlp::Decodable;
 use anyhow::{anyhow, Ok};
 #[cfg(not(target_os = "zkvm"))]
 use prover_primitives::MorphTxEnvelope;
-use ruzstd::StreamingDecoder;
+use ruzstd::decoding::StreamingDecoder;
 use std::io::Read;
 
 /// This magic number is included at the start of a single Zstandard frame
