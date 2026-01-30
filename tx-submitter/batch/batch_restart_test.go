@@ -24,13 +24,13 @@ var (
 )
 
 var (
-	rollupAddr          = common.HexToAddress("0xd1827e85d8149013778b5675f9d1d7fb750ae31a")
+	rollupAddr          = common.HexToAddress("0x0165878a594ca255338adfa4d48449f69242eb8f")
 	sequencerAddr       = common.HexToAddress("0x5300000000000000000000000000000000000017")
 	l2MessagePasserAddr = common.HexToAddress("0x5300000000000000000000000000000000000001")
 	govAddr             = common.HexToAddress("0x5300000000000000000000000000000000000004")
 
-	l1ClientRpc = "https://old-empty-sound.ethereum-hoodi.quiknode.pro/0f479a6bd068da530e0afdb36755f94c9facef17"
-	l2ClientRpc = "http://l2-qa-morph-senquencer-1.bitkeep.tools"
+	l1ClientRpc = "http://localhost:9545"
+	l2ClientRpc = "http://localhost:8545"
 	l1Client, _ = ethclient.Dial(l1ClientRpc)
 	l2Client, _ = ethclient.Dial(l2ClientRpc)
 
@@ -58,6 +58,13 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func Test_GetFinalizeBatchHeader(t *testing.T) {
+	bc := NewBatchCache(nil, l1Client, l2Client, rollupContract, sequencerContract, l2MessagePasserContract, govContract)
+	headerBytes, err := bc.getLastFinalizeBatchHeaderFromRollupByIndex(0)
+	require.NoError(t, err)
+	t.Log("headerBytes", hex.EncodeToString(headerBytes.Bytes()))
 }
 
 func Test_CommitBatchParse(t *testing.T) {

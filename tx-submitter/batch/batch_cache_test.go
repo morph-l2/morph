@@ -29,7 +29,7 @@ func init() {
 
 func TestBatchCacheInit(t *testing.T) {
 	cache := NewBatchCache(nil, l1Client, l2Client, rollupContract, sequencerContract, l2MessagePasserContract, govContract)
-	err := cache.InitFromRollup()
+	err := cache.InitAndSyncFromRollup()
 	require.NoError(t, err)
 }
 

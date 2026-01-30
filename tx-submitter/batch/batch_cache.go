@@ -10,15 +10,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
-	"github.com/morph-l2/go-ethereum/log"
-
 	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/iface"
 
+	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/log"
 )
 
 // SealedBatchInfo stores sealed batch information
@@ -137,14 +136,13 @@ func (bc *BatchCache) InitFromRollupByRange() error {
 	if err != nil {
 		return fmt.Errorf("get last finalize batch header err: %w", err)
 	}
-	parentStateRoot, err := headerBytes.PostStateRoot()
-	if err != nil {
-		return fmt.Errorf("get post state root err: %w", err)
-	}
 	// Initialize BatchCache parent batch information
 	// prevStateRoot should be the parent batch's postStateRoot
 	bc.parentBatchHeader = headerBytes
-	bc.prevStateRoot = parentStateRoot // The current batch's prevStateRoot is the parent batch's postStateRoot
+	bc.prevStateRoot, err = headerBytes.PostStateRoot()
+	if err != nil {
+		return fmt.Errorf("get post state root err: %w", err)
+	}
 	bc.lastPackedBlockHeight, err = headerBytes.LastBlockNumber()
 	if err != nil {
 		return fmt.Errorf("get last block number err: %w", err)
@@ -163,7 +161,7 @@ func (bc *BatchCache) InitFromRollupByRange() error {
 	return nil
 }
 
-func (bc *BatchCache) InitFromRollup() error {
+func (bc *BatchCache) InitAndSyncFromRollup() error {
 	ci, fi, err := bc.getBatchStatusFromContract()
 	if err != nil {
 		return fmt.Errorf("get batch status from rollup failed err: %w", err)
@@ -194,17 +192,6 @@ func (bc *BatchCache) InitFromRollup() error {
 		startNum, endNum, err := bc.getBatchBlockRange(batchIndex)
 		if err != nil {
 			return fmt.Errorf("get batch block range err: %w,start %v, end %v", err, startNum, endNum)
-		}
-		{
-			startBlock, err := bc.l2Client.BlockByNumber(context.Background(), new(big.Int).SetUint64(startNum))
-			if err != nil {
-				return err
-			}
-			endBlock, err := bc.l2Client.BlockByNumber(context.Background(), new(big.Int).SetUint64(endNum))
-			if err != nil {
-				return err
-			}
-			log.Info("Assemble batch from l2 blocks", "from block", startNum, "to block", endNum, "time", endBlock.Time()-startBlock.Time())
 		}
 		batchHeaderBytes, err := bc.assembleBatchHeaderFromL2Blocks(startNum, endNum)
 		if err != nil {
@@ -835,7 +822,7 @@ func (bc *BatchCache) assembleBatchHeaderFromL2BlocksByBlockRange() error {
 
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := startBlockNum; blockNum <= endBlockNum; blockNum++ {
-		callOpts.BlockNumber = new(big.Int).SetUint64(blockNum)
+		callOpts.BlockNumber = new(big.Int).SetUint64(bc.lastPackedBlockHeight)
 		root, err := bc.l2MessagePasserContract.GetTreeRoot(callOpts)
 		if err != nil {
 			return fmt.Errorf("failed to get withdraw root at block %d: %w", blockNum, err)
@@ -845,11 +832,6 @@ func (bc *BatchCache) assembleBatchHeaderFromL2BlocksByBlockRange() error {
 		exceeded, err := bc.CalculateCapWithProposalBlock(blockNum, root)
 		if err != nil {
 			return fmt.Errorf("failed to calculate cap with block %d: %w", blockNum, err)
-		}
-
-		// Pack current block (confirm and append to batch)
-		if err = bc.PackCurrentBlock(blockNum); err != nil {
-			return fmt.Errorf("failed to pack block %d: %w", blockNum, err)
 		}
 
 		// Get current block to check timeout after packing
@@ -875,34 +857,9 @@ func (bc *BatchCache) assembleBatchHeaderFromL2BlocksByBlockRange() error {
 		// Timeout check ensures batch is sealed before exceeding the maximum timeout
 		if exceeded || (bc.blockInterval > 0 && (blockNum-startBlockNum+1) == bc.blockInterval) || timeout {
 			log.Info("block exceeds limit", "start", startBlockNum, "to", blockNum, "exceeded", exceeded, "timeout", timeout)
-			sequencerSetVerifyHash, err := bc.sequencerContract.SequencerSetVerifyHash(callOpts)
+			batchHash, reachedExpectedSize, err := bc.SealBatchAndCheck(callOpts, ci)
 			if err != nil {
-				return fmt.Errorf("failed to get sequencer set verify hash at block %d: %w", callOpts.BlockNumber.Uint64(), err)
-			}
-			lastBlock, err := bc.l2Client.BlockByNumber(ctx, big.NewInt(int64(blockNum)))
-			if err != nil {
-				return fmt.Errorf("failed to get last block %d: %w", endBlockNum, err)
-			}
-			blockTimestamp := lastBlock.Time()
-			// Seal batch and generate batchHeader
-			batchIndex, batchHash, reachedExpectedSize, err := bc.SealBatch(sequencerSetVerifyHash, blockTimestamp)
-			if err != nil {
-				return fmt.Errorf("failed to seal batch: %w", err)
-			}
-			sealedBatch, found := bc.GetSealedBatch(batchIndex)
-			if !found {
-				return fmt.Errorf("sealed batch not found for index %d", batchIndex)
-			}
-			if batchIndex <= ci.Uint64() {
-				// batch already commited, check batch hash
-				correct, err := bc.checkBatchHashCorrect(new(big.Int).SetUint64(batchIndex), sealedBatch.BatchHash)
-				if err != nil {
-					return err
-				}
-				if !correct {
-					log.Error("batch hash does not match sealed batch", "batchIndex", batchIndex, "sealedBatchHash", sealedBatch.BatchHash.String())
-					return fmt.Errorf("batch hash does not match sealed batch")
-				}
+				return err
 			}
 			// Update startBlockNum and startBlockTime for next batch
 			startBlockNum = blockNum + 1
@@ -916,6 +873,44 @@ func (bc *BatchCache) assembleBatchHeaderFromL2BlocksByBlockRange() error {
 			}
 			log.Info("seal batch success", "batchHash", batchHash.String(), "reachedExpectedSize", reachedExpectedSize)
 		}
+
+		// Pack current block (confirm and append to batch)
+		if err = bc.PackCurrentBlock(blockNum); err != nil {
+			return fmt.Errorf("failed to pack block %d: %w", blockNum, err)
+		}
 	}
 	return nil
+}
+
+func (bc *BatchCache) SealBatchAndCheck(callOpts *bind.CallOpts, ci *big.Int) (common.Hash, bool, error) {
+	sequencerSetVerifyHash, err := bc.sequencerContract.SequencerSetVerifyHash(callOpts)
+	if err != nil {
+		return common.Hash{}, false, fmt.Errorf("failed to get sequencer set verify hash at block %d: %w", callOpts.BlockNumber.Uint64(), err)
+	}
+	lastBlock, err := bc.l2Client.BlockByNumber(context.Background(), big.NewInt(int64(bc.lastPackedBlockHeight)))
+	if err != nil {
+		return common.Hash{}, false, fmt.Errorf("failed to get last block %d: %w", bc.lastPackedBlockHeight, err)
+	}
+	blockTimestamp := lastBlock.Time()
+	// Seal batch and generate batchHeader
+	batchIndex, batchHash, reachedExpectedSize, err := bc.SealBatch(sequencerSetVerifyHash, blockTimestamp)
+	if err != nil {
+		return common.Hash{}, false, fmt.Errorf("failed to seal batch: %w", err)
+	}
+	sealedBatch, found := bc.GetSealedBatch(batchIndex)
+	if !found {
+		return common.Hash{}, false, fmt.Errorf("sealed batch not found for index %d", batchIndex)
+	}
+	if batchIndex <= ci.Uint64() {
+		// batch already commited, check batch hash
+		correct, err := bc.checkBatchHashCorrect(new(big.Int).SetUint64(batchIndex), sealedBatch.BatchHash)
+		if err != nil {
+			return common.Hash{}, false, err
+		}
+		if !correct {
+			log.Error("batch hash does not match sealed batch", "batchIndex", batchIndex, "sealedBatchHash", sealedBatch.BatchHash.String())
+			return common.Hash{}, false, fmt.Errorf("batch hash does not match sealed batch")
+		}
+	}
+	return batchHash, reachedExpectedSize, nil
 }

@@ -93,19 +93,14 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 	return nil, fmt.Errorf("failed to find last finalized batch header for batchIndex %d", index)
 }
 
-// parseFinalizeBatchTxData parses the finalizeBatch transaction's input data to get BatchHeaderBytes
-// finalizeBatch(bytes calldata _batchHeader) only receives one parameter: batchHeader bytes
+// parseFinalizeBatchTxData parses the finalizeBatch or importGenesisBatch transaction's input data to get BatchHeaderBytes
+// Both finalizeBatch(bytes calldata _batchHeader) and importGenesisBatch(bytes calldata _batchHeader) receive one parameter: batchHeader bytes
+// Both methods emit FinalizeBatch event, so we need to support parsing both
 func parseFinalizeBatchTxData(txData []byte) (BatchHeaderBytes, error) {
 	// Get rollup ABI
 	rollupAbi, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
 		return nil, err
-	}
-
-	// Check if method ID is finalizeBatch
-	finalizeBatchMethod, ok := rollupAbi.Methods["finalizeBatch"]
-	if !ok {
-		return nil, errors.New("finalizeBatch method not found in ABI")
 	}
 
 	// Check if the first 4 bytes of transaction data match the method ID
@@ -114,24 +109,48 @@ func parseFinalizeBatchTxData(txData []byte) (BatchHeaderBytes, error) {
 	}
 
 	methodID := txData[:4]
-	if !bytes.Equal(methodID, finalizeBatchMethod.ID) {
-		return nil, errors.New("transaction is not a finalizeBatch call")
+
+	// Try to get finalizeBatch method
+	finalizeBatchMethod, ok := rollupAbi.Methods["finalizeBatch"]
+	if !ok {
+		return nil, errors.New("finalizeBatch method not found in ABI")
+	}
+
+	var method abi.Method
+	var methodName string
+
+	// Check if method ID matches finalizeBatch
+	if bytes.Equal(methodID, finalizeBatchMethod.ID) {
+		method = finalizeBatchMethod
+		methodName = "finalizeBatch"
+	} else {
+		// Try importGenesisBatch method
+		importGenesisBatchMethod, ok := rollupAbi.Methods["importGenesisBatch"]
+		if !ok {
+			return nil, errors.New("importGenesisBatch method not found in ABI")
+		}
+		if bytes.Equal(methodID, importGenesisBatchMethod.ID) {
+			method = importGenesisBatchMethod
+			methodName = "importGenesisBatch"
+		} else {
+			return nil, fmt.Errorf("transaction is not a finalizeBatch or importGenesisBatch call, methodID: %x", methodID)
+		}
 	}
 
 	// Parse parameters (only one parameter: batchHeader bytes)
-	args, err := finalizeBatchMethod.Inputs.Unpack(txData[4:])
+	args, err := method.Inputs.Unpack(txData[4:])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unpack %s transaction parameters: %w", methodName, err)
 	}
 
 	if len(args) == 0 {
-		return nil, errors.New("no arguments found in finalizeBatch transaction")
+		return nil, fmt.Errorf("no arguments found in %s transaction", methodName)
 	}
 
 	// The first parameter is batchHeader bytes
 	batchHeaderBytes, ok := args[0].([]byte)
 	if !ok {
-		return nil, errors.New("failed to cast batchHeader to []byte")
+		return nil, fmt.Errorf("failed to cast batchHeader to []byte in %s transaction", methodName)
 	}
 
 	return BatchHeaderBytes(batchHeaderBytes), nil
