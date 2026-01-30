@@ -122,6 +122,13 @@ type RetryableClient struct {
 	logger         tmlog.Logger
 }
 
+// MPTForkTime returns the configured MPT fork/switch timestamp fetched from geth (eth_config).
+// Note: this is a local value stored in the client; it does not perform any RPC.
+func (rc *RetryableClient) MPTForkTime() uint64 {
+	return rc.switchTime
+}
+
+
 // NewRetryableClient creates a new retryable client with the given switch time.
 // Will retry calling the api, if the connection is refused.
 //
