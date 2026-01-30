@@ -839,8 +839,8 @@ func (r *Rollup) finalize() error {
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
 	var l2Clients []iface.L2Client
-	zkmRpc := ""
-	upgradeBatchIndex := uint64(1000000)
+	zkmRpc := "http://morph-geth-a:8545"
+	upgradeBatchIndex := uint64(11)
 
 	if nextBatchIndex < upgradeBatchIndex {
 		l2Client, err := ethclient.DialContext(context.Background(), zkmRpc)
