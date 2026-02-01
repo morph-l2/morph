@@ -184,7 +184,8 @@ mod tests {
         let client = ProverClient::from_env();
 
         let (_pk, vk) = client.setup(BATCH_VERIFIER_ELF);
-
+        // Print the verification key.
+        println!("Program Verification Key: {}", vk.bytes32());
         let plonk_vk = *sp1_verifier::PLONK_VK_BYTES;
         PlonkVerifier::verify(&proof, &public_inputs, &vk.bytes32(), plonk_vk)
             .expect("plonk verify failed");
