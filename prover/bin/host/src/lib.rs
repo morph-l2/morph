@@ -113,7 +113,7 @@ mod tests {
         BlobVerifier,
     };
     use prover_executor_host::blob::{encode_blob, populate_kzg};
-    use prover_primitives::MorphTxEnvelope;
+    use prover_primitives::{MorphTxEnvelope, B256};
     #[test]
     fn test_blob() {
         //blob to txn
@@ -169,12 +169,14 @@ mod tests {
     use sp1_sdk::{HashableKey, ProverClient, SP1ProofWithPublicValues};
     use sp1_verifier::PlonkVerifier;
 
-    use crate::BATCH_VERIFIER_ELF;
+    use crate::{
+        evm::{save_plonk_fixture, EvmProofFixture},
+        BATCH_VERIFIER_ELF,
+    };
 
     #[test]
     pub fn verify_proof() {
-        let proof_loaded =
-            SP1ProofWithPublicValues::load("../../proof/artifact_block_25215").unwrap();
+        let proof_loaded = SP1ProofWithPublicValues::load("../../proof/artifact_mainnet").unwrap();
 
         let proof = proof_loaded.bytes();
         let public_inputs = proof_loaded.public_values.to_vec();
@@ -186,5 +188,14 @@ mod tests {
         let plonk_vk = *sp1_verifier::PLONK_VK_BYTES;
         PlonkVerifier::verify(&proof, &public_inputs, &vk.bytes32(), plonk_vk)
             .expect("plonk verify failed");
+
+        let fixture = EvmProofFixture {
+            vkey: vk.bytes32().to_string(),
+            public_values: B256::from_slice(&public_inputs).to_string(),
+            proof: alloy::hex::encode_prefixed(proof),
+        };
+
+        save_plonk_fixture(&fixture);
+        println!("save_plonk_fixture success!");
     }
 }
