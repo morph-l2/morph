@@ -21,7 +21,7 @@ use mpt::{
 };
 
 /// Ethereum state trie and account storage tries.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EthereumState {
     pub state_trie: MptNode,
     pub storage_tries: HashMap<B256, MptNode>,

@@ -34,7 +34,7 @@ impl BatchInfo {
         let prev_state_root = blocks.first().unwrap().prev_state_root;
 
         let mut data_hasher = Keccak256::new();
-        data_hasher.update(blocks.last().unwrap().header.number.to_be_bytes::<32>());
+        data_hasher.update(blocks.last().unwrap().header.number.to::<u64>().to_be_bytes());
         let num_l1_txs: u16 = blocks.iter().map(|x| x.num_l1_txs()).sum::<u64>() as u16;
         data_hasher.update(num_l1_txs.to_be_bytes());
 

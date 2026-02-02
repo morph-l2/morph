@@ -35,10 +35,12 @@ async fn main() {
     metric_mng().await;
 
     let (batch_syncer, shadow_prover, l2_provider) = init_shadow_proving();
+    let chain_id = l2_provider.get_chain_id().await.unwrap_or_default();
 
     let (tx, mut rx) = broadcast::channel(4);
     let batch_syncer_exec = batch_syncer.clone();
 
+    // Spawn batch fetch and execute task.
     tokio::spawn(async move {
         // Track the latest processed batch index
         let mut latest_processed_batch: u64 = 0;
@@ -62,21 +64,32 @@ async fn main() {
                 log::info!("Batch {} has already been processed, skipping", batch_info.batch_index);
                 continue;
             }
+            latest_processed_batch = batch_info.batch_index;
+
+            // Shadow execute checks
             if *SHADOW_EXECUTE {
                 log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
                 // Execute batch
-                match try_execute_batch(&batch_info, &l2_provider).await {
-                    Ok(_) => {
+                let offchain_batch_pi = match try_execute_batch(&batch_info, &l2_provider).await {
+                    Ok(pi) => {
                         // Update the latest processed batch index
-                        latest_processed_batch = batch_info.batch_index;
+                        pi
                     }
                     Err(e) => {
                         log::error!("execute_batch error: {:?}", e);
                         continue;
                     }
+                };
+                let onchain_batch_pi =
+                    batch_syncer_exec.calc_batch_pi(chain_id, &batch_header).unwrap_or_default();
+                if offchain_batch_pi != onchain_batch_pi {
+                    log::error!(
+                        "Shadow execute batch pi mismatch! offchain: {:?}, onchain: {:?}",
+                        offchain_batch_pi,
+                        onchain_batch_pi
+                    );
+                    continue;
                 }
-            } else {
-                latest_processed_batch = batch_info.batch_index;
             }
 
             // Sync & Prove checks
@@ -96,6 +109,7 @@ async fn main() {
         }
     });
 
+    // Start prove worker loop.
     loop {
         let (batch_info, batch_header) = match rx.recv().await {
             Ok(v) => v,
@@ -256,4 +270,101 @@ fn log_format(
         record.target(),
         record.args()
     )
+}
+
+#[tokio::test]
+async fn test_shadow() {
+    dotenv().ok();
+    setup_logging();
+    log::info!("Starting shadow proving...");
+
+    // cargo test -p shadow-proving --bin shadow-proving -- test_shadow --exact --nocapture -- --batch-num 100 --no-prove
+    let (batch_num, prove) = test_args::read_shadow_test_args_from_argv();
+
+    let (batch_syncer, shadow_prover, l2_provider) = init_shadow_proving();
+    let chain_id = l2_provider.get_chain_id().await.unwrap_or_default();
+
+    let (batch_info, batch_header) =
+        batch_syncer.get_specified_batch(batch_num).await.unwrap().unwrap();
+
+    let offchain_batch_pi = try_execute_batch(&batch_info, &l2_provider).await.unwrap();
+
+    let onchain_batch_pi = batch_syncer.calc_batch_pi(chain_id, &batch_header).unwrap_or_default();
+    if offchain_batch_pi != onchain_batch_pi {
+        log::error!(
+            "Shadow execute batch pi mismatch! offchain: {:?}, onchain: {:?}",
+            offchain_batch_pi,
+            onchain_batch_pi
+        );
+        return;
+    }
+    if prove {
+        let batch = batch_syncer.sync_batch(batch_info, batch_header).await.unwrap().unwrap();
+        shadow_prover.prove(batch).await.unwrap();
+    }
+}
+
+#[cfg(test)]
+mod test_args {
+    use clap::Parser;
+
+    const DEFAULT_BATCH_NUM: u64 = 100;
+    const DEFAULT_PROVE: bool = true;
+
+    /// Shadow prove test parameters.
+    #[derive(Parser, Debug)]
+    #[command(author, version, about, long_about = None, disable_help_flag = true)]
+    struct ShadowTestArgs {
+        /// Batch index to test.
+        #[arg(
+            long = "batch-num",
+            alias = "batch",
+            default_value_t = DEFAULT_BATCH_NUM,
+            value_parser = parse_u64_auto_radix
+        )]
+        batch_num: u64,
+
+        /// Disable proving step (only do shadow execute/pi check).
+        #[arg(long = "no-prove", default_value_t = DEFAULT_PROVE, action = clap::ArgAction::SetFalse)]
+        prove: bool,
+    }
+
+    pub(super) fn read_shadow_test_args_from_argv() -> (u64, bool) {
+        let filtered = filter_argv(&["--batch-num", "--batch", "--no-prove"]);
+        let args = ShadowTestArgs::parse_from(filtered);
+        (args.batch_num, args.prove)
+    }
+
+    fn filter_argv(allowed_flags: &[&str]) -> Vec<String> {
+        let argv: Vec<String> = std::env::args().skip(1).collect();
+        let mut filtered: Vec<String> = Vec::with_capacity(argv.len() + 1);
+        // clap expects argv[0] to be the binary name, so we use a placeholder.
+        filtered.push("shadow_test".to_string());
+
+        let mut it = argv.into_iter();
+        while let Some(arg) = it.next() {
+            if allowed_flags.iter().any(|f| *f == arg) {
+                filtered.push(arg);
+                // Only flags that take a value need to consume the next argv.
+                if filtered.last().map(|s| s.as_str()) != Some("--no-prove") {
+                    if let Some(v) = it.next() {
+                        filtered.push(v);
+                    }
+                }
+            } else {
+                // ignore unknown args
+            }
+        }
+
+        filtered
+    }
+
+    fn parse_u64_auto_radix(s: &str) -> Result<u64, String> {
+        let s = s.trim();
+        if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+            u64::from_str_radix(hex, 16).map_err(|e| e.to_string())
+        } else {
+            s.parse::<u64>().map_err(|e| e.to_string())
+        }
+    }
 }

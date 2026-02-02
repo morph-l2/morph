@@ -1,4 +1,5 @@
 use crate::{BatchInfo, SHADOW_EXECUTE_USE_RPC_DB};
+use alloy_primitives::B256;
 use alloy_provider::DynProvider;
 use anyhow::Context;
 use prover_executor_client::{
@@ -43,7 +44,7 @@ pub async fn execute(
 pub async fn try_execute_batch(
     batch: &BatchInfo,
     provider: &DynProvider,
-) -> Result<(), anyhow::Error> {
+) -> Result<B256, anyhow::Error> {
     let client_input = if *SHADOW_EXECUTE_USE_RPC_DB {
         let start_block = batch.start_block;
         let end_block = batch.end_block;
@@ -73,11 +74,7 @@ pub async fn try_execute_batch(
         ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info_from_traces(traces)? }
     };
 
-    let result = verify(client_input.clone()).context("native execution failed");
-    match result {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
+    verify(client_input.clone()).context("native execution failed")
 }
 
 /// Execute a range of blocks (inclusive).
@@ -96,9 +93,20 @@ pub async fn execute_host_range(
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs::{self, File},
+        io::BufReader,
+        path::Path,
+        vec,
+    };
+
+    use alloy_primitives::{hex, Address, B256};
     use alloy_provider::{Provider, ProviderBuilder};
     use prover_executor_client::{types::input::BlockInput, EVMVerifier};
-    use prover_executor_host::trace::trace_to_input;
+    use prover_executor_host::{
+        trace::trace_to_input,
+        utils::{assemble_block_input, query_block, HostExecutorOutput, ProverBlock},
+    };
     use prover_primitives::types::BlockTrace;
     use prover_utils::provider::get_block_trace;
 
@@ -157,6 +165,70 @@ mod tests {
 
         let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
         println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
+    }
+
+    #[tokio::test]
+    async fn execute_batch_input() {
+        let provider = ProviderBuilder::new()
+            .connect_http("https://rpc-quicknode.morphl2.io".parse().unwrap())
+            .erased();
+        let mut inputs = vec![];
+        let mut prev_block: Option<ProverBlock> = None;
+        for block_number in 20430946u64..20431546u64 {
+            if prev_block.is_none() {
+                prev_block =
+                    Some(query_block(block_number.saturating_sub(1), &provider).await.unwrap());
+            }
+            let current_block = query_block(block_number, &provider).await.unwrap();
+            println!(
+                "fetched block {}, next_l1_msg_index: {}",
+                block_number, current_block.header.next_l1_msg_index
+            );
+            let output: HostExecutorOutput = HostExecutorOutput {
+                chain_id: 2818,
+                beneficiary: Address::default(),
+                block: current_block.clone(),
+                state: Default::default(),
+                codes: Default::default(),
+                prev_state_root: Default::default(),
+                post_state_root: Default::default(),
+            };
+            let block_input = assemble_block_input(output, prev_block.unwrap());
+            inputs.push(block_input);
+            prev_block = Some(current_block);
+        }
+
+        let path = Path::new("proof/shadow_input.json");
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let file = File::create(path).unwrap();
+        serde_json::to_writer(file, &inputs).unwrap();
+        println!("Saved executor input to proof/shadow_input.json");
+
+        let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
+            &inputs,
+            B256::default(),
+            B256::default(),
+            B256::default(),
+        );
+        println!("batch_info: {:?}", batch_info);
+        println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
+    }
+
+    #[tokio::test]
+    async fn execute_batch_input_local() {
+        let file = File::open("proof/shadow_input.json").unwrap();
+        let reader = BufReader::new(file);
+        let inputs: Vec<BlockInput> = serde_json::from_reader(reader).unwrap();
+        let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
+            &inputs,
+            B256::default(),
+            B256::default(),
+            B256::default(),
+        );
+        println!("batch_info: {:?}", batch_info);
+        println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
     }
 }
 
