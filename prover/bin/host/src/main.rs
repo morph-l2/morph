@@ -47,9 +47,7 @@ async fn main() {
     } else {
         // Use local traces file.
         let block_traces = &mut load_trace(&args.block_path);
-        println!("block_traces.len: {:?}", block_traces.len());
-        let blocks_inputs =
-            block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
+        let blocks_inputs = block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
         ExecutorInput {
             block_inputs: blocks_inputs,
             blob_info: get_blob_info_from_traces(block_traces).unwrap(),

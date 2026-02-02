@@ -1,4 +1,4 @@
-use crate::utils::{query_block, query_state_root, HostExecutorOutput, CHAIN_COINBASE};
+use crate::utils::{beneficiary_by_chain_id, query_block, query_state_root, HostExecutorOutput};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
 use prover_executor_core::MorphExecutor;
@@ -35,9 +35,7 @@ impl HostExecutor {
             provider.get_chain_id().await.context("failed to fetch chain_id from provider")?;
 
         // beneficiary(coinbase)
-        let beneficiary = *CHAIN_COINBASE
-            .get(&chain_id)
-            .with_context(|| format!("chain_id {chain_id} not found in CHAIN_COINBASE"))?;
+        let beneficiary = beneficiary_by_chain_id(chain_id);
 
         // mpt root at this block
         let disk_root = query_state_root(block_number, provider)

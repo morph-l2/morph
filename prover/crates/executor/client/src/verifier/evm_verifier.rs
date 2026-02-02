@@ -66,7 +66,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
 
     if block.transactions.is_empty() {
         if block.prev_state_root != block.post_state_root {
-            // For empty blocks we don't execute in REVM; the expected post root equals the prev root.
+            // For empty blocks, EVM execution is skipped, but the post root is constrained to equal the previous root.
             return Err(ClientError::MismatchedStateRoot {
                 block_num: block.header.number.to::<u64>(),
                 root_trace: block.prev_state_root,

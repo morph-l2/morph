@@ -17,9 +17,19 @@ pub static CHAIN_COINBASE: LazyLock<HashMap<u64, Address>> = LazyLock::new(|| {
     HashMap::from([
         (2818u64, Address::from_hex("0x530000000000000000000000000000000000000a").unwrap()),
         (2910u64, Address::from_hex("0x29107CB79Ef8f69fE1587F77e283d47E84c5202f").unwrap()),
-        (53077u64, Address::from_hex("0xfabb0ac9d68b0b445fb7357272ff202c5651694a").unwrap()),
+        (53077u64, Address::from_hex("0x716170d0687c3d31cc10debe0daa1ddd3fe3d792").unwrap()),
     ])
 });
+
+// Default coinbase address if chain ID is not found in CHAIN_COINBASE.
+// 0xfabb0ac9d68b0b445fb7357272ff202c5651694a
+pub static DEFAULT_COINBASE: LazyLock<Address> =
+    LazyLock::new(|| Address::from_hex("0x716170d0687c3d31cc10debe0daa1ddd3fe3d792").unwrap());
+
+/// Returns the beneficiary(coinbase) address for a given chain ID.
+pub fn beneficiary_by_chain_id(chain_id: u64) -> Address {
+    *CHAIN_COINBASE.get(&chain_id).unwrap_or(&DEFAULT_COINBASE)
+}
 
 /// Block structure returned by the prover RPC.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

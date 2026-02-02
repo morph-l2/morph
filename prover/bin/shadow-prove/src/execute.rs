@@ -212,7 +212,7 @@ mod tests {
             B256::default(),
             B256::default(),
         );
-        println!("batch_info: {:?}", batch_info);
+        println!("batch_info: {batch_info:?}");
         println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
     }
 
@@ -227,7 +227,7 @@ mod tests {
             B256::default(),
             B256::default(),
         );
-        println!("batch_info: {:?}", batch_info);
+        println!("batch_info: {batch_info:?}");
         println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
     }
 }
