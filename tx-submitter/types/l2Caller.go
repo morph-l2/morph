@@ -1,6 +1,11 @@
 package types
 
 import (
+	"bytes"
+	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/crypto"
 	"math/big"
 
 	"morph-l2/bindings/bindings"
@@ -64,4 +69,19 @@ func (c *L2Caller) BatchBlockInterval(opts *bind.CallOpts) (*big.Int, error) {
 // BatchTimeout gets the batch timeout from the Gov contract
 func (c *L2Caller) BatchTimeout(opts *bind.CallOpts) (*big.Int, error) {
 	return c.govContract.BatchTimeout(opts)
+}
+
+func (c *L2Caller) GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Hash, error) {
+	hash, err := c.sequencerContract.SequencerSetVerifyHash(opts)
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	setBytes, err := c.sequencerContract.GetSequencerSetBytes(opts)
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	if bytes.Equal(hash[:], crypto.Keccak256Hash(setBytes).Bytes()) {
+		return setBytes, hash, nil
+	}
+	return nil, common.Hash{}, fmt.Errorf("sequencer set hash verify  failed %v: %v", hexutil.Encode(setBytes), common.BytesToHash(hash[:]).String())
 }

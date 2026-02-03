@@ -159,7 +159,7 @@ var (
 	RollupInterval = cli.DurationFlag{
 		Name:   "rollup_interval",
 		Usage:  "Interval for rollup",
-		Value:  500 * time.Millisecond,
+		Value:  5 * time.Second,
 		EnvVar: prefixEnvVar("ROLLUP_INTERVAL"),
 	}
 	// finalize interval

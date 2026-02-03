@@ -228,17 +228,6 @@ func (r *Rollup) Start() error {
 		}
 	})
 
-	go utils.Loop(r.ctx, 5*time.Second, func() {
-		err = r.batchCache.InitFromRollupByRange()
-		if err != nil {
-			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
-		}
-		err = r.batchCache.AssembleCurrentBatchHeader()
-		if err != nil {
-			log.Error("Assemble current batch failed, wait for the next try", "error", err)
-		}
-	})
-
 	if r.cfg.Finalize {
 		go utils.Loop(r.ctx, r.cfg.FinalizeInterval, func() {
 			r.rollupFinalizeMu.Lock()
@@ -265,6 +254,21 @@ func (r *Rollup) Start() error {
 			}
 		}
 	})
+
+	go func() {
+		for {
+			err = r.batchCache.InitAndSyncFromRollup()
+			if err != nil {
+				log.Error("init and sync from rollup failed, wait for the next try", "error", err)
+			}
+			err = r.batchCache.AssembleCurrentBatchHeader()
+			if err != nil {
+				log.Error("Assemble current batch failed, wait for the next try", "error", err)
+			}
+			time.Sleep(5 * time.Second)
+		}
+	}()
+
 	return nil
 }
 
@@ -467,6 +471,9 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 		batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
 		rollupBatch, ok := r.batchCache.Get(batchIndex)
 		if ok {
+			if rollupBatch.CollectedL1Fee == nil {
+				return nil
+			}
 			collectedL1Fee := new(big.Float).Quo(new(big.Float).SetInt(rollupBatch.CollectedL1Fee.ToInt()), new(big.Float).SetInt(big.NewInt(params.Ether)))
 			collectedL1FeeFloat, _ := collectedL1Fee.Float64()
 
@@ -475,7 +482,7 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 			r.metrics.CollectedL1FeeSum.Add(collectedL1FeeFloat)
 
 			// Update leveldb
-			err := r.ldb.PutFloat(collectedL1FeeSumKey, r.collectedL1FeeSum)
+			err = r.ldb.PutFloat(collectedL1FeeSumKey, r.collectedL1FeeSum)
 			if err != nil {
 				log.Error("failed to update collected L1 fee sum in leveldb", "error", err)
 			}
@@ -751,8 +758,6 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 			if batchIndex <= lastCommitted.Uint64() {
 				// Another submitter has already committed this batch
 				log.Warn("Batch commit transaction failed but batch is already committed by another submitter", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
-				// Clean up batch from cache since it's already committed
-				r.batchCache.Delete(batchIndex)
 			} else {
 				// Contract bug detected - batch is not committed by anyone else but our transaction failed
 				log.Warn("Critical error: batch commit transaction failed and batch is not committed by anyone", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
@@ -783,11 +788,9 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 		if method == constants.MethodCommitBatch {
 			batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
 			log.Info("Successfully committed batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "block_number", status.receipt.BlockNumber.Uint64(), "gas_used", status.receipt.GasUsed, "confirm", confirmations)
-
-			// Clean up batch from cache after successful commit
-			r.batchCache.Delete(batchIndex)
 		} else if method == constants.MethodFinalizeBatch {
 			batchIndex := utils.ParseFBatchIndex(tx.Data())
+			r.batchCache.Delete(batchIndex)
 			log.Info("Successfully finalized batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "block_number", status.receipt.BlockNumber.Uint64(), "gas_used", status.receipt.GasUsed, "confirm", confirmations)
 		}
 	}
@@ -848,8 +851,8 @@ func (r *Rollup) finalize() error {
 
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
-	batch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
-	if err != nil {
+	batch, ok := r.batchCache.Get(nextBatchIndex)
+	if !ok {
 		log.Error("get next batch by index error",
 			"batch_index", nextBatchIndex,
 		)
@@ -1244,26 +1247,6 @@ func (r *Rollup) logTxInfo(tx *ethtypes.Transaction, batchIndex uint64) {
 }
 
 func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
-	//blsSignatures := batch.Signatures
-	//if len(blsSignatures) == 0 {
-	//	return nil, fmt.Errorf("invalid batch signature")
-	//}
-	//signers := make([]common.Address, len(blsSignatures))
-	//for i, bz := range blsSignatures {
-	//	if len(bz.Signature) > 0 {
-	//		signers[i] = bz.Signer
-	//	}
-	//}
-	//
-	//// query bitmap of signers
-	//bm, err := r.Staking.GetStakersBitmap(nil, signers)
-	//if err != nil {
-	//	return nil, fmt.Errorf("query stakers bitmap error:%v", err)
-	//}
-	//if bm == nil {
-	//	return nil, errors.New("stakers bitmap is nil")
-	//}
-
 	sigData := bindings.IRollupBatchSignatureInput{
 		SignedSequencersBitmap: common.Big0,
 		SequencerSets:          batch.CurrentSequencerSetBytes,
@@ -1666,12 +1649,15 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 	case ethtypes.BlobTxType:
 		sidecar := tx.BlobTxSidecar()
 		version := types.DetermineBlobVersion(head, r.chainId.Uint64())
-		if sidecar.Version == ethtypes.BlobSidecarVersion0 && version == ethtypes.BlobSidecarVersion1 {
-			err = types.BlobSidecarVersionToV1(sidecar)
-			if err != nil {
-				return nil, err
+		if sidecar != nil {
+			if sidecar.Version == ethtypes.BlobSidecarVersion0 && version == ethtypes.BlobSidecarVersion1 {
+				err = types.BlobSidecarVersionToV1(sidecar)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
+
 		newTx = ethtypes.NewTx(&ethtypes.BlobTx{
 			ChainID:    uint256.MustFromBig(tx.ChainId()),
 			Nonce:      tx.Nonce(),

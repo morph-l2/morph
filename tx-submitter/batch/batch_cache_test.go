@@ -61,3 +61,25 @@ func TestBatchCacheInitByBlockRange(t *testing.T) {
 	err := cache.InitFromRollupByRange()
 	require.NoError(t, err)
 }
+
+func TestBatchCacheInitByBlockRange1(t *testing.T) {
+	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
+	err := cache.Init()
+	require.NoError(t, err)
+	batch, err := cache.assembleBatchHeaderFromL2Blocks(0, 18)
+	require.NoError(t, err)
+	hash, err := batch.Hash()
+	require.NoError(t, err)
+	t.Log("0-18 batch hash", hash.String())
+}
+
+func TestBatchCacheInitByBlockRange2(t *testing.T) {
+	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
+	err := cache.Init()
+	require.NoError(t, err)
+	batch, err := cache.assembleBatchHeaderFromL2Blocks(1, 18)
+	require.NoError(t, err)
+	hash, err := batch.Hash()
+	require.NoError(t, err)
+	t.Log("1-18 batch hash", hash.String())
+}

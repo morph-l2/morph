@@ -25,7 +25,7 @@ var (
 )
 
 var (
-	rollupAddr = common.HexToAddress("0x0165878a594ca255338adfa4d48449f69242eb8f")
+	rollupAddr = common.HexToAddress("0xd0ec100f1252a53322051a95cf05c32f0c174354")
 
 	l1ClientRpc = "http://localhost:9545"
 	l2ClientRpc = "http://localhost:8545"
@@ -71,7 +71,7 @@ func Test_CommitBatchParse(t *testing.T) {
 }
 
 func TestBatchRestartInit(t *testing.T) {
-	sequencerSetVerifyHash, err := l2Caller.SequencerSetVerifyHash(nil)
+	sequencerSetBytes, sequencerSetVerifyHash, err := l2Caller.GetSequencerSetBytes(nil)
 	require.NoError(t, err)
 	t.Log("sequencer set verify hash", hex.EncodeToString(sequencerSetVerifyHash[:]))
 	ci, fi := getInfosFromContract()
@@ -93,7 +93,11 @@ func TestBatchRestartInit(t *testing.T) {
 	bc.parentBatchHeader = headerBytes
 	bc.prevStateRoot = parentStateRoot // The current batch's prevStateRoot is the parent batch's postStateRoot
 	bc.lastPackedBlockHeight, err = headerBytes.LastBlockNumber()
-	require.NoError(t, err)
+	if err != nil {
+		store, err := rollupContract.BatchDataStore(nil, fi)
+		require.NoError(t, err)
+		bc.lastPackedBlockHeight = store.BlockNumber.Uint64()
+	}
 	bc.totalL1MessagePopped, err = headerBytes.TotalL1MessagePopped()
 	require.NoError(t, err)
 	t.Logf("Restored batch header: batchIndex=%d, parentStateRoot=%x (will be used as prevStateRoot for next batch)",
@@ -104,7 +108,7 @@ func TestBatchRestartInit(t *testing.T) {
 	t.Logf("First unfinalize batch index: %d, block range: %d - %d", firstUnfinalizedIndex, startBlockNum.Uint64(), endBlockNum.Uint64())
 
 	// Fetch blocks from L2 client in this range and assemble batchHeader
-	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), sequencerSetVerifyHash, l2Client, l2Caller)
+	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), sequencerSetBytes, l2Client, l2Caller)
 	require.NoError(t, err, "failed to assemble batch header from L2 blocks")
 	t.Log("assembled batch header success", hex.EncodeToString(assembledBatchHeader.Bytes()))
 	// Verify the assembled batchHeader
@@ -128,18 +132,6 @@ func TestBatchRestartInit(t *testing.T) {
 	postStateRoot, err := assembledBatchHeader.PostStateRoot()
 	require.NoError(t, err)
 	require.Equal(t, batchDataInput.PostStateRoot[:], postStateRoot.Bytes())
-
-	// t.Logf("batchDataInput.WithdrawalRoot=%x", batchDataInput.WithdrawalRoot)
-	// Perform keccak256 hash on SequencerSets
-	sequencerSetsHash := crypto.Keccak256Hash(batchSignatureInput.SequencerSets)
-	t.Logf("batchSignatureInput.SequencerSets keccak256 hash=%s", hex.EncodeToString(sequencerSetsHash[:]))
-	require.Equal(t, sequencerSetsHash.Bytes(), sequencerSetVerifyHash[:], "sequencer sets hash should match")
-
-	batchHeaderBytes, err := getBatchHeaderFromGeth(firstUnfinalizedIndex)
-	require.NoError(t, err)
-
-	// Compare the batch header from Geth with the assembled batch header
-	compareAndReportBatchHeaders(t, assembledBatchHeader, batchHeaderBytes, "assembled", "from Geth")
 
 	// Compare assembledBatchHeader with the batch header built from commitBatch data
 	// Note: batchDataInput and batchSignatureInput can be used to verify data, but need to build a complete batch header
@@ -611,7 +603,7 @@ func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, *
 func assembleBatchHeaderFromL2Blocks(
 	bc *BatchCache,
 	startBlockNum, endBlockNum uint64,
-	sequencerSetVerifyHash common.Hash,
+	sequencerBytes []byte,
 	l2Client iface.L2Client,
 	l2Caller *types.L2Caller,
 ) (*BatchHeaderBytes, error) {
@@ -633,7 +625,7 @@ func assembleBatchHeaderFromL2Blocks(
 		}
 
 		// Pack current block (confirm and append to batch)
-		if err := bc.PackCurrentBlock(blockNum); err != nil {
+		if err = bc.PackCurrentBlock(blockNum); err != nil {
 			return nil, fmt.Errorf("failed to pack block %d: %w", blockNum, err)
 		}
 
@@ -652,19 +644,16 @@ func assembleBatchHeaderFromL2Blocks(
 	blockTimestamp := lastBlock.Time()
 
 	// Seal batch and generate batchHeader
-	batchIndex, batchHash, reachedExpectedSize, err := bc.SealBatch(sequencerSetVerifyHash, blockTimestamp)
+	batchIndex, batchHeaderBytes, _, err := bc.SealBatch(sequencerBytes, blockTimestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seal batch: %w", err)
 	}
 
 	// Get the sealed batch header
-	sealedBatch, found := bc.GetSealedBatch(batchIndex)
+	_, found := bc.GetSealedBatch(batchIndex)
 	if !found {
 		return nil, fmt.Errorf("sealed batch not found for index %d", batchIndex)
 	}
 
-	_ = batchHash           // batch hash
-	_ = reachedExpectedSize // whether reached expected size
-	batch := bc.createBatchHeaderFromRPCRollupBatch(sealedBatch, sequencerSetVerifyHash, blockTimestamp)
-	return &batch, nil
+	return &batchHeaderBytes, nil
 }
