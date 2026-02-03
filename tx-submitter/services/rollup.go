@@ -229,7 +229,7 @@ func (r *Rollup) Start() error {
 	})
 
 	go utils.Loop(r.ctx, 5*time.Second, func() {
-		err = r.batchCache.InitAndSyncFromRollup()
+		err = r.batchCache.InitFromRollupByRange()
 		if err != nil {
 			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
 		}
@@ -1244,28 +1244,28 @@ func (r *Rollup) logTxInfo(tx *ethtypes.Transaction, batchIndex uint64) {
 }
 
 func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
-	blsSignatures := batch.Signatures
-	if len(blsSignatures) == 0 {
-		return nil, fmt.Errorf("invalid batch signature")
-	}
-	signers := make([]common.Address, len(blsSignatures))
-	for i, bz := range blsSignatures {
-		if len(bz.Signature) > 0 {
-			signers[i] = bz.Signer
-		}
-	}
-
-	// query bitmap of signers
-	bm, err := r.Staking.GetStakersBitmap(nil, signers)
-	if err != nil {
-		return nil, fmt.Errorf("query stakers bitmap error:%v", err)
-	}
-	if bm == nil {
-		return nil, errors.New("stakers bitmap is nil")
-	}
+	//blsSignatures := batch.Signatures
+	//if len(blsSignatures) == 0 {
+	//	return nil, fmt.Errorf("invalid batch signature")
+	//}
+	//signers := make([]common.Address, len(blsSignatures))
+	//for i, bz := range blsSignatures {
+	//	if len(bz.Signature) > 0 {
+	//		signers[i] = bz.Signer
+	//	}
+	//}
+	//
+	//// query bitmap of signers
+	//bm, err := r.Staking.GetStakersBitmap(nil, signers)
+	//if err != nil {
+	//	return nil, fmt.Errorf("query stakers bitmap error:%v", err)
+	//}
+	//if bm == nil {
+	//	return nil, errors.New("stakers bitmap is nil")
+	//}
 
 	sigData := bindings.IRollupBatchSignatureInput{
-		SignedSequencersBitmap: bm,
+		SignedSequencersBitmap: common.Big0,
 		SequencerSets:          batch.CurrentSequencerSetBytes,
 		Signature:              []byte("0x"),
 	}

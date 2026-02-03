@@ -1,15 +1,17 @@
 package batch
 
 import (
-	"github.com/morph-l2/go-ethereum/log"
-	"morph-l2/tx-submitter/utils"
+	"os"
+	"os/signal"
 	"testing"
 	"time"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/types"
+	"morph-l2/tx-submitter/utils"
 
+	"github.com/morph-l2/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,19 +27,27 @@ func init() {
 	}
 }
 
-func TestBatchCacheInitSer(t *testing.T) {
+func TestBatchCacheInitServer(t *testing.T) {
 	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
 
 	go utils.Loop(cache.ctx, 5*time.Second, func() {
-		err := cache.InitAndSyncFromRollup()
+		err := cache.InitFromRollupByRange()
 		if err != nil {
 			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
 		}
+		cache.batchTimeOut = 60
 		err = cache.AssembleCurrentBatchHeader()
 		if err != nil {
 			log.Error("Assemble current batch failed, wait for the next try", "error", err)
 		}
 	})
+
+	// Catch CTRL-C to ensure a graceful shutdown.
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
+	// Wait until the interrupt signal is received from an OS signal.
+	<-interrupt
 }
 
 func TestBatchCacheInit(t *testing.T) {
