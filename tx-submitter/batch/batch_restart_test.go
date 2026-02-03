@@ -11,6 +11,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/types"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -24,20 +25,16 @@ var (
 )
 
 var (
-	rollupAddr          = common.HexToAddress("0x0165878a594ca255338adfa4d48449f69242eb8f")
-	sequencerAddr       = common.HexToAddress("0x5300000000000000000000000000000000000017")
-	l2MessagePasserAddr = common.HexToAddress("0x5300000000000000000000000000000000000001")
-	govAddr             = common.HexToAddress("0x5300000000000000000000000000000000000004")
+	rollupAddr = common.HexToAddress("0x0165878a594ca255338adfa4d48449f69242eb8f")
 
 	l1ClientRpc = "http://localhost:9545"
 	l2ClientRpc = "http://localhost:8545"
 	l1Client, _ = ethclient.Dial(l1ClientRpc)
 	l2Client, _ = ethclient.Dial(l2ClientRpc)
 
-	rollupContract          *bindings.Rollup
-	sequencerContract       *bindings.Sequencer
-	l2MessagePasserContract *bindings.L2ToL1MessagePasser
-	govContract             *bindings.Gov
+	rollupContract *bindings.Rollup
+
+	l2Caller *types.L2Caller
 )
 
 func init() {
@@ -46,22 +43,14 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	sequencerContract, err = bindings.NewSequencer(sequencerAddr, l2Client)
-	if err != nil {
-		panic(err)
-	}
-	l2MessagePasserContract, err = bindings.NewL2ToL1MessagePasser(l2MessagePasserAddr, l2Client)
-	if err != nil {
-		panic(err)
-	}
-	govContract, err = bindings.NewGov(govAddr, l2Client)
+	l2Caller, err = types.NewL2Caller([]iface.L2Client{l2Client})
 	if err != nil {
 		panic(err)
 	}
 }
 
 func Test_GetFinalizeBatchHeader(t *testing.T) {
-	bc := NewBatchCache(nil, l1Client, l2Client, rollupContract, sequencerContract, l2MessagePasserContract, govContract)
+	bc := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
 	headerBytes, err := bc.getLastFinalizeBatchHeaderFromRollupByIndex(0)
 	require.NoError(t, err)
 	t.Log("headerBytes", hex.EncodeToString(headerBytes.Bytes()))
@@ -82,12 +71,12 @@ func Test_CommitBatchParse(t *testing.T) {
 }
 
 func TestBatchRestartInit(t *testing.T) {
-	sequencerSetVerifyHash, err := sequencerContract.SequencerSetVerifyHash(nil)
+	sequencerSetVerifyHash, err := l2Caller.SequencerSetVerifyHash(nil)
 	require.NoError(t, err)
 	t.Log("sequencer set verify hash", hex.EncodeToString(sequencerSetVerifyHash[:]))
 	ci, fi := getInfosFromContract()
 	t.Log("commit index", ci, " ", "finalize index", fi)
-	bc := NewBatchCache(nil, l1Client, l2Client, rollupContract, sequencerContract, l2MessagePasserContract, govContract)
+	bc := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
 	startBlockNum, endBlockNum, err := getFirstUnFinalizeBatchBlockNumRange(fi)
 	require.NoError(t, err)
 	startBlockNum = new(big.Int).Add(startBlockNum, new(big.Int).SetUint64(1))
@@ -115,7 +104,7 @@ func TestBatchRestartInit(t *testing.T) {
 	t.Logf("First unfinalize batch index: %d, block range: %d - %d", firstUnfinalizedIndex, startBlockNum.Uint64(), endBlockNum.Uint64())
 
 	// Fetch blocks from L2 client in this range and assemble batchHeader
-	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), sequencerSetVerifyHash, l2Client, l2MessagePasserContract)
+	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), sequencerSetVerifyHash, l2Client, l2Caller)
 	require.NoError(t, err, "failed to assemble batch header from L2 blocks")
 	t.Log("assembled batch header success", hex.EncodeToString(assembledBatchHeader.Bytes()))
 	// Verify the assembled batchHeader
@@ -624,13 +613,13 @@ func assembleBatchHeaderFromL2Blocks(
 	startBlockNum, endBlockNum uint64,
 	sequencerSetVerifyHash common.Hash,
 	l2Client iface.L2Client,
-	l2MessagePasser *bindings.L2ToL1MessagePasser,
+	l2Caller *types.L2Caller,
 ) (*BatchHeaderBytes, error) {
 	ctx := context.Background()
 
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := startBlockNum; blockNum <= endBlockNum; blockNum++ {
-		root, err := l2MessagePasser.GetTreeRoot(&bind.CallOpts{
+		root, err := l2Caller.GetTreeRoot(&bind.CallOpts{
 			Context:     ctx,
 			BlockNumber: new(big.Int).SetUint64(blockNum),
 		})
@@ -676,6 +665,6 @@ func assembleBatchHeaderFromL2Blocks(
 
 	_ = batchHash           // batch hash
 	_ = reachedExpectedSize // whether reached expected size
-
-	return &sealedBatch.BatchHeader, nil
+	batch := bc.createBatchHeaderFromRPCRollupBatch(sealedBatch, sequencerSetVerifyHash, blockTimestamp)
+	return &batch, nil
 }

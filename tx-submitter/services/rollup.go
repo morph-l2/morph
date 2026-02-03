@@ -26,6 +26,7 @@ import (
 	"github.com/morph-l2/go-ethereum/rpc"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/batch"
 	"morph-l2/tx-submitter/constants"
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
@@ -76,7 +77,7 @@ type Rollup struct {
 	// collectedL1FeeSum
 	collectedL1FeeSum float64
 	// batchcache
-	batchCache       *types.BatchCache
+	batchCache       *batch.BatchCache
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
@@ -102,8 +103,8 @@ func NewRollup(
 	ldb *db.Db,
 	bm *l1checker.BlockMonitor,
 	eventInfoStorage *event.EventInfoStorage,
+	l2Caller *types.L2Caller,
 ) *Rollup {
-	batchFetcher := NewBatchFetcher(l2Clients)
 	reorgDetector := NewReorgDetector(l1, metrics)
 	r := &Rollup{
 		ctx:              ctx,
@@ -121,7 +122,7 @@ func NewRollup(
 		cfg:              cfg,
 		signer:           ethtypes.LatestSignerForChainID(chainId),
 		externalRsaPriv:  rsaPriv,
-		batchCache:       types.NewBatchCache(batchFetcher),
+		batchCache:       batch.NewBatchCache(nil, l1, l2Clients, rollup, l2Caller),
 		ldb:              ldb,
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
@@ -227,8 +228,18 @@ func (r *Rollup) Start() error {
 		}
 	})
 
-	if r.cfg.Finalize {
+	go utils.Loop(r.ctx, 5*time.Second, func() {
+		err = r.batchCache.InitAndSyncFromRollup()
+		if err != nil {
+			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
+		}
+		err = r.batchCache.AssembleCurrentBatchHeader()
+		if err != nil {
+			log.Error("Assemble current batch failed, wait for the next try", "error", err)
+		}
+	})
 
+	if r.cfg.Finalize {
 		go utils.Loop(r.ctx, r.cfg.FinalizeInterval, func() {
 			r.rollupFinalizeMu.Lock()
 			defer r.rollupFinalizeMu.Unlock()
@@ -454,9 +465,9 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 
 		// Calculate and update L1 fee metrics
 		batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
-		batch, ok := r.batchCache.Get(batchIndex)
+		rollupBatch, ok := r.batchCache.Get(batchIndex)
 		if ok {
-			collectedL1Fee := new(big.Float).Quo(new(big.Float).SetInt(batch.CollectedL1Fee.ToInt()), new(big.Float).SetInt(big.NewInt(params.Ether)))
+			collectedL1Fee := new(big.Float).Quo(new(big.Float).SetInt(rollupBatch.CollectedL1Fee.ToInt()), new(big.Float).SetInt(big.NewInt(params.Ether)))
 			collectedL1FeeFloat, _ := collectedL1Fee.Float64()
 
 			// Update metrics
@@ -473,7 +484,7 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 				"batch_index", batchIndex,
 				"l1_fee_eth", collectedL1FeeFloat)
 		} else {
-			log.Warn("batch not found in cache", "batch_index", batchIndex)
+			log.Warn("rollupBatch not found in cache", "batch_index", batchIndex)
 		}
 	} else if method == constants.MethodFinalizeBatch {
 		r.finalizeFeeSum += txFeeFloat
@@ -763,11 +774,11 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 		}
 	} else { // Transaction succeeded
 		// Get current block number for confirmation count only for successful transactions
-		currentBlock, err := r.L1Client.BlockNumber(context.Background())
+		currentBlock, err = r.L1Client.BlockNumber(context.Background())
 		if err != nil {
 			return fmt.Errorf("get current block number error: %w", err)
 		}
-		confirmations := currentBlock - status.receipt.BlockNumber.Uint64()
+		confirmations = currentBlock - status.receipt.BlockNumber.Uint64()
 
 		if method == constants.MethodCommitBatch {
 			batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
@@ -1432,7 +1443,6 @@ func GetEpoch(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
 
 // query sequencer set update time from sequencer contract on l2
 func GetSequencerSetUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
-
 	if len(clients) < 1 {
 		return nil, fmt.Errorf("no client to query sequencer set update time")
 	}
