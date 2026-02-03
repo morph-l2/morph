@@ -3,16 +3,16 @@ package types
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/crypto"
 	"math/big"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
 	"morph-l2/tx-submitter/iface"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/crypto"
 )
 
 type L2Caller struct {

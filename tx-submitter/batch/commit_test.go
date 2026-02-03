@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var pk = "0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32"
+var pk = ""
 
 func TestRollupWithProof(t *testing.T) {
 	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
@@ -45,8 +45,6 @@ func TestRollupWithProof(t *testing.T) {
 	latestCommitBatchIndex, err := rollup.LastCommittedBatchIndex(nil)
 	require.NoError(t, err)
 
-	//batch, err := l2Client.GetRollupBatchByIndex(context.Background(), latestCommitBatchIndex.Uint64()+1)
-	//require.NoError(t, err)
 	batch, exist := cache.Get(latestCommitBatchIndex.Uint64() + 1)
 	require.NoError(t, err)
 	require.True(t, exist)
