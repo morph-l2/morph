@@ -1,4 +1,4 @@
-use crate::{metrics::METRICS, BatchInfo};
+use crate::{metrics::METRICS, BatchInfo, SHADOW_PROVING_BLOCKS_RANGE};
 use alloy_consensus::Transaction;
 use alloy_network::{Network, ReceiptResponse};
 use alloy_primitives::{hex, Address, Bytes, Keccak256, TxHash, B256, U256, U64};
@@ -51,7 +51,11 @@ where
         };
 
         log::info!("latest l1 blocknum = {:#?}", latest);
-        let start = if latest > U64::from(600) { latest - U64::from(600) } else { U64::from(1) };
+        let start = if latest > U64::from(*SHADOW_PROVING_BLOCKS_RANGE) {
+            latest - U64::from(*SHADOW_PROVING_BLOCKS_RANGE)
+        } else {
+            U64::from(1)
+        };
         let filter = self
             .l1_rollup
             .CommitBatch_filter()
@@ -140,6 +144,16 @@ where
             // We need prev(batch_num-1) to infer start_block, and next(batch_num+1) to retrieve the
             // specified batch header (via parentBatchHeader).
             return Err(anyhow!("batch_num is 1, cannot infer prev batch"));
+        }
+
+        let last_committed_batch_index = self.l1_rollup.lastCommittedBatchIndex().call().await?;
+        if last_committed_batch_index <= batch_num {
+            log::info!(
+                "last committed batch index {:#?} is less than or equal to the specified batch_num {:#?}",
+                last_committed_batch_index,
+                batch_num
+            );
+            return Ok(None);
         }
 
         let latest = match self.l1_provider.get_block_number().await {

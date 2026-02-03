@@ -30,5 +30,8 @@ pub static SHADOW_PROVING_MAX_BLOCK: Lazy<u64> =
 pub static SHADOW_PROVING_MAX_TXN: Lazy<u64> =
     Lazy::new(|| read_env_var("SHADOW_PROVING_MAX_TXN", 200));
 
+pub static SHADOW_PROVING_BLOCKS_RANGE: Lazy<u64> =
+    Lazy::new(|| read_env_var("SHADOW_PROVING_BLOCKS_RANGE", 600));
+
 pub static SHADOW_PROVING_PROVER_RPC: Lazy<String> =
     Lazy::new(|| var("SHADOW_PROVING_PROVER_RPC").expect("Cannot detect PROVER_RPC env var"));
