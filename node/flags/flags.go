@@ -302,6 +302,12 @@ var (
 		Value:  26660,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	BlsKeyCheckForkHeight = cli.Uint64Flag{
+		Name:   "bls-key-check-fork-height",
+		Usage:  "The height at which the BLS key check fork occurs",
+		EnvVar: prefixEnvVar("BLS_KEY_CHECK_FORK_HEIGHT"),
+	}
 )
 
 var Flags = []cli.Flag{
@@ -368,4 +374,6 @@ var Flags = []cli.Flag{
 	MetricsServerEnable,
 	MetricsPort,
 	MetricsHostname,
+
+	BlsKeyCheckForkHeight,
 }

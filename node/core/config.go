@@ -170,6 +170,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.DevSequencer = ctx.GlobalBool(flags.DevSequencer.Name)
 	}
 
+	if ctx.GlobalIsSet(flags.BlsKeyCheckForkHeight.Name) {
+		c.BlsKeyCheckForkHeight = ctx.GlobalUint64(flags.BlsKeyCheckForkHeight.Name)
+	}
+
 	// setup batch upgrade index and fork heights
 	switch {
 	case ctx.GlobalIsSet(flags.MainnetFlag.Name):
