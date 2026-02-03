@@ -69,6 +69,11 @@ export const ContractInit = async (
         res = await Rollup.addChallenger(challenger)
         rec = await res.wait()
         console.log(`addChallenger(%s) ${rec.status == 1 ? "success" : "failed"}`, challenger)
+
+        await Rollup.initialize2("0x0000000000000000000000000000000000000000000000000000000000000001")
+        res = await Rollup.initialize3(8640000000)
+        rec = await res.wait()
+        console.log(`initialize3(%s) ${rec.status == 1 ? "success" : "failed"}`)
     }
 
     // ------------------ staking init -----------------
