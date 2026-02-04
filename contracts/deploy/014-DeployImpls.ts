@@ -122,6 +122,11 @@ export const deployContractImplsConcurrently = async (
 
         deployPromises.push(deployContract(L1StakingFactoryName, StakingImplStorageName, [L1CrossDomainMessengerProxyAddress]))
 
+        // L1Sequencer deploy (no constructor args)
+        const L1SequencerFactoryName = ContractFactoryName.L1Sequencer
+        const L1SequencerImplStorageName = ImplStorageName.L1SequencerStorageName
+        deployPromises.push(deployContract(L1SequencerFactoryName, L1SequencerImplStorageName))
+
         const results = await Promise.all(deployPromises)
 
         for (const result of results) {
@@ -378,6 +383,21 @@ export const deployContractImpls = async (
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
     err = await storage(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    if (err != '') {
+        return err
+    }
+
+    // ************************ sequencer contracts deploy ************************
+    // L1Sequencer deploy
+    const L1SequencerFactoryName = ContractFactoryName.L1Sequencer
+    const L1SequencerImplStorageName = ImplStorageName.L1SequencerStorageName
+    Factory = await hre.ethers.getContractFactory(L1SequencerFactoryName)
+    contract = await Factory.deploy()
+    await contract.deployed()
+    console.log("%s=%s ; TX_HASH: %s", L1SequencerImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash)
+    blockNumber = await hre.ethers.provider.getBlockNumber()
+    console.log("BLOCK_NUMBER: %s", blockNumber)
+    err = await storage(path, L1SequencerImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

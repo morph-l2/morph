@@ -234,6 +234,7 @@ with open(env_file, 'r+') as envfile:
     env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueueWithGasPriceOracle']
     env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
     env_data['MORPH_L1STAKING'] = addresses['Proxy__L1Staking']
+    env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
     envfile.seek(0)
     for key, value in env_data.items():
         envfile.write(f'{key}={value}\n')

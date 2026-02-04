@@ -1,6 +1,9 @@
 package flags
 
-import "github.com/urfave/cli"
+import (
+	"github.com/urfave/cli"
+	"time"
+)
 
 const envVarPrefix = "MORPH_NODE_"
 
@@ -228,6 +231,27 @@ var (
 		Value:  10,
 	}
 
+	// L1 Sequencer options
+	L1SequencerContractAddr = cli.StringFlag{
+		Name:   "l1.sequencerContract",
+		Usage:  "L1 Sequencer contract address for signature verification",
+		EnvVar: prefixEnvVar("L1_SEQUENCER_CONTRACT"),
+	}
+
+	L1SyncLagThreshold = cli.DurationFlag{
+		Name:   "l1.syncLagThreshold",
+		Usage:  "L1 sync lag threshold for warning logs",
+		EnvVar: prefixEnvVar("L1_SYNC_LAG_THRESHOLD"),
+		Value:  5 * time.Minute,
+	}
+
+	// Sequencer private key for block signing (hex encoded, without 0x prefix)
+	SequencerPrivateKey = cli.StringFlag{
+		Name:   "sequencer.privateKey",
+		Usage:  "Sequencer private key for block signing (hex encoded)",
+		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
+	}
+
 	// Batch rules
 	UpgradeBatchTime = cli.Uint64Flag{
 		Name:   "upgrade.batchTime",
@@ -348,6 +372,11 @@ var Flags = []cli.Flag{
 
 	// blocktag options
 	BlockTagSafeConfirmations,
+
+	// L1 Sequencer options
+	L1SequencerContractAddr,
+	L1SyncLagThreshold,
+	SequencerPrivateKey,
 
 	// batch rules
 	UpgradeBatchTime,
