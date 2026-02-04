@@ -20,7 +20,6 @@ const (
 
 // Config holds the configuration for BlockTagService
 type Config struct {
-	L1Addr            string
 	RollupAddress     common.Address
 	SafeConfirmations uint64
 	PollInterval      time.Duration
@@ -36,8 +35,6 @@ func DefaultConfig() *Config {
 
 // SetCliContext sets the configuration from CLI context
 func (c *Config) SetCliContext(ctx *cli.Context) error {
-	c.L1Addr = ctx.GlobalString(flags.L1NodeAddr.Name)
-
 	// Determine RollupAddress: use explicit flag, or mainnet default, or error
 	if ctx.GlobalBool(flags.MainnetFlag.Name) {
 		c.RollupAddress = node.MainnetRollupContractAddress
