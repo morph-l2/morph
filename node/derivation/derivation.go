@@ -139,8 +139,8 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
 
-	// Fetch geth config once at startup for root validation skip logic
-	gethCfg, err := types.FetchGethConfig(cfg.L2.EthAddr, logger)
+	// Fetch geth config once at startup for root validation skip logic (with retry)
+	gethCfg, err := types.FetchGethConfigWithRetry(cfg.L2.EthAddr, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
 	}
