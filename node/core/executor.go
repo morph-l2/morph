@@ -105,8 +105,8 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		logger.Info("L2Next geth not configured (no upgrade switch)")
 	}
 
-	// Fetch geth config at startup
-	gethCfg, err := types.FetchGethConfig(config.L2.EthAddr, logger)
+	// Fetch geth config at startup (with retry to wait for geth)
+	gethCfg, err := types.FetchGethConfigWithRetry(config.L2.EthAddr, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
 	}
