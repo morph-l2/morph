@@ -40,6 +40,18 @@ where
         Self { l1_provider, l2_provider, l1_rollup, l1_shadow_rollup }
     }
 
+    // Fetch the latest committed batch from l1-rollup if the batch_index has increased.
+    pub async fn get_latest_batch(&self, batch_index: u64) -> Result<Option<(BatchInfo, Bytes)>> {
+        let last_committed_batch_index = self.l1_rollup.lastCommittedBatchIndex().call().await?;
+        if last_committed_batch_index <= batch_index {
+            log::info!(
+                "The current batch_index has not increased, latest_batch_index: {last_committed_batch_index:?}"
+            );
+            return Ok(None);
+        }
+        self.get_committed_batch().await
+    }
+
     // Fetch the latest committed batch from l1-rollup.
     pub async fn get_committed_batch(&self) -> Result<Option<(BatchInfo, Bytes)>> {
         let latest = match self.l1_provider.get_block_number().await {

@@ -37,3 +37,8 @@ alloy-provider = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
+
+[features]
+default = ["network"]
+local = ["sp1-sdk/native-gnark"]
+network = []

@@ -6,7 +6,9 @@ use evm::{save_plonk_fixture, EvmProofFixture};
 use prover_executor_client::{types::input::ExecutorInput, verify};
 use prover_primitives::{alloy_primitives::keccak256, B256};
 use prover_utils::read_env_var;
-use sp1_sdk::{network::NetworkMode, HashableKey, Prover, ProverClient, SP1Stdin};
+#[cfg(feature = "network")]
+use sp1_sdk::network::NetworkMode;
+use sp1_sdk::{HashableKey, Prover, ProverClient, SP1Stdin};
 use sp1_verifier::PlonkVerifier;
 use std::time::Instant;
 
@@ -41,10 +43,15 @@ pub fn prove(
     // Execute the program in sp1-vm
     let mut stdin = SP1Stdin::new();
     stdin.write(&serde_json::to_string(&input)?);
+
+    #[cfg(feature = "network")]
     let client = ProverClient::builder()
         .network_for(NetworkMode::Mainnet)
         .rpc_url("https://rpc.mainnet.succinct.xyz")
         .build();
+
+    #[cfg(feature = "local")]
+    let client = ProverClient::builder().cpu().build();
 
     if read_env_var("DEVNET", false) {
         let (mut public_values, execution_report) =

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.24;
+pragma solidity ^0.8.20;
 
 import {ISP1Verifier, ISP1VerifierWithHash} from "./ISP1Verifier.sol";
 import {PlonkVerifier} from "./PlonkVerifier.sol";
 
 /// @title SP1 Verifier
+/// @author Succinct Labs
 /// @notice This contracts implements a solidity verifier for SP1.
 contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
     /// @notice Thrown when the verifier selector from this proof does not match the one in this
@@ -16,14 +17,20 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
     /// @notice Thrown when the proof is invalid.
     error InvalidProof();
 
+    function VERSION() external pure returns (string memory) {
+        return "v5.0.0";
+    }
+
     /// @inheritdoc ISP1VerifierWithHash
     function VERIFIER_HASH() public pure returns (bytes32) {
-        return 0xffea2d2e12ed24da258af874d77eee7ee91a1e050ee197052908089e57681e67;
+        return 0xd4e8ecd2357dd882209800acd6abb443d231cf287d77ba62b732ce937c8b56e7;
     }
 
     /// @notice Hashes the public values to a field elements inside Bn254.
     /// @param publicValues The public values.
-    function hashPublicValues(bytes calldata publicValues) public pure returns (bytes32) {
+    function hashPublicValues(
+        bytes calldata publicValues
+    ) public pure returns (bytes32) {
         return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     }
 
@@ -31,7 +38,11 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
     /// @param programVKey The verification key for the RISC-V program.
     /// @param publicValues The public values encoded as bytes.
     /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
-    function verifyProof(bytes32 programVKey, bytes calldata publicValues, bytes calldata proofBytes) external view {
+    function verifyProof(
+        bytes32 programVKey,
+        bytes calldata publicValues,
+        bytes calldata proofBytes
+    ) external view {
         bytes4 receivedSelector = bytes4(proofBytes[:4]);
         bytes4 expectedSelector = bytes4(VERIFIER_HASH());
         if (receivedSelector != expectedSelector) {

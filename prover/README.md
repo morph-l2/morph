@@ -15,6 +15,7 @@ or
 
 ```sh
 cargo run --release --package morph-prove --bin prove  -- --block-path ./testdata/mpt/mainnet_25215.json --prove
+cargo run --release --no-default-features --features local --package morph-prove --bin prove  -- --block-path ./testdata/mpt/mainnet_25215.json --prove
 cargo run --release --package morph-prove --bin prove  -- --start-block 0x35 --end-block 0x37 --rpc http://127.0.0.1:9545 --use-rpc-db
 ```
 

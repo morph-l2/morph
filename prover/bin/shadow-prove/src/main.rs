@@ -50,14 +50,15 @@ async fn main() {
             ticker.tick().await;
 
             // Get committed batch
-            let (batch_info, batch_header) = match batch_syncer_exec.get_committed_batch().await {
-                Ok(Some(committed_batch)) => committed_batch,
-                Ok(None) => continue,
-                Err(e) => {
-                    log::error!("get_committed_batch error: {:?}", e);
-                    continue;
-                }
-            };
+            let (batch_info, batch_header) =
+                match batch_syncer_exec.get_latest_batch(latest_processed_batch).await {
+                    Ok(Some(committed_batch)) => committed_batch,
+                    Ok(None) => continue,
+                    Err(e) => {
+                        log::error!("get_committed_batch error: {:?}", e);
+                        continue;
+                    }
+                };
 
             // Check if batch has already been processed
             if batch_info.batch_index <= latest_processed_batch {
