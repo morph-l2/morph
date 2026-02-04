@@ -16,7 +16,6 @@ use revm::database::BundleState;
 use revm::database::DatabaseRef;
 use revm::primitives::{Address, B256, KECCAK_EMPTY};
 use revm::state::{AccountInfo, Bytecode};
-use tracing::debug;
 
 use crate::error::RpcDbError;
 
@@ -58,7 +57,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
 
     /// Fetch the [AccountInfo] for an [Address].
     pub async fn fetch_account_info(&self, address: Address) -> Result<AccountInfo, RpcDbError> {
-        debug!("fetching account info for address: {}", address);
+        log::debug!("fetching account info for address: {}", address);
 
         // Fetch the proof for the account.
         let proof = self
@@ -121,7 +120,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         address: Address,
         index: U256,
     ) -> Result<U256, RpcDbError> {
-        debug!("fetching storage value at address: {}, index: {}", address, index);
+        log::debug!("fetching storage value at address: {}, index: {}", address, index);
 
         // Fetch the storage value.
         let value = self
@@ -241,7 +240,7 @@ where
         let state_requests = self.get_state_requests();
 
         // For every account we touched, fetch the storage proofs for all the slots we touched.
-        tracing::debug!("fetching storage proofs");
+        log::debug!("fetching storage proofs");
         let mut before_storage_proofs = Vec::new();
         let mut after_storage_proofs = Vec::new();
 

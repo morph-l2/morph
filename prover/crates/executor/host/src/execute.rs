@@ -112,7 +112,7 @@ impl HostExecutor {
             );
         }
 
-        println!("====success execute block_{block_num} in host, txns.len: {tx_count}====");
+        log::info!("success execute block_{block_num} in host, txns.len: {tx_count}");
         Ok(HostExecutorOutput {
             chain_id,
             beneficiary,

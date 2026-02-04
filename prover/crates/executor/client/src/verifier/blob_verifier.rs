@@ -13,15 +13,18 @@ impl BlobVerifier {
         num_blocks: usize,
     ) -> Result<(B256, Vec<u8>), anyhow::Error> {
         // decode
-        let origin_batch = get_origin_batch(&blob_info.blob_data).unwrap();
-        cfg_if::cfg_if! {
-            if #[cfg(not(target_os = "zkvm"))] {
-                let tx_list =
-        crate::types::blob::decode_transactions(&origin_batch.as_slice()[num_blocks*60..]);
-                println!("decoded tx_list_len: {:?}", tx_list.len());
-            }
-        }
+        let origin_batch = get_origin_batch(&blob_info.blob_data)?;
 
+        #[cfg(target_os = "zkvm")]
+        let _ = num_blocks;
+
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            let tx_list = crate::types::blob::decode_transactions(
+                &origin_batch.as_slice()[num_blocks * 60..],
+            );
+            log::info!("decoded tx_list_len: {:?}", tx_list.len());
+        }
         // verify kzg
         let versioned_hash = kzg_to_versioned_hash(&blob_info.commitment);
         let blob = KzgRsBlob::from_slice(&blob_info.blob_data).unwrap();
@@ -34,7 +37,8 @@ impl BlobVerifier {
         if !verify_result {
             return Err(anyhow!("The blob kzg verification result is Failed"));
         }
-        println!(
+        #[cfg(not(target_os = "zkvm"))]
+        log::info!(
             "verify_blob_kzg_proof successfully, versioned_hash: {:?}",
             B256::from_slice(&versioned_hash)
         );

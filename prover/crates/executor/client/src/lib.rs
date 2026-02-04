@@ -23,7 +23,8 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     let batch_info = profile_report!(EVM_VERIFY, { EVMVerifier::verify(input.block_inputs) })?;
 
     // Calc public input hash.
-    println!(
+    #[cfg(not(target_os = "zkvm"))]
+    log::info!(
         "cacl pi hash, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
         dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
         hex::encode(batch_info.prev_state_root().as_slice()),
@@ -34,6 +35,7 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
         hex::encode(batch_info.sequencer_root().as_slice()),
     );
     let public_input_hash = batch_info.public_input_hash(&versioned_hash);
-    println!("public input hash: {public_input_hash:?}");
+    #[cfg(not(target_os = "zkvm"))]
+    log::info!("public input hash: {public_input_hash:?}");
     Ok(B256::from_slice(public_input_hash.as_slice()))
 }

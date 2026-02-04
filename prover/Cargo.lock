@@ -5429,8 +5429,8 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "anyhow",
- "cfg-if 1.0.0",
  "kzg-rs",
+ "log",
  "morph-revm",
  "prover-executor-core",
  "prover-mpt",
@@ -5453,7 +5453,6 @@ dependencies = [
  "alloy-consensus",
  "alloy-evm",
  "anyhow",
- "log",
  "morph-chainspec",
  "morph-evm",
  "morph-primitives",
@@ -5473,6 +5472,7 @@ dependencies = [
  "alloy-rpc-types-debug",
  "anyhow",
  "c-kzg",
+ "log",
  "prover-executor-client",
  "prover-executor-core",
  "prover-mpt",
@@ -5549,6 +5549,7 @@ dependencies = [
  "alloy-transport",
  "anyhow",
  "async-trait",
+ "log",
  "prover-mpt",
  "prover-primitives",
  "reth-primitives-traits",
@@ -5559,7 +5560,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
- "tracing",
 ]
 
 [[package]]

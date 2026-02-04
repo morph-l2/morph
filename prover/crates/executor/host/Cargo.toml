@@ -22,6 +22,7 @@ alloy-primitives = { workspace = true }
 reth-trie.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+log = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

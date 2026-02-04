@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, path::PathBuf};
 
 use alloy_provider::{Provider, ProviderBuilder};
 use clap::Parser;
@@ -37,7 +37,7 @@ struct Args {
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
     let args = Args::parse();
     let mut input = if args.use_rpc_db {
@@ -61,7 +61,18 @@ async fn main() {
         println!("Saved executor input to {input_path}");
     }
 
-    let _ = prove(&mut input, args.prove).unwrap();
+    let proof = prove(&mut input, args.prove).unwrap();
+    if let Some(evm_proof) = proof {
+        let proof_dir =
+            PathBuf::from("proof").join(format!("blocks_{}_{}", args.start_block, args.end_block));
+        std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
+        std::fs::write(
+            proof_dir.join("plonk_proof.json"),
+            serde_json::to_string_pretty(&evm_proof).unwrap(),
+        )
+        .expect("failed to write proof");
+        log::info!("Successfully save evm proof of blocks_{}_{}", args.start_block, args.end_block);
+    }
 }
 
 fn load_trace(file_path: &str) -> Vec<BlockTrace> {

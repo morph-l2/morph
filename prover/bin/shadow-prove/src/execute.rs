@@ -118,6 +118,8 @@ mod tests {
     // cargo test -p shadow-proving --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
     #[test]
     fn test_execute_range() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
+
         let (start_block, end_block, rpc) = test_args::read_execute_range_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
 
@@ -129,6 +131,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_batch() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let handle = tokio::spawn(async move {
             let provider = ProviderBuilder::new()
                 .connect_http("http://127.0.0.1:9545".parse().unwrap())
@@ -146,6 +149,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_execute_remote() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let provider =
             ProviderBuilder::new().connect_http("http://127.0.0.1:9545".parse().unwrap()).erased();
 
@@ -159,6 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_local() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let file = std::fs::File::open("../../testdata/mpt/executor_input_19720290.data").unwrap();
         let reader = std::io::BufReader::new(file);
         let block_input: BlockInput = serde_json::from_reader(reader).unwrap();
@@ -169,6 +174,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_batch_input() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let provider = ProviderBuilder::new()
             .connect_http("https://rpc-quicknode.morphl2.io".parse().unwrap())
             .erased();
@@ -218,6 +224,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_batch_input_local() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let file = File::open("proof/shadow_input.json").unwrap();
         let reader = BufReader::new(file);
         let inputs: Vec<BlockInput> = serde_json::from_reader(reader).unwrap();

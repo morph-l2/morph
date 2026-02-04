@@ -1,5 +1,5 @@
 use alloy_rlp::Decodable;
-use anyhow::{anyhow, Ok};
+use anyhow::{anyhow, Context, Ok};
 #[cfg(not(target_os = "zkvm"))]
 use prover_primitives::MorphTxEnvelope;
 use ruzstd::StreamingDecoder;
@@ -45,17 +45,10 @@ pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Erro
 
     let mut decoder = StreamingDecoder::new(&mut x)?;
     let mut result = Vec::new();
-    decoder.read_to_end(&mut result).unwrap();
-    println!("decompressed_batch: {:?}", result.len());
+    decoder.read_to_end(&mut result).context("Failed to decompress batch")?;
+    #[cfg(not(target_os = "zkvm"))]
+    log::info!("decompressed_batch: {:?}", result.len());
     Ok(result)
-}
-
-pub fn decode_raw_tx_payload(origin_batch: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
-    let len_bytes: [u8; 32] = origin_batch[0..32].try_into().expect("Slice with incorrect length");
-    let mut restored_bytes: [u8; 8] = [0; 8];
-    restored_bytes.copy_from_slice(&len_bytes[0..8]);
-    let tx_data_len = u64::from_be_bytes(restored_bytes) as usize;
-    Ok(origin_batch[32..tx_data_len + 32].to_vec())
 }
 
 #[cfg(not(target_os = "zkvm"))]
@@ -67,7 +60,7 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
         let first_byte = *bs.get(offset).unwrap();
         if first_byte == 0 {
             // zero byte is found after valid tx bytes, break the loop
-            println!("zero byte");
+            log::info!("zero byte");
             break;
         }
 
@@ -77,7 +70,7 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
             // Support transaction types: 0x01, 0x02, 0x04
             if first_byte != 0x01 && first_byte != 0x02 && first_byte != 0x04 && first_byte != 0x7f
             {
-                println!("not supported tx type: 0x{first_byte:02x}");
+                log::info!("not supported tx type: 0x{first_byte:02x}");
                 break;
             }
             (*bs.get(offset + 1).unwrap() - 0xf7) as usize
@@ -101,7 +94,7 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
         let tx_bytes = bs[offset..offset + rlp_tx_len].to_vec();
         let tx_decoded: MorphTxEnvelope = MorphTxEnvelope::decode(&mut tx_bytes.as_slice())
             .inspect_err(|e| {
-                println!("decode_transaction error: {e:?}");
+                log::error!("decode_transaction error: {e:?}");
             })
             .unwrap();
 
@@ -109,6 +102,6 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
         offset += rlp_tx_len;
     }
 
-    println!("Successfully decoded {} transactions", txs_decoded.len());
+    log::info!("Successfully decoded {} transactions", txs_decoded.len());
     txs_decoded
 }

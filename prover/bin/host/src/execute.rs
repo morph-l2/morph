@@ -100,6 +100,8 @@ mod tests {
     // cargo test -p morph-prove --lib -- execute::tests::test_execute --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
     #[test]
     fn test_execute() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (block_number, rpc) = command_args::read_execute_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
@@ -110,6 +112,8 @@ mod tests {
     // cargo test -p morph-prove --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
     #[test]
     fn test_execute_range() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (start_block, end_block, rpc) = command_args::read_execute_range_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
@@ -119,6 +123,8 @@ mod tests {
     // cargo test -p morph-prove --lib -- execute::tests::test_execute_continuous --exact --nocapture -- --start-block 0x35 --max-blocks 2 --rpc http://127.0.0.1:9545
     #[test]
     fn test_execute_continuous() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (start_block, max_blocks, rpc) = command_args::read_execute_continuous_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
@@ -132,6 +138,7 @@ mod tests {
     #[test]
     fn test_execute_local_traces() {
         use prover_executor_client::EVMVerifier;
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
         let provided = command_args::read_execute_local_traces_paths_from_argv();
         let files = resolve_trace_files(&provided);

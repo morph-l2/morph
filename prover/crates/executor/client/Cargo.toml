@@ -6,7 +6,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
-cfg-if = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true
@@ -27,6 +26,7 @@ prover-storage-witness.workspace = true
 # prover-utils.workspace = true
 prover-mpt = { workspace = true }
 morph-revm = { workspace = true }
+log = { workspace = true }
 
 
 [dev-dependencies]

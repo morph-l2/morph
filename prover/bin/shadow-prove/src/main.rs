@@ -276,7 +276,7 @@ fn log_format(
 #[tokio::test]
 async fn test_shadow() {
     dotenv().ok();
-    setup_logging();
+    env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
     log::info!("Starting shadow proving...");
 
     // cargo test -p shadow-proving --bin shadow-proving -- test_shadow --exact --nocapture -- --batch-num 100 --no-prove
