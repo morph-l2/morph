@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/types"
 
@@ -25,7 +28,7 @@ var (
 )
 
 var (
-	rollupAddr = common.HexToAddress("0xd0ec100f1252a53322051a95cf05c32f0c174354")
+	rollupAddr = common.HexToAddress("0x0165878a594ca255338adfa4d48449f69242eb8f")
 
 	l1ClientRpc = "http://localhost:9545"
 	l2ClientRpc = "http://localhost:8545"
@@ -50,7 +53,15 @@ func init() {
 }
 
 func Test_GetFinalizeBatchHeader(t *testing.T) {
-	bc := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
+	testDir := filepath.Join(t.TempDir(), "testleveldb")
+	os.RemoveAll(testDir)
+	t.Cleanup(func() {
+		os.RemoveAll(testDir)
+	})
+	testDB, err := db.New(testDir)
+	require.NoError(t, err)
+
+	bc := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	headerBytes, err := bc.getLastFinalizeBatchHeaderFromRollupByIndex(0)
 	require.NoError(t, err)
 	t.Log("headerBytes", hex.EncodeToString(headerBytes.Bytes()))
@@ -71,12 +82,20 @@ func Test_CommitBatchParse(t *testing.T) {
 }
 
 func TestBatchRestartInit(t *testing.T) {
+	testDir := filepath.Join(t.TempDir(), "testleveldb")
+	os.RemoveAll(testDir)
+	t.Cleanup(func() {
+		os.RemoveAll(testDir)
+	})
+	testDB, err := db.New(testDir)
+	require.NoError(t, err)
+
 	sequencerSetBytes, sequencerSetVerifyHash, err := l2Caller.GetSequencerSetBytes(nil)
 	require.NoError(t, err)
 	t.Log("sequencer set verify hash", hex.EncodeToString(sequencerSetVerifyHash[:]))
 	ci, fi := getInfosFromContract()
 	t.Log("commit index", ci, " ", "finalize index", fi)
-	bc := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
+	bc := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	startBlockNum, endBlockNum, err := getFirstUnFinalizeBatchBlockNumRange(fi)
 	require.NoError(t, err)
 	startBlockNum = new(big.Int).Add(startBlockNum, new(big.Int).SetUint64(1))

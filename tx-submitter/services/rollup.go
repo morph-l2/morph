@@ -122,7 +122,7 @@ func NewRollup(
 		cfg:              cfg,
 		signer:           ethtypes.LatestSignerForChainID(chainId),
 		externalRsaPriv:  rsaPriv,
-		batchCache:       batch.NewBatchCache(nil, l1, l2Clients, rollup, l2Caller),
+		batchCache:       batch.NewBatchCache(nil, l1, l2Clients, rollup, l2Caller, ldb),
 		ldb:              ldb,
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
@@ -167,7 +167,7 @@ func (r *Rollup) Start() error {
 
 	// metrics
 	go utils.Loop(r.ctx, 10*time.Second, func() {
-		// get balacnce of wallet
+		// get balance of wallet
 		balance, err := r.L1Client.BalanceAt(context.Background(), r.WalletAddr(), nil)
 		if err != nil {
 			log.Error("get wallet balance error", "error", err)
@@ -255,19 +255,24 @@ func (r *Rollup) Start() error {
 		}
 	})
 
-	go func() {
-		for {
-			err = r.batchCache.InitAndSyncFromRollup()
-			if err != nil {
-				log.Error("init and sync from rollup failed, wait for the next try", "error", err)
-			}
-			err = r.batchCache.AssembleCurrentBatchHeader()
-			if err != nil {
-				log.Error("Assemble current batch failed, wait for the next try", "error", err)
-			}
-			time.Sleep(5 * time.Second)
+	var batchCacheSyncMu sync.Mutex
+	go utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
+		batchCacheSyncMu.Lock()
+		defer batchCacheSyncMu.Unlock()
+		err = r.batchCache.InitAndSyncFromDatabase()
+		if err != nil {
+			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
 		}
-	}()
+		err = r.batchCache.AssembleCurrentBatchHeader()
+		if err != nil {
+			log.Error("assemble current batch failed, wait for the next try", "error", err)
+		}
+		index, err := r.batchCache.LatestBatchIndex()
+		if err != nil {
+			log.Error("cannot get the latest batch index from batch cache", "error", err)
+		}
+		r.metrics.SetLastCacheBatchIndex(index)
+	})
 
 	return nil
 }
@@ -286,8 +291,8 @@ func (r *Rollup) ProcessTx() error {
 	}
 
 	// Check if this submitter should process transactions
-	if err := r.checkSubmitterTurn(); err != nil {
-		if err == errNotMyTurn {
+	if err = r.checkSubmitterTurn(); err != nil {
+		if errors.Is(err, errNotMyTurn) {
 			// Get current submitter index for logging
 			activeSubmitter, activeIndex, _ := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 
@@ -699,23 +704,33 @@ func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 	replacedTx, err := r.ReSubmitTx(true, tx)
 	if err != nil {
 		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
-			// Transaction was probably confirmed in a reorg
+			// The tx was probably confirmed in a reorg
 			log.Info("Discarded transaction removed (nonce too low)",
 				"hash", tx.Hash().String(),
 				"nonce", tx.Nonce(),
 				"method", method)
-			if err := r.pendingTxs.Remove(tx.Hash()); err != nil {
+			if err = r.pendingTxs.Remove(tx.Hash()); err != nil {
 				log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 			}
 			return nil
 		}
-		return fmt.Errorf("resend discarded tx: %w", err)
+
+		// If resubmit failed, try to replace it with a simple transfer transaction
+		log.Warn("Resubmit failed, attempting to replace with simple transfer transaction",
+			"hash", tx.Hash().String(),
+			"nonce", tx.Nonce(),
+			"error", err)
+
+		replacedTx, err = r.createReplacementTransferTx(tx)
+		if err != nil {
+			return fmt.Errorf("failed to create replacement transfer tx: %w", err)
+		}
 	}
 
-	if err := r.pendingTxs.Remove(tx.Hash()); err != nil {
+	if err = r.pendingTxs.Remove(tx.Hash()); err != nil {
 		log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 	}
-	if err := r.pendingTxs.Add(replacedTx); err != nil {
+	if err = r.pendingTxs.Add(replacedTx); err != nil {
 		log.Error("failed to add replaced transaction", "hash", replacedTx.Hash().String(), "error", err)
 	}
 	log.Info("Successfully resubmitted discarded transaction",
@@ -733,7 +748,7 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 		return fmt.Errorf("get tx status error: %w", err)
 	}
 
-	// Get current block number for confirmation count
+	// Get the current block number for confirmation count
 	currentBlock, err := r.L1Client.BlockNumber(context.Background())
 	if err != nil {
 		return fmt.Errorf("get current block number error: %w", err)
@@ -822,12 +837,12 @@ func (r *Rollup) finalize() error {
 	}
 
 	log.Info("finalize info",
-		"last_fianlzied", lastFinalized,
+		"last_finalized", lastFinalized,
 		"last_committed", lastCommitted,
 		"finalize_index", target,
 	)
 
-	// batch exist
+	// batch exists
 	existed, err := r.Rollup.BatchExist(nil, target)
 	if err != nil {
 		log.Error("query batch exist", "err", err)
@@ -838,7 +853,7 @@ func (r *Rollup) finalize() error {
 		return nil
 	}
 
-	// in challenge window
+	// inside challenge window
 	inWindow, err := r.Rollup.BatchInsideChallengeWindow(nil, target)
 	if err != nil {
 		return fmt.Errorf("get batch inside challenge window error:%v", err)
@@ -947,11 +962,11 @@ func (r *Rollup) finalize() error {
 		}
 		return fmt.Errorf("send tx error:%v", err.Error())
 	} else {
-		log.Info("finalzie tx sent")
+		log.Info("finalize tx sent")
 
 		r.pendingTxs.SetNonce(signedTx.Nonce())
 		r.pendingTxs.SetPFinalize(target.Uint64())
-		if err := r.pendingTxs.Add(signedTx); err != nil {
+		if err = r.pendingTxs.Add(signedTx); err != nil {
 			log.Error("failed to add signed transaction", "hash", signedTx.Hash().String(), "error", err)
 		}
 	}
@@ -976,7 +991,7 @@ func (r *Rollup) rollup() error {
 			"blocks_processed", r.eventInfoStorage.BlockProcessed(),
 			"last_event_time", r.eventInfoStorage.BlockTime())
 
-		// get current blocknumber
+		// get current block number
 		blockNumber, err := r.L1Client.BlockNumber(context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to get block number in rollup: %w", err)
@@ -1050,15 +1065,12 @@ func (r *Rollup) rollup() error {
 
 	cindexBig, err := r.Rollup.LastCommittedBatchIndex(nil)
 	if err != nil {
-		return fmt.Errorf("get last committed batch index error:%v", err)
+		return fmt.Errorf("get last committed rpcRollupBatch index error:%v", err)
 	}
 	cindex := cindexBig.Uint64()
-
-	switch {
-	case r.pendingTxs.pindex != 0:
+	batchIndex = cindex + 1
+	if len(r.pendingTxs.getAll()) != 0 && r.pendingTxs.pindex != 0 {
 		batchIndex = max(cindex, r.pendingTxs.pindex) + 1
-	default:
-		batchIndex = cindex + 1
 	}
 
 	log.Debug("Batch status",
@@ -1072,25 +1084,25 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	batch, ok := r.batchCache.Get(batchIndex)
+	rpcRollupBatch, ok := r.batchCache.Get(batchIndex)
 	if !ok {
 		log.Info("Batch not found in cache",
 			"batch_index", batchIndex)
 		return nil
 	}
 
-	signature, err := r.buildSignatureInput(batch)
+	signature, err := r.buildSignatureInput(rpcRollupBatch)
 	if err != nil {
 		return err
 	}
 	rollupBatch := bindings.IRollupBatchDataInput{
-		Version:           uint8(batch.Version),
-		ParentBatchHeader: batch.ParentBatchHeader,
-		LastBlockNumber:   batch.LastBlockNumber,
-		NumL1Messages:     batch.NumL1Messages,
-		PrevStateRoot:     batch.PrevStateRoot,
-		PostStateRoot:     batch.PostStateRoot,
-		WithdrawalRoot:    batch.WithdrawRoot,
+		Version:           uint8(rpcRollupBatch.Version),
+		ParentBatchHeader: rpcRollupBatch.ParentBatchHeader,
+		LastBlockNumber:   rpcRollupBatch.LastBlockNumber,
+		NumL1Messages:     rpcRollupBatch.NumL1Messages,
+		PrevStateRoot:     rpcRollupBatch.PrevStateRoot,
+		PostStateRoot:     rpcRollupBatch.PostStateRoot,
+		WithdrawalRoot:    rpcRollupBatch.WithdrawRoot,
 	}
 
 	// tip and cap
@@ -1108,9 +1120,9 @@ func (r *Rollup) rollup() error {
 	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip)
 	if err != nil {
 		log.Warn("Estimate gas failed", "batch_index", batchIndex, "error", err)
-		// Use rough estimation based on L1 message count
+		// Use estimation based on L1 message count
 		if r.cfg.RoughEstimateGas {
-			msgcnt := utils.ParseL1MessageCnt(batch.BlockContexts)
+			msgcnt := utils.ParseL1MessageCnt(rpcRollupBatch.BlockContexts)
 			gas = r.RoughRollupGasEstimate(msgcnt)
 			log.Info("Using rough gas estimation",
 				"batch_index", batchIndex,
@@ -1131,7 +1143,7 @@ func (r *Rollup) rollup() error {
 	}
 
 	// Create and sign transaction
-	tx, err := r.createRollupTx(batch, nonce, gas, tip, gasFeeCap, blobFee, calldata, head)
+	tx, err := r.createRollupTx(rpcRollupBatch, nonce, gas, tip, gasFeeCap, blobFee, calldata, head)
 	if err != nil {
 		return fmt.Errorf("failed to create rollup tx: %w", err)
 	}
@@ -1741,7 +1753,6 @@ func (r *Rollup) BumpGas(origin uint64) uint64 {
 	}
 }
 
-// for rollup
 func (r *Rollup) RoughRollupGasEstimate(msgcnt uint64) uint64 {
 	return r.cfg.RollupTxGasBase + msgcnt*r.cfg.RollupTxGasPerL1Msg
 }
@@ -1924,6 +1935,97 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 	if err != nil {
 		return nil, fmt.Errorf("send tx error:%w", err)
 	}
+
+	return newTx, nil
+}
+
+// createReplacementTransferTx creates a simple transfer transaction with the same nonce
+// to replace the original transaction. This is used when resubmission fails.
+func (r *Rollup) createReplacementTransferTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
+	if tx == nil {
+		return nil, errors.New("nil tx")
+	}
+
+	log.Info("creating replacement transfer transaction",
+		"original_hash", tx.Hash().String(),
+		"nonce", tx.Nonce(),
+	)
+
+	// Get current gas prices
+	tip, gasFeeCap, _, head, err := r.GetGasTipAndCap()
+	if err != nil {
+		return nil, fmt.Errorf("get gas tip and cap error: %w", err)
+	}
+
+	// Bump gas prices to ensure replacement
+	bumpedFeeCap := calcThresholdValue(tx.GasFeeCap(), false)
+	bumpedTip := calcThresholdValue(tx.GasTipCap(), false)
+
+	if bumpedTip.Cmp(tip) > 0 {
+		tip = bumpedTip
+	}
+	if bumpedFeeCap.Cmp(gasFeeCap) > 0 {
+		gasFeeCap = bumpedFeeCap
+	}
+
+	// Ensure minimum tip if configured
+	if r.cfg.MinTip > 0 && tip.Cmp(big.NewInt(int64(r.cfg.MinTip))) < 0 {
+		log.Info("replacement tip is too low, update tip to min tip", "tip", tip, "min_tip", r.cfg.MinTip)
+		tip = big.NewInt(int64(r.cfg.MinTip))
+		if head.BaseFee != nil {
+			recalculatedFeecap := new(big.Int).Add(
+				tip,
+				new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+			)
+			if recalculatedFeecap.Cmp(gasFeeCap) > 0 {
+				gasFeeCap = recalculatedFeecap
+			}
+		}
+	}
+
+	// Get sender address (send to self)
+	senderAddr := r.WalletAddr()
+
+	// Create a simple transfer transaction (send to self with empty calldata)
+	// Use minimum gas limit for a simple transfer (21000)
+	transferGas := uint64(21000)
+
+	newTx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+		ChainID:   r.chainId,
+		To:        &senderAddr, // Send it to self
+		Nonce:     tx.Nonce(),  // Same nonce as original transaction
+		GasFeeCap: gasFeeCap,
+		GasTipCap: tip,
+		Gas:       transferGas,
+		Value:     big.NewInt(0), // Zero value transfer
+		Data:      []byte{},      // Empty call data
+	})
+
+	log.Info("replacement transfer tx info",
+		"tx_type", newTx.Type(),
+		"gas_tip_gwei", utils.WeiToGwei(tip),
+		"gas_fee_cap_gwei", utils.WeiToGwei(gasFeeCap),
+		"nonce", newTx.Nonce(),
+		"to", senderAddr.Hex(),
+	)
+
+	// Sign transaction
+	newTx, err = r.Sign(newTx)
+	if err != nil {
+		return nil, fmt.Errorf("sign tx error: %w", err)
+	}
+
+	// Send transaction
+	err = r.SendTx(newTx)
+	if err != nil {
+		return nil, fmt.Errorf("send tx error: %w", err)
+	}
+
+	log.Info("successfully sent replacement transfer transaction",
+		"original_hash", tx.Hash().String(),
+		"replacement_hash", newTx.Hash().String(),
+		"nonce", newTx.Nonce(),
+	)
 
 	return newTx, nil
 }

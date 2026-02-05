@@ -10,11 +10,11 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/morph-l2/go-ethereum/crypto"
-
+	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/types"
 
+	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
@@ -29,6 +29,8 @@ type BatchCache struct {
 	mu       sync.RWMutex
 	ctx      context.Context
 	initDone bool
+
+	batchStorage *BatchStorage
 
 	// key: batchIndex, value: RPCRollupBatch
 	sealedBatches map[uint64]*eth.RPCRollupBatch
@@ -78,6 +80,7 @@ func NewBatchCache(
 	l2Clients []iface.L2Client,
 	rollupContract iface.IRollup,
 	l2Caller *types.L2Caller,
+	ldb *db.Db,
 ) *BatchCache {
 	if isBatchUpgraded == nil {
 		// Default implementation: always returns true (use V1 version)
@@ -113,6 +116,7 @@ func NewBatchCache(
 		l2Clients:                         iface.L2Clients{Clients: l2Clients},
 		rollupContract:                    rollupContract,
 		l2Caller:                          l2Caller,
+		batchStorage:                      NewBatchStorage(ldb),
 	}
 }
 
@@ -170,6 +174,77 @@ func (bc *BatchCache) InitFromRollupByRange() error {
 	return nil
 }
 
+func (bc *BatchCache) InitAndSyncFromDatabase() error {
+	if bc.initDone {
+		return nil
+	}
+	ci, fi, err := bc.getBatchStatusFromContract()
+	if err != nil {
+		return fmt.Errorf("get batch status from rollup failed err: %w", err)
+	}
+
+	batches, err := bc.batchStorage.LoadAllSealedBatches()
+	if err != nil {
+		return err
+	}
+	if batches == nil || len(batches) == 0 {
+		err = bc.InitAndSyncFromRollup()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	// check batch hash with the batch that already rollup by sybmitter
+	for i := fi.Uint64(); i <= ci.Uint64(); i++ {
+		batchHash, err := bc.rollupContract.CommittedBatches(nil, new(big.Int).SetUint64(i))
+		if err != nil {
+			return err
+		}
+		batchStorage, exist := batches[i]
+		if !exist || !bytes.Equal(batchHash[:], batchStorage.Hash.Bytes()) {
+			// batch not contiguous or batch is invalid
+			err = bc.InitAndSyncFromRollup()
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+	parentHeader := BatchHeaderBytes(batches[uint64(len(batches)-1)].ParentBatchHeader[:])
+	bc.lastPackedBlockHeight, err = parentHeader.LastBlockNumber()
+	if err != nil {
+		parentBatchIndex, err := parentHeader.BatchIndex()
+		if err != nil {
+			return fmt.Errorf("get batch index from parent header failed err: %w", err)
+		}
+		// check batch index range
+		if parentBatchIndex > ci.Uint64() || parentBatchIndex < fi.Uint64() {
+			// sync from another side
+			err = bc.InitAndSyncFromRollup()
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		store, err := bc.rollupContract.BatchDataStore(nil, fi)
+		if err != nil {
+			return err
+		}
+		bc.lastPackedBlockHeight = store.BlockNumber.Uint64()
+	}
+	bc.sealedBatches = batches
+	bc.parentBatchHeader = &parentHeader
+	bc.prevStateRoot, err = parentHeader.PostStateRoot()
+	if err != nil {
+		return fmt.Errorf("get post state root err: %w", err)
+	}
+	bc.currentBlockNumber = bc.lastPackedBlockHeight
+	bc.totalL1MessagePopped, err = parentHeader.TotalL1MessagePopped()
+	bc.initDone = true
+	log.Info("Sync sealed batch from database success", "count", len(batches))
+	return nil
+}
+
 func (bc *BatchCache) InitAndSyncFromRollup() error {
 	if bc.initDone {
 		return nil
@@ -214,6 +289,10 @@ func (bc *BatchCache) InitAndSyncFromRollup() error {
 	bc.initDone = true
 	log.Info("Initialized batch cache success")
 	return nil
+}
+
+func (bc *BatchCache) LatestBatchIndex() (uint64, error) {
+	return bc.parentBatchHeader.BatchIndex()
 }
 
 func (bc *BatchCache) updateBatchConfigFromGov() error {
@@ -592,7 +671,10 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 		CollectedL1Fee:           nil,
 	}
 	bc.sealedBatches[batchIndex] = sealedBatch
-
+	err = bc.batchStorage.StoreSealedBatch(batchIndex, sealedBatch)
+	if err != nil {
+		log.Error("failed to store sealed batch", "err", err)
+	}
 	// Update parent batch information for next batch
 	bc.parentBatchHeader = &batchHeader
 	bc.prevStateRoot = bc.postStateRoot

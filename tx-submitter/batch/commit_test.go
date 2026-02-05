@@ -5,10 +5,13 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/types"
 	"morph-l2/tx-submitter/utils"
@@ -28,8 +31,16 @@ import (
 var pk = ""
 
 func TestRollupWithProof(t *testing.T) {
-	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
-	err := cache.InitFromRollupByRange()
+	testDir := filepath.Join(t.TempDir(), "testleveldb")
+	os.RemoveAll(testDir)
+	t.Cleanup(func() {
+		os.RemoveAll(testDir)
+	})
+	testDB, err := db.New(testDir)
+	require.NoError(t, err)
+
+	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	err = cache.InitFromRollupByRange()
 	require.NoError(t, err)
 
 	privateKey, err := crypto.HexToECDSA(pk[2:])

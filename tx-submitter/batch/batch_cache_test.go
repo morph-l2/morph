@@ -3,10 +3,12 @@ package batch
 import (
 	"os"
 	"os/signal"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/types"
 	"morph-l2/tx-submitter/utils"
@@ -27,8 +29,22 @@ func init() {
 	}
 }
 
+// setupTestDB creates a temporary database for testing
+func setupTestDB(t *testing.T) *db.Db {
+	testDir := filepath.Join(t.TempDir(), "testleveldb")
+	os.RemoveAll(testDir)
+	t.Cleanup(func() {
+		os.RemoveAll(testDir)
+	})
+
+	testDB, err := db.New(testDir)
+	require.NoError(t, err)
+	return testDB
+}
+
 func TestBatchCacheInitServer(t *testing.T) {
-	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
+	testDB := setupTestDB(t)
+	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 
 	go utils.Loop(cache.ctx, 5*time.Second, func() {
 		err := cache.InitFromRollupByRange()
@@ -51,35 +67,15 @@ func TestBatchCacheInitServer(t *testing.T) {
 }
 
 func TestBatchCacheInit(t *testing.T) {
-	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
+	testDB := setupTestDB(t)
+	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	err := cache.InitAndSyncFromRollup()
 	require.NoError(t, err)
 }
 
 func TestBatchCacheInitByBlockRange(t *testing.T) {
-	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
+	testDB := setupTestDB(t)
+	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	err := cache.InitFromRollupByRange()
 	require.NoError(t, err)
-}
-
-func TestBatchCacheInitByBlockRange1(t *testing.T) {
-	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
-	err := cache.Init()
-	require.NoError(t, err)
-	batch, err := cache.assembleBatchHeaderFromL2Blocks(0, 18)
-	require.NoError(t, err)
-	hash, err := batch.Hash()
-	require.NoError(t, err)
-	t.Log("0-18 batch hash", hash.String())
-}
-
-func TestBatchCacheInitByBlockRange2(t *testing.T) {
-	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller)
-	err := cache.Init()
-	require.NoError(t, err)
-	batch, err := cache.assembleBatchHeaderFromL2Blocks(1, 18)
-	require.NoError(t, err)
-	hash, err := batch.Hash()
-	require.NoError(t, err)
-	t.Log("1-18 batch hash", hash.String())
 }
