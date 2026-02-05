@@ -50,6 +50,31 @@ func (d *MockDB) PutFloat(key string, val float64) error {
 	return nil
 }
 
+func (d *MockDB) GetBytes(key []byte) ([]byte, error) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+	if val, ok := d.store[string(key)]; ok {
+		return []byte(val), nil
+	}
+	return nil, db.ErrKeyNotFound
+}
+
+func (d *MockDB) PutBytes(key, val []byte) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	keyStr := string(key)
+	d.store[keyStr] = string(val)
+	return nil
+}
+
+func (d *MockDB) Delete(key []byte) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	keyStr := string(key)
+	delete(d.store, keyStr)
+	return nil
+}
+
 func (d *MockDB) Close() error {
 	return nil
 }

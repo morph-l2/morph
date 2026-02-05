@@ -77,11 +77,11 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 				continue
 			}
 			if batchIndex == index {
-				finalizeEventIter.Close()
+				_ = finalizeEventIter.Close()
 				return &batchHeader, nil
 			}
 		}
-		finalizeEventIter.Close()
+		_ = finalizeEventIter.Close()
 
 		// Continue querying backwards
 		if endBlock < blockRange {
@@ -219,12 +219,12 @@ func (bc *BatchCache) getCommitBatchDataByIndex(index uint64) (*bindings.IRollup
 				parentHeader := BatchHeaderBytes(batchDataInput.ParentBatchHeader)
 				parentBatchIndex, err := parentHeader.BatchIndex()
 				if err == nil && parentBatchIndex+1 == index {
-					commitEventIter.Close()
+					_ = commitEventIter.Close()
 					return batchDataInput, batchSignatureInput, nil
 				}
 			}
 		}
-		commitEventIter.Close()
+		_ = commitEventIter.Close()
 
 		// Continue querying backwards
 		if endBlock < blockRange {
@@ -290,7 +290,7 @@ func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, *bi
 	// Convert []uint8 to []byte
 	parentBatchHeader := make([]byte, len(batchDataInputStruct.ParentBatchHeader))
 	for i, v := range batchDataInputStruct.ParentBatchHeader {
-		parentBatchHeader[i] = byte(v)
+		parentBatchHeader[i] = v
 	}
 
 	batchDataInput := &bindings.IRollupBatchDataInput{
@@ -313,11 +313,11 @@ func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, *bi
 	// Convert []uint8 to []byte
 	sequencerSets := make([]byte, len(batchSignatureInputStruct.SequencerSets))
 	for i, v := range batchSignatureInputStruct.SequencerSets {
-		sequencerSets[i] = byte(v)
+		sequencerSets[i] = v
 	}
 	signature := make([]byte, len(batchSignatureInputStruct.Signature))
 	for i, v := range batchSignatureInputStruct.Signature {
-		signature[i] = byte(v)
+		signature[i] = v
 	}
 
 	batchSignatureInput := &bindings.IRollupBatchSignatureInput{
@@ -358,7 +358,7 @@ func parseCommitBatchWithProofTxData(txData []byte, rollupAbi *abi.ABI) (*bindin
 	// Convert []uint8 to []byte
 	parentBatchHeader := make([]byte, len(batchDataInputStruct.ParentBatchHeader))
 	for i, v := range batchDataInputStruct.ParentBatchHeader {
-		parentBatchHeader[i] = byte(v)
+		parentBatchHeader[i] = v
 	}
 
 	batchDataInput := &bindings.IRollupBatchDataInput{
@@ -381,11 +381,11 @@ func parseCommitBatchWithProofTxData(txData []byte, rollupAbi *abi.ABI) (*bindin
 	// Convert []uint8 to []byte
 	sequencerSets := make([]byte, len(batchSignatureInputStruct.SequencerSets))
 	for i, v := range batchSignatureInputStruct.SequencerSets {
-		sequencerSets[i] = byte(v)
+		sequencerSets[i] = v
 	}
 	signature := make([]byte, len(batchSignatureInputStruct.Signature))
 	for i, v := range batchSignatureInputStruct.Signature {
-		signature[i] = byte(v)
+		signature[i] = v
 	}
 
 	batchSignatureInput := &bindings.IRollupBatchSignatureInput{

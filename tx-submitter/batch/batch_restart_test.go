@@ -326,7 +326,7 @@ func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchH
 	// Compare Version
 	version, err := assembledBatchHeader.Version()
 	require.NoError(t, err)
-	if uint8(version) != batchDataInput.Version {
+	if version != batchDataInput.Version {
 		t.Errorf("❌ Version mismatch: assembled=%d, commitBatch=%d", version, batchDataInput.Version)
 	} else {
 		t.Logf("✓ Version: %d (match)", version)
@@ -638,7 +638,7 @@ func assembleBatchHeaderFromL2Blocks(
 			return nil, fmt.Errorf("failed to get withdraw root at block %d: %w", blockNum, err)
 		}
 		// Check capacity and store to current
-		exceeded, err := bc.CalculateCapWithProposalBlock(blockNum, root)
+		_, err := bc.CalculateCapWithProposalBlock(blockNum, root)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate cap with block %d: %w", blockNum, err)
 		}

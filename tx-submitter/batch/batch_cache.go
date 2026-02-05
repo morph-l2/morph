@@ -14,11 +14,11 @@ import (
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/types"
 
-	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/log"
 )
@@ -187,7 +187,7 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 	if err != nil {
 		return err
 	}
-	if batches == nil || len(batches) == 0 {
+	if len(batches) == 0 {
 		err = bc.InitAndSyncFromRollup()
 		if err != nil {
 			return err
@@ -239,7 +239,7 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		return fmt.Errorf("get post state root err: %w", err)
 	}
 	bc.currentBlockNumber = bc.lastPackedBlockHeight
-	bc.totalL1MessagePopped, err = parentHeader.TotalL1MessagePopped()
+	bc.totalL1MessagePopped, _ = parentHeader.TotalL1MessagePopped()
 	bc.initDone = true
 	log.Info("Sync sealed batch from database success", "count", len(batches))
 	return nil
@@ -318,7 +318,7 @@ func (bc *BatchCache) checkBatchHashCorrect(batchIndex *big.Int, batchHash commo
 	if !bytes.Equal(commitBatchHash[:], batchHash.Bytes()) {
 		log.Error("check commit batch hash failed",
 			"index", batchIndex.String(),
-			"commited", hex.EncodeToString(commitBatchHash[:]),
+			"committed", hex.EncodeToString(commitBatchHash[:]),
 			"generate", batchHash.String())
 		return false, nil
 	}
@@ -1023,7 +1023,7 @@ func (bc *BatchCache) SealBatchAndCheck(callOpts *bind.CallOpts, ci *big.Int) (c
 		return common.Hash{}, false, fmt.Errorf("sealed batch not found for index %d", batchIndex)
 	}
 	if batchIndex <= ci.Uint64() {
-		// batch already commited, check batch hash
+		// batch already committed, check batch hash
 		correct, err := bc.checkBatchHashCorrect(new(big.Int).SetUint64(batchIndex), sealedBatch.Hash)
 		if err != nil {
 			return common.Hash{}, false, err
