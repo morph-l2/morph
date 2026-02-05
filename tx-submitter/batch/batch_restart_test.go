@@ -638,7 +638,7 @@ func assembleBatchHeaderFromL2Blocks(
 			return nil, fmt.Errorf("failed to get withdraw root at block %d: %w", blockNum, err)
 		}
 		// Check capacity and store to current
-		_, err := bc.CalculateCapWithProposalBlock(blockNum, root)
+		exceeded, err := bc.CalculateCapWithProposalBlock(blockNum, root)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate cap with block %d: %w", blockNum, err)
 		}
@@ -649,10 +649,7 @@ func assembleBatchHeaderFromL2Blocks(
 		}
 
 		// If capacity exceeds limit, can stop early (optional)
-		if exceeded {
-			// Note: Can choose to continue packing until endBlockNum, or stop early
-			// Decide based on business requirements
-		}
+		_ = exceeded // Checked but not used in this test
 	}
 
 	// Get the last block's timestamp for packing

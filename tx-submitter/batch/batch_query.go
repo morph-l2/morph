@@ -289,9 +289,7 @@ func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, *bi
 
 	// Convert []uint8 to []byte
 	parentBatchHeader := make([]byte, len(batchDataInputStruct.ParentBatchHeader))
-	for i, v := range batchDataInputStruct.ParentBatchHeader {
-		parentBatchHeader[i] = v
-	}
+	copy(parentBatchHeader, batchDataInputStruct.ParentBatchHeader)
 
 	batchDataInput := &bindings.IRollupBatchDataInput{
 		Version:           batchDataInputStruct.Version,
@@ -312,13 +310,9 @@ func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, *bi
 
 	// Convert []uint8 to []byte
 	sequencerSets := make([]byte, len(batchSignatureInputStruct.SequencerSets))
-	for i, v := range batchSignatureInputStruct.SequencerSets {
-		sequencerSets[i] = v
-	}
+	copy(sequencerSets, batchSignatureInputStruct.SequencerSets)
 	signature := make([]byte, len(batchSignatureInputStruct.Signature))
-	for i, v := range batchSignatureInputStruct.Signature {
-		signature[i] = v
-	}
+	copy(signature, batchSignatureInputStruct.Signature)
 
 	batchSignatureInput := &bindings.IRollupBatchSignatureInput{
 		SignedSequencersBitmap: batchSignatureInputStruct.SignedSequencersBitmap,
@@ -357,9 +351,7 @@ func parseCommitBatchWithProofTxData(txData []byte, rollupAbi *abi.ABI) (*bindin
 
 	// Convert []uint8 to []byte
 	parentBatchHeader := make([]byte, len(batchDataInputStruct.ParentBatchHeader))
-	for i, v := range batchDataInputStruct.ParentBatchHeader {
-		parentBatchHeader[i] = v
-	}
+	copy(parentBatchHeader, batchDataInputStruct.ParentBatchHeader)
 
 	batchDataInput := &bindings.IRollupBatchDataInput{
 		Version:           batchDataInputStruct.Version,
@@ -380,13 +372,9 @@ func parseCommitBatchWithProofTxData(txData []byte, rollupAbi *abi.ABI) (*bindin
 
 	// Convert []uint8 to []byte
 	sequencerSets := make([]byte, len(batchSignatureInputStruct.SequencerSets))
-	for i, v := range batchSignatureInputStruct.SequencerSets {
-		sequencerSets[i] = v
-	}
+	copy(sequencerSets, batchSignatureInputStruct.SequencerSets)
 	signature := make([]byte, len(batchSignatureInputStruct.Signature))
-	for i, v := range batchSignatureInputStruct.Signature {
-		signature[i] = v
-	}
+	copy(signature, batchSignatureInputStruct.Signature)
 
 	batchSignatureInput := &bindings.IRollupBatchSignatureInput{
 		SignedSequencersBitmap: batchSignatureInputStruct.SignedSequencersBitmap,
