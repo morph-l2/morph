@@ -1099,7 +1099,11 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 	if endBlockNum < bc.currentBlockNumber {
 		return fmt.Errorf("has rerog, should check block status current %v, now %v", bc.currentBlockNumber, endBlockNum)
 	}
-	startBlockNum := bc.lastPackedBlockHeight
+	startBlockNum, err := bc.parentBatchHeader.LastBlockNumber()
+	if err != nil {
+		return err
+	}
+	startBlockNum++
 	// Get start block once to avoid repeated queries
 	startBlock, err := bc.l2Clients.BlockByNumber(bc.ctx, big.NewInt(int64(startBlockNum)))
 	if err != nil {
@@ -1154,12 +1158,17 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 				return fmt.Errorf("failed to get last block %d: %w", bc.lastPackedBlockHeight, err)
 			}
 			blockTimestamp := lastBlock.Time()
-			_, _, _, err = bc.SealBatch(sequencerSetBytes, blockTimestamp)
+			batchIndex, _, _, err := bc.SealBatch(sequencerSetBytes, blockTimestamp)
 			if err != nil {
 				return fmt.Errorf("failed to seal batch: %w", err)
 			}
-			startBlockNum = blockNum
-			startBlockTime = nowBlockTime
+			batch, _ := bc.GetSealedBatch(batchIndex)
+			startBlockNum = batch.LastBlockNumber + 1
+			startBlock, err = bc.l2Clients.BlockByNumber(bc.ctx, big.NewInt(int64(startBlockNum)))
+			if err != nil {
+				return fmt.Errorf("failed to get start block %d: %w", startBlockNum, err)
+			}
+			startBlockTime = startBlock.Time()
 		}
 
 		// Pack current block (confirm and append to batch)

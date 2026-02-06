@@ -872,7 +872,7 @@ func (r *Rollup) finalize() error {
 		log.Warn("get next batch by index failed, batch not found",
 			"batch_index", nextBatchIndex,
 		)
-		return fmt.Errorf("get next batch by index failed, batch %v not found", nextBatchIndex)
+		return nil
 	}
 	if batch == nil {
 		log.Info("next batch is nil,wait next batch header to finalize", "next_batch_index", nextBatchIndex)
