@@ -54,11 +54,11 @@ func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 
 	// Set fixed gas fee if configured (0 means use dynamic)
 	if cfg.GasFeeCap > 0 {
-		l2Client.gasFeeCap = big.NewInt(int64(cfg.GasFeeCap))
+		l2Client.gasFeeCap = new(big.Int).SetUint64(cfg.GasFeeCap)
 		log.Info("Using fixed gas fee cap", "gasFeeCap", cfg.GasFeeCap)
 	}
 	if cfg.GasTipCap > 0 {
-		l2Client.gasTipCap = big.NewInt(int64(cfg.GasTipCap))
+		l2Client.gasTipCap = new(big.Int).SetUint64(cfg.GasTipCap)
 		log.Info("Using fixed gas tip cap", "gasTipCap", cfg.GasTipCap)
 	}
 
