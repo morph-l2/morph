@@ -22,8 +22,8 @@ type L2Client struct {
 	opts         *bind.TransactOpts
 	signer       *Signer
 	externalSign bool
-	gasFeeCap    *big.Int // Fixed gas fee cap (nil means use dynamic)
-	gasTipCap    *big.Int // Fixed gas tip cap (nil means use dynamic)
+	gasFeeCap    *big.Int // Max gas fee cap (nil means no cap)
+	gasTipCap    *big.Int // Max gas tip cap (nil means no cap)
 }
 
 // NewL2Client creates new L2 client
@@ -139,28 +139,20 @@ func (c *L2Client) GetClient() *ethclient.Client {
 
 // GetOpts returns a copy of transaction options
 // Returns a new instance to prevent concurrent modification
+// Note: Gas caps are applied by TxManager.applyGasCaps(), not here
 func (c *L2Client) GetOpts() *bind.TransactOpts {
-	// Return a copy to prevent shared state issues
-	opts := &bind.TransactOpts{
-		From:     c.opts.From,
-		Nonce:    c.opts.Nonce,
-		Signer:   c.opts.Signer,
-		Value:    c.opts.Value,
-		GasPrice: c.opts.GasPrice,
+	return &bind.TransactOpts{
+		From:      c.opts.From,
+		Nonce:     c.opts.Nonce,
+		Signer:    c.opts.Signer,
+		Value:     c.opts.Value,
+		GasPrice:  c.opts.GasPrice,
 		GasFeeCap: c.opts.GasFeeCap,
 		GasTipCap: c.opts.GasTipCap,
 		GasLimit:  c.opts.GasLimit,
 		Context:   c.opts.Context,
 		NoSend:    c.opts.NoSend,
 	}
-	// Override with fixed gas fee if configured
-	if c.gasFeeCap != nil {
-		opts.GasFeeCap = c.gasFeeCap
-	}
-	if c.gasTipCap != nil {
-		opts.GasTipCap = c.gasTipCap
-	}
-	return opts
 }
 
 // GetBalance returns account balance
@@ -188,12 +180,12 @@ func (c *L2Client) GetChainID() *big.Int {
 	return c.chainID
 }
 
-// GetFixedGasFeeCap returns the fixed gas fee cap (nil if not configured)
-func (c *L2Client) GetFixedGasFeeCap() *big.Int {
+// GetMaxGasFeeCap returns the max gas fee cap (nil if not configured)
+func (c *L2Client) GetMaxGasFeeCap() *big.Int {
 	return c.gasFeeCap
 }
 
-// GetFixedGasTipCap returns the fixed gas tip cap (nil if not configured)
-func (c *L2Client) GetFixedGasTipCap() *big.Int {
+// GetMaxGasTipCap returns the max gas tip cap (nil if not configured)
+func (c *L2Client) GetMaxGasTipCap() *big.Int {
 	return c.gasTipCap
 }

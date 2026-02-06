@@ -3,6 +3,7 @@ package updater
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -71,6 +72,11 @@ func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.Tra
 	// Get transaction options (returns a copy)
 	auth := m.l2Client.GetOpts()
 	auth.Context = ctx
+
+	// Apply gas caps if configured (same logic as external sign)
+	if err := m.applyGasCaps(ctx, auth); err != nil {
+		return nil, fmt.Errorf("failed to apply gas caps: %w", err)
+	}
 
 	// First, estimate gas with GasLimit = 0
 	auth.GasLimit = 0
@@ -191,6 +197,58 @@ func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.
 		return nil, err
 	}
 	return receipt, nil
+}
+
+// applyGasCaps applies configured gas caps as upper limits to dynamic gas prices
+// This ensures consistent behavior between local sign and external sign
+func (m *TxManager) applyGasCaps(ctx context.Context, auth *bind.TransactOpts) error {
+	maxTipCap := m.l2Client.GetMaxGasTipCap()
+	maxFeeCap := m.l2Client.GetMaxGasFeeCap()
+
+	// If no caps configured, let bind package handle gas pricing dynamically
+	if maxTipCap == nil && maxFeeCap == nil {
+		return nil
+	}
+
+	// Get dynamic gas tip cap
+	tip, err := m.l2Client.GetClient().SuggestGasTipCap(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get gas tip cap: %w", err)
+	}
+
+	// Apply tip cap limit if configured
+	if maxTipCap != nil && tip.Cmp(maxTipCap) > 0 {
+		log.Debug("Applying gas tip cap limit", "dynamic", tip, "cap", maxTipCap)
+		tip = new(big.Int).Set(maxTipCap)
+	}
+	auth.GasTipCap = tip
+
+	// Get base fee from latest block
+	head, err := m.l2Client.GetClient().HeaderByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get block header: %w", err)
+	}
+
+	// Calculate dynamic gas fee cap
+	var gasFeeCap *big.Int
+	if head.BaseFee != nil {
+		gasFeeCap = new(big.Int).Add(
+			tip,
+			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+		)
+	} else {
+		gasFeeCap = new(big.Int).Set(tip)
+	}
+
+	// Apply fee cap limit if configured
+	if maxFeeCap != nil && gasFeeCap.Cmp(maxFeeCap) > 0 {
+		log.Debug("Applying gas fee cap limit", "dynamic", gasFeeCap, "cap", maxFeeCap)
+		gasFeeCap = new(big.Int).Set(maxFeeCap)
+	}
+	auth.GasFeeCap = gasFeeCap
+
+	log.Debug("Gas caps applied", "tipCap", auth.GasTipCap, "feeCap", auth.GasFeeCap)
+	return nil
 }
 
 // waitForReceipt waits for a transaction receipt with timeout and custom polling interval

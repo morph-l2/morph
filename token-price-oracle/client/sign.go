@@ -101,7 +101,7 @@ func (s *Signer) CreateAndSignTx(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas tip cap: %w", err)
 	}
-	if maxTip := client.GetFixedGasTipCap(); maxTip != nil {
+	if maxTip := client.GetMaxGasTipCap(); maxTip != nil {
 		if tip.Cmp(maxTip) > 0 {
 			log.Debug("Applying gas tip cap limit", "dynamic", tip, "cap", maxTip)
 			tip = maxTip
@@ -126,7 +126,7 @@ func (s *Signer) CreateAndSignTx(
 	}
 
 	// Apply gas fee cap limit if configured
-	if maxFeeCap := client.GetFixedGasFeeCap(); maxFeeCap != nil {
+	if maxFeeCap := client.GetMaxGasFeeCap(); maxFeeCap != nil {
 		if gasFeeCap.Cmp(maxFeeCap) > 0 {
 			log.Debug("Applying gas fee cap limit", "dynamic", gasFeeCap, "cap", maxFeeCap)
 			gasFeeCap = maxFeeCap
