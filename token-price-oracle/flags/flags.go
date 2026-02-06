@@ -176,6 +176,21 @@ var (
 		Usage:  "The RSA private key for external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_RSA_PRIV"),
 	}
+
+	// Gas fee flags (optional - if set, use fixed values instead of dynamic)
+	GasFeeCapFlag = cli.Uint64Flag{
+		Name:   "gas-fee-cap",
+		Usage:  "Fixed gas fee cap in wei (if set, overrides dynamic gas price)",
+		Value:  0,
+		EnvVar: prefixEnvVar("GAS_FEE_CAP"),
+	}
+
+	GasTipCapFlag = cli.Uint64Flag{
+		Name:   "gas-tip-cap",
+		Usage:  "Fixed gas tip cap in wei (if set, overrides dynamic gas tip)",
+		Value:  0,
+		EnvVar: prefixEnvVar("GAS_TIP_CAP"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -210,6 +225,10 @@ var optionalFlags = []cli.Flag{
 	ExternalSignChainFlag,
 	ExternalSignUrlFlag,
 	ExternalSignRsaPrivFlag,
+
+	// Gas fee
+	GasFeeCapFlag,
+	GasTipCapFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

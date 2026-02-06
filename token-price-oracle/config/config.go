@@ -85,6 +85,10 @@ type Config struct {
 	LogFileMaxSize int
 	LogFileMaxAge  int
 	LogCompress    bool
+
+	// Gas fee (optional - if set, use fixed values instead of dynamic)
+	GasFeeCap uint64 // Fixed gas fee cap in wei (0 means use dynamic)
+	GasTipCap uint64 // Fixed gas tip cap in wei (0 means use dynamic)
 }
 
 // LoadConfig loads configuration from cli.Context
@@ -110,6 +114,10 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		LogFileMaxSize: ctx.Int(flags.LogFileMaxSizeFlag.Name),
 		LogFileMaxAge:  ctx.Int(flags.LogFileMaxAgeFlag.Name),
 		LogCompress:    ctx.Bool(flags.LogCompressFlag.Name),
+
+		// Gas fee (0 means use dynamic)
+		GasFeeCap: ctx.Uint64(flags.GasFeeCapFlag.Name),
+		GasTipCap: ctx.Uint64(flags.GasTipCapFlag.Name),
 	}
 
 	// Parse token registry address (optional)

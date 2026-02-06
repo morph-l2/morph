@@ -96,26 +96,38 @@ func (s *Signer) CreateAndSignTx(
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
-	// Get gas tip cap
-	tip, err := client.GetClient().SuggestGasTipCap(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get gas tip cap: %w", err)
-	}
-
-	// Get base fee from latest block
-	head, err := client.GetClient().HeaderByNumber(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get block header: %w", err)
-	}
-
-	var gasFeeCap *big.Int
-	if head.BaseFee != nil {
-		gasFeeCap = new(big.Int).Add(
-			tip,
-			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-		)
+	// Get gas tip cap (use fixed if configured, otherwise dynamic)
+	var tip *big.Int
+	if fixedTip := client.GetFixedGasTipCap(); fixedTip != nil {
+		tip = fixedTip
+		log.Debug("Using fixed gas tip cap", "tip", tip)
 	} else {
-		gasFeeCap = new(big.Int).Set(tip)
+		tip, err = client.GetClient().SuggestGasTipCap(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get gas tip cap: %w", err)
+		}
+	}
+
+	// Get gas fee cap (use fixed if configured, otherwise dynamic)
+	var gasFeeCap *big.Int
+	if fixedFeeCap := client.GetFixedGasFeeCap(); fixedFeeCap != nil {
+		gasFeeCap = fixedFeeCap
+		log.Debug("Using fixed gas fee cap", "gasFeeCap", gasFeeCap)
+	} else {
+		// Get base fee from latest block
+		head, err := client.GetClient().HeaderByNumber(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get block header: %w", err)
+		}
+
+		if head.BaseFee != nil {
+			gasFeeCap = new(big.Int).Add(
+				tip,
+				new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+			)
+		} else {
+			gasFeeCap = new(big.Int).Set(tip)
+		}
 	}
 
 	// Estimate gas

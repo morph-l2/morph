@@ -22,6 +22,8 @@ type L2Client struct {
 	opts         *bind.TransactOpts
 	signer       *Signer
 	externalSign bool
+	gasFeeCap    *big.Int // Fixed gas fee cap (nil means use dynamic)
+	gasTipCap    *big.Int // Fixed gas tip cap (nil means use dynamic)
 }
 
 // NewL2Client creates new L2 client
@@ -48,6 +50,16 @@ func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 		client:       client,
 		chainID:      chainID,
 		externalSign: cfg.ExternalSign,
+	}
+
+	// Set fixed gas fee if configured (0 means use dynamic)
+	if cfg.GasFeeCap > 0 {
+		l2Client.gasFeeCap = big.NewInt(int64(cfg.GasFeeCap))
+		log.Info("Using fixed gas fee cap", "gasFeeCap", cfg.GasFeeCap)
+	}
+	if cfg.GasTipCap > 0 {
+		l2Client.gasTipCap = big.NewInt(int64(cfg.GasTipCap))
+		log.Info("Using fixed gas tip cap", "gasTipCap", cfg.GasTipCap)
 	}
 
 	if cfg.ExternalSign {
@@ -129,7 +141,7 @@ func (c *L2Client) GetClient() *ethclient.Client {
 // Returns a new instance to prevent concurrent modification
 func (c *L2Client) GetOpts() *bind.TransactOpts {
 	// Return a copy to prevent shared state issues
-	return &bind.TransactOpts{
+	opts := &bind.TransactOpts{
 		From:     c.opts.From,
 		Nonce:    c.opts.Nonce,
 		Signer:   c.opts.Signer,
@@ -141,6 +153,14 @@ func (c *L2Client) GetOpts() *bind.TransactOpts {
 		Context:   c.opts.Context,
 		NoSend:    c.opts.NoSend,
 	}
+	// Override with fixed gas fee if configured
+	if c.gasFeeCap != nil {
+		opts.GasFeeCap = c.gasFeeCap
+	}
+	if c.gasTipCap != nil {
+		opts.GasTipCap = c.gasTipCap
+	}
+	return opts
 }
 
 // GetBalance returns account balance
@@ -166,4 +186,14 @@ func (c *L2Client) GetSigner() *Signer {
 // GetChainID returns the chain ID
 func (c *L2Client) GetChainID() *big.Int {
 	return c.chainID
+}
+
+// GetFixedGasFeeCap returns the fixed gas fee cap (nil if not configured)
+func (c *L2Client) GetFixedGasFeeCap() *big.Int {
+	return c.gasFeeCap
+}
+
+// GetFixedGasTipCap returns the fixed gas tip cap (nil if not configured)
+func (c *L2Client) GetFixedGasTipCap() *big.Int {
+	return c.gasTipCap
 }
