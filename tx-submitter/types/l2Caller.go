@@ -83,5 +83,5 @@ func (c *L2Caller) GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Has
 	if bytes.Equal(hash[:], crypto.Keccak256Hash(setBytes).Bytes()) {
 		return setBytes, hash, nil
 	}
-	return nil, common.Hash{}, fmt.Errorf("sequencer set hash verify  failed %v: %v", hexutil.Encode(setBytes), common.BytesToHash(hash[:]).String())
+	return nil, common.Hash{}, fmt.Errorf("sequencer set hash verify failed %v: %v", hexutil.Encode(setBytes), common.BytesToHash(hash[:]).String())
 }

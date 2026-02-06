@@ -14,7 +14,7 @@ func Test_storageBatch(t *testing.T) {
 	err := cache.InitAndSyncFromRollup()
 	require.NoError(t, err)
 
-	batches, err := cache.batchStorage.LoadAllSealedBatches()
+	batches, _, err := cache.batchStorage.LoadAllSealedBatches()
 	require.NoError(t, err)
 	require.NotNil(t, batches)
 	t.Log("loaded batches count", len(batches))

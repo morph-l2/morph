@@ -84,7 +84,7 @@ func (s *BatchStorage) LoadSealedBatch(batchIndex uint64) (*eth.RPCRollupBatch, 
 
 // LoadAllSealedBatches loads all sealed batches from LevelDB
 // Returns a map of batchIndex -> RPCRollupBatch
-func (s *BatchStorage) LoadAllSealedBatches() (map[uint64]*eth.RPCRollupBatch, error) {
+func (s *BatchStorage) LoadAllSealedBatches() (map[uint64]*eth.RPCRollupBatch, []uint64, error) {
 	s.mu.RLock()
 	// Load batch indices
 	indices, err := s.loadBatchIndices()
@@ -92,9 +92,9 @@ func (s *BatchStorage) LoadAllSealedBatches() (map[uint64]*eth.RPCRollupBatch, e
 	if err != nil {
 		if errors.Is(err, db.ErrKeyNotFound) {
 			// No batches stored yet
-			return make(map[uint64]*eth.RPCRollupBatch), nil
+			return make(map[uint64]*eth.RPCRollupBatch), nil, nil
 		}
-		return nil, fmt.Errorf("failed to load batch indices: %w", err)
+		return nil, nil, fmt.Errorf("failed to load batch indices: %w", err)
 	}
 
 	// Load each batch (without holding the lock to avoid deadlock)
@@ -109,7 +109,7 @@ func (s *BatchStorage) LoadAllSealedBatches() (map[uint64]*eth.RPCRollupBatch, e
 		batches[idx] = batch
 	}
 
-	return batches, nil
+	return batches, indices, nil
 }
 
 // DeleteSealedBatch removes a sealed batch from LevelDB

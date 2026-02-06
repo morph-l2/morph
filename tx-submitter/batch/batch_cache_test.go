@@ -47,11 +47,10 @@ func TestBatchCacheInitServer(t *testing.T) {
 	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 
 	go utils.Loop(cache.ctx, 5*time.Second, func() {
-		err := cache.InitFromRollupByRange()
+		err := cache.InitAndSyncFromRollup()
 		if err != nil {
 			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
 		}
-		cache.batchTimeOut = 60
 		err = cache.AssembleCurrentBatchHeader()
 		if err != nil {
 			log.Error("Assemble current batch failed, wait for the next try", "error", err)

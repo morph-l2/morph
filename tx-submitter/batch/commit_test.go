@@ -17,7 +17,6 @@ import (
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/holiman/uint256"
-	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
@@ -135,8 +134,8 @@ func createBlobTx(l1client *ethclient.Client, batch *eth.RPCRollupBatch, nonce, 
 	return ethtypes.NewTx(&ethtypes.BlobTx{
 		ChainID:    uint256.MustFromBig(chainID),
 		Nonce:      nonce,
-		GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
-		GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
+		GasTipCap:  uint256.MustFromBig(tip),
+		GasFeeCap:  uint256.MustFromBig(gasFeeCap),
 		Gas:        gas,
 		To:         rollupAddr,
 		Data:       calldata,
@@ -144,20 +143,6 @@ func createBlobTx(l1client *ethclient.Client, batch *eth.RPCRollupBatch, nonce, 
 		BlobHashes: versionedHashes,
 		Sidecar:    sidecar,
 	}), nil
-}
-
-func estimateGas(l1client iface.L1Client, from, to common.Address, data []byte, feecap *big.Int, tip *big.Int) (uint64, error) {
-	gas, err := l1client.EstimateGas(context.Background(), ethereum.CallMsg{
-		From:      from,
-		To:        &to,
-		GasFeeCap: feecap,
-		GasTipCap: tip,
-		Data:      data,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("call estimate gas error:%v", err)
-	}
-	return gas, nil
 }
 
 func getGasTipAndCap(l1client *ethclient.Client) (*big.Int, *big.Int, *big.Int, *ethtypes.Header, error) {
@@ -225,10 +210,13 @@ func sendTx(client iface.Client, txFeeLimit uint64, tx *ethtypes.Transaction) er
 		var fee uint64
 		// calc tx gas fee
 		if tx.Type() == ethtypes.BlobTxType {
-			// blob fee
-			fee = tx.BlobGasFeeCap().Uint64() * tx.BlobGas()
-			// tx fee
-			fee += tx.GasPrice().Uint64() * tx.Gas()
+			blobFee := new(big.Int).Mul(tx.BlobGasFeeCap(), new(big.Int).SetUint64(tx.BlobGas()))
+			txFee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
+			totalFee := new(big.Int).Add(blobFee, txFee)
+			if !totalFee.IsUint64() || totalFee.Uint64() > txFeeLimit {
+				return fmt.Errorf("%v:limit=%v,but got=%v", utils.ErrExceedFeeLimit, txFeeLimit, totalFee)
+			}
+			return client.SendTransaction(context.Background(), tx)
 		} else {
 			fee = tx.GasPrice().Uint64() * tx.Gas()
 		}

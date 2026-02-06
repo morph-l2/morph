@@ -251,7 +251,14 @@ func (c *L2Clients) GetRollupBatchByIndex(ctx context.Context, batchIndex uint64
 	err := c.tryAllClients(func(client L2Client) error {
 		var err error
 		result, err = client.GetRollupBatchByIndex(ctx, batchIndex)
-		return err
+		if err != nil {
+			return err
+		}
+		if result != nil && len(result.Signatures) > 0 {
+			return nil
+		}
+		return nil
 	})
+
 	return result, err
 }

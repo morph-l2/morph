@@ -259,19 +259,20 @@ func (r *Rollup) Start() error {
 	go utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
 		batchCacheSyncMu.Lock()
 		defer batchCacheSyncMu.Unlock()
-		err = r.batchCache.InitAndSyncFromDatabase()
-		if err != nil {
+		if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
 			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
+			return
 		}
-		err = r.batchCache.AssembleCurrentBatchHeader()
-		if err != nil {
+		if err = r.batchCache.AssembleCurrentBatchHeader(); err != nil {
 			log.Error("assemble current batch failed, wait for the next try", "error", err)
+			return
 		}
-		index, err := r.batchCache.LatestBatchIndex()
-		if err != nil {
+		if index, err := r.batchCache.LatestBatchIndex(); err != nil {
 			log.Error("cannot get the latest batch index from batch cache", "error", err)
+			return
+		} else {
+			r.metrics.SetLastCacheBatchIndex(index)
 		}
-		r.metrics.SetLastCacheBatchIndex(index)
 	})
 
 	return nil
@@ -868,10 +869,10 @@ func (r *Rollup) finalize() error {
 	nextBatchIndex := target.Uint64() + 1
 	batch, ok := r.batchCache.Get(nextBatchIndex)
 	if !ok {
-		log.Error("get next batch by index error",
+		log.Warn("get next batch by index failed, batch not found",
 			"batch_index", nextBatchIndex,
 		)
-		return fmt.Errorf("get next batch by index err:%v", err)
+		return fmt.Errorf("get next batch by index failed, batch %v not found", nextBatchIndex)
 	}
 	if batch == nil {
 		log.Info("next batch is nil,wait next batch header to finalize", "next_batch_index", nextBatchIndex)
