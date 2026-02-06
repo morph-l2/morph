@@ -52,14 +52,14 @@ func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 		externalSign: cfg.ExternalSign,
 	}
 
-	// Set fixed gas fee if configured (0 means use dynamic)
-	if cfg.GasFeeCap > 0 {
-		l2Client.gasFeeCap = new(big.Int).SetUint64(cfg.GasFeeCap)
-		log.Info("Using fixed gas fee cap", "gasFeeCap", cfg.GasFeeCap)
+	// Set gas fee caps if configured (used as max cap, not fixed value)
+	if cfg.GasFeeCap != nil {
+		l2Client.gasFeeCap = new(big.Int).SetUint64(*cfg.GasFeeCap)
+		log.Info("Using gas fee cap limit", "maxGasFeeCap", *cfg.GasFeeCap)
 	}
-	if cfg.GasTipCap > 0 {
-		l2Client.gasTipCap = new(big.Int).SetUint64(cfg.GasTipCap)
-		log.Info("Using fixed gas tip cap", "gasTipCap", cfg.GasTipCap)
+	if cfg.GasTipCap != nil {
+		l2Client.gasTipCap = new(big.Int).SetUint64(*cfg.GasTipCap)
+		log.Info("Using gas tip cap limit", "maxGasTipCap", *cfg.GasTipCap)
 	}
 
 	if cfg.ExternalSign {

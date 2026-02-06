@@ -177,18 +177,16 @@ var (
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN_RSA_PRIV"),
 	}
 
-	// Gas fee flags (optional - if set, use fixed values instead of dynamic)
+	// Gas fee flags (optional - if set, use as max cap instead of dynamic)
 	GasFeeCapFlag = cli.Uint64Flag{
 		Name:   "gas-fee-cap",
-		Usage:  "Fixed gas fee cap in wei (if set, overrides dynamic gas price)",
-		Value:  0,
+		Usage:  "Max gas fee cap in wei (if set, actual fee = min(dynamic, this value))",
 		EnvVar: prefixEnvVar("GAS_FEE_CAP"),
 	}
 
 	GasTipCapFlag = cli.Uint64Flag{
 		Name:   "gas-tip-cap",
-		Usage:  "Fixed gas tip cap in wei (if set, overrides dynamic gas tip)",
-		Value:  0,
+		Usage:  "Max gas tip cap in wei (if set, actual tip = min(dynamic, this value))",
 		EnvVar: prefixEnvVar("GAS_TIP_CAP"),
 	}
 )

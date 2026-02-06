@@ -96,37 +96,40 @@ func (s *Signer) CreateAndSignTx(
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
-	// Get gas tip cap (use fixed if configured, otherwise dynamic)
-	var tip *big.Int
-	if fixedTip := client.GetFixedGasTipCap(); fixedTip != nil {
-		tip = fixedTip
-		log.Debug("Using fixed gas tip cap", "tip", tip)
-	} else {
-		tip, err = client.GetClient().SuggestGasTipCap(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get gas tip cap: %w", err)
+	// Get gas tip cap (dynamic, then apply cap if configured)
+	tip, err := client.GetClient().SuggestGasTipCap(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gas tip cap: %w", err)
+	}
+	if maxTip := client.GetFixedGasTipCap(); maxTip != nil {
+		if tip.Cmp(maxTip) > 0 {
+			log.Debug("Applying gas tip cap limit", "dynamic", tip, "cap", maxTip)
+			tip = maxTip
 		}
 	}
 
-	// Get gas fee cap (use fixed if configured, otherwise dynamic)
-	var gasFeeCap *big.Int
-	if fixedFeeCap := client.GetFixedGasFeeCap(); fixedFeeCap != nil {
-		gasFeeCap = fixedFeeCap
-		log.Debug("Using fixed gas fee cap", "gasFeeCap", gasFeeCap)
-	} else {
-		// Get base fee from latest block
-		head, err := client.GetClient().HeaderByNumber(ctx, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get block header: %w", err)
-		}
+	// Get base fee from latest block
+	head, err := client.GetClient().HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get block header: %w", err)
+	}
 
-		if head.BaseFee != nil {
-			gasFeeCap = new(big.Int).Add(
-				tip,
-				new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-			)
-		} else {
-			gasFeeCap = new(big.Int).Set(tip)
+	// Calculate dynamic gas fee cap
+	var gasFeeCap *big.Int
+	if head.BaseFee != nil {
+		gasFeeCap = new(big.Int).Add(
+			tip,
+			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+		)
+	} else {
+		gasFeeCap = new(big.Int).Set(tip)
+	}
+
+	// Apply gas fee cap limit if configured
+	if maxFeeCap := client.GetFixedGasFeeCap(); maxFeeCap != nil {
+		if gasFeeCap.Cmp(maxFeeCap) > 0 {
+			log.Debug("Applying gas fee cap limit", "dynamic", gasFeeCap, "cap", maxFeeCap)
+			gasFeeCap = maxFeeCap
 		}
 	}
 
