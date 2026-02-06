@@ -17,10 +17,14 @@ alloy-primitives = { workspace = true }
 once_cell = { workspace = true }
 log = { workspace = true }
 prometheus = { workspace = true }
-morph-prove = { workspace = true }
+morph-prove = { workspace = true, default-features = false }
 axum = { workspace = true }
 dotenv = { workspace = true }
 flexi_logger = { workspace = true }
 prover-executor-client = { workspace = true }
 prover-executor-host = { workspace = true }
 
+[features]
+default = ["network"]
+local = ["morph-prove/local"]
+network = ["morph-prove/network"]
