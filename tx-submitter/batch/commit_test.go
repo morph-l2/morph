@@ -55,9 +55,8 @@ func TestRollupWithProof(t *testing.T) {
 	latestCommitBatchIndex, err := rollup.LastCommittedBatchIndex(nil)
 	require.NoError(t, err)
 
-	batch, exist := cache.Get(latestCommitBatchIndex.Uint64() + 1)
+	batch, err := cache.Get(latestCommitBatchIndex.Uint64() + 1)
 	require.NoError(t, err)
-	require.True(t, exist)
 	h := crypto.Keccak256Hash(batch.CurrentSequencerSetBytes)
 	t.Log("sequencer verify hash:", h.String())
 

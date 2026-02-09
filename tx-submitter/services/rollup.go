@@ -475,8 +475,8 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 
 		// Calculate and update L1 fee metrics
 		batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
-		rollupBatch, ok := r.batchCache.Get(batchIndex)
-		if ok {
+		rollupBatch, err := r.batchCache.Get(batchIndex)
+		if err != nil {
 			if rollupBatch.CollectedL1Fee == nil {
 				return nil
 			}
@@ -731,8 +731,11 @@ func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 	if err = r.pendingTxs.Remove(tx.Hash()); err != nil {
 		log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 	}
-	if err = r.pendingTxs.Add(replacedTx); err != nil {
-		log.Error("failed to add replaced transaction", "hash", replacedTx.Hash().String(), "error", err)
+	record := r.pendingTxs.GetTxRecord(replacedTx.Hash())
+	if record == nil {
+		if err = r.pendingTxs.Add(replacedTx); err != nil {
+			log.Error("failed to add replaced transaction", "hash", replacedTx.Hash().String(), "error", err)
+		}
 	}
 	log.Info("Successfully resubmitted discarded transaction",
 		"old_tx", tx.Hash().String(),
@@ -806,7 +809,12 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 			log.Info("Successfully committed batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "block_number", status.receipt.BlockNumber.Uint64(), "gas_used", status.receipt.GasUsed, "confirm", confirmations)
 		} else if method == constants.MethodFinalizeBatch {
 			batchIndex := utils.ParseFBatchIndex(tx.Data())
-			r.batchCache.Delete(batchIndex)
+			if batchIndex > 0 {
+				err = r.batchCache.Delete(batchIndex - 1)
+				if err != nil {
+					log.Error("failed to delete batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
+				}
+			}
 			log.Info("Successfully finalized batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "block_number", status.receipt.BlockNumber.Uint64(), "gas_used", status.receipt.GasUsed, "confirm", confirmations)
 		}
 	}
@@ -843,44 +851,44 @@ func (r *Rollup) finalize() error {
 		"finalize_index", target,
 	)
 
-	// batch exists
+	// rollupBatch exists
 	existed, err := r.Rollup.BatchExist(nil, target)
 	if err != nil {
-		log.Error("query batch exist", "err", err)
+		log.Error("query rollupBatch exist", "err", err)
 		return err
 	}
 	if !existed {
-		log.Warn("finalized batch not existed")
+		log.Warn("finalized rollupBatch not existed")
 		return nil
 	}
 
 	// inside challenge window
 	inWindow, err := r.Rollup.BatchInsideChallengeWindow(nil, target)
 	if err != nil {
-		return fmt.Errorf("get batch inside challenge window error:%v", err)
+		return fmt.Errorf("get rollupBatch inside challenge window error:%v", err)
 	}
 	if inWindow {
-		log.Info("batch inside challenge window, wait")
+		log.Info("rollupBatch inside challenge window, wait")
 		return nil
 	}
 	// finalize
 
-	// get next batch
+	// get next rollupBatch
 	nextBatchIndex := target.Uint64() + 1
-	batch, ok := r.batchCache.Get(nextBatchIndex)
-	if !ok {
-		log.Warn("get next batch by index failed, batch not found",
+	rollupBatch, err := r.batchCache.Get(nextBatchIndex)
+	if err != nil {
+		log.Warn("get next rollupBatch by index failed, rollupBatch not found",
 			"batch_index", nextBatchIndex,
 		)
 		return nil
 	}
-	if batch == nil {
-		log.Info("next batch is nil,wait next batch header to finalize", "next_batch_index", nextBatchIndex)
+	if rollupBatch == nil {
+		log.Info("next rollupBatch is nil,wait next rollupBatch header to finalize", "next_batch_index", nextBatchIndex)
 		return nil
 	}
 
 	// calldata
-	calldata, err := r.abi.Pack("finalizeBatch", []byte(batch.ParentBatchHeader))
+	calldata, err := r.abi.Pack("finalizeBatch", []byte(rollupBatch.ParentBatchHeader))
 	if err != nil {
 		return fmt.Errorf("pack finalizeBatch error:%v", err)
 	}
@@ -1085,8 +1093,8 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	rpcRollupBatch, ok := r.batchCache.Get(batchIndex)
-	if !ok {
+	rpcRollupBatch, err := r.batchCache.Get(batchIndex)
+	if err != nil {
 		log.Info("Batch not found in cache",
 			"batch_index", batchIndex)
 		return nil
@@ -1551,7 +1559,7 @@ func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
 	// after send tx
 	// add to pending txs
 	if r.pendingTxs != nil {
-		if err := r.pendingTxs.Add(tx); err != nil {
+		if err = r.pendingTxs.Add(tx); err != nil {
 			log.Error("failed to add transaction", "hash", tx.Hash().String(), "error", err)
 		}
 	}

@@ -89,7 +89,7 @@ func NewBatchCache(
 	ifL2Clients := iface.L2Clients{Clients: l2Clients}
 	_, err := ifL2Clients.BlockNumber(ctx)
 	if err != nil {
-		panic(err)
+		log.Error("Error getting block number", "err", err)
 	}
 	return &BatchCache{
 		ctx:                               ctx,
@@ -191,11 +191,10 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		return err
 	}
 	if len(batches) == 0 {
-		err = bc.InitAndSyncFromRollup()
-		if err != nil {
-			return err
-		}
-		return nil
+		return bc.InitAndSyncFromRollup()
+	}
+	if len(indices) == 0 {
+		return bc.InitAndSyncFromRollup()
 	}
 	maxIndex := indices[0]
 	if len(indices) > 0 {
@@ -219,11 +218,7 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 				return err
 			}
 			// batch not contiguous or batch is invalid
-			err = bc.InitAndSyncFromRollup()
-			if err != nil {
-				return err
-			}
-			return nil
+			return bc.InitAndSyncFromRollup()
 		}
 	}
 
@@ -361,15 +356,15 @@ func (bc *BatchCache) getBatchStatusFromContract() (*big.Int, *big.Int, error) {
 
 func (bc *BatchCache) getBatchBlockRange(batchIndex *big.Int) (uint64, uint64, error) {
 	preIndex := new(big.Int).Sub(batchIndex, big.NewInt(1))
-	preBatchStorge, err := bc.rollupContract.BatchDataStore(nil, preIndex)
+	preBatchStorage, err := bc.rollupContract.BatchDataStore(nil, preIndex)
 	if err != nil {
 		return 0, 0, err
 	}
-	batchStorge, err := bc.rollupContract.BatchDataStore(nil, batchIndex)
+	batchStorage, err := bc.rollupContract.BatchDataStore(nil, batchIndex)
 	if err != nil {
 		return 0, 0, err
 	}
-	return preBatchStorge.BlockNumber.Uint64() + 1, batchStorge.BlockNumber.Uint64(), nil
+	return preBatchStorage.BlockNumber.Uint64() + 1, batchStorage.BlockNumber.Uint64(), nil
 }
 
 func (bc *BatchCache) getUnFinalizeBlockRange() (uint64, uint64, *big.Int, error) {
@@ -986,7 +981,10 @@ func (bc *BatchCache) assembleUnFinalizeBatchHeaderFromL2Blocks() error {
 			if err != nil {
 				return err
 			}
-			batch, _ := bc.GetSealedBatch(batchIndex)
+			batch, ok := bc.GetSealedBatch(batchIndex)
+			if !ok {
+				return fmt.Errorf("batch %d not found in cache", batchIndex)
+			}
 			startBlockNum = batch.LastBlockNumber + 1
 			startBlock, err = bc.l2Clients.BlockByNumber(ctx, big.NewInt(int64(startBlockNum)))
 			if err != nil {
@@ -1047,23 +1045,34 @@ func (bc *BatchCache) SealBatchAndCheck(callOpts *bind.CallOpts, ci *big.Int) (c
 
 // Get gets sealed batch information by batch index
 // Returns the sealed batch info and a boolean indicating if the batch was found
-func (bc *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, bool) {
+func (bc *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, error) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 	batch, ok := bc.sealedBatches[batchIndex]
-	return batch, ok
+	var err error
+	if !ok {
+		batch, err = bc.batchStorage.LoadSealedBatch(batchIndex)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return batch, nil
 }
 
 // Delete deletes a sealed batch from the cache by batch index
 // Returns a boolean indicating if the batch was found and deleted
-func (bc *BatchCache) Delete(batchIndex uint64) bool {
+func (bc *BatchCache) Delete(batchIndex uint64) error {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	_, exists := bc.sealedBatches[batchIndex]
 	if exists {
 		delete(bc.sealedBatches, batchIndex)
 	}
-	return exists
+	err := bc.batchStorage.DeleteSealedBatch(batchIndex)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // logSealedBatch logs the details of the sealed batch for debugging purposes.
@@ -1096,7 +1105,7 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 		return err
 	}
 	if endBlockNum < bc.currentBlockNumber {
-		return fmt.Errorf("has rerog, should check block status current %v, now %v", bc.currentBlockNumber, endBlockNum)
+		return fmt.Errorf("has reorg, should check block status current %v, now %v", bc.currentBlockNumber, endBlockNum)
 	}
 	startBlockNum, err := bc.parentBatchHeader.LastBlockNumber()
 	if err != nil {
@@ -1161,7 +1170,10 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 			if err != nil {
 				return fmt.Errorf("failed to seal batch: %w", err)
 			}
-			batch, _ := bc.GetSealedBatch(batchIndex)
+			batch, ok := bc.GetSealedBatch(batchIndex)
+			if !ok {
+				return fmt.Errorf("batch %d not found in cache", batchIndex)
+			}
 			startBlockNum = batch.LastBlockNumber + 1
 			startBlock, err = bc.l2Clients.BlockByNumber(bc.ctx, big.NewInt(int64(startBlockNum)))
 			if err != nil {

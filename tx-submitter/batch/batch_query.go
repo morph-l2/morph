@@ -46,7 +46,7 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 		finalizeEventIter, err := bc.rollupContract.FilterFinalizeBatch(filterOpts, []*big.Int{new(big.Int).SetUint64(index)}, nil)
 		if err != nil {
 			// If query fails, continue querying backwards
-			if endBlock < blockRange {
+			if startBlock == 0 {
 				break // Already queried to block 0, exit loop
 			}
 			endBlock = startBlock - 1
