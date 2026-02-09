@@ -836,8 +836,8 @@ func (r *Rollup) finalize() error {
 	}
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
-	zkevmRpc := "http://localhost:9545"
-	upgradeBatchIndex := uint64(1000) // first upgrade index
+	zkevmRpc := "http://morph-geth-0:8545"
+	upgradeBatchIndex := uint64(140) // first upgrade index
 	var l2Clients []iface.L2Client
 	if nextBatchIndex < upgradeBatchIndex {
 		l2Client, _ := ethclient.Dial(zkevmRpc)
