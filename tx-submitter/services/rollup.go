@@ -260,7 +260,7 @@ func (r *Rollup) Start() error {
 		batchCacheSyncMu.Lock()
 		defer batchCacheSyncMu.Unlock()
 		if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
-			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
+			log.Error("init and sync from database failed, wait for the next try", "error", err)
 			return
 		}
 		if err = r.batchCache.AssembleCurrentBatchHeader(); err != nil {

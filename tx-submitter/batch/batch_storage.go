@@ -157,38 +157,6 @@ func (s *BatchStorage) DeleteAllSealedBatches() error {
 	return nil
 }
 
-// StoreSealedBatches stores multiple sealed batches in a batch operation
-// This is more efficient than storing them one by one
-func (s *BatchStorage) StoreSealedBatches(batches map[uint64]*eth.RPCRollupBatch) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	indices := make([]uint64, 0, len(batches))
-
-	// Store each batch
-	for idx, batch := range batches {
-		encoded, err := json.Marshal(batch)
-		if err != nil {
-			return fmt.Errorf("failed to marshal sealed batch %d: %w", idx, err)
-		}
-
-		key := encodeBatchKey(idx)
-		if err := s.db.PutBytes(key, encoded); err != nil {
-			return fmt.Errorf("failed to store sealed batch %d: %w", idx, err)
-		}
-
-		indices = append(indices, idx)
-	}
-
-	// Update indices list
-	if err := s.saveBatchIndices(indices); err != nil {
-		log.Warn("Failed to save batch indices", "error", err)
-		// Don't fail the operation if indices update fails
-	}
-
-	return nil
-}
-
 // encodeBatchKey encodes batch index to a byte key
 func encodeBatchKey(batchIndex uint64) []byte {
 	key := make([]byte, len(SealedBatchKeyPrefix)+8)
@@ -202,7 +170,7 @@ func encodeBatchKey(batchIndex uint64) []byte {
 func (s *BatchStorage) updateBatchIndices(batchIndex uint64, add bool) error {
 	indices, err := s.loadBatchIndices()
 	if err != nil {
-		if err == db.ErrKeyNotFound {
+		if errors.Is(err, db.ErrKeyNotFound) {
 			indices = []uint64{}
 		} else {
 			return err
@@ -258,22 +226,4 @@ func (s *BatchStorage) saveBatchIndices(indices []uint64) error {
 	}
 
 	return s.db.PutBytes([]byte(SealedBatchIndicesKey), encoded)
-}
-
-// GetStoredBatchIndices returns the list of all stored batch indices
-func (s *BatchStorage) GetStoredBatchIndices() ([]uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.loadBatchIndices()
-}
-
-// BatchExists checks if a batch exists in storage
-func (s *BatchStorage) BatchExists(batchIndex uint64) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	key := encodeBatchKey(batchIndex)
-	_, err := s.db.GetBytes(key)
-	return err == nil
 }

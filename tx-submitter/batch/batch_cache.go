@@ -256,7 +256,11 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		return fmt.Errorf("get post state root err: %w", err)
 	}
 	bc.currentBlockNumber = bc.lastPackedBlockHeight
-	bc.totalL1MessagePopped, _ = parentHeader.TotalL1MessagePopped()
+	bc.totalL1MessagePopped, err = parentHeader.TotalL1MessagePopped()
+	if err != nil {
+		return fmt.Errorf("get total l1 message popped failed: %w", err)
+	}
+
 	bc.initDone = true
 	log.Info("Sync sealed batch from database success", "count", len(batches))
 	return nil
@@ -438,21 +442,6 @@ func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdraw
 		return false, fmt.Errorf("l2 client is nil")
 	}
 
-	// Verify block number continuity
-	bc.mu.Lock()
-	if blockNumber <= bc.lastPackedBlockHeight {
-		if blockNumber != 0 || bc.lastPackedBlockHeight != 0 {
-			bc.mu.Unlock()
-			return false, fmt.Errorf("wrong block number: lastPackedBlockHeight=%d, proposed=%d", bc.lastPackedBlockHeight, blockNumber)
-		}
-	}
-	if blockNumber > bc.lastPackedBlockHeight+1 {
-		// Some blocks were skipped, need to clear cache
-		bc.mu.Unlock()
-		return false, fmt.Errorf("discontinuous block number: lastPackedBlockHeight=%d, proposed=%d", bc.lastPackedBlockHeight, blockNumber)
-	}
-	bc.mu.Unlock()
-
 	// Fetch complete block from L2 client (including transactions)
 	block, err := bc.l2Clients.BlockByNumber(context.Background(), big.NewInt(int64(blockNumber)))
 	if err != nil {
@@ -472,6 +461,16 @@ func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdraw
 
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
+	// Verify block number continuity
+	if blockNumber <= bc.lastPackedBlockHeight {
+		if blockNumber != 0 || bc.lastPackedBlockHeight != 0 {
+			return false, fmt.Errorf("wrong block number: lastPackedBlockHeight=%d, proposed=%d", bc.lastPackedBlockHeight, blockNumber)
+		}
+	}
+	if blockNumber > bc.lastPackedBlockHeight+1 {
+		// Some blocks were skipped, need to clear cache
+		return false, fmt.Errorf("discontinuous block number: lastPackedBlockHeight=%d, proposed=%d", bc.lastPackedBlockHeight, blockNumber)
+	}
 
 	// Ensure BatchData is initialized
 	if bc.batchData == nil {

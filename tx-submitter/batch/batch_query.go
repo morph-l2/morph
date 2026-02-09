@@ -156,6 +156,110 @@ func parseFinalizeBatchTxData(txData []byte) (BatchHeaderBytes, error) {
 	return BatchHeaderBytes(batchHeaderBytes), nil
 }
 
+// batchDataInputStruct represents the parsed batch data input structure from ABI
+type batchDataInputStruct struct {
+	Version           uint8     `json:"version"`
+	ParentBatchHeader []uint8   `json:"parentBatchHeader"`
+	LastBlockNumber   uint64    `json:"lastBlockNumber"`
+	NumL1Messages     uint16    `json:"numL1Messages"`
+	PrevStateRoot     [32]uint8 `json:"prevStateRoot"`
+	PostStateRoot     [32]uint8 `json:"postStateRoot"`
+	WithdrawalRoot    [32]uint8 `json:"withdrawalRoot"`
+}
+
+// batchSignatureInputStruct represents the parsed batch signature input structure from ABI
+type batchSignatureInputStruct struct {
+	SignedSequencersBitmap *big.Int `json:"signedSequencersBitmap"`
+	SequencerSets          []uint8  `json:"sequencerSets"`
+	Signature              []uint8  `json:"signature"`
+}
+
+// convertBatchDataInput converts the parsed struct to bindings.IRollupBatchDataInput
+func convertBatchDataInput(s batchDataInputStruct) *bindings.IRollupBatchDataInput {
+	// Convert []uint8 to []byte
+	parentBatchHeader := make([]byte, len(s.ParentBatchHeader))
+	copy(parentBatchHeader, s.ParentBatchHeader)
+
+	return &bindings.IRollupBatchDataInput{
+		Version:           s.Version,
+		ParentBatchHeader: parentBatchHeader,
+		LastBlockNumber:   s.LastBlockNumber,
+		NumL1Messages:     s.NumL1Messages,
+		PrevStateRoot:     s.PrevStateRoot,
+		PostStateRoot:     s.PostStateRoot,
+		WithdrawalRoot:    s.WithdrawalRoot,
+	}
+}
+
+// convertBatchSignatureInput converts the parsed struct to bindings.IRollupBatchSignatureInput
+func convertBatchSignatureInput(s batchSignatureInputStruct) *bindings.IRollupBatchSignatureInput {
+	// Convert []uint8 to []byte
+	sequencerSets := make([]byte, len(s.SequencerSets))
+	copy(sequencerSets, s.SequencerSets)
+	signature := make([]byte, len(s.Signature))
+	copy(signature, s.Signature)
+
+	return &bindings.IRollupBatchSignatureInput{
+		SignedSequencersBitmap: s.SignedSequencersBitmap,
+		SequencerSets:          sequencerSets,
+		Signature:              signature,
+	}
+}
+
+// parseBatchDataInputFromArgs safely parses BatchDataInput from ABI unpacked arguments
+func parseBatchDataInputFromArgs(args []interface{}) (batchDataInputStruct, error) {
+	if len(args) < 1 {
+		return batchDataInputStruct{}, errors.New("insufficient arguments for batch data input")
+	}
+
+	// Use comma-ok assertion for safe type checking
+	rawStruct, ok := args[0].(struct {
+		Version           uint8     `json:"version"`
+		ParentBatchHeader []uint8   `json:"parentBatchHeader"`
+		LastBlockNumber   uint64    `json:"lastBlockNumber"`
+		NumL1Messages     uint16    `json:"numL1Messages"`
+		PrevStateRoot     [32]uint8 `json:"prevStateRoot"`
+		PostStateRoot     [32]uint8 `json:"postStateRoot"`
+		WithdrawalRoot    [32]uint8 `json:"withdrawalRoot"`
+	})
+	if !ok {
+		return batchDataInputStruct{}, errors.New("failed to cast batch data input to expected struct type")
+	}
+
+	return batchDataInputStruct{
+		Version:           rawStruct.Version,
+		ParentBatchHeader: rawStruct.ParentBatchHeader,
+		LastBlockNumber:   rawStruct.LastBlockNumber,
+		NumL1Messages:     rawStruct.NumL1Messages,
+		PrevStateRoot:     rawStruct.PrevStateRoot,
+		PostStateRoot:     rawStruct.PostStateRoot,
+		WithdrawalRoot:    rawStruct.WithdrawalRoot,
+	}, nil
+}
+
+// parseBatchSignatureInputFromArgs safely parses BatchSignatureInput from ABI unpacked arguments
+func parseBatchSignatureInputFromArgs(args []interface{}) (batchSignatureInputStruct, error) {
+	if len(args) < 2 {
+		return batchSignatureInputStruct{}, errors.New("insufficient arguments for batch signature input")
+	}
+
+	// Use comma-ok assertion for safe type checking
+	rawStruct, ok := args[1].(struct {
+		SignedSequencersBitmap *big.Int `json:"signedSequencersBitmap"`
+		SequencerSets          []uint8  `json:"sequencerSets"`
+		Signature              []uint8  `json:"signature"`
+	})
+	if !ok {
+		return batchSignatureInputStruct{}, errors.New("failed to cast batch signature input to expected struct type")
+	}
+
+	return batchSignatureInputStruct{
+		SignedSequencersBitmap: rawStruct.SignedSequencersBitmap,
+		SequencerSets:          rawStruct.SequencerSets,
+		Signature:              rawStruct.Signature,
+	}, nil
+}
+
 // parseCommitBatchTxData parses the commitBatch transaction's input data to get BatchDataInput and BatchSignatureInput
 func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, *bindings.IRollupBatchSignatureInput, error) {
 	// Get rollup ABI
@@ -195,50 +299,19 @@ func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, *bi
 		return nil, nil, err
 	}
 
-	// The first parameter is BatchDataInput
-	// Note: The struct returned by ABI parsing has JSON tags, need to use matching struct definition
-	batchDataInputStruct := args[0].(struct {
-		Version           uint8     `json:"version"`
-		ParentBatchHeader []uint8   `json:"parentBatchHeader"`
-		LastBlockNumber   uint64    `json:"lastBlockNumber"`
-		NumL1Messages     uint16    `json:"numL1Messages"`
-		PrevStateRoot     [32]uint8 `json:"prevStateRoot"`
-		PostStateRoot     [32]uint8 `json:"postStateRoot"`
-		WithdrawalRoot    [32]uint8 `json:"withdrawalRoot"`
-	})
-
-	// Convert []uint8 to []byte
-	parentBatchHeader := make([]byte, len(batchDataInputStruct.ParentBatchHeader))
-	copy(parentBatchHeader, batchDataInputStruct.ParentBatchHeader)
-
-	batchDataInput := &bindings.IRollupBatchDataInput{
-		Version:           batchDataInputStruct.Version,
-		ParentBatchHeader: parentBatchHeader,
-		LastBlockNumber:   batchDataInputStruct.LastBlockNumber,
-		NumL1Messages:     batchDataInputStruct.NumL1Messages,
-		PrevStateRoot:     batchDataInputStruct.PrevStateRoot,
-		PostStateRoot:     batchDataInputStruct.PostStateRoot,
-		WithdrawalRoot:    batchDataInputStruct.WithdrawalRoot,
+	// Parse BatchDataInput using shared helper
+	batchDataInputRaw, err := parseBatchDataInputFromArgs(args)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse batch data input: %w", err)
 	}
+	batchDataInput := convertBatchDataInput(batchDataInputRaw)
 
-	// The second parameter is BatchSignatureInput
-	batchSignatureInputStruct := args[1].(struct {
-		SignedSequencersBitmap *big.Int `json:"signedSequencersBitmap"`
-		SequencerSets          []uint8  `json:"sequencerSets"`
-		Signature              []uint8  `json:"signature"`
-	})
-
-	// Convert []uint8 to []byte
-	sequencerSets := make([]byte, len(batchSignatureInputStruct.SequencerSets))
-	copy(sequencerSets, batchSignatureInputStruct.SequencerSets)
-	signature := make([]byte, len(batchSignatureInputStruct.Signature))
-	copy(signature, batchSignatureInputStruct.Signature)
-
-	batchSignatureInput := &bindings.IRollupBatchSignatureInput{
-		SignedSequencersBitmap: batchSignatureInputStruct.SignedSequencersBitmap,
-		SequencerSets:          sequencerSets,
-		Signature:              signature,
+	// Parse BatchSignatureInput using shared helper
+	batchSignatureInputRaw, err := parseBatchSignatureInputFromArgs(args)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse batch signature input: %w", err)
 	}
+	batchSignatureInput := convertBatchSignatureInput(batchSignatureInputRaw)
 
 	return batchDataInput, batchSignatureInput, nil
 }
@@ -257,50 +330,19 @@ func parseCommitBatchWithProofTxData(txData []byte, rollupAbi *abi.ABI) (*bindin
 		return nil, nil, err
 	}
 
-	// The first parameter is BatchDataInput
-	// Note: The struct returned by ABI parsing has JSON tags, need to use matching struct definition
-	batchDataInputStruct := args[0].(struct {
-		Version           uint8     `json:"version"`
-		ParentBatchHeader []uint8   `json:"parentBatchHeader"`
-		LastBlockNumber   uint64    `json:"lastBlockNumber"`
-		NumL1Messages     uint16    `json:"numL1Messages"`
-		PrevStateRoot     [32]uint8 `json:"prevStateRoot"`
-		PostStateRoot     [32]uint8 `json:"postStateRoot"`
-		WithdrawalRoot    [32]uint8 `json:"withdrawalRoot"`
-	})
-
-	// Convert []uint8 to []byte
-	parentBatchHeader := make([]byte, len(batchDataInputStruct.ParentBatchHeader))
-	copy(parentBatchHeader, batchDataInputStruct.ParentBatchHeader)
-
-	batchDataInput := &bindings.IRollupBatchDataInput{
-		Version:           batchDataInputStruct.Version,
-		ParentBatchHeader: parentBatchHeader,
-		LastBlockNumber:   batchDataInputStruct.LastBlockNumber,
-		NumL1Messages:     batchDataInputStruct.NumL1Messages,
-		PrevStateRoot:     batchDataInputStruct.PrevStateRoot,
-		PostStateRoot:     batchDataInputStruct.PostStateRoot,
-		WithdrawalRoot:    batchDataInputStruct.WithdrawalRoot,
+	// Parse BatchDataInput using shared helper
+	batchDataInputRaw, err := parseBatchDataInputFromArgs(args)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse batch data input: %w", err)
 	}
+	batchDataInput := convertBatchDataInput(batchDataInputRaw)
 
-	// The second parameter is BatchSignatureInput
-	batchSignatureInputStruct := args[1].(struct {
-		SignedSequencersBitmap *big.Int `json:"signedSequencersBitmap"`
-		SequencerSets          []uint8  `json:"sequencerSets"`
-		Signature              []uint8  `json:"signature"`
-	})
-
-	// Convert []uint8 to []byte
-	sequencerSets := make([]byte, len(batchSignatureInputStruct.SequencerSets))
-	copy(sequencerSets, batchSignatureInputStruct.SequencerSets)
-	signature := make([]byte, len(batchSignatureInputStruct.Signature))
-	copy(signature, batchSignatureInputStruct.Signature)
-
-	batchSignatureInput := &bindings.IRollupBatchSignatureInput{
-		SignedSequencersBitmap: batchSignatureInputStruct.SignedSequencersBitmap,
-		SequencerSets:          sequencerSets,
-		Signature:              signature,
+	// Parse BatchSignatureInput using shared helper
+	batchSignatureInputRaw, err := parseBatchSignatureInputFromArgs(args)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse batch signature input: %w", err)
 	}
+	batchSignatureInput := convertBatchSignatureInput(batchSignatureInputRaw)
 
 	// The third parameter is _batchHeader (bytes)
 	// The fourth parameter is _batchProof (bytes)
