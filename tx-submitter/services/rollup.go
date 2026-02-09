@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/go-ethereum/ethclient"
 	"math/big"
 	"strconv"
 	"sync"
@@ -835,8 +836,17 @@ func (r *Rollup) finalize() error {
 	}
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
+	zkevmRpc := "http://localhost:9545"
+	upgradeBatchIndex := uint64(1000) // first upgrade index
+	var l2Clients []iface.L2Client
+	if nextBatchIndex < upgradeBatchIndex {
+		l2Client, _ := ethclient.Dial(zkevmRpc)
+		l2Clients = append(l2Clients, l2Client)
+	} else {
+		l2Clients = r.L2Clients
+	}
 
-	batch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
+	batch, err := GetRollupBatchByIndex(nextBatchIndex, l2Clients)
 	if err != nil {
 		log.Error("get next batch by index error",
 			"batch_index", nextBatchIndex,
