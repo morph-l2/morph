@@ -19,13 +19,11 @@ import (
 	"github.com/morph-l2/go-ethereum/core"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
-	"github.com/morph-l2/go-ethereum/crypto/bls12381"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/morph-l2/go-ethereum/params"
 	"github.com/morph-l2/go-ethereum/rpc"
-	"github.com/tendermint/tendermint/blssignatures"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/constants"
@@ -1239,19 +1237,11 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 		return nil, fmt.Errorf("invalid batch signature")
 	}
 	signers := make([]common.Address, len(blsSignatures))
-	sigs := make([]blssignatures.Signature, 0)
 	for i, bz := range blsSignatures {
 		if len(bz.Signature) > 0 {
-			sig, err := blssignatures.SignatureFromBytes(bz.Signature)
-			if err != nil {
-				return nil, err
-			}
-			sigs = append(sigs, sig)
 			signers[i] = bz.Signer
 		}
 	}
-	aggregatedSig := blssignatures.AggregateSignatures(sigs)
-	blsSignature := bls12381.NewG1().EncodePoint(aggregatedSig)
 
 	// query bitmap of signers
 	bm, err := r.Staking.GetStakersBitmap(nil, signers)
@@ -1265,7 +1255,7 @@ func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRoll
 	sigData := bindings.IRollupBatchSignatureInput{
 		SignedSequencersBitmap: bm,
 		SequencerSets:          batch.CurrentSequencerSetBytes,
-		Signature:              blsSignature,
+		Signature:              []byte("0x"),
 	}
 	return &sigData, nil
 }

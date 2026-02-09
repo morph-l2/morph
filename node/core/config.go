@@ -25,6 +25,9 @@ import (
 var (
 	MainnetUpgradeBatchTime      uint64 = 0
 	MainnetBlsKeyCheckForkHeight uint64 = 18409547
+
+	// L1 Mainnet Contract Addresses
+	MainnetRollupContractAddress = common.HexToAddress("0x759894ced0e6af42c26668076ffa84d02e3cef60")
 )
 
 type Config struct {
@@ -168,6 +171,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if ctx.GlobalIsSet(flags.DevSequencer.Name) {
 		c.DevSequencer = ctx.GlobalBool(flags.DevSequencer.Name)
+	}
+
+	if ctx.GlobalIsSet(flags.BlsKeyCheckForkHeight.Name) {
+		c.BlsKeyCheckForkHeight = ctx.GlobalUint64(flags.BlsKeyCheckForkHeight.Name)
 	}
 
 	// setup batch upgrade index and fork heights

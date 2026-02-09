@@ -232,6 +232,14 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
 
+	// BlockTag options
+	BlockTagSafeConfirmations = cli.Uint64Flag{
+		Name:   "blocktag.safeConfirmations",
+		Usage:  "Number of L1 blocks to wait before considering a batch as safe",
+		EnvVar: prefixEnvVar("BLOCKTAG_SAFE_CONFIRMATIONS"),
+		Value:  10,
+	}
+
 	// Batch rules
 	UpgradeBatchTime = cli.Uint64Flag{
 		Name:   "upgrade.batchTime",
@@ -302,6 +310,12 @@ var (
 		Value:  26660,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	BlsKeyCheckForkHeight = cli.Uint64Flag{
+		Name:   "bls-key-check-fork-height",
+		Usage:  "The height at which the BLS key check fork occurs",
+		EnvVar: prefixEnvVar("BLS_KEY_CHECK_FORK_HEIGHT"),
+	}
 )
 
 var Flags = []cli.Flag{
@@ -352,6 +366,9 @@ var Flags = []cli.Flag{
 	DerivationConfirmations,
 	L1BeaconAddr,
 
+	// blocktag options
+	BlockTagSafeConfirmations,
+
 	// batch rules
 	UpgradeBatchTime,
 	MainnetFlag,
@@ -368,4 +385,6 @@ var Flags = []cli.Flag{
 	MetricsServerEnable,
 	MetricsPort,
 	MetricsHostname,
+
+	BlsKeyCheckForkHeight,
 }

@@ -29,6 +29,10 @@ const (
 	ExecutionAborted        = "execution aborted"
 	Timeout                 = "timed out"
 	DiscontinuousBlockError = "discontinuous block number"
+
+	// Geth connection retry settings
+	GethRetryAttempts = 60               // max retry attempts
+	GethRetryInterval = 5 * time.Second  // interval between retries
 )
 
 // configResponse represents the eth_config RPC response (EIP-7910)
@@ -58,6 +62,21 @@ type morphExtension struct {
 type GethConfig struct {
 	SwitchTime uint64
 	UseZktrie  bool
+}
+
+// FetchGethConfigWithRetry fetches geth config with retry, waiting for geth to be ready.
+func FetchGethConfigWithRetry(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
+	var lastErr error
+	for i := 0; i < GethRetryAttempts; i++ {
+		config, err := FetchGethConfig(rpcURL, logger)
+		if err == nil {
+			return config, nil
+		}
+		lastErr = err
+		logger.Info("Waiting for geth to be ready...", "attempt", i+1, "error", err)
+		time.Sleep(GethRetryInterval)
+	}
+	return nil, fmt.Errorf("geth not ready after %d attempts: %w", GethRetryAttempts, lastErr)
 }
 
 // FetchGethConfig fetches the geth configuration via eth_config API
@@ -128,7 +147,6 @@ func (rc *RetryableClient) MPTForkTime() uint64 {
 	return rc.switchTime
 }
 
-
 // NewRetryableClient creates a new retryable client with the given switch time.
 // Will retry calling the api, if the connection is refused.
 //
@@ -152,7 +170,6 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 			logger:         logger,
 		}
 	}
-
 	// Check if switch time has already passed at startup
 	now := uint64(time.Now().Unix())
 	alreadySwitched := switchTime > 0 && now >= switchTime
@@ -457,6 +474,23 @@ func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, 
 		return nil
 	}, rc.b); retryErr != nil {
 		return nil, retryErr
+	}
+	return
+}
+
+func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash common.Hash, finalizedBlockHash common.Hash) (err error) {
+	if retryErr := backoff.Retry(func() error {
+		respErr := rc.authClient.SetBlockTags(ctx, safeBlockHash, finalizedBlockHash)
+		if respErr != nil {
+			rc.logger.Info("failed to call SetBlockTags", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		return nil
+	}, rc.b); retryErr != nil {
+		return retryErr
 	}
 	return
 }
