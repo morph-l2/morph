@@ -17,9 +17,6 @@ type GasCaps struct {
 // CalculateGasCaps calculates dynamic gas caps with optional max limits.
 // It fetches the suggested tip and base fee from the network, applies configured
 // max limits, and ensures the EIP-1559 invariant (tipCap <= feeCap) is maintained.
-//
-// If no max caps are configured, returns (nil, nil) to indicate caller should use default behavior.
-// Use CalculateGasCapsAlways if you always need gas cap values.
 func CalculateGasCaps(ctx context.Context, client *L2Client) (*GasCaps, error) {
 	maxTipCap := client.GetMaxGasTipCap()
 	maxFeeCap := client.GetMaxGasFeeCap()

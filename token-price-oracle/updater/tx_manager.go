@@ -206,11 +206,6 @@ func (m *TxManager) applyGasCaps(ctx context.Context, auth *bind.TransactOpts) e
 		return err
 	}
 
-	// If no caps configured, let bind package handle gas pricing dynamically
-	if caps == nil {
-		return nil
-	}
-
 	auth.GasTipCap = caps.TipCap
 	auth.GasFeeCap = caps.FeeCap
 	return nil
