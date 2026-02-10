@@ -24,19 +24,6 @@ func CalculateGasCaps(ctx context.Context, client *L2Client) (*GasCaps, error) {
 	maxTipCap := client.GetMaxGasTipCap()
 	maxFeeCap := client.GetMaxGasFeeCap()
 
-	// If no caps configured, return nil to indicate default behavior
-	if maxTipCap == nil && maxFeeCap == nil {
-		return nil, nil
-	}
-
-	return doCalculateGasCaps(ctx, client, maxTipCap, maxFeeCap)
-}
-
-// CalculateGasCapsAlways calculates dynamic gas caps, always returning values.
-// Use this when you need gas cap values regardless of whether max caps are configured.
-func CalculateGasCapsAlways(ctx context.Context, client *L2Client) (*GasCaps, error) {
-	maxTipCap := client.GetMaxGasTipCap()
-	maxFeeCap := client.GetMaxGasFeeCap()
 	return doCalculateGasCaps(ctx, client, maxTipCap, maxFeeCap)
 }
 
@@ -90,4 +77,3 @@ func doCalculateGasCaps(ctx context.Context, client *L2Client, maxTipCap, maxFee
 		FeeCap: feeCap,
 	}, nil
 }
-

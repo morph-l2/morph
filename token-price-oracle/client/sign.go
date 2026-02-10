@@ -97,7 +97,7 @@ func (s *Signer) CreateAndSignTx(
 	}
 
 	// Calculate gas caps (dynamic values with optional max limits)
-	caps, err := CalculateGasCapsAlways(ctx, client)
+	caps, err := CalculateGasCaps(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate gas caps: %w", err)
 	}
@@ -139,4 +139,3 @@ func (s *Signer) CreateAndSignTx(
 	// Sign transaction
 	return s.Sign(tx)
 }
-
