@@ -471,7 +471,7 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 	} else if bytes.Equal(d.rollupABI.Methods["commitBatchWithProof"].ID, data[:4]) {
 		args, err := d.rollupABI.Methods["commitBatchWithProof"].Inputs.Unpack(data[4:])
 		if err != nil {
-			return batch, fmt.Errorf("commitBatchWithProof submitBatches Unpack error:%v", err)
+			return batch, fmt.Errorf("commitBatchWithProof Unpack error:%v", err)
 		}
 		rollupBatchData := args[0].(struct {
 			Version           uint8     "json:\"version\""
