@@ -104,7 +104,7 @@ func (s *Signer) CreateAndSignTx(
 	if maxTip := client.GetMaxGasTipCap(); maxTip != nil {
 		if tip.Cmp(maxTip) > 0 {
 			log.Debug("Applying gas tip cap limit", "dynamic", tip, "cap", maxTip)
-			tip = maxTip
+			tip = new(big.Int).Set(maxTip)
 		}
 	}
 
@@ -129,8 +129,14 @@ func (s *Signer) CreateAndSignTx(
 	if maxFeeCap := client.GetMaxGasFeeCap(); maxFeeCap != nil {
 		if gasFeeCap.Cmp(maxFeeCap) > 0 {
 			log.Debug("Applying gas fee cap limit", "dynamic", gasFeeCap, "cap", maxFeeCap)
-			gasFeeCap = maxFeeCap
+			gasFeeCap = new(big.Int).Set(maxFeeCap)
 		}
+	}
+
+	// Ensure gasTipCap <= gasFeeCap (EIP-1559 invariant)
+	if tip.Cmp(gasFeeCap) > 0 {
+		log.Debug("Clamping tip to gasFeeCap", "tip", tip, "gasFeeCap", gasFeeCap)
+		tip = new(big.Int).Set(gasFeeCap)
 	}
 
 	// Estimate gas

@@ -126,6 +126,11 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		cfg.GasTipCap = &v
 	}
 
+	// Validate GasFeeCap >= GasTipCap when both are set (EIP-1559 invariant)
+	if cfg.GasFeeCap != nil && cfg.GasTipCap != nil && *cfg.GasFeeCap < *cfg.GasTipCap {
+		return nil, fmt.Errorf("--gas-fee-cap (%d) must be >= --gas-tip-cap (%d)", *cfg.GasFeeCap, *cfg.GasTipCap)
+	}
+
 	// Parse token registry address (optional)
 	cfg.L2TokenRegistryAddr = predeploys.L2TokenRegistryAddr
 

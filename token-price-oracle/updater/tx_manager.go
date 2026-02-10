@@ -247,6 +247,12 @@ func (m *TxManager) applyGasCaps(ctx context.Context, auth *bind.TransactOpts) e
 	}
 	auth.GasFeeCap = gasFeeCap
 
+	// Ensure gasTipCap <= gasFeeCap (EIP-1559 invariant)
+	if auth.GasTipCap.Cmp(auth.GasFeeCap) > 0 {
+		log.Debug("Clamping tip to gasFeeCap", "tip", auth.GasTipCap, "gasFeeCap", auth.GasFeeCap)
+		auth.GasTipCap = new(big.Int).Set(auth.GasFeeCap)
+	}
+
 	log.Debug("Gas caps applied", "tipCap", auth.GasTipCap, "feeCap", auth.GasFeeCap)
 	return nil
 }
