@@ -3,7 +3,6 @@ package updater
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 
@@ -202,58 +201,18 @@ func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.
 // applyGasCaps applies configured gas caps as upper limits to dynamic gas prices
 // This ensures consistent behavior between local sign and external sign
 func (m *TxManager) applyGasCaps(ctx context.Context, auth *bind.TransactOpts) error {
-	maxTipCap := m.l2Client.GetMaxGasTipCap()
-	maxFeeCap := m.l2Client.GetMaxGasFeeCap()
+	caps, err := client.CalculateGasCaps(ctx, m.l2Client)
+	if err != nil {
+		return err
+	}
 
 	// If no caps configured, let bind package handle gas pricing dynamically
-	if maxTipCap == nil && maxFeeCap == nil {
+	if caps == nil {
 		return nil
 	}
 
-	// Get dynamic gas tip cap
-	tip, err := m.l2Client.GetClient().SuggestGasTipCap(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get gas tip cap: %w", err)
-	}
-
-	// Apply tip cap limit if configured
-	if maxTipCap != nil && tip.Cmp(maxTipCap) > 0 {
-		log.Debug("Applying gas tip cap limit", "dynamic", tip, "cap", maxTipCap)
-		tip = new(big.Int).Set(maxTipCap)
-	}
-	auth.GasTipCap = tip
-
-	// Get base fee from latest block
-	head, err := m.l2Client.GetClient().HeaderByNumber(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get block header: %w", err)
-	}
-
-	// Calculate dynamic gas fee cap
-	var gasFeeCap *big.Int
-	if head.BaseFee != nil {
-		gasFeeCap = new(big.Int).Add(
-			tip,
-			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-		)
-	} else {
-		gasFeeCap = new(big.Int).Set(tip)
-	}
-
-	// Apply fee cap limit if configured
-	if maxFeeCap != nil && gasFeeCap.Cmp(maxFeeCap) > 0 {
-		log.Debug("Applying gas fee cap limit", "dynamic", gasFeeCap, "cap", maxFeeCap)
-		gasFeeCap = new(big.Int).Set(maxFeeCap)
-	}
-	auth.GasFeeCap = gasFeeCap
-
-	// Ensure gasTipCap <= gasFeeCap (EIP-1559 invariant)
-	if auth.GasTipCap.Cmp(auth.GasFeeCap) > 0 {
-		log.Debug("Clamping tip to gasFeeCap", "tip", auth.GasTipCap, "gasFeeCap", auth.GasFeeCap)
-		auth.GasTipCap = new(big.Int).Set(auth.GasFeeCap)
-	}
-
-	log.Debug("Gas caps applied", "tipCap", auth.GasTipCap, "feeCap", auth.GasFeeCap)
+	auth.GasTipCap = caps.TipCap
+	auth.GasFeeCap = caps.FeeCap
 	return nil
 }
 
