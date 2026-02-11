@@ -523,6 +523,29 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 		}
+	} else if bytes.Equal(d.rollupABI.Methods["commitBatchWithProof"].ID, data[:4]) {
+		args, err := d.rollupABI.Methods["commitBatchWithProof"].Inputs.Unpack(data[4:])
+		if err != nil {
+			return batch, fmt.Errorf("commitBatchWithProof Unpack error:%v", err)
+		}
+		rollupBatchData := args[0].(struct {
+			Version           uint8     "json:\"version\""
+			ParentBatchHeader []uint8   "json:\"parentBatchHeader\""
+			LastBlockNumber   uint64    "json:\"lastBlockNumber\""
+			NumL1Messages     uint16    "json:\"numL1Messages\""
+			PrevStateRoot     [32]uint8 "json:\"prevStateRoot\""
+			PostStateRoot     [32]uint8 "json:\"postStateRoot\""
+			WithdrawalRoot    [32]uint8 "json:\"withdrawalRoot\""
+		})
+		batch = geth.RPCRollupBatch{
+			Version:           uint(rollupBatchData.Version),
+			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+			LastBlockNumber:   rollupBatchData.LastBlockNumber,
+			NumL1Messages:     rollupBatchData.NumL1Messages,
+			PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+		}
 	} else {
 		return batch, types.ErrNotCommitBatchTx
 	}
