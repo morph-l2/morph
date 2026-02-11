@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"time"
 
 	"github.com/morph-l2/go-ethereum"
@@ -64,6 +63,10 @@ type Derivation struct {
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
 	stop                chan struct{}
+
+	// geth upgrade config (fetched once at startup)
+	switchTime uint64
+	useZktrie  bool
 }
 
 type DeployContractBackend interface {
@@ -78,6 +81,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	if err != nil {
 		return nil, err
 	}
+	// L2 geth endpoint (required - current geth)
 	aClient, err := authclient.DialContext(context.Background(), cfg.L2.EngineAddr, cfg.L2.JwtSecret)
 	if err != nil {
 		return nil, err
@@ -86,6 +90,24 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	if err != nil {
 		return nil, err
 	}
+
+	// L2Next endpoint (optional - for upgrade switch)
+	var aNextClient *authclient.Client
+	var eNextClient *ethclient.Client
+	if cfg.L2Next != nil && cfg.L2Next.EngineAddr != "" && cfg.L2Next.EthAddr != "" {
+		aNextClient, err = authclient.DialContext(context.Background(), cfg.L2Next.EngineAddr, cfg.L2Next.JwtSecret)
+		if err != nil {
+			return nil, err
+		}
+		eNextClient, err = ethclient.Dial(cfg.L2Next.EthAddr)
+		if err != nil {
+			return nil, err
+		}
+		logger.Info("L2Next geth configured (upgrade switch enabled)", "engineAddr", cfg.L2Next.EngineAddr, "ethAddr", cfg.L2Next.EthAddr)
+	} else {
+		logger.Info("L2Next geth not configured (no upgrade switch)")
+	}
+
 	msgPasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, eClient)
 	if err != nil {
 		return nil, err
@@ -116,6 +138,15 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	}
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
+
+	// Fetch geth config once at startup for root validation skip logic (with retry)
+	gethCfg, err := types.FetchGethConfigWithRetry(cfg.L2.EthAddr, logger)
+	if err != nil {
+		cancel() // cancel context to avoid leak
+		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
+	}
+	logger.Info("Geth config fetched", "switchTime", gethCfg.SwitchTime, "useZktrie", gethCfg.UseZktrie)
+
 	return &Derivation{
 		ctx:                   ctx,
 		db:                    db,
@@ -129,7 +160,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logger:                logger,
 		RollupContractAddress: cfg.RollupContractAddress,
 		confirmations:         cfg.L1.Confirmations,
-		l2Client:              types.NewRetryableClient(aClient, eClient, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout))),
+		l2Client:              types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, gethCfg.SwitchTime, logger),
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
 		startHeight:           cfg.StartHeight,
@@ -140,6 +171,8 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
+		switchTime:            gethCfg.SwitchTime,
+		useZktrie:             gethCfg.UseZktrie,
 	}, nil
 }
 
@@ -246,25 +279,47 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			d.logger.Error("get withdrawal root failed", "error", err)
 			return
 		}
-		if !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes()) || !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes()) {
-			d.metrics.SetBatchStatus(stateException)
-			// TODO The challenge switch is currently on and will be turned on in the future
-			if d.validator != nil && d.validator.ChallengeEnable() {
-				if err := d.validator.ChallengeState(batchInfo.batchIndex); err != nil {
-					d.logger.Error("challenge state failed")
-					return
+
+		rootMismatch := !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes())
+		withdrawalMismatch := !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes())
+
+		if rootMismatch || withdrawalMismatch {
+			// Check if should skip validation during upgrade transition
+			// Skip if: (before switch && MPT geth) or (after switch && ZK geth)
+			skipValidation := false
+			if d.switchTime > 0 {
+				beforeSwitch := lastHeader.Time < d.switchTime
+				if (beforeSwitch && !d.useZktrie) || (!beforeSwitch && d.useZktrie) {
+					skipValidation = true
+					d.logger.Info("Root validation skipped during upgrade transition",
+						"originStateRootHash", batchInfo.root,
+						"deriveStateRootHash", lastHeader.Root.Hex(),
+						"blockTimestamp", lastHeader.Time,
+						"switchTime", d.switchTime,
+						"useZktrie", d.useZktrie,
+					)
 				}
 			}
-			d.logger.Info("root hash or withdrawal hash is not equal",
-				"originStateRootHash", batchInfo.root,
-				"deriveStateRootHash", lastHeader.Root.Hex(),
-				"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
-				"deriveWithdrawalRoot", common.BytesToHash(withdrawalRoot[:]).Hex(),
-			)
-			return
-		} else {
-			d.metrics.SetBatchStatus(stateNormal)
+
+			if !skipValidation {
+				d.metrics.SetBatchStatus(stateException)
+				// TODO The challenge switch is currently on and will be turned on in the future
+				if d.validator != nil && d.validator.ChallengeEnable() {
+					if err := d.validator.ChallengeState(batchInfo.batchIndex); err != nil {
+						d.logger.Error("challenge state failed")
+						return
+					}
+				}
+				d.logger.Error("root hash or withdrawal hash is not equal",
+					"originStateRootHash", batchInfo.root,
+					"deriveStateRootHash", lastHeader.Root.Hex(),
+					"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
+					"deriveWithdrawalRoot", common.BytesToHash(withdrawalRoot[:]).Hex(),
+				)
+				return
+			}
 		}
+		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
 	}
 
