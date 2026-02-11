@@ -31,8 +31,8 @@ const (
 	DiscontinuousBlockError = "discontinuous block number"
 
 	// Geth connection retry settings
-	GethRetryAttempts = 60               // max retry attempts
-	GethRetryInterval = 5 * time.Second  // interval between retries
+	GethRetryAttempts = 60              // max retry attempts
+	GethRetryInterval = 5 * time.Second // interval between retries
 )
 
 // configResponse represents the eth_config RPC response (EIP-7910)

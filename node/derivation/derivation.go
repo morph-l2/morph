@@ -142,6 +142,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	// Fetch geth config once at startup for root validation skip logic (with retry)
 	gethCfg, err := types.FetchGethConfigWithRetry(cfg.L2.EthAddr, logger)
 	if err != nil {
+		cancel() // cancel context to avoid leak
 		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
 	}
 	logger.Info("Geth config fetched", "switchTime", gethCfg.SwitchTime, "useZktrie", gethCfg.UseZktrie)
