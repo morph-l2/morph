@@ -256,13 +256,22 @@ func (r *Rollup) Start() error {
 	})
 
 	var batchCacheSyncMu sync.Mutex
+
+	go func() {
+		batchCacheSyncMu.Lock()
+		defer batchCacheSyncMu.Unlock()
+		for {
+			if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
+				log.Error("init and sync from database failed, wait for the next try", "error", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+		}
+	}()
+
 	go utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
 		batchCacheSyncMu.Lock()
 		defer batchCacheSyncMu.Unlock()
-		if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
-			log.Error("init and sync from database failed, wait for the next try", "error", err)
-			return
-		}
 		if err = r.batchCache.AssembleCurrentBatchHeader(); err != nil {
 			log.Error("assemble current batch failed, wait for the next try", "error", err)
 			return
@@ -874,7 +883,7 @@ func (r *Rollup) finalize() error {
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
 
-	batch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
+	rollupBatch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
 	if err != nil {
 		log.Warn("get next rollupBatch by index failed, rollupBatch not found",
 			"batch_index", nextBatchIndex,

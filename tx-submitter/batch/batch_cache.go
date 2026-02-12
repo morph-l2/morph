@@ -216,40 +216,48 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		}
 	}
 
-	currentHeaderBytes := headers[maxIndex]
-	bc.lastPackedBlockHeight, err = currentHeaderBytes.LastBlockNumber()
+	latestHeaderBytes := headers[maxIndex]
+	prevStateRoot, err := latestHeaderBytes.PostStateRoot()
 	if err != nil {
-		parentBatchIndex, err := currentHeaderBytes.BatchIndex()
+		log.Error("Get post state root failed", "err", err)
+		return bc.DeleteBatchStorageAndInitFromRollup()
+	}
+	totalL1MessagePopped, err := latestHeaderBytes.TotalL1MessagePopped()
+	if err != nil {
+		log.Error("Get total l1 message popped failed", "err", err)
+		return bc.DeleteBatchStorageAndInitFromRollup()
+	}
+	lastPackedBlockHeight, err := latestHeaderBytes.LastBlockNumber()
+	if err != nil {
+		// maybe the latest header is version 0 which do not have blockNum
+		latestBatchIndex, err := latestHeaderBytes.BatchIndex()
 		if err != nil {
 			return fmt.Errorf("get batch index from parent header failed err: %w", err)
 		}
-		// check batch index range, batch index should bigger than finalize batch index
-		if parentBatchIndex < fi.Uint64() {
+		// check batch index range
+		if latestBatchIndex < fi.Uint64() || latestBatchIndex > ci.Uint64() {
 			// missing batch data, sync from another side
-			err = bc.DeleteBatchStorageAndInitFromRollup()
-			if err != nil {
-				return err
-			}
-			return nil
+			log.Error("Batch index is out of range",
+				"latestBatchIndex", latestBatchIndex,
+				"commitIndex", ci.Uint64(), "finalizeIndex", fi.Uint64())
+			return bc.DeleteBatchStorageAndInitFromRollup()
 		}
-		store, err := bc.rollupContract.BatchDataStore(nil, fi)
+		store, err := bc.rollupContract.BatchDataStore(nil, new(big.Int).SetUint64(latestBatchIndex))
 		if err != nil {
-			return err
+			log.Error("Failed to load latest batch index from rollup",
+				"error", err,
+				"batchIndex", latestBatchIndex)
+			return bc.DeleteBatchStorageAndInitFromRollup()
 		}
-		bc.lastPackedBlockHeight = store.BlockNumber.Uint64()
+		lastPackedBlockHeight = store.BlockNumber.Uint64()
 	}
 	bc.sealedBatches = batches
 	bc.sealedBatchHeaders = headers
-	bc.parentBatchHeader = currentHeaderBytes
-	bc.prevStateRoot, err = currentHeaderBytes.PostStateRoot()
-	if err != nil {
-		return fmt.Errorf("get post state root err: %w", err)
-	}
+	bc.parentBatchHeader = latestHeaderBytes
 	bc.currentBlockNumber = bc.lastPackedBlockHeight
-	bc.totalL1MessagePopped, err = currentHeaderBytes.TotalL1MessagePopped()
-	if err != nil {
-		return fmt.Errorf("get total l1 message popped failed: %w", err)
-	}
+	bc.prevStateRoot = prevStateRoot
+	bc.totalL1MessagePopped = totalL1MessagePopped
+	bc.lastPackedBlockHeight = lastPackedBlockHeight
 
 	bc.initDone = true
 	log.Info("Sync sealed batch from database success", "count", len(batches))

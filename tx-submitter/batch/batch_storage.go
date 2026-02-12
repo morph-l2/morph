@@ -130,12 +130,28 @@ func (s *BatchStorage) LoadAllSealedBatchesAndHeader() (map[uint64]*eth.RPCRollu
 
 	// Load each batch (without holding the lock to avoid deadlock)
 	batches := make(map[uint64]*eth.RPCRollupBatch, len(indices))
-	for _, idx := range indices {
+	for i, idx := range indices {
 		batch, err := s.LoadSealedBatch(idx)
 		if err != nil {
 			log.Warn("Failed to load sealed batch, skipping",
 				"batch_index", idx, "error", err)
 			return nil, nil, nil, fmt.Errorf("failed to load batch: %w", err)
+		}
+		if i > 0 {
+			parentBatch := batches[idx-1]
+			parentBatchHash, err := BatchHeaderBytes(batch.ParentBatchHeader).Hash()
+			if err != nil {
+				log.Error("Failed to load parent batch header", "batch_index", idx, "error", err)
+				return nil, nil, nil, fmt.Errorf("failed to load batch header: %w", err)
+			}
+			if !bytes.Equal(parentBatch.Hash.Bytes(), parentBatchHash.Bytes()) {
+				log.Error("parent batch hash check failed",
+					"batch_index", idx,
+					"parent_batch_hash", parentBatch.Hash.String(),
+					"pre_batch_hash", parentBatchHash.String())
+				return nil, nil, nil, fmt.Errorf("parent batch hash check failed")
+			}
+
 		}
 		batches[idx] = batch
 	}
