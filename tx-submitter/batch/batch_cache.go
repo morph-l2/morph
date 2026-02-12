@@ -1163,6 +1163,11 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 			return err
 		}
 	}
+	currentBlockNum := bc.currentBlockNumber
+	if currentBlockNum < startBlockNum {
+		log.Error("invalid block number", "currentBlockNum", currentBlockNum, "startBlockNum", startBlockNum)
+		return fmt.Errorf("invalid block number")
+	}
 	startBlockNum++
 	// Get start block once to avoid repeated queries
 	startBlock, err := bc.l2Clients.BlockByNumber(bc.ctx, big.NewInt(int64(startBlockNum)))
@@ -1170,7 +1175,6 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 		return fmt.Errorf("failed to get start block %d: %w", startBlockNum, err)
 	}
 	startBlockTime := startBlock.Time()
-	currentBlockNum := bc.currentBlockNumber
 
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := currentBlockNum + 1; blockNum <= endBlockNum; blockNum++ {
