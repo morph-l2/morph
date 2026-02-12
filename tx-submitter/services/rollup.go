@@ -871,11 +871,10 @@ func (r *Rollup) finalize() error {
 		log.Info("rollupBatch inside challenge window, wait")
 		return nil
 	}
-	// finalize
-
-	// get next rollupBatch
+	// get next batch
 	nextBatchIndex := target.Uint64() + 1
-	rollupBatch, err := r.batchCache.Get(nextBatchIndex)
+
+	batch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
 	if err != nil {
 		log.Warn("get next rollupBatch by index failed, rollupBatch not found",
 			"batch_index", nextBatchIndex,
