@@ -19,7 +19,7 @@ pub struct BatchInfo {
     pub end_block: u64,
     pub total_txn: u64,
 }
-pub static SHADOW_EXECUTE: Lazy<bool> = Lazy::new(|| read_env_var("SHADOW_PROVING_EXECUTE", false));
+pub static SHADOW_EXECUTE: Lazy<bool> = Lazy::new(|| read_env_var("SHADOW_PROVING_EXECUTE", true));
 
 pub static SHADOW_EXECUTE_USE_RPC_DB: Lazy<bool> =
     Lazy::new(|| read_env_var("SHADOW_PROVING_EXECUTE_USE_RPC_DB", true));

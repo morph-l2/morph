@@ -52,7 +52,7 @@ pub async fn start() {
     // Step2. start metric management
     metric_mng().await;
 
-    // Step4. start prover
+    // Step3. start prover
     start_prover().await;
 }
 
