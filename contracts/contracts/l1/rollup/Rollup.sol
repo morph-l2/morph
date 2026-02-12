@@ -668,6 +668,17 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         return batchDataStore[batchIndex].finalizeTimestamp > block.timestamp;
     }
 
+    /// @dev proveCommittedBatchState verifies the ZK proof for a committed batch.
+    function proveCommittedBatchState(bytes calldata _batchHeader, bytes calldata _batchProof) public view {
+        // get batch data from batch header
+        (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
+        // check batch hash
+        uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
+        require(committedBatches[_batchIndex] == _batchHash, "incorrect batch hash");
+
+        _verifyProof(memPtr, _batchProof);
+    }
+
     /**********************
      * Internal Functions *
      **********************/
