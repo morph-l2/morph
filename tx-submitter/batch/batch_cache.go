@@ -251,13 +251,13 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		}
 		lastPackedBlockHeight = store.BlockNumber.Uint64()
 	}
+	bc.lastPackedBlockHeight = lastPackedBlockHeight
 	bc.sealedBatches = batches
 	bc.sealedBatchHeaders = headers
 	bc.parentBatchHeader = latestHeaderBytes
 	bc.currentBlockNumber = bc.lastPackedBlockHeight
 	bc.prevStateRoot = prevStateRoot
 	bc.totalL1MessagePopped = totalL1MessagePopped
-	bc.lastPackedBlockHeight = lastPackedBlockHeight
 
 	bc.initDone = true
 	log.Info("Sync sealed batch from database success", "count", len(batches))
@@ -426,10 +426,6 @@ func (bc *BatchCache) GetSealedBatchHeader(batchIndex uint64) (*BatchHeaderBytes
 	defer bc.mu.RUnlock()
 	header, ok := bc.sealedBatchHeaders[batchIndex]
 	if !ok {
-		// Try to load from storage
-		bc.mu.RUnlock()
-		bc.mu.Lock()
-		defer bc.mu.Unlock()
 		// Check again after acquiring write lock
 		header, ok = bc.sealedBatchHeaders[batchIndex]
 		if !ok {
@@ -437,7 +433,6 @@ func (bc *BatchCache) GetSealedBatchHeader(batchIndex uint64) (*BatchHeaderBytes
 			if err != nil {
 				return nil, false
 			}
-			bc.sealedBatchHeaders[batchIndex] = loadedHeader
 			return loadedHeader, true
 		}
 		return header, true
@@ -1135,8 +1130,7 @@ func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash com
 
 func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 	if !bc.initDone {
-		log.Warn("batch has not been initialized, should wait")
-		return nil
+		return errors.New("batch has not been initialized, should wait")
 	}
 	callOpts := &bind.CallOpts{
 		Context: bc.ctx,
@@ -1148,9 +1142,26 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 	if endBlockNum < bc.currentBlockNumber {
 		return fmt.Errorf("has reorg, should check block status current %v, now %v", bc.currentBlockNumber, endBlockNum)
 	}
-	startBlockNum, err := bc.parentBatchHeader.LastBlockNumber()
-	if err != nil {
-		return err
+	startBlockNum := uint64(0)
+	version, _ := bc.parentBatchHeader.Version()
+	if version < 1 {
+		parentIndex, err := bc.parentBatchHeader.BatchIndex()
+		if err != nil {
+			log.Error("failed to get block index", "err", err)
+			return err
+		}
+		store, err := bc.rollupContract.BatchDataStore(nil, new(big.Int).SetUint64(parentIndex))
+		if err != nil {
+			log.Error("failed to get batch store", "err", err)
+			return err
+		}
+		startBlockNum = store.BlockNumber.Uint64()
+	} else {
+		startBlockNum, err = bc.parentBatchHeader.LastBlockNumber()
+		if err != nil {
+			log.Error("failed to get block number", "err", err)
+			return err
+		}
 	}
 	startBlockNum++
 	// Get start block once to avoid repeated queries

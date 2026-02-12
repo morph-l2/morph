@@ -266,6 +266,7 @@ func (r *Rollup) Start() error {
 				time.Sleep(5 * time.Second)
 				continue
 			}
+			break
 		}
 	}()
 
@@ -881,22 +882,20 @@ func (r *Rollup) finalize() error {
 		return nil
 	}
 	// get next batch
-	nextBatchIndex := target.Uint64() + 1
-
-	rollupBatch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
-	if err != nil {
-		log.Warn("get next rollupBatch by index failed, rollupBatch not found",
-			"batch_index", nextBatchIndex,
+	rollupBatchHeader, exist := r.batchCache.GetSealedBatchHeader(target.Uint64())
+	if !exist {
+		log.Warn("get rollupBatch by index failed, rollupBatch not found",
+			"batch_index", target.Uint64(),
 		)
 		return nil
 	}
-	if rollupBatch == nil {
-		log.Info("next rollupBatch is nil,wait next rollupBatch header to finalize", "next_batch_index", nextBatchIndex)
+	if rollupBatchHeader == nil {
+		log.Info("next rollupBatch is nil,wait rollupBatch header to finalize", "batch_index", target.Uint64())
 		return nil
 	}
 
 	// calldata
-	calldata, err := r.abi.Pack("finalizeBatch", []byte(rollupBatch.ParentBatchHeader))
+	calldata, err := r.abi.Pack("finalizeBatch", rollupBatchHeader.Bytes())
 	if err != nil {
 		return fmt.Errorf("pack finalizeBatch error:%v", err)
 	}
