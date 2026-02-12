@@ -33,7 +33,8 @@ type BatchCache struct {
 	batchStorage *BatchStorage
 
 	// key: batchIndex, value: RPCRollupBatch
-	sealedBatches map[uint64]*eth.RPCRollupBatch
+	sealedBatches      map[uint64]*eth.RPCRollupBatch
+	sealedBatchHeaders map[uint64]*BatchHeaderBytes
 
 	// Currently accumulating batch data (referencing node's BatchingCache)
 	// Parent batch information
@@ -95,6 +96,7 @@ func NewBatchCache(
 		ctx:                               ctx,
 		initDone:                          false,
 		sealedBatches:                     make(map[uint64]*eth.RPCRollupBatch),
+		sealedBatchHeaders:                make(map[uint64]*BatchHeaderBytes),
 		parentBatchHeader:                 nil,
 		prevStateRoot:                     common.Hash{},
 		batchData:                         NewBatchData(),
@@ -186,26 +188,22 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		return fmt.Errorf("get batch status from rollup failed err: %w", err)
 	}
 
-	batches, indices, err := bc.batchStorage.LoadAllSealedBatches()
+	batches, headers, indices, err := bc.batchStorage.LoadAllSealedBatchesAndHeader()
 	if err != nil {
-		return err
+		log.Error("Failed to load sealed batch headers from storage", "error", err)
+		return bc.DeleteBatchStorageAndInitFromRollup()
 	}
+
 	if len(batches) == 0 {
 		return bc.InitAndSyncFromRollup()
 	}
-	if len(indices) == 0 {
-		return bc.InitAndSyncFromRollup()
-	}
 	maxIndex := indices[0]
-	if len(indices) > 0 {
-		for _, idx := range indices {
-			if idx > maxIndex {
-				maxIndex = idx
-			}
+	for _, idx := range indices {
+		if idx > maxIndex {
+			maxIndex = idx
 		}
 	}
-
-	// check batch hash with the batch that already rollup by sybmitter
+	// check batch hash with the batch that already rollup by submitter
 	for i := fi.Uint64(); i <= ci.Uint64(); i++ {
 		batchHash, err := bc.rollupContract.CommittedBatches(nil, new(big.Int).SetUint64(i))
 		if err != nil {
@@ -213,26 +211,22 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		}
 		batchStorage, exist := batches[i]
 		if !exist || !bytes.Equal(batchHash[:], batchStorage.Hash.Bytes()) {
-			err = bc.batchStorage.DeleteAllSealedBatches()
-			if err != nil {
-				return err
-			}
 			// batch not contiguous or batch is invalid
-			return bc.InitAndSyncFromRollup()
+			return bc.DeleteBatchStorageAndInitFromRollup()
 		}
 	}
 
-	parentHeader := BatchHeaderBytes(batches[maxIndex].ParentBatchHeader[:])
-	bc.lastPackedBlockHeight, err = parentHeader.LastBlockNumber()
+	currentHeaderBytes := headers[maxIndex]
+	bc.lastPackedBlockHeight, err = currentHeaderBytes.LastBlockNumber()
 	if err != nil {
-		parentBatchIndex, err := parentHeader.BatchIndex()
+		parentBatchIndex, err := currentHeaderBytes.BatchIndex()
 		if err != nil {
 			return fmt.Errorf("get batch index from parent header failed err: %w", err)
 		}
-		// check batch index range
-		if parentBatchIndex > ci.Uint64() || parentBatchIndex < fi.Uint64() {
-			// sync from another side
-			err = bc.InitAndSyncFromRollup()
+		// check batch index range, batch index should bigger than finalize batch index
+		if parentBatchIndex < fi.Uint64() {
+			// missing batch data, sync from another side
+			err = bc.DeleteBatchStorageAndInitFromRollup()
 			if err != nil {
 				return err
 			}
@@ -245,13 +239,14 @@ func (bc *BatchCache) InitAndSyncFromDatabase() error {
 		bc.lastPackedBlockHeight = store.BlockNumber.Uint64()
 	}
 	bc.sealedBatches = batches
-	bc.parentBatchHeader = &parentHeader
-	bc.prevStateRoot, err = parentHeader.PostStateRoot()
+	bc.sealedBatchHeaders = headers
+	bc.parentBatchHeader = currentHeaderBytes
+	bc.prevStateRoot, err = currentHeaderBytes.PostStateRoot()
 	if err != nil {
 		return fmt.Errorf("get post state root err: %w", err)
 	}
 	bc.currentBlockNumber = bc.lastPackedBlockHeight
-	bc.totalL1MessagePopped, err = parentHeader.TotalL1MessagePopped()
+	bc.totalL1MessagePopped, err = currentHeaderBytes.TotalL1MessagePopped()
 	if err != nil {
 		return fmt.Errorf("get total l1 message popped failed: %w", err)
 	}
@@ -415,6 +410,31 @@ func (bc *BatchCache) GetSealedBatch(batchIndex uint64) (*eth.RPCRollupBatch, bo
 	defer bc.mu.RUnlock()
 	batch, ok := bc.sealedBatches[batchIndex]
 	return batch, ok
+}
+
+// GetSealedBatchHeader gets sealed batch header information
+func (bc *BatchCache) GetSealedBatchHeader(batchIndex uint64) (*BatchHeaderBytes, bool) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	header, ok := bc.sealedBatchHeaders[batchIndex]
+	if !ok {
+		// Try to load from storage
+		bc.mu.RUnlock()
+		bc.mu.Lock()
+		defer bc.mu.Unlock()
+		// Check again after acquiring write lock
+		header, ok = bc.sealedBatchHeaders[batchIndex]
+		if !ok {
+			loadedHeader, err := bc.batchStorage.LoadSealedBatchHeader(batchIndex)
+			if err != nil {
+				return nil, false
+			}
+			bc.sealedBatchHeaders[batchIndex] = loadedHeader
+			return loadedHeader, true
+		}
+		return header, true
+	}
+	return header, ok
 }
 
 // GetLatestSealedBatchIndex gets the latest sealed batch index
@@ -674,9 +694,18 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 		CollectedL1Fee:           nil,
 	}
 	bc.sealedBatches[batchIndex] = sealedBatch
+	// Store batch header copy
+	batchHeaderCopy := make(BatchHeaderBytes, len(batchHeader))
+	copy(batchHeaderCopy, batchHeader)
+	bc.sealedBatchHeaders[batchIndex] = &batchHeaderCopy
+
 	err = bc.batchStorage.StoreSealedBatch(batchIndex, sealedBatch)
 	if err != nil {
 		log.Error("failed to store sealed batch", "err", err)
+	}
+	err = bc.batchStorage.StoreSealedBatchHeader(batchIndex, &batchHeaderCopy)
+	if err != nil {
+		log.Error("failed to store sealed batch header", "err", err)
 	}
 	// Update parent batch information for next batch
 	bc.parentBatchHeader = &batchHeader
@@ -1068,6 +1097,10 @@ func (bc *BatchCache) Delete(batchIndex uint64) error {
 	if exists {
 		delete(bc.sealedBatches, batchIndex)
 	}
+	_, headerExists := bc.sealedBatchHeaders[batchIndex]
+	if headerExists {
+		delete(bc.sealedBatchHeaders, batchIndex)
+	}
 	err := bc.batchStorage.DeleteSealedBatch(batchIndex)
 	if err != nil {
 		return err
@@ -1188,4 +1221,14 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 		}
 	}
 	return nil
+}
+
+func (bc *BatchCache) DeleteBatchStorageAndInitFromRollup() error {
+	// should delete invalid batch data and batch header bytes
+	err := bc.batchStorage.DeleteAllSealedBatches()
+	if err != nil {
+		return err
+	}
+	// batch not contiguous or batch is invalid
+	return bc.InitAndSyncFromRollup()
 }
