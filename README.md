@@ -87,4 +87,6 @@ Medium: [Morph – Medium](https://medium.com/@morphlayer2)
 
 Telegram: https://t.me/morphoffical
 
+Discord: https://discord.com/invite/MorphLayer
+
 Gmail: info@morphl2.io
