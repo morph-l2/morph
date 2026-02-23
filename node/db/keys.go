@@ -10,7 +10,7 @@ var (
 	derivationL1HeightKey = []byte("LastDerivationL1Height")
 )
 
-// encodeBlockNumber encodes an L1 enqueue index as big endian uint64
+// encodeEnqueueIndex encodes an L1 enqueue index as big endian uint64
 func encodeEnqueueIndex(index uint64) []byte {
 	enc := make([]byte, 8)
 	binary.BigEndian.PutUint64(enc, index)
