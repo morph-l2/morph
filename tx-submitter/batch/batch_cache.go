@@ -134,6 +134,7 @@ func (bc *BatchCache) Init() error {
 	if err != nil {
 		return fmt.Errorf("get last finalize batch header err: %w", err)
 	}
+
 	// Initialize BatchCache parent batch information
 	// prevStateRoot should be the parent batch's postStateRoot
 	bc.parentBatchHeader = headerBytes
@@ -711,7 +712,7 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 		log.Error("failed to store sealed batch header", "err", err)
 	}
 	// Update parent batch information for next batch
-	bc.parentBatchHeader = &batchHeader
+	bc.parentBatchHeader = &batchHeaderCopy
 	bc.prevStateRoot = bc.postStateRoot
 
 	bc.logSealedBatch(batchHeader, batchHash)

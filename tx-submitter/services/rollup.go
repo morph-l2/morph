@@ -78,6 +78,7 @@ type Rollup struct {
 	collectedL1FeeSum float64
 	// batchcache
 	batchCache       *batch.BatchCache
+	batchCacheLegacy *types.BatchCacheLegacy
 	bm               *l1checker.BlockMonitor
 	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
@@ -128,6 +129,10 @@ func NewRollup(
 		eventInfoStorage: eventInfoStorage,
 		reorgDetector:    reorgDetector,
 		ChainConfigMap:   types.ChainConfigMap,
+	}
+	if !cfg.SealBatch {
+		fetcher := NewBatchFetcher(l2Clients)
+		r.batchCacheLegacy = types.NewBatchCacheLegacy(fetcher)
 	}
 	return r
 }
@@ -255,35 +260,38 @@ func (r *Rollup) Start() error {
 		}
 	})
 
-	var batchCacheSyncMu sync.Mutex
+	if r.cfg.SealBatch {
+		var batchCacheSyncMu sync.Mutex
 
-	go func() {
-		batchCacheSyncMu.Lock()
-		defer batchCacheSyncMu.Unlock()
-		for {
-			if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
-				log.Error("init and sync from database failed, wait for the next try", "error", err)
-				time.Sleep(5 * time.Second)
-				continue
+		go func() {
+			batchCacheSyncMu.Lock()
+			defer batchCacheSyncMu.Unlock()
+			for {
+
+				if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
+					log.Error("init and sync from database failed, wait for the next try", "error", err)
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				break
 			}
-			break
-		}
-	}()
+		}()
 
-	go utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
-		batchCacheSyncMu.Lock()
-		defer batchCacheSyncMu.Unlock()
-		if err = r.batchCache.AssembleCurrentBatchHeader(); err != nil {
-			log.Error("assemble current batch failed, wait for the next try", "error", err)
-			return
-		}
-		if index, err := r.batchCache.LatestBatchIndex(); err != nil {
-			log.Error("cannot get the latest batch index from batch cache", "error", err)
-			return
-		} else {
-			r.metrics.SetLastCacheBatchIndex(index)
-		}
-	})
+		go utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
+			batchCacheSyncMu.Lock()
+			defer batchCacheSyncMu.Unlock()
+			if err = r.batchCache.AssembleCurrentBatchHeader(); err != nil {
+				log.Error("assemble current batch failed, wait for the next try", "error", err)
+				return
+			}
+			if index, err := r.batchCache.LatestBatchIndex(); err != nil {
+				log.Error("cannot get the latest batch index from batch cache", "error", err)
+				return
+			} else {
+				r.metrics.SetLastCacheBatchIndex(index)
+			}
+		})
+	}
 
 	return nil
 }
@@ -485,8 +493,16 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 
 		// Calculate and update L1 fee metrics
 		batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
-		rollupBatch, err := r.batchCache.Get(batchIndex)
-		if err != nil {
+		var rollupBatch *eth.RPCRollupBatch
+		exist := true
+		if r.cfg.SealBatch {
+			rollupBatch, err = r.batchCache.Get(batchIndex)
+		} else {
+			rollupBatch, exist = r.batchCacheLegacy.Get(batchIndex)
+		}
+		if err != nil || !exist || rollupBatch == nil {
+			log.Warn("rollupBatch not found in cache", "batch_index", batchIndex, "error", err)
+		} else {
 			if rollupBatch.CollectedL1Fee == nil {
 				return nil
 			}
@@ -502,12 +518,9 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 			if err != nil {
 				log.Error("failed to update collected L1 fee sum in leveldb", "error", err)
 			}
-
 			log.Info("Updated L1 fee metrics",
 				"batch_index", batchIndex,
 				"l1_fee_eth", collectedL1FeeFloat)
-		} else {
-			log.Warn("rollupBatch not found in cache", "batch_index", batchIndex)
 		}
 	} else if method == constants.MethodFinalizeBatch {
 		r.finalizeFeeSum += txFeeFloat
@@ -820,9 +833,13 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 		} else if method == constants.MethodFinalizeBatch {
 			batchIndex := utils.ParseFBatchIndex(tx.Data())
 			if batchIndex > 0 {
-				err = r.batchCache.Delete(batchIndex - 1)
-				if err != nil {
-					log.Error("failed to delete batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
+				if r.cfg.SealBatch {
+					err = r.batchCache.Delete(batchIndex - 1)
+					if err != nil {
+						log.Error("failed to delete batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String())
+					}
+				} else {
+					r.batchCacheLegacy.Delete(batchIndex - 1)
 				}
 			}
 			log.Info("Successfully finalized batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "block_number", status.receipt.BlockNumber.Uint64(), "gas_used", status.receipt.GasUsed, "confirm", confirmations)
@@ -881,21 +898,35 @@ func (r *Rollup) finalize() error {
 		log.Info("rollupBatch inside challenge window, wait")
 		return nil
 	}
-	// get next batch
-	rollupBatchHeader, exist := r.batchCache.GetSealedBatchHeader(target.Uint64())
-	if !exist {
-		log.Warn("get rollupBatch by index failed, rollupBatch not found",
-			"batch_index", target.Uint64(),
-		)
-		return nil
-	}
-	if rollupBatchHeader == nil {
-		log.Info("next rollupBatch is nil,wait rollupBatch header to finalize", "batch_index", target.Uint64())
-		return nil
+	var headerBytes []byte
+	if r.cfg.SealBatch {
+		// get batch header
+		rollupBatchHeader, exist := r.batchCache.GetSealedBatchHeader(target.Uint64())
+		if !exist {
+			log.Warn("get rollupBatch by index failed, rollupBatch not found",
+				"batch_index", target.Uint64(),
+			)
+			return nil
+		}
+		if rollupBatchHeader == nil {
+			log.Info("next rollupBatch is nil,wait rollupBatch header to finalize", "batch_index", target.Uint64())
+			return nil
+		}
+		headerBytes = rollupBatchHeader.Bytes()
+	} else {
+		nextBatchIndex := target.Uint64() + 1
+		nextBatch, exist := r.batchCacheLegacy.Get(nextBatchIndex)
+		if !exist {
+			log.Warn("get next rollupBatch by index failed, rollupBatch not found",
+				"batch_index", nextBatchIndex,
+			)
+			return nil
+		}
+		headerBytes = []byte(nextBatch.ParentBatchHeader)
 	}
 
 	// calldata
-	calldata, err := r.abi.Pack("finalizeBatch", rollupBatchHeader.Bytes())
+	calldata, err := r.abi.Pack("finalizeBatch", headerBytes)
 	if err != nil {
 		return fmt.Errorf("pack finalizeBatch error:%v", err)
 	}
@@ -986,9 +1017,7 @@ func (r *Rollup) finalize() error {
 			log.Error("failed to add signed transaction", "hash", signedTx.Hash().String(), "error", err)
 		}
 	}
-
 	return nil
-
 }
 
 func (r *Rollup) rollup() error {
@@ -1099,9 +1128,14 @@ func (r *Rollup) rollup() error {
 			"batch_index", batchIndex)
 		return nil
 	}
-
-	rpcRollupBatch, err := r.batchCache.Get(batchIndex)
-	if err != nil {
+	var rpcRollupBatch *eth.RPCRollupBatch
+	exist := true
+	if r.cfg.SealBatch {
+		rpcRollupBatch, err = r.batchCache.Get(batchIndex)
+	} else {
+		rpcRollupBatch, exist = r.batchCacheLegacy.Get(batchIndex)
+	}
+	if err != nil || !exist || rpcRollupBatch == nil {
 		log.Info("Batch not found in cache",
 			"batch_index", batchIndex)
 		return nil

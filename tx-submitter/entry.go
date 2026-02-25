@@ -75,6 +75,7 @@ func Main() func(ctx *cli.Context) error {
 			"max_tip", cfg.MaxTip,
 			"max_base", cfg.MaxBaseFee,
 			"tip_bump", cfg.TipFeeBump,
+			"seal_batch", cfg.SealBatch,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
