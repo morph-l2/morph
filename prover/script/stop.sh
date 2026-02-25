@@ -1,4 +1,3 @@
 #!/bin/bash
 
-pkill -9 challenge
-pkill -9 shadow
+pkill -9 prover-server

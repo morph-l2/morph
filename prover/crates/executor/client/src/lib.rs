@@ -1,5 +1,6 @@
 pub mod types;
 mod verifier;
+#[cfg(not(target_os = "zkvm"))]
 use alloy_primitives::hex;
 use prover_primitives::{types::blob::get_blob_data_from_blocks, B256};
 use types::input::ExecutorInput;

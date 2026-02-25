@@ -17,7 +17,7 @@ alloy-primitives = { workspace = true }
 once_cell = { workspace = true }
 log = { workspace = true }
 prometheus = { workspace = true }
-morph-prove = { workspace = true, default-features = false }
+morph-prove = { workspace = true }
 axum = { workspace = true }
 dotenv = { workspace = true }
 flexi_logger = { workspace = true }

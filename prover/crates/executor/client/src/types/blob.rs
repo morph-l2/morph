@@ -1,7 +1,9 @@
-use alloy_rlp::Decodable;
-use anyhow::{anyhow, Context, Ok};
 #[cfg(not(target_os = "zkvm"))]
-use prover_primitives::MorphTxEnvelope;
+use {
+    alloy_rlp::Decodable,
+    prover_primitives::MorphTxEnvelope,
+};
+use anyhow::{anyhow, Context, Ok};
 use ruzstd::StreamingDecoder;
 use std::io::Read;
 

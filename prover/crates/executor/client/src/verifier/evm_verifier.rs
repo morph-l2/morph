@@ -77,8 +77,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     }
     let header = &block.header;
     let chain_id = block.chain_id;
-    let tx_count = block.transactions.len();
-    let block_num = header.number.to::<u64>();
+    let _tx_count = block.transactions.len();
+    let _block_num = header.number.to::<u64>();
 
     // Build DB, this will internally verify the correctness of mpt.
     let witness_block = block_input.clone();
@@ -120,7 +120,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         });
     }
     #[cfg(not(target_os = "zkvm"))]
-    log::info!("success execute block_{block_num} in client, txns.len: {tx_count}");
+    log::info!("success execute block_{_block_num} in client, txns.len: {_tx_count}");
 
     Ok(())
 }
