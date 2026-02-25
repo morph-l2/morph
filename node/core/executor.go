@@ -214,6 +214,13 @@ func (e *Executor) RequestBlockData(height int64) (txs [][]byte, blockMeta []byt
 }
 
 func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, err error) {
+	totalStart := time.Now()
+	var (
+		unmarshalMetaDur      time.Duration
+		validateL1MessagesDur time.Duration
+		validateL2BlockDur    time.Duration
+	)
+
 	if e.l1MsgReader == nil {
 		return false, fmt.Errorf("RequestBlockData is not alllowed to be called")
 	}
@@ -223,10 +230,12 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 	}
 
 	wrappedBlock := new(types.WrappedBlock)
+	stepStart := time.Now()
 	if err = wrappedBlock.UnmarshalBinary(metaData); err != nil {
 		e.logger.Error("failed to UnmarshalBinary meta data bytes", "err", err)
 		return false, nil
 	}
+	unmarshalMetaDur = time.Since(stepStart)
 
 	e.logger.Info("CheckBlockData requests",
 		"txs.length", len(txs),
@@ -250,24 +259,59 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 
 		Transactions: txs,
 	}
+	stepStart = time.Now()
 	if err = e.validateL1Messages(l2Block, wrappedBlock.CollectedL1TxHashes); err != nil {
+		validateL1MessagesDur = time.Since(stepStart)
+		e.logger.Info("CheckBlockData timing",
+			"block", wrappedBlock.Number,
+			"txs", len(txs),
+			"unmarshalMeta elapsed", unmarshalMetaDur,
+			"validateL1Messages elapsed", validateL1MessagesDur,
+			"validateL2Block elapsed", validateL2BlockDur,
+			"total elapsed", time.Since(totalStart),
+			"stage", "validateL1Messages",
+			"error", err,
+		)
 		if !errors.Is(err, types.ErrQueryL1Message) { // hide error if it is not ErrQueryL1Message
 			err = nil
 		}
 		return false, err
 	}
+	validateL1MessagesDur = time.Since(stepStart)
 	l2Block.WithdrawTrieRoot = wrappedBlock.WithdrawTrieRoot
 
+	stepStart = time.Now()
 	validated, err := e.l2Client.ValidateL2Block(context.Background(), l2Block)
+	validateL2BlockDur = time.Since(stepStart)
+	e.logger.Info("CheckBlockData timing",
+		"block", wrappedBlock.Number,
+		"txs", len(txs),
+		"unmarshalMeta elapsed", unmarshalMetaDur,
+		"validateL1Messages elapsed", validateL1MessagesDur,
+		"validateL2Block elapsed", validateL2BlockDur,
+		"total elapsed", time.Since(totalStart),
+		"validated", validated,
+		"error", err,
+	)
 	e.logger.Info("CheckBlockData response", "validated", validated, "error", err)
 	return validated, err
 }
 
 func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2node.ConsensusData) (nextBatchParams *tmproto.BatchParams, nextValidatorSet [][]byte, err error) {
+	totalStart := time.Now()
+	var (
+		blockNumberDur        time.Duration
+		newL2BlockDur         time.Duration
+		updateSequencerSetDur time.Duration
+		batchParamsDur        time.Duration
+	)
+
 	e.logger.Info("DeliverBlock request", "txs length", len(txs),
 		"blockMeta length", len(metaData),
 		"batchHash", hexutil.Encode(consensusData.BatchHash))
+	stepStart := time.Now()
 	height, err := e.l2Client.BlockNumber(context.Background())
+	blockNumberDur = time.Since(stepStart)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -322,9 +366,11 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		batchHash = new(common.Hash)
 		copy(batchHash[:], consensusData.BatchHash)
 	}
+	stepStart = time.Now()
 	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash)
+	newL2BlockDur = time.Since(stepStart)
 	if err != nil {
-		e.logger.Error("failed to NewL2Block", "error", err)
+		e.logger.Error("failed to NewL2Block", "error", err, "newL2Block elapsed", newL2BlockDur)
 		return nil, nil, err
 	}
 
@@ -334,15 +380,29 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	var newValidatorSet = consensusData.ValidatorSet
 	var newBatchParams *tmproto.BatchParams
 	if !e.devSequencer {
+		stepStart = time.Now()
 		if newValidatorSet, err = e.updateSequencerSet(l2Block.Number); err != nil {
 			return nil, nil, err
 		}
+		updateSequencerSetDur = time.Since(stepStart)
+
+		stepStart = time.Now()
 		if newBatchParams, err = e.batchParamsUpdates(l2Block.Number); err != nil {
 			return nil, nil, err
 		}
+		batchParamsDur = time.Since(stepStart)
 	}
 
 	e.metrics.Height.Set(float64(l2Block.Number))
+	e.logger.Info("DeliverBlock timing",
+		"block", l2Block.Number,
+		"txs", len(txs),
+		"blockNumber elapsed", blockNumberDur,
+		"newL2Block elapsed", newL2BlockDur,
+		"updateSequencerSet elapsed", updateSequencerSetDur,
+		"batchParams elapsed", batchParamsDur,
+		"total elapsed", time.Since(totalStart),
+	)
 
 	return newBatchParams, newValidatorSet,
 		nil
