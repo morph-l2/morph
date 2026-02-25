@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,12 +47,25 @@ func TestBatchCacheInitServer(t *testing.T) {
 	testDB := setupTestDB(t)
 	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 
-	go utils.Loop(cache.ctx, 5*time.Second, func() {
-		err := cache.InitAndSyncFromRollup()
-		if err != nil {
-			log.Error("init and sync from rollup failed, wait for the next try", "error", err)
+	var batchCacheSyncMu sync.Mutex
+
+	go func() {
+		batchCacheSyncMu.Lock()
+		defer batchCacheSyncMu.Unlock()
+		for {
+			if err := cache.InitAndSyncFromDatabase(); err != nil {
+				log.Error("init and sync from database failed, wait for the next try", "error", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			break
 		}
-		err = cache.AssembleCurrentBatchHeader()
+	}()
+
+	go utils.Loop(cache.ctx, 5*time.Second, func() {
+		batchCacheSyncMu.Lock()
+		defer batchCacheSyncMu.Unlock()
+		err := cache.AssembleCurrentBatchHeader()
 		if err != nil {
 			log.Error("Assemble current batch failed, wait for the next try", "error", err)
 		}
