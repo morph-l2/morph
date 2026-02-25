@@ -150,10 +150,10 @@ async fn handle_with_prover<P, N>(
         }
 
         // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 1600 * blocks_len as usize; //block_prove_time =30min
-        while max_waiting_time > 300 {
-            sleep(Duration::from_secs(300)).await;
-            max_waiting_time -= 300; // Query results every 5 minutes.
+        let mut max_waiting_time: usize = 300 * blocks_len as usize; //block_prove_time = 5min
+        while max_waiting_time > 60 {
+            sleep(Duration::from_secs(60)).await;
+            max_waiting_time -= 60; // Query results every 1 minute.
             match query_proof(batch_index).await {
                 Some(prove_result) => {
                     if !prove_result.error_code.is_empty() {

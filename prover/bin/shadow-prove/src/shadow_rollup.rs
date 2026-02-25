@@ -43,7 +43,7 @@ where
     // Fetch the latest committed batch from l1-rollup if the batch_index has increased.
     pub async fn get_latest_batch(&self, batch_index: u64) -> Result<Option<(BatchInfo, Bytes)>> {
         let last_committed_batch_index = self.l1_rollup.lastCommittedBatchIndex().call().await?;
-        if last_committed_batch_index <= batch_index {
+        if last_committed_batch_index <= batch_index + 1 {
             log::info!(
                 "The current batch_index has not increased, latest_batch_index: {last_committed_batch_index:?}"
             );
