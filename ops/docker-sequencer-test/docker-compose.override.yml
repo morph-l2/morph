@@ -15,8 +15,8 @@ services:
   morph-geth-2:
     image: morph-geth-test:latest
 
-  # morph-geth-3:
-  #   image: morph-geth-test:latest
+  morph-geth-3:
+    image: morph-geth-test:latest
 
   node-0:
     image: morph-node-test:latest
@@ -24,20 +24,42 @@ services:
       context: ../..
       dockerfile: ops/docker-sequencer-test/Dockerfile.l2-node-test
     environment:
-      - SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+
 
   node-1:
     image: morph-node-test:latest
+    environment:
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+
 
   node-2:
     image: morph-node-test:latest
+    environment:
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
 
-  # node-3:
-  #   image: morph-node-test:latest
+
+  node-3:
+    image: morph-node-test:latest
+    environment:
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+
 
   sentry-geth-0:
     image: morph-geth-test:latest
 
   sentry-node-0:
     image: morph-node-test:latest
+    environment:
+      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
 

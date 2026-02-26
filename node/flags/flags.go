@@ -1,6 +1,9 @@
 package flags
 
-import "github.com/urfave/cli"
+import (
+	"github.com/urfave/cli"
+	"time"
+)
 
 const envVarPrefix = "MORPH_NODE_"
 
@@ -26,6 +29,18 @@ var (
 		Name:   "l2.engine",
 		Usage:  "Address of L2 Engine JSON-RPC endpoints to use (engine namespace required)",
 		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
+	}
+
+	L2NextEthAddr = cli.StringFlag{
+		Name:   "l2next.eth",
+		Usage:  "Address of next L2 geth JSON-RPC endpoints to switch to (optional, for upgrades)",
+		EnvVar: prefixEnvVar("L2_NEXT_ETH_RPC"),
+	}
+
+	L2NextEngineAddr = cli.StringFlag{
+		Name:   "l2next.engine",
+		Usage:  "Address of next L2 geth Engine JSON-RPC endpoints to switch to (optional, for upgrades)",
+		EnvVar: prefixEnvVar("L2_NEXT_ENGINE_RPC"),
 	}
 
 	L2EngineJWTSecret = cli.StringFlag{
@@ -228,6 +243,27 @@ var (
 		Value:  10,
 	}
 
+	// L1 Sequencer options
+	L1SequencerContractAddr = cli.StringFlag{
+		Name:   "l1.sequencerContract",
+		Usage:  "L1 Sequencer contract address for signature verification",
+		EnvVar: prefixEnvVar("L1_SEQUENCER_CONTRACT"),
+	}
+
+	L1SyncLagThreshold = cli.DurationFlag{
+		Name:   "l1.syncLagThreshold",
+		Usage:  "L1 sync lag threshold for warning logs",
+		EnvVar: prefixEnvVar("L1_SYNC_LAG_THRESHOLD"),
+		Value:  5 * time.Minute,
+	}
+
+	// Sequencer private key for block signing (hex encoded, without 0x prefix)
+	SequencerPrivateKey = cli.StringFlag{
+		Name:   "sequencer.privateKey",
+		Usage:  "Sequencer private key for block signing (hex encoded)",
+		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
+	}
+
 	// Batch rules
 	UpgradeBatchTime = cli.Uint64Flag{
 		Name:   "upgrade.batchTime",
@@ -237,6 +273,14 @@ var (
 	MainnetFlag = cli.BoolFlag{
 		Name:  "mainnet",
 		Usage: "Morph mainnet",
+	}
+
+	// for test
+	ConsensusSwitchHeight = cli.Int64Flag{
+		Name:   "consensus.switchHeight",
+		Usage:  "Block height at which the consensus switches to sequencer mode. Default -1 means upgrade disabled.",
+		EnvVar: prefixEnvVar("CONSENSUS_SWITCH_HEIGHT"),
+		Value:  -1,
 	}
 
 	DerivationConfirmations = cli.Int64Flag{
@@ -298,6 +342,12 @@ var (
 		Value:  26660,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	BlsKeyCheckForkHeight = cli.Uint64Flag{
+		Name:   "bls-key-check-fork-height",
+		Usage:  "The height at which the BLS key check fork occurs",
+		EnvVar: prefixEnvVar("BLS_KEY_CHECK_FORK_HEIGHT"),
+	}
 )
 
 var Flags = []cli.Flag{
@@ -308,6 +358,8 @@ var Flags = []cli.Flag{
 	L2EthAddr,
 	L2EngineAddr,
 	L2EngineJWTSecret,
+	L2NextEthAddr,
+	L2NextEngineAddr,
 	MaxL1MessageNumPerBlock,
 	L2CrossDomainMessengerContractAddr,
 	L2SequencerAddr,
@@ -349,6 +401,14 @@ var Flags = []cli.Flag{
 	// blocktag options
 	BlockTagSafeConfirmations,
 
+	// L1 Sequencer options
+	L1SequencerContractAddr,
+	L1SyncLagThreshold,
+	SequencerPrivateKey,
+
+	// consensus
+	ConsensusSwitchHeight,
+
 	// batch rules
 	UpgradeBatchTime,
 	MainnetFlag,
@@ -365,4 +425,6 @@ var Flags = []cli.Flag{
 	MetricsServerEnable,
 	MetricsPort,
 	MetricsHostname,
+
+	BlsKeyCheckForkHeight,
 }

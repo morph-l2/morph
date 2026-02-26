@@ -21,6 +21,7 @@ import {
     AdminTransferConcurrently,
     ContractInit,
     StakingRegister,
+    SequencerInit,
 } from '../deploy/index'
 import { ethers } from "ethers";
 
@@ -118,6 +119,12 @@ task("initialize")
         err = await StakingInit(hre, storagePath, deployer, config)
         if (err != '') {
             console.log('Staking init failed, err: ', err)
+            return
+        }
+        console.log('\n---------------------------------- Sequencer init ----------------------------------')
+        err = await SequencerInit(hre, storagePath, deployer, config)
+        if (err != '') {
+            console.log('Sequencer init failed, err: ', err)
             return
         }
         console.log('\n---------------------------------- Admin Transfer ----------------------------------')

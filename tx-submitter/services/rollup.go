@@ -833,10 +833,9 @@ func (r *Rollup) finalize() error {
 		log.Info("batch inside challenge window, wait")
 		return nil
 	}
-	// finalize
-
 	// get next batch
 	nextBatchIndex := target.Uint64() + 1
+
 	batch, err := GetRollupBatchByIndex(nextBatchIndex, r.L2Clients)
 	if err != nil {
 		log.Error("get next batch by index error",
