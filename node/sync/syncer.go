@@ -196,3 +196,11 @@ func (s *Syncer) ReadL1MessagesInRange(start, end uint64) []types.L1Message {
 func (s *Syncer) LatestSynced() uint64 {
 	return s.latestSynced
 }
+
+// L1Client returns the underlying L1 client (for sharing with other services)
+func (s *Syncer) L1Client() *ethclient.Client {
+	if s.bridgeClient != nil {
+		return s.bridgeClient.L1Client()
+	}
+	return nil
+}
