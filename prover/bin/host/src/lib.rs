@@ -8,7 +8,7 @@ use prover_primitives::{alloy_primitives::keccak256, B256};
 use prover_utils::read_env_var;
 #[cfg(feature = "local")]
 use sp1_sdk::CpuProver;
-#[cfg(feature = "network")]
+#[cfg(all(feature = "network", not(feature = "local")))]
 use sp1_sdk::{network::NetworkMode, NetworkProver};
 use sp1_sdk::{HashableKey, Prover, ProverClient, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use sp1_verifier::PlonkVerifier;
@@ -27,16 +27,21 @@ pub struct BatchProver<C> {
     vk: SP1VerifyingKey,
 }
 
-#[cfg(feature = "network")]
-pub type DefaultClient = NetworkProver;
 #[cfg(feature = "local")]
 pub type DefaultClient = CpuProver;
+#[cfg(all(feature = "network", not(feature = "local")))]
+pub type DefaultClient = NetworkProver;
+
+// If both features are enabled (e.g. defaults + `--features local`), prefer `local`.
+// If neither is enabled, fail fast with a clear message.
+#[cfg(all(not(feature = "local"), not(feature = "network")))]
+compile_error!("One of `local` or `network` features must be enabled for morph-prove.");
 
 /// A batch prover that uses the default proving client based on the feature flag.
 impl Default for BatchProver<DefaultClient> {
     fn default() -> Self {
         let prover_client = {
-            #[cfg(feature = "network")]
+            #[cfg(all(feature = "network", not(feature = "local")))]
             {
                 ProverClient::builder()
                     .network_for(NetworkMode::Mainnet)

@@ -47,7 +47,7 @@ To generate a PLONK proof that is small enough to be verified on-chain and verif
 // use network prover
 cargo run --release --package morph-prove --bin prove  -- --block-path ./testdata/mpt/mainnet_25215.json --prove
 // use local cpu prover
-cargo run --release --no-default-features --features local --package morph-prove --bin prove  -- --block-path ./testdata/mpt/mainnet_25215.json --prove
+cargo run --release --features local --package morph-prove --bin prove  -- --block-path ./testdata/mpt/mainnet_25215.json --prove
 // prove specified block range
 cargo run --release --package morph-prove --bin prove  -- --start-block 0x35 --end-block 0x37 --rpc http://127.0.0.1:8545 --use-rpc-db --prove
 ```

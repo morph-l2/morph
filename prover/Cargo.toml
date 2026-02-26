@@ -129,7 +129,7 @@ sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
 sp1-verifier = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
 
 # Workspace Members
-morph-prove = { path = "bin/host" }
+morph-prove = { path = "bin/host", default-features = false }
 prover-executor-client = { path = "crates/executor/client" }
 prover-executor-core = { path = "crates/executor/core" }
 prover-executor-host = { path = "crates/executor/host" }
