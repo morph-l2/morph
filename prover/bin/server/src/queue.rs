@@ -56,7 +56,7 @@ impl Prover {
             {
                 Some(req) => {
                     log::info!(
-                        "received prove request, batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, end_block = {:#?}",
+                        "received prove request, batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, shadow = {:#?}",
                         req.batch_index,
                         req.end_block - req.start_block + 1,
                         req.start_block,

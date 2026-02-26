@@ -120,7 +120,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         });
     }
     #[cfg(not(target_os = "zkvm"))]
-    log::info!("success execute block_{_block_num} in client, txns.len: {_tx_count}");
+    log::debug!("success execute block_{_block_num} in client, txns.len: {_tx_count}");
 
     Ok(())
 }
