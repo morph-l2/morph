@@ -263,6 +263,14 @@ var (
 		Usage: "Morph mainnet",
 	}
 
+	// for test
+	ConsensusSwitchHeight = cli.Int64Flag{
+		Name:   "consensus.switchHeight",
+		Usage:  "Block height at which the consensus switches to sequencer mode. Default -1 means upgrade disabled.",
+		EnvVar: prefixEnvVar("CONSENSUS_SWITCH_HEIGHT"),
+		Value:  -1,
+	}
+
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
 		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
@@ -377,6 +385,9 @@ var Flags = []cli.Flag{
 	L1SequencerContractAddr,
 	L1SyncLagThreshold,
 	SequencerPrivateKey,
+
+	// consensus
+	ConsensusSwitchHeight,
 
 	// batch rules
 	UpgradeBatchTime,

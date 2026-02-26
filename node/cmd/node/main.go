@@ -16,6 +16,7 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
+	"github.com/tendermint/tendermint/upgrade"
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/bindings"
@@ -66,14 +67,19 @@ func L2NodeMain(ctx *cli.Context) error {
 		tmNode      *tmnode.Node
 		dvNode      *derivation.Derivation
 		blockTagSvc *blocktag.BlockTagService
-		tracker  *l1sequencer.L1Tracker
-		verifier *l1sequencer.SequencerVerifier
-		signer   l1sequencer.Signer
+		tracker     *l1sequencer.L1Tracker
+		verifier    *l1sequencer.SequencerVerifier
+		signer      l1sequencer.Signer
 
 		nodeConfig = node.DefaultConfig()
 	)
 	isMockSequencer := ctx.GlobalBool(flags.MockEnabled.Name)
 	isValidator := ctx.GlobalBool(flags.ValidatorEnable.Name)
+
+	// Apply consensus switch height if explicitly set via flag
+	if ctx.GlobalIsSet(flags.ConsensusSwitchHeight.Name) {
+		upgrade.SetUpgradeBlockHeight(ctx.GlobalInt64(flags.ConsensusSwitchHeight.Name))
+	}
 
 	if err = nodeConfig.SetCliContext(ctx); err != nil {
 		return err

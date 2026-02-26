@@ -24,7 +24,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Configuration
-UPGRADE_HEIGHT=${UPGRADE_HEIGHT:-50}
+UPGRADE_HEIGHT=${UPGRADE_HEIGHT:-10}
 L2_RPC="http://127.0.0.1:8545"
 L2_RPC_NODE1="http://127.0.0.1:8645"
 
@@ -77,18 +77,13 @@ wait_for_block() {
 
 # ========== Setup Functions ==========
 
-# Update upgrade height in tendermint code
+# Export consensus switch height as environment variable for Docker containers
+# The morphnode binary reads MORPH_NODE_CONSENSUS_SWITCH_HEIGHT at runtime
 set_upgrade_height() {
     local height=$1
-    log_info "Setting upgrade height to $height..."
-    
-    local upgrade_file="$MORPH_ROOT/../tendermint/upgrade/upgrade.go"
-    if [ -f "$upgrade_file" ]; then
-        sed -i '' "s/UpgradeBlockHeight int64 = [0-9]*/UpgradeBlockHeight int64 = $height/" "$upgrade_file"
-        log_success "Updated upgrade height in $upgrade_file"
-    else
-        log_warn "upgrade.go not found at $upgrade_file"
-    fi
+    log_info "Setting consensus switch height to $height (via CONSENSUS_SWITCH_HEIGHT env)..."
+    export CONSENSUS_SWITCH_HEIGHT="$height"
+    log_success "CONSENSUS_SWITCH_HEIGHT=$height (will be passed to containers)"
 }
 
 # Build test images (with -test suffix)
@@ -538,8 +533,8 @@ case "${1:-}" in
         echo "  status          - Show current block numbers"
         echo "  upgrade-height N - Set upgrade height to N"
         echo ""
-        echo "Environment Variables:"
-        echo "  UPGRADE_HEIGHT  - Block height for upgrade (default: 50)"
+    echo "Environment Variables:"
+    echo "  UPGRADE_HEIGHT  - Block height for consensus switch (default: 10)"
         echo "  TX_INTERVAL     - Seconds between txs (default: 5)"
         echo ""
         echo "Test Flow:"
@@ -549,6 +544,6 @@ case "${1:-}" in
         echo "  4. test         - Run PBFT -> Upgrade -> Sequencer -> Fullnode tests"
         echo ""
         echo "Quick Start:"
-        echo "  UPGRADE_HEIGHT=50 $0 test"
+        echo "  UPGRADE_HEIGHT=10 $0 test"
         ;;
 esac
