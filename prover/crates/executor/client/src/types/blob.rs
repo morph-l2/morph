@@ -1,11 +1,8 @@
-#[cfg(not(target_os = "zkvm"))]
-use {
-    alloy_rlp::Decodable,
-    prover_primitives::MorphTxEnvelope,
-};
 use anyhow::{anyhow, Context, Ok};
 use ruzstd::StreamingDecoder;
 use std::io::Read;
+#[cfg(not(target_os = "zkvm"))]
+use {alloy_rlp::Decodable, prover_primitives::MorphTxEnvelope};
 
 /// This magic number is included at the start of a single Zstandard frame
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
