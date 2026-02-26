@@ -65,6 +65,14 @@ type Config struct {
 	BitgetAPIBaseURL    string                              // Bitget API base URL
 	BinanceAPIBaseURL   string                              // Binance API base URL
 
+	// External sign
+	ExternalSign        bool
+	ExternalSignAddress string
+	ExternalSignAppid   string
+	ExternalSignChain   string
+	ExternalSignUrl     string
+	ExternalSignRsaPriv string
+
 	// Metrics
 	MetricsServerEnable bool
 	MetricsHostname     string
@@ -77,6 +85,10 @@ type Config struct {
 	LogFileMaxSize int
 	LogFileMaxAge  int
 	LogCompress    bool
+
+	// Gas fee caps (optional - if set, use as max cap)
+	GasFeeCap *uint64 // Max gas fee cap in wei (nil means no cap)
+	GasTipCap *uint64 // Max gas tip cap in wei (nil means no cap)
 }
 
 // LoadConfig loads configuration from cli.Context
@@ -84,6 +96,14 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 	cfg := &Config{
 		L2RPC:      ctx.String(flags.L2EthRPCFlag.Name),
 		PrivateKey: ctx.String(flags.PrivateKeyFlag.Name),
+
+		// External sign
+		ExternalSign:        ctx.Bool(flags.ExternalSignFlag.Name),
+		ExternalSignAddress: ctx.String(flags.ExternalSignAddressFlag.Name),
+		ExternalSignAppid:   ctx.String(flags.ExternalSignAppidFlag.Name),
+		ExternalSignChain:   ctx.String(flags.ExternalSignChainFlag.Name),
+		ExternalSignUrl:     ctx.String(flags.ExternalSignUrlFlag.Name),
+		ExternalSignRsaPriv: ctx.String(flags.ExternalSignRsaPrivFlag.Name),
 
 		MetricsServerEnable: ctx.Bool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.String(flags.MetricsHostnameFlag.Name),
@@ -94,6 +114,21 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		LogFileMaxSize: ctx.Int(flags.LogFileMaxSizeFlag.Name),
 		LogFileMaxAge:  ctx.Int(flags.LogFileMaxAgeFlag.Name),
 		LogCompress:    ctx.Bool(flags.LogCompressFlag.Name),
+	}
+
+	// Gas fee caps (only set if flag is explicitly provided)
+	if ctx.IsSet(flags.GasFeeCapFlag.Name) {
+		v := ctx.Uint64(flags.GasFeeCapFlag.Name)
+		cfg.GasFeeCap = &v
+	}
+	if ctx.IsSet(flags.GasTipCapFlag.Name) {
+		v := ctx.Uint64(flags.GasTipCapFlag.Name)
+		cfg.GasTipCap = &v
+	}
+
+	// Validate GasFeeCap >= GasTipCap when both are set (EIP-1559 invariant)
+	if cfg.GasFeeCap != nil && cfg.GasTipCap != nil && *cfg.GasFeeCap < *cfg.GasTipCap {
+		return nil, fmt.Errorf("--gas-fee-cap (%d) must be >= --gas-tip-cap (%d)", *cfg.GasFeeCap, *cfg.GasTipCap)
 	}
 
 	// Parse token registry address (optional)
@@ -205,6 +240,26 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 			if cfg.BinanceAPIBaseURL == "" {
 				return nil, fmt.Errorf("binance feed is configured but --binance-api-base-url is not set")
 			}
+		}
+	}
+
+	// Validate external sign config
+	if cfg.ExternalSign {
+		if cfg.ExternalSignAddress == "" || cfg.ExternalSignUrl == "" ||
+			cfg.ExternalSignAppid == "" || cfg.ExternalSignChain == "" ||
+			cfg.ExternalSignRsaPriv == "" {
+			return nil, fmt.Errorf("external sign is enabled but missing required config: address=%s, url=%s, appid=%s, chain=%s, rsa_priv_set=%t",
+				cfg.ExternalSignAddress, cfg.ExternalSignUrl, cfg.ExternalSignAppid, cfg.ExternalSignChain, cfg.ExternalSignRsaPriv != "")
+		}
+
+		// Validate address format
+		if !common.IsHexAddress(cfg.ExternalSignAddress) {
+			return nil, fmt.Errorf("invalid external sign address format: %s", cfg.ExternalSignAddress)
+		}
+	} else {
+		// If not using external sign, private key is required
+		if cfg.PrivateKey == "" {
+			return nil, fmt.Errorf("private key is required when external sign is not enabled")
 		}
 	}
 

@@ -25,10 +25,14 @@ import (
 var (
 	MainnetUpgradeBatchTime      uint64 = 0
 	MainnetBlsKeyCheckForkHeight uint64 = 18409547
+
+	// L1 Mainnet Contract Addresses
+	MainnetRollupContractAddress = common.HexToAddress("0x759894ced0e6af42c26668076ffa84d02e3cef60")
 )
 
 type Config struct {
 	L2                            *types.L2Config `json:"l2"`
+	L2Next                        *types.L2Config `json:"l2_next,omitempty"` // optional, for geth upgrade switch
 	L2CrossDomainMessengerAddress common.Address  `json:"cross_domain_messenger_address"`
 	SequencerAddress              common.Address  `json:"sequencer_address"`
 	GovAddress                    common.Address  `json:"gov_address"`
@@ -43,6 +47,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		L2:                            new(types.L2Config),
+		L2Next:                        nil, // optional, only for upgrade switch
 		Logger:                        tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)),
 		MaxL1MessageNumPerBlock:       100,
 		L2CrossDomainMessengerAddress: predeploys.L2CrossDomainMessengerAddr,
@@ -123,6 +128,16 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L2.EngineAddr = l2EngineAddr
 	c.L2.JwtSecret = secret
 
+	// L2Next is optional - only for upgrade switch (e.g., ZK to MPT)
+	l2NextEthAddr := ctx.GlobalString(flags.L2NextEthAddr.Name)
+	l2NextEngineAddr := ctx.GlobalString(flags.L2NextEngineAddr.Name)
+	if l2NextEthAddr != "" && l2NextEngineAddr != "" {
+		c.L2Next = &types.L2Config{
+			EthAddr:    l2NextEthAddr,
+			EngineAddr: l2NextEngineAddr,
+			JwtSecret:  secret, // same secret
+		}
+	}
 	if ctx.GlobalIsSet(flags.MaxL1MessageNumPerBlock.Name) {
 		c.MaxL1MessageNumPerBlock = ctx.GlobalUint64(flags.MaxL1MessageNumPerBlock.Name)
 		if c.MaxL1MessageNumPerBlock == 0 {
@@ -156,6 +171,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if ctx.GlobalIsSet(flags.DevSequencer.Name) {
 		c.DevSequencer = ctx.GlobalBool(flags.DevSequencer.Name)
+	}
+
+	if ctx.GlobalIsSet(flags.BlsKeyCheckForkHeight.Name) {
+		c.BlsKeyCheckForkHeight = ctx.GlobalUint64(flags.BlsKeyCheckForkHeight.Name)
 	}
 
 	// setup batch upgrade index and fork heights

@@ -22,10 +22,9 @@ var (
 	}
 
 	PrivateKeyFlag = cli.StringFlag{
-		Name:     "private-key",
-		Usage:    "The private key to use for sending transactions to L2",
-		Required: true,
-		EnvVar:   prefixEnvVar("PRIVATE_KEY"),
+		Name:   "private-key",
+		Usage:  "The private key to use for sending transactions to L2 (not required if external-sign is enabled)",
+		EnvVar: prefixEnvVar("PRIVATE_KEY"),
 	}
 
 	/* Optional Flags */
@@ -140,6 +139,56 @@ var (
 		Value:  6060,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	// External sign flags
+	ExternalSignFlag = cli.BoolFlag{
+		Name:   "external-sign",
+		Usage:  "Enable external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
+	}
+
+	ExternalSignAddressFlag = cli.StringFlag{
+		Name:   "external-sign-address",
+		Usage:  "The address of the external signer",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_ADDRESS"),
+	}
+
+	ExternalSignAppidFlag = cli.StringFlag{
+		Name:   "external-sign-appid",
+		Usage:  "The appid for external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_APPID"),
+	}
+
+	ExternalSignChainFlag = cli.StringFlag{
+		Name:   "external-sign-chain",
+		Usage:  "The chain identifier for external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_CHAIN"),
+	}
+
+	ExternalSignUrlFlag = cli.StringFlag{
+		Name:   "external-sign-url",
+		Usage:  "The URL of the external sign service",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_URL"),
+	}
+
+	ExternalSignRsaPrivFlag = cli.StringFlag{
+		Name:   "external-sign-rsa-priv",
+		Usage:  "The RSA private key for external sign",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_RSA_PRIV"),
+	}
+
+	// Gas fee flags (optional - if set, use as max cap instead of dynamic)
+	GasFeeCapFlag = cli.Uint64Flag{
+		Name:   "gas-fee-cap",
+		Usage:  "Max gas fee cap in wei (if set, actual fee = min(dynamic, this value))",
+		EnvVar: prefixEnvVar("GAS_FEE_CAP"),
+	}
+
+	GasTipCapFlag = cli.Uint64Flag{
+		Name:   "gas-tip-cap",
+		Usage:  "Max gas tip cap in wei (if set, actual tip = min(dynamic, this value))",
+		EnvVar: prefixEnvVar("GAS_TIP_CAP"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -166,6 +215,18 @@ var optionalFlags = []cli.Flag{
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,
+
+	// External sign
+	ExternalSignFlag,
+	ExternalSignAddressFlag,
+	ExternalSignAppidFlag,
+	ExternalSignChainFlag,
+	ExternalSignUrlFlag,
+	ExternalSignRsaPrivFlag,
+
+	// Gas fee
+	GasFeeCapFlag,
+	GasTipCapFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

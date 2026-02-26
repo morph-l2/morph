@@ -28,6 +28,18 @@ var (
 		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
 	}
 
+	L2NextEthAddr = cli.StringFlag{
+		Name:   "l2next.eth",
+		Usage:  "Address of next L2 geth JSON-RPC endpoints to switch to (optional, for upgrades)",
+		EnvVar: prefixEnvVar("L2_NEXT_ETH_RPC"),
+	}
+
+	L2NextEngineAddr = cli.StringFlag{
+		Name:   "l2next.engine",
+		Usage:  "Address of next L2 geth Engine JSON-RPC endpoints to switch to (optional, for upgrades)",
+		EnvVar: prefixEnvVar("L2_NEXT_ENGINE_RPC"),
+	}
+
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -220,6 +232,14 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
 
+	// BlockTag options
+	BlockTagSafeConfirmations = cli.Uint64Flag{
+		Name:   "blocktag.safeConfirmations",
+		Usage:  "Number of L1 blocks to wait before considering a batch as safe",
+		EnvVar: prefixEnvVar("BLOCKTAG_SAFE_CONFIRMATIONS"),
+		Value:  10,
+	}
+
 	// Batch rules
 	UpgradeBatchTime = cli.Uint64Flag{
 		Name:   "upgrade.batchTime",
@@ -290,6 +310,12 @@ var (
 		Value:  26660,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+
+	BlsKeyCheckForkHeight = cli.Uint64Flag{
+		Name:   "bls-key-check-fork-height",
+		Usage:  "The height at which the BLS key check fork occurs",
+		EnvVar: prefixEnvVar("BLS_KEY_CHECK_FORK_HEIGHT"),
+	}
 )
 
 var Flags = []cli.Flag{
@@ -300,6 +326,8 @@ var Flags = []cli.Flag{
 	L2EthAddr,
 	L2EngineAddr,
 	L2EngineJWTSecret,
+	L2NextEthAddr,
+	L2NextEngineAddr,
 	MaxL1MessageNumPerBlock,
 	L2CrossDomainMessengerContractAddr,
 	L2SequencerAddr,
@@ -338,6 +366,9 @@ var Flags = []cli.Flag{
 	DerivationConfirmations,
 	L1BeaconAddr,
 
+	// blocktag options
+	BlockTagSafeConfirmations,
+
 	// batch rules
 	UpgradeBatchTime,
 	MainnetFlag,
@@ -354,4 +385,6 @@ var Flags = []cli.Flag{
 	MetricsServerEnable,
 	MetricsPort,
 	MetricsHostname,
+
+	BlsKeyCheckForkHeight,
 }
