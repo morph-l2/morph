@@ -144,7 +144,10 @@ mod tests {
     #[test]
     fn test_execute_local_traces() {
         use prover_executor_client::EVMVerifier;
-        env_logger::Builder::new().filter_level(log::LevelFilter::Debug).format_target(false).init();
+        env_logger::Builder::new()
+            .filter_level(log::LevelFilter::Debug)
+            .format_target(false)
+            .init();
 
         let provided = command_args::read_execute_local_traces_paths_from_argv();
         let files = resolve_trace_files(&provided);
