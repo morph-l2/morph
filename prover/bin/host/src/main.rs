@@ -2,7 +2,7 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 
 use alloy_provider::{Provider, ProviderBuilder};
 use clap::Parser;
-use morph_prove::{execute::execute_batch, prove, utils::command_args::parse_u64_auto_radix};
+use morph_prove::{execute::execute_batch, utils::command_args::parse_u64_auto_radix, BatchProver};
 use prover_executor_client::types::input::ExecutorInput;
 use prover_executor_host::{blob::get_blob_info_from_traces, trace::trace_to_input};
 use prover_primitives::types::BlockTrace;
@@ -39,6 +39,8 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
+    let prover = BatchProver::default();
+
     let args = Args::parse();
     let mut input = if args.use_rpc_db {
         // Use RPC to fetch state.
@@ -61,7 +63,7 @@ async fn main() {
         println!("Saved executor input to {input_path}");
     }
 
-    let proof = prove(&mut input, args.prove).unwrap();
+    let proof = prover.prove(&mut input, args.prove).unwrap();
     if let Some(evm_proof) = proof {
         let proof_dir =
             PathBuf::from("proof").join(format!("blocks_{}_{}", args.start_block, args.end_block));

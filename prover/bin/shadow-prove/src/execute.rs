@@ -83,6 +83,7 @@ pub async fn execute_host_range(
     end_block: u64,
     provider: &DynProvider,
 ) -> Result<Vec<BlockInput>, anyhow::Error> {
+    log::info!("Executing blocks from {} to {} using host execution", start_block, end_block);
     let mut block_inputs = Vec::new();
     for block_number in start_block..=end_block {
         let block_input = execute(block_number, provider).await?;

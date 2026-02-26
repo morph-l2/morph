@@ -34,7 +34,13 @@ pub async fn execute_batch(
         end_block >= start_block,
         "end_block ({end_block}) must be >= start_block ({start_block})"
     );
-
+    log::info!(
+        "Executing batch {}, blocks {} to {}, use_rpc_db = {}",
+        batch_index,
+        start_block,
+        end_block,
+        use_rpc_db
+    );
     let executor_input = if use_rpc_db {
         // Use rpc db.
         let mut block_inputs = vec![];
@@ -138,7 +144,7 @@ mod tests {
     #[test]
     fn test_execute_local_traces() {
         use prover_executor_client::EVMVerifier;
-        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
+        env_logger::Builder::new().filter_level(log::LevelFilter::Debug).format_target(false).init();
 
         let provided = command_args::read_execute_local_traces_paths_from_argv();
         let files = resolve_trace_files(&provided);

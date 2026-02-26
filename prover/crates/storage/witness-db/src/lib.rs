@@ -2,11 +2,25 @@ use alloy_consensus::TrieAccount;
 use alloy_primitives::map::HashMap;
 use anyhow::anyhow;
 use prover_mpt::EthereumState;
+use revm::context::DBErrorMarker;
 use revm::primitives::{keccak256, Address, B256, U256};
 use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
 };
+
+#[derive(Debug)]
+pub struct TrieDBError(String);
+
+impl core::fmt::Display for TrieDBError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl core::error::Error for TrieDBError {}
+
+impl DBErrorMarker for TrieDBError {}
 
 /// A read-only `revm::DatabaseRef` backed by an [`rsp_mpt::EthereumState`].
 ///
@@ -41,18 +55,15 @@ impl<'a> TrieDB<'a> {
 
 impl DatabaseRef for TrieDB<'_> {
     /// The database error type.
-    type Error = core::convert::Infallible;
+    type Error = TrieDBError;
 
     /// Get basic account information.
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let hashed_address = keccak256(address);
         let hashed_address = hashed_address.as_slice();
 
-        let account_in_trie = self
-            .inner
-            .state_trie
-            .get_rlp::<TrieAccount>(hashed_address)
-            .map_err(|e| {
+        let account_in_trie =
+            self.inner.state_trie.get_rlp::<TrieAccount>(hashed_address).map_err(|e| {
                 // keep behavior non-panicking (consistent with original code's debug printing)
                 eprintln!(
                     "get account of {:?}, hashed_address: {:?} from trie error: {:?}",
@@ -60,8 +71,11 @@ impl DatabaseRef for TrieDB<'_> {
                     alloy_primitives::hex::encode_prefixed(hashed_address),
                     e
                 );
-            })
-            .unwrap();
+                TrieDBError(format!(
+                    "get account of {address:?}, hashed_address: {:?} from trie error: {e:?}",
+                    alloy_primitives::hex::encode_prefixed(hashed_address)
+                ))
+            })?;
 
         let account = account_in_trie.map(|account_in_trie| AccountInfo {
             balance: account_in_trie.balance,
@@ -75,7 +89,10 @@ impl DatabaseRef for TrieDB<'_> {
 
     /// Get account code by its hash.
     fn code_by_hash_ref(&self, hash: B256) -> Result<Bytecode, Self::Error> {
-        Ok(self.bytecode_by_hash.get(&hash).map(|code| (*code).clone()).unwrap())
+        self.bytecode_by_hash
+            .get(&hash)
+            .map(|code| (*code).clone())
+            .ok_or_else(|| TrieDBError(format!("bytecode not found for hash: {hash:?}")))
     }
 
     /// Get storage value of address at index.

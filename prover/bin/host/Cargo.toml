@@ -25,7 +25,7 @@ env_logger = { workspace = true }
 once_cell = { workspace = true }
 alloy = { workspace = true }
 dotenv = { workspace = true }
-
+alloy-provider = { workspace = true }
 
 # workspace
 prover-executor-host = { workspace = true }
@@ -33,7 +33,6 @@ prover-executor-client = { workspace = true }
 prover-primitives = { workspace = true }
 prover-utils = { workspace = true }
 
-alloy-provider = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

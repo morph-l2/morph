@@ -8,7 +8,7 @@ use std::{
 
 use crate::{PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
-use morph_prove::{evm::EvmProofFixture, execute::execute_batch, prove};
+use morph_prove::{evm::EvmProofFixture, execute::execute_batch, BatchProver, DefaultClient};
 use prover_executor_client::{types::input::ExecutorInput, BlobVerifier, EVMVerifier};
 
 use prover_primitives::types::BlockTrace;
@@ -28,6 +28,7 @@ pub struct ProveRequest {
 /// The prover that processes prove requests from a queue.
 pub struct Prover {
     pub prove_queue: Arc<Mutex<Vec<ProveRequest>>>,
+    batch_prover: BatchProver<DefaultClient>,
     provider: DynProvider,
 }
 
@@ -37,8 +38,9 @@ impl Prover {
     pub fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
         let rpc_url = PROVER_L2_RPC.parse()?;
         let provider = ProviderBuilder::new().connect_http(rpc_url).erased();
+        let batch_prover = BatchProver::default();
 
-        Ok(Self { prove_queue, provider })
+        Ok(Self { prove_queue, batch_prover, provider })
     }
 
     /// Processes prove requests from a queue.
@@ -93,7 +95,7 @@ impl Prover {
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
             let start = Instant::now();
-            let prove_rt = prove(&mut input, !shadow);
+            let prove_rt = self.batch_prover.prove(&mut input, !shadow);
 
             match prove_rt {
                 Ok(Some(proof)) => {

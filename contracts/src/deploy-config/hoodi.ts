@@ -17,7 +17,7 @@ const config = {
     l2BaseFee: 0.1,  // Gwei
 
     // verify contract config
-    programVkey: '0x00568065400c4b7b991d28b3124e7451968181eda330ec50270385491c87142e',
+    programVkey: '0x001bbd0e32f56275cefa4a7313c51b94b763a4c295ac02af037b494895bc58c2',
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 600,

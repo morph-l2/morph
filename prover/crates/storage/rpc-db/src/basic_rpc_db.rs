@@ -180,6 +180,7 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
 
     /// Get account code by its hash.
     fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
+        // Use basic_ref to fetch the account info, which includes the code.
         unimplemented!()
     }
 
