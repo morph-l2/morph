@@ -96,34 +96,18 @@ func (s *Signer) CreateAndSignTx(
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
-	// Get gas tip cap
-	tip, err := client.GetClient().SuggestGasTipCap(ctx)
+	// Calculate gas caps (dynamic values with optional max limits)
+	caps, err := CalculateGasCaps(ctx, client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get gas tip cap: %w", err)
-	}
-
-	// Get base fee from latest block
-	head, err := client.GetClient().HeaderByNumber(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get block header: %w", err)
-	}
-
-	var gasFeeCap *big.Int
-	if head.BaseFee != nil {
-		gasFeeCap = new(big.Int).Add(
-			tip,
-			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-		)
-	} else {
-		gasFeeCap = new(big.Int).Set(tip)
+		return nil, fmt.Errorf("failed to calculate gas caps: %w", err)
 	}
 
 	// Estimate gas
 	gas, err := client.GetClient().EstimateGas(ctx, ethereum.CallMsg{
 		From:      from,
 		To:        &to,
-		GasFeeCap: gasFeeCap,
-		GasTipCap: tip,
+		GasFeeCap: caps.FeeCap,
+		GasTipCap: caps.TipCap,
 		Data:      callData,
 	})
 	if err != nil {
@@ -137,8 +121,8 @@ func (s *Signer) CreateAndSignTx(
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   s.chainID,
 		Nonce:     nonce,
-		GasTipCap: tip,
-		GasFeeCap: gasFeeCap,
+		GasTipCap: caps.TipCap,
+		GasFeeCap: caps.FeeCap,
 		Gas:       gas,
 		To:        &to,
 		Data:      callData,
@@ -149,10 +133,9 @@ func (s *Signer) CreateAndSignTx(
 		"to", to.Hex(),
 		"nonce", nonce,
 		"gas", gas,
-		"gasFeeCap", gasFeeCap,
-		"gasTipCap", tip)
+		"gasFeeCap", caps.FeeCap,
+		"gasTipCap", caps.TipCap)
 
 	// Sign transaction
 	return s.Sign(tx)
 }
-

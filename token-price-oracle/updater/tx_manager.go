@@ -72,6 +72,11 @@ func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.Tra
 	auth := m.l2Client.GetOpts()
 	auth.Context = ctx
 
+	// Apply gas caps if configured (same logic as external sign)
+	if err := m.applyGasCaps(ctx, auth); err != nil {
+		return nil, fmt.Errorf("failed to apply gas caps: %w", err)
+	}
+
 	// First, estimate gas with GasLimit = 0
 	auth.GasLimit = 0
 	auth.NoSend = true
@@ -191,6 +196,19 @@ func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.
 		return nil, err
 	}
 	return receipt, nil
+}
+
+// applyGasCaps applies configured gas caps as upper limits to dynamic gas prices
+// This ensures consistent behavior between local sign and external sign
+func (m *TxManager) applyGasCaps(ctx context.Context, auth *bind.TransactOpts) error {
+	caps, err := client.CalculateGasCaps(ctx, m.l2Client)
+	if err != nil {
+		return err
+	}
+
+	auth.GasTipCap = caps.TipCap
+	auth.GasFeeCap = caps.FeeCap
+	return nil
 }
 
 // waitForReceipt waits for a transaction receipt with timeout and custom polling interval
