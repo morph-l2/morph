@@ -24,7 +24,7 @@ const LOG_FILES_TO_KEEP: usize = 3;
 fn setup_logging() {
     //configure the logger
     Logger::try_with_env_or_str(LOG_LEVEL)
-        .unwrap()
+        .expect("Failed to initialize logger")
         .log_to_file(
             FileSpec::default()
                 .directory(read_env_var("PROVER_LOG_DIR", String::from("/data/logs/morph-prover")))
@@ -43,7 +43,7 @@ fn setup_logging() {
         )
         .write_mode(WriteMode::BufferAndFlush)
         .start()
-        .unwrap();
+        .expect("Failed to start logger");
 }
 
 pub struct ProveFilter;

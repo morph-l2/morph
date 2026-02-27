@@ -14,11 +14,10 @@ path = "src/vkey.rs"
 
 [dependencies]
 sp1-sdk = { workspace = true }
-
+sp1-verifier = { workspace = true }
 anyhow.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
-hex = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 log = { workspace = true }
@@ -26,14 +25,19 @@ env_logger = { workspace = true }
 once_cell = { workspace = true }
 alloy = { workspace = true }
 dotenv = { workspace = true }
-
+alloy-provider = { workspace = true }
 
 # workspace
-morph-executor-host = { workspace = true }
-morph-executor-client = { workspace = true }
-morph-executor-utils = { workspace = true }
-sbv-primitives = { workspace = true }
+prover-executor-host = { workspace = true }
+prover-executor-client = { workspace = true }
+prover-primitives = { workspace = true }
+prover-utils = { workspace = true }
 
-[build-dependencies]
-sp1-helper = { workspace = true }
-morph-executor-utils = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[features]
+default = ["network"]
+local = ["sp1-sdk/native-gnark"]
+network = []

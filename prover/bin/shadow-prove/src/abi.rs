@@ -1,4 +1,4 @@
-use alloy::sol;
+use alloy_sol_types::sol;
 
 // Codegen from ABI file to interact with the contract.
 sol!(

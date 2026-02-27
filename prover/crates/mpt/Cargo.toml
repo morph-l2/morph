@@ -1,0 +1,31 @@
+[package]
+name = "prover-mpt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+
+[dependencies]
+rlp.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+# reth
+reth-trie.workspace = true
+
+# alloy
+alloy-primitives.workspace = true
+alloy-rlp.workspace = true
+alloy-rpc-types.workspace = true
+alloy-rpc-types-debug = { workspace = true, optional = true }
+
+[dev-dependencies]
+hex-literal.workspace = true
+
+[features]
+default = ["execution-witness"]
+execution-witness = ["dep:alloy-rpc-types-debug"]

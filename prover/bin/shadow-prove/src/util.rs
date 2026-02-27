@@ -42,10 +42,10 @@ pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T
 
 pub fn read_parse_env<T: Clone + FromStr>(var_name: &'static str) -> T {
     let var_value =
-        std::env::var(var_name).unwrap_or_else(|_| panic!("Can not read env of {}", var_name));
+        std::env::var(var_name).unwrap_or_else(|_| panic!("Can not read env of {var_name}"));
     match var_value.parse::<T>() {
         Ok(v) => v,
-        Err(_) => panic!("Cannot parse {} env var", var_name),
+        Err(_) => panic!("Cannot parse {var_name} env var"),
     }
 }
 
@@ -74,7 +74,7 @@ async fn test_call_prover() {
             if info.eq("success") {
                 log::info!("successfully submitted prove task, waiting for proof to be generated");
             } else {
-                log::error!("submitt prove task failed: {:#?}", info);
+                log::error!("submitt prove task failed: {info:#?}");
             }
         }
         None => {
