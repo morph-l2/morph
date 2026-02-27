@@ -1,6 +1,7 @@
 use alloy_consensus::transaction::SignerRecoverable;
 use alloy_consensus::Transaction;
 use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
+use revm::primitives::Bytes;
 use anyhow::Context;
 use anyhow::Result;
 use morph_chainspec::hardfork::MorphHardfork;
@@ -72,7 +73,7 @@ impl<DB: Database> MorphExecutor<DB> {
             DEVNET_CHAIN_ID => MorphHardfork::Emerald,
             _ => MorphHardfork::Emerald,
         };
-        env.cfg_env = env.cfg_env.with_spec(hardfork);
+        env.cfg_env = env.cfg_env.with_spec_and_mainnet_gas_params(hardfork);
         env.cfg_env.chain_id = chain_id;
         env.cfg_env.tx_gas_limit_cap = Some(block_env.gas_limit);
         env.cfg_env.disable_eip7623 = true;
@@ -88,6 +89,23 @@ impl<DB: Database> MorphExecutor<DB> {
 
             let mut morph_tx = MorphTxEnv::from_recovered_tx(tx, caller);
             morph_tx.gas_price = tx.effective_gas_price(Some(basefee));
+
+            // Fix V1+ MorphTx encoding: alloy's Signed<TxMorph>::encode_2718()
+            // omits the version prefix byte that go-ethereum includes after the
+            // type byte.  Insert it so L1 data-fee calculation sees the same
+            // byte stream as go-ethereum.
+            if let MorphTxEnvelope::Morph(signed_tx) = tx {
+                let version = signed_tx.tx().version;
+                if version > 0 {
+                    if let Some(ref rlp) = morph_tx.rlp_bytes {
+                        let mut fixed = Vec::with_capacity(rlp.len() + 1);
+                        fixed.push(rlp[0]); // 0x7F type byte
+                        fixed.push(version); // version prefix byte
+                        fixed.extend_from_slice(&rlp[1..]); // RLP body
+                        morph_tx.rlp_bytes = Some(Bytes::from(fixed));
+                    }
+                }
+            }
 
             self.inner
                 .transact_commit(morph_tx)

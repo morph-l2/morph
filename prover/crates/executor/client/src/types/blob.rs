@@ -1,8 +1,12 @@
-use anyhow::{anyhow, Context, Ok};
+#[cfg(not(target_os = "zkvm"))]
+use {
+    alloy_eips::eip2718::Decodable2718,
+    alloy_rlp::{Decodable, Header},
+    prover_primitives::MorphTxEnvelope,
+};
+use anyhow::{anyhow, Context};
 use ruzstd::StreamingDecoder;
 use std::io::Read;
-#[cfg(not(target_os = "zkvm"))]
-use {alloy_rlp::Decodable, prover_primitives::MorphTxEnvelope};
 
 /// This magic number is included at the start of a single Zstandard frame
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
@@ -66,7 +70,7 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
         let tx_len_size = if first_byte > 0xf7 {
             (first_byte - 0xf7) as usize
         } else {
-            // Support transaction types: 0x01, 0x02, 0x04
+            // Support transaction types: 0x01, 0x02, 0x04, 0x7f
             if first_byte != 0x01 && first_byte != 0x02 && first_byte != 0x04 && first_byte != 0x7f
             {
                 log::info!("not supported tx type: 0x{first_byte:02x}");
@@ -91,11 +95,22 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
         };
 
         let tx_bytes = bs[offset..offset + rlp_tx_len].to_vec();
-        let tx_decoded: MorphTxEnvelope = MorphTxEnvelope::decode(&mut tx_bytes.as_slice())
-            .inspect_err(|e| {
-                log::error!("decode_transaction error: {e:?}");
-            })
-            .unwrap();
+        let tx_decoded = if first_byte == 0x7f {
+            // Morph transaction: bypass MorphTxEnvelope::decode_2718 because morph-reth's
+            // TxMorph::rlp_decode_fields incorrectly expects a version-byte prefix that is
+            // NOT present in the signed (batch) encoding.
+            decode_morph_tx_envelope(&tx_bytes)
+                .inspect_err(|e| {
+                    log::error!("decode morph tx error: {e:?}");
+                })
+                .unwrap()
+        } else {
+            MorphTxEnvelope::decode_2718(&mut tx_bytes.as_slice())
+                .inspect_err(|e| {
+                    log::error!("decode_transaction error: {e:?}");
+                })
+                .unwrap()
+        };
 
         txs_decoded.push(tx_decoded);
         offset += rlp_tx_len;
@@ -103,4 +118,116 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
 
     log::info!("Successfully decoded {} transactions", txs_decoded.len());
     txs_decoded
+}
+
+/// Decode a morph transaction (type 0x7F) from EIP-2718 encoded bytes.
+///
+/// This manually decodes the fields + signature instead of going through morph-reth's
+/// `TxMorph::rlp_decode_fields` which has a bug: it calls `decode_fields` which tries
+/// to interpret the first RLP byte as a version-byte prefix, but the signed encoding
+/// does NOT include the version byte. V0 vs V1 is distinguished by the number of fields.
+#[cfg(not(target_os = "zkvm"))]
+fn decode_morph_tx_envelope(buf: &[u8]) -> Result<MorphTxEnvelope, alloy_rlp::Error> {
+    use alloy_primitives::{Bytes, Signature, B256, U256};
+    use alloy_eips::eip2930::AccessList;
+    use alloy_primitives::TxKind;
+    use prover_primitives::TxMorph;
+    use prover_primitives::alloy_consensus::SignableTransaction;
+
+    let mut reader = &buf[1..]; // skip type byte (0x7F)
+
+    // Decode the outer RLP list header
+    let header = Header::decode(&mut reader)?;
+    if !header.list {
+        return Err(alloy_rlp::Error::UnexpectedString);
+    }
+    let payload_end = reader.len() - header.payload_length;
+
+    // Decode common fields (V0 and V1 share these 11 fields)
+    let chain_id: u64 = Decodable::decode(&mut reader)?;
+    let nonce: u64 = Decodable::decode(&mut reader)?;
+    let max_priority_fee_per_gas: u128 = Decodable::decode(&mut reader)?;
+    let max_fee_per_gas: u128 = Decodable::decode(&mut reader)?;
+    let gas_limit: u128 = Decodable::decode(&mut reader)?;
+    let to: TxKind = Decodable::decode(&mut reader)?;
+    let value: U256 = Decodable::decode(&mut reader)?;
+    let input: Bytes = Decodable::decode(&mut reader)?;
+    let access_list: AccessList = Decodable::decode(&mut reader)?;
+    let fee_token_id: u16 = Decodable::decode(&mut reader)?;
+    let fee_limit: U256 = Decodable::decode(&mut reader)?;
+
+    // Signature is 3 fields: v (bool), r (U256), s (U256).
+    // After the common 11 fields, check remaining bytes to determine V0 vs V1:
+    // - V0: next 3 fields are the signature (v, r, s)
+    // - V1: next 2 fields are reference + memo, then signature (v, r, s)
+    //
+    // We detect V1 by saving position and trying to read a bool for v.
+    // If remaining > 3 fields, it's V1 (reference + memo + sig).
+    let saved = reader;
+    let _probe: bool = Decodable::decode(&mut { reader })?;
+    // For V0, the next field is v (bool: 0x00 or 0x01).
+    // For V1, the next field is reference (32 bytes or empty bytes).
+    // We can distinguish by checking: if the probe succeeded AND the following
+    // two fields (r, s) would consume exactly the remaining bytes → V0.
+    // Otherwise → V1.
+    //
+    // Simpler heuristic: check the first byte of the next field.
+    // - v (bool) is encoded as 0x00 or 0x01 (single byte)
+    // - reference (B256) is encoded as 0xa0 + 32 bytes, or 0x80 (empty)
+    let next_byte = saved[0];
+    let (version, reference, memo) = if next_byte == 0x00 || next_byte == 0x01 {
+        // This looks like a bool (v field) → V0 format
+        (0u8, None, None)
+    } else {
+        // V1: decode reference and memo
+        reader = saved;
+        let reference_bytes: Bytes = Decodable::decode(&mut reader)?;
+        let reference = if reference_bytes.is_empty() {
+            None
+        } else if reference_bytes.len() == 32 {
+            Some(B256::from_slice(&reference_bytes))
+        } else {
+            return Err(alloy_rlp::Error::Custom("invalid reference length"));
+        };
+        let memo_bytes: Bytes = Decodable::decode(&mut reader)?;
+        let memo = if memo_bytes.is_empty() { None } else { Some(memo_bytes) };
+        (1u8, reference, memo)
+    };
+
+    // Decode signature (v, r, s)
+    if version != 0 {
+        // reader is already advanced past reference + memo
+    } else {
+        reader = saved;
+    }
+    let sig_v: bool = Decodable::decode(&mut reader)?;
+    let sig_r: U256 = Decodable::decode(&mut reader)?;
+    let sig_s: U256 = Decodable::decode(&mut reader)?;
+
+    if reader.len() != payload_end {
+        return Err(alloy_rlp::Error::ListLengthMismatch {
+            expected: header.payload_length,
+            got: header.payload_length - (reader.len() - payload_end),
+        });
+    }
+
+    let tx = TxMorph {
+        chain_id,
+        nonce,
+        gas_limit,
+        max_fee_per_gas,
+        max_priority_fee_per_gas,
+        to,
+        value,
+        access_list,
+        input,
+        fee_token_id,
+        fee_limit,
+        version,
+        reference,
+        memo,
+    };
+
+    let signature = Signature::new(sig_r, sig_s, sig_v);
+    Ok(MorphTxEnvelope::Morph(tx.into_signed(signature)))
 }

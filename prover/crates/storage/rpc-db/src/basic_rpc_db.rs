@@ -85,6 +85,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
             balance: proof.balance,
             code_hash,
             code: Some(bytecode.clone()),
+            account_id: None,
         };
 
         // Record the account info to the state.

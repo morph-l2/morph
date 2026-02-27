@@ -35,6 +35,9 @@ impl HostExecutor {
             provider.get_chain_id().await.context("failed to fetch chain_id from provider")?;
 
         // beneficiary(coinbase)
+        // In Clique consensus, header.Coinbase is always 0x0000...0000.
+        // The actual beneficiary is the signer recovered from extraData.
+        // We use a per-chain hardcoded address as the sequencer/beneficiary.
         let beneficiary = beneficiary_by_chain_id(chain_id);
 
         // mpt root at this block
