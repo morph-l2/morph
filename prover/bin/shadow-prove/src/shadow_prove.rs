@@ -1,4 +1,9 @@
-use crate::{metrics::METRICS, util, BatchInfo, ShadowRollup::ShadowRollupInstance};
+use crate::{
+    abi::Rollup::{self, RollupInstance},
+    metrics::METRICS,
+    util, BatchInfo,
+    ShadowRollup::ShadowRollupInstance,
+};
 use alloy_network::{Network, ReceiptResponse};
 use alloy_primitives::{Address, Bytes};
 use alloy_provider::{DynProvider, Provider};
@@ -32,11 +37,20 @@ mod task_status {
     pub const PROVED: &str = "Proved";
 }
 
+// ShadowProver is responsible for proving the batch state onchain through the shadow rollup contract.
 #[derive(Clone, Debug)]
 pub struct ShadowProver<P, N> {
-    l1_provider: DynProvider,
+    shadow_provider: DynProvider,
+    l1_rollup: RollupInstance<DynProvider>,
     l1_shadow_rollup: ShadowRollupInstance<P, N>,
     wallet_address: Address,
+}
+
+/// BatchProveInfo contains the batch info and batch header needed for proving.
+#[derive(Clone, Debug)]
+pub struct BatchProveInfo {
+    pub batch_info: BatchInfo,
+    pub batch_header: Bytes,
 }
 
 impl<P, N> ShadowProver<P, N>
@@ -47,19 +61,22 @@ where
     pub fn new(
         wallet_address: Address,
         shadow_rollup_address: Address,
-        provider: DynProvider,
+        rollup_address: Address,
+        l1_provider: DynProvider,
+        shadow_provider: DynProvider,
         wallet: P,
     ) -> Self {
+        let l1_rollup = Rollup::RollupInstance::new(rollup_address, l1_provider.clone());
         let l1_shadow_rollup = ShadowRollupInstance::new(shadow_rollup_address, wallet);
 
-        Self { l1_provider: provider, l1_shadow_rollup, wallet_address }
+        Self { shadow_provider, l1_rollup, l1_shadow_rollup, wallet_address }
     }
 
-    pub async fn prove(&self, batch_info: BatchInfo) -> Result<(), anyhow::Error> {
-        log::info!(">Start shadow prove for batch: {:#?}", batch_info.batch_index);
+    pub async fn prove(&self, prove_info: BatchProveInfo) -> Result<(), anyhow::Error> {
+        log::info!(">Start shadow prove for batch: {:#?}", prove_info.batch_info.batch_index);
 
         // Record wallet balance.
-        let balance = match self.l1_provider.get_balance(self.wallet_address).await {
+        let balance = match self.shadow_provider.get_balance(self.wallet_address).await {
             Ok(b) => b,
             Err(e) => {
                 log::error!("shadow_proving_wallet.get_balance error: {:#?}", e);
@@ -70,149 +87,155 @@ where
             .shadow_wallet_balance
             .set(alloy_primitives::utils::format_ether(balance).parse().unwrap_or(0.0));
 
-        handle_with_prover(&batch_info, &self.l1_shadow_rollup).await;
+        self.handle_with_prover(&prove_info).await;
 
         Ok(())
     }
-}
 
-async fn handle_with_prover<P, N>(
-    batch_info: &BatchInfo,
-    l1_shadow_rollup: &ShadowRollupInstance<P, N>,
-) where
-    P: Provider<N> + Clone,
-    N: Network,
-{
-    let l2_rpc = var("SHADOW_PROVING_L2_RPC").expect("Cannot detect L2_RPC env var");
-    let batch_index = batch_info.batch_index;
-    let blocks_len = batch_info.end_block - batch_info.start_block + 1;
+    async fn handle_with_prover(&self, prove_info: &BatchProveInfo) {
+        let l2_rpc = var("SHADOW_PROVING_L2_RPC").expect("Cannot detect L2_RPC env var");
+        let batch_index = prove_info.batch_info.batch_index;
+        let blocks_len = prove_info.batch_info.end_block - prove_info.batch_info.start_block + 1;
 
-    METRICS.shadow_blocks_len.set(blocks_len as i64);
-    METRICS.shadow_batch_index.set(batch_index as i64);
+        METRICS.shadow_blocks_len.set(blocks_len as i64);
+        METRICS.shadow_batch_index.set(batch_index as i64);
 
-    for _ in 0..MAX_RETRY_TIMES {
-        sleep(Duration::from_secs(12)).await;
+        for _ in 0..MAX_RETRY_TIMES {
+            sleep(Duration::from_secs(12)).await;
 
-        log::info!(
-            "Start prove batch of: {:?}, blocks.len = {:?}, block_start = {:#?}",
-            batch_index,
-            blocks_len,
-            batch_info.start_block
-        );
+            log::info!(
+                "Start prove batch of: {:?}, blocks.len = {:?}, block_start = {:#?}",
+                batch_index,
+                blocks_len,
+                prove_info.batch_info.start_block
+            );
 
-        // Query existing proof
-        if let Some(prove_result) = query_proof(batch_index).await {
-            if !prove_result.error_code.is_empty() {
-                log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
-                break;
-            }
-            if !prove_result.proof_data.is_empty() {
-                log::info!("query proof and prove state: {:?}", batch_index);
-                prove_state(batch_index, l1_shadow_rollup).await;
-                break;
-            }
-        }
-
-        // Request the proverServer to prove.
-        let request = ProveRequest {
-            batch_index,
-            start_block: batch_info.start_block,
-            end_block: batch_info.end_block,
-            rpc: l2_rpc.to_owned(),
-            shadow: false,
-        };
-        let rt = tokio::task::spawn_blocking(move || {
-            util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch")
-        })
-        .await
-        .unwrap();
-
-        match rt {
-            Some(info) => match info.as_str() {
-                task_status::STARTED => log::info!(
-                    "successfully submitted prove task, waiting for proof to be generated"
-                ),
-                task_status::PROVING => log::info!("waiting for prev proof to be generated"),
-                task_status::PROVED => {
-                    log::info!("proof already generated");
-                    prove_state(batch_index, l1_shadow_rollup).await;
+            // Query existing proof
+            if let Some(prove_result) = query_proof(batch_index).await {
+                if !prove_result.error_code.is_empty() {
+                    log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
                     break;
                 }
-                _ => {
-                    log::error!("submit prove task failed: {:#?}", info);
+                if !prove_result.proof_data.is_empty() {
+                    log::info!("query proof and prove state: {:?}", batch_index);
+                    self.prove_state(batch_index, prove_info.batch_header.clone()).await;
+                    break;
+                }
+            }
+
+            // Request the proverServer to prove.
+            let request = ProveRequest {
+                batch_index,
+                start_block: prove_info.batch_info.start_block,
+                end_block: prove_info.batch_info.end_block,
+                rpc: l2_rpc.to_owned(),
+                shadow: false,
+            };
+            let rt = tokio::task::spawn_blocking(move || {
+                util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch")
+            })
+            .await
+            .unwrap();
+
+            match rt {
+                Some(info) => match info.as_str() {
+                    task_status::STARTED => log::info!(
+                        "successfully submitted prove task, waiting for proof to be generated"
+                    ),
+                    task_status::PROVING => log::info!("waiting for prev proof to be generated"),
+                    task_status::PROVED => {
+                        log::info!("proof already generated");
+                        self.prove_state(batch_index, prove_info.batch_header.clone()).await;
+                        break;
+                    }
+                    _ => {
+                        log::error!("submit prove task failed: {:#?}", info);
+                        continue;
+                    }
+                },
+                None => {
+                    log::error!("submit prove task failed");
                     continue;
                 }
-            },
-            None => {
-                log::error!("submit prove task failed");
-                continue;
             }
-        }
 
-        // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 300 * blocks_len as usize; //block_prove_time = 5min
-        while max_waiting_time > 60 {
-            sleep(Duration::from_secs(60)).await;
-            max_waiting_time -= 60; // Query results every 1 minute.
-            match query_proof(batch_index).await {
-                Some(prove_result) => {
-                    if !prove_result.error_code.is_empty() {
-                        log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
-                        return;
+            // Step5. query proof and prove onchain state.
+            let mut max_waiting_time: usize = 300 * blocks_len as usize; //block_prove_time = 5min
+            while max_waiting_time > 60 {
+                sleep(Duration::from_secs(60)).await;
+                max_waiting_time -= 60; // Query results every 1 minute.
+                match query_proof(batch_index).await {
+                    Some(prove_result) => {
+                        if !prove_result.error_code.is_empty() {
+                            log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
+                            return;
+                        }
+                        log::debug!("query proof and prove state: {:#?}", batch_index);
+                        if !prove_result.proof_data.is_empty() {
+                            self.prove_state(batch_index, prove_info.batch_header.clone()).await;
+                            return;
+                        }
                     }
-                    log::debug!("query proof and prove state: {:#?}", batch_index);
-                    if !prove_result.proof_data.is_empty() {
-                        prove_state(batch_index, l1_shadow_rollup).await;
-                        return;
+                    None => {
+                        log::error!("prover status unknown, resubmit task");
+                        break;
                     }
-                }
-                None => {
-                    log::error!("prover status unknown, resubmit task");
-                    break;
                 }
             }
         }
     }
-}
 
-async fn prove_state<P, N>(batch_index: u64, shadow_rollup: &ShadowRollupInstance<P, N>) -> bool
-where
-    P: Provider<N> + Clone,
-    N: Network,
-{
-    for _ in 0..MAX_RETRY_TIMES {
-        sleep(Duration::from_secs(12)).await;
-        let prove_result = match query_proof(batch_index).await {
-            Some(pr) => pr,
-            None => continue,
-        };
+    async fn prove_state(&self, batch_index: u64, batch_header: Bytes) -> bool {
+        for _ in 0..MAX_RETRY_TIMES {
+            sleep(Duration::from_secs(12)).await;
+            let prove_result = match query_proof(batch_index).await {
+                Some(pr) => pr,
+                None => continue,
+            };
 
-        if prove_result.proof_data.is_empty() {
-            log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
-            continue;
-        }
-
-        log::info!(">Starting prove state onchain, batch index = {:#?}", batch_index);
-        let aggr_proof = Bytes::from(prove_result.proof_data);
-        let shadow_tx = shadow_rollup.proveState(batch_index, aggr_proof);
-        let send = shadow_tx.send().await;
-
-        let pending_tx = match send {
-            Ok(pending_tx) => pending_tx,
-            Err(e) => {
-                log::error!("send tx of prove_state error: {:#?}", e);
-                METRICS.shadow_verify_result.set(2);
+            if prove_result.proof_data.is_empty() {
+                log::warn!("query proof of {:#?}, proof_data is empty", batch_index);
                 continue;
             }
-        };
-        let receipt = pending_tx.get_receipt().await.unwrap();
-        if receipt.status() {
-            log::info!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash());
-            return true;
+
+            log::info!(">Starting prove state onchain, batch index = {:#?}", batch_index);
+            let aggr_proof = Bytes::from(prove_result.proof_data);
+            match self
+                .l1_rollup
+                .proveCommittedBatchState(batch_header.clone(), aggr_proof.clone())
+                .call()
+                .await
+            {
+                Ok(_) => log::info!(
+                    "proveCommittedBatchState call success, batch index = {:#?}",
+                    batch_index
+                ),
+                Err(e) => {
+                    log::error!("proveCommittedBatchState call error: {:#?}", e);
+                    METRICS.shadow_verify_result.set(2);
+                }
+            }
+            let shadow_tx = self.l1_shadow_rollup.proveState(batch_index, aggr_proof);
+            let send = shadow_tx.send().await;
+
+            let pending_tx = match send {
+                Ok(pending_tx) => pending_tx,
+                Err(e) => {
+                    log::error!("send tx of prove_state error: {:#?}", e);
+                    METRICS.shadow_verify_result.set(2);
+                    continue;
+                }
+            };
+            let receipt = pending_tx.get_receipt().await.unwrap();
+            if receipt.status() {
+                log::info!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash());
+                METRICS.shadow_verify_result.set(1);
+                return true;
+            }
+            log::error!("tx of prove_state failed, tx hash: {:?}", receipt.transaction_hash());
         }
-        log::error!("tx of prove_state failed, tx hash: {:?}", receipt.transaction_hash());
+        false
     }
-    false
 }
 
 /**
