@@ -1,13 +1,7 @@
 use crate::{metrics::METRICS, util, BatchInfo, ShadowRollup::ShadowRollupInstance};
-use alloy::{
-    network::{Network, ReceiptResponse},
-    primitives::{Address, Bytes},
-    providers::{Provider, RootProvider},
-    transports::{
-        http::{Client, Http},
-        Transport,
-    },
-};
+use alloy_network::{Network, ReceiptResponse};
+use alloy_primitives::{Address, Bytes};
+use alloy_provider::{DynProvider, Provider};
 use serde::{Deserialize, Serialize};
 use std::{env::var, time::Duration};
 use tokio::time::sleep;
@@ -39,22 +33,21 @@ mod task_status {
 }
 
 #[derive(Clone, Debug)]
-pub struct ShadowProver<T, P, N> {
-    l1_provider: RootProvider<Http<Client>>,
-    l1_shadow_rollup: ShadowRollupInstance<T, P, N>,
+pub struct ShadowProver<P, N> {
+    l1_provider: DynProvider,
+    l1_shadow_rollup: ShadowRollupInstance<P, N>,
     wallet_address: Address,
 }
 
-impl<T, P, N> ShadowProver<T, P, N>
+impl<P, N> ShadowProver<P, N>
 where
-    P: Provider<T, N> + Clone,
-    T: Transport + Clone,
+    P: Provider<N> + Clone,
     N: Network,
 {
     pub fn new(
         wallet_address: Address,
         shadow_rollup_address: Address,
-        provider: RootProvider<Http<Client>>,
+        provider: DynProvider,
         wallet: P,
     ) -> Self {
         let l1_shadow_rollup = ShadowRollupInstance::new(shadow_rollup_address, wallet);
@@ -75,7 +68,7 @@ where
         };
         METRICS
             .shadow_wallet_balance
-            .set(alloy::primitives::utils::format_ether(balance).parse().unwrap_or(0.0));
+            .set(alloy_primitives::utils::format_ether(balance).parse().unwrap_or(0.0));
 
         handle_with_prover(&batch_info, &self.l1_shadow_rollup).await;
 
@@ -83,12 +76,11 @@ where
     }
 }
 
-async fn handle_with_prover<T, P, N>(
+async fn handle_with_prover<P, N>(
     batch_info: &BatchInfo,
-    l1_shadow_rollup: &ShadowRollupInstance<T, P, N>,
+    l1_shadow_rollup: &ShadowRollupInstance<P, N>,
 ) where
-    P: Provider<T, N> + Clone,
-    T: Transport + Clone,
+    P: Provider<N> + Clone,
     N: Network,
 {
     let l2_rpc = var("SHADOW_PROVING_L2_RPC").expect("Cannot detect L2_RPC env var");
@@ -127,7 +119,7 @@ async fn handle_with_prover<T, P, N>(
             start_block: batch_info.start_block,
             end_block: batch_info.end_block,
             rpc: l2_rpc.to_owned(),
-            shadow: true,
+            shadow: false,
         };
         let rt = tokio::task::spawn_blocking(move || {
             util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch")
@@ -158,10 +150,10 @@ async fn handle_with_prover<T, P, N>(
         }
 
         // Step5. query proof and prove onchain state.
-        let mut max_waiting_time: usize = 1600 * blocks_len as usize; //block_prove_time =30min
-        while max_waiting_time > 300 {
-            sleep(Duration::from_secs(300)).await;
-            max_waiting_time -= 300; // Query results every 5 minutes.
+        let mut max_waiting_time: usize = 300 * blocks_len as usize; //block_prove_time = 5min
+        while max_waiting_time > 60 {
+            sleep(Duration::from_secs(60)).await;
+            max_waiting_time -= 60; // Query results every 1 minute.
             match query_proof(batch_index).await {
                 Some(prove_result) => {
                     if !prove_result.error_code.is_empty() {
@@ -183,13 +175,9 @@ async fn handle_with_prover<T, P, N>(
     }
 }
 
-async fn prove_state<T, P, N>(
-    batch_index: u64,
-    shadow_rollup: &ShadowRollupInstance<T, P, N>,
-) -> bool
+async fn prove_state<P, N>(batch_index: u64, shadow_rollup: &ShadowRollupInstance<P, N>) -> bool
 where
-    P: Provider<T, N> + Clone,
-    T: Transport + Clone,
+    P: Provider<N> + Clone,
     N: Network,
 {
     for _ in 0..MAX_RETRY_TIMES {
@@ -260,21 +248,18 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 #[test]
 fn test() {
     use crate::abi::SP1Verifier;
-    use alloy::rpc::json_rpc::ErrorPayload;
+    use alloy_json_rpc::ErrorPayload;
     // Sample JSON error payload from an Ethereum JSON RPC response.
     let json = r#"{"code":3,"message":"execution reverted: ","data":"0x810f00230000000000000000000000000000000000000000000000000000000000000001"}"#;
 
     // Parse the JSON into an `ErrorPayload` struct.
     let payload: ErrorPayload = serde_json::from_str(json).unwrap();
 
-    let err = payload.as_decoded_error::<SP1Verifier::SP1VerifierErrors>(false).unwrap();
-    match err {
-        SP1Verifier::SP1VerifierErrors::WrongVerifierSelector(s) => {
-            println!(
-                "WrongVerifierSelector -  expected: {:?}, received: {:?}",
-                s.expected, s.received
-            );
-        }
-        SP1Verifier::SP1VerifierErrors::InvalidProof(_) => println!("WrongVerifierSelector"),
+    if let Some(s) = payload.as_decoded_error::<SP1Verifier::WrongVerifierSelector>() {
+        println!("WrongVerifierSelector -  expected: {:?}, received: {:?}", s.expected, s.received);
+    } else if payload.as_decoded_error::<SP1Verifier::InvalidProof>().is_some() {
+        println!("WrongVerifierSelector");
+    } else {
+        panic!("Failed to decode error");
     }
 }
