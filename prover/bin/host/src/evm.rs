@@ -1,13 +1,12 @@
 //! An end-to-end example of using the SP1 SDK to generate a proof of a program that can have an
 //! EVM-Compatible proof generated which can be verified on-chain.
 
-use morph_executor_utils::read_env_var;
+use prover_utils::read_env_var;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const STATELESS_VERIFIER_ELF: &[u8] =
-    include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
+pub const STATELESS_VERIFIER_ELF: &[u8] = include_bytes!("../../client/elf/verifier-client");
 
 /// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -1,0 +1,28 @@
+[package]
+name = "prover-executor-host"
+homepage = "https://github.com/morph-l2/morph/tree/main/prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zstd = { workspace = true }
+anyhow = { workspace = true }
+c-kzg = { workspace = true }
+prover-primitives = { workspace = true }
+prover-executor-client = { workspace = true }
+prover-storage-rpc = { workspace = true }
+prover-executor-core.workspace = true
+prover-mpt = { workspace = true }
+revm = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-network = { workspace = true }
+alloy-rpc-types = { workspace = true }
+alloy-rpc-types-debug = { workspace = true }
+alloy-primitives = { workspace = true }
+reth-trie.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
