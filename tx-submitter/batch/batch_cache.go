@@ -427,16 +427,11 @@ func (bc *BatchCache) GetSealedBatchHeader(batchIndex uint64) (*BatchHeaderBytes
 	defer bc.mu.RUnlock()
 	header, ok := bc.sealedBatchHeaders[batchIndex]
 	if !ok {
-		// Check again after acquiring write lock
-		header, ok = bc.sealedBatchHeaders[batchIndex]
-		if !ok {
-			loadedHeader, err := bc.batchStorage.LoadSealedBatchHeader(batchIndex)
-			if err != nil {
-				return nil, false
-			}
-			return loadedHeader, true
+		loadedHeader, err := bc.batchStorage.LoadSealedBatchHeader(batchIndex)
+		if err != nil {
+			return nil, false
 		}
-		return header, true
+		return loadedHeader, true
 	}
 	return header, ok
 }
@@ -846,7 +841,7 @@ func parsingTxs(transactions []*ethtypes.Transaction, totalL1MessagePoppedBefore
 			l1TxHashes = append(l1TxHashes, tx.Hash())
 			currentIndex := tx.L1MessageQueueIndex()
 
-			if currentIndex < nextIndex {
+			if currentIndex != nextIndex {
 				return nil, nil, 0, 0, fmt.Errorf(
 					"unexpected batch payload, expected queue index: %d, got: %d. transaction hash: %v",
 					nextIndex, currentIndex, tx.Hash(),

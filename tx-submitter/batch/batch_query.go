@@ -52,7 +52,7 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 			endBlock = startBlock - 1
 			continue
 		}
-
+		defer finalizeEventIter.Close()
 		// Iterate through query results
 		for finalizeEventIter.Next() {
 			event := finalizeEventIter.Event
@@ -77,11 +77,9 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 				continue
 			}
 			if batchIndex == index {
-				_ = finalizeEventIter.Close()
 				return &batchHeader, nil
 			}
 		}
-		_ = finalizeEventIter.Close()
 
 		// Continue querying backwards
 		if endBlock < blockRange {

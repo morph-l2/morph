@@ -53,7 +53,7 @@ func (s *BatchStorage) StoreSealedBatch(batchIndex uint64, batch *eth.RPCRollupB
 	}
 
 	// Update indices list
-	if err := s.updateBatchIndices(batchIndex, true); err != nil {
+	if err = s.updateBatchIndices(batchIndex, true); err != nil {
 		log.Warn("Failed to update batch indices", "batch_index", batchIndex, "error", err)
 		// Don't fail the operation if indices update fails
 	}
@@ -151,7 +151,6 @@ func (s *BatchStorage) LoadAllSealedBatchesAndHeader() (map[uint64]*eth.RPCRollu
 					"pre_batch_hash", parentBatchHash.String())
 				return nil, nil, nil, fmt.Errorf("parent batch hash check failed")
 			}
-
 		}
 		batches[idx] = batch
 	}

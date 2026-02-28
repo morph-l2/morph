@@ -23,6 +23,14 @@ type L2Caller struct {
 }
 
 func NewL2Caller(l2Clients []iface.L2Client) (*L2Caller, error) {
+	if len(l2Clients) == 0 {
+		return nil, fmt.Errorf("no l2clients provided")
+	}
+	for _, l2Client := range l2Clients {
+		if l2Client == nil {
+			return nil, fmt.Errorf("nil l2client")
+		}
+	}
 	clients := &iface.L2Clients{Clients: l2Clients}
 
 	// Initialize Sequencer contract
