@@ -428,7 +428,25 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.eClient().HeaderByNumber(ctx, blockNumber)
 		if respErr != nil {
-			rc.logger.Info("failed to call BlockNumber", "error", respErr)
+			rc.logger.Info("failed to call HeaderByNumber", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
+
+func (rc *RetryableClient) BlockByNumber(ctx context.Context, blockNumber *big.Int) (ret *eth.Block, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.ethClient.BlockByNumber(ctx, blockNumber)
+		if respErr != nil {
+			rc.logger.Info("failed to call BlockByNumber", "error", respErr)
 			if retryableError(respErr) {
 				return respErr
 			}
@@ -505,4 +523,27 @@ func retryableError(err error) bool {
 	// 	strings.Contains(err.Error(), ExecutionAborted) ||
 	// 	strings.Contains(err.Error(), Timeout)
 	return !strings.Contains(err.Error(), DiscontinuousBlockError)
+}
+
+// ============================================================================
+// L2NodeV2 methods for sequencer mode
+// ============================================================================
+
+// AssembleL2BlockV2 assembles a L2 block based on parent hash.
+func (rc *RetryableClient) AssembleL2BlockV2(ctx context.Context, parentHash common.Hash, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.authClient.AssembleL2BlockV2(ctx, parentHash, transactions)
+		if respErr != nil {
+			rc.logger.Info("failed to AssembleL2BlockV2", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
 }
