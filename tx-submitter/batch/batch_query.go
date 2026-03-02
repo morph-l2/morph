@@ -52,7 +52,7 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 			endBlock = startBlock - 1
 			continue
 		}
-		defer finalizeEventIter.Close()
+		defer func() { _ = finalizeEventIter.Close() }()
 		// Iterate through query results
 		for finalizeEventIter.Next() {
 			event := finalizeEventIter.Event
