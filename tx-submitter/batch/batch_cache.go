@@ -710,43 +710,14 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 	bc.parentBatchHeader = &batchHeaderCopy
 	bc.prevStateRoot = bc.postStateRoot
 
-	bc.logSealedBatch(batchHeader, batchHash)
+	// Save block count before resetting batch data for logging
+	blockCount := bc.batchData.BlockNum()
+	bc.logSealedBatch(batchHeader, batchHash, blockCount)
 
 	// Reset currently accumulated batch data
 	bc.batchData = NewBatchData()
 
 	return batchIndex, batchHeader, reachedExpectedSize, nil
-}
-
-// CheckBatchSizeReached checks if the specified batch's data size reaches expected value
-// Parameters:
-//   - batchIndex: batch index to check
-//
-// Returns:
-//   - reached: returns true if batch exists and compressed payload size reaches expected value (>= MaxBlobBytesSize * 0.9)
-//   - found: whether batch exists
-func (bc *BatchCache) CheckBatchSizeReached(batchIndex uint64) (reached bool, found bool) {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
-
-	sealedBatch, ok := bc.sealedBatches[batchIndex]
-	if !ok {
-		return false, false
-	}
-
-	// Expected value: compressed payload size >= MaxBlobBytesSize * 0.9
-	// We need to estimate the compressed size from the block contexts
-	// For now, we'll use a simple heuristic based on block contexts size
-	threshold := float64(MaxBlobBytesSize) * 0.9
-	expectedSizeThreshold := uint64(threshold)
-
-	// Estimate compressed size from block contexts (rough approximation)
-	blockContextsSize := uint64(len(sealedBatch.BlockContexts))
-	// Use a compression ratio estimate (zstd typically achieves 2-3x compression)
-	estimatedCompressedSize := blockContextsSize / 2
-	reached = estimatedCompressedSize >= expectedSizeThreshold
-
-	return reached, true
 }
 
 // handleBatchSealing determines which version to use for compression and calculates data hash
@@ -1108,7 +1079,7 @@ func (bc *BatchCache) Delete(batchIndex uint64) error {
 }
 
 // logSealedBatch logs the details of the sealed batch for debugging purposes.
-func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash common.Hash) {
+func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash common.Hash, blockCount uint16) {
 	log.Info("Sealed batch header", "batchHash", batchHash.Hex())
 	batchIndex, _ := batchHeader.BatchIndex()
 	l1MessagePopped, _ := batchHeader.L1MessagePopped()
@@ -1120,7 +1091,7 @@ func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash com
 		l1MessagePopped,
 		totalL1MessagePopped,
 		dataHash,
-		bc.batchData.BlockNum(),
+		blockCount,
 		parentBatchHash))
 }
 
@@ -1139,6 +1110,9 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 		return fmt.Errorf("has reorg, should check block status current %v, now %v", bc.currentBlockNumber, endBlockNum)
 	}
 	startBlockNum := uint64(0)
+	if bc.parentBatchHeader == nil {
+		return fmt.Errorf("parent batch header is nil, cannot assemble batch")
+	}
 	version, _ := bc.parentBatchHeader.Version()
 	if version < 1 {
 		parentIndex, err := bc.parentBatchHeader.BatchIndex()
