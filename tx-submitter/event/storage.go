@@ -2,6 +2,7 @@ package event
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -59,7 +60,7 @@ func (e *EventInfoStorage) Load() error {
 
 	jsonStr, err := e.db.GetString(params.EventInfoKey)
 	if err != nil {
-		if err == db.ErrKeyNotFound {
+		if errors.Is(err, db.ErrKeyNotFound) {
 			// Initialize with default values if not found
 			e.eventInfo = EventInfo{}
 			return nil

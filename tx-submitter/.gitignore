@@ -29,6 +29,7 @@ tx-submitter
 **/tx-submitter
 build/
 *debug_bin*
+submitter-leveldb
 
 # Config and Environment files
 .env*
