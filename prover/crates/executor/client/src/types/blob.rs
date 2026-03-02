@@ -1,12 +1,12 @@
+use anyhow::{anyhow, Context};
+use ruzstd::StreamingDecoder;
+use std::io::Read;
 #[cfg(not(target_os = "zkvm"))]
 use {
     alloy_eips::eip2718::Decodable2718,
     alloy_rlp::{Decodable, Header},
     prover_primitives::MorphTxEnvelope,
 };
-use anyhow::{anyhow, Context};
-use ruzstd::StreamingDecoder;
-use std::io::Read;
 
 /// This magic number is included at the start of a single Zstandard frame
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
@@ -128,11 +128,11 @@ pub fn decode_transactions(bs: &[u8]) -> Vec<MorphTxEnvelope> {
 /// does NOT include the version byte. V0 vs V1 is distinguished by the number of fields.
 #[cfg(not(target_os = "zkvm"))]
 fn decode_morph_tx_envelope(buf: &[u8]) -> Result<MorphTxEnvelope, alloy_rlp::Error> {
-    use alloy_primitives::{Bytes, Signature, B256, U256};
     use alloy_eips::eip2930::AccessList;
     use alloy_primitives::TxKind;
-    use prover_primitives::TxMorph;
+    use alloy_primitives::{Bytes, Signature, B256, U256};
     use prover_primitives::alloy_consensus::SignableTransaction;
+    use prover_primitives::TxMorph;
 
     let mut reader = &buf[1..]; // skip type byte (0x7F)
 

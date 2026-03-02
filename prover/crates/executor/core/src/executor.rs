@@ -1,7 +1,6 @@
 use alloy_consensus::transaction::SignerRecoverable;
 use alloy_consensus::Transaction;
 use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
-use revm::primitives::Bytes;
 use anyhow::Context;
 use anyhow::Result;
 use morph_chainspec::hardfork::MorphHardfork;
@@ -11,6 +10,7 @@ use morph_chainspec::MORPH_MAINNET;
 use morph_evm::MorphBlockEnv;
 use morph_primitives::MorphTxEnvelope;
 use morph_revm::MorphEvm;
+use revm::primitives::Bytes;
 use revm::MainContext;
 
 use std::sync::Arc;
