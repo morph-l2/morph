@@ -1,8 +1,9 @@
 package flags
 
 import (
-	"github.com/urfave/cli"
 	"time"
+
+	"github.com/urfave/cli"
 )
 
 const envVarPrefix = "MORPH_NODE_"

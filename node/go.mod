@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/holiman/uint256 v1.2.4
 	github.com/klauspost/compress v1.17.9
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260227074910-324c53b65341
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260302112305-256292dbb4c0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
 	github.com/stretchr/testify v1.10.0
