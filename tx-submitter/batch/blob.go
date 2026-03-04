@@ -153,11 +153,11 @@ func DecodeTxsFromBytes(txsBytes []byte) (eth.Transactions, error) {
 				return nil, err
 			}
 			innerTx = new(eth.SetCodeTx)
-		case eth.AltFeeTxType:
+		case eth.MorphTxType:
 			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
 				return nil, err
 			}
-			innerTx = new(eth.AltFeeTx)
+			innerTx = new(eth.MorphTx)
 		default:
 			if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
 				return nil, fmt.Errorf("not supported tx type: %d", firstByte)
