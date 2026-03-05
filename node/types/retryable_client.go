@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -33,6 +34,9 @@ const (
 	// Geth connection retry settings
 	GethRetryAttempts = 60              // max retry attempts
 	GethRetryInterval = 5 * time.Second // interval between retries
+
+	// JSON-RPC error code for "Method not found".
+	rpcMethodNotFoundCode = -32601
 )
 
 // configResponse represents the eth_config RPC response (EIP-7910)
@@ -72,11 +76,37 @@ func FetchGethConfigWithRetry(rpcURL string, logger tmlog.Logger) (*GethConfig, 
 		if err == nil {
 			return config, nil
 		}
+		if isEthConfigUnsupported(err) {
+			logger.Info("eth_config not supported by execution client, using default config",
+				"switchTime", 0,
+				"useZktrie", false,
+				"error", err)
+			return &GethConfig{}, nil
+		}
 		lastErr = err
 		logger.Info("Waiting for geth to be ready...", "attempt", i+1, "error", err)
 		time.Sleep(GethRetryInterval)
 	}
 	return nil, fmt.Errorf("geth not ready after %d attempts: %w", GethRetryAttempts, lastErr)
+}
+
+// isEthConfigUnsupported returns true when the execution client does not
+// implement eth_config (e.g. reth) and we should fallback to defaults.
+func isEthConfigUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check structured RPC error code first.
+	var rpcErr interface{ ErrorCode() int }
+	if errors.As(err, &rpcErr) && rpcErr.ErrorCode() == rpcMethodNotFoundCode {
+		return true
+	}
+
+	// Fallback to message matching for wrapped or non-standard errors.
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "method not found") ||
+		strings.Contains(msg, "the method eth_config does not exist")
 }
 
 // FetchGethConfig fetches the geth configuration via eth_config API
