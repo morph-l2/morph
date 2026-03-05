@@ -23,21 +23,19 @@ func TestUnPackData(t *testing.T) {
 	require.NoError(t, err)
 	beforeMoveBlockCtxABI, err := types.BeforeMoveBlockCtxABI.GetAbi()
 	require.NoError(t, err)
-	d := Derivation{
-		rollupABI:             rollupAbi,
-		legacyRollupABI:       legacyRollupAbi,
-		beforeMoveBlockCtxABI: beforeMoveBlockCtxABI,
-	}
+
 	errorTxData, err := hexutil.Decode(errorData)
 	require.NoError(t, err)
-	_, err = d.UnPackData(errorTxData)
+	_, err = unpackCalldataWithABIs(rollupAbi, legacyRollupAbi, beforeMoveBlockCtxABI, errorTxData)
 	require.Error(t, err)
+
 	legacyTxData, err := hexutil.Decode(legacyData)
 	require.NoError(t, err)
-	_, err = d.UnPackData(legacyTxData)
+	_, err = unpackCalldataWithABIs(rollupAbi, legacyRollupAbi, beforeMoveBlockCtxABI, legacyTxData)
 	require.NoError(t, err)
+
 	beforeMoveBctxTxData, err := hexutil.Decode(beforeMoveBctxData)
 	require.NoError(t, err)
-	_, err = d.UnPackData(beforeMoveBctxTxData)
+	_, err = unpackCalldataWithABIs(rollupAbi, legacyRollupAbi, beforeMoveBlockCtxABI, beforeMoveBctxTxData)
 	require.NoError(t, err)
 }

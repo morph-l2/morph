@@ -424,6 +424,24 @@ func (rc *RetryableClient) BlockNumber(ctx context.Context) (ret uint64, err err
 	return
 }
 
+func (rc *RetryableClient) BlockByNumber(ctx context.Context, number *big.Int) (ret *eth.Block, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.eClient().BlockByNumber(ctx, number)
+		if respErr != nil {
+			rc.logger.Info("failed to call BlockByNumber", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
+
 func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.Int) (ret *eth.Header, err error) {
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.eClient().HeaderByNumber(ctx, blockNumber)
