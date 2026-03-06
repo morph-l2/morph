@@ -539,6 +539,43 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         );
     }
     
+    /// @notice Test: commitBatchWithProof can be called by anyone (not only staker) when delay is met
+    /// @dev Ensures permissionless batch submission: any address can submit when rollup/L1 queue is stalled.
+    function test_commitBatchWithProof_anyone_can_call_when_delay_met() public {
+        _mockVerifierCall();
+        _mockMessageQueueStalled();
+        hevm.warp(block.timestamp + 7200);
+
+        bytes32 prevStateRoot = bytes32(uint256(1));
+        bytes32 postStateRoot = bytes32(uint256(2));
+        bytes32 withdrawalRoot = getTreeRoot();
+
+        IRollup.BatchDataInput memory batchDataInput = IRollup.BatchDataInput({
+            version: 0,
+            parentBatchHeader: batchHeader0,
+            lastBlockNumber: 1,
+            numL1Messages: 0,
+            prevStateRoot: prevStateRoot,
+            postStateRoot: postStateRoot,
+            withdrawalRoot: withdrawalRoot
+        });
+
+        bytes memory batchHeader1 = _createMatchingBatchHeader(1, 0, prevStateRoot, postStateRoot, withdrawalRoot);
+
+        // Caller is bob: not a staker, not owner. Anyone can submit when delay is met.
+        hevm.prank(bob);
+        rollup.commitBatchWithProof(
+            batchDataInput,
+            batchSignatureInput,
+            batchHeader1,
+            hex"deadbeef"
+        );
+
+        assertEq(rollup.lastCommittedBatchIndex(), 1);
+        assertTrue(rollup.batchExist(1));
+        assertEq(rollup.committedStateRoots(1), postStateRoot);
+    }
+
     /// @notice Test: commitBatchWithProof succeeds when queue is empty (no unfinalized messages)
     function test_commitBatchWithProof_succeeds_when_queue_empty() public {
         _mockVerifierCall();
