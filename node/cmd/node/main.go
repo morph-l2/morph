@@ -73,7 +73,10 @@ func L2NodeMain(ctx *cli.Context) error {
 		return err
 	}
 	tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
-	pubKey, _ := tmVal.GetPubKey()
+	pubKey, err := tmVal.GetPubKey()
+	if err != nil {
+		return fmt.Errorf("failed to get validator public key: %w", err)
+	}
 	newSyncerFunc := func() (*sync.Syncer, error) { return node.NewSyncer(ctx, home, nodeConfig) }
 	executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey)
 	if err != nil {
