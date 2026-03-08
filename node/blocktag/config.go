@@ -24,6 +24,10 @@ type Config struct {
 	RollupAddress     common.Address
 	SafeConfirmations uint64
 	PollInterval      time.Duration
+	// L1StartBlock is the L1 block number to start searching for CommitBatch events.
+	// Set this to the rollup contract deployment block to avoid scanning from genesis.
+	// Defaults to 0 (scan from genesis).
+	L1StartBlock uint64
 }
 
 // DefaultConfig returns the default configuration

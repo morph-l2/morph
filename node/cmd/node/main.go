@@ -15,6 +15,7 @@ import (
 	"morph-l2/node/blocktag"
 	"morph-l2/node/cmd/keyconverter"
 	node "morph-l2/node/core"
+	"morph-l2/node/derivation"
 	"morph-l2/node/flags"
 	"morph-l2/node/sequencer"
 	"morph-l2/node/sequencer/mock"
@@ -98,7 +99,24 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err := blockTagConfig.SetCliContext(ctx); err != nil {
 		return fmt.Errorf("blocktag config set cli context error: %w", err)
 	}
-	blockTagSvc, err = blocktag.NewBlockTagService(context.Background(), executor.L2Client(), blockTagConfig, nodeConfig.Logger)
+
+	// Build BatchVerifier for full batch validation.
+	// It reuses the same L1 addr / rollup address / L2 eth addr already parsed above.
+	bvCfg := &derivation.Config{
+		L1:                    &types.L1Config{Addr: blockTagConfig.L1Addr},
+		L2:                    &types.L2Config{EthAddr: nodeConfig.L2.EthAddr},
+		RollupContractAddress: blockTagConfig.RollupAddress,
+		BeaconRpc:             ctx.GlobalString(flags.L1BeaconAddr.Name),
+		BaseHeight:            ctx.GlobalUint64(flags.DerivationBaseHeight.Name),
+	}
+	bv, bvErr := derivation.NewBatchVerifier(context.Background(), bvCfg, nil, nodeConfig.Logger)
+	if bvErr != nil {
+		// BatchVerifier is non-critical; fall back to lightweight state-root-only check
+		nodeConfig.Logger.Error("failed to create BatchVerifier, falling back to state-root-only validation", "error", bvErr)
+		bv = nil
+	}
+
+	blockTagSvc, err = blocktag.NewBlockTagService(context.Background(), executor.L2Client(), blockTagConfig, bv, nodeConfig.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create BlockTagService: %w", err)
 	}

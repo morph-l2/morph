@@ -106,7 +106,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	}
 
 	// Fetch geth config at startup (with retry to wait for geth)
-	gethCfg, err := types.FetchGethConfigWithRetry(config.L2.EthAddr, logger)
+	gethCfg, err := types.FetchGethConfigWithRetry(context.Background(), config.L2.EthAddr, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
 	}

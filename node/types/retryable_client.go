@@ -65,16 +65,26 @@ type GethConfig struct {
 }
 
 // FetchGethConfigWithRetry fetches geth config with retry, waiting for geth to be ready.
-func FetchGethConfigWithRetry(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
+// The call blocks until geth responds, ctx is cancelled, or the retry limit is reached.
+func FetchGethConfigWithRetry(ctx context.Context, rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 	var lastErr error
 	for i := 0; i < GethRetryAttempts; i++ {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
 		config, err := FetchGethConfig(rpcURL, logger)
 		if err == nil {
 			return config, nil
 		}
 		lastErr = err
 		logger.Info("Waiting for geth to be ready...", "attempt", i+1, "error", err)
-		time.Sleep(GethRetryInterval)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(GethRetryInterval):
+		}
 	}
 	return nil, fmt.Errorf("geth not ready after %d attempts: %w", GethRetryAttempts, lastErr)
 }

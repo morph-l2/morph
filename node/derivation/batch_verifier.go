@@ -24,10 +24,11 @@ import (
 )
 
 var (
-	// RollupEventTopic is the keccak256 hash of the CommitBatch event signature.
+	// RollupEventTopic is the CommitBatch event signature string.
+	RollupEventTopic = "CommitBatch(uint256,bytes32)"
+	// RollupEventTopicHash is the keccak256 hash of RollupEventTopic.
 	// Used when filtering L1 logs for batch submissions.
-	RollupEventTopic     = crypto.Keccak256Hash([]byte("CommitBatch(uint256,bytes32)"))
-	RollupEventTopicHash = RollupEventTopic
+	RollupEventTopicHash = crypto.Keccak256Hash([]byte(RollupEventTopic))
 )
 
 // BatchVerifyL2Client is the minimal L2 read interface required for batch verification.
@@ -79,7 +80,8 @@ type BatchRoots struct {
 // Scheduling is owned by the caller (e.g. BlockTagService).
 type BatchVerifier struct {
 	l1Client              *ethclient.Client
-	l1BeaconClient        *L1BeaconClient // nil if BeaconRpc not configured
+	l2EthClient           *ethclient.Client // owns the connection used by L2ToL1MessagePasser; closed via Close()
+	l1BeaconClient        *L1BeaconClient   // nil if BeaconRpc not configured
 	rollup                *bindings.Rollup
 	rollupABI             *abi.ABI
 	legacyRollupABI       *abi.ABI
@@ -102,7 +104,8 @@ type BatchVerifier struct {
 
 // NewBatchVerifier creates a BatchVerifier using a subset of derivation Config.
 // It connects to L1 and L2 but does not start any background goroutines.
-func NewBatchVerifier(cfg *Config, vt *validator.Validator, logger tmlog.Logger) (*BatchVerifier, error) {
+// Call Close() when the BatchVerifier is no longer needed to release connections.
+func NewBatchVerifier(ctx context.Context, cfg *Config, vt *validator.Validator, logger tmlog.Logger) (*BatchVerifier, error) {
 	l1Client, err := ethclient.Dial(cfg.L1.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial l1 node error: %w", err)
@@ -110,35 +113,48 @@ func NewBatchVerifier(cfg *Config, vt *validator.Validator, logger tmlog.Logger)
 
 	l2EthClient, err := ethclient.Dial(cfg.L2.EthAddr)
 	if err != nil {
+		l1Client.Close()
 		return nil, fmt.Errorf("dial l2 eth node error: %w", err)
 	}
 
 	rollup, err := bindings.NewRollup(cfg.RollupContractAddress, l1Client)
 	if err != nil {
+		l1Client.Close()
+		l2EthClient.Close()
 		return nil, fmt.Errorf("create rollup binding error: %w", err)
 	}
 
 	msgPasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, l2EthClient)
 	if err != nil {
+		l1Client.Close()
+		l2EthClient.Close()
 		return nil, fmt.Errorf("create L2ToL1MessagePasser binding error: %w", err)
 	}
 
 	rollupAbi, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
+		l1Client.Close()
+		l2EthClient.Close()
 		return nil, fmt.Errorf("get rollup ABI: %w", err)
 	}
 	legacyRollupAbi, err := types.LegacyRollupMetaData.GetAbi()
 	if err != nil {
+		l1Client.Close()
+		l2EthClient.Close()
 		return nil, fmt.Errorf("get legacy rollup ABI: %w", err)
 	}
 	beforeMoveBlockCtxAbi, err := types.BeforeMoveBlockCtxABI.GetAbi()
 	if err != nil {
+		l1Client.Close()
+		l2EthClient.Close()
 		return nil, fmt.Errorf("get beforeMoveBlockCtx ABI: %w", err)
 	}
 
-	// Fetch upgrade transition config from geth (retries until geth is ready)
-	gethCfg, err := types.FetchGethConfigWithRetry(cfg.L2.EthAddr, logger)
+	// Fetch upgrade transition config from geth (retries until geth is ready or ctx is cancelled)
+	gethCfg, err := types.FetchGethConfigWithRetry(ctx, cfg.L2.EthAddr, logger)
 	if err != nil {
+		l1Client.Close()
+		l2EthClient.Close()
 		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
 	}
 	logger.Info("BatchVerifier: geth config fetched",
@@ -158,6 +174,7 @@ func NewBatchVerifier(cfg *Config, vt *validator.Validator, logger tmlog.Logger)
 
 	return &BatchVerifier{
 		l1Client:              l1Client,
+		l2EthClient:           l2EthClient,
 		l1BeaconClient:        l1BeaconClient,
 		rollup:                rollup,
 		rollupABI:             rollupAbi,
@@ -171,6 +188,12 @@ func NewBatchVerifier(cfg *Config, vt *validator.Validator, logger tmlog.Logger)
 		useZktrie:             gethCfg.UseZktrie,
 		logger:                logger.With("module", "batch_verifier"),
 	}, nil
+}
+
+// Close releases the L1 and L2 RPC connections held by the BatchVerifier.
+func (bv *BatchVerifier) Close() {
+	bv.l1Client.Close()
+	bv.l2EthClient.Close()
 }
 
 // FetchBatchRoots fetches state roots and block metadata from a CommitBatch L1 transaction.

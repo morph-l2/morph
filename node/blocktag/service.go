@@ -9,10 +9,12 @@ import (
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/node/derivation"
 	"morph-l2/node/types"
 )
 
@@ -51,20 +53,35 @@ type BlockTagService struct {
 	l2Client *types.RetryableClient
 	rollup   *bindings.Rollup
 
+	// BatchVerifier performs full batch verification (roots, block contexts, txs).
+	// If nil, falls back to the lightweight CommittedStateRoots-only check.
+	batchVerifier *derivation.BatchVerifier
+
 	// Configuration
 	rollupAddress     common.Address
 	safeConfirmations uint64 // Number of L1 blocks to wait before considering a batch as safe
 	pollInterval      time.Duration
 
+	// Per-tag-type search trackers for CommitBatch L1 log filtering.
+	// Safe and finalized batches are submitted in L1-block order per tag, but safe batch
+	// index > finalized batch index, so their corresponding L1 blocks may differ.
+	// Sharing a single tracker would cause the safe tracker (advanced further) to skip
+	// finalized log queries that target earlier L1 blocks.
+	safeSearchTracker      *l1SearchTracker
+	finalizedSearchTracker *l1SearchTracker
+
 	logger tmlog.Logger
 	stop   chan struct{}
 }
 
-// NewBlockTagService creates a new BlockTagService
+// NewBlockTagService creates a new BlockTagService.
+// bv is optional: if non-nil, full batch verification (via BatchVerifier) replaces the
+// lightweight CommittedStateRoots-only check. Pass nil to keep the original behavior.
 func NewBlockTagService(
 	ctx context.Context,
 	l2Client *types.RetryableClient,
 	config *Config,
+	bv *derivation.BatchVerifier,
 	logger tmlog.Logger,
 ) (*BlockTagService, error) {
 	if config.L1Addr == "" {
@@ -92,9 +109,12 @@ func NewBlockTagService(
 		l1Client:          l1Client,
 		l2Client:          l2Client,
 		rollup:            rollup,
+		batchVerifier:     bv,
 		rollupAddress:     config.RollupAddress,
 		safeConfirmations: config.SafeConfirmations,
 		pollInterval:      config.PollInterval,
+		safeSearchTracker:      newL1SearchTracker(config.L1StartBlock),
+		finalizedSearchTracker: newL1SearchTracker(config.L1StartBlock),
 		logger:            logger.With("module", "blocktag"),
 		stop:              make(chan struct{}),
 	}, nil
@@ -123,13 +143,59 @@ func (s *BlockTagService) Stop() {
 	s.cancel()
 	<-s.stop
 	s.l1Client.Close()
+	if s.batchVerifier != nil {
+		s.batchVerifier.Close()
+	}
 	s.logger.Info("BlockTagService stopped")
 }
 
 // initialize initializes the service by checking current L1 batch status
 func (s *BlockTagService) initialize() error {
 	s.logger.Info("Initializing BlockTagService")
+	s.initSearchFromBlock()
 	return s.updateBlockTags()
+}
+
+// initSearchFromBlock refines both search trackers using the last finalized batch's
+// CommitBatch L1 block number. This avoids a full-chain scan on every restart.
+//
+// Note: when auto mode is active and no prior data exists, FromBlock=0 means FilterLogs
+// scans from genesis. This is a one-time startup cost; subsequent calls use the advanced
+// tracker value.
+//
+// Skipped when l1StartBlock is explicitly configured (tracker handles that internally).
+// Falls back silently to the current tracker value on any error.
+func (s *BlockTagService) initSearchFromBlock() {
+	if s.batchVerifier == nil || !s.safeSearchTracker.IsAuto() {
+		return
+	}
+	lastFinalized, err := s.rollup.LastFinalizedBatchIndex(nil)
+	if err != nil || lastFinalized == nil || lastFinalized.Uint64() == 0 {
+		s.logger.Info("initSearchFromBlock: could not get last finalized batch index, using default",
+			"fromBlock", s.safeSearchTracker.FromBlock(), "error", err)
+		return
+	}
+	batchIndex := lastFinalized.Uint64()
+	batchIndexHash := common.BigToHash(lastFinalized)
+	logs, err := s.l1Client.FilterLogs(s.ctx, ethereum.FilterQuery{
+		FromBlock: new(big.Int).SetUint64(s.safeSearchTracker.FromBlock()),
+		Addresses: []common.Address{s.rollupAddress},
+		Topics: [][]common.Hash{
+			{derivation.RollupEventTopicHash},
+			{batchIndexHash},
+		},
+	})
+	if err != nil || len(logs) == 0 {
+		s.logger.Info("initSearchFromBlock: CommitBatch event not found for last finalized batch, using default",
+			"batchIndex", batchIndex, "fromBlock", s.safeSearchTracker.FromBlock(), "error", err)
+		return
+	}
+	// Both trackers start from the same anchor point (last finalized batch L1 block).
+	// They will diverge naturally as safe and finalized queries advance independently.
+	s.safeSearchTracker.Advance(logs[0].BlockNumber)
+	s.finalizedSearchTracker.Advance(logs[0].BlockNumber)
+	s.logger.Info("initSearchFromBlock: search start refined from last finalized batch",
+		"batchIndex", batchIndex, "fromBlock", s.safeSearchTracker.FromBlock())
 }
 
 // loop is the main loop that polls L1 for batch status updates
@@ -253,8 +319,8 @@ func (s *BlockTagService) getL2BlockForTag(tagType BlockTagType, l2Head uint64) 
 			"lastFinalized", lastFinalizedBatchIndex.Uint64())
 		return 0, common.Hash{}, nil
 	}
-	if err := s.validateBatchStateRoot(targetBatchIndex, targetBatchLastBlockNum); err != nil {
-		s.logger.Error("State root validation failed",
+	if err := s.validateBatch(tagType, targetBatchIndex, targetBatchLastBlockNum); err != nil {
+		s.logger.Error("Batch validation failed",
 			"tagType", tagType,
 			"batchIndex", targetBatchIndex,
 			"l2Block", targetBatchLastBlockNum,
@@ -282,21 +348,77 @@ func (s *BlockTagService) getL2BlockForTag(tagType BlockTagType, l2Head uint64) 
 	return targetBatchLastBlockNum, l2BlockHash, nil
 }
 
-// validateBatchStateRoot validates that the state root of batch's lastL2Block matches L1
+// validateBatch validates a batch against the L2 chain.
+//
+// If a BatchVerifier is configured, it fetches the CommitBatch L1 tx and performs
+// full verification (PostStateRoot, WithdrawalRoot, PrevStateRoot, BlockContexts).
+// Otherwise it falls back to the lightweight CommittedStateRoots contract check.
+//
+// tagType is used to select the per-tag search tracker, preventing safe queries from
+// advancing the tracker beyond finalized batch L1 blocks (and vice versa).
+func (s *BlockTagService) validateBatch(tagType BlockTagType, batchIndex uint64, batchLastBlockNum uint64) error {
+	if s.batchVerifier == nil {
+		return s.validateBatchStateRoot(batchIndex, batchLastBlockNum)
+	}
+
+	txHash, err := s.fetchCommitBatchTxHash(tagType, batchIndex)
+	if err != nil {
+		return fmt.Errorf("get CommitBatch tx hash for batch %d: %w", batchIndex, err)
+	}
+
+	roots, err := s.batchVerifier.FetchBatchRoots(s.ctx, txHash, batchIndex)
+	if err != nil {
+		return fmt.Errorf("fetch batch roots for batch %d: %w", batchIndex, err)
+	}
+
+	return s.batchVerifier.VerifyBatch(s.ctx, s.l2Client, roots, nil)
+}
+
+// fetchCommitBatchTxHash retrieves the L1 transaction hash of the CommitBatch event
+// for the given batch index by filtering L1 logs.
+// CommitBatch(uint256 indexed batchIndex, bytes32 batchHash) — batchIndex is topic[1].
+//
+// tagType selects the per-tag search tracker. Safe and finalized batches correspond to
+// different L1 block heights, so they must use independent trackers to avoid one tag's
+// progress overwriting the other's search start.
+func (s *BlockTagService) fetchCommitBatchTxHash(tagType BlockTagType, batchIndex uint64) (common.Hash, error) {
+	tracker := s.safeSearchTracker
+	if tagType == TagTypeFinalized {
+		tracker = s.finalizedSearchTracker
+	}
+
+	batchIndexHash := common.BigToHash(new(big.Int).SetUint64(batchIndex))
+	logs, err := s.l1Client.FilterLogs(s.ctx, ethereum.FilterQuery{
+		FromBlock: new(big.Int).SetUint64(tracker.FromBlock()),
+		Addresses: []common.Address{s.rollupAddress},
+		Topics: [][]common.Hash{
+			{derivation.RollupEventTopicHash},
+			{batchIndexHash},
+		},
+	})
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("filter CommitBatch logs for batch %d: %w", batchIndex, err)
+	}
+	if len(logs) == 0 {
+		return common.Hash{}, fmt.Errorf("no CommitBatch event found for batch %d", batchIndex)
+	}
+	tracker.Advance(logs[0].BlockNumber)
+	return logs[0].TxHash, nil
+}
+
+// validateBatchStateRoot is the lightweight fallback: checks only PostStateRoot via
+// the CommittedStateRoots contract mapping (no tx hash or blob needed).
 func (s *BlockTagService) validateBatchStateRoot(batchIndex uint64, batchLastBlockNum uint64) error {
-	// Get L2 block header
 	l2Header, err := s.l2Client.HeaderByNumber(s.ctx, big.NewInt(int64(batchLastBlockNum)))
 	if err != nil {
 		return fmt.Errorf("failed to get L2 block header for block %d: %w", batchLastBlockNum, err)
 	}
 
-	// Get state root from L1 committed batch
 	stateRoot, err := s.rollup.CommittedStateRoots(nil, big.NewInt(int64(batchIndex)))
 	if err != nil {
 		return fmt.Errorf("failed to get state root from L1: %w", err)
 	}
 
-	// Compare state roots
 	l1StateRoot := common.BytesToHash(stateRoot[:])
 	if l1StateRoot != l2Header.Root {
 		return fmt.Errorf("state root mismatch for batch %d: L1=%s, L2=%s", batchIndex, l1StateRoot.Hex(), l2Header.Root.Hex())
@@ -459,4 +581,43 @@ func (s *BlockTagService) notifyGeth() error {
 	s.lastNotifiedSafeHash = safeBlockHash
 	s.lastNotifiedFinalizedHash = finalizedBlockHash
 	return nil
+}
+
+// l1SearchTracker manages the L1 block number used as FilterLogs FromBlock when
+// scanning for CommitBatch events. It hides the fixed-vs-auto logic so that callers
+// only need to call FromBlock() / Advance().
+//
+//   - Fixed mode (l1StartBlock > 0): FromBlock always returns the configured value;
+//     Advance is a no-op. Operator has full control over the search window.
+//   - Auto mode (l1StartBlock == 0): FromBlock returns the internally tracked value,
+//     which is refined at startup from the last finalized batch and progressively
+//     advanced after each successful log query.
+//
+// NOT concurrency-safe. BlockTagService runs a single polling goroutine (loop), so
+// no synchronisation is needed. Do not share a tracker across multiple goroutines.
+type l1SearchTracker struct {
+	fixed   uint64 // non-zero → fixed mode
+	current uint64 // used in auto mode
+}
+
+func newL1SearchTracker(l1StartBlock uint64) *l1SearchTracker {
+	return &l1SearchTracker{fixed: l1StartBlock}
+}
+
+// IsAuto reports whether progressive (auto) tracking is active.
+func (t *l1SearchTracker) IsAuto() bool { return t.fixed == 0 }
+
+// FromBlock returns the L1 block number to use as FilterLogs FromBlock.
+func (t *l1SearchTracker) FromBlock() uint64 {
+	if t.fixed > 0 {
+		return t.fixed
+	}
+	return t.current
+}
+
+// Advance moves the auto-tracked block forward. No-op in fixed mode.
+func (t *l1SearchTracker) Advance(blockNumber uint64) {
+	if t.fixed == 0 {
+		t.current = blockNumber
+	}
 }
