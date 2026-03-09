@@ -87,7 +87,8 @@ fmt-sol:
 	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
 .PHONY: fmt-sol
 
-# go get -u github.com/client9/misspell/cmd/misspell
+# go install github.com/client9/misspell/cmd/misspell@latest
+# go install golang.org/x/tools/cmd/goimports@latest
 fmt-go:
 	go work sync
 	cd $(PWD)/bindings/ && go mod tidy

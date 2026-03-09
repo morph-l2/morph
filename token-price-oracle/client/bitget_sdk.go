@@ -27,9 +27,9 @@ const (
 // This type is safe for concurrent use by multiple goroutines
 type BitgetSDKPriceFeed struct {
 	httpClient *http.Client
-	mu         sync.RWMutex          // protects tokenMap and ethPrice
-	tokenMap   map[uint16]string     // guarded by mu
-	ethPrice   *big.Float            // guarded by mu
+	mu         sync.RWMutex      // protects tokenMap and ethPrice
+	tokenMap   map[uint16]string // guarded by mu
+	ethPrice   *big.Float        // guarded by mu
 	log        log.Logger
 	baseURL    string
 }

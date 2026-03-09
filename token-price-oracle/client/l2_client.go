@@ -12,6 +12,7 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
+
 	"morph-l2/token-price-oracle/config"
 )
 

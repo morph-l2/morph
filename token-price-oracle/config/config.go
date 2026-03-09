@@ -9,6 +9,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/urfave/cli"
+
 	"morph-l2/token-price-oracle/flags"
 )
 
@@ -141,7 +142,7 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 
 	// Validate price threshold is reasonable (basis points should be 0-MaxPriceThresholdBPS)
 	if cfg.PriceThreshold > MaxPriceThresholdBPS {
-		return nil, fmt.Errorf("price threshold %d is too large (should be 0-%d basis points, where %d bps = 100%%)", 
+		return nil, fmt.Errorf("price threshold %d is too large (should be 0-%d basis points, where %d bps = 100%%)",
 			cfg.PriceThreshold, MaxPriceThresholdBPS, MaxPriceThresholdBPS)
 	}
 
