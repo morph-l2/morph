@@ -53,6 +53,9 @@ func (r *ReorgDetector) DetectReorg(ctx context.Context) (bool, uint64, error) {
 	if err != nil {
 		return false, 0, fmt.Errorf("failed to get latest block: %w", err)
 	}
+	if latestBlock == nil {
+		return false, 0, fmt.Errorf("latest block is nil")
+	}
 
 	// Check each block in history to find reorg point
 	reorgDepth := uint64(0)
@@ -60,6 +63,9 @@ func (r *ReorgDetector) DetectReorg(ctx context.Context) (bool, uint64, error) {
 		block, err := r.l1Client.BlockByNumber(ctx, new(big.Int).SetUint64(info.number))
 		if err != nil {
 			return false, 0, fmt.Errorf("failed to get block %d: %w", info.number, err)
+		}
+		if block == nil {
+			return false, 0, fmt.Errorf("block %d is nil", info.number)
 		}
 
 		if block.Hash() != info.hash {
@@ -92,6 +98,9 @@ func (r *ReorgDetector) updateHistory(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get latest block: %w", err)
 	}
+	if latest == nil {
+		return fmt.Errorf("latest block is nil")
+	}
 
 	// Add new blocks to history
 	currentNum := latest.NumberU64()
@@ -104,6 +113,9 @@ func (r *ReorgDetector) updateHistory(ctx context.Context) error {
 		block, err := r.l1Client.BlockByNumber(ctx, new(big.Int).SetUint64(num))
 		if err != nil {
 			return fmt.Errorf("failed to get block %d: %w", num, err)
+		}
+		if block == nil {
+			return fmt.Errorf("block %d is nil", num)
 		}
 
 		r.blockHistory = append(r.blockHistory, blockInfo{
