@@ -31,8 +31,9 @@ const (
 	DiscontinuousBlockError = "discontinuous block number"
 
 	// Geth connection retry settings
-	GethRetryAttempts = 60              // max retry attempts
-	GethRetryInterval = 5 * time.Second // interval between retries
+	GethRetryAttempts       = 60              // max retry attempts
+	GethRetryInterval       = 5 * time.Second // interval between retries
+	GethRetryMaxElapsedTime = 30 * time.Minute
 )
 
 // configResponse represents the eth_config RPC response (EIP-7910)
@@ -156,7 +157,9 @@ func (rc *RetryableClient) MPTForkTime() uint64 {
 // The switchTime should be fetched via FetchGethConfig before calling this function.
 func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Client, nextAuthClient *authclient.Client, nextEthClient *ethclient.Client, switchTime uint64, logger tmlog.Logger) *RetryableClient {
 	logger = logger.With("module", "retryClient")
-
+	// set MaxElapsedTime to 30 min
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = GethRetryMaxElapsedTime
 	// If next client is not configured, disable switch
 	if nextAuthClient == nil || nextEthClient == nil {
 		logger.Info("L2Next client not configured, switch disabled")
@@ -166,7 +169,7 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 			nextAuthClient: authClient, // fallback to current
 			nextEthClient:  ethClient,  // fallback to current
 			switchTime:     switchTime,
-			b:              backoff.NewExponentialBackOff(),
+			b:              bo,
 			logger:         logger,
 		}
 	}
@@ -188,7 +191,7 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 		nextAuthClient: nextAuthClient,
 		nextEthClient:  nextEthClient,
 		switchTime:     switchTime,
-		b:              backoff.NewExponentialBackOff(),
+		b:              bo,
 		logger:         logger,
 	}
 
