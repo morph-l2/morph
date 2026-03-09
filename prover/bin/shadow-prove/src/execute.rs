@@ -112,7 +112,7 @@ mod tests {
     use prover_utils::provider::get_block_trace;
 
     use crate::{
-        execute::{execute_host_range, test_args, try_execute_batch},
+        execute::{execute, execute_host_range, test_args, try_execute_batch},
         BatchInfo,
     };
 
@@ -128,6 +128,21 @@ mod tests {
         let block_inputs =
             rt.block_on(execute_host_range(start_block, end_block, &provider)).unwrap();
         let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
+    }
+
+    // cargo test -p shadow-proving --lib -- execute::tests::test_execute_block --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
+    #[tokio::test]
+    async fn test_execute_block() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
+
+        let (start_block, rpc) = test_args::read_block_number_args_from_argv();
+        let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
+        let block_input = execute(start_block, &provider).await.unwrap();
+        let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
+        let input_path = format!("../../testdata/state/block_{}.data", start_block);
+        let file = File::create(&input_path).unwrap();
+        serde_json::to_writer(file, &block_input).unwrap();
+        println!("Saved executor input to {input_path}");
     }
 
     #[tokio::test]
@@ -162,15 +177,30 @@ mod tests {
         println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
     }
 
+    // cargo test --package shadow-proving --lib -- execute::tests::test_execute_local --exact --nocapture
     #[tokio::test]
     async fn test_execute_local() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
-        let file = std::fs::File::open("../../testdata/mpt/executor_input_19720290.data").unwrap();
-        let reader = std::io::BufReader::new(file);
-        let block_input: BlockInput = serde_json::from_reader(reader).unwrap();
-
-        let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
-        println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
+        let dir = "../../testdata/state";
+        let mut entries: Vec<_> = std::fs::read_dir(dir)
+            .unwrap_or_else(|e| panic!("Failed to read dir {dir}: {e}"))
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.path().extension().and_then(|s| s.to_str()) == Some("data")
+            })
+            .collect();
+        entries.sort_by_key(|e| e.path());
+        for entry in entries {
+            let path = entry.path();
+            println!("Processing {:?}", path);
+            let file = std::fs::File::open(&path)
+                .unwrap_or_else(|e| panic!("Failed to open {:?}: {e}", path));
+            let reader = std::io::BufReader::new(file);
+            let block_input: BlockInput = serde_json::from_reader(reader)
+                .unwrap_or_else(|e| panic!("Failed to deserialize {:?}: {e}", path));
+            let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
+            println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
+        }
     }
 
     #[tokio::test]
@@ -270,6 +300,25 @@ mod test_args {
         let filtered = filter_argv(&["--start-block", "--start", "--end-block", "--end", "--rpc"]);
         let args = ExecuteRangeArgs::parse_from(filtered);
         (args.start_block, args.end_block, args.rpc)
+    }
+
+    /// Single block execute parameters.
+    #[derive(Parser, Debug)]
+    #[command(author, version, about, long_about = None, disable_help_flag = true)]
+    struct BlockNumberArgs {
+        /// L2 block number.
+        #[arg(long = "block-number", alias = "block", default_value_t = DEFAULT_BLOCK_NUMBER, value_parser = parse_u64_auto_radix)]
+        block_number: u64,
+
+        /// RPC endpoint.
+        #[arg(long, default_value = DEFAULT_RPC)]
+        rpc: String,
+    }
+
+    pub(super) fn read_block_number_args_from_argv() -> (u64, String) {
+        let filtered = filter_argv(&["--block-number", "--block", "--rpc"]);
+        let args = BlockNumberArgs::parse_from(filtered);
+        (args.block_number, args.rpc)
     }
 
     fn filter_argv(allowed_flags: &[&str]) -> Vec<String> {
