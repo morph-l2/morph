@@ -118,7 +118,6 @@ reth-primitives-traits = { git = "https://github.com/morph-l2/reth", rev = "8057
 reth-storage-errors = { git = "https://github.com/morph-l2/reth", rev = "8057627ac9f169a0da4de44b616006a9e30382c1", default-features = false }
 reth-trie = { git = "https://github.com/morph-l2/reth", rev = "8057627ac9f169a0da4de44b616006a9e30382c1", default-features = false }
 morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", rev = "7454ea1b656755be9b81e557fc8d0ff87a8e6268" }
-morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", rev = "7454ea1b656755be9b81e557fc8d0ff87a8e6268" }
 morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", rev = "7454ea1b656755be9b81e557fc8d0ff87a8e6268" }
 morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", rev = "7454ea1b656755be9b81e557fc8d0ff87a8e6268" }
 
