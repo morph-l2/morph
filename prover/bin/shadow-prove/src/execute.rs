@@ -131,7 +131,7 @@ mod tests {
     }
 
     // cargo test -p shadow-proving --lib -- execute::tests::test_execute_block --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_execute_block() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
