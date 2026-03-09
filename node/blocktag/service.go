@@ -6,10 +6,10 @@ import (
 	"math/big"
 	"time"
 
+	ethereum "github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/ethclient"
-	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 
@@ -104,19 +104,19 @@ func NewBlockTagService(
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &BlockTagService{
-		ctx:               ctx,
-		cancel:            cancel,
-		l1Client:          l1Client,
-		l2Client:          l2Client,
-		rollup:            rollup,
-		batchVerifier:     bv,
-		rollupAddress:     config.RollupAddress,
-		safeConfirmations: config.SafeConfirmations,
-		pollInterval:      config.PollInterval,
+		ctx:                    ctx,
+		cancel:                 cancel,
+		l1Client:               l1Client,
+		l2Client:               l2Client,
+		rollup:                 rollup,
+		batchVerifier:          bv,
+		rollupAddress:          config.RollupAddress,
+		safeConfirmations:      config.SafeConfirmations,
+		pollInterval:           config.PollInterval,
 		safeSearchTracker:      newL1SearchTracker(config.L1StartBlock),
 		finalizedSearchTracker: newL1SearchTracker(config.L1StartBlock),
-		logger:            logger.With("module", "blocktag"),
-		stop:              make(chan struct{}),
+		logger:                 logger.With("module", "blocktag"),
+		stop:                   make(chan struct{}),
 	}, nil
 }
 
@@ -594,7 +594,7 @@ func (s *BlockTagService) notifyGeth() error {
 //     advanced after each successful log query.
 //
 // NOT concurrency-safe. BlockTagService runs a single polling goroutine (loop), so
-// no synchronisation is needed. Do not share a tracker across multiple goroutines.
+// no synchronization is needed. Do not share a tracker across multiple goroutines.
 type l1SearchTracker struct {
 	fixed   uint64 // non-zero → fixed mode
 	current uint64 // used in auto mode

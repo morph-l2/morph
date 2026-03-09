@@ -51,9 +51,6 @@ type BatchInfo struct {
 	txNum            uint64
 	version          uint64
 	blockContexts    []*BlockContext
-	l1BlockNumber    uint64
-	txHash           common.Hash
-	nonce            uint64
 	lastBlockNumber  uint64
 	firstBlockNumber uint64
 

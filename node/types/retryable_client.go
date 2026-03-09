@@ -65,7 +65,7 @@ type GethConfig struct {
 }
 
 // FetchGethConfigWithRetry fetches geth config with retry, waiting for geth to be ready.
-// The call blocks until geth responds, ctx is cancelled, or the retry limit is reached.
+// The call blocks until geth responds, ctx is canceled, or the retry limit is reached.
 func FetchGethConfigWithRetry(ctx context.Context, rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 	var lastErr error
 	for i := 0; i < GethRetryAttempts; i++ {

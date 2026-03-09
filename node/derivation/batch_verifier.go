@@ -150,7 +150,7 @@ func NewBatchVerifier(ctx context.Context, cfg *Config, vt *validator.Validator,
 		return nil, fmt.Errorf("get beforeMoveBlockCtx ABI: %w", err)
 	}
 
-	// Fetch upgrade transition config from geth (retries until geth is ready or ctx is cancelled)
+	// Fetch upgrade transition config from geth (retries until geth is ready or ctx is canceled)
 	gethCfg, err := types.FetchGethConfigWithRetry(ctx, cfg.L2.EthAddr, logger)
 	if err != nil {
 		l1Client.Close()
@@ -573,7 +573,7 @@ func (bv *BatchVerifier) verifyBatchTransactions(ctx context.Context, l2Client B
 
 		// Verify L1 message count against the blob-decoded block context (cross-validates
 		// the blob-side l1MsgNum with the actual L2 block; complements Step 4's calldata check).
-		if l1MsgCount != uint16(bc.l1MsgNum) {
+		if l1MsgCount != bc.l1MsgNum {
 			return fmt.Errorf("block %d: L1 message tx count mismatch: blob=%d L2=%d",
 				bc.Number, bc.l1MsgNum, l1MsgCount)
 		}
