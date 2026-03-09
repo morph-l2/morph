@@ -48,6 +48,12 @@ func main() {
 }
 
 func L2NodeMain(ctx *cli.Context) error {
+	// rootCtx is cancelled on OS signals, which propagates to startup retries
+	// (e.g. NewBatchVerifier) so a down L2 endpoint never blocks startup forever.
+	rootCtx, rootCancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGQUIT)
+	defer rootCancel()
+
 	var (
 		err         error
 		executor    *node.Executor
@@ -112,7 +118,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		BeaconRpc:             ctx.GlobalString(flags.L1BeaconAddr.Name),
 		BaseHeight:            ctx.GlobalUint64(flags.DerivationBaseHeight.Name),
 	}
-	bv, bvErr := derivation.NewBatchVerifier(context.Background(), bvCfg, nil, nodeConfig.Logger)
+	bv, bvErr := derivation.NewBatchVerifier(rootCtx, bvCfg, nil, nodeConfig.Logger)
 	if bvErr != nil {
 		// BatchVerifier is non-critical; fall back to lightweight state-root-only check
 		nodeConfig.Logger.Error("failed to create BatchVerifier, falling back to state-root-only validation", "error", bvErr)
@@ -127,14 +133,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		return fmt.Errorf("failed to start BlockTagService: %w", err)
 	}
 
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	<-interruptChannel
+	<-rootCtx.Done()
 
 	if ms != nil {
 		ms.Stop()
