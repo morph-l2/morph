@@ -163,19 +163,13 @@ pub trait TxTrace {
     fn sig_v(&self) -> u64;
 
     /// Get morph tx `version`.
-    fn morph_tx_version(&self) -> u8 {
-        0
-    }
+    fn morph_tx_version(&self) -> u8;
 
     /// Get morph tx `reference`.
-    fn morph_tx_reference(&self) -> Option<B256> {
-        None
-    }
+    fn morph_tx_reference(&self) -> Option<B256>;
 
     /// Get morph tx `memo`.
-    fn morph_tx_memo(&self) -> Option<Bytes> {
-        None
-    }
+    fn morph_tx_memo(&self) -> Option<Bytes>;
 
     /// Try to build a envelope tx
     fn try_build_tx_envelope(&self) -> Result<MorphTxEnvelope, SignatureError> {
