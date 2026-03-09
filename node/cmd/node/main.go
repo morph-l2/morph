@@ -12,7 +12,7 @@ import (
 	"github.com/tendermint/tendermint/privval"
 	"github.com/urfave/cli"
 
-	"morph-l2/node/blocktag"
+	"morph-l2/node/batchprocessor"
 	"morph-l2/node/cmd/keyconverter"
 	node "morph-l2/node/core"
 	"morph-l2/node/derivation"
@@ -48,18 +48,18 @@ func main() {
 }
 
 func L2NodeMain(ctx *cli.Context) error {
-	// rootCtx is cancelled on OS signals, which propagates to startup retries
+	// rootCtx is canceled on OS signals, which propagates to startup retries
 	// (e.g. NewBatchVerifier) so a down L2 endpoint never blocks startup forever.
 	rootCtx, rootCancel := signal.NotifyContext(context.Background(),
 		os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGQUIT)
 	defer rootCancel()
 
 	var (
-		err         error
-		executor    *node.Executor
-		ms          *mock.Sequencer
-		tmNode      *tmnode.Node
-		blockTagSvc *blocktag.BlockTagService
+		err      error
+		executor *node.Executor
+		ms       *mock.Sequencer
+		tmNode   *tmnode.Node
+		bp       *batchprocessor.BatchProcessor
 
 		nodeConfig = node.DefaultConfig()
 	)
@@ -103,34 +103,31 @@ func L2NodeMain(ctx *cli.Context) error {
 		}
 	}
 
-	// Start BlockTagService
-	blockTagConfig := blocktag.DefaultConfig()
-	if err := blockTagConfig.SetCliContext(ctx); err != nil {
-		return fmt.Errorf("blocktag config set cli context error: %w", err)
+	// Start BatchProcessor (replaces BlockTagService)
+	bpCfg := batchprocessor.DefaultConfig()
+	if err := bpCfg.SetCliContext(ctx); err != nil {
+		return fmt.Errorf("batchprocessor config set cli context error: %w", err)
 	}
 
-	// Build BatchVerifier for full batch validation.
-	// It reuses the same L1 addr / rollup address / L2 eth addr already parsed above.
 	bvCfg := &derivation.Config{
-		L1:                    &types.L1Config{Addr: blockTagConfig.L1Addr},
+		L1:                    &types.L1Config{Addr: bpCfg.L1Addr},
 		L2:                    &types.L2Config{EthAddr: nodeConfig.L2.EthAddr},
-		RollupContractAddress: blockTagConfig.RollupAddress,
+		RollupContractAddress: bpCfg.RollupAddress,
 		BeaconRpc:             ctx.GlobalString(flags.L1BeaconAddr.Name),
 		BaseHeight:            ctx.GlobalUint64(flags.DerivationBaseHeight.Name),
 	}
 	bv, bvErr := derivation.NewBatchVerifier(rootCtx, bvCfg, nil, nodeConfig.Logger)
 	if bvErr != nil {
-		// BatchVerifier is non-critical; fall back to lightweight state-root-only check
-		nodeConfig.Logger.Error("failed to create BatchVerifier, falling back to state-root-only validation", "error", bvErr)
+		nodeConfig.Logger.Error("failed to create BatchVerifier, batch verification disabled", "error", bvErr)
 		bv = nil
 	}
 
-	blockTagSvc, err = blocktag.NewBlockTagService(context.Background(), executor.L2Client(), blockTagConfig, bv, nodeConfig.Logger)
+	bp, err = batchprocessor.NewBatchProcessor(rootCtx, executor.L2Client(), bpCfg, bv, nodeConfig.Logger)
 	if err != nil {
-		return fmt.Errorf("failed to create BlockTagService: %w", err)
+		return fmt.Errorf("failed to create BatchProcessor: %w", err)
 	}
-	if err := blockTagSvc.Start(); err != nil {
-		return fmt.Errorf("failed to start BlockTagService: %w", err)
+	if err := bp.Start(); err != nil {
+		return fmt.Errorf("failed to start BatchProcessor: %w", err)
 	}
 
 	<-rootCtx.Done()
@@ -144,8 +141,8 @@ func L2NodeMain(ctx *cli.Context) error {
 			return stopErr
 		}
 	}
-	if blockTagSvc != nil {
-		blockTagSvc.Stop()
+	if bp != nil {
+		bp.Stop()
 	}
 
 	return nil

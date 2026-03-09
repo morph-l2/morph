@@ -11,21 +11,21 @@ and receive L2 blocks through P2P sync. The verification logic that lived inside
 service has been extracted into `BatchVerifier` — a **stateless, schedule-free component**
 that other parts of the node can call on demand.
 
-`BlockTagService` (`node/blocktag`) is the primary consumer: it calls `BatchVerifier` as
-part of its polling loop to perform full batch verification before promoting a batch to
-safe or finalized.
+`BatchProcessor` (`node/batchprocessor`) is the primary consumer: it sequentially walks
+every committed batch, calls `BatchVerifier` for full verification, and updates
+safe/finalized block tags on L2.
 
 ---
 
 ## Architecture
 
 ```
-BlockTagService (scheduler)
+BatchProcessor (scheduler, node/batchprocessor)
 │  polls L1 every N seconds
-│  determines safe / finalized batch index
-│  calls validateBatch(tagType, batchIndex, lastL2Block)
+│  maintains two sequential cursors: lastSafeBatchIndex, lastFinalizedBatchIndex
+│  walks batches from cursor+1 up to on-chain head
 │
-└─► BatchVerifier (stateless, no goroutines)
+└─► BatchVerifier (stateless, no goroutines, node/derivation)
         FetchBatchRoots(txHash)   — parse L1 calldata → BatchRoots
         FetchBatchData(txHash)    — fetch blobs → BatchInfo (optional)
         VerifyBatch(roots, data)  — 5-step verification against local L2
@@ -54,7 +54,7 @@ defer bv.Close()
 | `L2.EthAddr` | yes | L2 eth RPC endpoint |
 | `RollupContractAddress` | yes | Rollup contract on L1 |
 | `BeaconRpc` | no | Enables blob fetching (Step 5); skipped if empty |
-| `BaseHeight` | no | Snapshot base height; blocks ≤ this value are skipped |
+| `BaseHeight` | no | Snapshot base height; blocks <= this value are skipped |
 
 `NewBatchVerifier` fetches geth upgrade config at startup (retries until geth is ready).
 
@@ -123,9 +123,9 @@ Runs up to five verification steps against the local L2 node:
 | 5 | L2 user tx content: blob-decoded txs match actual L2 block txs byte-for-byte | batchData != nil |
 
 Steps 1 and 2 trigger `validator.ChallengeState` on mismatch when a Validator is
-configured and challenge is enabled. Steps 3–5 return errors only.
+configured and challenge is enabled. Steps 3-5 return errors only.
 
-Verification is silently skipped during an upgrade transition window (ZK→MPT geth
+Verification is silently skipped during an upgrade transition window (ZK->MPT geth
 switch) to avoid false positives while both geth versions coexist.
 
 Blocks at or below `baseHeight` are skipped in all steps — this is required for nodes
@@ -137,47 +137,91 @@ Closes the L1 and L2 RPC connections. Call once when the verifier is no longer n
 
 ---
 
-## Integration with BlockTagService
+## BatchProcessor (node/batchprocessor)
 
-`BlockTagService` accepts an optional `*BatchVerifier` at construction:
+`BatchProcessor` replaces the previous `BlockTagService` as the main scheduler for
+tracking safe/finalized block tags. Key differences from the old approach:
 
-```go
-blockTagSvc, err := blocktag.NewBlockTagService(ctx, l2Client, blockTagConfig, bv, logger)
+- **Sequential processing**: walks every batch in order from cursor+1 to the on-chain
+  head. No batch is skipped.
+- **Single polling loop**: one goroutine, one ticker. No separate safe/finalized
+  trackers or binary search.
+- **Simple cursor model**: two integer cursors (`lastSafeBatchIndex`,
+  `lastFinalizedBatchIndex`) track progress. `finalized <= safe` is always guaranteed.
+
+### Flow per tick
+
+```
+processTick()
+│
+├─ getSafeL1Head() = latest L1 block - safeConfirmations
+│  └─ getLastCommittedBatchAtBlock(safeL1Head)  → safe on-chain head
+│     └─ advanceSafe: for idx in (cursor+1 .. safeHead):
+│           processOneBatch(idx) → verify + get L2 block hash
+│           update lastSafeBatchIndex, safeL2BlockHash
+│
+├─ getLastCommittedBatchAtBlock(finalized)  → finalized on-chain head
+│  └─ advanceFinalized: for idx in (cursor+1 .. min(finalizedHead, safeCursor)):
+│        processOneBatch(idx) → verify + get L2 block hash
+│        update lastFinalizedBatchIndex, finalizedL2BlockHash
+│
+└─ notifyGeth() → SetBlockTags(safe, finalized) RPC to L2 geth
 ```
 
-- **`bv != nil`**: full batch verification via `BatchVerifier` (Steps 1–5 above).
-- **`bv == nil`**: lightweight fallback — only `CommittedStateRoots` on the Rollup
-  contract is compared against the local L2 state root.
+### processOneBatch(batchIndex)
 
-### CommitBatch log search
+1. `rollup.BatchDataStore(batchIndex)` — get the batch's `lastL2Block`
+2. If `lastL2Block > l2Head` — node not synced yet, stop advancing
+3. If `BatchVerifier` is available:
+   - `fetchCommitBatchTxHash(batchIndex)` — find L1 tx via `FilterLogs`
+   - `FetchBatchRoots` + `FetchBatchData` + `VerifyBatch`
+   - On failure: log error (TODO: define failure behavior)
+4. `HeaderByNumber(lastL2Block)` — get the L2 block hash
+5. Return `(lastL2Block, blockHash)`
 
-To call `FetchBatchRoots`, `BlockTagService` needs the L1 transaction hash of the
-`CommitBatch` event for the target batch. It finds this by calling `FilterLogs` on the
-L1 node, filtering by `RollupEventTopicHash` and the indexed `batchIndex`.
+### Cursor initialization
 
-Safe and finalized tags maintain **independent search trackers** (`safeSearchTracker`,
-`finalizedSearchTracker`) so that safe batch queries (which target more recent L1 blocks)
-cannot advance the search start beyond the point where finalized batch events are found.
+At startup, both cursors are initialized to `LastFinalizedBatchIndex` from the L1
+rollup contract, skipping already-finalized history. If the query fails, cursors
+start from 0.
 
-#### `l1SearchTracker`
+### Configuration (node/batchprocessor/config.go)
 
-A small helper that encapsulates the `FromBlock` management for `FilterLogs` calls.
-
-Two modes, selected once at construction:
-
-| Mode | Condition | Behaviour |
-|---|---|---|
-| **Fixed** | `L1StartBlock > 0` in config | `FromBlock` always returns the configured value; `Advance` is a no-op |
-| **Auto** | `L1StartBlock == 0` (default) | `FromBlock` starts at 0, refined at startup from the last finalized batch, then progressively advanced after each successful log query |
-
-At startup, `initSearchFromBlock` queries the `CommitBatch` event for
-`LastFinalizedBatchIndex` and advances both trackers to that L1 block number. This
-avoids a full genesis-to-tip scan on every restart. (If the query fails, trackers stay
-at their initial value — auto mode starts from 0, a one-time cost.)
+| Flag | Config field | Default | Notes |
+|---|---|---|---|
+| `--l1.node.addr` | `L1Addr` | — | L1 RPC URL |
+| `--rollup.contract.address` | `RollupAddress` | — | Rollup contract on L1 |
+| `--blocktag.safeConfirmations` | `SafeConfirmations` | `10` | L1 blocks before a batch is considered safe |
+| *(inherited)* | `PollInterval` | `12s` | Polling interval |
 
 ---
 
-## Configuration
+## main.go integration
+
+```go
+// Build BatchVerifier (optional, non-critical)
+bv, bvErr := derivation.NewBatchVerifier(rootCtx, bvCfg, nil, logger)
+if bvErr != nil {
+    logger.Error("BatchVerifier creation failed, verification disabled", "error", bvErr)
+    bv = nil
+}
+
+// Create and start BatchProcessor
+bp, err := batchprocessor.NewBatchProcessor(rootCtx, l2Client, bpCfg, bv, logger)
+bp.Start()
+
+// ...
+<-rootCtx.Done()
+bp.Stop()
+```
+
+`rootCtx` is created via `signal.NotifyContext` so that OS signals (SIGTERM, SIGINT)
+propagate to startup retries (e.g. `FetchGethConfigWithRetry` inside `NewBatchVerifier`)
+and the main blocking loop.
+
+---
+
+## Configuration (derivation)
 
 Relevant flags (all under `node/flags`):
 
@@ -187,23 +231,20 @@ Relevant flags (all under `node/flags`):
 | `--l1.beacon.addr` | `BeaconRpc` | — | L1 Beacon URL; blob fetching disabled if empty |
 | `--rollup.contract.address` | `RollupContractAddress` | — | Rollup contract on L1 |
 | `--derivation.baseHeight` | `BaseHeight` | `0` | Snapshot base height; 0 = started from genesis |
-| `--blocktag.safeConfirmations` | `SafeConfirmations` | `10` | L1 blocks before a batch is safe |
-| *(no flag)* | `L1StartBlock` | `0` | Fixed L1 scan start; set programmatically only. `0` = auto mode (tracker refined from last finalized batch at startup) |
 
 ---
 
 ## File map
 
-| File | Purpose |
-|---|---|
-| `batch_verifier.go` | `BatchVerifier`, `BatchRoots`, `BatchBlockContext`, `VerifyBatch` and all sub-checks |
-| `batch_info.go` | `BatchInfo`, blob-decoded batch representation |
-| `batch_decode.go` | `unpackCalldataWithABIs`, ABI version selection |
-| `beacon.go` | `L1BeaconClient`, blob sidecar fetching |
-| `blob_type.go` | Blob encoding/decoding helpers |
-| `blobs.go` | KZG commitment verification helpers |
-| `config.go` | `Config`, `DefaultConfig`, `SetCliContext` |
-| `base_client.go` | `BasicHTTPClient` for Beacon API |
-| `database.go` | Retained for potential future use (not active) |
-| `metrics.go` | Prometheus metrics stubs (retained, not wired to `BatchVerifier`) |
-
+| File | Package | Purpose |
+|---|---|---|
+| `derivation/batch_verifier.go` | derivation | `BatchVerifier`, `BatchRoots`, `BatchBlockContext`, `VerifyBatch` and all sub-checks |
+| `derivation/batch_info.go` | derivation | `BatchInfo`, blob-decoded batch representation |
+| `derivation/batch_decode.go` | derivation | `unpackCalldataWithABIs`, ABI version selection |
+| `derivation/beacon.go` | derivation | `L1BeaconClient`, blob sidecar fetching |
+| `derivation/blob_type.go` | derivation | Blob encoding/decoding helpers |
+| `derivation/blobs.go` | derivation | KZG commitment verification helpers |
+| `derivation/config.go` | derivation | `Config`, `DefaultConfig`, `SetCliContext` |
+| `derivation/base_client.go` | derivation | `BasicHTTPClient` for Beacon API |
+| `batchprocessor/processor.go` | batchprocessor | `BatchProcessor` — main scheduling loop, tag updates |
+| `batchprocessor/config.go` | batchprocessor | `Config`, `DefaultConfig`, `SetCliContext` |
