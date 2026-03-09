@@ -12,7 +12,7 @@ use prometheus::{Encoder, TextEncoder};
 use shadow_proving::{
     execute::try_execute_batch,
     metrics::{METRICS, REGISTRY},
-    shadow_prove::ShadowProver,
+    shadow_prove::{BatchProveInfo, ShadowProver},
     shadow_rollup::BatchSyncer,
     util::{read_env_var, read_parse_env},
     SHADOW_EXECUTE, SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
@@ -121,8 +121,11 @@ async fn main() {
             Err(broadcast::error::RecvError::Closed) => break,
         };
 
-        let result = match batch_syncer.sync_batch(batch_info, batch_header).await {
-            Ok(Some(batch)) => shadow_prover.prove(batch).await,
+        let result = match batch_syncer.sync_batch(batch_info, batch_header.clone()).await {
+            Ok(Some(batch)) => {
+                let prove_info = BatchProveInfo { batch_info: batch, batch_header };
+                shadow_prover.prove(prove_info).await
+            }
             Ok(None) => Ok(()),
             Err(e) => Err(e),
         };
@@ -172,7 +175,9 @@ fn init_shadow_proving(
 
     let shadow_prover = ShadowProver::new(
         signer.address(),
+        Address::from_str(&rollup).unwrap(),
         Address::from_str(&shadow_rollup).unwrap(),
+        l1_provider,
         verify_provider,
         l1_signer,
     );
@@ -300,8 +305,10 @@ async fn test_shadow() {
         return;
     }
     if prove {
-        let batch = batch_syncer.sync_batch(batch_info, batch_header).await.unwrap().unwrap();
-        shadow_prover.prove(batch).await.unwrap();
+        let batch =
+            batch_syncer.sync_batch(batch_info, batch_header.clone()).await.unwrap().unwrap();
+        let prove_info = BatchProveInfo { batch_info: batch, batch_header };
+        shadow_prover.prove(prove_info).await.unwrap();
     }
 }
 
