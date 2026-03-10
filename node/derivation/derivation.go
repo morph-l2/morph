@@ -296,6 +296,10 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			d.logger.Error("derive blocks interrupt", "error", err)
 			return
 		}
+		if lastHeader == nil {
+			d.logger.Error("derive returned nil header, skipping empty batch", "batchIndex", batchInfo.batchIndex)
+			continue
+		}
 
 		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())

@@ -38,7 +38,7 @@ When `confirmations` is not `finalized` (i.e. using `latest` or `safe`), each de
 **New config** (`node/derivation/config.go`):
 
 - `ReorgCheckDepth uint64` — how many recent L1 blocks to verify each loop (default: 64)
-- CLI flag: `--derivation.reorgCheckDepth` / env `MORPH_DERIVATION_REORG_CHECK_DEPTH`
+- CLI flag: `--derivation.reorgCheckDepth` / env `MORPH_NODE_DERIVATION_REORG_CHECK_DEPTH`
 
 **New methods** (`node/derivation/derivation.go`):
 
