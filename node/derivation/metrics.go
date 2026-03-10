@@ -27,6 +27,7 @@ type Metrics struct {
 	ReorgCount         metrics.Counter
 	RollbackCount      metrics.Counter
 	BlockMismatchCount metrics.Counter
+	Halted             metrics.Gauge
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -89,6 +90,12 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "block_mismatch_total",
 			Help:      "Total number of block context mismatches detected during verification",
 		}, labels).With(labelsAndValues...),
+		Halted: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "halted",
+			Help:      "Set to 1 when derivation is halted due to unrecoverable batch mismatch requiring manual intervention",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
@@ -126,6 +133,10 @@ func (m *Metrics) IncRollbackCount() {
 
 func (m *Metrics) IncBlockMismatchCount() {
 	m.BlockMismatchCount.Add(1)
+}
+
+func (m *Metrics) SetHalted() {
+	m.Halted.Set(1)
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {

@@ -317,6 +317,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				d.logger.Error("rollback failed, halting derivation to prevent infinite retry",
 					"target", rollbackTarget, "batchIndex", batchInfo.batchIndex, "error", err)
 				d.halted = true
+				d.metrics.SetHalted()
 				return
 			}
 
@@ -332,6 +333,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				d.logger.Error("CRITICAL: batch roots still mismatch after rollback and re-derive, halting derivation",
 					"batchIndex", batchInfo.batchIndex, "error", err)
 				d.halted = true
+				d.metrics.SetHalted()
 				return
 			}
 			d.logger.Info("rollback and re-derive succeeded", "batchIndex", batchInfo.batchIndex)
@@ -837,6 +839,7 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 				rollbackTarget := blockData.SafeL2Data.Number - 1
 				if err := d.rollbackLocalChain(rollbackTarget); err != nil {
 					d.halted = true
+					d.metrics.SetHalted()
 					return nil, fmt.Errorf("rollback to %d failed (derivation halted): %v", rollbackTarget, err)
 				}
 			} else {
