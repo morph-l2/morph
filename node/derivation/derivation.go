@@ -226,8 +226,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			d.metrics.IncReorgCount()
 			if err := d.handleL1Reorg(*reorgAt); err != nil {
 				d.logger.Error("handle L1 reorg failed", "err", err)
-				return
 			}
+			// Always return after reorg detection — don't continue processing in
+			// the same loop. Let the next poll interval re-fetch from the reset
+			// height. This avoids recording potentially unstable L1 block hashes
+			// if the chain is still reorging.
+			return
 		}
 	}
 
@@ -394,10 +398,11 @@ func (d *Derivation) handleL1Reorg(reorgAtL1Height uint64) error {
 	if reorgAtL1Height > d.startHeight {
 		d.db.WriteLatestDerivationL1Height(reorgAtL1Height - 1)
 	} else {
-		// Reorg at or before startHeight — reset to startHeight so next loop
-		// starts from the beginning. Write startHeight-1 so that start = startHeight.
+		// Reorg at or before startHeight — reset so next loop starts from startHeight.
 		if d.startHeight > 0 {
 			d.db.WriteLatestDerivationL1Height(d.startHeight - 1)
+		} else {
+			d.db.WriteLatestDerivationL1Height(0)
 		}
 	}
 
@@ -470,18 +475,18 @@ func (d *Derivation) verifyBlockContext(localHeader *eth.Header, blockData *Bloc
 				blockData.Number, localHeader.BaseFee.String(), blockData.BaseFee.String())
 		}
 	}
-	// Verify transaction count: batch txsNum should match the number of transactions
-	// in SafeL2Data (L1 messages + L2 transactions assembled during batch parsing).
+	// Batch internal consistency check: txsNum in the block context should match the
+	// actual number of transactions assembled in SafeL2Data (L1 messages + L2 txs).
+	// This catches batch parsing/corruption issues, not local-vs-L1 divergence.
+	// Local-vs-L1 transaction divergence is covered by state root verification
+	// in verifyBatchRoots (different txs → different state root).
 	if blockData.SafeL2Data != nil {
 		batchTxCount := len(blockData.SafeL2Data.Transactions)
 		if batchTxCount != int(blockData.txsNum) {
-			return fmt.Errorf("tx count mismatch at block %d: batchContext=%d, batchData=%d",
+			return fmt.Errorf("batch internal tx count inconsistency at block %d: blockContext.txsNum=%d, safeL2Data.Transactions=%d",
 				blockData.Number, blockData.txsNum, batchTxCount)
 		}
 	}
-	// NOTE: Full transaction-level comparison (tx hashes) against the local block
-	// requires BlockByNumber RPC which RetryableClient doesn't expose yet.
-	// State root verification in verifyBatchRoots covers transaction execution correctness.
 	return nil
 }
 
@@ -490,8 +495,8 @@ func (d *Derivation) recordL1Blocks(ctx context.Context, from, to uint64) {
 	for h := from; h <= to; h++ {
 		header, err := d.l1Client.HeaderByNumber(ctx, big.NewInt(int64(h)))
 		if err != nil {
-			d.logger.Error("failed to get L1 header for recording", "height", h, "err", err)
-			continue
+			d.logger.Error("failed to get L1 header for recording, will retry next loop", "height", h, "err", err)
+			return
 		}
 
 		var hashBytes [32]byte
