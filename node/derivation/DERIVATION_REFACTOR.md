@@ -50,7 +50,7 @@ When `confirmations` is not `finalized` (i.e. using `latest` or `safe`), each de
 
 **Flow**:
 
-```
+```text
 derivationBlock() loop start
 │
 ├─ [if not finalized] detectReorg()
@@ -80,7 +80,7 @@ When `derive()` encounters an L2 block that already exists locally, it now **com
 
 **`derive()` new flow for each block in batch**:
 
-```
+```text
 block.Number <= latestBlockNumber?
 ├─ YES (block exists)
 │   ├─ verifyBlockContext() passes → skip, continue
@@ -95,7 +95,7 @@ block.Number <= latestBlockNumber?
 
 **`derivationBlock()` batch-level verification**:
 
-```
+```text
 After derive(batchInfo) completes:
 │
 ├─ verifyBatchRoots() passes → normal
