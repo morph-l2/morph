@@ -334,7 +334,10 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 
 	// Step 5: Record L1 block hashes for reorg detection (only needed for non-finalized modes)
 	if d.confirmations != rpc.FinalizedBlockNumber {
-		d.recordL1Blocks(ctx, start, end)
+		if err := d.recordL1Blocks(ctx, start, end); err != nil {
+			d.logger.Error("recordL1Blocks failed, will retry next loop", "err", err)
+			return
+		}
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)
@@ -491,24 +494,24 @@ func (d *Derivation) verifyBlockContext(localHeader *eth.Header, blockData *Bloc
 }
 
 // recordL1Blocks saves L1 block hashes for reorg detection.
-func (d *Derivation) recordL1Blocks(ctx context.Context, from, to uint64) {
+// Returns an error if any header fetch fails — the caller must not advance
+// derivation height to avoid permanent gaps in L1 block hash tracking.
+func (d *Derivation) recordL1Blocks(ctx context.Context, from, to uint64) error {
 	for h := from; h <= to; h++ {
 		header, err := d.l1Client.HeaderByNumber(ctx, big.NewInt(int64(h)))
 		if err != nil {
-			d.logger.Error("failed to get L1 header for recording, will retry next loop", "height", h, "err", err)
-			return
+			return fmt.Errorf("failed to get L1 header at %d: %w", h, err)
 		}
 
 		var hashBytes [32]byte
 		copy(hashBytes[:], header.Hash().Bytes())
 
-		l1Block := &db.DerivationL1Block{
+		d.db.WriteDerivationL1Block(&db.DerivationL1Block{
 			Number: h,
 			Hash:   hashBytes,
-		}
-
-		d.db.WriteDerivationL1Block(l1Block)
+		})
 	}
+	return nil
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
