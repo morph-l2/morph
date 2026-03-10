@@ -133,7 +133,8 @@ After derive(batchInfo) completes:
 
 ### `rollbackLocalChain()` — geth SetHead integration
 
-Currently a stub that logs and returns nil. Needs:
+Currently a stub that returns an error. Any batch mismatch will be detected and logged, but the
+actual L2 chain rollback cannot proceed until this is implemented:
 
 1. Expose `SetL2Head(number uint64)` in `go-ethereum/eth/catalyst/l2_api.go`
 2. Add `SetHead` method to `go-ethereum/ethclient/authclient`
@@ -142,13 +143,20 @@ Currently a stub that logs and returns nil. Needs:
 
 Note: geth already has `BlockChain.SetHead(head uint64) error` — we just need to expose it through the engine API chain.
 
+### Transaction-level verification
+
+`verifyBlockContext` currently checks timestamp, gasLimit, baseFee, and batch-internal tx count
+consistency. Full transaction hash comparison against local blocks requires `BlockByNumber` RPC
+on `RetryableClient`, which is not yet exposed. State root verification in `verifyBatchRoots`
+covers transaction execution correctness as an indirect check.
+
 ### Concurrency safety
 
 When running as a verification thread alongside a sequencer, concurrent access between block production and rollback needs locking. This will be handled separately.
 
 ## How to Test
 
-1. **Existing behavior preserved**: Set `--derivation.confirmations` to finalized (default) — reorg detection is skipped, batch verification still runs.
+1. **Existing behavior preserved**: Set `--derivation.confirmations` to finalized (default) — reorg detection and L1 block hash recording are both skipped, batch verification still runs.
 2. **Latest mode**: Set `--derivation.confirmations` to `-2` (latest) — reorg detection activates, L1 block hashes are tracked.
 3. **Reorg detection**: Simulate by modifying a saved L1 block hash in DB — next loop should detect and clean up.
-4. **Batch verification**: When an existing L2 block matches L1 batch data, it logs "block verified" and skips. When mismatched, it logs the mismatch and attempts rollback (currently a no-op stub).
+4. **Batch verification**: When an existing L2 block matches L1 batch data, it logs "block verified" and skips. When mismatched, it logs the error and returns (rollback stub returns error, preventing silent continuation).

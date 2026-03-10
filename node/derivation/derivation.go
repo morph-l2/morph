@@ -222,7 +222,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			return
 		}
 		if reorgAt != nil {
-			d.logger.Error("L1 reorg detected, invoking reorg handler", "reorgAtL1Height", *reorgAt)
+			d.logger.Info("L1 reorg detected, invoking reorg handler", "reorgAtL1Height", *reorgAt)
 			d.metrics.IncReorgCount()
 			if err := d.handleL1Reorg(*reorgAt); err != nil {
 				d.logger.Error("handle L1 reorg failed", "err", err)
@@ -328,8 +328,10 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
 	}
 
-	// Step 5: Record L1 block hashes for reorg detection
-	d.recordL1Blocks(ctx, start, end)
+	// Step 5: Record L1 block hashes for reorg detection (only needed for non-finalized modes)
+	if d.confirmations != rpc.FinalizedBlockNumber {
+		d.recordL1Blocks(ctx, start, end)
+	}
 
 	d.db.WriteLatestDerivationL1Height(end)
 	d.metrics.SetL1SyncHeight(end)
@@ -354,8 +356,8 @@ func (d *Derivation) detectReorg(ctx context.Context) (*uint64, error) {
 		return nil, nil
 	}
 
-	// Check from newest to oldest for earliest divergence
-	for i := len(savedBlocks) - 1; i >= 0; i-- {
+	// Check from oldest to newest to find the earliest divergence point
+	for i := 0; i < len(savedBlocks); i++ {
 		block := savedBlocks[i]
 		header, err := d.l1Client.HeaderByNumber(ctx, big.NewInt(int64(block.Number)))
 		if err != nil {
@@ -363,7 +365,7 @@ func (d *Derivation) detectReorg(ctx context.Context) (*uint64, error) {
 		}
 		savedHash := common.BytesToHash(block.Hash[:])
 		if header.Hash() != savedHash {
-			d.logger.Error("L1 block hash mismatch detected",
+			d.logger.Info("L1 block hash mismatch detected",
 				"height", block.Number,
 				"savedHash", savedHash.Hex(),
 				"currentHash", header.Hash().Hex(),
@@ -391,6 +393,12 @@ func (d *Derivation) handleL1Reorg(reorgAtL1Height uint64) error {
 
 	if reorgAtL1Height > d.startHeight {
 		d.db.WriteLatestDerivationL1Height(reorgAtL1Height - 1)
+	} else {
+		// Reorg at or before startHeight — reset to startHeight so next loop
+		// starts from the beginning. Write startHeight-1 so that start = startHeight.
+		if d.startHeight > 0 {
+			d.db.WriteLatestDerivationL1Height(d.startHeight - 1)
+		}
 	}
 
 	return nil
@@ -400,17 +408,16 @@ func (d *Derivation) handleL1Reorg(reorgAtL1Height uint64) error {
 // This is only triggered when batch data comparison fails — i.e. the local L2 block
 // does not match the L1 batch data (block context mismatch or state root mismatch).
 // After rollback, the caller re-derives blocks using L1 batch data as source of truth.
-//
-// TODO: Implement actual rollback via geth SetHead engine API:
-//  1. Expose SetL2Head(number uint64) in go-ethereum/eth/catalyst/l2_api.go
-//  2. Add SetHead method to go-ethereum/ethclient/authclient
-//  3. Add SetHead method to node/types/retryable_client.go
-//  4. Call d.l2Client.SetHead(d.ctx, targetBlockNumber)
 func (d *Derivation) rollbackLocalChain(targetBlockNumber uint64) error {
-	d.logger.Info("L2 chain rollback not yet implemented",
+	d.logger.Error("L2 chain rollback not yet implemented",
 		"targetBlockNumber", targetBlockNumber)
 
-	return nil
+	// TODO: Implement actual rollback via geth SetHead engine API:
+	//  1. Expose SetL2Head(number uint64) in go-ethereum/eth/catalyst/l2_api.go
+	//  2. Add SetHead method to go-ethereum/ethclient/authclient
+	//  3. Add SetHead method to node/types/retryable_client.go
+	//  4. Call d.l2Client.SetHead(d.ctx, targetBlockNumber)
+	return fmt.Errorf("rollback not implemented yet, target=%d", targetBlockNumber)
 }
 
 // verifyBatchRoots verifies that the local state root and withdrawal root match the L1 batch data.
@@ -463,6 +470,18 @@ func (d *Derivation) verifyBlockContext(localHeader *eth.Header, blockData *Bloc
 				blockData.Number, localHeader.BaseFee.String(), blockData.BaseFee.String())
 		}
 	}
+	// Verify transaction count: batch txsNum should match the number of transactions
+	// in SafeL2Data (L1 messages + L2 transactions assembled during batch parsing).
+	if blockData.SafeL2Data != nil {
+		batchTxCount := len(blockData.SafeL2Data.Transactions)
+		if batchTxCount != int(blockData.txsNum) {
+			return fmt.Errorf("tx count mismatch at block %d: batchContext=%d, batchData=%d",
+				blockData.Number, blockData.txsNum, batchTxCount)
+		}
+	}
+	// NOTE: Full transaction-level comparison (tx hashes) against the local block
+	// requires BlockByNumber RPC which RetryableClient doesn't expose yet.
+	// State root verification in verifyBatchRoots covers transaction execution correctness.
 	return nil
 }
 

@@ -158,10 +158,8 @@ func (s *Store) WriteSyncedL1Messages(messages []types.L1Message, latestSynced u
 
 // DerivationL1Block stores L1 block info for reorg detection.
 type DerivationL1Block struct {
-	Number     uint64
-	Hash       [32]byte
-	BatchIndex uint64 // 0 means no batch in this block
-	L2EndBlock uint64 // last L2 block number in the batch (0 if no batch)
+	Number uint64
+	Hash   [32]byte
 }
 
 func (s *Store) WriteDerivationL1Block(block *DerivationL1Block) {
